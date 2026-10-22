@@ -14,21 +14,31 @@
  * nothing renders yet (M4 starts here).
  */
 #include "game.h"
+#include "osystem.h"
+
+int resources_init(const OSystem *osys) {
+    int res_init_state = 
+        res_init(osys) || video_init(osys) || palette_init(osys) ||
+        font_init(osys) || statusbar_init(osys) || scene_init(osys) ||
+        level_init(osys) || entity_init(osys) || script_init(osys) ||
+        audio_init(osys) || save_init(osys) || frontend_init(osys);
+    
+    if (res_init_state) osys->fatalError("module init failed");
+
+    return res_init_state;
+}
 
 int game_main(const OSystem *osys)
 {
+    // Setup the video
     osys->videoSetMode();
 
-    if (res_init(osys) || video_init(osys) || palette_init(osys) ||
-        font_init(osys) || statusbar_init(osys) || scene_init(osys) ||
-        level_init(osys) || entity_init(osys) || script_init(osys) ||
-        audio_init(osys) || save_init(osys) || frontend_init(osys))
-        osys->fatalError("module init failed");
+    // Initialize resources (and exit if we fail)
+    if (resources_init(osys)) return 1;
 
     /* TODO(M4): the intro sequence, then the level walk, then menu_loop's
      * event loop.  The heartbeat: the backend calls the tick below. */
-    for (;;)
-        frontend_tick();
+    for (;;) frontend_tick();
 
     return 0;
 }
