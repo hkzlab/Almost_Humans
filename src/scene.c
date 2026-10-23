@@ -380,10 +380,16 @@ int scene_playLevelIntro(unsigned introIndex)
  * The quit cue (frame 385) ends it; the frame counter ran 0..386 live.
  * No key skip: the loop ends on the quit cue alone.
  *
- * Shortcut: the unidentified helpers around the load (b7df after
- * words.bit, bdbc at b685) and the fade calls (c0af/c0b8/c0c6) are not
- * ported — the words.bit display role and the fade sequencing land with
- * the palette/video work. */
+ * The present (deplanarise_bitmap, 1000:BB05) shows the pool's rows 4-183
+ * in the visible rows 0-179 — the port composes both stages into its flat
+ * page.  The bar (the transition handler's words expansion, visible rows
+ * 182-197, colours 0xE0-0xEF = bac's grey gradient) persists below every
+ * present.
+ *
+ * Shortcut: the palette fades (c0af/c0b8/c0c6, the transition's dimmed
+ * reload and b7c0's bank fade-in) are not ported — the bar's colours stay
+ * at full brightness.  The ITB title card (present_frame 1000:BDBC, shown
+ * through the initial 280-tick dwell) is ported. */
 
 typedef enum {
     BOOT_START,
@@ -399,6 +405,9 @@ static uint8_t  *bootBac;         /* intro\bac.bit — scroll source + palette *
 static uint8_t  *bootTreetop;     /* intro\treetop.bit 140x113               */
 static uint8_t  *bootTreebot;     /* intro\treebot.bit 21x59                 */
 static uint8_t  *bootApple;       /* intro\apple.spr 16x16                   */
+static uint8_t  *bootWords;       /* intro\words.bit — the bar's 1-bit text  */
+static uint8_t   boot_bar[16u * 320u];  /* the visible bar, rows 182-197     */
+static int       boot_bar_arg = -1;     /* the transition the bar holds      */
 static uint8_t  *bootRsc;         /* intro\intro.rsc — the display list      */
 static uint32_t  bootRscSize;
 static uint32_t *bootEntries;
@@ -420,6 +429,7 @@ static void boot_unload(void)
     free(bootTreetop); bootTreetop = NULL;
     free(bootTreebot); bootTreebot = NULL;
     free(bootApple); bootApple = NULL;
+    free(bootWords); bootWords = NULL;
     free(bootRsc); bootRsc = NULL; bootRscSize = 0;
     free(bootEntries); bootEntries = NULL; bootEntryCount = 0;
     free(bootListBuf); bootListBuf = NULL;
@@ -517,36 +527,79 @@ static void boot_blit_record(const uint8_t *rsc, uint32_t rscSize,
 }
 
 /* blit_display_list (1000:B955): blit the current group's records; returns
- * the position after the group's 0xFFFF terminator. */
-static uint32_t boot_blit_group(const uint8_t *rsc, uint32_t rscSize,
+ * the position after the group's 0xFFFF terminator.  The records are the
+ * decoded object 0's OWN TAIL — §8.7a: nobody builds the list at runtime,
+ * `MOV SI,[0x6468]` ([0x6468] = obj0 base+2) walks the scratch segment, so
+ * the records read from the DECODED buffer and bounds against its size.
+ * The objects themselves still LZW-decode out of the raw RSC's table. */
+static uint32_t boot_blit_group(const uint8_t *listBuf, uint32_t listSize,
+                                const uint8_t *rsc, uint32_t rscSize,
                                 const uint32_t *entries, unsigned entryCount,
                                 uint8_t *objBuf, uint32_t listPos, uint8_t *page)
 {
     uint32_t si = listPos;
     for (;;) {                                     /* the group's records */
-        if (si + 4 > rscSize) break;
-        uint16_t dest = rd_le16(rsc + si);
-        uint16_t idx  = rd_le16(rsc + si + 2);
+        if (si + 4 > listSize) break;
+        uint16_t dest = rd_le16(listBuf + si);
+        uint16_t idx  = rd_le16(listBuf + si + 2);
         si += 4;
         boot_blit_record(rsc, rscSize, entries, entryCount,
                          objBuf, idx, dest, bootListBuf, bootListSize, page);
-        if (si + 2 > rscSize) break;
-        if (rd_le16(rsc + si) == 0xFFFFu) { si += 2; break; }   /* the group end */
+        if (si + 2 > listSize) break;
+        if (rd_le16(listBuf + si) == 0xFFFFu) { si += 2; break; }   /* the group end */
     }
     return si;
 }
 
 /* The seek (cmd 4): walk `frame` 0xFFFF group terminators from the list
- * start — the group for `frame`.  Returns the group's offset. */
-static uint32_t boot_seek(const uint8_t *rsc, uint32_t rscSize,
+ * start — the group for `frame`.  The terminators live in the decoded
+ * object 0's tail (§8.7a: the list is consumed straight out of the decoded
+ * object, [0x6468] runs in the scratch segment), so the walk bounds
+ * against the DECODED size, not the raw RSC file.  Returns the group's
+ * offset in the decoded buffer. */
+static uint32_t boot_seek(const uint8_t *listBuf, uint32_t listSize,
                           uint32_t listStart, unsigned frame)
 {
     uint32_t si = listStart;
-    for (unsigned g = 0; g < frame && si + 2 <= rscSize; ) {
-        if (rd_le16(rsc + si) == 0xFFFFu) { si += 2; g++; }
+    for (unsigned g = 0; g < frame && si + 2 <= listSize; ) {
+        if (rd_le16(listBuf + si) == 0xFFFFu) { si += 2; g++; }
         else si += 4;                              /* a [dest][idx] record */
     }
     return si;
+}
+
+/* the bar text (run_screen_transition's builder, 1000:B89D -> B8A8): the
+ * words' 1-bit block at [0x8689 + arg*0x258] — 16 rows × 40 bytes, each
+ * bit = one pixel, MSB first, colour 0xE0+row (bac's grey gradient bank)
+ * or black — written into the visible bar, rows 182-197, once per
+ * transition; the per-frame present never touches those rows so the bar
+ * persists until the next transition. */
+static void boot_bar_draw(unsigned arg)
+{
+    for (unsigned r = 0; r < 16u; r++) {
+        uint8_t *dst = boot_bar + r * 320u;
+        const uint8_t *src = bootWords + arg * 600u + r * 40u;
+        for (unsigned x = 0; x < 320u; x++) {
+            uint8_t b = src[x / 8u];
+            dst[x] = ((b >> (7u - (x % 8u))) & 1u) ? (uint8_t)(0xE0u + r) : 0u;
+        }
+    }
+}
+
+/* deplanarise_bitmap (1000:BB05) — the present.  The visible page (chain-4
+ * mode 13h, pitch 80 bytes/row/plane) is filled from the pool's rows 4-183
+ * (SI+0x500, 180 rows): visible row v = pool row v+4.  The visible rows
+ * 180-199 are outside every present — the bar (run_screen_transition's
+ * direct A000 writes, rows 182-197, colours 0xE0-0xEF = bac's grey
+ * gradient) persists there until the next transition redraws it; rows
+ * 180-181 and 198-199 stay black.  The port keeps one flat page, so the
+ * compose folds both stages into it. */
+static void boot_compose_present(uint8_t *page)
+{
+    memmove(page, page + 0x500u, 180u * 320u);   /* pool rows 4-183 */
+    memset(page + 180u * 320u, 0, 2u * 320u);    /* rows 180-181    */
+    memcpy(page + 182u * 320u, boot_bar, 16u * 320u);
+    memset(page + 198u * 320u, 0, 2u * 320u);    /* rows 198-199    */
 }
 
 int scene_playBootIntro(void)
@@ -561,11 +614,10 @@ int scene_playBootIntro(void)
         bootTreetop = res_loadChunk("INTRO\\TREETOP.BIT", NULL, NULL);
         bootTreebot = res_loadChunk("INTRO\\TREEBOT.BIT", NULL, NULL);
         bootApple = res_loadChunk("INTRO\\APPLE.SPR", NULL, NULL);
+        bootWords = res_loadChunk("INTRO\\WORDS.BIT", NULL, NULL);
         bootRsc = res_loadChunk("INTRO\\INTRO.RSC", &bootRscSize, NULL);
-        if (!bootBac || !bootTreetop || !bootTreebot || !bootApple || !bootRsc) {
-            fprintf(stderr, "DBG boot_start: load failed (bac=%p tt=%p tb=%p ap=%p rsc=%p)\n",
-                    (void*)bootBac, (void*)bootTreetop, (void*)bootTreebot,
-                    (void*)bootApple, (void*)bootRsc);
+        if (!bootBac || !bootTreetop || !bootTreebot || !bootApple ||
+            !bootWords || !bootRsc) {
             boot_unload();
             boot_phase = BOOT_DONE;
             return 0;
@@ -573,6 +625,27 @@ int scene_playBootIntro(void)
         bootListBuf = malloc(OBJ_SEG_SIZE);
         bootObj = malloc(OBJ_SEG_SIZE);
         if (!bootListBuf || !bootObj) { boot_unload(); boot_phase = BOOT_DONE; return 0; }
+
+        /* the ITB title card (present_frame 1000:BDBC: the 64768-byte card
+         * = a 64000-byte image + palette, deplanarised once and displayed
+         * through the 280-tick dwell — b6ea spins [0x5AC8] >= 0x118).  The
+         * card's own palette (bdbc, SI=0xFA00) is superseded by bac's
+         * (b6bc) before the dwell, so the card displays through bac's
+         * palette — the port does the same. */
+        {
+            uint32_t itb_size = 0;
+            uint8_t *itb = res_loadChunk("INTRO\\ITB.BIT", &itb_size, NULL);
+            if (!itb || itb_size < 64000u) {
+                free(itb);
+                boot_unload();
+                boot_phase = BOOT_DONE;
+                return 0;
+            }
+            memcpy(video_page(0), itb, 64000u);
+            free(itb);
+        }
+        /* the words stash (b7df: 4160 bytes copied to 202F:0x8689 — the
+         * bar's 1-bit text, consumed by the transition handler) */
 
         bootEntryCount = bootRscSize / 4u;
         bootEntries = malloc(bootEntryCount * sizeof(uint32_t));
@@ -616,10 +689,20 @@ int scene_playBootIntro(void)
             return 0;
         }
         if (script_seekPending(&boot_script)) {
-            bootListPos = boot_seek(bootRsc, bootRscSize, bootListStart,
+            bootListPos = boot_seek(bootListBuf, bootListSize, bootListStart,
                                     script_seekFrame(&boot_script));
             bootFrame = script_seekFrame(&boot_script);
             script_seekDone(&boot_script);
+        }
+        /* the transition cue (cmd 1): the bar's text redraw —
+         * run_screen_transition (1000:B82E) re-expands the words' block
+         * arg into the visible bar */
+        {
+            unsigned ti = script_transitionIndex(&boot_script);
+            if ((int)ti != boot_bar_arg) {
+                boot_bar_arg = (int)ti;
+                boot_bar_draw(ti);
+            }
         }
         /* update_scene (1000:B9B5): the scroll render + the sprites; the
          * scroll position advances after the render (when scroll is on) */
@@ -639,7 +722,8 @@ int scene_playBootIntro(void)
          * per frame — when it expires, the next group + frame */
         {
             uint8_t *page = video_page(0);
-            uint32_t next = boot_blit_group(bootRsc, bootRscSize, bootEntries,
+            uint32_t next = boot_blit_group(bootListBuf, bootListSize,
+                                            bootRsc, bootRscSize, bootEntries,
                                             bootEntryCount, bootObj, bootListPos,
                                             page);
             if (--bootDwellCount == 0) {
@@ -648,6 +732,11 @@ int scene_playBootIntro(void)
                 bootFrame++;
             }
         }
+        /* the present: the pool's rows 4-183 into the visible rows 0-179
+         * (deplanarise_bitmap), the bar (rows 182-197) and the black
+         * margins composed in — the original's bar lives in the visible
+         * page below every present, untouched until the next transition */
+        boot_compose_present(video_page(0));
         scene_osys->videoPresent(0);
         bootWaitTicks = 2u;                /* the 2-tick frame wait */
         boot_phase = BOOT_WAIT;

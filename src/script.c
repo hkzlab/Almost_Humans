@@ -11,8 +11,11 @@
  *
  * Dispatch semantics (the game's interpreter, 1000:B809): a cue fires when
  * its frame EQUALS the current frame (JE) — a cue whose frame was passed
- * never fires and blocks the cursor until a seek rewinds the counter.
- * The player owns the frame counter and passes it to script_fire().
+ * never fires and blocks the cursor until a seek rewinds the counter.  The
+ * seek handler rewrites the counter MID-SCAN (b92d) and the loop continues
+ * against the new value, so after a seek the remaining cues compare against
+ * the seek's target, not the frame the call started with.  The player owns
+ * the counter and passes it to script_fire().
  */
 #include "game.h"
 #include <stddef.h>
@@ -40,8 +43,12 @@ void script_start(CueScript *s, const uint16_t *cues, unsigned cueCount)
     s->groupDwell = 1u;              /* the dwell cue at frame 0 sets it   */
 }
 
-/* Fire every cue whose frame == `frame` (the game's JE dispatch — a
- * passed cue blocks the cursor until a seek rewinds the counter). */
+/* Fire every cue whose frame == the current frame (the game's JE dispatch —
+ * a passed cue blocks the cursor until a seek rewinds the counter).  The
+ * comparison operand is the LIVE counter [0x6466]: the seek handler rewrites
+ * it mid-scan (b92d), and the loop continues (`JMP b80d`) against the NEW
+ * value — a cue whose frame the seek jumped past does not fire in this
+ * pass. */
 void script_fire(CueScript *s, unsigned frame)
 {
     s->frame = frame;
@@ -50,7 +57,7 @@ void script_fire(CueScript *s, unsigned frame)
         uint16_t f   = s->cues[s->cursor * 3u];
         uint16_t cmd = s->cues[s->cursor * 3u + 1u];
         uint16_t arg = s->cues[s->cursor * 3u + 2u];
-        if (f != frame) break;                  /* JE: fire on equal only */
+        if (f != s->frame) break;               /* JE vs the LIVE counter */
 
         s->cursor++;
         switch (cmd) {
@@ -60,6 +67,7 @@ void script_fire(CueScript *s, unsigned frame)
         case CUE_SEEK:
             s->seekFrame = arg;
             s->seekPending = 1;
+            s->frame = arg;      /* b92d: [0x6466] = arg, the scan continues */
             break;
         case CUE_QUIT:       s->quit = 1;            break;
         case CUE_SCROLL:     s->scrollDelta = arg;   break;
