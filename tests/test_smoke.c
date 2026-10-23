@@ -13,7 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+#include "compat.h"
 
 extern const OSystem osys_null;
 extern void osys_null_inputScript(const InputState *states, unsigned n);
@@ -50,7 +50,7 @@ int main(int argc, char **argv)
     }
     fclose(f);
 
-    if (chdir(vol_dir)) { perror(vol_dir); return 1; }
+    if (compat_chdir(vol_dir)) { perror(vol_dir); return 1; }
 
     int bad = 0;
 

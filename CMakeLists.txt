@@ -1,10 +1,29 @@
 cmake_minimum_required(VERSION 3.24)
 
-set(CMAKE_C_COMPILER clang)
+# The toolchain: clang stays the default wherever it is on PATH (the Linux
+# build, and the msys64 clangarm64 one on Windows/ARM64); an explicit
+# -DCMAKE_C_COMPILER or $CC always wins, and a configure with neither falls
+# back to CMake's own detection (MSVC on Windows without clang).
+if(NOT DEFINED CMAKE_C_COMPILER AND NOT DEFINED ENV{CC})
+    find_program(HUMANSRE_CLANG clang)
+    if(HUMANSRE_CLANG)
+        set(CMAKE_C_COMPILER "${HUMANSRE_CLANG}")
+    endif()
+endif()
 project(HumansRE C)
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
+
+# The strict warnings, per toolchain spelling.  MSVC needs /utf-8 (the
+# sources carry UTF-8 text in their comments).
+function(humansre_warnings tgt)
+    if(MSVC)
+        target_compile_options(${tgt} PRIVATE /W4 /WX /utf-8)
+    else()
+        target_compile_options(${tgt} PRIVATE -Wall -Wextra -Werror)
+    endif()
+endfunction()
 
 # The game core: pure C99, no port #ifdefs, no dependencies beyond the CRT
 # (port_structure.md §5).  It talks to the machine only through OSystem.
@@ -24,13 +43,13 @@ add_library(core STATIC
     src/save.c
 )
 target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_compile_options(core PRIVATE -Wall -Wextra -Werror)
+humansre_warnings(core)
 
 # The headless tests: assert-based, no framework.
 add_executable(test_loop tests/test_loop.c)
 target_include_directories(test_loop PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 target_link_libraries(test_loop PRIVATE core fs_posix)
-target_compile_options(test_loop PRIVATE -Wall -Wextra -Werror)
+humansre_warnings(test_loop)
 add_test(NAME flow COMMAND test_loop)
 
 # The resource fixture test runs against the real game data (HUMANS.00N);
@@ -42,7 +61,7 @@ set(HUMANS_FIX_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../binaries/resources/ENG"
 add_executable(test_res tests/test_res.c)
 target_include_directories(test_res PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 target_link_libraries(test_res PRIVATE core fs_posix)
-target_compile_options(test_res PRIVATE -Wall -Wextra -Werror)
+humansre_warnings(test_res)
 add_test(NAME res COMMAND test_res ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 
 # The scene player test: level 0 plays ANI00.ANI's 35 script entries onto
@@ -51,7 +70,7 @@ add_executable(test_scene tests/test_scene.c
     src/arch/null/OSystem.c)          # the null backend's test hooks
 target_include_directories(test_scene PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 target_link_libraries(test_scene PRIVATE core fs_posix)
-target_compile_options(test_scene PRIVATE -Wall -Wextra -Werror)
+humansre_warnings(test_scene)
 add_test(NAME scene COMMAND test_scene ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 
 # The full-game_main smoke test: a scripted input sequence drives the flow
@@ -60,7 +79,7 @@ add_executable(test_smoke tests/test_smoke.c
     src/arch/null/OSystem.c)          # the null backend's test hooks
 target_include_directories(test_smoke PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 target_link_libraries(test_smoke PRIVATE core fs_posix)
-target_compile_options(test_smoke PRIVATE -Wall -Wextra -Werror)
+humansre_warnings(test_smoke)
 add_test(NAME smoke COMMAND test_smoke ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 
 # The boot-intro test: load_intro_scene's display-list player over the
@@ -69,7 +88,7 @@ add_executable(test_boot tests/test_boot.c
     src/arch/null/OSystem.c)          # the null backend's test hooks
 target_include_directories(test_boot PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 target_link_libraries(test_boot PRIVATE core fs_posix)
-target_compile_options(test_boot PRIVATE -Wall -Wextra -Werror)
+humansre_warnings(test_boot)
 add_test(NAME boot COMMAND test_boot ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 
 # The level test: all 160 records from LEVELS\L*.BIN, the census + the
@@ -78,7 +97,7 @@ add_executable(test_level tests/test_level.c
     src/arch/null/OSystem.c)          # the null backend's test hooks
 target_include_directories(test_level PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 target_link_libraries(test_level PRIVATE core fs_posix)
-target_compile_options(test_level PRIVATE -Wall -Wextra -Werror)
+humansre_warnings(test_level)
 add_test(NAME level COMMAND test_level ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 
 enable_testing()
@@ -96,7 +115,7 @@ add_executable(humans-null
     src/arch/null/main.c
 )
 target_link_libraries(humans-null PRIVATE core fs_posix)
-target_compile_options(humans-null PRIVATE -Wall -Wextra -Werror)
+humansre_warnings(humans-null)
 
 # The first real port (optional so the tree builds on machines without SDL3).
 find_package(SDL3 CONFIG QUIET)
@@ -109,7 +128,7 @@ if(SDL3_FOUND)
         src/arch/sdl3/audio.c
     )
     target_link_libraries(humans-sdl3 PRIVATE core fs_posix SDL3::SDL3)
-    target_compile_options(humans-sdl3 PRIVATE -Wall -Wextra -Werror)
+    humansre_warnings(humans-sdl3)
 else()
     message(STATUS "SDL3 not found - building only humans-null")
 endif()

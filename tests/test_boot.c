@@ -20,7 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+#include "compat.h"
 
 extern const OSystem osys_null;
 extern const uint8_t *osys_null_page(int which);
@@ -55,12 +55,12 @@ int main(int argc, char **argv)
     fclose(f);
 
     char fix_abs[512];
-    if (!realpath(fix_dir, fix_abs)) {
+    if (!compat_realpath(fix_dir, fix_abs)) {
         fprintf(stderr, "FAIL fixture tree %s unreadable\n", fix_dir);
         return 1;
     }
 
-    if (chdir(vol_dir)) { perror(vol_dir); return 1; }
+    if (compat_chdir(vol_dir)) { perror(vol_dir); return 1; }
 
     int bad = 0;
     scene_init(&osys_null);

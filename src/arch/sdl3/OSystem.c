@@ -3,7 +3,12 @@
 #include <SDL3/SDL.h>
 #include <stdlib.h>
 #include <stdio.h>
+#ifdef _WIN32
+#include <direct.h> /* chdir = _chdir on the Windows CRT */
+#define chdir _chdir
+#else
 #include <unistd.h>
+#endif
 
 void sdl3_videoInit(void);
 uint8_t *sdl3_videoPage(int which);
