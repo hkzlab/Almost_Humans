@@ -1,22 +1,21 @@
 /* arch/sdl3/timer.c — the fixed-tick source: the PIT/INT 8 heartbeat's
- * equivalent.  The main loop paces at ticksPerSec and calls tick() once
- * per tick (port_structure.md §3: the ISR body becomes the callback). */
+ * equivalent.  SDL's timer thread calls the tick callback at ticksPerSec;
+ * the game's foreground loop runs on the main thread (the same split as
+ * the original's ISR/foreground pair). */
 #include "osystem.h"
 #include <SDL3/SDL.h>
 
-static unsigned tick_ms = 55;   /* the PIT 18.2 Hz equivalent, rounded */
+static TickFn theTick;
+
+static Uint32 SDLCALL timerCb(void *userdata, SDL_TimerID id, Uint32 interval)
+{
+    (void)userdata; (void)id;
+    theTick();
+    return interval;                       /* repeat */
+}
 
 void sdl3_timerStart(unsigned ticksPerSec, TickFn tick)
 {
-    (void)ticksPerSec;
-    tick_ms = 55;
-    Uint64 next = SDL_GetTicks() + tick_ms;
-    for (;;) {
-        SDL_Delay(2);
-        Uint64 now = SDL_GetTicks();
-        while (now >= next) {
-            tick();
-            next += tick_ms;
-        }
-    }
+    theTick = tick;
+    SDL_AddTimer(1000u / ticksPerSec, timerCb, NULL);
 }

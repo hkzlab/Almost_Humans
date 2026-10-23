@@ -93,6 +93,7 @@ typedef struct {
     uint16_t timeB;         /* +0x09: difficulty B                       */
     uint16_t timeC;         /* +0x0B: difficulty C                       */
     uint8_t  map[640];      /* 32 columns x 20 rows, row-major           */
+    uint32_t mapFileOff;    /* the map's offset inside the L*.BIN image  */
     char     goal[128];     /* the goal text (CR = a line break)         */
     char     author[128];   /* the author text                           */
 } LevelData;

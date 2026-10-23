@@ -154,9 +154,14 @@ static void lz_match(LzState *s, unsigned n, unsigned distbits)
         if (s->p == 0) { s->under = 1; return; }  /* CMP DI,-1 -> END */
         s->p -= 1;                      /* source is read after the cursor step
                                          * (the reference's `p -= 1;
-                                         *  out[p] = out[p + d]`) — the source
-                                         * wraps within the 64K segment       */
-        byte = s->out[(s->p + d) & 0xFFFFu];
+                                         *  out[p] = out[p + d]`).  The
+                                         * original's ES:[BX+DI] is per-chunk:
+                                         * resource_load re-bases ES every 16K
+                                         * chunk (1000:9156), so the source
+                                         * never wraps at 64K of the flat
+                                         * buffer — the mask that put it there
+                                         * corrupted BG4's chunk 4. */
+        byte = s->out[s->p + d];
         s->out[s->p] = byte;
     }
 }

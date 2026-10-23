@@ -1,12 +1,14 @@
 /* arch/sdl3/video.c — window/renderer + the two 8bpp pages.
  *
- * The pages are core-owned abstract 320x200x8 buffers; the present converts
- * through the palette LUT into an ARGB texture (the palette lives here so
- * the core keeps its 6-bit palette semantics untouched). */
+ * The original's video: VGA mode X, 320x200x8bpp with a 6-bit DAC palette,
+ * displayed 4:3 on a CRT (the pixels 1.2x taller than wide).  The SDL3
+ * equivalent here: an ARGB8888 texture (320x200) carrying the indexed page
+ * through the palette LUT per present, rendered into a 320x240 logical
+ * size stretched over the window — the 1.2x vertical stretch preserved.
+ * The vsync paces the main loop to the display rate. */
 #include "osystem.h"
 #include <SDL3/SDL.h>
 #include <stdlib.h>
-#include <string.h>
 
 static SDL_Window   *win;
 static SDL_Renderer *ren;
@@ -14,13 +16,21 @@ static SDL_Texture  *tex;
 static uint8_t       pages[2][320 * 200];
 static uint32_t      lut[256];          /* the palette LUT, 6-bit expanded */
 
+/* 6-bit -> 8-bit: the original's values are the DAC's; the expand is << 2 | >> 4 */
+static uint8_t expand6(uint8_t v) { return (uint8_t)((v << 2) | (v >> 4)); }
+
 static void vid_setMode(void)
 {
-    if (!SDL_CreateWindowAndRenderer("HumansRE", 640, 400,
+    if (!SDL_CreateWindowAndRenderer("Humans RE", 960, 720,
                                      SDL_WINDOW_RESIZABLE, &win, &ren))
         SDL_Log("window: %s", SDL_GetError());
+    /* the 320x200 pixels on a 4:3 display: the pixels 1.2x tall — the
+     * window 960x720 = 3x wide, 3.6x tall, the draw space 320x200 */
+    SDL_SetRenderScale(ren, 960.0f / 320.0f, 720.0f / 200.0f);
+    SDL_SetRenderVSync(ren, 1);
     tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888,
                             SDL_TEXTUREACCESS_STREAMING, 320, 200);
+    for (unsigned i = 0; i < 256u; i++) lut[i] = 0xFF000000u;   /* opaque black */
 }
 
 static uint8_t *vid_page(int which) { return pages[which & 1]; }
@@ -28,15 +38,15 @@ static uint8_t *vid_page(int which) { return pages[which & 1]; }
 static void vid_present(int which)
 {
     const uint8_t *p = pages[which & 1];
-    uint32_t argb[320 * 200];
+    static uint32_t argb[320 * 200];
     for (int i = 0; i < 320 * 200; i++) argb[i] = lut[p[i]];
     SDL_UpdateTexture(tex, NULL, argb, 320 * 4);
-    SDL_RenderTexture(ren, tex, NULL, NULL);
+    SDL_SetRenderDrawColor(ren, 0, 0, 0, 255);
+    SDL_RenderClear(ren);
+    const SDL_FRect dst = { 0, 0, 320.0f, 200.0f };
+    SDL_RenderTexture(ren, tex, NULL, &dst);
     SDL_RenderPresent(ren);
 }
-
-/* 6-bit -> 8-bit: the original's values are the DAC's; the expand is << 2 | >> 4 */
-static uint8_t expand6(uint8_t v) { return (uint8_t)((v << 2) | (v >> 4)); }
 
 void sdl3_videoSetPalette(const uint8_t *p6, unsigned first, unsigned n)
 {

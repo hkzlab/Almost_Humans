@@ -19,6 +19,8 @@
 #include <unistd.h>
 
 extern const OSystem osys_null;
+extern const uint8_t *osys_null_page(int which);
+extern const uint8_t *osys_null_palette(void);
 
 static uint8_t *file_image;
 
@@ -47,7 +49,7 @@ int main(int argc, char **argv)
     const char *fix_dir = argc > 2 ? argv[2] : vol_dir;
 
     char path[512];
-    snprintf(path, sizeof path, "%s/HUMANS.001/LEVELS/LA.BIN", vol_dir);
+    snprintf(path, sizeof path, "%s/HUMANS.001", vol_dir);
     FILE *f = fopen(path, "rb");
     if (!f) {
         printf("skip: no volume files at %s (fixture data absent)\n", vol_dir);
@@ -144,8 +146,7 @@ int main(int argc, char **argv)
             unsigned id = fileIdx * 10u + rec;
             level_load(id);
             const LevelData *d = level_data();
-            uint32_t mapOff = 13u + strlen(d->goal) + 1u +
-                              strlen(d->author) + 1u + 8u;
+            uint32_t mapOff = d->mapFileOff;
             if (memcmp(d->map, file_image + mapOff, 640u) != 0) {
                 fprintf(stderr, "FAIL level %u: map bytes\n", id);
                 bad = 1;
@@ -183,6 +184,38 @@ int main(int argc, char **argv)
         bad = 1;
     }
 
-    if (!bad) printf("level tests: OK (the 160-record census + the byte-exact maps)\n");
+    /* 4. the level render (level 0: style 3 -> BD3 field L=4 -> BG4.RAW):
+     * the composite 320x200 viewport on page 0 and the BG's first 64
+     * palette entries, checksums against the python reference
+     * (re_formats.md §3-§5: BG fill + draw_terrain over it, +0x20 bias,
+     * viewport at scroll 0,0). */
+    {
+        if (level_load(0) != 0) {
+            fprintf(stderr, "FAIL level 0 reload\n");
+            bad = 1;
+        } else {
+            level_tick();
+            const uint8_t *page = osys_null_page(0);
+            uint32_t sum = 0, nz = 0;
+            for (unsigned i = 0; i < 64000u; i++) {
+                sum += page[i];
+                if (page[i]) nz++;
+            }
+            if (sum != 1242943u || nz != 26248u) {
+                fprintf(stderr, "FAIL level 0 page: sum %u nz %u\n",
+                        sum, nz);
+                bad = 1;
+            }
+            const uint8_t *pal = osys_null_palette();
+            uint32_t psum = 0;
+            for (unsigned i = 0; i < 192u; i++) psum += pal[i];
+            if (psum != 4188u) {
+                fprintf(stderr, "FAIL level 0 palette: sum %u\n", psum);
+                bad = 1;
+            }
+        }
+    }
+
+    if (!bad) printf("level tests: OK (the 160-record census + the byte-exact maps + the render)\n");
     return bad;
 }

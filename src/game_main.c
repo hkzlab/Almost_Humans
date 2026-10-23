@@ -100,6 +100,15 @@ int game_main(const OSystem *osys)
         InputState input;
         osys->eventsPoll(&input);
         if (input.quit) break;
+
+        /* the attract phase plays the boot intro first (the original's
+         * attract replays the intro); the dwell counts after it ends */
+        if (state == FLOW_ATTRACT && scene_playBootIntro()) {
+            osys->videoPresent(0);      /* the intro's rendered frame */
+            prev = state;
+            continue;
+        }
+
         state = gameflow_step(state, &input);
         if (state == FLOW_LEVEL) {
             /* entering the level: the header + map load, then its intro
@@ -112,7 +121,10 @@ int game_main(const OSystem *osys)
                 level_tick();          /* the intro done: the level runs */
             }
         }
-        osys->videoPresent(1);          /* the second page: blank for now */
+        /* the intro/level draw into page 0; the CRTC-flip equivalent shows
+         * the drawn page (the in-level page flip lands with the level
+         * rendering) */
+        osys->videoPresent(0);
         frontend_tick();                /* the menu/room content (stub)   */
         prev = state;
     }

@@ -1,7 +1,9 @@
-/* arch/sdl3/OSystem.c — the SDL3 vtable (port_structure.md §2). */
+/* arch/sdl3/OSystem.c — the SDL3 vtable + main (port_structure.md §2). */
 #include "osystem.h"
 #include <SDL3/SDL.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
 
 void sdl3_videoInit(void);
 uint8_t *sdl3_videoPage(int which);
@@ -27,9 +29,25 @@ const OSystem osys_sdl3 = {
     fatal
 };
 
-/* The arch layer owns main() (port_structure.md §2). */
-int main(void)
+/* The arch layer owns main() (port_structure.md §2).
+ *
+ * Usage: humans-sdl3 [path-to-game-resources]
+ * The path is chdir'd into so the filesystem module finds the volume files
+ * (HUMANS.000/001/002); without it the current directory is used. */
+int main(int argc, char **argv)
 {
+    if (argc > 1) {
+        if (chdir(argv[1]) != 0) {
+            fprintf(stderr, "cannot chdir to '%s'\n", argv[1]);
+            return 1;
+        }
+    }
+    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
+        fprintf(stderr, "SDL_Init: %s\n", SDL_GetError());
+        return 1;
+    }
     sdl3_eventsInit();
-    return game_main(&osys_sdl3);
+    int r = game_main(&osys_sdl3);
+    SDL_Quit();
+    return r;
 }

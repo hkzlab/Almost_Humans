@@ -563,6 +563,9 @@ int scene_playBootIntro(void)
         bootApple = res_loadChunk("INTRO\\APPLE.SPR", NULL, NULL);
         bootRsc = res_loadChunk("INTRO\\INTRO.RSC", &bootRscSize, NULL);
         if (!bootBac || !bootTreetop || !bootTreebot || !bootApple || !bootRsc) {
+            fprintf(stderr, "DBG boot_start: load failed (bac=%p tt=%p tb=%p ap=%p rsc=%p)\n",
+                    (void*)bootBac, (void*)bootTreetop, (void*)bootTreebot,
+                    (void*)bootApple, (void*)bootRsc);
             boot_unload();
             boot_phase = BOOT_DONE;
             return 0;

@@ -20,14 +20,6 @@ extern void osys_null_inputScript(const InputState *states, unsigned n);
 extern const uint8_t *osys_null_page(int which);
 extern const uint8_t *osys_null_palette(void);
 
-static unsigned xor16(const uint8_t *p, uint32_t n)
-{
-    unsigned v = 0;
-    for (uint32_t i = 0; i + 1 < n; i += 2)
-        v ^= (unsigned)p[i] | ((unsigned)p[i + 1] << 8);
-    return v;
-}
-
 static uint8_t *read_file(const char *path, uint32_t *size)
 {
     FILE *f = fopen(path, "rb");
@@ -42,7 +34,7 @@ static uint8_t *read_file(const char *path, uint32_t *size)
     return buf;
 }
 
-enum { SCRIPT_N = 1500 };
+enum { SCRIPT_N = 4000 };
 
 int main(int argc, char **argv)
 {
@@ -63,19 +55,20 @@ int main(int argc, char **argv)
     int bad = 0;
 
     /* the input script (per eventsPoll call):
-     *   0..349    idle      — the attract dwell (350 iterations)
-     *   350       fire      — menu confirm: FLOW_LEVEL, the intro starts
-     *   351..1249 idle      — the intro (2 polls per iteration in LEVEL:
-     *                         game_main's flow poll + scene.c's key poll):
-     *                         210-tick dwell + 35 objects x 6 ticks
-     *   1250..1251 key      — skip through the chain wait
-     *   1252..1498 idle      — the level proper (no content yet)
-     *   1499      quit      — game_main exits                              */
+     *   0..1799    idle     — the attract: the boot intro plays (~1441
+     *                           ticks) then the 350-tick dwell -> the menu
+     *   1800       fire     — menu confirm: FLOW_LEVEL, the level intro
+     *                           starts (ANI00, 2 polls per iteration)
+     *   1801..2999 idle     — the intro plays; the key at 3000 skips it
+     *   3002..3998 idle      — the level proper (no content yet)
+     *   3999       quit     — game_main exits                                */
     static InputState script[SCRIPT_N];
     memset(script, 0, sizeof script);
-    script[350].joyBits = 0x80u;          /* fire */
-    script[1250].lastKey = 1u;            /* any key: skip the intro */
-    script[1251].lastKey = 1u;
+    /* the attract plays the boot intro first (~1441 ticks), then the
+     * 350-tick dwell, then the menu waits for the fire */
+    script[1900].joyBits = 0x80u;         /* fire: menu -> level */
+    script[3000].lastKey = 1u;            /* any key: skip the level intro */
+    script[3001].lastKey = 1u;
     script[SCRIPT_N - 1].quit = 1u;
 
     osys_null_inputScript(script, SCRIPT_N);
@@ -85,38 +78,54 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    /* the intro's final page is on page 0 */
+    /* the page: the level's rendered viewport (level_tick: BG4 + the terrain
+     * tiles at scroll 0,0) — the byte-exact composite is test_level's; here
+     * the assertion is the coverage (the measured nonzero count of the
+     * level-0 composite's first 184 rows) */
     {
         const uint8_t *page = osys_null_page(0);
-        unsigned x = xor16(page, 320u * 200u);
-        unsigned sum = 0;
-        for (unsigned i = 0; i < 320u * 200u; i++) sum += page[i];
-        sum &= 0xFFFFu;
-        if (x != 0xb992u) {
-            fprintf(stderr, "FAIL page xor16=%#06x, want 0xb992\n", x);
-            bad = 1;
-        }
-        if (sum != 0xfec1u) {
-            fprintf(stderr, "FAIL page sum16=%#06x, want 0xfec1\n", sum);
+        unsigned nz = 0;
+        for (unsigned i = 0; i < 58880u; i++) if (page[i]) nz++;
+        if (nz != 24694u) {
+            fprintf(stderr, "FAIL page: the level render nz %u, want 24694\n", nz);
             bad = 1;
         }
     }
 
-    /* the palette is daily.bit's trailing 768 bytes */
+    /* the palette: the level intro installed daily.bit's 768 bytes; the
+     * level proper (level_tick) then rewrites the first 64 entries from
+     * level 0's background (style 3 -> BD3 field L=4 -> BG4.RAW, the
+     * 0xC0-byte copy at 202f:0x1593, re_formats.md §5) */
     {
-        uint32_t pal_size = 0;
+        uint32_t daily_size = 0, bg4_size = 0;
         snprintf(path, sizeof path, "%s/HUMANS.002/LBM/DAILY.BIT", fix_dir);
-        uint8_t *daily = read_file(path, &pal_size);
-        if (!daily || pal_size < 64000u + 768u) {
-            fprintf(stderr, "FAIL daily.bit fixture unreadable\n");
+        uint8_t *daily = read_file(path, &daily_size);
+        snprintf(path, sizeof path, "%s/HUMANS.001/BACKS/BG4.RAW", fix_dir);
+        uint8_t *bg4 = read_file(path, &bg4_size);
+        if (!daily || daily_size < 64000u + 768u ||
+            !bg4 || bg4_size != 163840u + 768u) {
+            fprintf(stderr, "FAIL palette fixtures unreadable\n");
             bad = 1;
-        } else if (memcmp(osys_null_palette(), daily + 64000u, 768u) != 0) {
-            fprintf(stderr, "FAIL palette != daily.bit's 768-byte tail\n");
-            bad = 1;
+        } else {
+            const uint8_t *pal = osys_null_palette();
+            for (unsigned i = 0; i < 192u; i++) {
+                if (pal[i] != bg4[163840u + i]) {
+                    fprintf(stderr, "FAIL palette byte %u: got %02x want BG4 %02x\n", i, pal[i], bg4[163840u + i]);
+                    bad = 1;
+                    break;
+                }
+            }
+            for (unsigned i = 192u; !bad && i < 768u; i++) {
+                if (pal[i] != daily[64000u + i]) {
+                    fprintf(stderr, "FAIL palette byte %u: got %02x want daily %02x\n", i, pal[i], daily[64000u + i]);
+                    bad = 1;
+                }
+            }
         }
         free(daily);
+        free(bg4);
     }
 
-    if (!bad) printf("smoke test: OK (flow + intro + page + palette)\n");
+    if (!bad) printf("smoke test: OK (flow + the boot intro + the level intro + the palette)\n");
     return bad;
 }
