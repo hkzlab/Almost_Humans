@@ -89,13 +89,15 @@ GameFlow gameflow_step(GameFlow state, const InputState *input)
 
 int game_main(const OSystem *osys)
 {
+    // Initialize the video mode
     osys->videoSetMode();
+
+    // Initialize resources
     if (resources_init(osys)) return 1;
 
     osys->timerStart(GAME_TICK_HZ, game_tick);
 
-    GameFlow state = FLOW_ATTRACT;
-    GameFlow prev = FLOW_ATTRACT;
+    GameFlow state = FLOW_ATTRACT, prev = FLOW_ATTRACT;
     unsigned last_tick = 0;
     for (;;) {
         /* the tick gate: one flow step per tick boundary, exactly like the
