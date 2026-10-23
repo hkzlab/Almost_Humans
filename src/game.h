@@ -83,10 +83,11 @@ int  scene_init(const OSystem *osys);
 /* introIndex = the level header's +0x01 byte: the intro-movie index
    (0..9; 0xFF = the level has no cutscene). */
 int  scene_playLevelIntro(unsigned introIndex);   /* the cd_file_op body   */
-/* The boot intro (load_intro_scene, 1000:B63B): INTRO.RSC's display list
- * over the scrolled bac.bit background, driven by the 202F:0x843C cue
- * list.  Per-tick like the level intro; plays once (no key skip — the
- * original's loop ends on the quit cue alone). */
+/* The boot intro (boot_intro_sequence, 1000:B590): the full four-stage
+ * chain — the Gametek logo (GAMETEK.RSC's display list), the IDI and FIRST
+ * cards, then the ITB card + INTRO.RSC's display list over the scrolled
+ * bac.bit background — driven by the 202F:0x843C cue list.  Per-tick like
+ * the level intro; plays once (key abort inside the logo stage only). */
 int  scene_playBootIntro(void);
 
 /* --- src/level.c — the level definitions (subsystem 9, §2) -------------

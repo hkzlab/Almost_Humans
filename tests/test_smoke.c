@@ -34,7 +34,7 @@ static uint8_t *read_file(const char *path, uint32_t *size)
     return buf;
 }
 
-enum { SCRIPT_N = 4000 };
+enum { SCRIPT_N = 8700 };
 
 int main(int argc, char **argv)
 {
@@ -55,21 +55,21 @@ int main(int argc, char **argv)
     int bad = 0;
 
     /* the input script (per eventsPoll call):
-     *   0..1799    idle     — the attract: the boot intro plays (~1788
-     *                           ticks: the card fades + the dwell + the
-     *                           black hold) then the 350-tick dwell
-     *   2400       fire     — menu confirm: FLOW_LEVEL, the level intro
+     *   0..6599    idle     — the attract: the full boot intro plays (~5887
+     *                           ticks: the gametek logo, the idi/first/itb
+     *                           cards, the scene) then the 350-tick dwell
+     *   6600       fire     — menu confirm: FLOW_LEVEL, the level intro
      *                           starts (ANI00, 2 polls per iteration)
-     *   2401..2999 idle     — the intro plays; the key at 3000 skips it
-     *   3002..3998 idle      — the level proper (no content yet)
-     *   3999       quit     — game_main exits                                */
+     *   6301..7699 idle     — the intro plays; the key at 7700 skips it
+     *   7701..8698 idle      — the level proper (no content yet)
+     *   8699       quit     — game_main exits                                */
     static InputState script[SCRIPT_N];
     memset(script, 0, sizeof script);
-    /* the attract plays the boot intro first (~1788 ticks), then the
-     * 350-tick dwell (~tick 2139), then the menu waits for the fire */
-    script[2400].joyBits = 0x80u;         /* fire: menu -> level */
-    script[3000].lastKey = 1u;            /* any key: skip the level intro */
-    script[3001].lastKey = 1u;
+    /* the attract plays the boot intro first (~5713 ticks), then the
+     * 350-tick dwell (~tick 6064), then the menu waits for the fire */
+    script[6600].joyBits = 0x80u;         /* fire: menu -> level */
+    script[7700].lastKey = 1u;            /* any key: skip the level intro */
+    script[7701].lastKey = 1u;
     script[SCRIPT_N - 1].quit = 1u;
 
     osys_null_inputScript(script, SCRIPT_N);

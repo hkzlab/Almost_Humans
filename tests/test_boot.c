@@ -117,18 +117,18 @@ int main(int argc, char **argv)
                     dump_ppm(dump_dir, dump_ticks[k], osys_null_page(0),
                              osys_null_palette());
         }
-        if (++ticks > 4000u) break;            /* runaways are failures   */
+        if (++ticks > 10000u) break;           /* runaways are failures   */
     }
     if (r != 0) {
         fprintf(stderr, "FAIL the boot intro did not finish (%u ticks)\n", ticks);
         return 1;
     }
-    /* the expected shape: the card fade-in + the 280-tick dwell + the
-     * fade-out + the 0x8C-tick black hold, then 387 frames x 3 calls
-     * (1 render + 2 wait) with the 6 transition blocks (the white flash +
-     * the 0xa-tick words hold), ending at the quit cue (frame 385). */
-    if (ticks < 1600u || ticks > 1900u) {
-        fprintf(stderr, "FAIL tick count %u outside [1600, 1900]\n", ticks);
+    /* the expected shape: the Gametek logo (the fade-in, 33 groups, the 4
+     * bank cycles, the 0x1a4 hold), the IDI card, the FIRST card's 7-bank
+     * staggered fade-in, the ITB card + the scene, and the outro fade —
+     * the full boot_intro_sequence (1000:B590), ~5.7k ticks. */
+    if (ticks < 5400u || ticks > 6000u) {
+        fprintf(stderr, "FAIL tick count %u outside [5400, 6000]\n", ticks);
         bad = 1;
     }
 
@@ -146,19 +146,20 @@ int main(int argc, char **argv)
         }
     }
 
-    /* 3. the palette is bac.bit's trailing 768 bytes (at +0xE600). */
+    /* 3. the palette: the outro (b60e-b620) fades everything to the zeroed
+     * 0x48BC ramp, so the boot ends with the DAC BLACK — the verbatim exit
+     * state.  (bac.bit's palette drives the scene itself; the transitions'
+     * fade-backs pin it mid-run, the bar check below pins its bank.) */
     {
-        uint32_t pal_size = 0;
-        snprintf(path, sizeof path, "%s/HUMANS.000/INTRO/BAC.BIT", fix_abs);
-        uint8_t *bac = read_file(path, &pal_size);
-        if (!bac || pal_size < 0xE600u + 768u) {
-            fprintf(stderr, "FAIL bac.bit fixture unreadable\n");
-            bad = 1;
-        } else if (memcmp(osys_null_palette(), bac + 0xE600u, 768u) != 0) {
-            fprintf(stderr, "FAIL palette != bac.bit's 768-byte tail\n");
-            bad = 1;
+        const uint8_t *pal = osys_null_palette();
+        for (unsigned i = 0; i < 768u; i++) {
+            if (pal[i] != 0) {
+                fprintf(stderr, "FAIL palette byte %u: got %02x, the outro "
+                                "fade must end black\n", i, pal[i]);
+                bad = 1;
+                break;
+            }
         }
-        free(bac);
     }
 
     /* 4. the display-list oracle: the last rendered frame (384) blits

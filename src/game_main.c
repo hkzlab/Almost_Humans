@@ -47,15 +47,10 @@ static void game_tick(void)
 
 /* --- the flow state machine ------------------------------------------ */
 
-#define ATTRACT_DWELL_TICKS (5u * GAME_TICK_HZ)   /* 5 s; the real attract
-                                                   * dwell is authored per
-                                                   * card (todo from the
-                                                   * cutscene data)          */
+#define ATTRACT_DWELL_TICKS (5u * GAME_TICK_HZ)   /* 5 s after the boot intro */
 
 static unsigned attract_dwell;
 
-/* The level the walk is currently on: the menu selection feeds it (the
- * frontend stub hardcodes 0 until then). */
 /* The level the walk is currently on: the menu selection feeds it (the
  * frontend stub hardcodes 0 until then). */
 static unsigned level_current = 0u;
@@ -66,8 +61,9 @@ GameFlow gameflow_step(GameFlow state, const InputState *input)
 
     switch (state) {
     case FLOW_ATTRACT:
-        /* The idle cycle: today just the 5 s dwell (the real cycle plays
-         * the intro cards and the hi-score screens). */
+        /* The idle cycle: the boot intro (the gametek logo + the cards +
+         * the scene) plays first via scene_playBootIntro, then the 5 s
+         * dwell before the menu (the hi-score screens come later). */
         if (++attract_dwell >= ATTRACT_DWELL_TICKS) {
             attract_dwell = 0;
             return FLOW_MENU;
