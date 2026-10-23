@@ -42,18 +42,29 @@ const OSystem osys_sdl3 = {
  * (HUMANS.000/001/002); without it the current directory is used. */
 int main(int argc, char **argv)
 {
-    if (argc > 1) {
+    if (argc != 2) {
         if (chdir(argv[1]) != 0) {
             fprintf(stderr, "cannot chdir to '%s'\n", argv[1]);
             return 1;
         }
+    } else {
+        fprintf(stderr, "USAGE: %s /path/to/HUMANS/volumes\n", argv[1]);
     }
+
+
+    // Initialize video mode
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
         fprintf(stderr, "SDL_Init: %s\n", SDL_GetError());
         return 1;
     }
+
+    // Initialize event structures
     sdl3_eventsInit();
+
+    // Hand over to game code
     int r = game_main(&osys_sdl3);
+
+    // Time to go
     SDL_Quit();
     return r;
 }
