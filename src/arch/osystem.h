@@ -14,13 +14,11 @@
  *   keyboard/joystick ISRs                 eventsPoll()
  *   PIT + INT 8 ISR heartbeat              timerStart(rate, tick)
  *   INT 60h audio driver ABI               audioStart/audioPlayTune/audioStop
- *   DOS files / disc paths / save dir      fsOpenGameFile/fsOpenSaveFile
  */
 #ifndef HUMANSRE_OSYSTEM_H
 #define HUMANSRE_OSYSTEM_H
 
 #include <stdint.h>
-#include <stdio.h>
 
 /* The game's two input paths (re_formats.md §12, re_map.md input section):
  * the original feeds both from its own keyboard ISR; the backend translates
@@ -53,10 +51,6 @@ typedef struct OSystem {
     int      (*audioStart)(void);                   /* 0 = ok                     */
     int      (*audioPlayTune)(unsigned id);
     void     (*audioStop)(void);
-
-    /* --- files ------------------------------------------------------- */
-    FILE    *(*fsOpenGameFile)(const char *name);   /* under the game dir         */
-    FILE    *(*fsOpenSaveFile)(unsigned slot, const char *mode);
 
     /* --- misc -------------------------------------------------------- */
     void     (*fatalError)(const char *msg);        /* does not return            */

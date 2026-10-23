@@ -13,8 +13,6 @@ void sdl3_timerStart(unsigned ticksPerSec, TickFn tick);
 int  sdl3_audioStart(void);
 int  sdl3_audioPlayTune(unsigned id);
 void sdl3_audioStop(void);
-FILE *sdl3_openGameFile(const char *name);
-FILE *sdl3_openSaveFile(unsigned slot, const char *mode);
 
 static void fatal(const char *msg)
 {
@@ -26,7 +24,6 @@ const OSystem osys_sdl3 = {
     sdl3_videoInit, sdl3_videoPage, sdl3_videoPresent, sdl3_videoSetPalette,
     sdl3_eventsPoll, sdl3_timerStart,
     sdl3_audioStart, sdl3_audioPlayTune, sdl3_audioStop,
-    sdl3_openGameFile, sdl3_openSaveFile,
     fatal
 };
 

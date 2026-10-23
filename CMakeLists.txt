@@ -26,12 +26,19 @@ add_library(core STATIC
 target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 target_compile_options(core PRIVATE -Wall -Wextra -Werror)
 
-# The headless reference port: no dependencies, always builds.
+# The filesystem modules (port_structure.md §2): the arch backends link
+# exactly one at build time; both export the same `fs` interface (fs/fs.h).
+add_library(fs_null  src/arch/fs/null/fs_null.c)
+add_library(fs_posix src/arch/fs/posix/fs_posix.c)
+target_include_directories(fs_null  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_include_directories(fs_posix PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+
+# The headless reference port: no SDL dependency, always builds.
 add_executable(humans-null
     src/arch/null/OSystem.c
     src/arch/null/main.c
 )
-target_link_libraries(humans-null PRIVATE core)
+target_link_libraries(humans-null PRIVATE core fs_posix)
 target_compile_options(humans-null PRIVATE -Wall -Wextra -Werror)
 
 # The first real port (optional so the tree builds on machines without SDL3).
@@ -43,9 +50,8 @@ if(SDL3_FOUND)
         src/arch/sdl3/events.c
         src/arch/sdl3/timer.c
         src/arch/sdl3/audio.c
-        src/arch/sdl3/fs.c
     )
-    target_link_libraries(humans-sdl3 PRIVATE core SDL3::SDL3)
+    target_link_libraries(humans-sdl3 PRIVATE core fs_posix SDL3::SDL3)
     target_compile_options(humans-sdl3 PRIVATE -Wall -Wextra -Werror)
 else()
     message(STATUS "SDL3 not found - building only humans-null")

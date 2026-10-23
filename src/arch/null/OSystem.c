@@ -6,6 +6,7 @@
  * other backend must match (port_structure.md §2). */
 #include "osystem.h"
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 
 static uint8_t  pages[2][320 * 200];
@@ -26,16 +27,12 @@ static void null_timerStart(unsigned rate, TickFn tick) { the_rate = rate; the_t
 static int  null_audioStart(void) { return 0; }
 static int  null_playTune(unsigned id) { (void)id; return 0; }
 static void null_stop(void) {}
-static FILE *null_openGame(const char *name) { return fopen(name, "rb"); }
-static FILE *null_openSave(unsigned slot, const char *mode)
-{ char n[64]; snprintf(n, sizeof n, "save%u.sav", slot); return fopen(n, mode); }
 static void null_fatal(const char *msg) { fprintf(stderr, "fatal: %s\n", msg); exit(1); }
 
 const OSystem osys_null = {
     null_setMode, null_page, null_present, null_setPalette,
     null_poll, null_timerStart,
     null_audioStart, null_playTune, null_stop,
-    null_openGame, null_openSave,
     null_fatal
 };
 
