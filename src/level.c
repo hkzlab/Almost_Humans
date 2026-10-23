@@ -318,6 +318,12 @@ const uint8_t *level_map(void)
 int level_tick(void)
 {
     if (!level_loaded) return 0;
+
+    /* update_world (1000:80E1): the entity dispatch runs once per frame,
+     * before the draw pass (the original's 5cb6..d860 update chain, then
+     * the page flip).  The entity state is what the dino draw will read. */
+    entity_tick();
+
     if (!world || !level_osys) return 1;
 
     if (bgImage) memcpy(world, bgImage, WORLD_W * WORLD_H);

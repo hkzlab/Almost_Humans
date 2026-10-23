@@ -1,6 +1,7 @@
 /* arch/sdl3/OSystem.c — the SDL3 vtable + main (port_structure.md §2). */
 #include "osystem.h"
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_oldnames.h>
 #include <stdlib.h>
 #include <stdio.h>
 #ifdef _WIN32
@@ -42,13 +43,15 @@ const OSystem osys_sdl3 = {
  * (HUMANS.000/001/002); without it the current directory is used. */
 int main(int argc, char **argv)
 {
-    if (argc != 2) {
+    if (argc == 2) {
         if (chdir(argv[1]) != 0) {
             fprintf(stderr, "cannot chdir to '%s'\n", argv[1]);
             return 1;
         }
     } else {
         fprintf(stderr, "USAGE: %s /path/to/HUMANS/volumes\n", argv[1]);
+        SDL_Quit();
+        return -1;
     }
 
 

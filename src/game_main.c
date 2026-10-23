@@ -34,13 +34,15 @@ int resources_init(const OSystem *osys) {
 
 /* The ISR body: the fixed per-tick work, in the original's order (the flip
  * apply happens inside video/palette's charge once they are real; the
- * content modules are stubs today). */
+ * content modules are stubs today).  The entity update is NOT here: the
+ * original runs it from the level's per-frame body (update_world
+ * 1000:80E1, called once per display period from level_run), so it lives
+ * in level_tick(). */
 static void game_tick(void)
 {
     video_tick();
     palette_tick();
     statusbar_tick();
-    entity_tick();
 }
 
 /* --- the flow state machine ------------------------------------------ */
@@ -121,7 +123,15 @@ int game_main(const OSystem *osys)
         if (state == FLOW_LEVEL) {
             /* entering the level: the header + map load, then its intro
              * cutscene (cd_file_op); the level proper ticks after it */
-            if (prev != FLOW_LEVEL) level_load(level_current);
+            if (prev != FLOW_LEVEL) {
+                if (level_load(level_current) == 0) {
+                    /* load_terrain_b (1000:5168): the level's own map
+                     * spawns/joins the entities, once per load */
+                    const LevelData *ld = level_data();
+                    entity_spawnFromMap(level_map(), ld->style,
+                                        ld->entityLife);
+                }
+            }
             const LevelData *lv = level_data();
             if (lv && scene_playLevelIntro(lv->introIndex)) {
                 /* the intro is playing — the level waits */

@@ -100,6 +100,16 @@ target_link_libraries(test_level PRIVATE core fs_posix)
 humansre_warnings(test_level)
 add_test(NAME level COMMAND test_level ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 
+# The entity test: the closed §12.6 system — the lb#1 spawn fields, the
+# 0xB4 join, the exact-flip walk over the baked waypoint words, and the
+# 160-level spawn census.
+add_executable(test_entity tests/test_entity.c
+    src/arch/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_entity PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(test_entity PRIVATE core fs_posix)
+humansre_warnings(test_entity)
+add_test(NAME entity COMMAND test_entity ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
+
 enable_testing()
 
 # The filesystem modules (port_structure.md §2): the arch backends link

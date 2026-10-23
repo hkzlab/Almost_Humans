@@ -104,9 +104,41 @@ const LevelData *level_data(void);          /* NULL before a load        */
 const uint8_t *level_map(void);             /* == level_data()->map      */
 int  level_tick(void);                      /* 1 = the level is running  */
 
-/* --- src/entity.c — entity table/bytecode (subsystem 10, §12) --------- */
+/* --- src/entity.c — entity table/bytecode (subsystem 10, §12) -----------
+ *
+ * The ported, closed §12.6 system: tile 0xB3 spawns a dinosaur, a 0xB4 on
+ * the same row supplies the far endpoint (entity_find_by_id), and the
+ * game itself alternates the dispatched handler (the shared tail's +4 ^=
+ * 1 flip) so the dino paces between the two endpoints at ±1 px per tick.
+ * All field meanings and the per-tick machine are in re_formats §12.6.
+ */
 int  entity_init(const OSystem *osys);
 void entity_tick(void);
+
+/* One entity record: the DS layout word-for-word (+0x00..+0x0E). */
+typedef struct {
+    uint16_t x0;        /* +0x0: endpoint A — handler 1's target        */
+    uint16_t x1;        /* +0x2: endpoint B — handler 0's target        */
+    uint16_t handler;   /* +0x4: the dispatch index (game: 0/1 only)    */
+    uint16_t x;         /* +0x6: the live position                      */
+    uint16_t y;         /* +0x8: row*16 - 0x30 + 1                      */
+    uint16_t hold;      /* +0xA: the beat countdown, seeded 3           */
+    uint16_t waypoint;  /* +0xC: the waypoint / animation index         */
+    uint16_t life;      /* +0xE: the goal word's high byte              */
+} Entity;
+
+/* load_terrain_b (1000:5168): the 25-pair map walk in table order, one
+ * handler call per matching cell (CX = col*16, DX = row*16; the spawn's
+ * y is row*16 - 0x30 + 1, +3 under the style-6 prologue).  Resets the
+ * count first (the level_init analog: the count only — the fixed-table
+ * slots keep the exe image's values).  `style` = the record's +0x00 byte
+ * (the prologue's [0x17EE]); `lifeSeed` = the goal word's high byte
+ * ([0x17F1] -> the +0xE seed).  0 = ok, -1 = no map. */
+int entity_spawnFromMap(const uint8_t *map, unsigned style,
+                        unsigned lifeSeed);
+
+const Entity *entity_at(unsigned i);   /* NULL past the count */
+unsigned entity_count(void);
 
 /* --- src/script.c — interpreter skeleton (re_scripts.md) -------------- */
 int  script_init(const OSystem *osys);
