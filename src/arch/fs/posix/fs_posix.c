@@ -9,7 +9,7 @@
 static FSVolume *posix_openVolume(unsigned disc)
 {
     char name[32];
-    snprintf(name, sizeof name, "HUMANS  .%03u", disc % 1000u);
+    snprintf(name, sizeof name, "HUMANS.%03u", disc % 1000u);
     return (FSVolume *)fopen(name, "rb");
 }
 

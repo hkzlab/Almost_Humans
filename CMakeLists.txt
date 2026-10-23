@@ -32,6 +32,19 @@ target_include_directories(test_loop PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${C
 target_link_libraries(test_loop PRIVATE core fs_posix)
 target_compile_options(test_loop PRIVATE -Wall -Wextra -Werror)
 add_test(NAME flow COMMAND test_loop)
+
+# The resource fixture test runs against the real game data (HUMANS.00N);
+# point HUMANS_DATA_DIR at a directory holding them.  Missing data = skip.
+set(HUMANS_DATA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../binaries/volumes/ENG"
+    CACHE PATH "Game data directory with HUMANS.000/001/002")
+set(HUMANS_FIX_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../binaries/resources/ENG"
+    CACHE PATH "Extracted-tree fixture for the byte-exact expectations")
+add_executable(test_res tests/test_res.c)
+target_include_directories(test_res PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(test_res PRIVATE core fs_posix)
+target_compile_options(test_res PRIVATE -Wall -Wextra -Werror)
+add_test(NAME res COMMAND test_res ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
+
 enable_testing()
 
 # The filesystem modules (port_structure.md §2): the arch backends link
