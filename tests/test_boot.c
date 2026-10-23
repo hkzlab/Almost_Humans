@@ -2,8 +2,12 @@
  *
  * The boot intro (load_intro_scene, 1000:B63B) plays INTRO.RSC's display
  * list over the scrolled bac.bit background with the tree/apple sprites.
- * The state machine: the 280-tick initial dwell, then 387 display-list
- * frames (2 ticks each), ending on the quit cue (frame 385).
+ * The state machine: the card's own-palette DAC fade-in (b68f/c0af), the
+ * 280-tick initial dwell, the fade-out to the zeroed ramp + the 0x8C-tick
+ * black hold (b6f2-b707), then 387 display-list frames (2 ticks each) with
+ * the transition white-flash blocks, ending on the quit cue (frame 385).
+ * The palette fades step from palette_tick — the ISR body's work — so the
+ * loop below drives it once per scene call, like game_main's game_tick.
  *
  * The display list is the DECODED object 0's own tail (re_formats.md
  * §8.7a): the records [u16 dest][u16 index-1] are consumed straight out of
@@ -12,8 +16,9 @@
  * frame's overlay (group 384's caveman frame, object 148 at dest 25877)
  * must appear byte-exact in the final page.  Check 5 pins the bottom bar
  * (rows 184-199): the 184-row scroll render never touches it and the
- * original's words.bit bar is not ported yet, so the rows must stay CLEAN
- * BLACK — any non-zero byte there is the frame-0 garbage-burst bug again
+ * ported words.bit expansion (run_screen_transition's builder) is the only
+ * writer — any byte outside the words' 0xE0-0xEF/black shape there is the
+ * frame-0 garbage-burst bug again
  * (reading the records out of the raw RSC ran the whole file as one group
  * and blitted real overlays at pseudo-random dests).
  *
@@ -46,10 +51,10 @@ static uint8_t *read_file(const char *path, uint32_t *size)
     return buf;
 }
 
-/* the render call for display-list frame f is call 281 + 3f (0-based:
- * call 0 = BOOT_START, 1..280 = the dwell, then 1 render + 2 waits per
- * frame) — valid up to the frame-323 seek, after which the counter rewinds
- * while the calls keep advancing (frame 314's second pass starts at 1250). */
+/* the render call indices for the PPM dumps predate the palette-fade
+ * phases (2026-10-23) — the fade/black-hold blocks shift every offset, so
+ * these no longer pin their frames.  shortcut: stale indices, recompute
+ * from a traced run when the dumps are next used. */
 static const unsigned dump_ticks[] = { 281, 581, 1247, 1340, 1460 };
 
 static void dump_ppm(const char *dir, unsigned tick, const uint8_t *page,
@@ -95,6 +100,7 @@ int main(int argc, char **argv)
     int bad = 0;
     scene_init(&osys_null);
     video_init(&osys_null);
+    palette_init(&osys_null);
 
     const char *dump_dir = argc > 3 ? argv[3] : NULL;
 
@@ -103,6 +109,7 @@ int main(int argc, char **argv)
     int r;
     for (;;) {
         r = scene_playBootIntro();
+        palette_tick();                        /* the ISR body's fade step */
         if (r != 1) break;                     /* done (the quit cue)     */
         if (dump_dir) {
             for (size_t k = 0; k < sizeof dump_ticks / sizeof dump_ticks[0]; k++)
@@ -116,10 +123,12 @@ int main(int argc, char **argv)
         fprintf(stderr, "FAIL the boot intro did not finish (%u ticks)\n", ticks);
         return 1;
     }
-    /* the expected shape: the 280-tick dwell + 387 frames x 3 calls
-     * (1 render + 2 wait), ending at the quit cue (frame 385). */
-    if (ticks < 1400u || ticks > 1500u) {
-        fprintf(stderr, "FAIL tick count %u outside [1400, 1500]\n", ticks);
+    /* the expected shape: the card fade-in + the 280-tick dwell + the
+     * fade-out + the 0x8C-tick black hold, then 387 frames x 3 calls
+     * (1 render + 2 wait) with the 6 transition blocks (the white flash +
+     * the 0xa-tick words hold), ending at the quit cue (frame 385). */
+    if (ticks < 1600u || ticks > 1900u) {
+        fprintf(stderr, "FAIL tick count %u outside [1600, 1900]\n", ticks);
         bad = 1;
     }
 

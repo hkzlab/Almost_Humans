@@ -68,6 +68,7 @@ int main(int argc, char **argv)
     int bad = 0;
     scene_init(&osys_null);
     video_init(&osys_null);
+    palette_init(&osys_null);
     level_init(&osys_null);
 
     /* 1. all 160 levels load and the census distributions hold. */

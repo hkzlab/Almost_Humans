@@ -55,7 +55,21 @@ uint8_t *video_page(int which);   /* 320x200x8 page 0 or 1                    */
 
 /* --- src/palette.c — fades/DAC (subsystem 4, §6) ---------------------- */
 int  palette_init(const OSystem *osys);
-void palette_tick(void);
+void palette_tick(void);   /* palette_fade_step 1000:8bfd, once per tick  */
+/* palette_load_6bit (1000:8d24): the 202F:0x4BBC working palette := 768
+ * 6-bit bytes.  The RAM copy only — the DAC moves through fades or
+ * palette_setDac. */
+void palette_loadWorking(const uint8_t *p6);
+const uint8_t *palette_working(void);   /* the 0x4BBC buffer              */
+/* set_palette_dac (1000:8CEE): an immediate DAC write (the DAC shadow is
+ * kept for the next fade's current-colour read). */
+void palette_setDac(const uint8_t *p6, unsigned first, unsigned n);
+/* palette_build_fade (1000:8bac): fade DAC entries first..first+entries-1
+ * toward `target` (its triple for `first` at target[0]) in ~div ticks;
+ * poll with palette_fadeActive. */
+void palette_buildFade(unsigned first, unsigned entries, unsigned div,
+                       const uint8_t *target);
+int  palette_fadeActive(void);          /* palette_fade_active 1000:8b9a  */
 
 /* --- src/font.c — glyphs/packed ASCII (subsystem 12, §9) -------------- */
 int  font_init(const OSystem *osys);

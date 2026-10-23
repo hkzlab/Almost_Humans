@@ -247,7 +247,7 @@ static int scene_start(unsigned index)
         if (!daily) { scene_unload(); return -1; }
         memcpy(page, daily, dailySize < PAGE_SIZE ? dailySize : PAGE_SIZE);
         if (dailySize > PAGE_SIZE)
-            scene_osys->videoSetPalette(daily + PAGE_SIZE, 0, 256);
+            palette_setDac(daily + PAGE_SIZE, 0, 256);
         free(daily);
     }
 
@@ -386,16 +386,25 @@ int scene_playLevelIntro(unsigned introIndex)
  * 182-197, colours 0xE0-0xEF = bac's grey gradient) persists below every
  * present.
  *
- * Shortcut: the palette fades (c0af/c0b8/c0c6, the transition's dimmed
- * reload and b7c0's bank fade-in) are not ported — the bar's colours stay
- * at full brightness.  The ITB title card (present_frame 1000:BDBC, shown
- * through the initial 280-tick dwell) is ported. */
+ * The palette fades are ported through palette.c's build/step machine (the
+ * ISR body's palette_fade_step 1000:8bfd): the card's own-palette fade-in
+ * (b68f build + c0af wait), the post-dwell fade-out to the zeroed ramp and
+ * the 0x8C-tick black hold (b6f2-b707), the transition's white flash with
+ * the black 0xE0-0xEF bank + fade-back to the working palette
+ * (run_screen_transition 1000:B82E) and the caption bank fade 0x28 ticks
+ * after it (fade_countdown 1000:b7c0).  The ITB title card (present_frame
+ * 1000:BDBC, shown through the initial 280-tick dwell) is ported. */
 
 typedef enum {
     BOOT_START,
+    BOOT_CARD_FADE, /* the card's own-palette DAC fade-in (b68f/c0af)  */
     BOOT_DWELL,     /* the 280-tick initial dwell                    */
+    BOOT_FADEOUT,   /* the post-dwell fade to the zeroed ramp (b6f2) */
+    BOOT_BLACK,     /* the 0x8C-tick black hold (c0b8)               */
     BOOT_FRAME,     /* cues + scroll + sprites + display-list blit   */
     BOOT_WAIT,      /* the 2-tick frame wait                         */
+    BOOT_TRANS,     /* the transition's white-flash fade (b854)      */
+    BOOT_TRANS_HOLD,/* the words redraw + 0xa-tick hold (b866-b871)  */
     BOOT_DONE
 } BootPhase;
 
@@ -422,6 +431,9 @@ static unsigned  bootGroupDwell;  /* [0x6460]: frames per group              */
 static unsigned  bootDwellCount;  /* [0x6462]: the group dwell countdown     */
 static unsigned  bootScrollPos;   /* [0x6473]: the horizontal scroll         */
 static uint16_t  bootWaitTicks;
+static uint8_t   boot_ramp[768];  /* the fade-target scratch (202F:0x48BC)   */
+static unsigned  bootTransTicks;  /* the 0xa-tick words hold (b869)          */
+static unsigned  bootBankCountdown;  /* [0x644E]: the b7c0 bank-fade timer   */
 
 static void boot_unload(void)
 {
@@ -627,11 +639,13 @@ int scene_playBootIntro(void)
         if (!bootListBuf || !bootObj) { boot_unload(); boot_phase = BOOT_DONE; return 0; }
 
         /* the ITB title card (present_frame 1000:BDBC: the 64768-byte card
-         * = a 64000-byte image + palette, deplanarised once and displayed
-         * through the 280-tick dwell — b6ea spins [0x5AC8] >= 0x118).  The
-         * card's own palette (bdbc, SI=0xFA00) is superseded by bac's
-         * (b6bc) before the dwell, so the card displays through bac's
-         * palette — the port does the same. */
+         * = a 64000-byte image + palette).  present_frame loads the card's
+         * OWN palette into the working palette (bdbc, palette_load_6bit
+         * 8d24, SI=0xFA00 — the RAM copy only) and the fade below drives
+         * the DAC to it, so the card displays through its own colours.
+         * bac's palette_load_6bit (b6bc, SI=0xE600) refills the working
+         * palette before the dwell but the DAC keeps the card's colours
+         * until the post-dwell fade — the port does the same. */
         {
             uint32_t itb_size = 0;
             uint8_t *itb = res_loadChunk("INTRO\\ITB.BIT", &itb_size, NULL);
@@ -642,6 +656,7 @@ int scene_playBootIntro(void)
                 return 0;
             }
             memcpy(video_page(0), itb, 64000u);
+            palette_loadWorking(itb + 64000u);
             free(itb);
         }
         /* the words stash (b7df: 4160 bytes copied to 202F:0x8689 — the
@@ -653,15 +668,42 @@ int scene_playBootIntro(void)
         for (unsigned i = 0; i < bootEntryCount; i++)
             bootEntries[i] = rd_le32(bootRsc + i * 4u);
 
-        /* bac.bit = [58880-byte screen][768-byte palette]: its palette
-         * drives the whole intro (palette_load_6bit at b6bc, SI=0xE600) */
-        scene_osys->videoSetPalette(bootBac + 0xE600u, 0, 256);
-        boot_phase = BOOT_DWELL;
+        /* b68f-b69e: fade the DAC to the working palette (= the card's own
+         * palette) and wait; the card fades in.  The zeroed boot_ramp is
+         * the 202F:0x48BC scratch — clear_fade_ramp (b90f) zeroes it
+         * after every transition, the port boots it zeroed. */
+        memset(boot_ramp, 0, sizeof(boot_ramp));
+        bootBankCountdown = 0u;
+        palette_buildFade(0u, 256u, 0x23u, palette_working());
+        boot_phase = BOOT_CARD_FADE;
+        return 1;
+
+    case BOOT_CARD_FADE:
+        if (palette_fadeActive()) return 1;
+        /* b6c3: bac's palette_load_6bit — the working palette only; the
+         * DAC keeps the card's colours through the dwell (bac.bit =
+         * [58880-byte screen][768-byte palette at +0xE600]) */
+        palette_loadWorking(bootBac + 0xE600u);
         dwellTicks = 280u;                 /* 0x118: the initial dwell */
+        boot_phase = BOOT_DWELL;
         return 1;
 
     case BOOT_DWELL:
         if (--dwellTicks > 0) return 1;    /* no key skip in the original */
+        /* b6f2-b701: fade the DAC to the zeroed 0x48BC ramp (to black) and
+         * wait — the card fades out */
+        palette_buildFade(0u, 256u, 0x23u, boot_ramp);
+        boot_phase = BOOT_FADEOUT;
+        return 1;
+
+    case BOOT_FADEOUT:
+        if (palette_fadeActive()) return 1;
+        dwellTicks = 0x8Cu;                /* b704/c0b8: the 140-tick hold */
+        boot_phase = BOOT_BLACK;
+        return 1;
+
+    case BOOT_BLACK:
+        if (--dwellTicks > 0) return 1;
         /* decode the display-list object (entry 0): [u16 ?][records...] —
          * the records start at object+2 ([0x6468] init 0x6FEA = 0x6FE8+2) */
         {
@@ -694,16 +736,30 @@ int scene_playBootIntro(void)
             bootFrame = script_seekFrame(&boot_script);
             script_seekDone(&boot_script);
         }
-        /* the transition cue (cmd 1): the bar's text redraw —
-         * run_screen_transition (1000:B82E) re-expands the words' block
-         * arg into the visible bar */
+        /* the transition cue (cmd 1): run_screen_transition (1000:B82E) —
+         * the white flash (the 0x48BC ramp at BP=2), then the words redraw
+         * and the fade back.  It blocks the frame loop in the original. */
         {
             unsigned ti = script_transitionIndex(&boot_script);
             if ((int)ti != boot_bar_arg) {
                 boot_bar_arg = (int)ti;
-                boot_bar_draw(ti);
+                /* b840-b852: the white ramp — 0x3F everywhere but entry 0
+                 * (bytes 0x48BC-0x48BE are never filled) and the 0xE0-0xEF
+                 * bank (zeroed: the captions stay black through the flash) */
+                memset(boot_ramp, 0x3Fu, sizeof(boot_ramp));
+                boot_ramp[0] = boot_ramp[1] = boot_ramp[2] = 0u;
+                memset(boot_ramp + 0x2A0u, 0, 0x30u);
+                palette_buildFade(0u, 256u, 2u, boot_ramp);
+                boot_phase = BOOT_TRANS;
+                return 1;
             }
         }
+        /* fade_countdown (b7c0), each frame: 0x28 ticks after the
+         * transition, fade the 0xE0-0xEF bank toward 202F:0x4DCC — nothing
+         * in the EXE writes that region, so the target is whatever
+         * palette_load_6bit left at working+0x211 */
+        if (bootBankCountdown != 0u && --bootBankCountdown == 0u)
+            palette_buildFade(0xE0u, 0x10u, 0x28u, palette_working() + 0x211u);
         /* update_scene (1000:B9B5): the scroll render + the sprites; the
          * scroll position advances after the render (when scroll is on) */
         {
@@ -745,6 +801,26 @@ int scene_playBootIntro(void)
 
     case BOOT_WAIT:
         if (--bootWaitTicks == 0) boot_phase = BOOT_FRAME;
+        return 1;
+
+    case BOOT_TRANS:
+        if (palette_fadeActive()) return 1;
+        /* b866: the words' block expands into BOTH visible pages — the
+         * port folds it into its one page via the compose */
+        boot_bar_draw(boot_bar_arg);
+        boot_compose_present(video_page(0));
+        bootTransTicks = 0xAu;             /* b869: the 10-tick hold */
+        boot_phase = BOOT_TRANS_HOLD;
+        return 1;
+
+    case BOOT_TRANS_HOLD:
+        if (--bootTransTicks != 0u) return 1;
+        /* b873-b896: fade back to the working palette, clear the ramp,
+         * start the caption bank fade countdown */
+        palette_buildFade(0u, 256u, 0xAu, palette_working());
+        memset(boot_ramp, 0, sizeof(boot_ramp));   /* clear_fade_ramp b90f */
+        bootBankCountdown = 0x28u;                 /* [0x644E]             */
+        boot_phase = BOOT_FRAME;
         return 1;
 
     case BOOT_DONE:

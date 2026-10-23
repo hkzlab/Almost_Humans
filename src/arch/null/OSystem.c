@@ -39,7 +39,16 @@ static void null_timerStart(unsigned rate, TickFn tick) { the_rate = rate; the_t
  * one-poll-per-tick timing.  osys_null_runTicks drives the ISR body by hand
  * for the content tests and advances the same counter. */
 static unsigned tick_counter;          /* [0x5AC8] */
-static void null_tickSync(unsigned *lastSeen) { *lastSeen = ++tick_counter; }
+static void null_tickSync(unsigned *lastSeen)
+{
+    /* one tickSync = one tick: the ISR's INC [0x5AC8] (1000:8AA4) then the
+     * ISR body (the palette step et al) — the foreground never sees a tick
+     * boundary the ISR body has not already run (the real machine's INT 8
+     * fires while the foreground spins) */
+    tick_counter++;
+    if (the_tick) the_tick();
+    *lastSeen = tick_counter;
+}
 static int  null_audioStart(void) { return 0; }
 static int  null_playTune(unsigned id) { (void)id; return 0; }
 static void null_stop(void) {}

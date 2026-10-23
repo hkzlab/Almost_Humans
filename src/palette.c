@@ -1,6 +1,95 @@
 /* palette.c — fades and DAC (game_structure.md §1 subsystem 4, §6).
- * 6-bit palettes; palette_fade_step's state machine (DS:0x4EBC -> DAC). */
+ *
+ * The original's machine, ported 1:1: a 256-entry 6-bit working palette
+ * (202F:0x4BBC) refilled by palette_load_6bit (1000:8d24) from each loaded
+ * image — the RAM copy only, it never touches the DAC — and the DAC fade
+ * state (ramp 202F:0x4EBC, control 0x48B0..0x48B4) stepped once per tick by
+ * palette_fade_step (1000:8bfd) from the ISR body.  palette_build_fade
+ * (1000:8bac) reads the CURRENT DAC into the ramp and stores per-component
+ * deltas (target-current)<<8/div; each tick adds one delta, clamps at the
+ * target and clears the active flag once every component reached it. */
 #include "game.h"
 
-int palette_init(const OSystem *osys) { (void)osys; return 0; }
-void palette_tick(void) {}
+static const OSystem *pal_osys;
+static uint8_t working[768];   /* 202F:0x4BBC — the working palette       */
+static uint8_t dac[768];       /* the DAC's 6-bit shadow (8bac's IN 3C9h) */
+
+/* the fade state: 202F:0x48B0/48B2/48B6/48B8 + the 0x4EBC ramp          */
+static unsigned       fadeFirst;   /* [0x48B8]: the DAC's first entry    */
+static unsigned       fadeComps;   /* [0x48B0]: components (entries * 3) */
+static const uint8_t *fadeTarget;  /* [0x48B6]: the target palette bytes */
+static int            fadeActive;  /* [0x48B4]                           */
+static uint16_t       ramp[768][2];/* [0x4EBC]: {cur<<8, delta<<8}       */
+
+int palette_init(const OSystem *osys) { pal_osys = osys; return 0; }
+
+/* palette_load_6bit (1000:8d24): the working palette := 768 6-bit bytes. */
+void palette_loadWorking(const uint8_t *p6)
+{
+    for (unsigned i = 0; i < 768u; i++) working[i] = p6[i] & 0x3Fu;
+}
+
+const uint8_t *palette_working(void) { return working; }
+
+/* set_palette_dac (1000:8CEE) route: an immediate DAC write that keeps the
+ * shadow honest for the next fade's current-colour read. */
+void palette_setDac(const uint8_t *p6, unsigned first, unsigned n)
+{
+    for (unsigned i = 0; i < n * 3u; i++) dac[first * 3u + i] = p6[i] & 0x3Fu;
+    pal_osys->videoSetPalette(p6, first, n);
+}
+
+/* palette_build_fade (1000:8bac): fade DAC entries first..first+entries-1
+ * toward `target` (the 6-bit palette whose triple for entry `first` is
+ * target[0]) in ~div ticks. */
+void palette_buildFade(unsigned first, unsigned entries, unsigned div,
+                       const uint8_t *target)
+{
+    fadeFirst = first;
+    fadeComps = entries * 3u;
+    fadeTarget = target;
+    for (unsigned c = 0; c < fadeComps; c++) {
+        unsigned cur = dac[first * 3u + c];
+        unsigned tgt = target[c];
+        ramp[c][0] = (uint16_t)(cur << 8);
+        ramp[c][1] = (uint16_t)((((int)tgt - (int)cur) * 256) / (int)div);
+    }
+    fadeActive = 1;
+}
+
+/* palette_fade_active (1000:8b9a) */
+int palette_fadeActive(void) { return fadeActive; }
+
+/* palette_fade_step (1000:8bfd): one step per tick (the ISR body's palette
+ * work, game_main's game_tick). */
+void palette_tick(void)
+{
+    if (!fadeActive) return;
+    unsigned done = 0;
+    for (unsigned c = 0; c < fadeComps; c++) {
+        uint16_t cur = ramp[c][0];
+        uint8_t  t   = fadeTarget[c];
+        uint8_t  v   = (uint8_t)(cur >> 8);
+        if (v != t) {
+            cur = (uint16_t)(cur + ramp[c][1]);
+            ramp[c][0] = cur;
+            v = (uint8_t)(cur >> 8);
+            if (ramp[c][1] & 0x8000u) {           /* negative delta        */
+                if (v < t) {
+                    v = t;
+                    ramp[c][0] = (uint16_t)(((unsigned)t << 8) | (cur & 0xffu));
+                }
+            } else {
+                if (v > t) {
+                    v = t;
+                    ramp[c][0] = (uint16_t)(((unsigned)t << 8) | (cur & 0xffu));
+                }
+            }
+        } else {
+            done++;
+        }
+        dac[fadeFirst * 3u + c] = v;
+    }
+    if (done == fadeComps) fadeActive = 0;
+    pal_osys->videoSetPalette(dac + fadeFirst * 3u, fadeFirst, fadeComps / 3u);
+}

@@ -69,6 +69,7 @@ int main(int argc, char **argv)
     int bad = 0;
     scene_init(&osys_null);
     video_init(&osys_null);
+    palette_init(&osys_null);
 
     /* 1. the intro plays: dwell (210) + 35 objects (6 ticks each) — well
      * past that, every call still returns 1 (the scene-0 chain replays). */

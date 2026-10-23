@@ -349,6 +349,6 @@ int level_tick(void)
         memcpy(page + y * VIEW_W, world + y * WORLD_W, VIEW_W);
 
     /* draw_map_digit: the first 64 entries only (the 0xC0-byte copy) */
-    if (bgImage) level_osys->videoSetPalette(bgImage + WORLD_W * WORLD_H, 0, 64);
+    if (bgImage) palette_setDac(bgImage + WORLD_W * WORLD_H, 0, 64);
     return 1;
 }
