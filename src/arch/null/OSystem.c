@@ -34,6 +34,12 @@ static void null_poll(InputState *out)
     *out = the_input;
 }
 static void null_timerStart(unsigned rate, TickFn tick) { the_rate = rate; the_tick = tick; }
+/* The null backend has no clock: the foreground loop itself is the tick
+ * source (one tickSync call = one tick), so the scripted tests keep their
+ * one-poll-per-tick timing.  osys_null_runTicks drives the ISR body by hand
+ * for the content tests and advances the same counter. */
+static unsigned tick_counter;          /* [0x5AC8] */
+static void null_tickSync(unsigned *lastSeen) { *lastSeen = ++tick_counter; }
 static int  null_audioStart(void) { return 0; }
 static int  null_playTune(unsigned id) { (void)id; return 0; }
 static void null_stop(void) {}
@@ -41,7 +47,7 @@ static void null_fatal(const char *msg) { fprintf(stderr, "fatal: %s\n", msg); e
 
 const OSystem osys_null = {
     null_setMode, null_page, null_present, null_setPalette,
-    null_poll, null_timerStart,
+    null_poll, null_timerStart, null_tickSync,
     null_audioStart, null_playTune, null_stop,
     null_fatal
 };
@@ -50,7 +56,10 @@ const OSystem osys_null = {
  * (the headless tests use these) */
 void osys_null_runTicks(unsigned n)
 {
-    for (unsigned i = 0; i < n && the_tick; i++) the_tick();
+    for (unsigned i = 0; i < n && the_tick; i++) {
+        tick_counter++;                /* the ISR's INC [0x5AC8] (1000:8AA4) */
+        the_tick();
+    }
     (void)the_rate;
 }
 

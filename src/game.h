@@ -174,7 +174,13 @@ typedef enum GameFlow {
  * and the ISR re-spins to the next vsync edge each tick), so one tick = one
  * display period.  Verified live in DOSBox: the ISR tick counter runs at
  * 70.19-70.5 Hz, and the calibrated divisor 0x3E59 = PIT 74.76 Hz with the
- * bit-3-of-3DA wait making up the remainder to one display period. */
+ * bit-3-of-3DA wait making up the remainder to one display period.
+ *
+ * This rate is the SOLE pacer: game_main's loop gates on osys->tickSync
+ * (the [0x5AC8] counter + [0x48BA] abort pair — re_map.md "Timer / INT 8"),
+ * so the host display's refresh rate must never enter the pacing.  The
+ * foreground runs exactly one flow step per tick boundary and drops missed
+ * boundaries (the original's delta-spin semantics), it never catches up. */
 #define GAME_TICK_HZ 70
 
 /* Advance the flow one step with the polled input; the loop calls it once

@@ -34,6 +34,15 @@ typedef struct InputState {
  * flip apply) happens here, once per tick. */
 typedef void (*TickFn)(void);
 
+/* The tick-boundary gate: the arch owns the tick counter (the ISR's
+ * [0x5AC8]) and tickSync is the foreground's [0x48BA] mechanism — it waits
+ * until the tick source has advanced past *lastSeen, then stores the new
+ * count there.  The foreground calls it once per loop iteration and runs
+ * exactly one flow step per tick; the display refresh rate must never pace
+ * it (the original's ISR re-arms the PIT one-shot and re-syncs to vsync, so
+ * one tick = one display period at GAME_TICK_HZ, independent of the host). */
+typedef void (*TickSyncFn)(unsigned *lastSeen);
+
 typedef struct OSystem {
     /* --- video ------------------------------------------------------- */
     void     (*videoSetMode)(void);                 /* once at boot               */
@@ -46,6 +55,7 @@ typedef struct OSystem {
 
     /* --- timing ------------------------------------------------------ */
     void     (*timerStart)(unsigned ticksPerSec, TickFn tick);
+    TickSyncFn tickSync;                            /* the [0x5AC8]/[0x48BA] pair */
 
     /* --- audio ------------------------------------------------------- */
     int      (*audioStart)(void);                   /* 0 = ok                     */

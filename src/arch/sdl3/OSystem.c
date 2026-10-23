@@ -17,6 +17,7 @@ void sdl3_videoSetPalette(const uint8_t *p6, unsigned first, unsigned n);
 void sdl3_eventsInit(void);
 void sdl3_eventsPoll(InputState *out);
 void sdl3_timerStart(unsigned ticksPerSec, TickFn tick);
+void sdl3_tickSync(unsigned *lastSeen);
 int  sdl3_audioStart(void);
 int  sdl3_audioPlayTune(unsigned id);
 void sdl3_audioStop(void);
@@ -29,7 +30,7 @@ static void fatal(const char *msg)
 
 const OSystem osys_sdl3 = {
     sdl3_videoInit, sdl3_videoPage, sdl3_videoPresent, sdl3_videoSetPalette,
-    sdl3_eventsPoll, sdl3_timerStart,
+    sdl3_eventsPoll, sdl3_timerStart, sdl3_tickSync,
     sdl3_audioStart, sdl3_audioPlayTune, sdl3_audioStop,
     fatal
 };

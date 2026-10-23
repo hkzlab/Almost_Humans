@@ -96,7 +96,13 @@ int game_main(const OSystem *osys)
 
     GameFlow state = FLOW_ATTRACT;
     GameFlow prev = FLOW_ATTRACT;
+    unsigned last_tick = 0;
     for (;;) {
+        /* the tick gate: one flow step per tick boundary, exactly like the
+         * original's foreground spinning on the ISR counter [0x5AC8].  The
+         * host display's refresh rate must not pace this loop. */
+        osys->tickSync(&last_tick);
+
         InputState input;
         osys->eventsPoll(&input);
         if (input.quit) break;
