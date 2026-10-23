@@ -45,6 +45,42 @@ target_link_libraries(test_res PRIVATE core fs_posix)
 target_compile_options(test_res PRIVATE -Wall -Wextra -Werror)
 add_test(NAME res COMMAND test_res ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 
+# The scene player test: level 0 plays ANI00.ANI's 35 script entries onto
+# page 0; the final page must match the reference playback checksums.
+add_executable(test_scene tests/test_scene.c
+    src/arch/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_scene PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(test_scene PRIVATE core fs_posix)
+target_compile_options(test_scene PRIVATE -Wall -Wextra -Werror)
+add_test(NAME scene COMMAND test_scene ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
+
+# The full-game_main smoke test: a scripted input sequence drives the flow
+# (attract -> menu -> level -> intro -> quit) under the null backend.
+add_executable(test_smoke tests/test_smoke.c
+    src/arch/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_smoke PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(test_smoke PRIVATE core fs_posix)
+target_compile_options(test_smoke PRIVATE -Wall -Wextra -Werror)
+add_test(NAME smoke COMMAND test_smoke ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
+
+# The boot-intro test: load_intro_scene's display-list player over the
+# scrolled bac.bit background; the final page must match the reference.
+add_executable(test_boot tests/test_boot.c
+    src/arch/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_boot PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(test_boot PRIVATE core fs_posix)
+target_compile_options(test_boot PRIVATE -Wall -Wextra -Werror)
+add_test(NAME boot COMMAND test_boot ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
+
+# The level test: all 160 records from LEVELS\L*.BIN, the census + the
+# byte-exact maps vs the extracted files.
+add_executable(test_level tests/test_level.c
+    src/arch/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_level PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(test_level PRIVATE core fs_posix)
+target_compile_options(test_level PRIVATE -Wall -Wextra -Werror)
+add_test(NAME level COMMAND test_level ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
+
 enable_testing()
 
 # The filesystem modules (port_structure.md §2): the arch backends link

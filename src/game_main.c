@@ -52,6 +52,12 @@ static void game_tick(void)
 
 static unsigned attract_dwell;
 
+/* The level the walk is currently on: the menu selection feeds it (the
+ * frontend stub hardcodes 0 until then). */
+/* The level the walk is currently on: the menu selection feeds it (the
+ * frontend stub hardcodes 0 until then). */
+static unsigned level_current = 0u;
+
 GameFlow gameflow_step(GameFlow state, const InputState *input)
 {
     const unsigned fire = (input->joyBits & 0x80u) != 0;
@@ -89,13 +95,26 @@ int game_main(const OSystem *osys)
     osys->timerStart(GAME_TICK_HZ, game_tick);
 
     GameFlow state = FLOW_ATTRACT;
+    GameFlow prev = FLOW_ATTRACT;
     for (;;) {
         InputState input;
         osys->eventsPoll(&input);
         if (input.quit) break;
         state = gameflow_step(state, &input);
+        if (state == FLOW_LEVEL) {
+            /* entering the level: the header + map load, then its intro
+             * cutscene (cd_file_op); the level proper ticks after it */
+            if (prev != FLOW_LEVEL) level_load(level_current);
+            const LevelData *lv = level_data();
+            if (lv && scene_playLevelIntro(lv->introIndex)) {
+                /* the intro is playing — the level waits */
+            } else {
+                level_tick();          /* the intro done: the level runs */
+            }
+        }
         osys->videoPresent(1);          /* the second page: blank for now */
         frontend_tick();                /* the menu/room content (stub)   */
+        prev = state;
     }
 
     osys->audioStop();

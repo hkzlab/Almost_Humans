@@ -58,9 +58,8 @@ int main(void)
         bad |= expect_state(s, FLOW_LEVEL, 0, "level holds");
     }
 
-    /* 4. (Follow-up) a full game_main smoke under the null backend once it
-     * grows an input-injection/quit hook - then the manual tick hook drives
-     * game_tick through the real installed callback. */
+    /* 4. the full-game_main smoke test: tests/test_smoke.c drives the
+     * flow through the null backend's scripted-input hook. */
 
     if (!bad) printf("flow tests: OK (5 checks)\n");
     return bad;

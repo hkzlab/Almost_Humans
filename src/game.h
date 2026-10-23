@@ -39,10 +39,19 @@ unsigned res_movieDisc(unsigned idx);
  * against 0 is the scene-object one (1000:B444) and belongs to the scene
  * player. */
 uint8_t *res_loadChunk(const char *name, uint32_t *sizeOut, uint16_t *chkOut);
+/* Decode one LZW object straight out of a memory buffer (an .ANI's chunk
+ * image): [u16 decompressed_size][u16 checksum][u16 bit buffer][LZW bits].
+ * Writes `size` bytes to `out`, returns the decompressed size or -1.
+ * *chkOut mirrors the machine's final checksum accumulator (BP) — the
+ * scene-object gate tests it against 0 (1000:B444). */
+int res_decode_lzw_mem(const uint8_t *data, uint32_t data_size,
+                       uint32_t off, uint8_t *out, uint32_t out_size,
+                       uint16_t *chkOut);
 
 /* --- src/video.c — pages/scroll/dirty cells (subsystem 3, §5/§7) ------ */
 int  video_init(const OSystem *osys);
 void video_tick(void);
+uint8_t *video_page(int which);   /* 320x200x8 page 0 or 1                    */
 
 /* --- src/palette.c — fades/DAC (subsystem 4, §6) ---------------------- */
 int  palette_init(const OSystem *osys);
@@ -57,11 +66,42 @@ void statusbar_tick(void);
 
 /* --- src/scene.c — .ANI/.RSC interpreter (subsystem 11, §8.5-8.7a) ---- */
 int  scene_init(const OSystem *osys);
-int  scene_playLevelIntro(unsigned levelIndex);   /* the cd_file_op body   */
+/* introIndex = the level header's +0x01 byte: the intro-movie index
+   (0..9; 0xFF = the level has no cutscene). */
+int  scene_playLevelIntro(unsigned introIndex);   /* the cd_file_op body   */
+/* The boot intro (load_intro_scene, 1000:B63B): INTRO.RSC's display list
+ * over the scrolled bac.bit background, driven by the 202F:0x843C cue
+ * list.  Per-tick like the level intro; plays once (no key skip — the
+ * original's loop ends on the quit cue alone). */
+int  scene_playBootIntro(void);
 
-/* --- src/level.c — headers/maps/defs (subsystem 9, §2) ---------------- */
+/* --- src/level.c — the level definitions (subsystem 9, §2) -------------
+ *
+ * LEVELS\LA.BIN..LP.BIN: 16 files x 10 records = 160 levels.  The record:
+ * the 13-byte header, the goal/author ASCIIZ text, the 8-byte editor
+ * metadata, the 640-byte tile map (32x20).
+ */
+typedef struct {
+    unsigned levelId;       /* 0..159                                    */
+    uint8_t  style;         /* +0x00 low: the tile style 1..6            */
+    uint8_t  introIndex;    /* +0x01 high: the intro-movie index (0xFF=none) */
+    uint8_t  goalCount;     /* +0x02 low: the solved-flag threshold      */
+    uint8_t  entityLife;    /* +0x02 high: the entity lifetime seed      */
+    uint16_t objectTest;    /* +0x04: the object-test mode word          */
+    uint8_t  unused06;      /* +0x06: 0 in all 160 shipped records       */
+    uint16_t timeA;         /* +0x07: the BCD MMSS limit (difficulty A)  */
+    uint16_t timeB;         /* +0x09: difficulty B                       */
+    uint16_t timeC;         /* +0x0B: difficulty C                       */
+    uint8_t  map[640];      /* 32 columns x 20 rows, row-major           */
+    char     goal[128];     /* the goal text (CR = a line break)         */
+    char     author[128];   /* the author text                           */
+} LevelData;
+
 int  level_init(const OSystem *osys);
-int  level_load(unsigned levelIndex);
+int  level_load(unsigned levelId);          /* 0..159; 0 = ok            */
+const LevelData *level_data(void);          /* NULL before a load        */
+const uint8_t *level_map(void);             /* == level_data()->map      */
+int  level_tick(void);                      /* 1 = the level is running  */
 
 /* --- src/entity.c — entity table/bytecode (subsystem 10, §12) --------- */
 int  entity_init(const OSystem *osys);
@@ -69,6 +109,38 @@ void entity_tick(void);
 
 /* --- src/script.c — interpreter skeleton (re_scripts.md) -------------- */
 int  script_init(const OSystem *osys);
+
+/* --- src/script.c — the frame-keyed cue interpreter (§8.7a) -------------
+ * The boot intro's event script: 25 verbatim cues from 202F:0x843C,
+ * dispatched on the exact frame (JE) through a 7-command dispatch. */
+typedef struct {
+    unsigned frame;         /* the current frame (the player advances it) */
+    unsigned groupDwell;    /* cmd 7: frames per display-list group       */
+    int      scrollOn;      /* cmd 3 on / cmd 2 off                       */
+    unsigned scrollDelta;   /* cmd 6: the scroll advance per frame        */
+    unsigned transitionIdx; /* cmd 1: run_screen_transition index         */
+    int      quit;          /* cmd 5: the quit flag                       */
+    int      done;          /* the frame target reached                   */
+    int      seekPending;   /* cmd 4 fired: the player must seek          */
+    unsigned seekFrame;     /*    ...to this frame                        */
+    const uint16_t *cues;   /* [frame][cmd][arg] triples, verbatim        */
+    unsigned cueCount;
+    unsigned cursor;        /* the next cue to fire                       */
+} CueScript;
+
+/* The boot intro's verbatim cue list (25 cues, frame target 387). */
+void     script_introStart(CueScript *s);
+/* Fire every cue whose frame == `frame` (JE dispatch). */
+void     script_fire(CueScript *s, unsigned frame);
+int      script_quit(const CueScript *s);
+int      script_done(const CueScript *s);
+unsigned script_groupDwell(const CueScript *s);
+int      script_scrollOn(const CueScript *s);
+unsigned script_scrollDelta(const CueScript *s);
+unsigned script_transitionIndex(const CueScript *s);
+int      script_seekPending(const CueScript *s);
+unsigned script_seekFrame(const CueScript *s);
+void     script_seekDone(CueScript *s);
 
 /* --- src/audio.c — tune/sfx state machine (subsystem 7) --------------- */
 int  audio_init(const OSystem *osys);

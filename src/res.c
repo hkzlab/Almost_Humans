@@ -97,21 +97,33 @@ static uint16_t vol_word(VolReader *r)
 
 /* --- the LZ machine (decode_bitstream, per compressed block) ---------- */
 
+typedef uint16_t (*WordReader)(void *ctx);
+
 typedef struct LzState {
-    VolReader *r;
-    uint8_t  *out;              /* the whole decoded resource             */
-    uint32_t  base;             /* this block's first output byte         */
-    uint32_t  p;                /* the backward cursor (fills down)       */
-    uint32_t  buf;              /* the bit buffer                         */
-    uint16_t  chk;              /* the running BP (checksum) accumulator  */
+    WordReader  rd;            /* reads the next u16 from the stream     */
+    void       *rd_ctx;        /* reader context (volume or memory)      */
+    uint8_t    *out;           /* the whole decoded resource             */
+    uint32_t    base;          /* this block's first output byte         */
+    uint32_t    p;             /* the backward cursor (fills down)       */
+    uint32_t    buf;           /* the bit buffer                         */
+    uint16_t    chk;           /* the running BP (checksum) accumulator  */
+    unsigned    under;         /* cursor wrapped past 0 (scene-form CMP  */
+                               /*  DI,-1 -> END: the game discards the   */
+                               /*  overshoot bytes and stops)            */
 } LzState;
+
+/* Volume reader adapter: reads u16 words at VolReader::pos. */
+static uint16_t vol_word_reader(void *ctx)
+{
+    return vol_word((VolReader *)ctx);
+}
 
 static unsigned lz_bit(LzState *s)
 {
     unsigned bit = s->buf & 1u;
     s->buf >>= 1;
     if (s->buf == 0) {
-        unsigned w = vol_word(s->r);            /* the refill delivers its bit 0 */
+        unsigned w = s->rd(s->rd_ctx);            /* the refill delivers its bit 0 */
         s->chk ^= (uint16_t)w;                  /* every word read XORs into BP  */
         bit = w & 1u;
         s->buf = (w | 0x10000u) >> 1;
@@ -128,7 +140,10 @@ static unsigned lz_bits(LzState *s, unsigned n)
 
 static void lz_literals(LzState *s, unsigned n)
 {
-    while (n--) s->out[--s->p] = (uint8_t)lz_bits(s, 8);
+    while (n--) {
+        if (s->p == 0) { s->under = 1; return; }  /* CMP DI,-1 -> END */
+        s->out[--s->p] = (uint8_t)lz_bits(s, 8);
+    }
 }
 
 static void lz_match(LzState *s, unsigned n, unsigned distbits)
@@ -136,10 +151,12 @@ static void lz_match(LzState *s, unsigned n, unsigned distbits)
     unsigned d = lz_bits(s, distbits);
     while (n--) {
         unsigned byte;
+        if (s->p == 0) { s->under = 1; return; }  /* CMP DI,-1 -> END */
         s->p -= 1;                      /* source is read after the cursor step
                                          * (the reference's `p -= 1;
-                                         *  out[p] = out[p + d]`)             */
-        byte = s->out[s->p + d];
+                                         *  out[p] = out[p + d]`) — the source
+                                         * wraps within the 64K segment       */
+        byte = s->out[(s->p + d) & 0xFFFFu];
         s->out[s->p] = byte;
     }
 }
@@ -152,10 +169,10 @@ static uint16_t lz_block(LzState *s, unsigned clen)
 {
     s->base = s->p;
     s->p += clen;
-    s->chk = vol_word(s->r);                   /* the checksum field        */
-    s->buf = vol_word(s->r);                   /* the initial bit buffer    */
+    s->chk = s->rd(s->rd_ctx);                   /* the checksum field        */
+    s->buf = s->rd(s->rd_ctx);                   /* the initial bit buffer    */
     s->chk ^= (uint16_t)s->buf;
-    while (s->p > s->base) {
+    while (!s->under && s->p > s->base) {
         if (lz_bit(s) == 0) {
             if (lz_bit(s) == 1) lz_match(s, 2, 8);
             else                lz_literals(s, lz_bits(s, 3) + 1);
@@ -168,6 +185,45 @@ static uint16_t lz_block(LzState *s, unsigned clen)
         }
     }
     return s->chk;
+}
+
+/* Memory reader adapter for decoding LZW objects straight out of a
+ * loaded image (e.g. an .ANI's chunk data). */
+typedef struct {
+    const uint8_t *d;
+    uint32_t       pos;
+    uint32_t       len;
+} MemRd;
+
+static uint16_t mem_word_reader(void *ctx)
+{
+    MemRd *mr = (MemRd *)ctx;
+    if (mr->pos + 2 > mr->len) return 0;
+    uint16_t w = rd_le16(mr->d + mr->pos);
+    mr->pos += 2;
+    return w;
+}
+
+/* Decode one LZW object from a memory buffer:
+ *   [u16 decompressed_size][u16 checksum][u16 bit buffer][LZW bits]
+ * Returns the decompressed size written to `out`, or -1 on failure.
+ * *chkOut mirrors the machine's final BP accumulator. */
+int res_decode_lzw_mem(const uint8_t *data, uint32_t data_size,
+                       uint32_t off, uint8_t *out, uint32_t out_size,
+                       uint16_t *chkOut)
+{
+    if (off + 6 > data_size) return -1;
+    uint16_t size = rd_le16(data + off);
+    if (size > out_size) return -1;
+
+    MemRd mr = { data, off + 2, data_size };
+    /* p starts at 0: lz_block sets base = p and p += size, so the backwards
+     * fill lands at out[0 .. size).  lz_block reads [checksum][bit buffer]
+     * first — the stream starts right after the size word. */
+    LzState st = { mem_word_reader, &mr, out, 0, 0, 0, 0, 0 };
+    uint16_t chk = lz_block(&st, size);
+    if (chkOut) *chkOut = chk;
+    return (int)size;
 }
 
 /* --- the chunk directory and the block loop -------------------------- */
@@ -221,7 +277,7 @@ static uint8_t *res_decodeChunk(VolReader *r, uint32_t off,
             if (clen > length - done) goto fail;
             /* lz_block owns the cursor: p starts at the block's first
              * output byte and it advances p itself. */
-            LzState st = { r, out, 0, done, 0, 0 };
+            LzState st = { vol_word_reader, r, out, 0, done, 0, 0, 0 };
             acc = lz_block(&st, clen);         /* MOV BP,AX reset (91c9) */
             done += clen;
         }

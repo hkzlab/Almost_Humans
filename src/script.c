@@ -1,6 +1,119 @@
-/* script.c — the interpreter skeleton (re_scripts.md §2): one cursor +
- * dispatch-table + per-tick machine, shared by the entity bytecode, the
- * music-event scripts and the frame-keyed cue lists. */
+/* script.c — frame-keyed cue interpreter (re_scripts.md §2):
+ * one cursor + a 7-command dispatch + per-frame fire, shared by the boot
+ * intro's display-list player, the entity bytecode, and the music-event
+ * scripts.
+ *
+ * The intro cue list is ported VERBATIM from the static template at
+ * 202F:0x843C (file 0x18B2C in the unpacked exe): 25 records
+ * [u16 frame][u16 cmd][u16 arg], the cmd stored DIRECTLY, 1-based (the
+ * docs' "cmd-1" encoding was wrong — the DEC BX at b816 is the dispatch
+ * table's own 0-basing; see re_formats.md §8.7a).
+ *
+ * Dispatch semantics (the game's interpreter, 1000:B809): a cue fires when
+ * its frame EQUALS the current frame (JE) — a cue whose frame was passed
+ * never fires and blocks the cursor until a seek rewinds the counter.
+ * The player owns the frame counter and passes it to script_fire().
+ */
 #include "game.h"
+#include <stddef.h>
+#include <string.h>
+
+#define SCRIPT_FRAME_TARGET 387u   /* the live frame counter ran 0..386 */
+
+/* Cue commands (stored directly in the cue record, 1..7) */
+#define CUE_TRANSITION 1
+#define CUE_SCROLL_OFF 2
+#define CUE_SCROLL_ON  3
+#define CUE_SEEK       4
+#define CUE_QUIT       5
+#define CUE_SCROLL     6
+#define CUE_DWELL      7
 
 int script_init(const OSystem *osys) { (void)osys; return 0; }
+
+/* Wire a cue list (flattened [frame][cmd][arg] u16 triples). */
+void script_start(CueScript *s, const uint16_t *cues, unsigned cueCount)
+{
+    memset(s, 0, sizeof *s);
+    s->cues = cues;
+    s->cueCount = cueCount;
+    s->groupDwell = 1u;              /* the dwell cue at frame 0 sets it   */
+}
+
+/* Fire every cue whose frame == `frame` (the game's JE dispatch — a
+ * passed cue blocks the cursor until a seek rewinds the counter). */
+void script_fire(CueScript *s, unsigned frame)
+{
+    s->frame = frame;
+
+    while (s->cursor < s->cueCount) {
+        uint16_t f   = s->cues[s->cursor * 3u];
+        uint16_t cmd = s->cues[s->cursor * 3u + 1u];
+        uint16_t arg = s->cues[s->cursor * 3u + 2u];
+        if (f != frame) break;                  /* JE: fire on equal only */
+
+        s->cursor++;
+        switch (cmd) {
+        case CUE_TRANSITION: s->transitionIdx = arg; break;
+        case CUE_SCROLL_OFF: s->scrollOn = 0;        break;
+        case CUE_SCROLL_ON:  s->scrollOn = 1;        break;
+        case CUE_SEEK:
+            s->seekFrame = arg;
+            s->seekPending = 1;
+            break;
+        case CUE_QUIT:       s->quit = 1;            break;
+        case CUE_SCROLL:     s->scrollDelta = arg;   break;
+        case CUE_DWELL:      s->groupDwell = arg;    break;
+        }
+        if (s->quit) return;
+    }
+    if (s->cursor >= s->cueCount && s->frame + 1 >= SCRIPT_FRAME_TARGET)
+        s->done = 1;
+}
+
+int  script_quit(const CueScript *s) { return s->quit; }
+int  script_done(const CueScript *s) { return s->done; }
+unsigned script_groupDwell(const CueScript *s) { return s->groupDwell; }
+int  script_scrollOn(const CueScript *s) { return s->scrollOn; }
+unsigned script_scrollDelta(const CueScript *s) { return s->scrollDelta; }
+unsigned script_transitionIndex(const CueScript *s) { return s->transitionIdx; }
+int  script_seekPending(const CueScript *s) { return s->seekPending; }
+unsigned script_seekFrame(const CueScript *s) { return s->seekFrame; }
+void script_seekDone(CueScript *s) { s->seekPending = 0; }
+
+/* --- intro cue list (verbatim from 202F:0x843C) ------------------------- */
+
+static const uint16_t intro_cues[25u * 3u] = {
+    /* frame  cmd  arg */
+    0, 7, 1,       /* dwell 1                                        */
+    0, 6, 3,       /* scroll delta 3                                 */
+    0, 3, 0,       /* scroll on                                      */
+    0, 4, 0,       /* seek 0                                         */
+    0, 1, 0,       /* transition 0                                   */
+    64, 2, 0,      /* scroll off                                     */
+    65, 1, 1,      /* transition 1                                   */
+    76, 3, 0,      /* scroll on                                      */
+    170, 2, 0,     /* scroll off                                     */
+    171, 1, 2,     /* transition 2                                   */
+    186, 3, 0,     /* scroll on                                      */
+    186, 6, 4,     /* scroll delta 4                                 */
+    245, 2, 0,     /* scroll off                                     */
+    246, 1, 3,     /* transition 3                                   */
+    261, 3, 0,     /* scroll on                                      */
+    261, 6, 8,     /* scroll delta 8                                 */
+    261, 7, 1,     /* dwell 1                                        */
+    294, 2, 0,     /* scroll off                                     */
+    295, 1, 4,     /* transition 4                                   */
+    307, 3, 0,     /* scroll on                                      */
+    323, 4, 314,   /* seek to frame 314 (the tail loop)              */
+    323, 4, 314,   /* seek to frame 314 again                        */
+    325, 2, 0,     /* scroll off                                     */
+    355, 1, 5,     /* transition 5                                   */
+    385, 5, 0,     /* quit                                           */
+};
+
+/* Start the intro cue script (the verbatim 202F:0x843C template). */
+void script_introStart(CueScript *s)
+{
+    script_start(s, intro_cues, 25u);
+}
