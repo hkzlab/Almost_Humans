@@ -55,4 +55,32 @@ int  frontend_tick(void);                          /* 0 = quit requested    */
 /* --- src/save.c — the save-game format (byte-compatible) -------------- */
 int  save_init(const OSystem *osys);
 
+/* --- src/game_main.c — the top-level flow (the original's main loop) --
+ *
+ * The original's foreground loop is one flow-step per display period: the
+ * ISR does the fixed work (flip apply, palette step, music tick) and the
+ * foreground advances the flow once per tick boundary.  The states mirror
+ * the original's top-level control (game_structure.md §1):
+ *
+ *     ATTRACT --(5 s dwell; the real card cycle comes later)--> MENU
+ *     MENU    --(fire = the +0x5ACE bit-7 confirm)-----------> LEVEL
+ */
+typedef enum GameFlow {
+    FLOW_ATTRACT = 0,      /* the idle cycle (intro cards / hi-scores)    */
+    FLOW_MENU,             /* the map/level-select room                   */
+    FLOW_LEVEL             /* a level is installed and running            */
+} GameFlow;
+
+/* The tick rate the port assumes: the original MEASURES it at boot
+ * (init_crtc_timer calibrates the PIT divisor [0x5ABE] against the display
+ * and the ISR re-spins to the next vsync edge each tick), so one tick = one
+ * display period.  Verified live in DOSBox: the ISR tick counter runs at
+ * 70.19-70.5 Hz, and the calibrated divisor 0x3E59 = PIT 74.76 Hz with the
+ * bit-3-of-3DA wait making up the remainder to one display period. */
+#define GAME_TICK_HZ 70
+
+/* Advance the flow one step with the polled input; the loop calls it once
+ * per tick boundary.  Returns the new state. */
+GameFlow gameflow_step(GameFlow state, const InputState *input);
+
 #endif /* HUMANSRE_GAME_H */

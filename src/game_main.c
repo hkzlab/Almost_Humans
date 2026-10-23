@@ -1,4 +1,5 @@
-/* main.c — the game core's entry: the original `entry` (1000:0000) re-read.
+/* game_main.c — the game core's entry: the original `entry` (1000:0000)
+ * re-read.
  *
  * The arch layer owns main() and hands us the filled OSystem vtable
  * (port_structure.md §2).  The boot order below mirrors the original's
@@ -10,35 +11,93 @@
  *         -> the level walk               (the cutscenes, once per level)
  *         -> menu_loop                    (the map / level-select room)
  *
- * Stub state: the modules are initialised and the shell of the flow runs,
- * nothing renders yet (M4 starts here).
+ * The loop structure copies the original's split (re_map.md, "Timer / INT 8"):
+ * the tick callback is the ISR body — flip apply, palette step, then the
+ * music/keyed events — and the foreground advances the flow exactly once per
+ * tick boundary.  Stub state: modules are initialised and the flow shell
+ * runs; nothing renders yet (M4 starts here).
  */
 #include "game.h"
-#include "osystem.h"
+#include <stddef.h>
 
 int resources_init(const OSystem *osys) {
-    int res_init_state = 
+    int res_init_state =
         res_init(osys) || video_init(osys) || palette_init(osys) ||
         font_init(osys) || statusbar_init(osys) || scene_init(osys) ||
         level_init(osys) || entity_init(osys) || script_init(osys) ||
         audio_init(osys) || save_init(osys) || frontend_init(osys);
-    
+
     if (res_init_state) osys->fatalError("module init failed");
 
     return res_init_state;
 }
 
+/* The ISR body: the fixed per-tick work, in the original's order (the flip
+ * apply happens inside video/palette's charge once they are real; the
+ * content modules are stubs today). */
+static void game_tick(void)
+{
+    video_tick();
+    palette_tick();
+    statusbar_tick();
+    entity_tick();
+}
+
+/* --- the flow state machine ------------------------------------------ */
+
+#define ATTRACT_DWELL_TICKS (5u * GAME_TICK_HZ)   /* 5 s; the real attract
+                                                   * dwell is authored per
+                                                   * card (todo from the
+                                                   * cutscene data)          */
+
+static unsigned attract_dwell;
+
+GameFlow gameflow_step(GameFlow state, const InputState *input)
+{
+    const unsigned fire = (input->joyBits & 0x80u) != 0;
+
+    switch (state) {
+    case FLOW_ATTRACT:
+        /* The idle cycle: today just the 5 s dwell (the real cycle plays
+         * the intro cards and the hi-score screens). */
+        if (++attract_dwell >= ATTRACT_DWELL_TICKS) {
+            attract_dwell = 0;
+            return FLOW_MENU;
+        }
+        return FLOW_ATTRACT;
+
+    case FLOW_MENU:
+        /* The map/level-select room waits for the player: fire confirms
+         * (the +0x5ACE bit-7 path), ESC drops back to attract. */
+        if (fire) return FLOW_LEVEL;
+        if (input->lastKey == 0x01u) return FLOW_ATTRACT;   /* ESC */
+        return FLOW_MENU;
+
+    case FLOW_LEVEL:
+        /* The level is running (loading and the party pre-level screen are
+         * M4 content; the 6-min countdown lives under level_init later). */
+        return FLOW_LEVEL;
+    }
+    return state;
+}
+
 int game_main(const OSystem *osys)
 {
-    // Setup the video
     osys->videoSetMode();
-
-    // Initialize resources (and exit if we fail)
     if (resources_init(osys)) return 1;
 
-    /* TODO(M4): the intro sequence, then the level walk, then menu_loop's
-     * event loop.  The heartbeat: the backend calls the tick below. */
-    for (;;) frontend_tick();
+    osys->timerStart(GAME_TICK_HZ, game_tick);
 
+    GameFlow state = FLOW_ATTRACT;
+    for (;;) {
+        InputState input;
+        osys->eventsPoll(&input);
+        if (input.quit) break;
+        state = gameflow_step(state, &input);
+        osys->videoPresent(1);          /* the second page: blank for now */
+        frontend_tick();                /* the menu/room content (stub)   */
+    }
+
+    osys->audioStop();
     return 0;
 }

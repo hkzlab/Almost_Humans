@@ -26,6 +26,14 @@ add_library(core STATIC
 target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 target_compile_options(core PRIVATE -Wall -Wextra -Werror)
 
+# The headless tests: assert-based, no framework.
+add_executable(test_loop tests/test_loop.c)
+target_include_directories(test_loop PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(test_loop PRIVATE core fs_posix)
+target_compile_options(test_loop PRIVATE -Wall -Wextra -Werror)
+add_test(NAME flow COMMAND test_loop)
+enable_testing()
+
 # The filesystem modules (port_structure.md §2): the arch backends link
 # exactly one at build time; both export the same `fs` interface (fs/fs.h).
 add_library(fs_null  src/arch/fs/null/fs_null.c)
