@@ -141,8 +141,12 @@ static unsigned lz_bits(LzState *s, unsigned n)
 static void lz_literals(LzState *s, unsigned n)
 {
     while (n--) {
-        if (s->p == 0) { s->under = 1; return; }  /* CMP DI,-1 -> END */
-        s->out[--s->p] = (uint8_t)lz_bits(s, 8);
+        unsigned byte = lz_bits(s, 8);   /* b4e8: the read happens FIRST */
+        if (s->p == 0) { s->under = 1; return; }  /* b4fd: DI == -1 -> END:
+                        * the store is skipped but the read's XOR stays in
+                        * BP — the aborted decode fails the checksum (the
+                        * game's b446 unwind) */
+        s->out[--s->p] = (uint8_t)byte;
     }
 }
 
@@ -165,6 +169,12 @@ static void lz_match(LzState *s, unsigned n, unsigned distbits)
         s->out[s->p] = byte;
     }
 }
+
+/* shortcut: a corrupt stream can read up to 4095 bytes past the written
+ * region of `out` here (the asm wraps inside its always-mapped 64K scratch
+ * segment; the port has no such floor).  Every shipped asset passes the
+ * checksum gate, so only corrupt data reaches this — bound the read when
+ * handling untrusted RSCs. */
 
 /* One compressed block: `clen` bytes, checker fresh per block exactly as
  * decode_bitstream resets BP to the stream's checksum field (the 91c7 XOR

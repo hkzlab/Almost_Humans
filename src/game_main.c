@@ -105,6 +105,7 @@ int game_main(const OSystem *osys)
 
         InputState input;
         osys->eventsPoll(&input);
+        scene_noteInput(&input);   /* the waits read this tick's state */
         if (input.quit) break;
 
         /* the attract phase plays the boot intro first (the original's

@@ -87,8 +87,12 @@ int  scene_playLevelIntro(unsigned introIndex);   /* the cd_file_op body   */
  * chain — the Gametek logo (GAMETEK.RSC's display list), the IDI and FIRST
  * cards, then the ITB card + INTRO.RSC's display list over the scrolled
  * bac.bit background — driven by the 202F:0x843C cue list.  Per-tick like
- * the level intro; plays once (key abort inside the logo stage only). */
+ * the level intro; plays once (a held key aborts the whole chain — every
+ * stage's c0af/c0b8 wait polls via boot_abort_poll). */
 int  scene_playBootIntro(void);
+/* The main loop's per-tick input state; the boot's abort polls (c0c6's
+ * [0x48A3] / +0x5ACE bit-7 equivalents) read this cached copy. */
+void scene_noteInput(const InputState *in);
 
 /* --- src/level.c — the level definitions (subsystem 9, §2) -------------
  *
