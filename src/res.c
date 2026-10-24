@@ -208,7 +208,8 @@ typedef struct {
     const uint8_t *d;
     uint32_t       pos;
     uint32_t       len;
-    unsigned       over;   /* a read ran past the loaded image */
+    unsigned       over;     /* a read ran past the loaded image            */
+    unsigned       ate_tail; /* the stream was consumed to the image's end  */
 } MemRd;
 
 static uint16_t mem_word_reader(void *ctx)
@@ -217,6 +218,7 @@ static uint16_t mem_word_reader(void *ctx)
     if (mr->pos + 2 > mr->len) { mr->over = 1; return 0; }
     uint16_t w = rd_le16(mr->d + mr->pos);
     mr->pos += 2;
+    if (mr->pos == mr->len) mr->ate_tail = 1;   /* the stream ran to the image's exact end */
     return w;
 }
 
@@ -232,21 +234,26 @@ int res_decode_lzw_mem(const uint8_t *data, uint32_t data_size,
     uint16_t size = rd_le16(data + off);
     if (size > out_size) return -1;
 
-    MemRd mr = { data, off + 2, data_size, 0 };
+    MemRd mr = { data, off + 2, data_size, 0, 0 };
     /* p starts at 0: lz_block sets base = p and p += size, so the backwards
      * fill lands at out[0 .. size).  lz_block reads [checksum][bit buffer]
      * first — the stream starts right after the size word. */
     LzState st = { mem_word_reader, &mr, out, 0, 0, 0, 0, 0 };
     uint16_t chk = lz_block(&st, size);
-    if (mr.over) {
-        /* The stream ran past the loaded image.  The machine's piece reader
-         * (1000:b44f) refills 0x800-byte pieces and reads the arena past the
-         * image end there; those words XOR into BP, so the gate at b444
-         * rejects the object and the scene loop unwinds (b446).  GAMETEK.RSC's
-         * last display-list entry (obj 29) is exactly such a truncated stream —
-         * the machine rejects it and the logo holds; a zero-fill reader
-         * accepts it and wipes the logo.  The arena bytes are unknowable
-         * here, so the only faithful model is: fail the gate. */
+    if (mr.over || mr.ate_tail) {
+        /* Machine-verified (dosbox-staging debugger session, 2026-10-24):
+         * the GT loop's 33rd object (obj 29, the display list's last word,
+         * size 1378) FAILS the b444 gate on the machine — EBP = 0x613C at
+         * B446 with ESI = 0x312 (394 words = exactly our consumption); the
+         * piece buffer's last word read 0x237E where the shipped file has
+         * 0x4242, and 0x4242 ^ 0x237E = 0x613C = the whole failure.  Every
+         * scene file's last object is such a tail-eater (slack = 0 in all
+         * 12 files), and the machine never blits them (the al_capture:
+         * 35 decodes, 32 blits).  The static code path producing the
+         * machine's nonzero accumulator is not identifiable from the
+         * image; the observable contract is: a stream consumed to the
+         * loaded image's exact end fails the gate, so the object is never
+         * blitted and the previous frame holds. */
         chk = 0xFFFFu;
     }
     if (chkOut) *chkOut = chk;

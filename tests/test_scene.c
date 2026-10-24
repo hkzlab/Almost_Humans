@@ -71,8 +71,14 @@ int main(int argc, char **argv)
     video_init(&osys_null);
     palette_init(&osys_null);
 
-    /* 1. the intro plays: dwell (210) + 35 objects (6 ticks each) — well
-     * past that, every call still returns 1 (the scene-0 chain replays). */
+    /* 1. the intro plays: dwell (210) + 34 objects (6 ticks each) — well
+     * past that, every call still returns 1 (the scene-0 chain replays).
+     * 34, not 35: the display list's last object is a tail-eater (its
+     * stream runs to the loaded image's exact end) and the machine's
+     * checksum gate rejects it — decode runs, the blit never does
+     * (dosbox-staging debugger session, 2026-10-24: GT obj 29 fails the
+     * b444 gate, EBP=0x613C; every scene file's last object is a
+     * tail-eater, slack = 0 in all 12). */
     for (unsigned t = 0; t < 600; t++) {
         if (scene_playLevelIntro(0) != 1) {
             fprintf(stderr, "FAIL intro ended early at tick %u\n", t);
@@ -81,21 +87,20 @@ int main(int argc, char **argv)
     }
 
     /* 2. the page holds the final scene: byte-exact against the reference
-     * playback (daily.bit screen + scoops bg + all 35 AL expansions; the
-     * last object covers the page, so the checksums are position-
-     * independent of the under-layer). */
+     * playback (daily.bit screen + scoops bg + the 34 played AL expansions
+     * over the zeroed page). */
     {
         const uint8_t *page = osys_null_page(0);
         unsigned x = xor16(page, 320u * 200u);
         unsigned sum = 0;
         for (unsigned i = 0; i < 320u * 200u; i++) sum += page[i];
         sum &= 0xFFFFu;
-        if (x != 0xb992u) {
-            fprintf(stderr, "FAIL page xor16=%#06x, want 0xb992\n", x);
+        if (x != 0xbb97u) {
+            fprintf(stderr, "FAIL page xor16=%#06x, want 0xbb97\n", x);
             bad = 1;
         }
-        if (sum != 0xfec1u) {
-            fprintf(stderr, "FAIL page sum16=%#06x, want 0xfec1\n", sum);
+        if (sum != 0xfea4u) {
+            fprintf(stderr, "FAIL page sum16=%#06x, want 0xfea4\n", sum);
             bad = 1;
         }
     }
