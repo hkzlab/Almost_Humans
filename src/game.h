@@ -93,6 +93,7 @@ int  scene_playBootIntro(void);
 /* The main loop's per-tick input state; the boot's abort polls (c0c6's
  * [0x48A3] / +0x5ACE bit-7 equivalents) read this cached copy. */
 void scene_noteInput(const InputState *in);
+unsigned scene_boot_phaseForProbe(void);   /* probe: the boot machine's phase */
 
 /* --- src/level.c — the level definitions (subsystem 9, §2) -------------
  *
