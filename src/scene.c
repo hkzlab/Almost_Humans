@@ -827,18 +827,17 @@ int scene_playBootIntro(void)
         return 1;
 
     case BOOT_GT_FRAME: {
-        /* b293-b2c2: the idx array holds count+1 words, but the machine's
-         * own captured execution (analysis/lzw/al_capture: 33 consecutive
-         * trap hits — the prologue's b257 plus 32 at b2a4 — then silence
-         * with a 3600 s deadline and a 40-hit cap unused) shows the loop
-         * plays exactly `count` frames, idx[0..count-1]; the last array
-         * word (obj 29) is never expanded.  Playing it wipes the page (its
-         * stream zeroes the logo down to a small entry-8 blob — the
-         * blue-rectangle symptom); the machine holds the obj-28 full logo
-         * through the bank cycles instead. */
+        /* b293-b2c2: CX = count+1 iterations over the idx array (the array
+         * holds count+1 words — the object tail is consumed exactly); the
+         * key test lives in BOOT_GT_FLIP (the asm's b2ba, between the flip
+         * and the next frame).  LIVE-VERIFIED (2026-10-24): the machine's
+         * relocated count word reads 32 (→ CX = 33) — the loop plays all
+         * count+1 frames including the last (obj 29), whose expansion
+         * wipes the assembled logo down to a small entry-8 blob; that
+         * vanish-and-blob is authentic machine behavior. */
         unsigned count = (unsigned)bootGtList[0] |
                          ((unsigned)bootGtList[1] << 8);
-        if (bootGtGroup >= count) {
+        if (bootGtGroup > count) {
             bootHold = 30u;                /* bf19: the 30-tick pre-bank hold */
             boot_phase = BOOT_GT_BANK_HOLD;
             return 1;
