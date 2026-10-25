@@ -86,15 +86,16 @@ static void blit_glyph(uint8_t *arena, int x, unsigned row, unsigned gi)
         uint8_t al = (uint8_t)(ax & 0xFFu);
         uint8_t ah = (uint8_t)(ax >> 8);
 
-        /* the six arena writes, bits 3..0 of six consecutive bytes */
-        if (di + 5u < 16000u) {
-            arena[di]     |= rev4(al >> 4);    /* 4a3c..4a54  */
-            arena[di + 1] |= rev4(al);         /* 4a57..4a6b  */
-            arena[di + 2] |= rev4(ah >> 4);    /* 4a72..4a8e  */
-            arena[di + 3] |= rev4(ah);         /* 4a91..4aa5  */
-            arena[di + 4] |= rev4(dh >> 4);    /* 4aac..4ac8  */
-            arena[di + 5] |= rev4(dh);         /* 4acb..4adf  */
-        }
+        /* the six arena writes, bits 3..0 of six consecutive bytes.  No
+         * arena bound: the original writes through ES unbounded, and the
+         * credits strip's tiles live far past effect 2's 200-row arena
+         * (the callers keep the writes in their buffer's range). */
+        arena[di]     |= rev4(al >> 4);    /* 4a3c..4a54  */
+        arena[di + 1] |= rev4(al);         /* 4a57..4a6b  */
+        arena[di + 2] |= rev4(ah >> 4);    /* 4a72..4a8e  */
+        arena[di + 3] |= rev4(ah);         /* 4a91..4aa5  */
+        arena[di + 4] |= rev4(dh >> 4);    /* 4aac..4ac8  */
+        arena[di + 5] |= rev4(dh);         /* 4acb..4adf  */
         di += 0x4Au + 6u;                      /* the 80-byte row stride */
     }
 }

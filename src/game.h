@@ -109,13 +109,19 @@ typedef enum AttractPhase {
     ATTRACT_E3_TAIL, ATTRACT_E3_HOLD, ATTRACT_E3_OUT,
     ATTRACT_E2_LOAD, ATTRACT_E2_FADEWAIT, ATTRACT_E2_FRAME,
     ATTRACT_E2_WIPE, ATTRACT_E2_HOLD, ATTRACT_E2_OUT,
-    ATTRACT_E4_LOAD, ATTRACT_E4_FADEWAIT, ATTRACT_E4_DWELL,
+    ATTRACT_E4_LOAD, ATTRACT_E4_FADEWAIT, ATTRACT_E4_SCROLL,
     ATTRACT_E4_OUT,
     ATTRACT_ESCAPE, ATTRACT_DONE
 } AttractPhase;
 
 int      attract_tick(const InputState *in);   /* 1 = the attract is playing */
 unsigned attract_phaseForProbe(void);          /* the tests' phase read      */
+
+/* Effect 4's strip probe (the 192-KB work area at [0xD76] + the rows
+ * built, [0xD39]): the byte-exact fixture test compares the fill against
+ * tools/attract_scroll_sim.py's dump.  Valid from the first ATTRACT_E4
+ * load until the next effect begins. */
+const uint8_t *attract_stripForProbe(unsigned *rowsBuilt);
 
 /* --- src/statusbar.c — the bottom bar (subsystem 13, §12.7) ----------- */
 int  statusbar_init(const OSystem *osys);

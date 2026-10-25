@@ -35,10 +35,19 @@
  * (wait_palette_fade_done 1000:8B8B); its completion is the hand-off to
  * the front-end (FLOW_MENU — the original's RET into entry LAB_002B).
  *
- * Effect 4's credits scroller itself is PROVISIONAL: blit_scroll
- * (1000:1B58) and the char drawers 1000:1AFC/1B13 are not decoded
- * (next_step.md §2), so the dwell below stands in for the screenful loop
- * with the original's skip poll.
+ * Effect 4's credits scroller is the real machine (decoded 2026-10-25,
+ * re_map.md "Effect 4" items 3-6): the fill builds the 192-KB strip at
+ * [0xD76] (clear_bitmaps_6) as a vertical bitmap of 80-byte rows — [0]
+ * the signature, [1] the write-mode-2 mask, [20..79] the presented 60
+ * bytes — one 15-row tile per text line (BP += 75 paras) or 16-row blank
+ * tile (BP += 80 paras), [0xD39] counting rows; blit_scroll (1000:1B58)
+ * then presents ONE strip row per tick into the draw page's scanline
+ * bytes 20..79 (screen x 80..319) in write mode 2 with the row's own bit
+ * mask (0x20: the ink sets palette bit 5 over the background; 0xE0: the
+ * background clamped to index & 0x1F), skipping rows whose signature
+ * matches the 200-byte cache at CS:0x1CF7 (shipped 0x80), until
+ * [0xD78] == [0xD39] - 0xC8; more credtext re-fills the next screenful,
+ * else the tail ([0x1E7C]:=0x0A, fade to black div 0x1E).
  */
 #include "game.h"
 #include <stdlib.h>
@@ -114,6 +123,20 @@ static uint8_t *imgBuf;           /* [0xC32]: the loaded image             */
 static uint8_t *textSpr;          /* [0x1E1C] analog: the loaded font      */
 static uint8_t colour1881 = 0x43; /* CS:0x1881: blit_80x200's colour base  */
 
+/* --- effect 4's credits strip (re_map.md "Effect 4") ----------------------
+ * The 192-KB work area [0xD76] (clear_bitmaps_6 1000:1B3B, re-zeroed per
+ * screenful): a vertical bitmap of 80-byte rows — [0] the row signature,
+ * [1] the write-mode-2 bit mask, [2..19] pad, [20..79] the presented 60
+ * bytes = arena pixels 80..319. */
+static uint8_t e4strip[196608];
+static uint8_t rowSig[200];       /* CS:0x1CF7: the row-signature cache    */
+static int rowSigInit;            /* the shipped 0x80 fill runs once       */
+static uint8_t *credtext;         /* [0xC9F]: the loaded credtext.bin      */
+static uint32_t credtextSize;
+static unsigned credCursor;       /* [0xD6C]: the credtext cursor          */
+static uint16_t rowsBuilt;        /* [0xD39]: the strip rows built         */
+static uint16_t scrollRow;        /* [0xD78]: the scroll window's start row */
+
 /* [0x1E7C] and [0xD3D] are not carried: in the decoded image they are
  * write-only (the cycle/effect tag and the skip flag — the writers are in
  * re_map.md § "The ATTRACT loop decoded"; no reader is traced), so the
@@ -122,6 +145,14 @@ static uint8_t colour1881 = 0x43; /* CS:0x1881: blit_80x200's colour base  */
 int attract_init(const OSystem *osys) { (void)osys; return 0; }
 
 unsigned attract_phaseForProbe(void) { return (unsigned)phase; }
+
+/* the strip probe: the 192-KB work area and [0xD39] (the rows built) —
+ * the byte-exact fixture test compares these against the sim's dump. */
+const uint8_t *attract_stripForProbe(unsigned *rowsOut)
+{
+    if (rowsOut) *rowsOut = rowsBuilt;
+    return e4strip;
+}
 
 /* --- the VRAM primitives ------------------------------------------------ */
 
@@ -401,14 +432,113 @@ static int e2_load(void)
     return 1;
 }
 
-/* effect 4 (1000:19AF): the loads and the fades are decoded; the scroller
- * is provisional.  Returns 0 = skip. */
+/* fill_pattern (1000:1AFC) — draw_char_advance's blank path: the tile's 16
+ * rows of [sig 0xFF, mask 0x20]; the data bytes keep the zeroed strip. */
+static void fill_pattern(uint8_t *tile)
+{
+    for (unsigned r = 0; r < 16u; r++) {
+        tile[r * 80u] = 0xFFu;
+        tile[r * 80u + 1u] = 0x20u;
+    }
+}
+
+/* fill_pattern_clip (1000:1B13) — the text path: rows 0..3 the [0xFF, 0xE0]
+ * band above the text (the presenter clamps the background to index & 0x1F
+ * there, erasing stale ink), rows 4..14 the [0..10, 0x20] per-row
+ * signatures (adjacent glyph rows always mismatch the cache, so ink rows
+ * are always redrawn).  The original's dead MOV BX,0xD2E (1b1a — BX pushed
+ * and never read) is dropped. */
+static void fill_pattern_clip(uint8_t *tile)
+{
+    for (unsigned r = 0; r < 15u; r++) {
+        tile[r * 80u]     = (r < 4u) ? 0xFFu : (uint8_t)(r - 4u);
+        tile[r * 80u + 1u] = (r < 4u) ? 0xE0u : 0x20u;
+    }
+}
+
+/* the screenful of 1A07: clear_bitmaps_6 (the 192-KB zero), [0xD39]:=0,
+ * the fill loop — strcpy_cae (1AA4) + draw_char_advance (1AB9) per line
+ * until the next credtext byte is 0xFF or rowsBuilt >= 0x989 (the max
+ * build 2456 rows * 80 B fits the strip exactly) — and the INC SI at
+ * 1a37 that walks the cursor onto the terminator (the shipped file's
+ * four-byte 0xFF run absorbs it). */
+static void e4_fill(void)
+{
+    char scratch[1024];                 /* 0xCAE; bounded only in the port */
+    memset(e4strip, 0, sizeof e4strip);
+    rowsBuilt = 0;
+    do {
+        unsigned n = 0;                 /* strcpy_cae: line -> scratch    */
+        while (credCursor < credtextSize) {
+            uint8_t c = credtext[credCursor++];
+            if (n + 1u < sizeof scratch) scratch[n++] = (char)c;
+            if (c == 0u) break;          /* the NUL is copied too          */
+        }
+        scratch[n] = 0;
+
+        unsigned tile = rowsBuilt;      /* BP: the tile's base row          */
+        if (scratch[0] == 0) {           /* 1ac1: the empty-line test       */
+            rowsBuilt = (uint16_t)(rowsBuilt + 0x10u);
+            fill_pattern(e4strip + tile * 80u);
+        } else {                         /* 1adf: the text path             */
+            rowsBuilt = (uint16_t)(rowsBuilt + 0xFu);
+            fill_pattern_clip(e4strip + tile * 80u);
+            /* 1ae9..1af4: [0x1E20] := BP, draw_text(scratch, 0xC8, row 0)
+             * — the tile is the arena at row `tile`, so blit_glyph's 16th
+             * row lands on the NEXT tile's row 0 exactly as the spill does */
+            font_drawText(e4strip, scratch, 0xC8u, tile);
+        }
+        if (credCursor < credtextSize &&
+            credtext[credCursor] == 0xFFu) break;      /* 1a28            */
+    } while (rowsBuilt < 0x989u);                       /* 1a2f            */
+    credCursor++;                       /* 1a37: INC SI                    */
+}
+
+/* blit_scroll (1000:1B58): present strip row `row` — the 200-row window
+ * written into the draw page's scanline bytes 20..79 (screen x 80..319),
+ * VGA write mode 2 with the row's own bit mask: each 1-bpp source byte
+ * sets 4 pixels, plane j := (latch & ~M) | (bit j of the byte ? M : 0).
+ * A row whose signature matches the cache at CS:0x1CF7 is skipped whole.
+ * The source modulo is the port's one bound: the original's source
+ * segment walks past the 192-KB strip into other heap memory only for
+ * malformed credtext (a scroll target below 200 rows), unreachable with
+ * the shipped data (rowsBuilt = 1579).  The original's trailing [0x5AC8]
+ * spin (one ISR tick) and JMP flip_page_swap are this port's tick
+ * boundary and the caller's flip_page(). */
+static void blit_scroll(unsigned row)
+{
+    unsigned src = (row * 80u) % sizeof e4strip;
+    unsigned di = pageDraw + 0x14u;
+    for (unsigned i = 0; i < 200u; i++) {
+        uint8_t sig = e4strip[src];
+        if (sig != rowSig[i]) {
+            rowSig[i] = sig;
+            uint8_t mask = e4strip[src + 1u];
+            for (unsigned k = 0; k < 60u; k++) {
+                uint8_t v = e4strip[(src + 0x14u + k) % sizeof e4strip];
+                uint8_t *px = vram[di + k];
+                for (unsigned j = 0; j < 4u; j++)
+                    px[j] = (uint8_t)((px[j] & (uint8_t)~mask) |
+                             (((v >> j) & 1u) ? mask : 0u));
+            }
+        }
+        src = (src + 80u) % sizeof e4strip;
+        di += 80u;
+    }
+}
+
+/* effect 4 (1000:19AF): the loads, the fades, and the first screenful's
+ * fill (the 1a01..1a38 stretch runs inside the load instant, with the
+ * fade-in animating on the tick, exactly as the original's straight-line
+ * code).  Returns 0 = skip. */
 static int e4_load(void)
 {
-    /* 19be: the original sets [0x1E7C]:=8 here (the effect-4 tag)          */
-    uint32_t sz = 0, ctSz = 0;
-    uint8_t *ct = res_loadChunk("CREDTEXT.BIN", &ctSz, NULL);
-    if (ct) free(ct);                             /* the scroller is TODO  */
+    /* 19b9/19be: [0xD3D]:=0, [0x1E7C]:=8 — both write-only (no reader is
+     * traced; see the note by the module state) */
+    free(credtext);  credtext = NULL;
+    credtext = res_loadChunk("CREDTEXT.BIN", &credtextSize, NULL);
+    if (!credtext) return 0;
+    uint32_t sz = 0;
     unload_img();
     imgBuf = res_loadChunk("LBM\\INTCRED4.BIT", &sz, NULL);
     if (!imgBuf || sz < 64000u + 768u) { unload_img(); return 0; }
@@ -417,6 +547,14 @@ static int e4_load(void)
     blit_planar(imgBuf, pageDraw);  flip_page();
     blit_planar(imgBuf, pageDraw);  flip_page();
     palette_buildFade(0u, 256u, 0x1Eu, palette_working());
+
+    /* 1a01/1a07: the cursor at 0, then the first screenful.  The signature
+     * cache mirrors the shipped CS:0x1CF7 sentinel (0x80 x200, a value no
+     * real signature matches) and — like the original's CS bytes — is
+     * never reset after the first fill: it persists across cycles. */
+    credCursor = 0;
+    if (!rowSigInit) { memset(rowSig, 0x80, sizeof rowSig); rowSigInit = 1; }
+    e4_fill();
     return 1;
 }
 
@@ -626,7 +764,7 @@ int attract_tick(const InputState *in)
         next_effect();
         break;
 
-    /* --- effect 4: the credits (1000:19AF) — PROVISIONAL scroller -------- */
+    /* --- effect 4: the credits (1000:19AF) -------------------------------- */
     case ATTRACT_E4_LOAD:
         if (!e4_load()) {
             if (escape_test(in)) { latch_escape(); break; }
@@ -638,20 +776,41 @@ int attract_tick(const InputState *in)
     case ATTRACT_E4_FADEWAIT:                   /* fade_wait 1a3c */
         if (escape_test(in)) { latch_escape(); break; }
         if (palette_fadeActive()) break;
-        counter = 490u;   /* PROVISIONAL: stands in for the screenful loop
-                           * (blit_scroll + 1AFC/1B13 undecoded, next_step
-                           * §2); 490 = the other frames' hold             */
-        phase = ATTRACT_E4_DWELL;
+        scrollRow = 0;                           /* 1a3f: [0xD78] := 0    */
+        phase = ATTRACT_E4_SCROLL;
         break;
-    case ATTRACT_E4_DWELL:
-        /* the original's scroll loop polls LOCALLY (1a58): a key ends the
-         * screenful (and sets the write-only [0xD3D]:=0xFF at 1a6b), it
-         * does not exit the attract */
-        if (local_key(in)) counter = 1u;
-        if (--counter != 0u) break;
-        /* 1a82: the tail also sets [0x1E7C]:=0x0A (write-only)            */
-        palette_buildFade(0u, 256u, 0x1Eu, ramp0);   /* 1a87: fade to black */
-        phase = ATTRACT_E4_OUT;
+    case ATTRACT_E4_SCROLL:                      /* the loop at 1a45      */
+        /* blit_scroll + its trailing one-tick spin + the JMP flip: one
+         * strip row per display period, the page pair alternating        */
+        blit_scroll(scrollRow);
+        flip_page();
+        scrollRow++;
+        if (scrollRow == (uint16_t)(rowsBuilt - 0xC8u)) {
+            /* 1a72: the terminator check; more credtext -> the next
+             * screenful in the same instant (the clear + the fill + the
+             * fade_wait's one poll, the fade being done), then row 0 on
+             * the next tick.  The bound mirrors the original's heap-read
+             * past the buffer only for data without the 0xFF terminator,
+             * which the shipped file always has. */
+            unsigned next = (credCursor < credtextSize)
+                          ? credtext[credCursor] : 0xFFu;
+            if (next != 0xFFu) {
+                e4_fill();
+                if (escape_test(in)) { latch_escape(); break; }
+                scrollRow = 0;
+                break;
+            }
+            /* 1a82: the tail — [0x1E7C]:=0x0A (write-only) */
+            palette_buildFade(0u, 256u, 0x1Eu, ramp0);
+            phase = ATTRACT_E4_OUT;
+            break;
+        }
+        /* 1a58: the LOCAL poll — a key ends the effect via the tail
+         * ([0xD3D]:=0xFF, write-only); it is not the attract escape      */
+        if (local_key(in)) {
+            palette_buildFade(0u, 256u, 0x1Eu, ramp0);
+            phase = ATTRACT_E4_OUT;
+        }
         break;
     case ATTRACT_E4_OUT:                         /* fade_wait 1a96 */
         if (escape_test(in)) { latch_escape(); break; }
@@ -663,6 +822,7 @@ int attract_tick(const InputState *in)
     case ATTRACT_ESCAPE:
         if (palette_fadeActive()) break;         /* 8b8b: wait_palette_fade_done */
         unload_img();
+        free(credtext);  credtext = NULL;        /* [0xC9F] released       */
         free(textSpr);  textSpr = NULL;
         font_publish(NULL);
         phase = ATTRACT_DONE;

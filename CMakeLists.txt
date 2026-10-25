@@ -112,6 +112,18 @@ target_link_libraries(test_entity PRIVATE core fs_posix)
 humansre_warnings(test_entity)
 add_test(NAME entity COMMAND test_entity ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 
+# The attract scroller test: effect 4's strip + presenter against the
+# reference dump from tools/attract_scroll_sim.py (regenerate it by
+# running that script; absent dumps = skip).
+set(HUMANS_REF_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../analysis/attract_scroll"
+    CACHE PATH "attract_scroll_sim.py reference dumps (strip + frames)")
+add_executable(test_attract tests/test_attract.c
+    src/arch/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_attract PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(test_attract PRIVATE core fs_posix)
+humansre_warnings(test_attract)
+add_test(NAME attract COMMAND test_attract ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR} ${HUMANS_REF_DIR})
+
 enable_testing()
 
 # The filesystem modules (port_structure.md §2): the arch backends link
