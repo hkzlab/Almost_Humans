@@ -13,24 +13,32 @@
  *
  * attract_tick() advances the machine by exactly ONE display period (the
  * original's wait_vsync cadence).  The exit (attract_exit 1000:13E9: the
- * configured action key [0x5ACE bit 7] or any held key [0x48A3]) latches at
- * the TOP of every tick and runs the escape (the longjmp 1000:13B2): the
- * page pair is restored, [0x1E7C]:=0x0A, one fade to black (div 0x23) whose
- * completion is the hand-off to the front-end (FLOW_MENU).
+ * configured action key [0x5ACE bit 7] or any held key [0x48A3]) is polled
+ * EXACTLY where the original polls it — at the fade waits (fade_wait
+ * 1000:13E0) and the holds (fade_step_frames 1000:13FB), once per tick of
+ * those phases; the no-poll windows (the two wipes, the frame draws, the
+ * slide's tail) see no key until their next poll, as in the listing.  The
+ * local polls (effect 3's slide skip, effect 4's scroller skip) stay local
+ * exactly as in the listing — they skip the current hold, they do NOT exit
+ * the attract.
  *
- * One port-side deviation, recorded in next_step.md §2: the original polls
- * the escape only at its fade waits and holds; the port also sees a key
- * inside the original's no-poll windows (the two wipes, ~79 ticks).  The
- * exit condition is identical; only the latency differs, by at most one
- * wipe.  The local polls (effect 3's slide skip, effect 4's scroller skip)
- * stay local exactly as in the listing — they do NOT escape.
+ * The one port-only escape point is the ASSET-LOAD-FAILURE skip: the
+ * original has no such path (a failed INT 63h prompts for the disc), and
+ * the port's headless tests run without data — so the skip consumes the
+ * escape to stay drivable.  With data present that path never runs and the
+ * polling is the original's.  (Load failures otherwise skip the effect —
+ * the scene player's established pattern.)
  *
- * Asset-load failures skip the effect (the scene player's established
- * pattern — the original prompts for the disc instead, which the port
- * cannot; the headless tests run without data).  Effect 4's credits
- * scroller itself is PROVISIONAL: blit_scroll (1000:1B58) and the char
- * drawers 1000:1AFC/1B13 are not decoded (next_step.md §2), so the dwell
- * below stands in for the screenful loop with the original's skip poll.
+ * The escape itself (the longjmp 1000:13B2): the saved page pair is
+ * restored, [0x1E7C]:=0x0A, one fade of all 256 DAC entries to the zeroed
+ * 0x48BC ramp (black) div 0x23, waited WITHOUT further polling
+ * (wait_palette_fade_done 1000:8B8B); its completion is the hand-off to
+ * the front-end (FLOW_MENU — the original's RET into entry LAB_002B).
+ *
+ * Effect 4's credits scroller itself is PROVISIONAL: blit_scroll
+ * (1000:1B58) and the char drawers 1000:1AFC/1B13 are not decoded
+ * (next_step.md §2), so the dwell below stands in for the screenful loop
+ * with the original's skip poll.
  */
 #include "game.h"
 #include <stdlib.h>
@@ -445,40 +453,53 @@ static void next_effect(void)
     /* the next effect's LOAD runs on the following tick */
 }
 
-/* the local poll (the skip tests inside credits_wait_loop 198c..1998 and
- * effect 4's scroll 1a5b..1a67): the same bits as the escape, a different
+/* the local poll (the skip tests inside the slide 198C..1998 and effect
+ * 4's scroll 1A58..1A67): the same bits as the escape, a different
  * consequence — it skips the current hold, it does NOT exit the attract. */
 static int local_key(const InputState *in)
 {
     return in->lastKey != 0u || (in->joyBits & 0x80u) != 0u;
 }
 
+/* attract_exit (1000:13E9): the escape test — the configured action key
+ * ([0x5ACE] bit 7) or any held key ([0x48A3]).  Polled ONLY at the
+ * original's poll points: the fade waits (fade_wait 1000:13E0) and the
+ * holds (fade_step_frames 1000:13FB), once per tick of those phases. */
+static int escape_test(const InputState *in)
+{
+    return (in->joyBits & 0x80u) != 0u || in->lastKey != 0u;
+}
+
+/* the longjmp 1000:13B2: restore the saved page pair, the one fade of all
+ * 256 entries to the zeroed 0x48BC ramp (black) div 0x23 — the running
+ * fade/state is abandoned exactly as the longjmp does — then wait without
+ * further polling (wait_palette_fade_done 1000:8B8B). */
+static void latch_escape(void)
+{
+    pageDraw = savedDraw;  pageDisp = savedDisp;   /* 13b6/13ba */
+    palette_buildFade(0u, 256u, 0x23u, ramp0);    /* 13c3..13cf */
+    phase = ATTRACT_ESCAPE;
+}
+
 int attract_tick(const InputState *in)
 {
-    if (phase == ATTRACT_DONE) {         /* the re-entry: a new epoch      */
-        attract_restart();
-    } else if (phase == ATTRACT_IDLE) {
-        attract_restart();
-    }
-
-    /* attract_exit (1000:13E9) at the top of every tick (see the header for
-     * the one deviation): the action bit or any held key latches the
-     * escape; the running fade/state is abandoned exactly as the longjmp
-     * does. */
-    if (phase != ATTRACT_ESCAPE &&
-        ((in->joyBits & 0x80u) != 0u || in->lastKey != 0u)) {
-        pageDraw = savedDraw;  pageDisp = savedDisp;   /* 13b6/13ba */
-        palette_buildFade(0u, 256u, 0x23u, ramp0);      /* 13c3..13cf */
-        phase = ATTRACT_ESCAPE;
-    }
+    if (phase == ATTRACT_DONE || phase == ATTRACT_IDLE)
+        attract_restart();               /* a new epoch: game_loop's prologue */
 
     switch (phase) {
     /* --- effect 1: the gameint wipe (1000:1406) ------------------------ */
     case ATTRACT_E1_LOAD:
-        if (!e1_load()) { phase = ATTRACT_E3_LOAD; break; }
-        phase = ATTRACT_E1_FADEWAIT;
+        if (!e1_load()) {
+            /* the port-only skip path (see the header): consume the escape
+             * so the headless flow tests stay drivable */
+            if (escape_test(in)) { latch_escape(); break; }
+            phase = ATTRACT_E3_LOAD;
+        } else {
+            phase = ATTRACT_E1_FADEWAIT;
+        }
         break;
     case ATTRACT_E1_FADEWAIT:                    /* fade_wait 145f */
+        if (escape_test(in)) { latch_escape(); break; }
         if (palette_fadeActive()) break;
         phase = ATTRACT_E1_WIPE;
         break;
@@ -493,27 +514,34 @@ int attract_tick(const InputState *in)
         phase = ATTRACT_E1_HOLD;
         break;
     }
-    case ATTRACT_E1_HOLD:
+    case ATTRACT_E1_HOLD:                        /* fade_step_frames 14aa */
+        if (escape_test(in)) { latch_escape(); break; }
         if (--counter != 0u) break;
         palette_buildFade(0u, 256u, 0x1Eu, ramp0);   /* 14b0: fade to black */
         phase = ATTRACT_E1_OUT;
         break;
-    case ATTRACT_E1_OUT:
-        if (palette_fadeActive()) break;         /* 14bf: fade_wait */
+    case ATTRACT_E1_OUT:                         /* fade_wait 14bf */
+        if (escape_test(in)) { latch_escape(); break; }
+        if (palette_fadeActive()) break;
         next_effect();
         break;
 
     /* --- effect 3: the PCTITLE scroller (1000:18CA) --------------------- */
     case ATTRACT_E3_LOAD:
-        if (!e3_load()) { phase = ATTRACT_E2_LOAD; break; }
-        phase = ATTRACT_E3_FADEWAIT;
+        if (!e3_load()) {
+            if (escape_test(in)) { latch_escape(); break; }
+            phase = ATTRACT_E2_LOAD;
+        } else {
+            phase = ATTRACT_E3_FADEWAIT;
+        }
         break;
-    case ATTRACT_E3_FADEWAIT:                    /* 18e5: fade_wait */
+    case ATTRACT_E3_FADEWAIT:                    /* fade_wait 18e5 */
+        if (escape_test(in)) { latch_escape(); break; }
         if (palette_fadeActive()) break;
         d3b = 600u;                               /* 1980 */
         phase = ATTRACT_E3_SLIDE;
         break;
-    case ATTRACT_E3_SLIDE:                       /* credits_wait_loop 1986 */
+    case ATTRACT_E3_SLIDE:                       /* pctitle_slide_hold 1986 */
         wait_page(d3b);
         if (local_key(in)) {                      /* 198c: the skip poll   */
             /* 19a9: the original sets [0xD3D]:=0xFF (the write-only
@@ -530,23 +558,30 @@ int attract_tick(const InputState *in)
         counter = 70u;                            /* 18eb: the 70-tick hold */
         phase = ATTRACT_E3_HOLD;
         break;
-    case ATTRACT_E3_HOLD:
+    case ATTRACT_E3_HOLD:                         /* fade_step_frames 18eb */
+        if (escape_test(in)) { latch_escape(); break; }
         if (--counter != 0u) break;
         palette_buildFade(0u, 256u, 0x23u, ramp0);   /* 18f1: fade to black */
         phase = ATTRACT_E3_OUT;
         break;
-    case ATTRACT_E3_OUT:
-        if (palette_fadeActive()) break;          /* 1900: JMP fade_wait  */
+    case ATTRACT_E3_OUT:                         /* JMP fade_wait 1900 */
+        if (escape_test(in)) { latch_escape(); break; }
+        if (palette_fadeActive()) break;
         next_effect();
         break;
 
     /* --- effect 2: the hi-score + times screens (1000:1514) ------------- */
     case ATTRACT_E2_LOAD:
-        if (!e2_load()) { phase = ATTRACT_E4_LOAD; break; }
-        frame = 0u;
-        phase = ATTRACT_E2_FADEWAIT;
+        if (!e2_load()) {
+            if (escape_test(in)) { latch_escape(); break; }
+            phase = ATTRACT_E4_LOAD;
+        } else {
+            frame = 0u;
+            phase = ATTRACT_E2_FADEWAIT;
+        }
         break;
-    case ATTRACT_E2_FADEWAIT:                    /* 1581: fade_wait */
+    case ATTRACT_E2_FADEWAIT:                    /* fade_wait 1581 */
+        if (escape_test(in)) { latch_escape(); break; }
         if (palette_fadeActive()) break;
         phase = ATTRACT_E2_FRAME;
         break;
@@ -578,23 +613,30 @@ int attract_tick(const InputState *in)
         phase = ATTRACT_E2_HOLD;
         break;
     }
-    case ATTRACT_E2_HOLD:
+    case ATTRACT_E2_HOLD:                         /* fade_step_frames 164c/168a */
+        if (escape_test(in)) { latch_escape(); break; }
         if (--counter != 0u) break;
         if (++frame <= 16u) { phase = ATTRACT_E2_FRAME; break; }
         palette_buildFade(0u, 256u, 0x1Eu, ramp0);   /* 159f: fade to black */
         phase = ATTRACT_E2_OUT;
         break;
-    case ATTRACT_E2_OUT:
-        if (palette_fadeActive()) break;         /* 15ae: JMP fade_wait   */
+    case ATTRACT_E2_OUT:                         /* JMP fade_wait 15ae */
+        if (escape_test(in)) { latch_escape(); break; }
+        if (palette_fadeActive()) break;
         next_effect();
         break;
 
     /* --- effect 4: the credits (1000:19AF) — PROVISIONAL scroller -------- */
     case ATTRACT_E4_LOAD:
-        if (!e4_load()) { phase = ATTRACT_E1_LOAD; break; }
-        phase = ATTRACT_E4_FADEWAIT;
+        if (!e4_load()) {
+            if (escape_test(in)) { latch_escape(); break; }
+            phase = ATTRACT_E1_LOAD;
+        } else {
+            phase = ATTRACT_E4_FADEWAIT;
+        }
         break;
-    case ATTRACT_E4_FADEWAIT:                   /* 1a3c: fade_wait */
+    case ATTRACT_E4_FADEWAIT:                   /* fade_wait 1a3c */
+        if (escape_test(in)) { latch_escape(); break; }
         if (palette_fadeActive()) break;
         counter = 490u;   /* PROVISIONAL: stands in for the screenful loop
                            * (blit_scroll + 1AFC/1B13 undecoded, next_step
@@ -611,8 +653,9 @@ int attract_tick(const InputState *in)
         palette_buildFade(0u, 256u, 0x1Eu, ramp0);   /* 1a87: fade to black */
         phase = ATTRACT_E4_OUT;
         break;
-    case ATTRACT_E4_OUT:
-        if (palette_fadeActive()) break;         /* 1a96: fade_wait */
+    case ATTRACT_E4_OUT:                         /* fade_wait 1a96 */
+        if (escape_test(in)) { latch_escape(); break; }
+        if (palette_fadeActive()) break;
         next_effect();                           /* -> effect 1: the cycle */
         break;
 
