@@ -73,6 +73,49 @@ int  palette_fadeActive(void);          /* palette_fade_active 1000:8b9a  */
 
 /* --- src/font.c — glyphs/packed ASCII (subsystem 12, §9) -------------- */
 int  font_init(const OSystem *osys);
+/* game_loop's publish ([0x1E1C] := the loaded apl\text.spr).  NULL clears
+ * it (drawText then draws nothing) — the headless no-data case. */
+void font_publish(const uint8_t *textSpr);
+/* draw_text (1000:4989): centre `s` on `centreX` (the advance table,
+ * re_formats.md §`TEXT.SPR`) and blit its glyphs into `arena` — the
+ * caller's [0x1E20] text arena (200 rows x 80 B, 1 bpp, 4 px per byte,
+ * bit 0 = leftmost; each 2-bpp glyph pixel becomes two 1-bpp pixels, so
+ * the glyph doubles horizontally) — at `row`. */
+void font_drawText(uint8_t *arena, const char *s, unsigned centreX,
+                   unsigned row);
+
+/* --- src/attract.c — the ATTRACT loop (game_loop 1000:131E) -------------
+ *
+ * The four intro effects in the original's order (1 -> 3 -> 2 -> 4),
+ * cycled forever; the only exit is attract_exit (1000:13E9): the
+ * configured action key ([0x5ACE] bit 7) or any held key ([0x48A3]),
+ * which runs the 13B2 escape — the page pair restored, one fade to black
+ * whose completion hands control to the front-end.  Per tick, exactly like
+ * the original's wait_vsync cadence: attract_tick() advances the machine
+ * by one display period, composes the visible planar window into page 0
+ * (game_main's videoPresent shows it) and returns 1 while the attract
+ * plays, 0 once the escape's fade completed.  The details and the one
+ * documented latency deviation are in attract.c's header and next_step.md.
+ */
+int attract_init(const OSystem *osys);
+
+/* The machine's phases — public for the flow tests (the cycle-order and
+ * escape assertions in tests/test_loop.c). */
+typedef enum AttractPhase {
+    ATTRACT_IDLE = 0,
+    ATTRACT_E1_LOAD, ATTRACT_E1_FADEWAIT, ATTRACT_E1_WIPE,
+    ATTRACT_E1_HOLD, ATTRACT_E1_OUT,
+    ATTRACT_E3_LOAD, ATTRACT_E3_FADEWAIT, ATTRACT_E3_SLIDE,
+    ATTRACT_E3_TAIL, ATTRACT_E3_HOLD, ATTRACT_E3_OUT,
+    ATTRACT_E2_LOAD, ATTRACT_E2_FADEWAIT, ATTRACT_E2_FRAME,
+    ATTRACT_E2_WIPE, ATTRACT_E2_HOLD, ATTRACT_E2_OUT,
+    ATTRACT_E4_LOAD, ATTRACT_E4_FADEWAIT, ATTRACT_E4_DWELL,
+    ATTRACT_E4_OUT,
+    ATTRACT_ESCAPE, ATTRACT_DONE
+} AttractPhase;
+
+int      attract_tick(const InputState *in);   /* 1 = the attract is playing */
+unsigned attract_phaseForProbe(void);          /* the tests' phase read      */
 
 /* --- src/statusbar.c — the bottom bar (subsystem 13, §12.7) ----------- */
 int  statusbar_init(const OSystem *osys);
@@ -212,11 +255,12 @@ int  save_init(const OSystem *osys);
  * foreground advances the flow once per tick boundary.  The states mirror
  * the original's top-level control (game_structure.md §1):
  *
- *     ATTRACT --(5 s dwell; the real card cycle comes later)--> MENU
+ *     ATTRACT --(the escape: the action key or any held key, after the
+ *                13B2 fade completes -- attract_tick)--> MENU
  *     MENU    --(fire = the +0x5ACE bit-7 confirm)-----------> LEVEL
  */
 typedef enum GameFlow {
-    FLOW_ATTRACT = 0,      /* the idle cycle (intro cards / hi-scores)    */
+    FLOW_ATTRACT = 0,      /* game_loop 1000:131E: the effect cycle      */
     FLOW_MENU,             /* the map/level-select room                   */
     FLOW_LEVEL             /* a level is installed and running            */
 } GameFlow;

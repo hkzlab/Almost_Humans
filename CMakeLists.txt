@@ -33,6 +33,7 @@ add_library(core STATIC
     src/video.c
     src/palette.c
     src/font.c
+    src/attract.c
     src/statusbar.c
     src/scene.c
     src/level.c
@@ -46,7 +47,8 @@ target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 humansre_warnings(core)
 
 # The headless tests: assert-based, no framework.
-add_executable(test_loop tests/test_loop.c)
+add_executable(test_loop tests/test_loop.c
+    src/arch/null/OSystem.c)          # the null backend: the attract composes
 target_include_directories(test_loop PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 target_link_libraries(test_loop PRIVATE core fs_posix)
 humansre_warnings(test_loop)

@@ -55,19 +55,23 @@ int main(int argc, char **argv)
     int bad = 0;
 
     /* the input script (per eventsPoll call):
-     *   0..6599    idle     — the attract: the full boot intro plays (~5887
-     *                           ticks: the gametek logo, the idi/first/itb
-     *                           cards, the scene) then the 350-tick dwell
-     *   6600       fire     — menu confirm: FLOW_LEVEL, the level intro
+     *   0..6599    idle     — the boot intro plays (~5887 ticks: the
+     *                           gametek logo, the idi/first/itb cards, the
+     *                           scene), then the attract cycle starts
+     *                           (game_loop: effects 1->3->2->4)
+     *   6600       fire     — the attract escape (attract_exit 1000:13E9):
+     *                           the 13B2 fade (~35 ticks) then FLOW_MENU
+     *   6700       fire     — menu confirm: FLOW_LEVEL, the level intro
      *                           starts (ANI00, 2 polls per iteration)
-     *   6301..7699 idle     — the intro plays; the key at 7700 skips it
-     *   7701..8698 idle      — the level proper (no content yet)
+     *   7700/7701  key      — skips the level intro
+     *   7702..8698 idle      — the level proper (no content yet)
      *   8699       quit     — game_main exits                                */
     static InputState script[SCRIPT_N];
     memset(script, 0, sizeof script);
-    /* the attract plays the boot intro first (~5713 ticks), then the
-     * 350-tick dwell (~tick 6064), then the menu waits for the fire */
-    script[6600].joyBits = 0x80u;         /* fire: menu -> level */
+    /* the attract cycle runs from the boot's end (~5887) until the fire
+     * at 6600 escapes it; the menu then waits for the second fire */
+    script[6600].joyBits = 0x80u;         /* the attract escape */
+    script[6700].joyBits = 0x80u;         /* menu confirm: menu -> level */
     script[7700].lastKey = 1u;            /* any key: skip the level intro */
     script[7701].lastKey = 1u;
     script[SCRIPT_N - 1].quit = 1u;

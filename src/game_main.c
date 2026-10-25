@@ -25,7 +25,8 @@ int resources_init(const OSystem *osys) {
         res_init(osys) || video_init(osys) || palette_init(osys) ||
         font_init(osys) || statusbar_init(osys) || scene_init(osys) ||
         level_init(osys) || entity_init(osys) || script_init(osys) ||
-        audio_init(osys) || save_init(osys) || frontend_init(osys);
+        audio_init(osys) || save_init(osys) || frontend_init(osys) ||
+        attract_init(osys);
 
     if (res_init_state) osys->fatalError("module init failed");
 
@@ -47,10 +48,6 @@ static void game_tick(void)
 
 /* --- the flow state machine ------------------------------------------ */
 
-#define ATTRACT_DWELL_TICKS (5u * GAME_TICK_HZ)   /* 5 s after the boot intro */
-
-static unsigned attract_dwell;
-
 /* The level the walk is currently on: the menu selection feeds it (the
  * frontend stub hardcodes 0 until then). */
 static unsigned level_current = 0u;
@@ -61,14 +58,15 @@ GameFlow gameflow_step(GameFlow state, const InputState *input)
 
     switch (state) {
     case FLOW_ATTRACT:
-        /* The idle cycle: the boot intro (the gametek logo + the cards +
-         * the scene) plays first via scene_playBootIntro, then the 5 s
-         * dwell before the menu (the hi-score screens come later). */
-        if (++attract_dwell >= ATTRACT_DWELL_TICKS) {
-            attract_dwell = 0;
-            return FLOW_MENU;
-        }
-        return FLOW_ATTRACT;
+        /* game_loop 1000:131E never returns normally — the boot intro
+         * (played via scene_playBootIntro, game_main's hook above) hands
+         * into the four-effect cycle, whose only exit is attract_exit
+         * 1000:13E9: the action key or any held key -> the 13B2 escape,
+         * whose final fade completes inside attract_tick.  Done = the
+         * hand-off to the front-end room (the original's entry LAB_002B).
+         */
+        if (attract_tick(input)) return FLOW_ATTRACT;
+        return FLOW_MENU;
 
     case FLOW_MENU:
         /* The map/level-select room waits for the player: fire confirms
@@ -109,7 +107,8 @@ int game_main(const OSystem *osys)
         if (input.quit) break;
 
         /* the attract phase plays the boot intro first (the original's
-         * attract replays the intro); the dwell counts after it ends */
+         * boot chain runs once at power-on); then gameflow_step runs the
+         * real attract cycle — game_loop's four effects — until the exit */
         if (state == FLOW_ATTRACT && scene_playBootIntro()) {
             osys->videoPresent(0);      /* the intro's rendered frame */
             prev = state;
