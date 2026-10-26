@@ -56,13 +56,15 @@
  *    draw_text's call, in ink 0x0F: the original's packed-blob copy
  *    (the DS:0x152 staging + 1000:299b) is not reproduced and the exact
  *    ink is unsettled.  The fidelity pass pins both.
- *  - the character's 20x24 box is written opaque (zeros = colour 0): the
- *    original stages into a DS scratch (0x5F63, stride 20) and blits 27
- *    rows unconditionally — rows 24..26 read the scratch's zeros, and the
- *    2-byte margins around the 16-byte sprite rows come out as erase.
+ *  - the character's draw is byte-faithful to the stager+blit pair
+ *    (the backdrop-restored 27x20 box, the sprite overlay at rows 1..24,
+ *    cols 2..17); rows past code2's 192 read as 0 where the original
+ *    reads pool bytes.
  *  - the backdrop planarises code2.raw's 192 chunky rows; the original's
  *    200-row strip copy reads 8 rows past the image into the palette
  *    bytes (the port leaves them zero).
+ *  - the compose folds the CRTC start + the pel-pan phase into one
+ *    pixel-exact window (the original latches both at vsync).
  *  - with no data (the headless tests) a failed load skips the palette and
  *    the fade phases, and the code match answers index 1 (DARWIN) so the
  *    flow completes — the attract's asset-failure pattern.
@@ -171,19 +173,23 @@ static void planarise_rows(const uint8_t *src, unsigned base,
         }
 }
 
-/* The present: the 200-row window at pageDraw + scroll/4, flat.  The room
- * is double-buffered (present_page 1000:8809 swaps after showing); the
- * name screen's cursor+present double-swap cancels, so it passes 0. */
+/* The present: the 200-row window, flat — pixel x of the window = the
+ * world pixel (scroll + x), i.e. set_display_ptr's byte start plus the
+ * sub-byte pel-pan phase ([0x0] is in pixels; the original latches both
+ * at vsync — the port's compose folds them).  The room is double-buffered
+ * (present_page 1000:8809 swaps after showing); the name screen's
+ * cursor+present double-swap cancels, so it passes 0. */
 static void compose(int swapPages)
 {
     uint8_t *page = video_page(0);
     if (page) {
-        unsigned start = pageDraw + (scroll >> 2);
         for (unsigned y = 0; y < 200u; y++) {
-            const unsigned row = (start + y * 160u) & 0xFFFFu;
+            unsigned rowBase = pageDraw + y * 160u;
             uint8_t *d = page + y * 320u;
-            for (unsigned x = 0; x < 320u; x++)
-                d[x] = vram[(row + (x >> 2)) & 0xFFFFu][x & 3u];
+            for (unsigned x = 0; x < 320u; x++) {
+                unsigned w = scroll + x;   /* the world pixel */
+                d[x] = vram[(rowBase + (w >> 2)) & 0xFFFFu][w & 3u];
+            }
         }
     }
     if (swapPages) {
@@ -259,10 +265,17 @@ static int code_match(void)
 
 /* --- the character draw (room_draw_character 1000:AD40) ---------------- */
 
-/* The floor adjust (the tail A85A..A885) + the record publish + the
- * sprite: the frame is the record's unless x < 0x10B (the idle pose), the
- * draw x clamped >= 0x108, the box = 2 zero cols + 16 sprite cols + 2
- * zero cols, 24 rows, at page row y-1. */
+/* The floor adjust (the tail A85A..A885) + the record publish + the draw.
+ * The frame is the record's unless x < 0x10B (the idle pose), the draw x
+ * clamped >= 0x108.  The box (sprite_stage_rows 1000:AE39 +
+ * sprite_blit_4plane 1000:ADC8) is the BACKDROP RESTORED FROM code2.raw
+ * ITSELF — the stager copies code2's own 20-byte strips at the character's
+ * position (DS := code2seg + (y-1)*0x28 paragraphs, SI := x, +0x26C after
+ * 20 bytes = one 640-byte row per strip) into the scratch, then overlays
+ * only the sprite's NONZERO bytes (box rows 1..24, cols 2..17); the blit
+ * writes all 27 rows x 20 cols unconditionally.  The 2-col backdrop
+ * margins are what make the page alternation seam-free: the 2-px-per-
+ * 2-frames trail lands on pure backdrop. */
 static void draw_character(void)
 {
     uint16_t rx = charX, ry = charY;
@@ -271,15 +284,21 @@ static void draw_character(void)
         else ry = 0x96u;
     }
     if (!codehum || codehumSize < 8064u) return;
+    if (!code2  || code2Size < 0x1E000u) return;
     uint16_t dframe = (rx < 0x10Bu) ? 0x13u : frame;
     if (dframe < 2u || dframe > 22u) return;
     uint16_t dx = (rx < 0x108u) ? 0x108u : rx;
-    const uint8_t *src = codehum + (size_t)(dframe - 2u) * 384u;
-    for (unsigned r = 0; r < 24u; r++) {
-        unsigned base = pageDraw + (unsigned)(ry - 1u + r) * 160u;
+    const uint8_t *spr = codehum + (size_t)(dframe - 2u) * 384u;
+    for (unsigned r = 0; r < 27u; r++) {
+        unsigned srcRow = (unsigned)(ry - 1u) + r;
+        unsigned base = pageDraw + srcRow * 160u;
         for (unsigned c = 0; c < 20u; c++) {
-            uint8_t v = (c >= 2u && c < 18u)
-                      ? src[r * 16u + (c - 2u)] : 0u;
+            uint8_t v = (srcRow < 192u)
+                       ? code2[srcRow * 640u + dx + c] : 0u;
+            if (r >= 1u && r < 25u && c >= 2u && c < 18u) {
+                uint8_t s = spr[(r - 1u) * 16u + (c - 2u)];
+                if (s) v = s;
+            }
             put_pixel(base, dx + c, v);
         }
     }
@@ -450,8 +469,12 @@ static void do_load(void)
     name_reset();
     set_scroll();
 
-    if (code2 && code2Size >= 0x1E00u + 768u) {
-        palette_loadWorking(code2 + 0x1E00);
+    if (code2 && code2Size >= 0x1E000u + 768u) {
+        /* the palette: the caller computes the source segment as
+         * [0x625D] + 0x1E00 PARAGRAPHS = byte offset 0x1E000 — the
+         * file's tail, right after the 640x192 image (0x1E000 bytes).
+         * palette_load_6bit (1000:8D24) masks each byte & 0x3F. */
+        palette_loadWorking(code2 + 0x1E000u);
         planarise_rows(code2, 0,      192u);
         planarise_rows(code2, 0x7D00, 192u);
         draw_character();
