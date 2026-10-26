@@ -299,6 +299,20 @@ int level_load(unsigned levelId)
      * walks to EOF or the load fails) */
     if (visuals_load(d->style) != 0) return -1;
 
+    /* the bar (level_start 1000:957B + build_statusbar_layout 1000:961B):
+     * the picked time limit (the difficulty byte [0x5E65] = 0 -> timeA; no
+     * difficulty select in the port yet) and the tribe pair.  The members
+     * = the boot default 12 (entry 1000:00B1: [0x11FC] := 12/10/8 by the
+     * difficulty, and the save carries the count thereafter); the required
+     * = the map's 0xAA-tile count (load_level 1000:315F counts the first
+     * 640-byte block). */
+    {
+        unsigned required = 0;
+        for (unsigned i = 0; i < MAP_LEN; i++)
+            if (d->map[i] == 0xAAu) required++;
+        statusbar_start(d->timeA, 12u, required);
+    }
+
     level_loaded = 1;
     return 0;
 }
@@ -348,7 +362,22 @@ int level_tick(void)
     for (unsigned y = 0; y < VIEW_H; y++)
         memcpy(page + y * VIEW_W, world + y * WORLD_W, VIEW_W);
 
-    /* draw_map_digit: the first 64 entries only (the 0xC0-byte copy) */
+    /* the bar over the world rows (the original's band lives below the
+     * 192-row visible window via the line compare; the flat page redraws
+     * band + marks per tick instead) */
+    statusbar_tick();
+
+    /* the world's colours: the port's own convention (the BG's palette at
+     * entries 0..63) — NOT the original's level path (draw_map_digit's
+     * BG0.raw copy at 1000:4F3C is the level-SELECT map screen's slot
+     * 0x1593; the original's level DAC base comes from the fade machinery
+     * at 202F:0x14D3, not decoded).  The bar's bank IS the original's:
+     * level_video_init 1000:32CD copies panel4's own palette to the live
+     * palette's entries 0xC0..0xFF. */
     if (bgImage) palette_setDac(bgImage + WORLD_W * WORLD_H, 0, 64);
+    {
+        const uint8_t *bank = statusbar_palette();
+        if (bank) palette_setDac(bank, 0xC0, 64);
+    }
     return 1;
 }

@@ -84,31 +84,39 @@ int main(int argc, char **argv)
     }
 
     /* the page: the level's rendered viewport (level_tick: BG4 + the terrain
-     * tiles at scroll 0,0) — the byte-exact composite is test_level's; here
-     * the assertion is the coverage (the measured nonzero count of the
-     * level-0 composite's first 184 rows) */
+     * tiles at scroll 0,0 + the status bar's band) — the byte-exact
+     * composite is test_level/test_statusbar's; here the assertion is the
+     * coverage (the measured nonzero count of the level-0 composite's
+     * first 184 rows, which since the bar include rows 152..183 of its
+     * 0xC0-tagged band) */
     {
         const uint8_t *page = osys_null_page(0);
         unsigned nz = 0;
         for (unsigned i = 0; i < 58880u; i++) if (page[i]) nz++;
-        if (nz != 24694u) {
-            fprintf(stderr, "FAIL page: the level render nz %u, want 24694\n", nz);
+        if (nz != 26910u) {
+            fprintf(stderr, "FAIL page: the level render nz %u, want 26910\n", nz);
             bad = 1;
         }
     }
 
     /* the palette: the level intro installed daily.bit's 768 bytes; the
      * level proper (level_tick) then rewrites the first 64 entries from
-     * level 0's background (style 3 -> BD3 field L=4 -> BG4.RAW, the
-     * 0xC0-byte copy at 202f:0x1593, re_formats.md §5) */
+     * level 0's background (style 3 -> BD3 field L=4 -> BG4.RAW — the
+     * port's world convention; the original's level slot is 202F:0x1713
+     * fed by the fade machinery) and the bar's +0xC0 bank, entries
+     * 0xC0..0xFF, from panel4.bit's own palette (level_video_init
+     * 1000:32CD, re_map.md → "The in-level status bar") */
     {
-        uint32_t daily_size = 0, bg4_size = 0;
+        uint32_t daily_size = 0, bg4_size = 0, p4_size = 0;
         snprintf(path, sizeof path, "%s/HUMANS.002/LBM/DAILY.BIT", fix_dir);
         uint8_t *daily = read_file(path, &daily_size);
         snprintf(path, sizeof path, "%s/HUMANS.001/BACKS/BG4.RAW", fix_dir);
         uint8_t *bg4 = read_file(path, &bg4_size);
+        snprintf(path, sizeof path, "%s/HUMANS.001/LBM/PANEL4.BIT", fix_dir);
+        uint8_t *p4 = read_file(path, &p4_size);
         if (!daily || daily_size < 64000u + 768u ||
-            !bg4 || bg4_size != 163840u + 768u) {
+            !bg4 || bg4_size != 163840u + 768u ||
+            !p4 || p4_size < 0xFA00u + 768u) {
             fprintf(stderr, "FAIL palette fixtures unreadable\n");
             bad = 1;
         } else {
@@ -120,15 +128,26 @@ int main(int argc, char **argv)
                     break;
                 }
             }
-            for (unsigned i = 192u; !bad && i < 768u; i++) {
+            for (unsigned i = 192u; i < 576u; i++) {
                 if (pal[i] != daily[64000u + i]) {
-                    fprintf(stderr, "FAIL palette byte %u: got %02x want daily %02x\n", i, pal[i], daily[64000u + i]);
+                    fprintf(stderr, "FAIL palette byte %u: got %02x want daily %02x\n",
+                            i, pal[i], daily[64000u + i]);
+                    bad = 1;
+                }
+            }
+            /* the bar's +0xC0 bank: entries 0xC0..0xFF = panel4's
+             * palette's first 0xC0 bytes (level_video_init 1000:32CD) */
+            for (unsigned i = 576u; i < 768u; i++) {
+                if (pal[i] != p4[0xFA00u + (i - 576u)]) {
+                    fprintf(stderr, "FAIL palette byte %u: got %02x want panel4 %02x\n",
+                            i, pal[i], p4[0xFA00u + (i - 576u)]);
                     bad = 1;
                 }
             }
         }
         free(daily);
         free(bg4);
+        free(p4);
     }
 
     if (!bad) printf("smoke test: OK (flow + the boot intro + the level intro + the palette)\n");

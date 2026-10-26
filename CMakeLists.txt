@@ -102,6 +102,16 @@ target_link_libraries(test_level PRIVATE core fs_posix)
 humansre_warnings(test_level)
 add_test(NAME level COMMAND test_level ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 
+# The status-bar test: the band + the five digit marks against the shipped
+# PANELN1/PANELN2/PANEL4 assets, the roll/slide arithmetic, the odometer,
+# the time-up, and the level_load + level_tick integration.
+add_executable(test_statusbar tests/test_statusbar.c
+    src/arch/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_statusbar PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(test_statusbar PRIVATE core fs_posix)
+humansre_warnings(test_statusbar)
+add_test(NAME statusbar COMMAND test_statusbar ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
+
 # The entity test: the closed §12.6 system — the lb#1 spawn fields, the
 # 0xB4 join, the exact-flip walk over the baked waypoint words, and the
 # 160-level spawn census.

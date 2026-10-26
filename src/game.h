@@ -123,9 +123,33 @@ unsigned attract_phaseForProbe(void);          /* the tests' phase read      */
  * load until the next effect begins. */
 const uint8_t *attract_stripForProbe(unsigned *rowsBuilt);
 
-/* --- src/statusbar.c — the bottom bar (subsystem 13, §12.7) ----------- */
+/* --- src/statusbar.c — the bottom bar (subsystem 13, §12.7) -----------
+ *
+ * The level's bottom 40 rows (y 152..191): panel4.bit's top 40 rows
+ * +0xC0-tagged, plus five digit marks (y 172..179) cut from the
+ * PANELN1+PANELN2 glyph strip — the countdown's minutes / sec-tens /
+ * sec-ones and the tribe counter's tens / ones (re_map.md → "The in-level
+ * status bar, decoded end to end").  statusbar_tick is the INT 8 hook at
+ * 1000:96AD: the 70-frame second, the packed-decimal countdown with the
+ * odometer slides, the tribe odometer, and the per-frame stamp.
+ */
 int  statusbar_init(const OSystem *osys);
+/* build_statusbar_layout (1000:961B) + level_start's pick: packedTimeBcd =
+ * AH minutes, AL BCD seconds (the header's timeA/B/C); the tribe digits =
+ * members - required (DIV/MOD 10).  Loads its own assets from the CURRENT
+ * disc — the level flow's HUMANS.001 (level_load's res_setDisc); a failed
+ * load leaves the bar inactive (the headless no-data case). */
+void statusbar_start(uint16_t packedTimeBcd, unsigned tribeMembers,
+                     unsigned tribeRequired);
 void statusbar_tick(void);
+/* level_video_init's palette copy (1000:32CD): panel4's own palette —
+ * install at DAC entries 0xC0..0xFF (the +0xC0 bank). */
+const uint8_t *statusbar_palette(void);
+/* object_record_init's arm (1000:F682): [0x5B22] := 0xFF — the displayed
+ * tribe counter rolls down by one (a follower joined). */
+void statusbar_armOdometer(void);
+/* [0x5E44]: the countdown reached zero (the time-up dialog's flag). */
+int  statusbar_timeUp(void);
 
 /* --- src/scene.c — .ANI/.RSC interpreter (subsystem 11, §8.5-8.7a) ---- */
 int  scene_init(const OSystem *osys);
