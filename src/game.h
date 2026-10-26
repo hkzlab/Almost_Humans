@@ -271,9 +271,24 @@ void     script_seekDone(CueScript *s);
 /* --- src/audio.c — tune/sfx state machine (subsystem 7) --------------- */
 int  audio_init(const OSystem *osys);
 
-/* --- src/frontend.c — map/menu/code entry (subsystem 8, §10) ---------- */
+/* --- src/frontend.c — the front-end room (subsystem 8, §10) ------------
+ *
+ * The walkable level-select / game-start menu (frontend_room_setup
+ * 1000:A48E + the frame web + level_select_event_loop 1000:AA2C —
+ * re_map.md → "The front-end room"): the room the attract escape hands
+ * into (entry LAB_002B).  One tick per call, exactly the original's
+ * per-display-period frame.  1 = the room runs; 0 = the room exited
+ * (the confirm: the walk off the right edge at x=0x280, or Enter on the
+ * name screen with a codes.bin match) — both run the exit fade first.
+ * ESC stays in the room (0x5F11's act0 clears the typed name); there is
+ * no key path back to the attract. */
 int  frontend_init(const OSystem *osys);
-int  frontend_tick(void);                          /* 0 = quit requested    */
+int  frontend_tick(const InputState *in);
+/* [0x5F09]: the code match's 1-based index = the level the room starts
+ * (string i of levels\codes.bin = level i; #1 "DARWIN"; a full miss
+ * leaves 161 — the original's own edge).  entry's PUSH AX/POP AX move
+ * it to [0x22]; game_main does the same into its level counter. */
+unsigned frontend_selectedLevel(void);
 
 /* --- src/save.c — the save-game format (byte-compatible) -------------- */
 int  save_init(const OSystem *osys);
@@ -287,7 +302,8 @@ int  save_init(const OSystem *osys);
  *
  *     ATTRACT --(the escape: the action key or any held key, after the
  *                13B2 fade completes -- attract_tick)--> MENU
- *     MENU    --(fire = the +0x5ACE bit-7 confirm)-----------> LEVEL
+ *     MENU    --(the room's confirm: the walk off the right edge, or
+ *                Enter with a codes.bin match -- frontend_tick)--> LEVEL
  */
 typedef enum GameFlow {
     FLOW_ATTRACT = 0,      /* game_loop 1000:131E: the effect cycle      */

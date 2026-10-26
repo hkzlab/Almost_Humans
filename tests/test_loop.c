@@ -135,15 +135,20 @@ int main(void)
         }
     }
 
-    /* 4. MENU holds until confirm; ESC returns to ATTRACT. */
+    /* 4. the room holds: idle, ESC (clears the name — 0x5F11's act0, no
+     *    exit), and the action key (the option cycle; nothing at cell 0)
+     *    all stay in MENU. */
     {
         InputState idle = make_input();
         GameFlow s = FLOW_MENU;
         s = gameflow_step(s, &idle);
         bad |= expect_state(s, FLOW_MENU, 0, "menu holds");
-        InputState esc = make_input(); esc.lastKey = 0x01u;
+        InputState esc = make_input(); esc.lastKey = 0x1Bu;
         s = gameflow_step(s, &esc);
-        bad |= expect_state(s, FLOW_ATTRACT, 0, "menu ESC -> attract");
+        bad |= expect_state(s, FLOW_MENU, 0, "menu ESC stays (clears the name)");
+        InputState act = make_input(); act.joyBits = 0x80u;
+        s = gameflow_step(s, &act);
+        bad |= expect_state(s, FLOW_MENU, 0, "menu action stays (option cycle)");
     }
 
     /* 5. the re-entry: the attract re-arms (game_loop's prologue runs
@@ -171,13 +176,23 @@ int main(void)
         bad |= expect_state(s, FLOW_MENU, 0, "second escape -> menu");
     }
 
-    /* 6. MENU + fire (+0x5ACE bit 7) enters LEVEL. */
+    /* 6. the room's confirm: hold RIGHT — the rails walk 0x1D2 -> 0x208
+     *    (cell 6) -> 0x280, the right-edge exit runs the codes.bin match
+     *    and the fade, and the flow lands in LEVEL. */
     {
-        InputState fire = make_input(); fire.joyBits = 0x80u;
+        InputState right = make_input(); right.joyBits = 0x08u;
         GameFlow s = FLOW_MENU;
-        s = gameflow_step(s, &fire);
-        bad |= expect_state(s, FLOW_LEVEL, 0, "menu fire -> level");
-        s = gameflow_step(s, &fire);        /* level holds */
+        unsigned guard = 0;
+        do {
+            s = gameflow_step(s, &right);
+            palette_tick();
+        } while (s == FLOW_MENU && guard++ < 400u);
+        if (s != FLOW_LEVEL) {
+            fprintf(stderr, "FAIL: the right-edge walk never reached LEVEL "
+                    "(state %d after %u ticks)\n", (int)s, guard);
+            bad = 1;
+        }
+        s = gameflow_step(s, &right);        /* level holds */
         bad |= expect_state(s, FLOW_LEVEL, 0, "level holds");
     }
 

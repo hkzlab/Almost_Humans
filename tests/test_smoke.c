@@ -61,17 +61,22 @@ int main(int argc, char **argv)
      *                           (game_loop: effects 1->3->2->4)
      *   6600       fire     — the attract escape (attract_exit 1000:13E9):
      *                           the 13B2 fade (~35 ticks) then FLOW_MENU
-     *   6700       fire     — menu confirm: FLOW_LEVEL, the level intro
-     *                           starts (ANI00, 2 polls per iteration)
+     *                           (the room loads code2.raw + fades in)
+     *   6700..6950 right    — the room's confirm: the rails walk
+     *                           0x1D2 -> 0x208 (cell 6) -> 0x280, the
+     *                           right-edge exit matches "DARWIN" (level 1
+     *                           = levelId 0) and fades out -> FLOW_LEVEL,
+     *                           the level intro starts (ANI00)
      *   7700/7701  key      — skips the level intro
-     *   7702..8698 idle      — the level proper (no content yet)
+     *   7702..8698 idle      — the level proper
      *   8699       quit     — game_main exits                                */
     static InputState script[SCRIPT_N];
     memset(script, 0, sizeof script);
     /* the attract cycle runs from the boot's end (~5887) until the fire
-     * at 6600 escapes it; the menu then waits for the second fire */
+     * at 6600 escapes it; the room then walks right off the edge */
     script[6600].joyBits = 0x80u;         /* the attract escape */
-    script[6700].joyBits = 0x80u;         /* menu confirm: menu -> level */
+    for (unsigned i = 6700; i <= 6950u; i++)
+        script[i].joyBits = 0x08u;         /* hold RIGHT: the room's confirm */
     script[7700].lastKey = 1u;            /* any key: skip the level intro */
     script[7701].lastKey = 1u;
     script[SCRIPT_N - 1].quit = 1u;

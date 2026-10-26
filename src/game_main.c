@@ -48,14 +48,13 @@ static void game_tick(void)
 
 /* --- the flow state machine ------------------------------------------ */
 
-/* The level the walk is currently on: the menu selection feeds it (the
- * frontend stub hardcodes 0 until then). */
+/* The level the walk is currently on: the menu selection feeds it
+ * (frontend_selectedLevel = the matched codes.bin index, 1-based, minus
+ * one — the [0x22] := [0x5F09] hand-off). */
 static unsigned level_current = 0u;
 
 GameFlow gameflow_step(GameFlow state, const InputState *input)
 {
-    const unsigned fire = (input->joyBits & 0x80u) != 0;
-
     switch (state) {
     case FLOW_ATTRACT:
         /* game_loop 1000:131E never returns normally — the boot intro
@@ -69,11 +68,18 @@ GameFlow gameflow_step(GameFlow state, const InputState *input)
         return FLOW_MENU;
 
     case FLOW_MENU:
-        /* The map/level-select room waits for the player: fire confirms
-         * (the +0x5ACE bit-7 path), ESC drops back to attract. */
-        if (fire) return FLOW_LEVEL;
-        if (input->lastKey == 0x01u) return FLOW_ATTRACT;   /* ESC */
-        return FLOW_MENU;
+        /* The front-end room (the walkable level-select): frontend_tick
+         * runs the original's per-frame web — the walk on the rails, the
+         * action key's option cycles, the name/code screen's key table.
+         * The room's exits are the walk off the right edge (x=0x280) or
+         * Enter with a codes.bin match; both fade out and hand the level
+         * to the flow (entry's PUSH AX at 004B / POP AX at 00BA move
+         * [0x5F09] into [0x22] — the level counter here).  ESC stays in
+         * the room (it clears the typed name; the decode settled the
+         * stub-era ESC-to-attract guess was wrong). */
+        if (frontend_tick(input)) return FLOW_MENU;
+        level_current = frontend_selectedLevel() - 1u;
+        return FLOW_LEVEL;
 
     case FLOW_LEVEL:
         /* The level is running (loading and the party pre-level screen are
@@ -139,7 +145,6 @@ int game_main(const OSystem *osys)
          * the drawn page (the in-level page flip lands with the level
          * rendering) */
         osys->videoPresent(0);
-        frontend_tick();                /* the menu/room content (stub)   */
         prev = state;
     }
 
