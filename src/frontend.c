@@ -46,11 +46,15 @@
  * DEVIATIONS (all port-only, each waiting on its named step):
  *  - the INT 60h calls (music_resume/stop 83F7/8389, the cmd-0xA pump) are
  *    not made: the audio backend is an M5 stub.  The gate state ports.
- *  - the name screen's CRTC split ([0x5B0A]=0x88) has no backend equivalent:
- *    the window presents unsplit.
- *  - the two animated decor sprites (code2.raw+0x1540/+0x17C0,
- *    name_screen_anim_frame's ADB6 draws) and place_4_sprites_to_vga's four
- *    room sprites are not drawn yet; restore/codeb1/codeb2 are not loaded.
+ *  - the option badges (place_4_sprites_to_vga A684) and the two humans
+ *    (name_screen_anim_frame's ADB6 draws) are drawn from the decoded
+ *    entry table / strip bank; the humans' codehum overlay pass
+ *    (the stager's CS:[0xadb4]=0 overlay) is not reproduced — if the
+ *    humans look incomplete, that overlay is the next step.
+ *  - the CRTC split ([0x5B0A]) is modelled in the compose: rows >= the
+ *    split display the FIXED band from absolute vram 0, unpanned (the
+ *    level's status bar and the name screen's human stage both live
+ *    there); the original latches the same at vsync.
  *  - the typed name renders through the font arena at the page row of the
  *    original's name-line offset (0x38F5/160), centred on 0x98 as
  *    draw_text's call, in ink 0x0F: the original's packed-blob copy
@@ -144,9 +148,13 @@ static unsigned slot;            /* [0x61A1]: the anim slot (parked 0x12)*/
 static uint8_t  nameScreen;      /* [0x6267]: the name-screen flag       */
 
 static uint8_t *code2, *codehum, *codes;
+static uint8_t *codeb1, *codeb2, *restore;
 static uint32_t code2Size, codehumSize, codesSize;
+static uint32_t codeb1Size, codeb2Size, restoreSize;
 static uint8_t  arena[16000];    /* the font arena (the [0x1E20] analog) */
 static const uint8_t ramp0[768]; /* the 0x48BC ramp: zeroed = black     */
+static unsigned splitRow = 200;  /* [0x5B0A]: the CRTC split (0x88 on the
+                                   * name screen — the fixed band below) */
 
 int frontend_init(const OSystem *osys) { (void)osys; return 0; }
 
@@ -174,26 +182,104 @@ static void planarise_rows(const uint8_t *src, unsigned base,
 }
 
 /* The present: the 200-row window, flat — pixel x of the window = the
- * world pixel (scroll + x), i.e. set_display_ptr's byte start plus the
- * sub-byte pel-pan phase ([0x0] is in pixels; the original latches both
- * at vsync — the port's compose folds them).  The room is double-buffered
- * (present_page 1000:8809 swaps after showing); the name screen's
- * cursor+present double-swap cancels, so it passes 0. */
+ * world pixel (scroll + x), i.e. set_display_ptr's byte start (882D:
+ * [0x5AC4] + [0x2]*88 + [0x0]/4) plus the pel-pan phase ([0x0] & 3 —
+ * 8848/884a).  Rows >= splitRow ([0x5B0A]) are the CRTC split's FIXED
+ * band: they display from ABSOLUTE vram 0 (the level's status bar and the
+ * name screen's human stage both live there), unpanned.  The room is
+ * double-buffered (present_page 1000:8809 swaps after showing); the name
+ * screen's cursor+present double-swap cancels, so it passes 0. */
 static void compose(int swapPages)
 {
     uint8_t *page = video_page(0);
     if (page) {
         for (unsigned y = 0; y < 200u; y++) {
-            unsigned rowBase = pageDraw + y * 160u;
             uint8_t *d = page + y * 320u;
-            for (unsigned x = 0; x < 320u; x++) {
-                unsigned w = scroll + x;   /* the world pixel */
-                d[x] = vram[(rowBase + (w >> 2)) & 0xFFFFu][w & 3u];
+            if (y < splitRow) {
+                unsigned rowBase = pageDraw + y * 160u;
+                for (unsigned x = 0; x < 320u; x++) {
+                    unsigned w = scroll + x;   /* the world pixel */
+                    d[x] = vram[(rowBase + (w >> 2)) & 0xFFFFu][w & 3u];
+                }
+            } else {                     /* the fixed band: from vram 0 */
+                unsigned rowBase = (y - splitRow) * 160u;
+                for (unsigned x = 0; x < 320u; x++)
+                    d[x] = vram[(rowBase + (x >> 2)) & 0xFFFFu][x & 3u];
             }
         }
     }
     if (swapPages) {
         unsigned t = pageDraw; pageDraw = pageDisp; pageDisp = t;
+    }
+}
+
+/* place_4_sprites_to_vga (1000:A684) — the option-value badges at the
+ * MUSIC / LEVEL / ANIMATIONS signs.  The entry table at 202F:0x5E54
+ * (10 bytes apart, verbatim): {u16 dest, u16 srcOff, u8 w, u8 h,
+ * u8 cell, u16 &srcSeg} — and the +7 `cell` field IS the option counter
+ * (the "option structs" and this table are the same bytes: 0x5E5B /
+ * 0x5E65 / 0x5E6F / 0x5E79).  The sprite = w*h chunky bytes at
+ * srcOff + cell*w*h, nonzero-transparent, at the page byte `dest`
+ * (+[0x5AC4], 160-pitch).  The shipped files close the cell counts:
+ * codeb1 6144 = 4x(48x32), codeb2 7680 = 3x(80x32) (the 3-state LEVEL),
+ * restore 32256 = 21x(48x32) (the 21-state ANIMATIONS), the 4th entry
+ * codeb1's cells 2..3 at srcOff 0xC00. */
+static void draw_option_sprites(void)
+{
+    static const struct {
+        uint16_t dest, srcOff; uint8_t w, h, cellIdx;
+    } e[4] = {
+        {0x1D14, 0x0000, 48, 32, 0},   /* MUSIC      (2 states of codeb1) */
+        {0x1C80, 0x0000, 80, 32, 1},  /* LEVEL      (3 states, codeb2)  */
+        {0x5BBC, 0x0000, 48, 32, 2},  /* ANIMATIONS (21 states, restore)*/
+        {0x0F88, 0x0C00, 48, 32, 3},  /* codeb1 cells 2..3              */
+    };
+    const uint8_t *file[4] = {codeb1, codeb2, restore, codeb1};
+    const uint32_t size[4] = {codeb1Size, codeb2Size, restoreSize, codeb1Size};
+    for (unsigned i = 0; i < 4u; i++) {
+        const uint8_t *src = file[i];
+        if (!src) continue;
+        unsigned w = e[i].w, h = e[i].h;
+        unsigned cell = optCounter[e[i].cellIdx];
+        unsigned off = e[i].srcOff + cell * w * h;
+        if (off + w * h > size[i]) continue;
+        unsigned destRow = e[i].dest / 160u, destCol = e[i].dest % 160u;
+        if (destCol * 4u + w > 640u) continue;
+        for (unsigned r = 0; r < h; r++) {
+            unsigned base = pageDraw + (destRow + r) * 160u;
+            for (unsigned c = 0; c < w; c++) {
+                uint8_t v = src[off + r * w + c];
+                if (v) put_pixel(base, destCol * 4u + c, v);
+            }
+        }
+    }
+}
+
+/* name_screen_anim_frame's two human draws (via name_entry_render's ADB6
+ * entry): a 20x20 cut of code2's human strip bank — rows 0..19 at column
+ * (0x9E - nibble), the nibble from the NEXT TWO slot bytes — copied to
+ * the SAME x on the fixed band (dest pixel = 0x9E - nibble, rows 0..19 /
+ * 16..35: "the humans on top of each other").  The sliding cut is the
+ * walk cycle.  shortcut: the stager's codehum overlay (CS:[0xadb4]=0) is
+ * not reproduced; if the humans look incomplete that overlay is the
+ * next step. */
+static void draw_humans(void)
+{
+    if (!code2 || code2Size < 0x17C00u + 20u * 640u) return;
+    static const unsigned bankBase[2] = {0x15400u, 0x17C00u};
+    static const unsigned destRow[2] = {0u, 16u};
+    for (unsigned h = 0; h < 2u; h++) {
+        unsigned nibble = slotTab[(slot + 1u + h) % 61u] & 0x0Fu;
+        unsigned cx = 0x9Eu - nibble;             /* 0x9E - nibble */
+        if (cx + 20u > 640u) continue;
+        for (unsigned r = 0; r < 20u; r++) {
+            unsigned srcRow = bankBase[h] + r * 640u;
+            unsigned base = (destRow[h] + r) * 160u;  /* absolute vram */
+            for (unsigned c = 0; c < 20u; c++) {
+                uint8_t v = code2[srcRow + cx + c];
+                if (v) put_pixel(base, cx + c, v);
+            }
+        }
     }
 }
 
@@ -434,6 +520,16 @@ static void name_screen_enter(void)
     nameScreen = 1;
     pageDraw = 0x2800;                 /* [0x5AC4] := 0x2800 (AF92)  */
     pageDisp = 0x7D00;
+    splitRow = 0x88;                   /* [0x5B0A] := 0x88: the split */
+    /* the transition's two strip blits (AFBD..AFDF): the room's LEFT view
+     * (code2 rows 0..135) onto the window base, and the humans' stage
+     * (code2+0x15400, 56 rows — the strip bank 0x1540 PARAGRAPHS in) onto
+     * the fixed band at absolute 0. */
+    if (code2 && code2Size >= 0x1E000u) {
+        planarise_rows(code2, 0x2800, 136u);
+        planarise_rows(code2 + 0x15400u, 0, 56u);
+    }
+    draw_humans();
     draw_name_line();
     phase = FE_NAME;
 }
@@ -455,11 +551,15 @@ static void do_load(void)
     code2   = res_loadChunk("LBM\\CODE2.RAW",   &code2Size,   NULL);
     codehum = res_loadChunk("APL\\CODEHUM.SPR", &codehumSize, NULL);
     codes   = res_loadChunk("LEVELS\\CODES.BIN", &codesSize,  NULL);
+    codeb1  = res_loadChunk("APL\\CODEB1.SPR",  &codeb1Size,  NULL);
+    codeb2  = res_loadChunk("APL\\CODEB2.SPR",  &codeb2Size,  NULL);
+    restore = res_loadChunk("APL\\RESTORE.SPR", &restoreSize, NULL);
     textSpr = res_loadChunk("APL\\TEXT.SPR",    NULL,         NULL);
     font_publish(textSpr);
 
     /* the room's opening state (frontend_room_setup's seeds) */
     pageDraw = 0; pageDisp = 0x7D00;
+    splitRow = 200;                    /* [0x5B0A] := 0xC8 (no split)  */
     cell = 0; walkState = 0xFFFF;
     charX = 0x1D2; charY = 0xA0;
     frame = 0x13; frameCnt = 3;
@@ -508,6 +608,7 @@ int frontend_tick(const InputState *in)
         if (!(in->joyBits & 0x80u)) fireLatch = 0;
 
         set_scroll();
+        draw_option_sprites();          /* place_4_sprites_to_vga (A684) */
         draw_character();
         draw_name_line();
         room_walk(in);
@@ -532,6 +633,7 @@ int frontend_tick(const InputState *in)
         return 1;
     case FE_NAME:
         anim_frame();
+        draw_humans();                  /* the fixed band's two walkers */
         draw_name_line();
         compose(0);                      /* the name screen is single-buffered */
         if (in->lastKey) {
