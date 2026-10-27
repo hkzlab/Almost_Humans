@@ -345,13 +345,14 @@ static void draw_name_line(void)
     /* AB8D's exact sequence: clear the arena's first 1600 bytes, draw the
      * name into it (draw_text centres at x 0x98, rows 0..15 — the glyphs
      * land at arena rows 4..13), then the WM2 copy: 10 rows x 40 bytes,
-     * source arena 0x152+80/row, dest [0x5AC4]+0x38F5+0x78/row. */
+     * source arena 0x152+80/row, dest [0x5AC4]+0x38F5+0xA0/row — AB8D
+     * writes 40 bytes (DI +40) then skips 0x78 (120): 40+0x78 = 0xA0. */
     memset(arena, 0, 1600u);
     font_drawText(arena, nameBuf, 0x98u, 0);
     for (unsigned r = 0; r < 10u; r++)
         for (unsigned c = 0; c < 40u; c++) {
             uint8_t v = arena[0x152u + r * 80u + c];
-            unsigned addr = (pageDraw + 0x38F5u + r * 0x78u + c) & 0xFFFFu;
+            unsigned addr = (pageDraw + 0x38F5u + r * 0xA0u + c) & 0xFFFFu;
             for (unsigned p = 0; p < 4u; p++)
                 vram[addr][p] = (uint8_t)((vram[addr][p] & 0x7F)
                                           | ((v >> p) & 1u) << 7);
@@ -593,12 +594,16 @@ static void name_screen_enter(void)
      * (code2+0x15400, 56 rows — the strip bank 0x1540 PARAGRAPHS in) onto
      * the fixed band at absolute 0. */
     if (code2 && code2Size >= 0x1E000u) {
-        planarise_rows(code2, code2Size, 0x2800, 136u);
+        /* AF92's order is load-bearing: the stage strip first (rows 0..55),
+         * then the character (band rows 13..39), then the main art (rows
+         * 40..175, starting just below him).  Drawing the strip after the
+         * character — as an earlier revision did — paints over him. */
+        planarise_rows(code2 + 0x15400u, code2Size - 0x15400u, 0, 56u);
         /* afcf: the character draw runs here, with [0x5AC4] held 0 — the
          * 0x820-band branch in draw_character fires and the walked-in
          * human lands on the fixed band's hill (screen rows 149..175). */
         draw_character();
-        planarise_rows(code2 + 0x15400u, code2Size - 0x15400u, 0, 56u);
+        planarise_rows(code2, code2Size, 0x2800, 136u);
     }
     draw_humans();
     draw_name_line();
