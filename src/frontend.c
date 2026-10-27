@@ -46,29 +46,19 @@
  * DEVIATIONS (all port-only, each waiting on its named step):
  *  - the INT 60h calls (music_resume/stop 83F7/8389, the cmd-0xA pump) are
  *    not made: the audio backend is an M5 stub.  The gate state ports.
- *  - the option badges (place_4_sprites_to_vga A684) and the two humans
- *    (name_screen_anim_frame's ADB6 draws) are drawn from the decoded
- *    entry table / strip bank; the humans' codehum overlay pass
- *    (the stager's CS:[0xadb4]=0 overlay) is not reproduced — if the
- *    humans look incomplete, that overlay is the next step.
  *  - the CRTC split ([0x5B0A]) is modelled in the compose: rows >= the
  *    split display the FIXED band from absolute vram 0, unpanned (the
  *    level's status bar and the name screen's human stage both live
  *    there); the original latches the same at vsync.
- *  - the typed name renders through the font arena at the page row of the
- *    original's name-line offset (0x38F5/160), centred on 0x98 as
- *    draw_text's call, in ink 0x0F: the original's packed-blob copy
- *    (the DS:0x152 staging + 1000:299b) is not reproduced and the exact
- *    ink is unsettled.  The fidelity pass pins both.
- *  - the character's draw is byte-faithful to the stager+blit pair
- *    (the backdrop-restored 27x20 box, the sprite overlay at rows 1..24,
- *    cols 2..17); rows past code2's 192 read as 0 where the original
- *    reads pool bytes.
- *  - the backdrop planarises code2.raw's 192 chunky rows; the original's
- *    200-row strip copy reads 8 rows past the image into the palette
- *    bytes (the port leaves them zero).
- *  - the compose folds the CRTC start + the pel-pan phase into one
- *    pixel-exact window (the original latches both at vsync).
+ *  - the name line is LIVE-VERIFIED (2026-10-27, the user's DOSBox): the
+ *    original never displays the typed name — draw_name_line ports AB8D's
+ *    exact sequence (the arena clear + draw_text — dead-but-real state —
+ *    then the un-brighten box: the 10x5 write-mode-2 bit-7 clears at
+ *    [pageDraw]+0x38F5 + r*0x78).
+ *  - the backdrop's last 8 rows are BLANKED: the original's 200-row copy
+ *    reads the palette bytes + the pool tail (indeterminate); the
+ *    palette-as-pixels overread showed as glitching, so the port zeros
+ *    rows 192..199.
  *  - with no data (the headless tests) a failed load skips the palette and
  *    the fade phases, and the code match answers index 1 (DARWIN) so the
  *    flow completes — the attract's asset-failure pattern.
@@ -116,15 +106,19 @@ static const uint8_t floorTab[0x3B] = {
     0xB6,0xB7,0xB7,0xB7,0xB7,0xB7,0xB7,
 };
 
-/* 202F:0x61A3 — the anim slot table (60 bytes, 0x00 wraps to slot 0);
- * the name screen's scroll := (slot byte & 0xF) - 4. */
+/* 202F:0x61A3 — the anim slot table: 60 data bytes, then the 0x00 wrap
+ * terminator at [60] (verbatim from the image; an earlier embed had a
+ * duplicated 0x99 there, which made the +3 slot walk run past the table
+ * and never wrap — the humans' cut column and the name screen's pan both
+ * went garbage-derived: the humans vanished behind the range guard and
+ * the window scrolled wildly). */
 static const uint8_t slotTab[61] = {
     0x88,0x88,0x88,0x77,0x77,0x77,0x66,0x66,0x66,0x55,0x55,0x66,
     0x44,0x55,0x66,0x44,0x55,0x66,0x44,0x55,0x66,0x55,0x55,0x66,
-    0x66,0x66,0x66,0x77,0x77,0x77,0x88,0x88,0x88,0x88,0x99,0x99,
-    0x99,0xAA,0xAA,0xAA,0xBB,0xBB,0xAA,0xCC,0xBB,0xAA,0xCC,0xBB,
-    0xAA,0xCC,0xBB,0xAA,0xBB,0xBB,0xAA,0xAA,0xAA,0xAA,0x99,0x99,
-    0x99, /* the 0x00 terminator is slotTab[60] */
+    0x66,0x66,0x66,0x77,0x77,0x77,0x88,0x88,0x88,0x99,0x99,0x99,
+    0xAA,0xAA,0xAA,0xBB,0xBB,0xAA,0xCC,0xBB,0xAA,0xCC,0xBB,0xAA,
+    0xCC,0xBB,0xAA,0xBB,0xBB,0xAA,0xAA,0xAA,0xAA,0x99,0x99,0x99,
+    0x00,   /* [60] = the wrap terminator, verbatim from the image      */
 };
 
 /* --- the module state (the DS analogs in comments) -------------------- */
@@ -168,16 +162,26 @@ static void put_pixel(unsigned rowBase, unsigned px, uint8_t v)
 }
 
 /* blit_planar_strip (1000:AEAD): planarise chunky 640-px rows into the
- * page at `base` — dest[base + r*160 + c] plane p = src[r*640 + c*4 + p]. */
-static void planarise_rows(const uint8_t *src, unsigned base,
-                           unsigned rows)
+ * page at `base` — dest[base + r*160 + c] plane p = src[r*640 + c*4 + p],
+ * reading past `size` as zeros (the original's 200-row backdrop copy reads
+ * 8 rows past the image into the palette bytes and then the pool — the
+ * port clamps at the loaded chunk). */
+static void planarise_rows(const uint8_t *src, uint32_t size,
+                           unsigned base, unsigned rows)
 {
     for (unsigned r = 0; r < rows; r++)
         for (unsigned c = 0; c < 160u; c++) {
             unsigned a = (base + r * 160u + c) & 0xFFFFu;
-            const uint8_t *s = src + r * 640u + c * 4u;
-            vram[a][0] = s[0]; vram[a][1] = s[1];
-            vram[a][2] = s[2]; vram[a][3] = s[3];
+            uint32_t off = (uint32_t)r * 640u + (uint32_t)c * 4u;
+            if (off + 3u < size) {
+                vram[a][0] = src[off];
+                vram[a][1] = src[off + 1u];
+                vram[a][2] = src[off + 2u];
+                vram[a][3] = src[off + 3u];
+            } else {
+                vram[a][0] = vram[a][1] = 0u;
+                vram[a][2] = vram[a][3] = 0u;
+            }
         }
 }
 
@@ -276,10 +280,10 @@ static void draw_option_sprites(void)
  * entry): a 20x20 cut of code2's human strip bank — rows 0..19 at column
  * (0x9E - nibble), the nibble from the NEXT TWO slot bytes — copied to
  * the SAME x on the fixed band (dest pixel = 0x9E - nibble, rows 0..19 /
- * 16..35: "the humans on top of each other").  The sliding cut is the
- * walk cycle.  shortcut: the stager's codehum overlay (CS:[0xadb4]=0) is
- * not reproduced; if the humans look incomplete that overlay is the
- * next step. */
+ * 16..35: "the humans on top of each other"), the sliding cut being the
+ * walk cycle.  The stager's OVERLAY pass (AE6E..AE9E) then composites
+ * codehum frame 2 (CS:[0xadb4]=0, 16 rows of 16 bytes, nonzero-only) at
+ * scratch rows 1..16, cols 2..17 — ported here as the same overlay. */
 static void draw_humans(void)
 {
     if (!code2 || code2Size < 0x17C00u + 20u * 640u) return;
@@ -297,25 +301,49 @@ static void draw_humans(void)
                 if (v) put_pixel(base, cx + c, v);
             }
         }
+        if (codehum && codehumSize >= 16u * 16u) {
+            for (unsigned r = 0; r < 16u; r++) {
+                /* the overlay's scratch offset CS:[0xaeab] is the room
+                 * draw's leftover 0 (ada2) — the sprite lands at box
+                 * rows 0..15, cols 2..17 (0x5F65 = the base + 2) */
+                unsigned base = (destRow[h] + r) * 160u;
+                for (unsigned c = 0; c < 16u; c++) {
+                    uint8_t v = codehum[r * 16u + c];
+                    if (v) put_pixel(base, cx + 2u + c, v);
+                }
+            }
+        }
     }
 }
 
 /* --- the name ----------------------------------------------------------- */
 
+/* name_entry_blit (1000:AB8D) — LIVE-VERIFIED 2026-10-27 (the user's
+ * DOSBox, held on the name screen): the typed name is NEVER displayed.
+ * draw_text writes it into the arena (readable live at the arena's rows
+ * 0..15), but no room-path code renders the arena to the screen —
+ * blit_text_tile (1000:47D5, the arena-to-page renderer) has callers only
+ * on the map/level-intro paths, and an exhaustive composed-VRAM sweep of
+ * the window and the band found no glyph pixels.  The visible effect is
+ * the 0x152 copy: vga_set_write_mode2 (bit mask 0x80), then 10 rows x 5
+ * bytes read from the ARENA (DS := [0x1E20] at ABC8) at 0x152+40k —
+ * zeros, live-verified — so all 50 writes CLEAR the high bit of the 4
+ * pixels at each dest byte [pageDraw]+0x38F5 + r*0x78: an un-brighten
+ * box marking the input area.  Ported verbatim; the box's bit-7 clears
+ * are idempotent, redrawn wherever the original re-blits. */
 static void draw_name_line(void)
 {
-    /* font_drawText draws nothing when no TEXT.SPR was published — the
-     * headless no-data case. */
-    memset(arena, 0, 80u);         /* just the row the text lands in */
+    /* AB8D's exact sequence: clear the arena's first 1600 bytes, draw the
+     * name into it (dead-but-real state — nothing displays the arena on
+     * the room's path), then the un-brighten box. */
+    memset(arena, 0, 1600u);
     font_drawText(arena, nameBuf, 0x98u, 0);
-    unsigned prow = ((pageDraw + 0x38F5u) / 160u) & 0xFFu;
-    unsigned base = pageDraw + prow * 160u;
-    for (unsigned b = 0; b < 80u; b++) {
-        uint8_t bits = arena[b];
-        for (unsigned k = 0; k < 4u; k++)
-            if (bits & (1u << k))
-                put_pixel(base, b * 4u + k, 0x0Fu);
-    }
+    for (unsigned r = 0; r < 10u; r++)
+        for (unsigned c = 0; c < 5u; c++) {
+            unsigned addr = (pageDraw + 0x38F5u + r * 0x78u + c) & 0xFFFFu;
+            for (unsigned p = 0; p < 4u; p++)
+                vram[addr][p] = (uint8_t)(vram[addr][p] & 0x7Fu);
+        }
 }
 
 /* name_entry_init (1000:AAC9): the "DARWIN" seed. */
@@ -525,7 +553,7 @@ static void anim_frame(void)
     if (slotCnt & 0x8000u) {
         slotCnt = 5;
         unsigned s = slot + 3u;
-        if (slotTab[s] == 0u) s = 0;
+        if (s >= 61u || slotTab[s] == 0u) s = 0u;   /* the terminator */
         slot = s;
     }
     if (nameScreen)
@@ -543,8 +571,8 @@ static void name_screen_enter(void)
      * (code2+0x15400, 56 rows — the strip bank 0x1540 PARAGRAPHS in) onto
      * the fixed band at absolute 0. */
     if (code2 && code2Size >= 0x1E000u) {
-        planarise_rows(code2, 0x2800, 136u);
-        planarise_rows(code2 + 0x15400u, 0, 56u);
+        planarise_rows(code2, code2Size, 0x2800, 136u);
+        planarise_rows(code2 + 0x15400u, code2Size - 0x15400u, 0, 56u);
     }
     draw_humans();
     draw_name_line();
@@ -592,8 +620,12 @@ static void do_load(void)
          * file's tail, right after the 640x192 image (0x1E000 bytes).
          * palette_load_6bit (1000:8D24) masks each byte & 0x3F. */
         palette_loadWorking(code2 + 0x1E000u);
-        planarise_rows(code2, 0,      192u);
-        planarise_rows(code2, 0x7D00, 192u);
+        /* 200 rows; the original's copy reads 8 rows past the 640x192
+         * image (the palette bytes, then the pool) — the port BLANKS
+         * them (the overread's palette-as-pixels showed as glitching;
+         * the original's pool tail is indeterminate anyway). */
+        planarise_rows(code2, 0x1E000u, 0,      200u);
+        planarise_rows(code2, 0x1E000u, 0x7D00, 200u);
         /* the setup's 2-frame loop (A5A1..A5DB): the full frame — the
          * badges, the character, the name line — drawn on BOTH pages
          * before the fade, so the fade-in holds a complete static frame
