@@ -731,6 +731,11 @@ int frontend_tick(const InputState *in)
         compose(0);                      /* the name screen is single-buffered */
         if (in->lastKey) {
             uint8_t k = in->lastKey;
+            /* AA4E/AA50: the event loop reads AND clears [0x48A3] — one
+             * consume per key event; a held key re-fires only via the
+             * (BIOS/SDL) typematic repeat. Without the clear one backspace
+             * tap spans several ticks and erases the whole name. */
+            ((InputState *)in)->lastKey = 0u;
             if ((k >= 'A' && k <= 'Z') || (k >= '0' && k <= '9') || k == ' ') {
                 name_addchar(k);
             } else if (k == 0x1Bu) {    /* ESC: clear the name, no exit */
