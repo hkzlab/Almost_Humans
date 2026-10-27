@@ -243,6 +243,23 @@ static void draw_option_sprites(void)
         unsigned cell = optCounter[e[i].cellIdx];
         unsigned off = e[i].srcOff + cell * w * h;
         if (off + w * h > size[i]) continue;
+        /* the stager's inner pass (A6CB..A6F5) FIRST patches the badge
+         * into the LOADED code2.raw image itself — ES := [0x625D] +
+         * dest/4 PARAGRAPHS = the chunky byte offset dest*4, w bytes per
+         * row at +640 stride, nonzero-transparent — so the character's
+         * backdrop-restored box carries the badge and both the occlusion
+         * and the 2-col page-alternation trail stay clean.  The cells'
+         * transparent masks are uniform within each badge's cell group,
+         * so cycling overwrites cleanly. */
+        if (code2 && (uint32_t)e[i].dest * 4u < code2Size &&
+            (unsigned)e[i].dest * 4u + (h - 1u) * 640u + w < code2Size) {
+            unsigned pOff = (unsigned)e[i].dest * 4u;
+            for (unsigned r = 0; r < h; r++)
+                for (unsigned c = 0; c < w; c++) {
+                    uint8_t v = src[off + r * w + c];
+                    if (v) code2[pOff + r * 640u + c] = v;
+                }
+        }
         unsigned destRow = e[i].dest / 160u, destCol = e[i].dest % 160u;
         if (destCol * 4u + w > 640u) continue;
         for (unsigned r = 0; r < h; r++) {
@@ -577,9 +594,18 @@ static void do_load(void)
         palette_loadWorking(code2 + 0x1E000u);
         planarise_rows(code2, 0,      192u);
         planarise_rows(code2, 0x7D00, 192u);
-        draw_character();
-        draw_name_line();
-        compose(1);
+        /* the setup's 2-frame loop (A5A1..A5DB): the full frame — the
+         * badges, the character, the name line — drawn on BOTH pages
+         * before the fade, so the fade-in holds a complete static frame
+         * while the compose alternates (drawing one page only made the
+         * character flicker through the fade).  The original then waits
+         * on the fade with no further draws. */
+        for (unsigned f = 0; f < 2u; f++) {
+            draw_option_sprites();
+            draw_character();
+            draw_name_line();
+            compose(1);
+        }
         palette_buildFade(0, 256, 0x23, palette_working());
         phase = FE_FADEIN;
     } else {
