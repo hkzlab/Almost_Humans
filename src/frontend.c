@@ -50,11 +50,10 @@
  *    split display the FIXED band from absolute vram 0, unpanned (the
  *    level's status bar and the name screen's human stage both live
  *    there); the original latches the same at vsync.
- *  - the name line is LIVE-VERIFIED (2026-10-27, the user's DOSBox): the
- *    original never displays the typed name — draw_name_line ports AB8D's
- *    exact sequence (the arena clear + draw_text — dead-but-real state —
- *    then the un-brighten box: the 10x5 write-mode-2 bit-7 clears at
- *    [pageDraw]+0x38F5 + r*0x78).
+ *  - the name line is the AB8D render proper (2026-10-27): the typed
+ *    name goes to the arena via draw_text and the WM2 bit-7 copy loop
+ *    carries it to the page — DARWIN shows in the entry box; the prior
+ *    "never displayed" reading is archived in re_history.md..
  *  - the backdrop's last 8 rows are BLANKED: the original's 200-row copy
  *    reads the palette bytes + the pool tail (indeterminate); the
  *    palette-as-pixels overread showed as glitching, so the port zeros
@@ -279,11 +278,12 @@ static void draw_option_sprites(void)
 /* name_screen_anim_frame's two human draws (via name_entry_render's ADB6
  * entry): a 20x20 cut of code2's human strip bank — rows 0..19 at column
  * (0x9E - nibble), the nibble from the NEXT TWO slot bytes — copied to
- * the SAME x on the fixed band (dest pixel = 0x9E - nibble, rows 0..19 /
- * 16..35: "the humans on top of each other"), the sliding cut being the
- * walk cycle.  The stager's OVERLAY pass (AE6E..AE9E) then composites
- * codehum frame 2 (CS:[0xadb4]=0, 16 rows of 16 bytes, nonzero-only) at
- * scratch rows 1..16, cols 2..17 — ported here as the same overlay. */
+ * the SAME x; on the name screen to the fixed band (rows 0..19/16..35),
+ * on the room screen to [0x5AC4]+0x5500 + those (page rows 136..155/
+ * 152..171 — the middle pair of the four-human stack holding the board).
+ * The stager's OVERLAY pass (AE6E..AE9E) then composites codehum frame 2
+ * (CS:[0xadb4]=0, 16 rows of 16 bytes, nonzero-only) at scratch rows 1..16,
+ * cols 2..17 — ported here as the same overlay. */
 static void draw_humans(void)
 {
     if (!code2 || code2Size < 0x17C00u + 20u * 640u) return;
@@ -292,10 +292,19 @@ static void draw_humans(void)
     for (unsigned h = 0; h < 2u; h++) {
         unsigned nibble = slotTab[(slot + 1u + h) % 61u] & 0x0Fu;
         unsigned cx = 0x9Eu - nibble;             /* 0x9E - nibble */
-        if (cx + 20u > 640u) continue;
+        /* ADB6's flag pick: [0x6267] set -> DI used directly (the fixed
+         * band's rows 0..19/16..35); clear -> DI += 0x5500 (page row 136)
+         * + [0x5AC4] — the room screen: page rows 136..155/152..171 at the
+         * same world x, the art's empty gap between the painted rail-
+         * gripper (rows 112..138) and the floored one (166..188).  It is
+         * exactly this middle pair that turns the screen's hanging human
+         * into the FOUR-human stack holding the board while the 320-px
+         * window slides across the 640-px room during the pan. */
         for (unsigned r = 0; r < 20u; r++) {
             unsigned srcRow = bankBase[h] + r * 640u;
-            unsigned base = (destRow[h] + r) * 160u;  /* absolute vram */
+            unsigned base = nameScreen
+                ? (destRow[h] + r) * 160u
+                : pageDraw + (136u + destRow[h] + r) * 160u;
             for (unsigned c = 0; c < 20u; c++) {
                 uint8_t v = code2[srcRow + cx + c];
                 if (v) put_pixel(base, cx + c, v);
@@ -303,10 +312,12 @@ static void draw_humans(void)
         }
         if (codehum && codehumSize >= 16u * 16u) {
             for (unsigned r = 0; r < 16u; r++) {
-                /* the overlay's scratch offset CS:[0xaeab] is the room
-                 * draw's leftover 0 (ada2) — the sprite lands at box
-                 * rows 0..15, cols 2..17 (0x5F65 = the base + 2) */
-                unsigned base = (destRow[h] + r) * 160u;
+                /* the overlay's scratch offset CS:[0xaeab] is 0 for the
+                 * anim draws (ada2's room draw leaves it 0) — the sprite
+                 * lands at box rows 0..15, cols 2..17 (0x5F65 = base+2) */
+                unsigned base = nameScreen
+                    ? (destRow[h] + r) * 160u
+                    : pageDraw + (136u + destRow[h] + r) * 160u;
                 for (unsigned c = 0; c < 16u; c++) {
                     uint8_t v = codehum[r * 16u + c];
                     if (v) put_pixel(base, cx + 2u + c, v);
@@ -318,31 +329,32 @@ static void draw_humans(void)
 
 /* --- the name ----------------------------------------------------------- */
 
-/* name_entry_blit (1000:AB8D) — LIVE-VERIFIED 2026-10-27 (the user's
- * DOSBox, held on the name screen): the typed name is NEVER displayed.
- * draw_text writes it into the arena (readable live at the arena's rows
- * 0..15), but no room-path code renders the arena to the screen —
- * blit_text_tile (1000:47D5, the arena-to-page renderer) has callers only
- * on the map/level-intro paths, and an exhaustive composed-VRAM sweep of
- * the window and the band found no glyph pixels.  The visible effect is
- * the 0x152 copy: vga_set_write_mode2 (bit mask 0x80), then 10 rows x 5
- * bytes read from the ARENA (DS := [0x1E20] at ABC8) at 0x152+40k —
- * zeros, live-verified — so all 50 writes CLEAR the high bit of the 4
- * pixels at each dest byte [pageDraw]+0x38F5 + r*0x78: an un-brighten
- * box marking the input area.  Ported verbatim; the box's bit-7 clears
- * are idempotent, redrawn wherever the original re-blits. */
+/* name_entry_blit (1000:AB8D) — the typed name IS displayed: the last
+ * claim ("never displayed, live-verified") misidentified this routine's
+ * purpose; its callers were verified across the room path (addchar,
+ * backspace, ESC-clear, the match's miss path, the room backdrop build)
+ * and the loop's raw bytes settle the shape: 10 rows x 40 copy-pairs —
+ * the ARENA (draw_text already wrote the glyphs at rows 4..13, bytes
+ * 18..57) read at 0x152+80/row, written to the page at [0x5AC4]+0x38F5
+ * +160/row under vga_set_write_mode2's bit-mask 0x80 (299b: OUT DX,AX
+ * with AH=0x80).  Each write sets the color-index TOP bit of the 4 dest
+ * pixels from the arena byte's bits 3..0 — the bright-variant palette
+ * (0x80+n) the dark bar's pixels sit in.  Ported verbatim. */
 static void draw_name_line(void)
 {
     /* AB8D's exact sequence: clear the arena's first 1600 bytes, draw the
-     * name into it (dead-but-real state — nothing displays the arena on
-     * the room's path), then the un-brighten box. */
+     * name into it (draw_text centres at x 0x98, rows 0..15 — the glyphs
+     * land at arena rows 4..13), then the WM2 copy: 10 rows x 40 bytes,
+     * source arena 0x152+80/row, dest [0x5AC4]+0x38F5+0x78/row. */
     memset(arena, 0, 1600u);
     font_drawText(arena, nameBuf, 0x98u, 0);
     for (unsigned r = 0; r < 10u; r++)
-        for (unsigned c = 0; c < 5u; c++) {
+        for (unsigned c = 0; c < 40u; c++) {
+            uint8_t v = arena[0x152u + r * 80u + c];
             unsigned addr = (pageDraw + 0x38F5u + r * 0x78u + c) & 0xFFFFu;
             for (unsigned p = 0; p < 4u; p++)
-                vram[addr][p] = (uint8_t)(vram[addr][p] & 0x7Fu);
+                vram[addr][p] = (uint8_t)((vram[addr][p] & 0x7F)
+                                          | ((v >> p) & 1u) << 7);
         }
 }
 
@@ -422,7 +434,13 @@ static void draw_character(void)
     const uint8_t *spr = codehum + (size_t)(dframe - 2u) * 384u;
     for (unsigned r = 0; r < 27u; r++) {
         unsigned srcRow = (unsigned)(ry - 1u) + r;
-        unsigned base = pageDraw + srcRow * 160u;
+        /* AD78..AD7F: on the name screen ([0x6267]) the blit dest skips the
+         * [0x5AC4] page add entirely (screen show holds [0x5AC4]=0 across
+         * the call) and is forced to ABSOLUTE 0x820 — page rows 13..39 of
+         * the fixed band, i.e. screen rows 149..175 at the char's own x:
+         * the human standing on the small hill at the bottom right. */
+        unsigned base = nameScreen ? 0x820u + r * 160u
+                                   : pageDraw + srcRow * 160u;
         for (unsigned c = 0; c < 20u; c++) {
             uint8_t v = (srcRow < 192u)
                        ? code2[srcRow * 640u + dx + c] : 0u;
@@ -552,7 +570,11 @@ static void anim_frame(void)
     slotCnt = (uint16_t)(slotCnt - 1u);
     if (slotCnt & 0x8000u) {
         slotCnt = 5;
-        unsigned s = slot + 3u;
+        /* acc5..acd2: the +3 step runs only while [0x6267] is set; on the
+         * room path the slot stays parked (the board-stack holds).  Either
+         * way the 0 terminator wraps to slot 0. */
+        unsigned s = slot;
+        if (nameScreen) s += 3u;
         if (s >= 61u || slotTab[s] == 0u) s = 0u;   /* the terminator */
         slot = s;
     }
@@ -572,6 +594,10 @@ static void name_screen_enter(void)
      * the fixed band at absolute 0. */
     if (code2 && code2Size >= 0x1E000u) {
         planarise_rows(code2, code2Size, 0x2800, 136u);
+        /* afcf: the character draw runs here, with [0x5AC4] held 0 — the
+         * 0x820-band branch in draw_character fires and the walked-in
+         * human lands on the fixed band's hill (screen rows 149..175). */
+        draw_character();
         planarise_rows(code2 + 0x15400u, code2Size - 0x15400u, 0, 56u);
     }
     draw_humans();
@@ -669,6 +695,10 @@ int frontend_tick(const InputState *in)
         draw_option_sprites();          /* place_4_sprites_to_vga (A684) */
         draw_character();
         draw_name_line();
+        anim_frame();                   /* the walk loop's acb9: keeps the
+                                         * board-stack's middle pair in vram
+                                         * (the event loop's idle) */
+        draw_humans();
         room_walk(in);
         compose(1);
 
