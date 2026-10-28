@@ -46,6 +46,9 @@ static uint8_t keyCode(SDL_Keycode k)
                         return 0x0Du;   /* the confirm action's key       */
     default: break;
     }
+    /* the ISR's XLAT table (0x4260) delivers letters UPPERCASE ('a' -> 0x41,
+     * re_map.md's input row) — the name screen's dispatch expects those */
+    if (k >= 'a' && k <= 'z') return (uint8_t)(k - 0x20u);
     if (k >= 0x20 && k < 0x80) return (uint8_t)k;   /* the printables     */
     return 0u;
 }
@@ -74,6 +77,14 @@ void sdl3_eventsPoll(InputState *out)
         }
     }
     *out = cur;
+    /* The ISR's [0x48A3] is rewritten by every make — the BIOS typematic
+     * repeats included — and the front-end consumes it (AA4E/AA50); between
+     * makes it holds.  The SDL queue's KEY_DOWN events (the OS's typematic
+     * repeats included) are those makes: deliver each once, then the byte
+     * is clear until the next make lands.  Without this a held key latches
+     * and the name screen fills at tick rate instead of the typematic's
+     * delay-then-repeat. */
+    cur.lastKey = 0u;
 }
 
 void sdl3_eventsInit(void) { memset(&cur, 0, sizeof cur); }
