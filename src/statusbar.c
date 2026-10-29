@@ -309,3 +309,16 @@ void statusbar_armOdometer(void)
 }
 
 int statusbar_timeUp(void) { return timeUp; }
+
+/* [0x5B12]: the ticking gate.  The in-level dialogs clear it (A167's head)
+ * and restore it on return; the band keeps drawing while it is clear. */
+void statusbar_setActive(int on) { active = on ? 1 : 0; }
+
+/* The countdown word the save writes at +0x07: minutes << 8 | BCD seconds
+ * (the original's [0x5B19] and [0x5B1A]*16 + [0x5B1B]). */
+uint16_t statusbar_timeWord(void)
+{
+    return (uint16_t)(((unsigned)cd[0] << 8) |
+                      (((unsigned)cd[1] & 0x0Fu) << 4) |
+                      ((unsigned)cd[2] & 0x0Fu));
+}

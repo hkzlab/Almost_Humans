@@ -88,6 +88,8 @@ void font_publish(const uint8_t *textSpr);
  * the glyph doubles horizontally) — at `row`. */
 void font_drawText(uint8_t *arena, const char *s, unsigned centreX,
                    unsigned row);
+/* draw_text's own measure: the advance-table sum (stops at CR/NUL). */
+unsigned font_textWidth(const char *s);
 
 /* --- src/attract.c — the ATTRACT loop (game_loop 1000:131E) -------------
  *
@@ -155,6 +157,10 @@ const uint8_t *statusbar_palette(void);
 void statusbar_armOdometer(void);
 /* [0x5E44]: the countdown reached zero (the time-up dialog's flag). */
 int  statusbar_timeUp(void);
+/* [0x5B12]: the ticking gate (the in-level dialogs clear it). */
+void statusbar_setActive(int on);
+/* The countdown word for the save's +0x07: minutes<<8 | BCD seconds. */
+uint16_t statusbar_timeWord(void);
 
 /* --- src/scene.c — .ANI/.RSC interpreter (subsystem 11, §8.5-8.7a) ---- */
 int  scene_init(const OSystem *osys);
@@ -304,6 +310,9 @@ int  frontend_tick(const InputState *in);
  * leaves 161 — the original's own edge).  entry's PUSH AX/POP AX move
  * it to [0x22]; game_main does the same into its level counter. */
 unsigned frontend_selectedLevel(void);
+/* entry's JMP LAB_002B (the pause's RESTART THIS GAME): the room's setup
+ * runs again; the option counters persist. */
+void frontend_restart(void);
 /* The four option counters — the descriptor tables' +7 bytes at
  * 202F:0x5E5B/0x5E65/0x5E6F/0x5E79, where the badge's frame IS the
  * setting.  The read side uses this accessor: level.c takes LEVEL, the room
@@ -343,6 +352,38 @@ void party_intro_formatScore(unsigned v, char *out);   /* 2b1b/2b70       */
 void party_intro_compose(uint8_t *page320x200); /* the law compose for the fixtures */
 const uint8_t *party_intro_workpal(void);   /* the 0x4bbc stand-in (diagnostics) */
 const uint8_t *party_intro_palUpper(void); /* 0x4d3c = 0x4bbc + 0x180 (diagnostics) */
+/* --- src/textpage.c — the in-level text page (draw_map_object 9EA3) ----
+ *
+ * The dialog box + its lines + the option markers, ported from
+ * draw_scroll_text / draw_map_object / blit_sprite_planar / blit_text_tile
+ * (re_map.md §"The in-level pause menu").  The box tiles are APL\BOX.SPR
+ * (9 x 16x16, loaded with the level's assets).
+ */
+void textpage_publishBox(const uint8_t *box);
+/* `text` = the block (CR-separated lines, NUL-terminated); cursorRow >= 0
+ * draws the marker pair on that option row (grid = the cell pair). */
+void textpage_draw(uint8_t *page, const char *text, int cursorRow,
+                   unsigned cursorCol, int grid);
+
+/* --- src/menu.c — the in-level dialogs (pause menu + SAVE GAME) -------
+ *
+ * The 5-option pause menu (202F:0x5BBC, A167) and the SAVE GAME number grid
+ * (202F:0x5CD8, render_frame_loop's cursor): the behaviour is the original's
+ * (0-based rows, wrap, ACTION/Enter selects; the countdown is suspended).
+ * The dialog's exact renderer (draw_map_object 1000:9EA3) is not ported yet;
+ * the port draws the block with TEXT.SPR on the flat page (see menu.c).
+ */
+void     menu_init(const OSystem *osys);
+void     menu_openPause(void);          /* [0x5B12] := 0, cursor 0         */
+void     menu_openTimeUp(void);         /* [0x5E44]'s 3-option block        */
+int      menu_timeUp(void);             /* the dialog currently open        */
+int      menu_active(void);             /* 1 while a dialog is up          */
+int      menu_tick(const InputState *in);   /* 1 = still up; draws         */
+void     menu_draw(void);
+int      menu_result(void);             /* the 0-based pause choice, -1    */
+unsigned menu_slot(void);               /* the grid's game number 1..20    */
+void     menu_close(void);
+
 /* --- src/save.c — the save-game format (load side) ---------------------
  *
  * re_formats.md §10/§10.0: the 0x1800 file `SAVE<'A'+n-1>` (the fs module's
@@ -361,6 +402,14 @@ unsigned save_members(void);      /* +0x0B -> [0x1970]                   */
 /* The whole 0x1800 buffer ([0x1C92]): the header and the state ranges are
  * carried verbatim (the ranges have no port consumer yet). */
 const uint8_t *save_blob(void);
+/* level_run 1000:30B4: [0x34] := 0 after the level starts, so a later
+ * "restart this level" takes the LEVEL board's time again. */
+void save_consume(void);
+/* SAVE GAME (save_progress 1FE7:0000): the header from the live state, the
+ * 0x1800 file.  The object/entity ranges are written ZERO (unported) — the
+ * port's saves are header-complete, NOT blob-compatible. */
+int  save_writeSlot(unsigned slot, unsigned level, uint16_t timeWord,
+                    unsigned members);
 
 /* --- src/game_main.c — the top-level flow (the original's main loop) --
  *
@@ -401,5 +450,11 @@ GameFlow gameflow_step(GameFlow state, const InputState *input);
  * +0x00 when a slot loaded, otherwise the room's code match.  Probe for the
  * save/restore test (the same role as attract_phaseForProbe). */
 unsigned gameflow_levelForProbe(void);
+/* The pause menu's five 0-based results (dispatch_by_result_a167 1000:38EA);
+ * returns the flow the action leaves, sets *quit for QUIT THIS GAME. */
+GameFlow gameflow_pauseAction(int choice, int *quit);
+/* The time-up dialog's 3 results (1000:34F9's inline dispatch): 0 restart
+ * this level (level_restore), 1 restart this game (the room), 2 quit. */
+GameFlow gameflow_timeUpAction(int choice, int *quit);
 
 #endif /* HUMANSRE_GAME_H */

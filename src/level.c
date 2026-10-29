@@ -51,6 +51,10 @@ static uint16_t rd_le16(const uint8_t *p)
 
 static LevelData level_data_cur;
 static int level_loaded;
+static uint8_t *boxSpr;           /* apl\box.spr (the dialog tiles)      */
+static uint32_t boxSize;
+static uint8_t levelPal[768];     /* the working palette 202F:0x14D3     */
+static int     palPending;        /* level_fade_in is due at the 1st tick */
 static uint16_t timeLimit;        /* [0x5D31]: the difficulty's BCD pick  */
 static unsigned tribeMembers;     /* [0x11FC]: 12/10/8 by the difficulty  */
 
@@ -160,6 +164,14 @@ static int visuals_load(unsigned style)
         if (!bgImage || bdSize != WORLD_W * WORLD_H + 768u) {
             visuals_free();
             return -1;
+        }
+        /* the working palette's 64..127 = this file's own palette (the
+         * caller copies its first 64 entries, draw_map_digit 1000:4F3C ->
+         * 202F:0x1593), so the image's pixel values are 0..63 + 0xFF (the
+         * empty fill): bias them into that bank and send 0xFF to black. */
+        for (unsigned i = 0; i < WORLD_W * WORLD_H; i++) {
+            uint8_t v = bgImage[i];
+            bgImage[i] = (v == 0xFFu) ? 0u : (uint8_t)(v < 0x40u ? 0x40u + v : v);
         }
     }
 
@@ -301,6 +313,12 @@ int level_load(unsigned levelId)
      * walks to EOF or the load fails) */
     if (visuals_load(d->style) != 0) return -1;
 
+    /* load_level_assets (1000:3468): the in-level dialog's box tiles
+     * (apl\box.spr, 9 x 16x16 at [0x13B1]) load with the level's assets. */
+    free(boxSpr);
+    boxSpr = res_loadChunk("APL\\BOX.SPR", &boxSize, NULL);
+    textpage_publishBox(boxSpr && boxSize >= 0x900u ? boxSpr : NULL);
+
     /* the bar (level_start 1000:957B + build_statusbar_layout 1000:961B):
      * the time limit and the tribe pair.  On a fresh game both come from the
      * LEVEL board's counter [0x5E65] read at entry: render_level_frame
@@ -324,6 +342,30 @@ int level_load(unsigned levelId)
             tribeMembers = (skill == 0u) ? 12u : (skill == 1u) ? 10u : 8u;
         }
         statusbar_start(timeLimit, tribeMembers, required);
+
+        /* The working palette 0x14D3 (the level's DAC base): entries
+         * 0..31 = APL\SPRPAL.APL+0x18 (the UI, verified live), 32..63 =
+         * LEVELS\BS<style>.BLK+0x18 (the tiles), 64..127 = the BG's own
+         * palette, 128..191 = zero, 192..255 = panel4's (level_video_init's
+         * 0xC0-byte 0x1713 copy).  Then the level's fade-in (level_fade_in
+         * 1000:337E/338A: the final 256-entry fade, div 0x32). */
+        memset(levelPal, 0, sizeof levelPal);
+        {
+            uint32_t spSize = 0;
+            uint8_t *sp = res_loadChunk("APL\\SPRPAL.APL", &spSize, NULL);
+            if (sp && spSize >= 0x18u + 0x60u) memcpy(levelPal, sp + 0x18, 0x60u);
+            free(sp);
+        }
+        if (atlas) memcpy(levelPal + 32u * 3u, atlas + 0x18, 0x60u);
+        if (bgImage)
+            memcpy(levelPal + 64u * 3u, bgImage + WORLD_W * WORLD_H, 0xC0u);
+        {
+            const uint8_t *bank = statusbar_palette();
+            if (bank) memcpy(levelPal + 0xC0u * 3u, bank, 0xC0u);
+        }
+        /* level_fade_in runs after the party (level_run 30AB): the fade is
+         * started by the first level_tick once the play begins, not here. */
+        palPending = 1;
     }
 
     level_loaded = 1;
@@ -358,6 +400,14 @@ int level_tick(void)
 
     if (!world || !level_osys) return 1;
 
+    /* level_fade_in (1000:337E/338A): the final 256-entry fade to the
+     * working palette, div 0x32 — after the party/cutscene, at the level's
+     * first play frame. */
+    if (palPending) {
+        palPending = 0;
+        palette_buildFade(0, 256, 0x32, levelPal);
+    }
+
     if (bgImage) memcpy(world, bgImage, WORLD_W * WORLD_H);
     else memset(world, 0, WORLD_W * WORLD_H);
 
@@ -385,17 +435,8 @@ int level_tick(void)
      * band + marks per tick instead) */
     statusbar_tick();
 
-    /* the world's colours: the port's own convention (the BG's palette at
-     * entries 0..63) — NOT the original's level path (draw_map_digit's
-     * BG0.raw copy at 1000:4F3C is the level-SELECT map screen's slot
-     * 0x1593; the original's level DAC base comes from the fade machinery
-     * at 202F:0x14D3, not decoded).  The bar's bank IS the original's:
-     * level_video_init 1000:32CD copies panel4's own palette to the live
-     * palette's entries 0xC0..0xFF. */
-    if (bgImage) palette_setDac(bgImage + WORLD_W * WORLD_H, 0, 64);
-    {
-        const uint8_t *bank = statusbar_palette();
-        if (bank) palette_setDac(bank, 0xC0, 64);
-    }
+    /* the colours are the working palette 202F:0x14D3, built in level_load
+     * and faded in by the first tick above (re_map.md "The level's working
+     * palette"). */
     return 1;
 }

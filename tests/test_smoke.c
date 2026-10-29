@@ -103,59 +103,54 @@ int main(int argc, char **argv)
         const uint8_t *page = osys_null_page(0);
         unsigned nz = 0;
         for (unsigned i = 0; i < 58880u; i++) if (page[i]) nz++;
-        if (nz != 26910u) {
-            fprintf(stderr, "FAIL page: the level render nz %u, want 26910\n", nz);
+        if (nz != 26502u) {
+            fprintf(stderr, "FAIL page: the level render nz %u, want 26502\n", nz);
             bad = 1;
         }
     }
 
-    /* the palette: the level intro installed daily.bit's 768 bytes; the
-     * level proper (level_tick) then rewrites the first 64 entries from
-     * level 0's background (style 3 -> BD3 field L=4 -> BG4.RAW — the
-     * port's world convention; the original's level slot is 202F:0x1713
-     * fed by the fade machinery) and the bar's +0xC0 bank, entries
-     * 0xC0..0xFF, from panel4.bit's own palette (level_video_init
-     * 1000:32CD, re_map.md → "The in-level status bar") */
+    /* the palette after the level's fade-in = the working palette
+     * 202F:0x14D3 (level_fade_in's final 256-entry fade, div 0x32):
+     *   0..31   APL\SPRPAL.APL +0x18  (the UI)
+     *   32..63  LEVELS\BS3.BLK +0x18  (the tiles)
+     *   64..127 BG4.RAW's own palette
+     *   128..191 zero
+     *   192..255 LBM\PANEL4.BIT +0xFA00 */
     {
-        uint32_t daily_size = 0, bg4_size = 0, p4_size = 0;
-        snprintf(path, sizeof path, "%s/HUMANS.002/LBM/DAILY.BIT", fix_dir);
-        uint8_t *daily = read_file(path, &daily_size);
+        uint32_t sp_size = 0, bs_size = 0, bg4_size = 0, p4_size = 0;
+        snprintf(path, sizeof path, "%s/HUMANS.001/APL/SPRPAL.APL", fix_dir);
+        uint8_t *sp = read_file(path, &sp_size);
+        snprintf(path, sizeof path, "%s/HUMANS.001/LEVELS/BS3.BLK", fix_dir);
+        uint8_t *bs = read_file(path, &bs_size);
         snprintf(path, sizeof path, "%s/HUMANS.001/BACKS/BG4.RAW", fix_dir);
         uint8_t *bg4 = read_file(path, &bg4_size);
         snprintf(path, sizeof path, "%s/HUMANS.001/LBM/PANEL4.BIT", fix_dir);
         uint8_t *p4 = read_file(path, &p4_size);
-        if (!daily || daily_size < 64000u + 768u ||
+        if (!sp || sp_size < 0x18u + 0x60u ||
+            !bs || bs_size < 0x18u + 0x60u ||
             !bg4 || bg4_size != 163840u + 768u ||
             !p4 || p4_size < 0xFA00u + 768u) {
             fprintf(stderr, "FAIL palette fixtures unreadable\n");
             bad = 1;
         } else {
             const uint8_t *pal = osys_null_palette();
-            for (unsigned i = 0; i < 192u; i++) {
-                if (pal[i] != bg4[163840u + i]) {
-                    fprintf(stderr, "FAIL palette byte %u: got %02x want BG4 %02x\n", i, pal[i], bg4[163840u + i]);
-                    bad = 1;
-                    break;
+            const uint8_t *want[5] = { sp + 0x18, bs + 0x18,
+                                       bg4 + 163840u, NULL, p4 + 0xFA00u };
+            unsigned off[5] = { 0u, 0x60u, 0xC0u, 0x180u, 0x240u };
+            unsigned len[5] = { 0x60u, 0x60u, 0xC0u, 0xC0u, 0xC0u };
+            for (unsigned r = 0; r < 5u; r++)
+                for (unsigned i = 0; i < len[r]; i++) {
+                    uint8_t w = want[r] ? want[r][i] : 0u;
+                    if (pal[off[r] + i] != w) {
+                        fprintf(stderr, "FAIL palette 0x%X: got %02x want %02x\n",
+                                off[r] + i, pal[off[r] + i], w);
+                        bad = 1;
+                        break;
+                    }
                 }
-            }
-            for (unsigned i = 192u; i < 576u; i++) {
-                if (pal[i] != daily[64000u + i]) {
-                    fprintf(stderr, "FAIL palette byte %u: got %02x want daily %02x\n",
-                            i, pal[i], daily[64000u + i]);
-                    bad = 1;
-                }
-            }
-            /* the bar's +0xC0 bank: entries 0xC0..0xFF = panel4's
-             * palette's first 0xC0 bytes (level_video_init 1000:32CD) */
-            for (unsigned i = 576u; i < 768u; i++) {
-                if (pal[i] != p4[0xFA00u + (i - 576u)]) {
-                    fprintf(stderr, "FAIL palette byte %u: got %02x want panel4 %02x\n",
-                            i, pal[i], p4[0xFA00u + (i - 576u)]);
-                    bad = 1;
-                }
-            }
         }
-        free(daily);
+        free(sp);
+        free(bs);
         free(bg4);
         free(p4);
     }

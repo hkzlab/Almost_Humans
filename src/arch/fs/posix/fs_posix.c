@@ -46,9 +46,25 @@ static uint32_t posix_saveRead(FSSave *s, uint32_t off, uint8_t *dst,
     return (uint32_t)fread(dst, 1, n, (FILE *)s);
 }
 
+static FSSave *posix_createSave(char letter)
+{
+    char name[16];
+    if (letter < 'A' || letter > 'T') return NULL;
+    snprintf(name, sizeof name, "SAVE%c", letter);
+    return (FSSave *)fopen(name, "wb");
+}
+
+static uint32_t posix_saveWrite(FSSave *s, uint32_t off,
+                                const uint8_t *src, uint32_t n)
+{
+    if (fseek((FILE *)s, (long)off, SEEK_SET)) return 0;
+    return (uint32_t)fwrite(src, 1, n, (FILE *)s);
+}
+
 static void posix_closeSave(FSSave *s) { if (s) fclose((FILE *)s); }
 
 const FSModule fs = {
     posix_openVolume, posix_closeVolume, posix_volumeSize, posix_read,
-    posix_openSave, posix_saveRead, posix_closeSave
+    posix_openSave, posix_saveRead, posix_createSave, posix_saveWrite,
+    posix_closeSave
 };

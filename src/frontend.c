@@ -170,6 +170,11 @@ int frontend_init(const OSystem *osys) { (void)osys; return 0; }
 
 unsigned frontend_selectedLevel(void) { return codeIndex; }
 
+/* entry's JMP LAB_002B: the room's setup runs again from the top (the
+ * counters persist — frontend_room_setup seeds none of them).  The next
+ * frontend_tick re-loads the assets (FE_LOAD). */
+void frontend_restart(void) { phase = FE_LOAD; fireLatch = 0; }
+
 /* The four option counters — the read side's one accessor.  Consumers:
  * level.c (LEVEL: the time-limit pick + the 12/10/8 tribe), audio.c (MUSIC:
  * the frame web's gate), scene.c (ANIMATIONS: cd_file_op's early RET).  The

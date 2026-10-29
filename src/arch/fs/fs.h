@@ -22,6 +22,10 @@
  *                      original's `\HUMANS\CDROM\saveX`).  NULL = absent;
  *                      the caller owns the error (the original's JC path).
  *   saveRead(s, off, dst, n)  the same read contract as volumeRead.
+ *   createSave(letter) creates/truncates the same file for writing (the
+ *                      save writer); NULL = cannot create.
+ *   saveWrite(s, off, src, n) writes n bytes at `off`; returns the bytes
+ *                      written (< n = the error).
  *   closeSave(s)       releases the handle; NULL is accepted.
  *
  * The modules never abort.  Every byte the game I/O needs goes through here —
@@ -42,6 +46,9 @@ typedef struct FSModule {
     uint32_t  (*read)(FSVolume *v, uint32_t off, uint8_t *dst, uint32_t n);
     FSSave   *(*openSave)(char letter);
     uint32_t  (*saveRead)(FSSave *s, uint32_t off, uint8_t *dst, uint32_t n);
+    FSSave   *(*createSave)(char letter);
+    uint32_t  (*saveWrite)(FSSave *s, uint32_t off, const uint8_t *src,
+                           uint32_t n);
     void      (*closeSave)(FSSave *s);
 } FSModule;
 

@@ -100,6 +100,17 @@ static void blit_glyph(uint8_t *arena, int x, unsigned row, unsigned gi)
     }
 }
 
+/* draw_text's own measure: the sum of the advance table (the same walk
+ * draw_text does before centring).  STOPs at CR/NUL, like draw_text. */
+unsigned font_textWidth(const char *s)
+{
+    unsigned w = 0;
+    for (const unsigned char *p = (const unsigned char *)s;
+         *p && *p != 0x0Du; p++)
+        w += advance[charset_index(*p)];
+    return w;
+}
+
 /* draw_text (1000:4989): centre `s` on centreX and blit it at arena row
  * `row`.  Unknown characters advance by the terminator slot but draw
  * nothing (the two search loops' no-match paths). */

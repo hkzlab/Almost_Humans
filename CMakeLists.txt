@@ -41,6 +41,8 @@ add_library(core STATIC
     src/script.c
     src/audio.c
     src/frontend.c
+    src/menu.c
+    src/textpage.c
     src/save.c
     src/party_intro.c
 )
@@ -141,6 +143,15 @@ target_include_directories(test_entity PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src $
 target_link_libraries(test_entity PRIVATE core fs_posix)
 humansre_warnings(test_entity)
 add_test(NAME entity COMMAND test_entity ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
+
+# The in-level pause menu + SAVE GAME: the dialog behaviour (202F:0x5BBC /
+# 0x5CD8), the writer's header and the read-back.
+add_executable(test_pause tests/test_pause.c
+    src/arch/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_pause PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(test_pause PRIVATE core fs_posix)
+humansre_warnings(test_pause)
+add_test(NAME pause COMMAND test_pause ${HUMANS_DATA_DIR})
 
 # The save-game slot load (entry:004C): the room's RESTORE GAME counter
 # reaches save.c, the save's level/time/members replace the room's.

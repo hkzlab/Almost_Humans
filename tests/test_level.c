@@ -24,6 +24,25 @@ extern const uint8_t *osys_null_palette(void);
 
 static uint8_t *file_image;
 
+static uint8_t *read_fixture(const char *fix_dir, const char *rel,
+                             uint32_t *size)
+{
+    char path[512];
+    snprintf(path, sizeof path, "%s/%s", fix_dir, rel);
+    FILE *f = fopen(path, "rb");
+    if (!f) return NULL;
+    fseek(f, 0, SEEK_END);
+    long n = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    uint8_t *b = malloc((size_t)n);
+    if (!b || fread(b, 1, (size_t)n, f) != (size_t)n) {
+        fclose(f); free(b); return NULL;
+    }
+    fclose(f);
+    if (size) *size = (uint32_t)n;
+    return b;
+}
+
 static int load_fixture(const char *fix_dir, unsigned fileIdx)
 {
     char path[512];
@@ -186,10 +205,16 @@ int main(int argc, char **argv)
     }
 
     /* 4. the level render (level 0: style 3 -> BD3 field L=4 -> BG4.RAW):
-     * the composite 320x200 viewport on page 0 and the BG's first 64
-     * palette entries, checksums against the python reference
-     * (re_formats.md §3-§5: BG fill + draw_terrain over it, +0x20 bias,
-     * viewport at scroll 0,0). */
+     * the composite 320x200 viewport on page 0 (the BG's pixels biased into
+     * the 64..127 bank with 0xFF -> black, then draw_terrain's tiles at the
+     * +0x20 bias) and the working palette 202F:0x14D3:
+     *   0..31   APL\SPRPAL.APL +0x18  (the UI)
+     *   32..63  LEVELS\BS3.BLK +0x18  (the tiles)
+     *   64..127 BG4.RAW's own palette  (draw_map_digit 1000:4F3C)
+     *   128..191 zero
+     *   192..255 LBM\PANEL4.BIT +0xFA00 (level_video_init's 0xC0 copy)
+     * The page checksum is a regression guard; the palette is byte-exact
+     * against the four fixtures. */
     {
         if (level_load(0) != 0) {
             fprintf(stderr, "FAIL level 0 reload\n");
@@ -202,18 +227,41 @@ int main(int argc, char **argv)
                 sum += page[i];
                 if (page[i]) nz++;
             }
-            if (sum != 1242943u || nz != 26248u) {
+            if (sum != 1161943u || nz != 25840u) {
                 fprintf(stderr, "FAIL level 0 page: sum %u nz %u\n",
                         sum, nz);
                 bad = 1;
             }
+
+            for (unsigned i = 0; i < 200u && palette_fadeActive(); i++)
+                palette_tick();                 /* level_fade_in */
             const uint8_t *pal = osys_null_palette();
-            uint32_t psum = 0;
-            for (unsigned i = 0; i < 192u; i++) psum += pal[i];
-            if (psum != 4188u) {
-                fprintf(stderr, "FAIL level 0 palette: sum %u\n", psum);
+            uint32_t n = 0;
+            uint8_t *sp = read_fixture(fix_abs, "HUMANS.001/APL/SPRPAL.APL", &n);
+            uint8_t *bs = read_fixture(fix_abs, "HUMANS.001/LEVELS/BS3.BLK", &n);
+            uint8_t *bg = read_fixture(fix_abs, "HUMANS.001/BACKS/BG4.RAW", &n);
+            uint8_t *p4 = read_fixture(fix_abs, "HUMANS.001/LBM/PANEL4.BIT", &n);
+            if (!sp || !bs || !bg || !p4) {
+                fprintf(stderr, "FAIL palette fixtures unreadable\n");
                 bad = 1;
+            } else {
+                const uint8_t *want[5] = {
+                    sp + 0x18, bs + 0x18, bg + 163840u, NULL, p4 + 0xFA00u
+                };
+                unsigned off[5] = { 0u, 0x60u, 0xC0u, 0x180u, 0x240u };
+                unsigned len[5] = { 0x60u, 0x60u, 0xC0u, 0xC0u, 0xC0u };
+                for (unsigned r = 0; r < 5u; r++)
+                    for (unsigned i = 0; i < len[r]; i++) {
+                        uint8_t w = want[r] ? want[r][i] : 0u;
+                        if (pal[off[r] + i] != w) {
+                            fprintf(stderr, "FAIL palette 0x%X: got %02x want "
+                                    "%02x\n", off[r] + i, pal[off[r] + i], w);
+                            bad = 1;
+                            break;
+                        }
+                    }
             }
+            free(sp); free(bs); free(bg); free(p4);
         }
     }
 

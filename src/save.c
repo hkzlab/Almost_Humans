@@ -60,8 +60,41 @@ static uint16_t rd16(const uint8_t *p)
     return (uint16_t)(p[0] | (p[1] << 8));
 }
 
+/* level_run's tail (1000:30B4): [0x34] := 0 after the level has started —
+ * a later "restart this level" takes the LEVEL board's time again. */
+void save_consume(void) { save_loaded = 0; }
+
 int save_present(void)          { return save_loaded; }
 uint16_t save_level(void)       { return rd16(save_buf + 0x00); }
 uint16_t save_time(void)        { return rd16(save_buf + 0x07); }
 unsigned save_members(void)     { return rd16(save_buf + 0x0B); }
 const uint8_t *save_blob(void)  { return save_buf; }
+
+/* SAVE GAME (save_progress 1FE7:0000, re_formats.md §10.0): the 13-byte
+ * header from the port's live state + the 0x1800 file.  The five state
+ * ranges (+0x0D..) are the object/entity tables the port does not model:
+ * they are written ZERO, deliberately — the port's saves are complete for
+ * the header (level/time/members) and NOT byte-compatible with the
+ * original's blob.  The score/counter digits are likewise 0 (the score and
+ * collect systems are unported); the state id is the level's [0x5B56] = 1. */
+int save_writeSlot(unsigned slot, unsigned level, uint16_t timeWord,
+                   unsigned members)
+{
+    static uint8_t out[SAVE_LEN];
+    if (slot == 0u || slot > 20u) return 0;
+
+    memset(out, 0, sizeof out);
+    out[0x00] = (uint8_t)level;   out[0x01] = (uint8_t)(level >> 8);
+    /* +0x02..+0x05: the 32-bit score (0, unported) */
+    out[0x06] = 1;                                  /* [0x5B56] = 1      */
+    out[0x07] = (uint8_t)(timeWord & 0xFFu);        /* BCD sec  | min    */
+    out[0x08] = (uint8_t)(timeWord >> 8);
+    /* +0x09/+0x0A: the 2-digit counter (0, unported) */
+    out[0x0B] = (uint8_t)members; out[0x0C] = (uint8_t)(members >> 8);
+
+    FSSave *f = fs.createSave((char)('A' + (int)slot - 1));
+    if (!f) return 0;
+    uint32_t put = fs.saveWrite(f, 0, out, SAVE_LEN);
+    fs.closeSave(f);
+    return put == SAVE_LEN;
+}

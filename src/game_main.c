@@ -21,6 +21,7 @@
 #include <stddef.h>
 
 int resources_init(const OSystem *osys) {
+    menu_init(osys);
     int res_init_state =
         res_init(osys) || video_init(osys) || palette_init(osys) ||
         font_init(osys) || statusbar_init(osys) || scene_init(osys) ||
@@ -46,13 +47,91 @@ static void game_tick(void)
     statusbar_tick();
 }
 
-/* --- the flow state machine ------------------------------------------ */
+/* --- the level's foreground: the pause gate + the actions ------------- */
+
+/* level_run's fresh-load party state (307A) — file scope so the pause's
+ * restart can suppress the party (level_restore 35AF re-enters level_start,
+ * not the party path). */
+static int partyTried, partyPlaying;
 
 /* The level the walk is currently on: the menu selection feeds it
  * (frontend_selectedLevel = the matched codes.bin index, 1-based, minus
  * one — the [0x22] := [0x5F09] hand-off), and a loaded save overrides it
  * with its own +0x00 (entry:004C's POP AX). */
 static unsigned level_current = 0u;
+
+/* The pause menu's press latch (pause_toggle 1000:3523 opens on a held
+ * ACTION; the port requires a release between opens). */
+static int menuPrevAction;
+
+/* [0x5BBA] != 0: the level's goal page (scroll_map 1000:9E51) is up. */
+static int goalPage;
+
+/* [0x5E44]: the time-up dialog has been shown for this countdown. */
+static int timeoutShown;
+
+/* level_restore (1000:35AF): the countdown/time take the level record's
+ * pick again ([0x34] was consumed at the level's start) and the level
+ * re-inits.  The port reloads the record (the original re-enters
+ * level_start without re-reading L?.BIN; the bar is the same) and
+ * re-spawns the map's entities like the level entry.  No party (the
+ * original's restart does not go through level_run's 307A branch). */
+static void level_restart(void)
+{
+    if (level_load(level_current) == 0) {
+        const LevelData *ld = level_data();
+        entity_spawnFromMap(level_map(), ld->style, ld->entityLife);
+    }
+    partyTried = 1;
+    partyPlaying = 0;
+}
+
+/* dispatch_by_result_a167 (1000:38EA): the pause menu's five 0-based
+ * results.  Returns the flow the action leaves (FLOW_MENU for RESTART THIS
+ * GAME) and sets *quit for QUIT THIS GAME. */
+GameFlow gameflow_pauseAction(int choice, int *quit)
+{
+    switch (choice) {
+    case 0:                                     /* continue            */
+        break;
+    case 1:                                     /* restart this level  */
+        level_restart();
+        break;
+    case 2:                                     /* restart this game   */
+        frontend_restart();
+        save_loadSlot(0u);                      /* entry 002B: [0x34]=0 */
+        return FLOW_MENU;
+    case 3:                                     /* save game           */
+        (void)save_writeSlot(menu_slot(), level_current + 1u,
+                             statusbar_timeWord(), level_tribeMembers());
+        break;
+    case 4:                                     /* quit this game      */
+        *quit = 1;
+        break;
+    }
+    return FLOW_LEVEL;
+}
+
+/* input_dispatch_loop 34F9's inline time-up dispatch: 0 restart this level
+ * (level_restore), 1 restart this game (the room), 2 quit. */
+GameFlow gameflow_timeUpAction(int choice, int *quit)
+{
+    switch (choice) {
+    case 0:
+        level_restart();
+        break;
+    case 1:
+        frontend_restart();
+        save_loadSlot(0u);
+        return FLOW_MENU;
+    case 2:
+        *quit = 1;
+        break;
+    }
+    return FLOW_LEVEL;
+}
+
+/* --- the flow state machine ------------------------------------------ */
 
 unsigned gameflow_levelForProbe(void) { return level_current; }
 
@@ -114,7 +193,7 @@ int game_main(const OSystem *osys)
 
     GameFlow state = FLOW_ATTRACT, prev = FLOW_ATTRACT;
     unsigned last_tick = 0;
-    static int partyTried, partyPlaying;
+    int quitRequested = 0;
     for (;;) {
         /* the tick gate: one flow step per tick boundary, exactly like the
          * original's foreground spinning on the ISR counter [0x5AC8].  The
@@ -142,14 +221,23 @@ int game_main(const OSystem *osys)
              * pre-level screen (level_run's fresh-load 307a path — the
              * .ANI cutscene is not on this path, re_map.md); the level
              * proper ticks after both. */
+            int entered = 0;
             if (prev != FLOW_LEVEL) {
                 partyTried = 0; partyPlaying = 0;
+                entered = 1;
                 if (level_load(level_current) == 0) {
                     /* load_terrain_b (1000:5168): the level's own map
                      * spawns/joins the entities, once per load */
                     const LevelData *ld = level_data();
                     entity_spawnFromMap(level_map(), ld->style,
                                         ld->entityLife);
+                }
+                /* level_setup (1000:31BD): [0x5BBA] := the record's goal
+                 * text; the first play frame shows it (scroll_map). */
+                {
+                    const LevelData *g = level_data();
+                    goalPage = g && g->goal[0] != 0;
+                    if (goalPage) statusbar_setActive(0);
                 }
             }
             const LevelData *lv = level_data();
@@ -169,14 +257,53 @@ int game_main(const OSystem *osys)
                     partyPlaying = party_intro_start();
                 }
             }
+            /* level_run 30B4: [0x34] := 0 once the level has started; a
+             * later restart then takes the LEVEL board's time. */
+            if (entered) save_consume();
             if (partyPlaying) {
                 if (party_intro_tick(&input))
                     goto present;          /* the screen plays      */
                 partyPlaying = 0;          /* its exit finished      */
             } else if (lv && scene_playLevelIntro(lv->introIndex)) {
                 /* the intro is playing — the level waits */
+            } else if (goalPage && lv) {
+                /* scroll_map (1000:9E51): the level's goal page, the frame
+                 * re-rendered behind it, [0x5B12]=0 while up; any key or
+                 * ACTION dismisses it and [0x5BBA] is cleared. */
+                level_tick();
+                textpage_draw(osys->videoPage(0), lv->goal, -1, 0u, 0);
+                if (input.lastKey || (input.joyBits & 0x80u)) {
+                    goalPage = 0;
+                    statusbar_setActive(1);
+                }
             } else {
+                /* input_dispatch_loop (1000:349E): the pause gate (3523)
+                 * then the world.  With a dialog up (A167) the world keeps
+                 * animating behind it and the countdown is suspended. */
+                if (statusbar_timeUp() && !timeoutShown && !menu_active()) {
+                    timeoutShown = 1;
+                    menu_openTimeUp();
+                }
+                if (!menu_active() && !menuPrevAction &&
+                    (input.joyBits & 0x80u) && !(input.joyBits & 0x0Fu))
+                    menu_openPause();
+                menuPrevAction = (input.joyBits & 0x80u) != 0;
+
                 level_tick();          /* the party done: the level runs */
+                if (menu_active()) {
+                    if (!menu_tick(&input)) {
+                        int wasTimeUp = menu_timeUp();
+                        state = wasTimeUp
+                              ? gameflow_timeUpAction(menu_result(),
+                                                      &quitRequested)
+                              : gameflow_pauseAction(menu_result(),
+                                                     &quitRequested);
+                        menu_close();
+                        if (wasTimeUp) timeoutShown = 0;
+                        if (!quitRequested) statusbar_setActive(1);
+                    }
+                }
+                if (quitRequested) break;
             }
         }
         /* the intro/level draw into page 0; the CRTC-flip equivalent shows

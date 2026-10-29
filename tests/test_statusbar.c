@@ -263,11 +263,13 @@ int main(int argc, char **argv)
             bad = 1;
         }
         if (dump_dir) {
+            /* level_fade_in completes at ~50 palette ticks (div 0x32) */
+            for (unsigned i = 0; i < 60u; i++) palette_tick();
             dump_ppm(dump_dir, "statusbar_port_t0", page, osys_null_palette());
-            for (unsigned i = 0; i < 90u; i++) level_tick();
+            for (unsigned i = 0; i < 90u; i++) { level_tick(); palette_tick(); }
             dump_ppm(dump_dir, "statusbar_port_t90", page, osys_null_palette());
             /* t90: one second rolled — recompute the settled phases      */
-            for (unsigned i = 0; i < 16u; i++) level_tick();
+            for (unsigned i = 0; i < 16u; i++) { level_tick(); palette_tick(); }
             dump_ppm(dump_dir, "statusbar_port_t106", page, osys_null_palette());
         }
     }
