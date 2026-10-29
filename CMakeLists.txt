@@ -142,6 +142,15 @@ target_link_libraries(test_entity PRIVATE core fs_posix)
 humansre_warnings(test_entity)
 add_test(NAME entity COMMAND test_entity ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 
+# The save-game slot load (entry:004C): the room's RESTORE GAME counter
+# reaches save.c, the save's level/time/members replace the room's.
+add_executable(test_save tests/test_save.c
+    src/arch/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_save PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(test_save PRIVATE core fs_posix)
+humansre_warnings(test_save)
+add_test(NAME save COMMAND test_save ${HUMANS_DATA_DIR})
+
 # The front-end room's option read side: walk to each board, press ACTION,
 # and assert the counter/badge pixels and each setting's consumer.
 add_executable(test_frontend tests/test_frontend.c

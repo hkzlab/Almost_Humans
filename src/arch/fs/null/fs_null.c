@@ -12,4 +12,13 @@ static uint32_t  null_volumeSize(FSVolume *v) { (void)v; return 0; }
 static uint32_t  null_read(FSVolume *v, uint32_t off, uint8_t *dst, uint32_t n)
 { (void)v; (void)off; (void)dst; (void)n; return 0; }
 
-const FSModule fs = { null_openVolume, null_closeVolume, null_volumeSize, null_read };
+static FSSave   *null_openSave(char letter) { (void)letter; return NULL; }
+static uint32_t  null_saveRead(FSSave *s, uint32_t off, uint8_t *dst,
+                               uint32_t n)
+{ (void)s; (void)off; (void)dst; (void)n; return 0; }
+static void      null_closeSave(FSSave *s) { (void)s; }
+
+const FSModule fs = {
+    null_openVolume, null_closeVolume, null_volumeSize, null_read,
+    null_openSave, null_saveRead, null_closeSave
+};

@@ -1,7 +1,8 @@
 /* fs/posix/fs_posix.c — the POSIX filesystem module: the byte reader over
- * the volume files (HUMANS  .00N).  The volume's internal format (the chunk
- * directory, the LZW payloads) is the core's business (re_formats.md §8); the
- * module only opens, sizes and reads bytes through standard stdio. */
+ * the volume files (HUMANS  .00N) and the save files (SAVEA..SAVET in the
+ * game directory).  The volume's internal format (the chunk directory, the
+ * LZW payloads) and the save format are the core's business (re_formats.md
+ * §8/§10); the module only opens, sizes and reads bytes through stdio. */
 #include "fs/fs.h"
 #include <stdio.h>
 #include <stdio.h>
@@ -27,4 +28,27 @@ static uint32_t posix_read(FSVolume *v, uint32_t off, uint8_t *dst, uint32_t n)
     return (uint32_t)fread(dst, 1, n, (FILE *)v);
 }
 
-const FSModule fs = { posix_openVolume, posix_closeVolume, posix_volumeSize, posix_read };
+/* The save files: the original's `\HUMANS\CDROM\saveX` mapped onto the game
+ * directory as SAVEA..SAVET (the slot letter is the game's law, the
+ * filename is this module's business). */
+static FSSave *posix_openSave(char letter)
+{
+    char name[16];
+    if (letter < 'A' || letter > 'T') return NULL;
+    snprintf(name, sizeof name, "SAVE%c", letter);
+    return (FSSave *)fopen(name, "rb");
+}
+
+static uint32_t posix_saveRead(FSSave *s, uint32_t off, uint8_t *dst,
+                               uint32_t n)
+{
+    if (fseek((FILE *)s, (long)off, SEEK_SET)) return 0;
+    return (uint32_t)fread(dst, 1, n, (FILE *)s);
+}
+
+static void posix_closeSave(FSSave *s) { if (s) fclose((FILE *)s); }
+
+const FSModule fs = {
+    posix_openVolume, posix_closeVolume, posix_volumeSize, posix_read,
+    posix_openSave, posix_saveRead, posix_closeSave
+};

@@ -14,6 +14,18 @@
  *                      or the error); the caller owns the error handling.
  *   volumeSize(v)      the volume's size in bytes (0 = unknown/unavailable).
  *   closeVolume(v)     releases the handle; NULL is accepted.
+ *
+ *   openSave(letter)   opens the save file for slot letter 'A'..'T' — the
+ *                      game's `'A' + (n-1)` law (re_formats.md §10/§10.0).
+ *                      The module owns the filename/path; the POSIX module
+ *                      uses SAVEA..SAVET in the game directory (the
+ *                      original's `\HUMANS\CDROM\saveX`).  NULL = absent;
+ *                      the caller owns the error (the original's JC path).
+ *   saveRead(s, off, dst, n)  the same read contract as volumeRead.
+ *   closeSave(s)       releases the handle; NULL is accepted.
+ *
+ * The modules never abort.  Every byte the game I/O needs goes through here —
+ * the core (and its tests' game-side code) never includes a stdio path.
  */
 #ifndef HUMANSRE_FS_H
 #define HUMANSRE_FS_H
@@ -21,12 +33,16 @@
 #include <stdint.h>
 
 typedef struct FSVolume FSVolume;
+typedef struct FSSave   FSSave;
 
 typedef struct FSModule {
     FSVolume *(*openVolume)(unsigned disc);
     void      (*closeVolume)(FSVolume *v);
     uint32_t  (*volumeSize)(FSVolume *v);
     uint32_t  (*read)(FSVolume *v, uint32_t off, uint8_t *dst, uint32_t n);
+    FSSave   *(*openSave)(char letter);
+    uint32_t  (*saveRead)(FSSave *s, uint32_t off, uint8_t *dst, uint32_t n);
+    void      (*closeSave)(FSSave *s);
 } FSModule;
 
 /* The selected module, defined by exactly one fs_*.c that the build links. */

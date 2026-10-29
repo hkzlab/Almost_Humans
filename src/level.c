@@ -302,20 +302,27 @@ int level_load(unsigned levelId)
     if (visuals_load(d->style) != 0) return -1;
 
     /* the bar (level_start 1000:957B + build_statusbar_layout 1000:961B):
-     * the time limit and the tribe pair, both picked from the LEVEL board's
-     * counter [0x5E65] read at entry.  render_level_frame (1000:9589)
-     * selects [0x17F5]/[0x17F7]/[0x17F9] — this record's timeA/B/C — by
-     * 0/1/else, and entry (1000:009F) maps the same byte to the starting
-     * tribe [0x11FC] := 12/10/8.  The required = the map's 0xAA-tile count
+     * the time limit and the tribe pair.  On a fresh game both come from the
+     * LEVEL board's counter [0x5E65] read at entry: render_level_frame
+     * (1000:9589) selects [0x17F5]/[0x17F7]/[0x17F9] — this record's
+     * timeA/B/C — by 0/1/else, and entry (1000:009F) maps the same byte to
+     * the starting tribe [0x11FC] := 12/10/8.  With a save loaded ([0x34],
+     * render_level_frame 1000:959E) the save's own +0x07 word and +0x0B
+     * members replace both.  The required = the map's 0xAA-tile count
      * (load_level 1000:315F counts the first 640-byte block). */
     {
         unsigned required = 0;
         for (unsigned i = 0; i < MAP_LEN; i++)
             if (d->map[i] == 0xAAu) required++;
-        unsigned skill = frontend_option(FRONTEND_OPT_LEVEL);
-        timeLimit    = (skill == 0u) ? d->timeA
-                     : (skill == 1u) ? d->timeB : d->timeC;
-        tribeMembers = (skill == 0u) ? 12u : (skill == 1u) ? 10u : 8u;
+        if (save_present()) {
+            timeLimit    = save_time();
+            tribeMembers = save_members();
+        } else {
+            unsigned skill = frontend_option(FRONTEND_OPT_LEVEL);
+            timeLimit    = (skill == 0u) ? d->timeA
+                         : (skill == 1u) ? d->timeB : d->timeC;
+            tribeMembers = (skill == 0u) ? 12u : (skill == 1u) ? 10u : 8u;
+        }
         statusbar_start(timeLimit, tribeMembers, required);
     }
 

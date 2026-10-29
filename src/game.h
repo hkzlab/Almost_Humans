@@ -307,9 +307,8 @@ unsigned frontend_selectedLevel(void);
 /* The four option counters — the descriptor tables' +7 bytes at
  * 202F:0x5E5B/0x5E65/0x5E6F/0x5E79, where the badge's frame IS the
  * setting.  The read side uses this accessor: level.c takes LEVEL, the room
- * hands MUSIC to audio_musicGate, scene.c takes ANIMATIONS, and the RESTORE
- * GAME slot is carried out for entry 1000:004C's save load (save.c is the
- * M6 stub). */
+ * hands MUSIC to audio_musicGate, scene.c takes ANIMATIONS, and game_main
+ * hands the RESTORE GAME slot to save_loadSlot (entry 1000:004C's load). */
 enum {
     FRONTEND_OPT_MUSIC = 0,     /* ON/OFF: the frame web's music gate      */
     FRONTEND_OPT_LEVEL = 1,     /* EASY/NORMAL/HARD: time A/B/C, 12/10/8    */
@@ -344,8 +343,24 @@ void party_intro_formatScore(unsigned v, char *out);   /* 2b1b/2b70       */
 void party_intro_compose(uint8_t *page320x200); /* the law compose for the fixtures */
 const uint8_t *party_intro_workpal(void);   /* the 0x4bbc stand-in (diagnostics) */
 const uint8_t *party_intro_palUpper(void); /* 0x4d3c = 0x4bbc + 0x180 (diagnostics) */
-/* --- src/save.c — the save-game format (byte-compatible) -------------- */
+/* --- src/save.c — the save-game format (load side) ---------------------
+ *
+ * re_formats.md §10/§10.0: the 0x1800 file `SAVE<'A'+n-1>` (the fs module's
+ * name for the original's `\humans\cdrom\saveX`).  The load is entry:004C's
+ * path: the slot is the front-end room's RESTORE GAME counter (GAME 1..20),
+ * and a hit overrides the room's level, the time limit and the tribe.
+ */
 int  save_init(const OSystem *osys);
+/* Load the slot (1..20; 0 = GAME OFF).  Resets the state first; returns 1
+ * when the file's header was read (the original's "save present" [0x34]). */
+int  save_loadSlot(unsigned slot);
+int  save_present(void);          /* [0x34]                              */
+uint16_t save_level(void);        /* +0x00, 1..160 -> [0x22]             */
+uint16_t save_time(void);         /* +0x07 word -> [0x5D31]              */
+unsigned save_members(void);      /* +0x0B -> [0x1970]                   */
+/* The whole 0x1800 buffer ([0x1C92]): the header and the state ranges are
+ * carried verbatim (the ranges have no port consumer yet). */
+const uint8_t *save_blob(void);
 
 /* --- src/game_main.c — the top-level flow (the original's main loop) --
  *
@@ -382,5 +397,9 @@ typedef enum GameFlow {
 /* Advance the flow one step with the polled input; the loop calls it once
  * per tick boundary.  Returns the new state. */
 GameFlow gameflow_step(GameFlow state, const InputState *input);
+/* The level index the MENU exit chose (0-based; [0x22]-1) — the save's
+ * +0x00 when a slot loaded, otherwise the room's code match.  Probe for the
+ * save/restore test (the same role as attract_phaseForProbe). */
+unsigned gameflow_levelForProbe(void);
 
 #endif /* HUMANSRE_GAME_H */

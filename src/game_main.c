@@ -50,8 +50,11 @@ static void game_tick(void)
 
 /* The level the walk is currently on: the menu selection feeds it
  * (frontend_selectedLevel = the matched codes.bin index, 1-based, minus
- * one — the [0x22] := [0x5F09] hand-off). */
+ * one — the [0x22] := [0x5F09] hand-off), and a loaded save overrides it
+ * with its own +0x00 (entry:004C's POP AX). */
 static unsigned level_current = 0u;
+
+unsigned gameflow_levelForProbe(void) { return level_current; }
 
 GameFlow gameflow_step(GameFlow state, const InputState *input)
 {
@@ -79,6 +82,16 @@ GameFlow gameflow_step(GameFlow state, const InputState *input)
          * stub-era ESC-to-attract guess was wrong). */
         if (frontend_tick(input)) return FLOW_MENU;
         level_current = frontend_selectedLevel() - 1u;
+        /* entry:004C: the room's RESTORE GAME counter ([0x5E6F], carried
+         * out in BL by the walk-out exit) loads the slot.  A hit pushes the
+         * save's +0x00 level through the entry stack to [0x22] — it
+         * OVERRIDES the room's code match — and the header seeds
+         * level_load's time/members.  Slot 0 (GAME OFF) resets the state;
+         * the 1..160 bound only rejects a corrupt saved id. */
+        if (save_loadSlot(frontend_option(FRONTEND_OPT_GAME))) {
+            unsigned lv = save_level();
+            if (lv >= 1u && lv <= 160u) level_current = lv - 1u;
+        }
         return FLOW_LEVEL;
 
     case FLOW_LEVEL:
@@ -143,14 +156,18 @@ int game_main(const OSystem *osys)
             if (lv && !partyTried) {
                 /* level_run's values: the level letter (the [0x1f41]
                  * 1-based), the need ([0x17fb]), the tribe members
-                 * ([0x11fc] = 12/10/8 by the LEVEL board, entry
-                 * 1000:009F), the score ([0x592], fresh load = 0) and the
-                 * tribe name (load_level's 0x1189).  A no-data run skips
-                 * (start returns 0). */
+                 * ([0x11fc] = 12/10/8 by the LEVEL board, or the save's
+                 * +0x0B), the score ([0x592], fresh load = 0) and the tribe
+                 * name (load_level's 0x1189).  A no-data run skips (start
+                 * returns 0). */
                 partyTried = 1;
-                party_intro_setValues(level_current + 1u, lv->goalCount,
-                                      level_tribeMembers(), 0u, "DARWIN");
-                partyPlaying = party_intro_start();
+                /* level_run 3073: [0x34] != 0 takes the JNZ 307D path and
+                 * skips the fresh-load party screen entirely. */
+                if (!save_present()) {
+                    party_intro_setValues(level_current + 1u, lv->goalCount,
+                                          level_tribeMembers(), 0u, "DARWIN");
+                    partyPlaying = party_intro_start();
+                }
             }
             if (partyPlaying) {
                 if (party_intro_tick(&input))
