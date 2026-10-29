@@ -220,7 +220,14 @@ int main(int argc, char **argv)
             fprintf(stderr, "FAIL level 0 reload\n");
             bad = 1;
         } else {
-            level_tick();
+            /* level_fade_in (1000:3334): the start chain — fade out, the
+             * eight update_world frames, the fade in — must finish before
+             * the level is playable. */
+            level_begin();
+            for (unsigned i = 0; i < 400u && level_starting(); i++) {
+                level_tick();
+                palette_tick();
+            }
             const uint8_t *page = osys_null_page(0);
             uint32_t sum = 0, nz = 0;
             for (unsigned i = 0; i < 64000u; i++) {
@@ -262,6 +269,47 @@ int main(int argc, char **argv)
                     }
             }
             free(sp); free(bs); free(bg); free(p4);
+
+            /* The palette rotation (palette_rotate_table 1000:8C78), from
+             * the level's ISR hook: BD3's field M (timer 3, reload 3, first
+             * 0x71, 4 entries) rotates that range one step every 4 ticks —
+             * each entry takes its predecessor's colour, entry 0 the last
+             * one's — and re-sends them to the DAC. */
+            {
+                uint8_t before[4][3];
+                for (unsigned i = 0; i < 4u; i++)
+                    memcpy(before[i], pal + (0x71u + i) * 3u, 3);
+                for (unsigned t = 0; t < 4u; t++) level_tick();
+                const uint8_t *now = osys_null_palette();
+                for (unsigned i = 0; i < 4u; i++)
+                    if (memcmp(now + (0x71u + i) * 3u,
+                               before[(i + 3u) % 4u], 3) != 0) {
+                        fprintf(stderr, "FAIL palette rotation: entry 0x71+%u "
+                                "did not take its predecessor\n", i);
+                        bad = 1;
+                    }
+            }
+        }
+    }
+
+    /* A style with an empty field M (level 3 -> style 2) has no rotation:
+     * eight ticks leave its palette's 0x71..0x74 alone. */
+    if (level_load(3) != 0) {
+        fprintf(stderr, "FAIL level 3 reload for the empty table\n");
+        bad = 1;
+    } else {
+        level_begin();                             /* its own start chain */
+        for (unsigned i = 0; i < 400u && level_starting(); i++) {
+            level_tick();
+            palette_tick();
+        }
+        const uint8_t *pal = osys_null_palette();
+        uint8_t before[12];
+        memcpy(before, pal + 0x71u * 3u, 12);
+        for (unsigned t = 0; t < 8u; t++) level_tick();
+        if (memcmp(osys_null_palette() + 0x71u * 3u, before, 12) != 0) {
+            fprintf(stderr, "FAIL level 3 (empty field M) rotated its palette\n");
+            bad = 1;
         }
     }
 

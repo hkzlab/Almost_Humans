@@ -138,8 +138,14 @@ int main(int argc, char **argv)
                                        bg4 + 163840u, NULL, p4 + 0xFA00u };
             unsigned off[5] = { 0u, 0x60u, 0xC0u, 0x180u, 0x240u };
             unsigned len[5] = { 0x60u, 0x60u, 0xC0u, 0xC0u, 0xC0u };
+            /* the BG block's entries 0x71..0x74 are the level's animated
+             * range (BD3's field M: one rotation every 4 ticks), so they are
+             * compared below as a rotation of the file's four entries; every
+             * other byte is exact. */
+            const unsigned animLo = 0x93u, animHi = 0x9Fu;   /* in the block */
             for (unsigned r = 0; r < 5u; r++)
                 for (unsigned i = 0; i < len[r]; i++) {
+                    if (r == 2u && i >= animLo && i < animHi) continue;
                     uint8_t w = want[r] ? want[r][i] : 0u;
                     if (pal[off[r] + i] != w) {
                         fprintf(stderr, "FAIL palette 0x%X: got %02x want %02x\n",
@@ -148,6 +154,23 @@ int main(int argc, char **argv)
                         break;
                     }
                 }
+            {
+                const uint8_t *f = want[2] + animLo;        /* the 4 entries */
+                unsigned rot = 0;
+                for (unsigned k = 0; k < 4u && !rot; k++) {
+                    unsigned ok = 1;
+                    for (unsigned i = 0; i < 4u; i++)
+                        for (unsigned c = 0; c < 3u; c++)
+                            ok &= pal[0xC0u + animLo + i * 3u + c] ==
+                                  f[((i + 4u - k) % 4u) * 3u + c];
+                    rot = ok;
+                }
+                if (!rot) {
+                    fprintf(stderr, "FAIL palette: the animated range is not a "
+                            "rotation of the BG's 0x71..0x74\n");
+                    bad = 1;
+                }
+            }
         }
         free(sp);
         free(bs);

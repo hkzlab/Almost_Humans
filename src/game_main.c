@@ -18,6 +18,7 @@
  * runs; nothing renders yet (M4 starts here).
  */
 #include "game.h"
+#include <stdio.h>
 #include <stddef.h>
 
 int resources_init(const OSystem *osys) {
@@ -44,7 +45,10 @@ static void game_tick(void)
 {
     video_tick();
     palette_tick();
-    statusbar_tick();
+    /* NOT statusbar_tick: the bar's tick+stamp is 1000:96AD, whose port
+     * draws into the page after the world copy, so it runs from level_tick
+     * (the foreground).  Calling it here as well ran the clock and the
+     * slides at twice the tick rate. */
 }
 
 /* --- the level's foreground: the pause gate + the actions ------------- */
@@ -53,6 +57,10 @@ static void game_tick(void)
  * restart can suppress the party (level_restore 35AF re-enters level_start,
  * not the party path). */
 static int partyTried, partyPlaying;
+/* entry LAB_00CD's level arms: levelReload re-runs the entry block for the
+ * next level ([0x22]++); levelSkipped is level_run's need > members arm (the
+ * level is not started); endPageUp is draw_level_text's page. */
+static int levelReload, levelSkipped, endPageUp;
 
 /* The level the walk is currently on: the menu selection feeds it
  * (frontend_selectedLevel = the matched codes.bin index, 1-based, minus
@@ -70,17 +78,18 @@ static int goalPage;
 /* [0x5E44]: the time-up dialog has been shown for this countdown. */
 static int timeoutShown;
 
-/* level_restore (1000:35AF): the countdown/time take the level record's
- * pick again ([0x34] was consumed at the level's start) and the level
- * re-inits.  The port reloads the record (the original re-enters
- * level_start without re-reading L?.BIN; the bar is the same) and
- * re-spawns the map's entities like the level entry.  No party (the
- * original's restart does not go through level_run's 307A branch). */
+/* level_restore (1000:35AF): [0x11FC] := [0x1970] — the members the level
+ * started with — then JMP level_start (1000:3032), which re-picks the time
+ * and re-enters the level WITHOUT the party path.  The port reloads the
+ * record (the header is the same file record; the original skips the read)
+ * and re-spawns the map's entities like the level entry, then puts the
+ * members snapshot back. */
 static void level_restart(void)
 {
     if (level_load(level_current) == 0) {
         const LevelData *ld = level_data();
         entity_spawnFromMap(level_map(), ld->style, ld->entityLife);
+        level_restoreMembers();
     }
     partyTried = 1;
     partyPlaying = 0;
@@ -129,6 +138,29 @@ GameFlow gameflow_timeUpAction(int choice, int *quit)
         break;
     }
     return FLOW_LEVEL;
+}
+
+/* level_run 3060/3062: load_level leaves [0x17FB] (the humans needed) and
+ * [0x11FC] (the tribe); need > members takes the briefing's GAME OVER
+ * variant and the level is NOT started. */
+int gameflow_tribeTooSmall(unsigned need, unsigned members)
+{
+    return need > members;
+}
+
+/* entry LAB_00CD's post-level step: [0x22]++ / [0x26]-- (0xA0 - [0x22]).
+ * While the window has levels left the PLAY arm runs again — the next level
+ * of the 160.  When they run out, COMPLETE: cd_file_op([0x1E]) (the ending
+ * scene), draw_status_indicator, menu_loop (the MAP screen), then the
+ * attract.  Neither the ending nor the MAP screen is ported: STUBS — the
+ * port goes straight to the attract, where game_loop's prologue restarts. */
+GameFlow gameflow_afterLevel(unsigned *levelCurrent)
+{
+    if (*levelCurrent + 1u < 160u) {
+        (*levelCurrent)++;
+        return FLOW_LEVEL;
+    }
+    return FLOW_ATTRACT;
 }
 
 /* --- the flow state machine ------------------------------------------ */
@@ -222,7 +254,10 @@ int game_main(const OSystem *osys)
              * .ANI cutscene is not on this path, re_map.md); the level
              * proper ticks after both. */
             int entered = 0;
-            if (prev != FLOW_LEVEL) {
+            if (prev != FLOW_LEVEL || levelReload) {
+                levelReload = 0;
+                endPageUp = 0;
+                levelSkipped = 0;
                 partyTried = 0; partyPlaying = 0;
                 entered = 1;
                 if (level_load(level_current) == 0) {
@@ -231,12 +266,18 @@ int game_main(const OSystem *osys)
                     const LevelData *ld = level_data();
                     entity_spawnFromMap(level_map(), ld->style,
                                         ld->entityLife);
+                    /* level_run 3060/3062: a tribe smaller than the level
+                     * needs — the briefing's GAME OVER variant (not ported;
+                     * the normal briefing stands in) and the level is
+                     * skipped by the entry state machine's next-level arm. */
+                    levelSkipped = gameflow_tribeTooSmall(level_required(),
+                                                         level_members());
                 }
                 /* level_setup (1000:31BD): [0x5BBA] := the record's goal
                  * text; the first play frame shows it (scroll_map). */
                 {
                     const LevelData *g = level_data();
-                    goalPage = g && g->goal[0] != 0;
+                    goalPage = !levelSkipped && g && g->goal[0] != 0;
                     if (goalPage) statusbar_setActive(0);
                 }
             }
@@ -264,12 +305,49 @@ int game_main(const OSystem *osys)
                 if (party_intro_tick(&input))
                     goto present;          /* the screen plays      */
                 partyPlaying = 0;          /* its exit finished      */
-            } else if (lv && scene_playLevelIntro(lv->introIndex)) {
-                /* the intro is playing — the level waits */
+            } else if (lv && !levelSkipped &&
+                       scene_playLevelIntro(lv->introIndex)) {
+                /* the .ANI cutscene (cd_file_op, ANIMATIONS-gated): the
+                 * party screen -> the movie -> the level; a skipped level
+                 * never reaches it (level_run 3065 JMPs out first) */
+            } else if (levelSkipped) {
+                /* level_run returned without the level (3065): the entry
+                 * state machine's [0x22]++/[0x26]-- arm runs next tick. */
+                state = gameflow_afterLevel(&level_current);
+                levelReload = (state == FLOW_LEVEL);
+            } else if (endPageUp) {
+                /* draw_level_text (1000:33A3): [0x138E] selects "WELL DONE!
+                 * YOU FINISHED LEVEL nnn" or "YOUR TRIBE IS EXTINCT!!"; the
+                 * box waits for a key or ACTION.  check_highscore's score /
+                 * record screen (1000:41AE) is NOT ported — STUB: the flow
+                 * advances straight after the page. */
+                char text[40];
+                level_tick();
+                if (level_outcome())
+                    snprintf(text, sizeof text,
+                             "WELL DONE! YOU FINISHED LEVEL %03u",
+                             level_current + 1u);
+                else
+                    snprintf(text, sizeof text, "YOUR TRIBE IS EXTINCT!!");
+                textpage_draw(osys->videoPage(0), text, -1, 0u, 0);
+                if (input.lastKey || (input.joyBits & 0x80u)) {
+                    endPageUp = 0;
+                    state = gameflow_afterLevel(&level_current);
+                    levelReload = (state == FLOW_LEVEL);
+                }
+            } else if (level_starting()) {
+                /* level_fade_in (1000:3334): after the party and the intro,
+                 * before the first play frame — the foreground blocks on the
+                 * fades, so the goal page and the play loop wait here. */
+                level_begin();
+                level_tick();
+                goto present;
             } else if (goalPage && lv) {
                 /* scroll_map (1000:9E51): the level's goal page, the frame
-                 * re-rendered behind it, [0x5B12]=0 while up; any key or
+                 * re-rendered behind it, [0x5B12]=0 while up (so the clock
+                 * stands still after the start chain armed it); any key or
                  * ACTION dismisses it and [0x5BBA] is cleared. */
+                statusbar_setActive(0);
                 level_tick();
                 textpage_draw(osys->videoPage(0), lv->goal, -1, 0u, 0);
                 if (input.lastKey || (input.joyBits & 0x80u)) {
@@ -290,6 +368,12 @@ int game_main(const OSystem *osys)
                 menuPrevAction = (input.joyBits & 0x80u) != 0;
 
                 level_tick();          /* the party done: the level runs */
+                if (level_ended()) {
+                    /* object_test_dispatch returned negative (1000:35D6):
+                     * the play loop is over; [0x138E] keeps its outcome */
+                    endPageUp = 1;
+                    statusbar_setActive(0);
+                }
                 if (menu_active()) {
                     if (!menu_tick(&input)) {
                         int wasTimeUp = menu_timeUp();

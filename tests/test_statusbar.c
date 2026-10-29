@@ -183,8 +183,11 @@ int main(int argc, char **argv)
      * run outside level_load, so install the same disc here) */
     res_setDisc(1u);
 
-    /* 1. the seeded stamp: 6:00, the tribe surplus 12-4 = 8 -> "08" */
+    /* 1. the seeded stamp: 6:00, the tribe surplus 12-4 = 8 -> "08".  The
+     * ticking gate [0x5B12] is level_fade_in's, so arm it here as the end of
+     * the start chain does (level.c's level_begin). */
     statusbar_start(0x0600, 12u, 4u);
+    statusbar_setActive(1);
     statusbar_tick();
     page = osys_null_page(0);
     model_phases(ph, 0x0600, 12u - 4u);
@@ -228,6 +231,7 @@ int main(int argc, char **argv)
     /* 4. the time-up: a 0:00 seed dies on the first second; the marks
      * freeze and the band keeps drawing. */
     statusbar_start(0x0000, 12u, 4u);
+    statusbar_setActive(1);
     for (unsigned i = 0; i < 70u; i++) statusbar_tick();
     if (!statusbar_timeUp()) {
         fprintf(stderr, "FAIL the 0:00 seed did not time out\n");
@@ -254,6 +258,14 @@ int main(int argc, char **argv)
         unsigned required = 0;
         for (unsigned i = 0; i < 640u; i++)
             if (d->map[i] == 0xAAu) required++;
+        /* level_fade_in (1000:3334) first: the bar's ticking gate [0x5B12]
+         * only closes when the start chain has finished, so the countdown
+         * does not run during the fade. */
+        level_begin();
+        for (unsigned i = 0; i < 400u && level_starting(); i++) {
+            level_tick();
+            palette_tick();
+        }
         level_tick();
         model_phases(ph, d->timeA, 12u - required);
         model_page(model, ph);

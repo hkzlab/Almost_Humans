@@ -207,6 +207,35 @@ int  level_load(unsigned levelId);          /* 0..159; 0 = ok            */
 const LevelData *level_data(void);          /* NULL before a load        */
 const uint8_t *level_map(void);             /* == level_data()->map      */
 int  level_tick(void);                      /* 1 = the level is running  */
+/* level_fade_in (1000:3334): the start chain — fade out of the pre-level
+ * screen, the eight update_world frames, the fade in to the working palette,
+ * then the bar's ticking gate.  level_begin arms it once; the phases advance
+ * in level_tick, so level_starting() is true until the level is playable. */
+void level_begin(void);
+int  level_starting(void);
+
+/* level_run 3060/3062: the level's required humans ([0x17FB], the map's
+ * 0xAA count) against the tribe ([0x11FC]).  A tribe that is too small plays
+ * the briefing's GAME OVER variant and the level is SKIPPED (the entry
+ * state machine's [0x22]++/[0x26]-- runs instead of the level). */
+unsigned level_required(void);
+unsigned level_members(void);
+
+/* level_restore (1000:35AF): [0x11FC] := [0x1970] — the members the level
+ * started with, before the level's own joins (level_start 1000:3032 then
+ * re-picks the time; the port re-runs level_load, so the snapshot is put
+ * back afterwards). */
+void level_restoreMembers(void);
+
+/* level_run's end: the play loop exits when object_test_dispatch
+ * (1000:35D6) returns negative, and [0x138E] (0xFF won / 0 extinct) then
+ * selects draw_level_text's page.  That dispatch is not ported yet (the
+ * object/command system is pass 11's), so this is the stub hook the object
+ * system will call; level_requestEnd(1) = the level was completed. */
+void level_requestEnd(int won);
+int  level_ended(void);
+int  level_outcome(void);            /* [0x138E]: 1 won, 0 extinct */
+
 /* [0x5D31] / [0x11FC] after level_load's LEVEL-board pick: the record's
  * timeA/B/C word and the 12/10/8 starting tribe (entry 1000:009F,
  * render_level_frame 1000:9589). */
@@ -456,5 +485,10 @@ GameFlow gameflow_pauseAction(int choice, int *quit);
 /* The time-up dialog's 3 results (1000:34F9's inline dispatch): 0 restart
  * this level (level_restore), 1 restart this game (the room), 2 quit. */
 GameFlow gameflow_timeUpAction(int choice, int *quit);
+/* entry LAB_00CD's post-level step: [0x22]++ / [0x26]-- -> the next level of
+ * the 160, or COMPLETE (the ending + the MAP screen, then the attract). */
+GameFlow gameflow_afterLevel(unsigned *levelCurrent);
+/* level_run 3060/3062's gate: the level's required humans vs the tribe. */
+int      gameflow_tribeTooSmall(unsigned need, unsigned members);
 
 #endif /* HUMANSRE_GAME_H */

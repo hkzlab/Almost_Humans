@@ -215,3 +215,13 @@ if(SDL3_FOUND)
 else()
     message(STATUS "SDL3 not found - building only humans-null")
 endif()
+
+# The flow test: level_run's need > members gate, entry LAB_00CD's
+# post-level spine ([0x22]++/[0x26]-- -> the next level or COMPLETE), the
+# level-end hook ([0x138E]) and draw_level_text's two pages.
+add_executable(test_flow tests/test_flow.c
+    src/arch/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_flow PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(test_flow PRIVATE core fs_posix)
+humansre_warnings(test_flow)
+add_test(NAME level_flow COMMAND test_flow ${HUMANS_DATA_DIR})

@@ -368,6 +368,12 @@ int main(int argc, char **argv)
     /* the port's dialog over the level page (the stand-in renderer) */
     if (dump_dir) {
         (void)level_load(0);
+        /* level_fade_in (1000:3334) first — the dump is the settled level */
+        level_begin();
+        for (unsigned i = 0; i < 400u && level_starting(); i++) {
+            level_tick();
+            palette_tick();
+        }
         level_tick();
         menu_openPause();
         menu_draw();

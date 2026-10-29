@@ -290,7 +290,8 @@ void statusbar_start(uint16_t packedTimeBcd, unsigned tribeMembers,
 
     secDiv = 70;                              /* [0x5B14] = 0x46          */
     slideDiv = 2;                             /* [0x5B10] = 2             */
-    active = 1;                               /* level_fade_in's [0x5B12] */
+    /* active stays 0: [0x5B12] is level_fade_in's, set when the start chain
+     * completes — the countdown must not run during the fade (see level.c) */
     timeUp = 0;
 }
 

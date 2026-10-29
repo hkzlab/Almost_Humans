@@ -54,9 +54,23 @@ static int level_loaded;
 static uint8_t *boxSpr;           /* apl\box.spr (the dialog tiles)      */
 static uint32_t boxSize;
 static uint8_t levelPal[768];     /* the working palette 202F:0x14D3     */
-static int     palPending;        /* level_fade_in is due at the 1st tick */
+
+/* level_fade_in (1000:3334) — the level's start chain.  The original blocks
+ * in the foreground for each fade (wait_palette_fade_done) while the ISR
+ * steps it; the port's loop is tick-driven, so the chain advances one phase
+ * per level_tick and the play loop only starts once it is done. */
+enum { LVSTART_IDLE, LVSTART_FADE_OUT, LVSTART_WARMUP, LVSTART_FADE_IN,
+       LVSTART_PLAYING };
+static int      startPhase = LVSTART_IDLE;
+static unsigned warmupLeft;
+/* the fade-to-black target: 0x48BC, the ramp the boot leaves zeroed */
+static const uint8_t blackPal[768];
 static uint16_t timeLimit;        /* [0x5D31]: the difficulty's BCD pick  */
 static unsigned tribeMembers;     /* [0x11FC]: 12/10/8 by the difficulty  */
+static unsigned levelRequired;    /* [0x17FB]: the map's 0xAA count        */
+static unsigned membersAtStart;   /* [0x1970]: the members at level start  */
+static int      endRequested;     /* the play loop's exit (35D6's -1)      */
+static int      endWon;           /* [0x138E]: 1 won, 0 extinct            */
 
 /* --- the level's visual assets (re_formats.md §3-§5) -------------------
  *
@@ -79,20 +93,30 @@ static uint8_t *atlas;      /* 0x400 + 169*256                            */
 static uint8_t *bgImage;    /* 512*320 + 768                              */
 static uint8_t *world;      /* the 512x320 composite (BG + terrain)       */
 
+/* DEFS\BD<style>.BIN field M = the palette-rotation table, one 4-byte entry
+ * per range: {timer, reload, first DAC entry, entry count}.  It is the table
+ * palette_rotate_table (1000:8C78) walks from 202F:0x1FC6; only BD3 has a
+ * range (4 entries at 0x71, every 4th tick). */
+static uint8_t *animTable;
+static unsigned animCount;
+
 static void visuals_free(void)
 {
     free(atlas); atlas = NULL;
     free(bgImage); bgImage = NULL;
     free(world); world = NULL;
+    free(animTable); animTable = NULL;
+    animCount = 0;
 }
 
 /* The BD walk (re_formats.md §4): returns the end offset (== the file size
  * for all six shipped files), 0 on a bounds failure.  The doc's "D" row —
  * the 5 far pointers — is loader-constructed, 0 file bytes; row J advances
  * by the LITERAL si += word[si] (the length word is part of the skip), then
- * 8 bytes; the "M" count the docs tabulate is the O record's count (the
- * real M count is 0..1).  Byte-exact over BD1..BD6 (2026-10-23). */
-static uint32_t bd_walk(const uint8_t *b, uint32_t size, unsigned *bgIndex)
+ * 8 bytes; field M (a u16 count + 4-byte entries) is the palette-rotation
+ * table, handed back to the caller.  Byte-exact over BD1..BD6 (2026-10-23). */
+static uint32_t bd_walk(const uint8_t *b, uint32_t size, unsigned *bgIndex,
+                        const uint8_t **anim, unsigned *animEntries)
 {
     uint32_t si = 0;
 
@@ -122,7 +146,10 @@ static uint32_t bd_walk(const uint8_t *b, uint32_t size, unsigned *bgIndex)
     si += 2u;
     if (si + 2u > size) return 0;
     unsigned m = rd_le16(b + si);
-    si += 2u + 4u * m;                     /* M                            */
+    if (si + 2u + 4u * m > size) return 0;
+    *anim = b + si + 2u;                   /* M: the rotation table        */
+    *animEntries = m;
+    si += 2u + 4u * m;
     if (si + 1u > size) return 0;
     n = b[si];
     si += 1u + 17u * n;                    /* N                            */
@@ -146,8 +173,16 @@ static int visuals_load(unsigned style)
     uint16_t chk = 0;
     uint8_t *bd = res_loadChunk(name, &bdSize, &chk);
     if (!bd) return -1;
-    unsigned bgIdx = 0;
-    uint32_t end = bd_walk(bd, bdSize, &bgIdx);
+    unsigned bgIdx = 0, animN = 0;
+    const uint8_t *anim = NULL;
+    uint32_t end = bd_walk(bd, bdSize, &bgIdx, &anim, &animN);
+    if (end == bdSize && animN) {
+        animTable = malloc(4u * animN);
+        if (animTable) {
+            memcpy(animTable, anim, 4u * animN);
+            animCount = animN;
+        }
+    }
     free(bd);
     if (end != bdSize) return -1;
 
@@ -341,6 +376,8 @@ int level_load(unsigned levelId)
                          : (skill == 1u) ? d->timeB : d->timeC;
             tribeMembers = (skill == 0u) ? 12u : (skill == 1u) ? 10u : 8u;
         }
+        levelRequired  = required;
+        membersAtStart = tribeMembers;         /* [0x1970] (306D)         */
         statusbar_start(timeLimit, tribeMembers, required);
 
         /* The working palette 0x14D3 (the level's DAC base): entries
@@ -363,14 +400,57 @@ int level_load(unsigned levelId)
             const uint8_t *bank = statusbar_palette();
             if (bank) memcpy(levelPal + 0xC0u * 3u, bank, 0xC0u);
         }
-        /* level_fade_in runs after the party (level_run 30AB): the fade is
-         * started by the first level_tick once the play begins, not here. */
-        palPending = 1;
+        /* level_fade_in runs after the party (level_run 30AB): level_begin
+         * starts the chain once the play begins, not here. */
     }
 
+    /* a fresh load starts the chain again (level_fade_in runs per level) */
+    startPhase = LVSTART_IDLE;
+    endRequested = 0;                          /* [0x138E] = 0xFF in play */
+    endWon = 1;
     level_loaded = 1;
     return 0;
 }
+
+/* level_fade_in (1000:3334), first half: after the party and the level
+ * intro, fade the DAC out of the pre-level screen — entries 0..0xBF toward
+ * the zeroed 0x48BC ramp, div 0x19.  The rest of the chain (the eight
+ * update_world frames, the fade in to 0x14D3, the tick hook) advances in
+ * level_tick. */
+void level_begin(void)
+{
+    if (!level_loaded || startPhase != LVSTART_IDLE) return;
+    palette_buildFade(0, 0xC0, 0x19, blackPal);
+    startPhase = LVSTART_FADE_OUT;
+}
+
+/* still inside level_fade_in's chain?  game_main holds the goal page and the
+ * play loop until it is done, exactly like the original's foreground block. */
+int level_starting(void)
+{
+    return level_loaded && startPhase != LVSTART_PLAYING;
+}
+
+/* --- level_run's end and the entry state machine's spine -------------- */
+
+unsigned level_required(void) { return levelRequired; }
+unsigned level_members(void)  { return tribeMembers; }
+
+/* level_restore (1000:35AF): the members go back to the level's own start
+ * value, then level_start re-picks the time (the port re-runs level_load, so
+ * this is called after it). */
+void level_restoreMembers(void)
+{
+    tribeMembers = membersAtStart;
+    statusbar_start(timeLimit, tribeMembers, levelRequired);
+}
+
+/* the stub hook for object_test_dispatch's negative return (1000:35D6): the
+ * play loop's exit.  The object/command system that decides it is pass 11's;
+ * until then only the tests drive this. */
+void level_requestEnd(int won) { endRequested = 1; endWon = won ? 1 : 0; }
+int  level_ended(void)   { return endRequested; }
+int  level_outcome(void) { return endWon; }
 
 const uint8_t *level_map(void)
 {
@@ -387,8 +467,9 @@ unsigned level_tribeMembers(void) { return tribeMembers; }
  * map's tiles over it (tile ids >= 0xA9 are empty and let the BG through;
  * every non-zero tile byte gains the +0x20 bank bias, zero stays 0), and the
  * visible 320x200 window reads the buffer's left edge (the CRTC start at
- * scroll 0,0).  The palette: the BG's first 64 entries only.  The entity /
- * logic systems land with entity.c.  Returns 1 while the level is running. */
+ * scroll 0,0), the status bar, and the working palette 202F:0x14D3 built at
+ * load.  The entity / logic systems land with entity.c.  Returns 1 while
+ * the level is running. */
 int level_tick(void)
 {
     if (!level_loaded) return 0;
@@ -400,12 +481,59 @@ int level_tick(void)
 
     if (!world || !level_osys) return 1;
 
-    /* level_fade_in (1000:337E/338A): the final 256-entry fade to the
-     * working palette, div 0x32 — after the party/cutscene, at the level's
-     * first play frame. */
-    if (palPending) {
-        palPending = 0;
-        palette_buildFade(0, 256, 0x32, levelPal);
+    /* level_fade_in (1000:3334) — the chain: the fade-out waits for its
+     * steps, then the eight update_world (1000:80AD) frames, then the final
+     * 256-entry fade to 0x14D3 (div 0x32), then the hook is installed (the
+     * bar's ticking gate [0x5B12] := 0xFF).  The world is kept drawn behind
+     * each phase. */
+    switch (startPhase) {
+    case LVSTART_IDLE:
+        level_begin();
+        break;
+    case LVSTART_FADE_OUT:
+        if (!palette_fadeActive()) {
+            startPhase = LVSTART_WARMUP;
+            warmupLeft = 8u;                   /* level_fade_in's LOOP CX=8 */
+        }
+        break;
+    case LVSTART_WARMUP:
+        if (--warmupLeft == 0u) {
+            palette_buildFade(0, 256, 0x32, levelPal);
+            startPhase = LVSTART_FADE_IN;
+        }
+        break;
+    case LVSTART_FADE_IN:
+        if (!palette_fadeActive()) {
+            startPhase = LVSTART_PLAYING;
+            statusbar_setActive(1);            /* level_fade_in's [0x5B12] */
+        }
+        break;
+    default:
+        break;
+    }
+
+    /* palette_rotate_table (1000:8C78), from the level's ISR hook
+     * (1000:339D): per range, a signed countdown reloaded from `reload`;
+     * when it wraps negative the range rotates toward the higher entries
+     * (entry 0 takes the last one) and those DAC entries are re-sent.
+     * The original reads the table from 202F:0x1FC6, i.e. field M.  The
+     * hook is installed only after level_fade_in's fade completes (the
+     * fade chases this same buffer), so no rotation while one is running. */
+    for (unsigned e = 0; e < animCount && startPhase == LVSTART_PLAYING &&
+                              !palette_fadeActive(); e++) {
+        uint8_t *a = animTable + 4u * e;
+        unsigned first = a[2], n = a[3];
+        if (n < 2u || first + n > 256u) continue;
+        a[0] = (uint8_t)(a[0] - 1u);
+        if (!(a[0] & 0x80u)) continue;          /* still non-negative     */
+        a[0] = a[1];
+        uint8_t *p = levelPal + first * 3u;
+        uint8_t last[3];
+        memcpy(last, p + (n - 1u) * 3u, 3);
+        for (unsigned i = n - 1u; i > 0u; i--)
+            memcpy(p + i * 3u, p + (i - 1u) * 3u, 3);
+        memcpy(p, last, 3);
+        palette_setDac(p, first, n);
     }
 
     if (bgImage) memcpy(world, bgImage, WORLD_W * WORLD_H);
