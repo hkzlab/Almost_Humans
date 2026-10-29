@@ -201,6 +201,11 @@ int  level_load(unsigned levelId);          /* 0..159; 0 = ok            */
 const LevelData *level_data(void);          /* NULL before a load        */
 const uint8_t *level_map(void);             /* == level_data()->map      */
 int  level_tick(void);                      /* 1 = the level is running  */
+/* [0x5D31] / [0x11FC] after level_load's LEVEL-board pick: the record's
+ * timeA/B/C word and the 12/10/8 starting tribe (entry 1000:009F,
+ * render_level_frame 1000:9589). */
+uint16_t level_timeLimit(void);
+unsigned level_tribeMembers(void);
 
 /* --- src/entity.c — entity table/bytecode (subsystem 10, §12) -----------
  *
@@ -275,6 +280,11 @@ void     script_seekDone(CueScript *s);
 
 /* --- src/audio.c — tune/sfx state machine (subsystem 7) --------------- */
 int  audio_init(const OSystem *osys);
+/* The frame web's music gate (1000:A5E8): `off` = the MUSIC board's counter
+ * [0x5E5B] non-zero -> music_stop, zero -> music_resume.  One call per room
+ * tick.  The M5 stub's stop/start is the whole observable (M6 adds the tune
+ * handle). */
+void audio_musicGate(unsigned off);
 
 /* --- src/frontend.c — the front-end room (subsystem 8, §10) ------------
  *
@@ -294,6 +304,20 @@ int  frontend_tick(const InputState *in);
  * leaves 161 — the original's own edge).  entry's PUSH AX/POP AX move
  * it to [0x22]; game_main does the same into its level counter. */
 unsigned frontend_selectedLevel(void);
+/* The four option counters — the descriptor tables' +7 bytes at
+ * 202F:0x5E5B/0x5E65/0x5E6F/0x5E79, where the badge's frame IS the
+ * setting.  The read side uses this accessor: level.c takes LEVEL, the room
+ * hands MUSIC to audio_musicGate, scene.c takes ANIMATIONS, and the RESTORE
+ * GAME slot is carried out for entry 1000:004C's save load (save.c is the
+ * M6 stub). */
+enum {
+    FRONTEND_OPT_MUSIC = 0,     /* ON/OFF: the frame web's music gate      */
+    FRONTEND_OPT_LEVEL = 1,     /* EASY/NORMAL/HARD: time A/B/C, 12/10/8    */
+    FRONTEND_OPT_GAME  = 2,     /* OFF/1..20: the save slot                */
+    FRONTEND_OPT_ANIM  = 3      /* ON/OFF: cd_file_op off (no cutscenes)   */
+};
+unsigned frontend_option(unsigned idx);
+unsigned frontend_cellForProbe(void);   /* [0x4220]: the walk's rail node  */
 
 /* --- src/party_intro.c — the level-intro party screen (subsystem 14) --
  *

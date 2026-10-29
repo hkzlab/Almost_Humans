@@ -49,9 +49,12 @@ static void null_tickSync(unsigned *lastSeen)
     if (the_tick) the_tick();
     *lastSeen = tick_counter;
 }
-static int  null_audioStart(void) { return 0; }
+/* the audio calls are counted: the MUSIC board's gate is the only
+ * observable the M5 stub has, and test_frontend asserts it */
+static unsigned audio_starts, audio_stops;
+static int  null_audioStart(void) { audio_starts++; return 0; }
 static int  null_playTune(unsigned id) { (void)id; return 0; }
-static void null_stop(void) {}
+static void null_stop(void) { audio_stops++; }
 static void null_fatal(const char *msg) { fprintf(stderr, "fatal: %s\n", msg); exit(1); }
 
 const OSystem osys_null = {
@@ -73,6 +76,9 @@ void osys_null_runTicks(unsigned n)
 }
 
 void osys_null_inject(const InputState *in) { the_input = *in; }
+
+unsigned osys_null_audioStarts(void) { return audio_starts; }
+unsigned osys_null_audioStops(void)  { return audio_stops; }
 
 void osys_null_inputScript(const InputState *states, unsigned n)
 {

@@ -8,8 +8,10 @@
  * background over the daily.bit screen, sets the palette, and dwells 210
  * ticks; each further call plays the next scene object (6 ticks each) and
  * runs the chain table (202F:0x6293).  Returns 1 while the intro is
- * playing, 0 when it is finished (or introIndex == 0xFF: no cutscene).
- * Any key/fire skips or quits, per the original's three [0x48A3] checks.
+ * playing, 0 when it is finished (or introIndex == 0xFF: no cutscene, or
+ * the ANIMATIONS board is off — [0x5E79] non-zero RETs at cd_file_op's
+ * head).  Any key/fire skips or quits, per the original's three [0x48A3]
+ * checks.
  *
  * The AL expander (blit_background_data, 1000:B2EB) and the LZW machine
  * (decode_bitstream, 1000:91B9, via res.c) are real and byte-verified
@@ -290,6 +292,9 @@ static int scene_start(unsigned index)
 
 int scene_playLevelIntro(unsigned introIndex)
 {
+    /* cd_file_op's head (1000:AFFD): the ANIMATIONS board (cell 5,
+     * [0x5E79]) non-zero RETs before any file op — cutscenes are off. */
+    if (frontend_option(FRONTEND_OPT_ANIM) != 0u) return 0;
     if (introIndex == 0xFFu) return 0;        /* no cutscene for this level */
 
     if (introIndex != scene_level) {          /* (re)start on level change   */

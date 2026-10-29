@@ -142,6 +142,15 @@ target_link_libraries(test_entity PRIVATE core fs_posix)
 humansre_warnings(test_entity)
 add_test(NAME entity COMMAND test_entity ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 
+# The front-end room's option read side: walk to each board, press ACTION,
+# and assert the counter/badge pixels and each setting's consumer.
+add_executable(test_frontend tests/test_frontend.c
+    src/arch/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_frontend PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(test_frontend PRIVATE core fs_posix)
+humansre_warnings(test_frontend)
+add_test(NAME frontend COMMAND test_frontend ${HUMANS_DATA_DIR})
+
 # The attract scroller test: effect 4's strip + presenter against the
 # reference dump from tools/attract_scroll_sim.py (regenerate it by
 # running that script; absent dumps = skip).

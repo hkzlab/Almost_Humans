@@ -9,10 +9,14 @@
  * fade completes inside attract_tick.  Without the game data the effects
  * skip (the headless pattern), so the cycle spins and the phase probe can
  * still assert the 1 -> 3 -> 2 -> 4 order; palette_tick() is driven by
- * hand, once per flow step, like game_main's game_tick. */
+ * hand, once per flow step, like game_main's game_tick.  The test therefore
+ * chdirs into an empty scratch directory first — a build tree that carries
+ * HUMANS.00N links must not turn this into the real, multi-hundred-tick
+ * playback (test_attract and test_smoke drive that path). */
 #include "game.h"
 #include <stdio.h>
 #include <string.h>
+#include "compat.h"
 
 extern const OSystem osys_null;
 
@@ -45,6 +49,15 @@ int main(void)
 {
     int bad = 0;
     unsigned tick = 0;
+
+    /* The flow machine is tested WITHOUT game data: the attract's
+     * load-failure path is what lets the cycle be probed one effect per
+     * tick (test_attract/test_smoke drive the real playback).  A build tree
+     * with HUMANS.00N links would otherwise satisfy the loads, so take the
+     * test into an empty scratch cwd. */
+    static const char nodata[] = "humans_flow_nodata";
+    (void)compat_mkdir(nodata);            /* already present is fine */
+    if (compat_chdir(nodata)) { perror(nodata); return 1; }
 
     /* the module set the attract needs (game_main's resources_init order,
      * trimmed to the flow-relevant ones) */
@@ -198,6 +211,8 @@ int main(void)
 
     /* 7. the full-game_main smoke test: tests/test_smoke.c drives the
      * flow through the null backend's scripted-input hook. */
+
+    if (compat_chdir("..") == 0) (void)compat_rmdir(nodata);
 
     if (!bad) printf("flow tests: OK (attract cycle + escape + menu)\n");
     return bad;

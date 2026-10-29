@@ -51,6 +51,8 @@ static uint16_t rd_le16(const uint8_t *p)
 
 static LevelData level_data_cur;
 static int level_loaded;
+static uint16_t timeLimit;        /* [0x5D31]: the difficulty's BCD pick  */
+static unsigned tribeMembers;     /* [0x11FC]: 12/10/8 by the difficulty  */
 
 /* --- the level's visual assets (re_formats.md §3-§5) -------------------
  *
@@ -300,17 +302,21 @@ int level_load(unsigned levelId)
     if (visuals_load(d->style) != 0) return -1;
 
     /* the bar (level_start 1000:957B + build_statusbar_layout 1000:961B):
-     * the picked time limit (the difficulty byte [0x5E65] = 0 -> timeA; no
-     * difficulty select in the port yet) and the tribe pair.  The members
-     * = the boot default 12 (entry 1000:00B1: [0x11FC] := 12/10/8 by the
-     * difficulty, and the save carries the count thereafter); the required
-     * = the map's 0xAA-tile count (load_level 1000:315F counts the first
-     * 640-byte block). */
+     * the time limit and the tribe pair, both picked from the LEVEL board's
+     * counter [0x5E65] read at entry.  render_level_frame (1000:9589)
+     * selects [0x17F5]/[0x17F7]/[0x17F9] — this record's timeA/B/C — by
+     * 0/1/else, and entry (1000:009F) maps the same byte to the starting
+     * tribe [0x11FC] := 12/10/8.  The required = the map's 0xAA-tile count
+     * (load_level 1000:315F counts the first 640-byte block). */
     {
         unsigned required = 0;
         for (unsigned i = 0; i < MAP_LEN; i++)
             if (d->map[i] == 0xAAu) required++;
-        statusbar_start(d->timeA, 12u, required);
+        unsigned skill = frontend_option(FRONTEND_OPT_LEVEL);
+        timeLimit    = (skill == 0u) ? d->timeA
+                     : (skill == 1u) ? d->timeB : d->timeC;
+        tribeMembers = (skill == 0u) ? 12u : (skill == 1u) ? 10u : 8u;
+        statusbar_start(timeLimit, tribeMembers, required);
     }
 
     level_loaded = 1;
@@ -321,6 +327,11 @@ const uint8_t *level_map(void)
 {
     return level_loaded ? level_data_cur.map : NULL;
 }
+
+/* [0x5D31] and [0x11FC] after the LEVEL board's pick (the bar's seed; the
+ * party screen reads the members too). */
+uint16_t level_timeLimit(void) { return timeLimit; }
+unsigned level_tribeMembers(void) { return tribeMembers; }
 
 /* The in-level per-tick render (draw_map_digit 1000:4F22 + draw_terrain
  * 1000:4FEF): the BG fills the 512x320 screen buffer, draw_terrain blits the

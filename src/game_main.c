@@ -143,12 +143,13 @@ int game_main(const OSystem *osys)
             if (lv && !partyTried) {
                 /* level_run's values: the level letter (the [0x1f41]
                  * 1-based), the need ([0x17fb]), the tribe members
-                 * ([0x11fc], level A's [live] = 12), the score ([0x592],
-                 * fresh load = 0) and the tribe name (load_level's
-                 * 0x1189).  A no-data run skips (start returns 0). */
+                 * ([0x11fc] = 12/10/8 by the LEVEL board, entry
+                 * 1000:009F), the score ([0x592], fresh load = 0) and the
+                 * tribe name (load_level's 0x1189).  A no-data run skips
+                 * (start returns 0). */
                 partyTried = 1;
                 party_intro_setValues(level_current + 1u, lv->goalCount,
-                                      12u, 0u, "DARWIN");
+                                      level_tribeMembers(), 0u, "DARWIN");
                 partyPlaying = party_intro_start();
             }
             if (partyPlaying) {

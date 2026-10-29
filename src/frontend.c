@@ -37,15 +37,29 @@
  * 0x108 -> the name screen's pan-out.
  *
  * THE OPTIONS.  The ACTION key at rest cycles the cell's option counter
- * ([0x5E46] = (struct-idx, count); the structs' byte 0 at 0x5E5B/0x5E65/
- * 0x5E6F/0x5E79): cell 2 cycles the 3-state difficulty [0x5E65] (entry maps
- * 0/1/2 -> 12/10/8), cell 3 the 2-state music gate [0x5E5B].  One cycle per
- * press (the original spins on the held key); the counters persist for the
- * level flow to consume.
+ * ([0x5E46] = (struct-idx, count); the structs' +7 byte at 0x5E5B/0x5E65/
+ * 0x5E6F/0x5E79 IS the badge's frame, so the setting and the picture are
+ * one byte).  One cycle per press (the original spins on the held key).
+ * The counters PERSIST for the run: frontend_room_setup (1000:A48E) never
+ * writes 0x5E5B..0x5E79 and the image ships them zero, so re-entering the
+ * room must not reset them.  The four boards (the signs are painted in
+ * code2.raw's backdrop; the sprites are the badges):
+ *   cell 2 = LEVEL, EASY/NORMAL/HARD -> [0x5E65]: entry (1000:009F) maps
+ *            0/1/2 to the 12/10/8 tribe and render_level_frame (1000:958C)
+ *            picks the time limit A/B/C;
+ *   cell 3 = MUSIC, ON/OFF -> [0x5E5B]: the frame web (1000:A5E8) stops
+ *            the music when non-zero and resumes it when zero;
+ *   cell 5 = ANIMATIONS, ON/OFF -> [0x5E79]: cd_file_op (1000:AFFD) RETs
+ *            at once when non-zero — the .ANI cutscenes are off;
+ *   cell 6 = RESTORE GAME, OFF/1..20 -> [0x5E6F]: the exit hands it to
+ *            entry 1000:004C in BL, which appends 'A'+n-1 to
+ *            "\humans\cdrom\save" and loads that save slot.
+ * frontend_option() is the read side's one accessor.
  *
  * DEVIATIONS (all port-only, each waiting on its named step):
  *  - the INT 60h calls (music_resume/stop 83F7/8389, the cmd-0xA pump) are
- *    not made: the audio backend is an M5 stub.  The gate state ports.
+ *    not made: the audio backend is an M5 stub.  audio_musicGate ports the
+ *    gate and the [0x40BB] latch; only the tune handle is missing (M6).
  *  - the CRTC split ([0x5B0A]) is modelled in the compose: rows >= the
  *    split display the FIXED band from absolute vram 0, unpanned (the
  *    level's status bar and the name screen's human stage both live
@@ -86,7 +100,9 @@ static const uint16_t rails[7][4] = {
     {0x01D2, 0x0280, 0x0000, 0x0000},
 };
 
-/* 202F:0x5E46 — per cell (struct-idx, count); count 0 = no option. */
+/* 202F:0x5E46 — per cell (struct-idx, count); count 0 = no option.
+ * cell 2 = LEVEL (3 states), cell 3 = MUSIC (2), cell 5 = ANIMATIONS (2),
+ * cell 6 = RESTORE GAME (21 = 0x15). */
 static const uint8_t cellOpts[7][2] = {
     {0, 0}, {0, 0}, {1, 3}, {0, 2}, {0, 0}, {3, 2}, {2, 0x15},
 };
@@ -134,7 +150,8 @@ static uint16_t frame, frameCnt; /* [0x4228]/[0x422A]                    */
 static uint16_t pubX, pubY;      /* [0x5F05]/[0x5F07]: the walk origin   */
 static char     nameBuf[14];     /* 0x61E0: 13 chars + NUL               */
 static unsigned codeIndex;       /* [0x5F09]: the matched code's index   */
-static uint8_t  optCounter[4];   /* the structs' byte 0 (0x5E5B..0x5E79)*/
+static uint8_t  optCounter[4];   /* the structs' +7 byte (0x5E5B..0x5E79)
+                                  * = FRONTEND_OPT_*; persists for the run */
 static int      fireLatch;        /* the action key's held-spin           */
 static uint16_t slotCnt;         /* [0x619F]: the anim countdown (5)     */
 static unsigned slot;            /* [0x61A1]: the anim slot (parked 0x12)*/
@@ -152,6 +169,20 @@ static unsigned splitRow = 200;  /* [0x5B0A]: the CRTC split (0x88 on the
 int frontend_init(const OSystem *osys) { (void)osys; return 0; }
 
 unsigned frontend_selectedLevel(void) { return codeIndex; }
+
+/* The four option counters — the read side's one accessor.  Consumers:
+ * level.c (LEVEL: the time-limit pick + the 12/10/8 tribe), audio.c (MUSIC:
+ * the frame web's gate), scene.c (ANIMATIONS: cd_file_op's early RET).  The
+ * RESTORE GAME slot is carried out here and consumed by entry 1000:004C's
+ * save load, which the port's save.c does not have yet (M6). */
+unsigned frontend_option(unsigned idx)
+{
+    return idx < 4u ? optCounter[idx] : 0u;
+}
+
+/* [0x4220] — the rail node, exposed for the option read-side test's walk
+ * legs (the same role as attract_phaseForProbe). */
+unsigned frontend_cellForProbe(void) { return cell; }
 
 /* --- the VRAM primitives ---------------------------------------------- */
 
@@ -217,25 +248,27 @@ static void compose(int swapPages)
 }
 
 /* place_4_sprites_to_vga (1000:A684) — the option-value badges at the
- * MUSIC / LEVEL / ANIMATIONS signs.  The entry table at 202F:0x5E54
+ * MUSIC / LEVEL / RESTORE GAME / ANIMATIONS signs.  The entry table at
+ * 202F:0x5E54
  * (10 bytes apart, verbatim): {u16 dest, u16 srcOff, u8 w, u8 h,
  * u8 cell, u16 &srcSeg} — and the +7 `cell` field IS the option counter
  * (the "option structs" and this table are the same bytes: 0x5E5B /
  * 0x5E65 / 0x5E6F / 0x5E79).  The sprite = w*h chunky bytes at
  * srcOff + cell*w*h, nonzero-transparent, at the page byte `dest`
  * (+[0x5AC4], 160-pitch).  The shipped files close the cell counts:
- * codeb1 6144 = 4x(48x32), codeb2 7680 = 3x(80x32) (the 3-state LEVEL),
- * restore 32256 = 21x(48x32) (the 21-state ANIMATIONS), the 4th entry
- * codeb1's cells 2..3 at srcOff 0xC00. */
+ * codeb1 6144 = 4x(48x32) (MUSIC's ON/OFF + ANIMATIONS' ON/OFF), codeb2
+ * 7680 = 3x(80x32) (LEVEL's EASY/NORMAL/HARD), restore 32256 =
+ * 21x(48x32) (RESTORE GAME's OFF/1..20); the 4th entry is codeb1's cells
+ * 2..3 at srcOff 0xC00. */
 static void draw_option_sprites(void)
 {
     static const struct {
         uint16_t dest, srcOff; uint8_t w, h, cellIdx;
     } e[4] = {
-        {0x1D14, 0x0000, 48, 32, 0},   /* MUSIC      (2 states of codeb1) */
-        {0x1C80, 0x0000, 80, 32, 1},  /* LEVEL      (3 states, codeb2)  */
-        {0x5BBC, 0x0000, 48, 32, 2},  /* ANIMATIONS (21 states, restore)*/
-        {0x0F88, 0x0C00, 48, 32, 3},  /* codeb1 cells 2..3              */
+        {0x1D14, 0x0000, 48, 32, 0},  /* MUSIC        (2, codeb1 cells 0..1) */
+        {0x1C80, 0x0000, 80, 32, 1},  /* LEVEL        (3, codeb2)            */
+        {0x5BBC, 0x0000, 48, 32, 2},  /* RESTORE GAME (21, restore.spr)      */
+        {0x0F88, 0x0C00, 48, 32, 3},  /* ANIMATIONS   (2, codeb1 cells 2..3) */
     };
     const uint8_t *file[4] = {codeb1, codeb2, restore, codeb1};
     const uint32_t size[4] = {codeb1Size, codeb2Size, restoreSize, codeb1Size};
@@ -640,7 +673,9 @@ static void do_load(void)
     charX = 0x1D2; charY = 0xA0;
     frame = 0x13; frameCnt = 3;
     slot = 0x12; slotCnt = 5;
-    memset(optCounter, 0, sizeof optCounter);
+    /* optCounter is deliberately NOT reseeded: the image ships the four
+     * bytes zero and the setup never writes them (0x5E5B..0x5E79), so the
+     * settings survive every re-entry into the room for the whole run. */
     nameScreen = 0; fireLatch = 0;
     name_reset();
     set_scroll();
@@ -690,6 +725,10 @@ int frontend_tick(const InputState *in)
         if (!palette_fadeActive()) phase = FE_ROOM;
         return 1;
     case FE_ROOM: {
+        /* the frame web's head (1000:A5E8): the MUSIC board's counter
+         * [0x5E5B] stops the music when non-zero, resumes it when zero */
+        audio_musicGate(frontend_option(FRONTEND_OPT_MUSIC));
+
         if ((in->joyBits & 0x80u) && (walkState & 0x8000u) && !fireLatch) {
             cycle_option();
             fireLatch = 1;
