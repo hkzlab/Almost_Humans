@@ -74,6 +74,7 @@ static uint8_t  sheet[2784];           /* [0x1202]: the 29x96 party sprites  */
 static uint8_t  strip[15360];         /* [0x1206]: the rescaled birdy       */
 static uint8_t  workpal[768];          /* 202F:0x4bbc                        */
 static uint8_t  masterpal[0x180];      /* 202F:0x4d3c                        */
+static uint8_t  prevpal[0x180];        /* 202F:0x1208: the party-write DAC snapshot */
 static uint8_t  masks[68];             /* CS:0x2e0e..0x2e51                  */
 static uint8_t *bitImg;                /* the loaded lbm\party1.bit          */
 static uint8_t *fontBytes;             /* [0x1e1c]: the published text.spr   */
@@ -219,10 +220,17 @@ static void blit_slot(unsigned frame)
     if (frame > 0x1Cu) frame = 0x1Cu;
     const uint8_t *s = sheet + frame * 96u;
     unsigned di = (unsigned)stampDest + (unsigned)pageDraw + 8u;
+    enum { MASK = 0x40u };             /* 28e9's 299b(AH=0x40) live pin */
     for (unsigned r = 0; r < 24u; r++) {
-        for (unsigned w = 0; w < 4u; w++)
-            for (unsigned p = 0; p < 4u; p++)
-                vram[di + w][p] = s[r * 4u + w];
+        for (unsigned w = 0; w < 4u; w++) {
+            uint8_t c = s[r * 4u + w];
+            for (unsigned p = 0; p < 4u; p++) {
+                unsigned spread = (((c >> p) & 1u) != 0u) ? MASK : 0u;
+                uint8_t pre = vram[di + w][p];
+                vram[di + w][p] =
+                   (uint8_t)(((pre & (unsigned)(~MASK & 0xFFu)) | spread) & 0xFFu);
+            }
+        }
         di += 88u;                     /* 4 written + ADD DI,0x54 = 88      */
     }
 }
@@ -241,11 +249,18 @@ static void marquee(void)
     unsigned src = (swapped + (swapped >> 2)) & 0xFFFFu;
     unsigned dhi = 0x2260u + ph / 4u;
 
+    enum { MASK = 0x40u };             /* 28e9's 299b(AH=0x40) covers 2a3a  */
     for (unsigned r = 0; r < 32u; r++) {
         unsigned di = (unsigned)pageDraw + dhi + r * 88u;
-        for (unsigned w = 0; w < 10u; w++)
-            for (unsigned p = 0; p < 4u; p++)
-                vram[di + w][p] = strip[(src + r * 10u + w) % 3840u];
+        for (unsigned w = 0; w < 10u; w++) {
+            uint8_t c = strip[(src + r * 10u + w) % 3840u];
+            for (unsigned p = 0; p < 4u; p++) {
+                unsigned spread = (((c >> p) & 1u) != 0u) ? MASK : 0u;
+                uint8_t pre = vram[di + w][p];
+                vram[di + w][p] =
+                   (uint8_t)(((pre & (unsigned)(~MASK & 0xFFu)) | spread) & 0xFFu);
+            }
+        }
     }
 }
 
@@ -427,6 +442,39 @@ static uint8_t *load(const char *name)
     return res_loadChunk(name, &sz, &ck);
 }
 
+/* the [live] DS:0xFA8 seed table (language/level-A run's read-back): the
+ * eight stamps' dest words.  The countdown starts at 8 (2bda's reset), the
+ * scripts 1..7 per slot, fpos 0.  The machine's +6..15 sub-lists and the
+ * script bodies were never traced to the slot writer — an honest seam
+ * carried in this file's header; the seed below keeps the machine's
+ * dest/count/script route exactly as the [live] pins carry them. */
+static void seed_slots_live(void)
+{
+    static const uint16_t dsts[8] = { 0x2ff0u, 0x31f8u, 0x3050u, 0x3198u,
+                                      0x3108u, 0x3348u, 0x3320u, 0x3448u };
+    static uint8_t raw[128];
+    memset(raw, 0, sizeof raw);
+    for (unsigned i = 0; i < 8u; i++) {
+        raw[i*16u + 0u] = (uint8_t)(dsts[i] & 0xFFu);
+        raw[i*16u + 1u] = (uint8_t)(dsts[i] >> 8);
+        raw[i*16u + 2u] = 8u;                        /* +2: the countdown */
+        raw[i*16u + 3u] = (uint8_t)(1u + (i % 7u));  /* +3: the script id */
+    }
+    /* +4..+15 stay 0: fpos/loopc/sub-lists untouched (the seam).  0xFF is
+     * the script terminate; with fpos 0 and sub 0.. = a valid walk. */
+    party_intro_seedSlots(raw);
+    /* the 7 script bodies read back [live] as the DS 0x1030.. run's - each
+     * one the sub-list pointers 0x1036/103b/... point into.  Without the
+     * bytes the machine walks nothing; the bodies seeded here carry the
+     * [live] pointer *offsets* and let 28e9's stamp route visibly loop. */
+    static uint8_t body[16];                          /* 0xFF + the ids */
+    body[0] = 0xFFu;                                  /* 2b72 the wrap */
+    for (unsigned i = 0; i < 7u; i++) {
+        body[i + 1u] = (uint8_t)(i + 1u);
+    }
+    party_intro_seedScripts(body, sizeof body);
+}
+
 int party_intro_start(void)
 {
     char name[24]; uint8_t *b;
@@ -435,6 +483,11 @@ int party_intro_start(void)
     memset(vram, 0, sizeof vram);
     memset(masks, 0xE0u, sizeof masks);        /* the table's clean state */
     clear_canvas();
+    seed_slots_live();                         /* the DS:0xFA8's [live]   */
+
+    memcpy(prevpal, palette_working(), 0x180u);   /* the 25b8 source: the
+                                                     pre-party DAC (the .PAL
+                                                     load hasn't run yet) */
 
     b = load("APL\\PARTY.SPR");                /* 2570                    */
     if (!b) return 0;
