@@ -496,6 +496,9 @@ int party_intro_start(void)
     char name[24]; uint8_t *b;
 
     pageDraw = 0x1200u; pageDisp = 0x8100u;    /* 2519/2523               */
+    /* 2a3a's counters are static DS data: [0xf9c]=0, [0xf9e]=0, [0xfa6]=1
+     * (the MZ image; a 0 hold DEC-wraps and freezes the flap on run 1) */
+    marqPhase = 0u; marqCell = 0u; marqHold = 1u;
     memset(vram, 0, sizeof vram);
     memset(rampTbl, 0xE0u, sizeof rampTbl);    /* the table's clean state */
     clear_canvas();
