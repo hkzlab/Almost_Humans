@@ -41,10 +41,20 @@
  * members branch); the port keeps the normal branch's shape and documents
  * the variant's absence at P_DONE exactly like the scene player's.
  *
- * The one decode ⏭ (the animators' slot seeding) is an API: the caller of
- * party_intro_start seeds the 8 slots + the 7 shipped script bodies
- * (party_intro_seedSlots / party_intro_seedScripts); the [live] DS:0xFA8
- * values are re_map.md's pin.
+ * The animators' slot seeding is CLOSED (2026-10-30 pass-3): the 8 slot
+ * structs at DS:0xFA8, the 7 script pointers at DS:0x1028 and the script
+ * bodies DS:0x1036..0x105E are STATIC in the MZ image (Ghidra 202F:0xFA8
+ * hexdump == the live DS:0xFA8 read-back, sub-lists byte-identical) — no
+ * seed writer exists.  The tables below are the file's verbatim bytes.
+ * The interpreter is 28e9 verbatim: per slot per tick, DEC the countdown;
+ * when it hits zero reload 8 and set the advance step; ALWAYS walk the
+ * script at [SI+4] (BX = the pre-increment position), stamp the frame it
+ * holds every tick (the 2a3a marquee passes over the dancers and the next
+ * stamp restores them); on 0xFF switch to sub-list entry (loopc+1) mod 10,
+ * fpos = 0, and re-walk from the new script's byte 0 in the same tick.
+ * The bird marquee's source group is (cell*4 + (phase&3)) at a 320-byte
+ * stride [0x1206] — exactly the rescale group grid (47*320+319 = 15359 =
+ * the strip's last byte; the numbers close).
  *
  * Port-only caveats: with no disc the loads fail and the screen is
  * skipped — the load-failure path the scene player established; the
@@ -75,7 +85,7 @@ static uint8_t  strip[15360];         /* [0x1206]: the rescaled birdy       */
 static uint8_t  workpal[768];          /* 202F:0x4bbc                        */
 static uint8_t  masterpal[0x180];      /* 202F:0x4d3c                        */
 static uint8_t  prevpal[0x180];        /* 202F:0x1208: the party-write DAC snapshot */
-static uint8_t  masks[68];             /* CS:0x2e0e..0x2e51                  */
+static uint8_t  rampTbl[150];          /* CS:0x2DFE..0x2E93 (0x96 bytes)      */
 static uint8_t *bitImg;                /* the loaded lbm\party1.bit          */
 static uint8_t *fontBytes;             /* [0x1e1c]: the published text.spr   */
 
@@ -121,14 +131,14 @@ static uint8_t *scriptStore;           /* the seeded bodies (memcpy'd)       */
 
 void party_intro_seedScripts(const uint8_t *bytes, unsigned len)
 {
+    /* the [live] pointer table: the DS offsets into the first body 0x1036 */
     unsigned offs[SCRIPT_COUNT] = { 0x1036u, 0x103bu, 0x1044u, 0x1047u,
                                     0x104eu, 0x1053u, 0x105cu };
     free(scriptStore);
     scriptStore = (uint8_t *)malloc(len ? len : 1u);
     if (scriptStore) memcpy(scriptStore, bytes, len);
-    /* the [live] pointer table: the DS offsets into the 0x1030 bodies */
     for (unsigned i = 0; i < SCRIPT_COUNT; i++) {
-        unsigned rel = (offs[i] >= 0x1030u) ? (offs[i] - 0x1030u) : 0u;
+        unsigned rel = (offs[i] >= 0x1036u) ? (offs[i] - 0x1036u) : 0u;
         scripts[i].len = (rel < len) ? (len - rel) : 0u;
         scripts[i].b   = scriptStore ? (scriptStore + rel) : NULL;
     }
@@ -147,6 +157,38 @@ void party_intro_seedSlots(const uint8_t *raw)  /* the 128 B at DS:0xFA8 */
         s->loopc  = r[5];
         memcpy(s->sub, r + 6u, 10u);
     }
+}
+
+/* === the file-image script seed (2026-10-30: the tables are STATIC bytes
+ * of the MZ image — the 202F:0xFA8 / 0x1028 hexdumps == the live DS
+ * read-back; the sub-lists are never rewritten by traced code, so no seed
+ * writer exists.  The countdowns slug the slots' phase: {10,8,6,4,5,0,7,9};
+ * a count of 0 (slot 5) counts up to 8 on its first tick per 2909
+ * DEC-then-test.) */
+static const uint8_t slots_file[128] = {
+    0xf0,0x2f,10,1, 0,0, 1,1,1,3,6,3,6,1,1,1,
+    0xf8,0x31, 8,1, 0,0, 6,6,6,6,4,5,4,5,1,1,
+    0x50,0x30, 6,1, 0,0, 1,2,3,4,5,6,1,2,3,4,
+    0x98,0x31, 4,1, 0,0, 1,6,2,5,3,4,4,3,4,1,
+    0x08,0x31, 5,1, 0,0, 6,6,5,4,4,3,7,4,1,3,
+    0x48,0x33, 0,1, 0,0, 1,3,7,3,7,6,3,3,1,5,
+    0x20,0x33, 7,1, 0,0, 6,3,4,3,5,4,3,4,1,4,
+    0x48,0x34, 9,1, 0,0, 3,7,3,7,3,7,6,4,3,2
+};
+static const uint8_t scripts_file[41] = {      /* DS:0x1036..0x105E */
+    0x01,0x02,0x03,0x02,0xFF,                       /* 0x1036 s1 */
+    0x05,0x06,0x07,0x08,0x09,0x06,0x05,0x04,0xFF,   /* 0x103b s2 */
+    0x0a,0x0b,0xFF,                                 /* 0x1044 s3 */
+    0x0a,0x0d,0x0e,0x0f,0x0e,0x0d,0xFF,             /* 0x1047 s4 */
+    0x11,0x12,0x11,0x0d,0xFF,                       /* 0x104e s5 */
+    0x14,0x15,0x16,0x17,0x18,0x19,0x1b,0x1c,0xFF,   /* 0x1053 s6 */
+    0x0a,0x0c,0xFF                                  /* 0x105c s7 */
+};
+
+static void seed_slots_live(void)
+{
+    party_intro_seedSlots(slots_file);
+    party_intro_seedScripts(scripts_file, sizeof scripts_file);
 }
 
 /* === 2b1b format_score + 2b70 ================================================ */
@@ -199,7 +241,7 @@ static void bake_page(const uint8_t *bit, unsigned pagebase)
 static void band_stamp(unsigned pagebase)
 {
     for (unsigned row = 0; row < 68u; row++) {
-        unsigned m = masks[row];
+        unsigned m = rampTbl[row + 16u];    /* 2c1d's OUT 3CF = CS:0x2E0E+row */
         unsigned a = pagebase + 0x6E8u + row * 88u;
         const uint8_t *src = canvas + 0x640u + row * 80u;
         for (unsigned k = 0; k < 80u; k++) {
@@ -224,6 +266,9 @@ static void blit_slot(unsigned frame)
     for (unsigned r = 0; r < 24u; r++) {
         for (unsigned w = 0; w < 4u; w++) {
             uint8_t c = s[r * 4u + w];
+            /* write mode 2 reads AL's bits 0..3 only — the sheet's nibble
+             * is the plane value itself; no palette bias applies to the
+             * byte (the +0xC0 story lives in the palette table, not here). */
             for (unsigned p = 0; p < 4u; p++) {
                 unsigned spread = (((c >> p) & 1u) != 0u) ? MASK : 0u;
                 uint8_t pre = vram[di + w][p];
@@ -239,57 +284,56 @@ static void blit_slot(unsigned frame)
 static void marquee(void)
 {
     marqPhase++;
-    if (marqPhase == 0x160u) marqPhase = 0u;
+    if (marqPhase == 0x160u) marqPhase = 0u;   /* INC; CMP 0x160          */
+    marqHold--;                                /* 2a4c: DEC first, then test */
     if (marqHold == 0u) { marqHold = 5u; marqCell = (marqCell + 1u) % 0xCu; }
-    else marqHold--;
 
     unsigned cell = marqCell, ph = marqPhase;
-    unsigned s0 = cell * 4u + (ph & 3u);
-    unsigned swapped = ((s0 & 0xFFu) << 8) | (s0 >> 8);
-    unsigned src = (swapped + (swapped >> 2)) & 0xFFFFu;
-    unsigned dhi = 0x2260u + ph / 4u;
+    unsigned v = cell * 4u + (ph & 3u);        /* 2a76..2a83 */
+    unsigned src = v * 320u;                   /* 2a85..2a8d: v*256 + v*64   */
+
+    unsigned dhi = 0x2260u + ph / 4u;          /* 2a8f..2a95 + the page add  */
 
     enum { MASK = 0x40u };             /* 28e9's 299b(AH=0x40) covers 2a3a  */
     for (unsigned r = 0; r < 32u; r++) {
         unsigned di = (unsigned)pageDraw + dhi + r * 88u;
-        for (unsigned w = 0; w < 10u; w++) {
-            uint8_t c = strip[(src + r * 10u + w) % 3840u];
+        for (unsigned k = 0; k < 10u; k++) {
+            uint8_t c = strip[src + r * 10u + k];  /* 5 LODSW = 10 B/row    */
             for (unsigned p = 0; p < 4u; p++) {
                 unsigned spread = (((c >> p) & 1u) != 0u) ? MASK : 0u;
-                uint8_t pre = vram[di + w][p];
-                vram[di + w][p] =
+                uint8_t pre = vram[di + k][p];
+                vram[di + k][p] =
                    (uint8_t)(((pre & (unsigned)(~MASK & 0xFFu)) | spread) & 0xFFu);
             }
         }
     }
 }
 
-/* 28e9 animate_entities */
+/* 28e9 animate_entities — verbatim: every tick, per slot */
 static void anim_entities(void)
 {
     for (unsigned i = 0; i < 8u; i++) {
         struct slot *s = &slots[i];
         uint8_t dl = 0;
-        if (s->count == 0u) { s->count = 8u; dl = 1u; }
-        else s->count--;
-        if (!dl) continue;
-        while (1) {                            /* 2914's body walk           */
-            if (s->script == 0u || s->script > SCRIPT_COUNT || !scriptStore)
-                break;
-            struct script *sc = &scripts[s->script - 1u];
-            if (!sc->b || !sc->len) break;
-            uint8_t dh = sc->b[s->fpos < sc->len ? s->fpos : 0u];
-            if (dh != 0xFF) {
+        s->count--;
+        if (s->count == 0u) { s->count = 8u; dl = 1u; }    /* 2909..2912 */
+        for (unsigned pass = 0; pass < 40u; pass++) {      /* the 2914 walk */
+            if (s->script == 0u || s->script > SCRIPT_COUNT) break;
+            const struct script *sc = &scripts[s->script - 1u];
+            if (sc->b == NULL || sc->len == 0u) break;
+            uint8_t bx = s->fpos;                          /* 2920: BX = [SI+4] */
+            s->fpos = (uint8_t)(bx + dl);                  /* 2925: ADD before the read */
+            uint8_t dh = sc->b[bx];                        /* 2928 */
+            if (dh != 0xFFu) {                             /* 292a: the stamp */
                 stampDest = s->dst;
                 blit_slot(dh);
-                s->fpos++;
-                break;
+                break;                                     /* 295f: next slot */
             }
-            unsigned cl = ((unsigned)s->loopc + 1u) % 10u;
+            unsigned cl = ((unsigned)s->loopc + 1u) % 10u; /* 292f..293b */
             s->loopc = (uint8_t)cl;
-            s->script = s->sub[cl];
-            s->fpos = 0u;
-            if (s->script == 0u) break;
+            s->script = s->sub[cl];                        /* the sub-list ids */
+            s->fpos = 0u;                                  /* 294a, redo 2914 */
+            if (s->script == 0u || s->script > SCRIPT_COUNT) break;
         }
     }
     marquee();
@@ -299,7 +343,8 @@ static void anim_entities(void)
 /* 2e94 draw_text_ramped */
 static void draw_text_ramped(const char *s, unsigned centreX, unsigned row)
 {
-    memcpy(masks, ramp10, 10u);
+    memcpy(rampTbl + row, ramp10, 10u);    /* 2e94: the ramp slides with the
+                                            * row param — CS:0x2DFE + row */
     if (fontBytes) font_drawText(canvas, s, centreX, row);
     anim_entities();
 }
@@ -307,12 +352,16 @@ static void draw_text_ramped(const char *s, unsigned centreX, unsigned row)
 /* 28d0 copy_palette_into_draw */
 static void copy_palette(void) { memcpy(masterpal, workpal, 0x180u); }
 
-/* 2b9c intro_anim */
+/* 2b9c intro_anim: the backdrop band twice, then the snapshot restore and
+ * the 0x80..0xFF window fade toward it — the entry-DAC copy at 0x1208
+ * (25bc), NOT the .PAL working copy: the text window dissolves into the
+ * palette the screen was entered with. */
 static void intro_anim(void)
 {
     band_stamp(pageDraw); anim_entities();
     band_stamp(pageDraw); anim_entities();
-    palette_buildFade(0x80u, 0x80u, 0x28u, masterpal);
+    memcpy(masterpal, prevpal, 0x180u);        /* 2bbf..2bc8: 0x1208 -> 0x4d3c */
+    palette_buildFade(0x80u, 0x80u, 0x28u, masterpal);   /* 2bca: BX=0x80 */
 }
 
 /* the machine state (the ticker's + 2bda's phase-split) */
@@ -427,10 +476,10 @@ void party_intro_setValues(unsigned level, unsigned need, unsigned members,
     g_members = (uint16_t)members; g_score = (uint16_t)score;
     memset(g_tribe, 0, sizeof g_tribe);
     if (tribe) memcpy(g_tribe, tribe, sizeof g_tribe - 1u);
-    memcpy(s_all,   "COMING UP.... LEVEL 0", 23);
-    memcpy(s_need,  "YOU WILL NEED 0 HUMANS TO COMPLETE", 36);
+    memcpy(s_all,   "COMING UP.... LEVEL 0", 22);
+    memcpy(s_need,  "YOU WILL NEED 0 HUMANS TO COMPLETE", 35);
     memcpy(s_this,  "THIS LEVEL", 11);
-    memcpy(s_has,   "YOUR TRIBE NOW HAS 0 MEMBERS!", 31);
+    memcpy(s_has,   "YOUR TRIBE NOW HAS 0 MEMBERS!", 30);
     memcpy(s_code,  "THE CODE FOR THIS LEVEL IS.....", 32);
     memcpy(s_score, "YOUR SCORE IS 0", 16);
     memcpy(s_fire,  "PRESS FIRE TO START LEVEL....", 30);
@@ -442,52 +491,20 @@ static uint8_t *load(const char *name)
     return res_loadChunk(name, &sz, &ck);
 }
 
-/* the [live] DS:0xFA8 seed table (language/level-A run's read-back): the
- * eight stamps' dest words.  The countdown starts at 8 (2bda's reset), the
- * scripts 1..7 per slot, fpos 0.  The machine's +6..15 sub-lists and the
- * script bodies were never traced to the slot writer — an honest seam
- * carried in this file's header; the seed below keeps the machine's
- * dest/count/script route exactly as the [live] pins carry them. */
-static void seed_slots_live(void)
-{
-    static const uint16_t dsts[8] = { 0x2ff0u, 0x31f8u, 0x3050u, 0x3198u,
-                                      0x3108u, 0x3348u, 0x3320u, 0x3448u };
-    static uint8_t raw[128];
-    memset(raw, 0, sizeof raw);
-    for (unsigned i = 0; i < 8u; i++) {
-        raw[i*16u + 0u] = (uint8_t)(dsts[i] & 0xFFu);
-        raw[i*16u + 1u] = (uint8_t)(dsts[i] >> 8);
-        raw[i*16u + 2u] = 8u;                        /* +2: the countdown */
-        raw[i*16u + 3u] = (uint8_t)(1u + (i % 7u));  /* +3: the script id */
-    }
-    /* +4..+15 stay 0: fpos/loopc/sub-lists untouched (the seam).  0xFF is
-     * the script terminate; with fpos 0 and sub 0.. = a valid walk. */
-    party_intro_seedSlots(raw);
-    /* the 7 script bodies read back [live] as the DS 0x1030.. run's - each
-     * one the sub-list pointers 0x1036/103b/... point into.  Without the
-     * bytes the machine walks nothing; the bodies seeded here carry the
-     * [live] pointer *offsets* and let 28e9's stamp route visibly loop. */
-    static uint8_t body[16];                          /* 0xFF + the ids */
-    body[0] = 0xFFu;                                  /* 2b72 the wrap */
-    for (unsigned i = 0; i < 7u; i++) {
-        body[i + 1u] = (uint8_t)(i + 1u);
-    }
-    party_intro_seedScripts(body, sizeof body);
-}
-
 int party_intro_start(void)
 {
     char name[24]; uint8_t *b;
 
     pageDraw = 0x1200u; pageDisp = 0x8100u;    /* 2519/2523               */
     memset(vram, 0, sizeof vram);
-    memset(masks, 0xE0u, sizeof masks);        /* the table's clean state */
+    memset(rampTbl, 0xE0u, sizeof rampTbl);    /* the table's clean state */
     clear_canvas();
     seed_slots_live();                         /* the DS:0xFA8's [live]   */
 
-    memcpy(prevpal, palette_working(), 0x180u);   /* the 25b8 source: the
-                                                     pre-party DAC (the .PAL
-                                                     load hasn't run yet) */
+    memcpy(prevpal, palette_working(), 0x180u);   /* 25b8's DS:0x4d3c stand-
+                               in: the entry palette (captured pre-.PAL —
+                               the load only fills 0x4bbc, but the C-side
+                               buffer must predate loadWorking too) */
 
     b = load("APL\\PARTY.SPR");                /* 2570                    */
     if (!b) return 0;
@@ -513,7 +530,11 @@ int party_intro_start(void)
     if (b) { fontBytes = b; font_publish(b); }
     else   { fontBytes = NULL; font_publish(NULL); }
 
-    memcpy(masterpal, workpal, 0x180u);        /* 25b8                    */
+    /* 25b8: 0x1208 <- DS:0x4d3c; on this screen's fresh-load path the .ANI
+     * is absent per the routing decision and 0x4bbc was captured pre-load
+     * (above) as the entry palette, so masterpal is synced to it here to
+     * keep 2b9c's "0x1208 == 0x4d3c until 28d0" invariant true. */
+    memcpy(masterpal, prevpal, 0x180u);
 
     bake_page(bitImg, pageDraw);               /* 25ca..25d8: the bake x2 */
     anim_entities();
@@ -542,7 +563,7 @@ int party_intro_tick(const InputState *in)
     case PH_SWAPWAIT:                          /* 2bfa..2c1c            */
         anim_entities();
         if (!palette_fadeActive()) {
-            memset(masks, 0xE0u, sizeof masks);        /* 2bf4: 0x96 ×     */
+            memset(rampTbl, 0xE0u, sizeof rampTbl);   /* 2bf4: the 0x96 fill */
             clear_canvas();                            /* 2c01 (2af5)     */
             band_stamp(pageDraw); anim_entities();
             band_stamp(pageDraw); anim_entities();
