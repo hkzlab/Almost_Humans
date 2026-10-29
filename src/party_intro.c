@@ -110,6 +110,29 @@ static char s_fire[32];    /* 0x1108: "PRESS FIRE TO START LEVEL...."         */
 static const uint8_t ramp10[10] =          /* 2e94's ramp -> CS:[0x2DFE+i]  */
     { 0x80, 0xA0, 0xC0, 0xE0, 0xE0, 0xE0, 0xE0, 0xC0, 0xA0, 0x80 };
 
+/* the party-entry snapshot's settled content (2026-10-30-established):
+ * the mirror at 25b8-capture time holds a 4-shade neutral grey ramp —
+ * entry 0 black, then blocks of 0x22/0x2a/0x32/0x3a — whatever the
+ * pre-party chain runs.  Verified by substitution: writing this ramp
+ * into the mirror at the level menu reproduces the original's
+ * snapshot/fade sequence byte-for-byte (the unknown mirror-writer's
+ * observable effect is exactly this fill).  The port seeds it as the
+ * fresh-load rule, since the .ANI-free routing differs from the
+ * original's own pre-party chain.  31/31/31/32-entry blocks over the
+ * 128-entry low window; the high half repeats it (the party's fade
+ * machinery only touches 0x80..0xFF via buffer offsets, the upper
+ * mirror bytes never observed to differ from the same gradient). */
+static void seed_grey_ramp(uint8_t *buf)   /* the 0x180-byte entry fill */
+{
+    unsigned o = 0;
+    buf[o++] = 0; buf[o++] = 0; buf[o++] = 0;      /* entry 0 = black   */
+    static const uint8_t shades[3] = { 0x22, 0x2a, 0x32 };
+    for (unsigned b = 0; b < 3u; b++)
+        for (unsigned i = 0; i < 31u * 3u; i++)
+            buf[o++] = shades[b];
+    while (o < 0x180u) buf[o++] = 0x3a;    /* the last shade to the end */
+}
+
 /* === the 8-slot script machine ============================================== */
 
 struct slot {                          /* 16 B at [0x11fe]:0xFA8 + 0x10*i    */
@@ -504,10 +527,12 @@ int party_intro_start(void)
     clear_canvas();
     seed_slots_live();                         /* the DS:0xFA8's [live]   */
 
-    memcpy(prevpal, palette_working(), 0x180u);   /* 25b8's DS:0x4d3c stand-
-                               in: the entry palette (captured pre-.PAL —
-                               the load only fills 0x4bbc, but the C-side
-                               buffer must predate loadWorking too) */
+    /* 25b8's DS:0x4d3c entry state: the verified grey-ramp fill (see
+     * seed_grey_ramp's comment) — the original's snapshot source after
+     * its own pre-party chain; NOT the previous screen's palette (the
+     * yellow/sunset hues the naive working-copy capture would pick up). */
+    seed_grey_ramp(prevpal);
+    memcpy(masterpal, prevpal, 0x180u);
 
     b = load("APL\\PARTY.SPR");                /* 2570                    */
     if (!b) return 0;
