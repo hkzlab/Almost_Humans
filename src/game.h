@@ -70,6 +70,11 @@ void palette_setDac(const uint8_t *p6, unsigned first, unsigned n);
 void palette_buildFade(unsigned first, unsigned entries, unsigned div,
                        const uint8_t *target);
 int  palette_fadeActive(void);          /* palette_fade_active 1000:8b9a  */
+const uint8_t *palette_dacShadow(void); /* the DAC shadow (read-only;
+                                        * the off-line fade-ladder harness) */
+const uint8_t *palette_fadeTarget(void); /* the active fade's target buffer */
+unsigned palette_fadeFirst(void);        /* the active fade's first index   */
+unsigned palette_fadeComps(void);        /* the active fade's component #   */
 
 /* --- src/font.c — glyphs/packed ASCII (subsystem 12, §9) -------------- */
 int  font_init(const OSystem *osys);
@@ -313,6 +318,8 @@ int  party_intro_start(void);
 int  party_intro_tick(const InputState *in);
 void party_intro_formatScore(unsigned v, char *out);   /* 2b1b/2b70       */
 void party_intro_compose(uint8_t *page320x200); /* the law compose for the fixtures */
+const uint8_t *party_intro_workpal(void);   /* the 0x4bbc stand-in (diagnostics) */
+const uint8_t *party_intro_masterpal(void); /* the 0x4d3c stand-in (diagnostics) */
 /* --- src/save.c — the save-game format (byte-compatible) -------------- */
 int  save_init(const OSystem *osys);
 

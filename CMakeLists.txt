@@ -76,6 +76,16 @@ target_link_libraries(test_party PRIVATE core fs_posix)
 humansre_warnings(test_party)
 add_test(NAME party COMMAND test_party ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 
+# The fade-ladder harness: the port's own DAC progression per tick against
+# the original's recorded hardware reads (the offline palette instrument).
+add_executable(test_fadeladder tests/test_fadeladder.c
+    src/arch/null/OSystem.c)
+target_include_directories(test_fadeladder PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(test_fadeladder PRIVATE core fs_posix)
+humansre_warnings(test_fadeladder)
+add_test(NAME fadeladder COMMAND test_fadeladder ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
+
+
 # The scene player test: level 0 plays ANI00.ANI's 35 script entries onto
 # page 0; the final page must match the reference playback checksums.
 add_executable(test_scene tests/test_scene.c

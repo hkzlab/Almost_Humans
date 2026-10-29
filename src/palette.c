@@ -60,6 +60,15 @@ void palette_buildFade(unsigned first, unsigned entries, unsigned div,
 /* palette_fade_active (1000:8b9a) */
 int palette_fadeActive(void) { return fadeActive; }
 
+/* the DAC shadow, read-only: the fade-ladder harness compares the port's
+ * per-tick DAC progression against the original's live IN 3C9h reads
+ * (2026-10-30: window 0x80+n <- buffer entry n, verified in the hardware).
+ * No engine logic lives here. */
+const uint8_t *palette_dacShadow(void) { return dac; }
+const uint8_t *palette_fadeTarget(void) { return fadeTarget; }
+unsigned palette_fadeFirst(void) { return fadeFirst; }
+unsigned palette_fadeComps(void) { return fadeComps; }
+
 /* palette_fade_step (1000:8bfd): one step per tick (the ISR body's palette
  * work, game_main's game_tick). */
 void palette_tick(void)

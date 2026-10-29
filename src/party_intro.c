@@ -83,7 +83,9 @@ static uint8_t  canvas[16000];         /* [0x1e20]: the 200x80 draw arena    */
 static uint8_t  sheet[2784];           /* [0x1202]: the 29x96 party sprites  */
 static uint8_t  strip[15360];         /* [0x1206]: the rescaled birdy       */
 static uint8_t  workpal[768];          /* 202F:0x4bbc                        */
-static uint8_t  masterpal[0x180];      /* 202F:0x4d3c                        */
+/* 0x4d3c is not a buffer of its own: it is 0x4bbc + 0x180, the .PAL working
+ * palette's own upper half (28d0 = 4 × 0x60 B from .PAL[0..31]). */
+static uint8_t *const masterpal = workpal + 0x180;   /* 202F:0x4d3c       */
 static uint8_t  prevpal[0x180];        /* 202F:0x1208: the party-write DAC snapshot */
 static uint8_t  rampTbl[150];          /* CS:0x2DFE..0x2E93 (0x96 bytes)      */
 static uint8_t *bitImg;                /* the loaded lbm\party1.bit          */
@@ -109,29 +111,6 @@ static char s_fire[32];    /* 0x1108: "PRESS FIRE TO START LEVEL...."         */
 
 static const uint8_t ramp10[10] =          /* 2e94's ramp -> CS:[0x2DFE+i]  */
     { 0x80, 0xA0, 0xC0, 0xE0, 0xE0, 0xE0, 0xE0, 0xC0, 0xA0, 0x80 };
-
-/* the party-entry snapshot's settled content (2026-10-30-established):
- * the mirror at 25b8-capture time holds a 4-shade neutral grey ramp —
- * entry 0 black, then blocks of 0x22/0x2a/0x32/0x3a — whatever the
- * pre-party chain runs.  Verified by substitution: writing this ramp
- * into the mirror at the level menu reproduces the original's
- * snapshot/fade sequence byte-for-byte (the unknown mirror-writer's
- * observable effect is exactly this fill).  The port seeds it as the
- * fresh-load rule, since the .ANI-free routing differs from the
- * original's own pre-party chain.  31/31/31/32-entry blocks over the
- * 128-entry low window; the high half repeats it (the party's fade
- * machinery only touches 0x80..0xFF via buffer offsets, the upper
- * mirror bytes never observed to differ from the same gradient). */
-static void seed_grey_ramp(uint8_t *buf)   /* the 0x180-byte entry fill */
-{
-    unsigned o = 0;
-    buf[o++] = 0; buf[o++] = 0; buf[o++] = 0;      /* entry 0 = black   */
-    static const uint8_t shades[3] = { 0x22, 0x2a, 0x32 };
-    for (unsigned b = 0; b < 3u; b++)
-        for (unsigned i = 0; i < 31u * 3u; i++)
-            buf[o++] = shades[b];
-    while (o < 0x180u) buf[o++] = 0x3a;    /* the last shade to the end */
-}
 
 /* === the 8-slot script machine ============================================== */
 
@@ -363,22 +342,32 @@ static void anim_entities(void)
     flip_page();
 }
 
-/* 2e94 draw_text_ramped */
+/* 2e94 draw_text_ramped — canvas-resident per the original: the glyph
+ * stroke lands in the CANVAS only (the = "2c1d never runs here"); the
+ * per-call 28e9 animates the slots/marquee and flips, but the TEXT does
+ * not reach the display until the next 2C1D (inside 2b9c/2bda) — the
+ * original's "all text fades in together at the first band redraw". */
 static void draw_text_ramped(const char *s, unsigned centreX, unsigned row)
 {
     memcpy(rampTbl + row, ramp10, 10u);    /* 2e94: the ramp slides with the
                                             * row param — CS:0x2DFE + row */
     if (fontBytes) font_drawText(canvas, s, centreX, row);
-    anim_entities();
+    anim_entities();                       /* 28e9: slots + marquee + flip —
+                                            * the canvas glyph is NOT rendered */
 }
 
-/* 28d0 copy_palette_into_draw */
-static void copy_palette(void) { memcpy(masterpal, workpal, 0x180u); }
+/* 28d0 copy_palette_into_draw: 4 × 0x60 bytes .PAL[0..31] -> .PAL[128..255]
+ * (so the window fade targets the blues, not the file's grey upper half). */
+static void copy_palette(void)
+{
+    for (unsigned p = 0; p < 4u; p++)
+        memcpy(masterpal + p * 0x60u, workpal, 0x60u);
+}
 
 /* 2b9c intro_anim: the backdrop band twice, then the snapshot restore and
- * the 0x80..0xFF window fade toward it — the entry-DAC copy at 0x1208
- * (25bc), NOT the .PAL working copy: the text window dissolves into the
- * palette the screen was entered with. */
+ * the 0x80..0xFF window fade toward it — 0x1208 (25bc) is the .PAL's own
+ * upper half, so the text window dissolves from the 28d0 blues into the
+ * file's grey ramp (the fade-in). */
 static void intro_anim(void)
 {
     band_stamp(pageDraw); anim_entities();
@@ -403,14 +392,26 @@ static int      keyCaught;             /* the JNS's source                    */
 static unsigned presentLeft;           /* 835a's 0x4B cycles                  */
 static unsigned swapNext;              /* the 2bda's tail's next phase        */
 
-/* 2bda fade_and_animate — phase-split (the wait loop is per-tick): the
- * buildFade + the phase advance happen here; the wait + the tail in the
- * PH_SWAPWAIT tick below. */
+/* 2bda's internal split: its own fade-wait (2bec..2bf2), THEN the 0xE0
+ * mask reset (2bf4) + clear + band redraws (2c01..2c1c) — the tail is
+ * what wipes the previous text and re-bakes the canvas-empty band. */
+enum { SW_FADEWAIT = 0, SW_TAIL };
+static unsigned swPhase = SW_FADEWAIT;
+
+/* 2bda fade_and_animate — verbatim phase-split: 2bda runs [28d0]; builds
+ * the window fade; THEN BLOCKS ON ITS OWN FADE ({28e9; 8b9a; JC} at
+ * 2bec..2bf2) before the 0xE0 mask reset (2bf4), the 2af5 clear (2c01)
+ * and the two 2c1d band redraws (2c04..2c1c).  The clear/redraw tail is
+ * therefore separated from the next set's stamps by the fade's own
+ * completion — the original's "text fades in at the next set" rhythm:
+ * every 2c1d renders the canvas under the fade state CURRENT AT THAT
+ * MOMENT, and the holds are the built fades' converged end-states. */
 static void swap_begin(unsigned next)
 {
     copy_palette();                                 /* 2bda (28d0)          */
     palette_buildFade(0x80u, 0x80u, 0x28u, masterpal);
     swapNext = next;
+    swPhase = SW_FADEWAIT;                          /* 2bec: the fade runs  */
     phase = PH_SWAPWAIT;
 }
 
@@ -514,6 +515,11 @@ static uint8_t *load(const char *name)
     return res_loadChunk(name, &sz, &ck);
 }
 
+/* the palette buffers, exposed for the fade-ladder harness: the port's
+ * 0x4bbc/0x4d3c/0x1208 stand-ins (read-only diagnostics, see test_fadeladder) */
+const uint8_t *party_intro_workpal(void) { return workpal; }
+const uint8_t *party_intro_masterpal(void) { return masterpal; }
+
 int party_intro_start(void)
 {
     char name[24]; uint8_t *b;
@@ -527,13 +533,6 @@ int party_intro_start(void)
     clear_canvas();
     seed_slots_live();                         /* the DS:0xFA8's [live]   */
 
-    /* 25b8's DS:0x4d3c entry state: the verified grey-ramp fill (see
-     * seed_grey_ramp's comment) — the original's snapshot source after
-     * its own pre-party chain; NOT the previous screen's palette (the
-     * yellow/sunset hues the naive working-copy capture would pick up). */
-    seed_grey_ramp(prevpal);
-    memcpy(masterpal, prevpal, 0x180u);
-
     b = load("APL\\PARTY.SPR");                /* 2570                    */
     if (!b) return 0;
     { int ok = expand_nibbles(b, 0x570u, sheet); free(b); if (!ok) return 0; }
@@ -546,8 +545,8 @@ int party_intro_start(void)
       sprintf(name, "LBM\\PARTY%u.PAL", d); }
     b = load(name);                            /* 2588                    */
     if (!b) return 0;
-    memcpy(workpal, b, 768u);
-    palette_loadWorking(b);
+    palette_loadWorking(b);                    /* 2591 (8d24): -> 0x4bbc  */
+    memcpy(workpal, palette_working(), 768u);
     free(b);
 
     b = load("LBM\\PARTY1.BIT");               /* 259a                    */
@@ -558,11 +557,8 @@ int party_intro_start(void)
     if (b) { fontBytes = b; font_publish(b); }
     else   { fontBytes = NULL; font_publish(NULL); }
 
-    /* 25b8: 0x1208 <- DS:0x4d3c; on this screen's fresh-load path the .ANI
-     * is absent per the routing decision and 0x4bbc was captured pre-load
-     * (above) as the entry palette, so masterpal is synced to it here to
-     * keep 2b9c's "0x1208 == 0x4d3c until 28d0" invariant true. */
-    memcpy(masterpal, prevpal, 0x180u);
+    /* 25bc: 0x1208 <- DS:0x4d3c (the .PAL's upper half, verbatim) */
+    memcpy(prevpal, masterpal, 0x180u);
 
     bake_page(bitImg, pageDraw);               /* 25ca..25d8: the bake x2 */
     anim_entities();
@@ -588,25 +584,31 @@ int party_intro_tick(const InputState *in)
         if (!palette_fadeActive()) { phase = PH_SET1; step = 0u; }
         break;
 
-    case PH_SWAPWAIT:                          /* 2bfa..2c1c            */
-        anim_entities();
-        if (!palette_fadeActive()) {
-            memset(rampTbl, 0xE0u, sizeof rampTbl);   /* 2bf4: the 0x96 fill */
-            clear_canvas();                            /* 2c01 (2af5)     */
-            band_stamp(pageDraw); anim_entities();
-            band_stamp(pageDraw); anim_entities();
-            if (swapNext == PH_SET1) { phase = PH_SET1; step = 0u; }
-            else if (swapNext == PH_SET2) {
-                phase = PH_SET2; step = 0u;
-            } else {                           /* the exit: 270e's tail   */
-                clear_canvas();                /* 270e (2af5)            */
-                {
-                    static uint8_t black[768];
-                    palette_buildFade(0u, 0x100u, 0x23u, black);  /* 2711 */
-                }
-                phase = PH_EXITWAIT;
-            }
+    case PH_SWAPWAIT:                          /* 2bec..2c1c: the fade wait,
+                                                * THEN the tail (verbatim the
+                                                * order inside 2bda)         */
+        anim_entities();                       /* 2bec's 28e9                */
+        if (swPhase == SW_FADEWAIT) {
+            if (!palette_fadeActive()) swPhase = SW_TAIL;   /* 2bf2's JC out  */
+            break;                             /* no tail before the fade ends */
         }
+        /* the 2bf4 tail: the mask reset + clear + band redraws, once */
+        memset(rampTbl, 0xE0u, sizeof rampTbl);   /* 2bf4: the 0x96 fill     */
+        clear_canvas();                            /* 2c01 (2af5)         */
+        band_stamp(pageDraw); anim_entities();
+        band_stamp(pageDraw); anim_entities();
+        if (swapNext == PH_SET1) { phase = PH_SET1; step = 0u; }
+        else if (swapNext == PH_SET2) {
+            phase = PH_SET2; step = 0u;
+        } else {                           /* the exit: 270e's tail   */
+            clear_canvas();                /* 270e (2af5)            */
+            {
+                static uint8_t black[768];
+                palette_buildFade(0u, 0x100u, 0x23u, black);  /* 2711 */
+            }
+            phase = PH_EXITWAIT;
+        }
+        swPhase = SW_FADEWAIT;             /* the tail ran once          */
         break;
 
     case PH_SET1:                              /* 2600..268d             */
