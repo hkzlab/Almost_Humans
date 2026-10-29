@@ -77,8 +77,13 @@ int main(int argc, char **argv)
     script[6600].joyBits = 0x80u;         /* the attract escape */
     for (unsigned i = 6700; i <= 6950u; i++)
         script[i].joyBits = 0x08u;         /* hold RIGHT: the room's confirm */
-    script[7700].lastKey = 1u;            /* any key: skip the level intro */
-    script[7701].lastKey = 1u;
+    /* the party pre-screen (t≈6912..7571, per the probe's timeline): its
+     * wait fires [0x48A3]-shaped aborts exactly like the original's
+     * wait_frames_or_key — one key inside the first set's wait exits  */
+    script[7150].lastKey = 1u;            /* the party's SET1W window    */
+    /* the .ANI cutscene follows the party's exit; hold the key through its
+     * chain waits (the skip the old 7700/7701 press did) */
+    for (unsigned i = 7250u; i <= 7700u; i++) script[i].lastKey = 1u;
     script[SCRIPT_N - 1].quit = 1u;
 
     osys_null_inputScript(script, SCRIPT_N);

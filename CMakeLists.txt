@@ -42,6 +42,7 @@ add_library(core STATIC
     src/audio.c
     src/frontend.c
     src/save.c
+    src/party_intro.c
 )
 target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 humansre_warnings(core)
@@ -65,6 +66,15 @@ target_include_directories(test_res PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CM
 target_link_libraries(test_res PRIVATE core fs_posix)
 humansre_warnings(test_res)
 add_test(NAME res COMMAND test_res ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
+
+# The party screen's bake-frame law test: the composed page = the extracted
+# .BIT verbatim (the layout law y=20+q / x=4n+p, closed 2026-10-29).
+add_executable(test_party tests/test_party.c
+    src/arch/null/OSystem.c)
+target_include_directories(test_party PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(test_party PRIVATE core fs_posix)
+humansre_warnings(test_party)
+add_test(NAME party COMMAND test_party ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 
 # The scene player test: level 0 plays ANI00.ANI's 35 script entries onto
 # page 0; the final page must match the reference playback checksums.

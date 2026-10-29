@@ -82,8 +82,8 @@ GameFlow gameflow_step(GameFlow state, const InputState *input)
         return FLOW_LEVEL;
 
     case FLOW_LEVEL:
-        /* The level is running (loading and the party pre-level screen are
-         * M4 content; the 6-min countdown lives under level_init later). */
+        /* The level spine and the party pre-screen both live in game_main's
+         * main-loop FLOW_LEVEL branch (the load + the tick gate are there). */
         return FLOW_LEVEL;
     }
     return state;
@@ -101,6 +101,7 @@ int game_main(const OSystem *osys)
 
     GameFlow state = FLOW_ATTRACT, prev = FLOW_ATTRACT;
     unsigned last_tick = 0;
+    static int partyTried, partyPlaying;
     for (;;) {
         /* the tick gate: one flow step per tick boundary, exactly like the
          * original's foreground spinning on the ISR counter [0x5AC8].  The
@@ -108,6 +109,7 @@ int game_main(const OSystem *osys)
         osys->tickSync(&last_tick);
 
         InputState input;
+
         osys->eventsPoll(&input);
         scene_noteInput(&input);   /* the waits read this tick's state */
         if (input.quit) break;
@@ -123,9 +125,12 @@ int game_main(const OSystem *osys)
 
         state = gameflow_step(state, &input);
         if (state == FLOW_LEVEL) {
-            /* entering the level: the header + map load, then its intro
-             * cutscene (cd_file_op); the level proper ticks after it */
+            /* entering the level: the header + map load, then the party's
+             * pre-level screen (level_run's fresh-load 307a path — the
+             * .ANI cutscene is not on this path, re_map.md); the level
+             * proper ticks after both. */
             if (prev != FLOW_LEVEL) {
+                partyTried = 0; partyPlaying = 0;
                 if (level_load(level_current) == 0) {
                     /* load_terrain_b (1000:5168): the level's own map
                      * spawns/joins the entities, once per load */
@@ -135,15 +140,31 @@ int game_main(const OSystem *osys)
                 }
             }
             const LevelData *lv = level_data();
-            if (lv && scene_playLevelIntro(lv->introIndex)) {
+            if (lv && !partyTried) {
+                /* level_run's values: the level letter (the [0x1f41]
+                 * 1-based), the need ([0x17fb]), the tribe members
+                 * ([0x11fc], level A's [live] = 12), the score ([0x592],
+                 * fresh load = 0) and the tribe name (load_level's
+                 * 0x1189).  A no-data run skips (start returns 0). */
+                partyTried = 1;
+                party_intro_setValues(level_current + 1u, lv->goalCount,
+                                      12u, 0u, "DARWIN");
+                partyPlaying = party_intro_start();
+            }
+            if (partyPlaying) {
+                if (party_intro_tick(&input))
+                    goto present;          /* the screen plays      */
+                partyPlaying = 0;          /* its exit finished      */
+            } else if (lv && scene_playLevelIntro(lv->introIndex)) {
                 /* the intro is playing — the level waits */
             } else {
-                level_tick();          /* the intro done: the level runs */
+                level_tick();          /* the party done: the level runs */
             }
         }
         /* the intro/level draw into page 0; the CRTC-flip equivalent shows
          * the drawn page (the in-level page flip lands with the level
          * rendering) */
+present:
         osys->videoPresent(0);
         prev = state;
     }

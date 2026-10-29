@@ -290,6 +290,29 @@ int  frontend_tick(const InputState *in);
  * it to [0x22]; game_main does the same into its level counter. */
 unsigned frontend_selectedLevel(void);
 
+/* --- src/party_intro.c — the level-intro party screen (subsystem 14) --
+ *
+ * level_intro_screen (1000:2508): the fresh-load briefing.  The screen is
+ * reached from FLOW_LEVEL's fresh-load path (level_run's 307a call; the
+ * .ANI cutscene is not part of this screen — see next_step.md's note).
+ * party_intro_start seeds and runs the setup (the 5 asset loads, the
+ * double .BIT bake with the flip, the master-palette copy, the 35-step
+ * fade-in); party_intro_tick is one display period of the machine, and
+ * returns 1 while the screen plays, 0 after its exit's music_stop.
+ * A headless run without the disc data skips the screen (start returns 0).
+ *
+ * Facts: re_map.md → "The level-intro party screen decoded end to end
+ * (2026-10-29)" (all render gates closed); the memory model and the
+ * machine notes are in party_intro.c's header.
+ */
+void party_intro_setValues(unsigned level, unsigned need, unsigned members,
+                           unsigned score, const char *tribe);
+void party_intro_seedScripts(const uint8_t *bytes, unsigned len);
+void party_intro_seedSlots(const uint8_t *raw);   /* the 128 B at DS:0xFA8 */
+int  party_intro_start(void);
+int  party_intro_tick(const InputState *in);
+void party_intro_formatScore(unsigned v, char *out);   /* 2b1b/2b70       */
+void party_intro_compose(uint8_t *page320x200); /* the law compose for the fixtures */
 /* --- src/save.c — the save-game format (byte-compatible) -------------- */
 int  save_init(const OSystem *osys);
 
