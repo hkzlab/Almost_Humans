@@ -66,11 +66,11 @@ int main(int argc, char **argv)
     }
 
     const uint8_t *dac = palette_dacShadow();
-    printf("fade: first=%u comps=%u tgt=%p workpal=%p masterpal=%p\n",
+    printf("fade: first=%u comps=%u tgt=%p workpal=%p palUpper=%p\n",
            palette_fadeFirst(), palette_fadeComps(),
            (const void *)palette_fadeTarget(),
            (const void *)party_intro_workpal(),
-           (const void *)party_intro_masterpal());
+           (const void *)party_intro_palUpper());
     printf("fadeTarget[0..8]:  ");
     for (unsigned i = 0; i < 9u; i++) printf("%02x ", palette_fadeTarget()[i]);
     printf("\nfadeTarget[360..368]: ");

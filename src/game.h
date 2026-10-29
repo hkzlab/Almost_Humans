@@ -319,7 +319,7 @@ int  party_intro_tick(const InputState *in);
 void party_intro_formatScore(unsigned v, char *out);   /* 2b1b/2b70       */
 void party_intro_compose(uint8_t *page320x200); /* the law compose for the fixtures */
 const uint8_t *party_intro_workpal(void);   /* the 0x4bbc stand-in (diagnostics) */
-const uint8_t *party_intro_masterpal(void); /* the 0x4d3c stand-in (diagnostics) */
+const uint8_t *party_intro_palUpper(void); /* 0x4d3c = 0x4bbc + 0x180 (diagnostics) */
 /* --- src/save.c — the save-game format (byte-compatible) -------------- */
 int  save_init(const OSystem *osys);
 

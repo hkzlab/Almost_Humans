@@ -25,7 +25,7 @@
  * The identity 20·80 = 0x640 marshals the three layers.
  *
  * Machine (one op = one tick where the original iterates):
- *   the 5 loads + consumers (2570..25b6); the master-palette copy (25b8);
+ *   the 5 loads + consumers (2570..25b6); 0x1208 <- 0x4D3C (25bc);
  *   the bake ×2 with the 28e9 flip between (25ca..25d8); 28d0 (25da);
  *   palette_build_fade(0, 0x100, 0x23, 0x4bbc) (25dd); the 25ec wait; the
  *   2600 loop:
@@ -56,6 +56,13 @@
  * stride [0x1206] — exactly the rescale group grid (47*320+319 = 15359 =
  * the strip's last byte; the numbers close).
  *
+ * The palette buffers (2026-10-30): 0x4bbc is the .PAL working palette, and
+ * 0x4d3c is NOT a separate buffer — it is 0x4bbc + 0x180, the file's own
+ * upper half (entries 128..255). 28d0 replicates .PAL[0..31] four times
+ * over it, 25bc snapshots it to 0x1208, 2b9c fades the text window from the
+ * 28d0 blues into that grey snapshot (the fade-in), and 2bda re-runs 28d0
+ * and fades back (the text then equals the background and vanishes).
+ *
  * Port-only caveats: with no disc the loads fail and the screen is
  * skipped — the load-failure path the scene player established; the
  * music/marker calls (play_tune 8437, music_resume 83f7, timing_loop 84a5,
@@ -85,7 +92,7 @@ static uint8_t  strip[15360];         /* [0x1206]: the rescaled birdy       */
 static uint8_t  workpal[768];          /* 202F:0x4bbc                        */
 /* 0x4d3c is not a buffer of its own: it is 0x4bbc + 0x180, the .PAL working
  * palette's own upper half (28d0 = 4 × 0x60 B from .PAL[0..31]). */
-static uint8_t *const masterpal = workpal + 0x180;   /* 202F:0x4d3c       */
+static uint8_t *const palUpper = workpal + 0x180;   /* 202F:0x4d3c       */
 static uint8_t  prevpal[0x180];        /* 202F:0x1208: the party-write DAC snapshot */
 static uint8_t  rampTbl[150];          /* CS:0x2DFE..0x2E93 (0x96 bytes)      */
 static uint8_t *bitImg;                /* the loaded lbm\party1.bit          */
@@ -356,12 +363,13 @@ static void draw_text_ramped(const char *s, unsigned centreX, unsigned row)
                                             * the canvas glyph is NOT rendered */
 }
 
-/* 28d0 copy_palette_into_draw: 4 × 0x60 bytes .PAL[0..31] -> .PAL[128..255]
- * (so the window fade targets the blues, not the file's grey upper half). */
+/* 28d0 palette_copy_low_to_upper: 4 × 0x60 bytes .PAL[0..31] ->
+ * .PAL[128..255] (so the window fade targets the blues, not the file's grey
+ * upper half). */
 static void copy_palette(void)
 {
     for (unsigned p = 0; p < 4u; p++)
-        memcpy(masterpal + p * 0x60u, workpal, 0x60u);
+        memcpy(palUpper + p * 0x60u, workpal, 0x60u);
 }
 
 /* 2b9c intro_anim: the backdrop band twice, then the snapshot restore and
@@ -372,8 +380,8 @@ static void intro_anim(void)
 {
     band_stamp(pageDraw); anim_entities();
     band_stamp(pageDraw); anim_entities();
-    memcpy(masterpal, prevpal, 0x180u);        /* 2bbf..2bc8: 0x1208 -> 0x4d3c */
-    palette_buildFade(0x80u, 0x80u, 0x28u, masterpal);   /* 2bca: BX=0x80 */
+    memcpy(palUpper, prevpal, 0x180u);        /* 2bbf..2bc8: 0x1208 -> 0x4d3c */
+    palette_buildFade(0x80u, 0x80u, 0x28u, palUpper);   /* 2bca: BX=0x80 */
 }
 
 /* the machine state (the ticker's + 2bda's phase-split) */
@@ -409,7 +417,7 @@ static unsigned swPhase = SW_FADEWAIT;
 static void swap_begin(unsigned next)
 {
     copy_palette();                                 /* 2bda (28d0)          */
-    palette_buildFade(0x80u, 0x80u, 0x28u, masterpal);
+    palette_buildFade(0x80u, 0x80u, 0x28u, palUpper);
     swapNext = next;
     swPhase = SW_FADEWAIT;                          /* 2bec: the fade runs  */
     phase = PH_SWAPWAIT;
@@ -516,9 +524,10 @@ static uint8_t *load(const char *name)
 }
 
 /* the palette buffers, exposed for the fade-ladder harness: the port's
- * 0x4bbc/0x4d3c/0x1208 stand-ins (read-only diagnostics, see test_fadeladder) */
+ * 0x4bbc/0x4d3c(+0x180)/0x1208 stand-ins (read-only diagnostics, see
+ * test_fadeladder) */
 const uint8_t *party_intro_workpal(void) { return workpal; }
-const uint8_t *party_intro_masterpal(void) { return masterpal; }
+const uint8_t *party_intro_palUpper(void) { return palUpper; }
 
 int party_intro_start(void)
 {
@@ -558,7 +567,7 @@ int party_intro_start(void)
     else   { fontBytes = NULL; font_publish(NULL); }
 
     /* 25bc: 0x1208 <- DS:0x4d3c (the .PAL's upper half, verbatim) */
-    memcpy(prevpal, masterpal, 0x180u);
+    memcpy(prevpal, palUpper, 0x180u);
 
     bake_page(bitImg, pageDraw);               /* 25ca..25d8: the bake x2 */
     anim_entities();
