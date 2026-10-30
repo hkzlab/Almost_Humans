@@ -619,6 +619,545 @@ int main(int argc, char **argv)
                         }
                     check(bad3 == 0u, "frame 0x2B (mode 2) draws 32 px wide");
                 }
+                /* 1000:E3F6, the command dispatch: the type row (DS:0x698A)
+                 * picks the handler index, the table at DS:0x6918 the address.
+                 * Type 2 is a human, type 8 one of the walkers, type 15 has its
+                 * own tail handler instead of the common 0xC7D9. */
+                {
+                    ObjCommand c;
+
+                    object_init();
+                    rec = object_slot(0);
+                    rec[8] = 0x02; rec[9] = 0x00;
+                    c = object_commandSelect(rec, 0x02);   /* bit 1 -> command 4 */
+                    check(c.handler == 0xE609u && c.command == 4u &&
+                          c.tail == 0xD9C7u,
+                          "type 2 + bit 1 -> 1000:E609, the push's walk-up");
+                    rec[8] = 0x08;
+                    c = object_commandSelect(rec, 0x01);   /* bit 0 -> command 0 */
+                    check(c.handler == 0xE963u && c.command == 0u,
+                          "type 8 + bit 0 -> 1000:E963 (the snap)");
+                    rec[8] = 0x0F;
+                    c = object_commandSelect(rec, 0x02);
+                    check(c.handler == 0u && c.tail == 0xDC1Fu,
+                          "type 15 + command 4 -> no handler, the row's own tail");
+                    /* the one-shot command (key 0x48 = bit 6 + command 8) counts
+                     * down from 0x4B0 and turns the record into a human (type 2) */
+                    object_init();
+                    rec = object_slot(0);
+                    rec[8] = 0x00; rec[9] = 0x00;
+                    for (unsigned i = 0; i < 1201u; i++)
+                        (void)object_commandSelect(rec, 0x00);
+                    check(rec[8] == 0x02u && rec[9] == 0x00u,
+                          "the 0x6DEA one-shot expires to type 2");
+                }
+                /* The human stack, end to end (re_map.md: 0x6F22).  Op 1
+                 * registers the base (frame 0x20, type 8), 1000:E697 pushes a
+                 * human standing just above it (frame 0x25, type 7), 1000:FDED
+                 * pops the top member, and 1000:F453 + 1000:FA13 dissolve the
+                 * group - which is what exercises the n >= 1 handlers. */
+                {
+                    uint8_t *base, *top, *below;
+
+                    object_init();
+                    base = object_slot(0);
+                    base[0] = 100; base[1] = 0; base[2] = 100; base[3] = 0;
+                    base[4] = 0x10; base[6] = 0; base[8] = 2; base[9] = 0;
+                    object_setActionEntity(0u);
+                    object_actionSetProgram(1u);   /* prog[3] = op 1 */
+                    object_actionSetCursor(2u);
+                    object_actionRun();
+                    check((base[4] | (base[5] << 8)) == 0x0020u &&
+                          (base[8] | (base[9] << 8)) == 0x0008u,
+                          "op 1 registers the base (frame 0x20, type 8)");
+                    top = object_slot(1);
+                    top[0] = 100; top[1] = 0; top[2] = 70; top[3] = 0;
+                    top[4] = 0x10; top[6] = 0; top[8] = 2; top[9] = 0;
+                    object_setActionEntity(1u);
+                    check(object_stackPush(top) == 1,
+                          "the push takes the human standing above the base");
+                    check((top[4] | (top[5] << 8)) == 0x0025u &&
+                          (top[8] | (top[9] << 8)) == 0x0007u &&
+                          (top[0xE] | (top[0xF] << 8)) != 0u,
+                          "the pushed human is frame 0x25 / type 7 with its slot");
+                    /* the pop: a caller x far from the owner truncates the list
+                     * at the top member and returns the record below it */
+                    check(object_stackPop(200u, &below, NULL) == 1 && below == base,
+                          "the pop removes the top member and names the base");
+                    check(object_stackScanDissolve(1u) == 0,
+                          "the popped record is no longer in any group");
+                    /* push again and dissolve: n = 1 restores the member */
+                    check(object_stackPush(top) == 1, "the push works again");
+                    check(object_stackScanDissolve(1u) == 1,
+                          "the scan finds and dissolves the group holding rec 1");
+                    check((top[4] | (top[5] << 8)) == 0x0010u &&
+                          (top[8] | (top[9] << 8)) == 0x0003u,
+                          "n = 1 dissolves the member to frame 0x10 / type 3");
+                    check((base[4] | (base[5] << 8)) == 0x0020u,
+                          "the base is untouched by an n = 1 dissolve");
+                }
+                /* The other four verbs: grab (1000:E58B, with its free-slot
+                 * registration), step off (1000:E860), leave (1000:E8DD),
+                 * snap (1000:E963) and the selector (1000:F17C).  The 0x64AD /
+                 * 0x64C1 masks are written by the pushes and read by the
+                 * selector's 0x6F22 check. */
+                {
+                    uint8_t *base, *top;
+
+                    object_init();
+                    base = object_slot(0);
+                    base[0] = 100; base[1] = 0; base[2] = 100; base[3] = 0;
+                    base[4] = 0x10; base[6] = 0; base[8] = 2; base[9] = 0;
+                    object_setActionEntity(0u);
+                    object_actionSetProgram(1u);
+                    object_actionSetCursor(2u);
+                    object_actionRun();                /* op 1: the base */
+                    top = object_slot(1);
+                    top[0] = 102; top[1] = 0; top[2] = 101; top[3] = 0;
+                    top[4] = 0x10; top[6] = 0; top[8] = 2; top[9] = 0;
+                    object_setActionEntity(1u);
+                    check(object_stackGrab(top) == 1,
+                          "the grab takes a human within 8 x / 4 y");
+                    check((top[4] | (top[5] << 8)) == 0x0023u &&
+                          (top[8] | (top[9] << 8)) == 0x0006u &&
+                          (top[2] | (top[3] << 8)) == 100u,
+                          "the grabbed human is frame 0x23 / type 6 at the base x");
+                    /* snap: the grabbed record is the top member */
+                    object_init();
+                    base = object_slot(0);
+                    base[0] = 100; base[1] = 0; base[2] = 100; base[3] = 0;
+                    base[4] = 0x10; base[6] = 0; base[8] = 2; base[9] = 0;
+                    object_setActionEntity(0u);
+                    object_actionSetProgram(1u);
+                    object_actionSetCursor(2u);
+                    object_actionRun();
+                    top = object_slot(1);
+                    top[0] = 100; top[1] = 0; top[2] = 70; top[3] = 0;
+                    top[4] = 0x10; top[6] = 0; top[8] = 2; top[9] = 0;
+                    object_setActionEntity(1u);
+                    check(object_stackPush(top) == 1, "the push for the verbs");
+                    top[0] = 120;                      /* off the base's x */
+                    check(object_stackSnap(top) == 1 &&
+                          (top[0] | (top[1] << 8)) == 100u &&
+                          (top[4] | (top[5] << 8)) == 0x0020u,
+                          "the snap puts the top member on the base's x");
+                    /* step off: on `entry.y - 0x18 == actor.y` the actor and the
+                     * list byte below it both move down 8 */
+                    top[2] = 76; top[3] = 0;
+                    check(object_stackStepOff(top) == 1 &&
+                          (top[2] | (top[3] << 8)) == 84u &&
+                          (top[4] | (top[5] << 8)) == 0x0020u &&
+                          (top[8] | (top[9] << 8)) == 8u,
+                          "the step off moves the actor down 8 (frame 0x20)");
+                    check((base[2] | (base[3] << 8)) == 108u &&
+                          (base[4] | (base[5] << 8)) == 0x0021u,
+                          "the step off moves the record below it too");
+                    /* leave: on `entry.y == actor.y` the actor is a standing
+                     * human again and the list is cut at its stored slot */
+                    top[2] = 100; top[3] = 0;
+                    check(object_stackLeave(top) == 1 &&
+                          (top[4] | (top[5] << 8)) == 0x0010u &&
+                          (top[8] | (top[9] << 8)) == 2u,
+                          "the leave restores the actor (frame 0x10 / type 2)");
+                    check(object_stackScanDissolve(1u) == 0,
+                          "the leave cut the list at the actor's slot");
+                }
+                /* the selector (1000:F17C): its stack path removes the member,
+                 * and its two terrain-dependent branches report -2 */
+                {
+                    uint8_t *base, *top, *below;
+
+                    object_init();
+                    base = object_slot(0);
+                    base[0] = 100; base[1] = 0; base[2] = 100; base[3] = 0;
+                    base[4] = 0x10; base[6] = 0; base[8] = 2; base[9] = 0;
+                    object_setActionEntity(0u);
+                    object_actionSetProgram(1u);
+                    object_actionSetCursor(2u);
+                    object_actionRun();
+                    top = object_slot(1);
+                    top[0] = 100; top[1] = 0; top[2] = 70; top[3] = 0;
+                    top[4] = 0x10; top[6] = 0; top[8] = 2; top[9] = 0;
+                    object_setActionEntity(1u);
+                    check(object_stackPush(top) == 1, "the push for the selector");
+                    /* frame 0x25 is not the stack pose, so a near target hands
+                     * over to the walk step (1000:E6FB -> 1000:F25F, the level's
+                     * two maps).  It either steps or refuses whole. */
+                    {
+                        uint16_t x0 = (uint16_t)(top[0] | (top[1] << 8));
+
+                        check(object_selector(top, 1u, 8u, 1u) == 0 &&
+                              (top[4] | (top[5] << 8)) == 0x0008u &&
+                              (uint16_t)(top[0] | (top[1] << 8)) == x0,
+                              "a far target only writes the frame (1000:F20C)");
+                    }
+                    /* in the stack pose the selector is a plain frame write */
+                    check(object_stackSnap(top) == 1, "the snap before the selector");
+                    check(object_selector(top, 1u, 8u, 1u) == 0 &&
+                          (top[4] | (top[5] << 8)) == 8u,
+                          "the selector writes the target frame in the stack pose");
+                    /* a caller x far from the record below removes the member;
+                     * the unmarked 0x64AD/0x64C1 bit then runs 1000:E389 and
+                     * 1000:F223, which either takes the entry's x or stops on a
+                     * special tile (field K's [0x6F20]/[0x6F21]) */
+                    top[0] = 140; top[1] = 0;
+                    check(object_selector(top, 200u, 8u, 1u) == 0 &&
+                          (top[8] | (top[9] << 8)) == 1u,
+                          "the selector's removal sets the wrapper's type");
+                    check((top[0] | (top[1] << 8)) == 100u,
+                          "1000:F223 puts the actor on the entry's x");
+                    check((base[2] | (base[3] << 8)) == 92u &&
+                          (base[4] | (base[5] << 8)) == 0x0020u,
+                          "the record below moves up 8 and takes frame 0x20");
+                    below = NULL;
+                    check(object_stackPop(100u, &below, NULL) == -1 &&
+                          object_stackScanDissolve(1u) == 0,
+                          "the selector removed the member from the group");
+                }
+                /* The walk step (1000:E6FB/E764) against level 1's two maps:
+                 * the selector pops first, so the actor must be a topmost
+                 * stack member; the step then depends on the tile above it
+                 * (0x92A0's page byte) and the item record's bit (0x1FD6).
+                 * Scan the map for a cell that steps and one that refuses. */
+                {
+                    int stepped = 0, refused = 0, right = 0;
+
+                    for (unsigned y = 32u; y < 152u; y += 16u) {
+                        for (unsigned x = 16u; x < 304u; x += 16u) {
+                            uint8_t *base, *top2;
+                            uint16_t x0, f0, x1;
+
+                            object_init();
+                            base = object_slot(0);
+                            base[0] = (uint8_t)x; base[1] = 0;
+                            base[2] = (uint8_t)y; base[3] = 0;
+                            base[4] = 0x10; base[6] = 0; base[8] = 2; base[9] = 0;
+                            object_setActionEntity(0u);
+                            object_actionSetProgram(1u);
+                            object_actionSetCursor(2u);
+                            object_actionRun();
+                            top2 = object_slot(1);
+                            top2[0] = (uint8_t)x; top2[1] = 0;
+                            top2[2] = (uint8_t)(y - 0x1Cu); top2[3] = 0;
+                            top2[4] = 0x10; top2[6] = 0; top2[8] = 2; top2[9] = 0;
+                            object_setActionEntity(1u);
+                            if (object_stackPush(top2) != 1) continue;
+                            /* the first call lands the frame in the left cycle
+                             * (1000:F20C); the second one is the walk's own
+                             * distance test (0 <= frame - 8 < 8) */
+                            if (object_selector(top2, 1u, 8u, 1u) != 0) continue;
+                            x0 = (uint16_t)(top2[0] | (top2[1] << 8));
+                            f0 = (uint16_t)(top2[4] | (top2[5] << 8));
+                            if (object_selector(top2, 1u, 8u, 1u) != 0) continue;
+                            x1 = (uint16_t)(top2[0] | (top2[1] << 8));
+                            if (x1 == x0) {
+                                check((top2[4] | (top2[5] << 8)) == f0,
+                                      "a refused walk step leaves the frame alone");
+                                refused++;
+                                continue;
+                            }
+                            check(x1 == (uint16_t)(x0 - 1u),
+                                  "the left walk step moves x by one");
+                            check((unsigned)(top2[4] | (top2[5] << 8)) >= 8u &&
+                                  (unsigned)(top2[4] | (top2[5] << 8)) <= 0x000Fu,
+                                  "the left walk frame lands in 8..0xF");
+                            stepped++;
+                            /* the right walk (1000:E764) from the same spot:
+                             * [0x4238] = 0 puts the frame in the 0..7 cycle */
+                            (void)object_selector(top2, 1u, 0u, 0u);
+                            if (object_selector(top2, 1u, 0u, 0u) == 0 &&
+                                (uint16_t)(top2[0] | (top2[1] << 8)) ==
+                                    (uint16_t)(x1 + 1u) &&
+                                (unsigned)(top2[4] | (top2[5] << 8)) <= 7u)
+                                right++;
+                        }
+                    }
+                    check(stepped != 0, "some cell of level 1 lets the walk step");
+                    check(refused != 0, "some cell of level 1 refuses the walk step");
+                    check(right != 0, "the right walk step mirrors the left");
+                }
+
+                /* The two movement states that feed the stack: 1000:E4F8 (step
+                 * down) and 1000:E609 (walk up).  Their feet cell decides a
+                 * special tile (field K), a 0x6F92 span, else the grab / the
+                 * push.  No 0x6F92 span exists in these tests, so the tile rule
+                 * and the dispatch are what is driven. */
+                {
+                    const uint8_t *map = level_map();
+                    uint8_t *a0, *a1;
+                    unsigned sp0 = level_specialTile(0u), sp1 = level_specialTile(1u);
+                    int found = 0, col = 0, row = 0;
+                    int tileUp = 0, tileDown = 0;
+
+                    check(map != NULL, "level 1's map is loaded for the states");
+                    for (unsigned r = 0; r < 640u && !found; r++)
+                        if (map[r] == sp0 || map[r] == sp1) {
+                            found = 1; row = (int)(r / 32u); col = (int)(r % 32u);
+                        }
+                    if (found) {
+                        object_init();
+                        a0 = object_slot(0);
+                        a0[0] = (uint8_t)(16 * col - 8); a0[1] = 0;
+                        a0[2] = (uint8_t)(16 * row - 0x19); a0[3] = 0;
+                        a0[4] = 0x10; a0[6] = 0; a0[8] = 2; a0[9] = 0;
+                        check(object_stepUp(a0) == 1 &&
+                              (a0[0] | (a0[1] << 8)) == 16 * col &&
+                              (a0[2] | (a0[3] << 8)) == 16 * row - 0x18 &&
+                              (a0[4] | (a0[5] << 8)) == 0x25u &&
+                              (a0[8] | (a0[9] << 8)) == 5u,
+                              "the walk-up tile rule snaps to the grid");
+                        tileUp = 1;
+                        object_init();
+                        a0 = object_slot(0);
+                        a0[0] = (uint8_t)(16 * col - 8); a0[1] = 0;
+                        a0[2] = (uint8_t)(16 * row - 0x16); a0[3] = 0;
+                        a0[4] = 0x10; a0[6] = 0; a0[8] = 2; a0[9] = 0;
+                        check(object_stepDown(a0) == 1 &&
+                              (a0[4] | (a0[5] << 8)) == 0x23u &&
+                              (a0[8] | (a0[9] << 8)) == 4u,
+                              "the step-down tile rule sets frame 0x23 / type 4");
+                        tileDown = 1;
+                    }
+                    check(tileUp != 0 && tileDown != 0,
+                          "level 1 has a special tile for both states");
+                    /* with no group and no span: up does nothing, down
+                     * registers the base (the grab's free-slot path), and the
+                     * next walk-up pushes onto it */
+                    object_init();
+                    a0 = object_slot(0);
+                    a0[0] = 100; a0[1] = 0; a0[2] = 100; a0[3] = 0;
+                    a0[4] = 0x10; a0[6] = 0; a0[8] = 2; a0[9] = 0;
+                    object_setActionEntity(0u);
+                    check(object_stepUp(a0) == 4, "walk-up with no group does nothing");
+                    check(object_stepDown(a0) == 4 &&
+                          (a0[4] | (a0[5] << 8)) == 0x0020u &&
+                          (a0[8] | (a0[9] << 8)) == 8u,
+                          "step-down registers the base (frame 0x20 / type 8)");
+                    {
+                        int pushed = 0;
+
+                        for (unsigned ty = 68u; ty < 76u && !pushed; ty++) {
+                            object_init();
+                            a0 = object_slot(0);
+                            a0[0] = 100; a0[1] = 0; a0[2] = 100; a0[3] = 0;
+                            a0[4] = 0x10; a0[6] = 0; a0[8] = 2; a0[9] = 0;
+                            object_setActionEntity(0u);
+                            if (object_stepDown(a0) != 4) continue;
+                            a1 = object_slot(1);
+                            a1[0] = 100; a1[1] = 0; a1[2] = (uint8_t)ty; a1[3] = 0;
+                            a1[4] = 0x10; a1[6] = 0; a1[8] = 2; a1[9] = 0;
+                            object_setActionEntity(1u);
+                            if (object_stepUp(a1) != 3) continue;
+                            check((a1[4] | (a1[5] << 8)) == 0x0025u &&
+                                  (a1[8] | (a1[9] << 8)) == 7u,
+                                  "walk-up pushes (frame 0x25 / type 7)");
+                            pushed = 1;
+                        }
+                        check(pushed != 0, "walk-up pushes onto the registered base");
+                    }
+                /* 1000:E4B0: the dispatch runs the handler, not just selects it.
+                 * The movement states change the record's type, which skips the
+                 * tail (1000:E4CC); a row with no handler but a ported tail
+                 * reports the tail, and anything without a port says so. */
+                {
+                    uint8_t *base, *a1;
+
+                    object_init();
+                    base = object_slot(0);
+                    base[0] = 100; base[1] = 0; base[2] = 100; base[3] = 0;
+                    base[4] = 0x10; base[6] = 0; base[8] = 2; base[9] = 0;
+                    object_setActionEntity(0u);
+                    check(object_stepDown(base) == 4, "the base registers");
+                    a1 = object_slot(1);
+                    a1[0] = 100; a1[1] = 0; a1[2] = 70; a1[3] = 0;
+                    a1[4] = 0x10; a1[6] = 0; a1[8] = 2; a1[9] = 0;
+                    object_setActionEntity(1u);
+                    check(object_commandRun(a1, 0x02u) == OBJ_CMD_HANDLER,
+                          "type 2 + bit 1 runs the walk-up handler");
+                    check((a1[8] | (a1[9] << 8)) != 2u,
+                          "...whose type change skips the row's tail");
+                    /* command 2 -> the type-2 row's index 6 (1000:E790, the
+                     * idle handler): frame 0x10/type 2 -> 0/0 with a 4-frame
+                     * countdown, a type change, so the tail is skipped */
+                    a1[8] = 2; a1[9] = 0;
+                    a1[4] = 0x10; a1[5] = 0; a1[0xA] = 0; a1[0xB] = 0;
+                    check(object_commandRun(a1, 0x08u) == OBJ_CMD_HANDLER &&
+                          (a1[4] | (a1[5] << 8)) == 0u &&
+                          (a1[8] | (a1[9] << 8)) == 0u &&
+                          (a1[0xA] | (a1[0xB] << 8)) == 4u,
+                          "command 2 runs the idle handler (frame 0 / type 0)");
+                    /* command 6 -> index 4 (1000:E72A): 0x10 -> 8 / type 1 */
+                    a1[8] = 2; a1[9] = 0;
+                    a1[4] = 0x10; a1[5] = 0; a1[0xA] = 0; a1[0xB] = 0;
+                    check(object_commandRun(a1, 0x04u) == OBJ_CMD_HANDLER &&
+                          (a1[4] | (a1[5] << 8)) == 8u &&
+                          (a1[8] | (a1[9] << 8)) == 1u,
+                          "command 6 runs the other idle handler (frame 8 / type 1)");
+                    /* a handler with no port still reports it */
+                    a1[8] = 18; a1[9] = 0;
+                    check(object_commandRun(a1, 0x08u) == OBJ_CMD_UNPORTED,
+                          "an unported handler is reported");
+                    /* type 6's row has no handler for command 0, hook 0 and the
+                     * tail 1000:E860 (the step off) */
+                    a1[8] = 6; a1[9] = 0;
+                    check(object_commandRun(a1, 0x01u) == OBJ_CMD_TAIL,
+                          "a row with only a ported tail reports the tail");
+                    /* type 15's tail is 1000:DC1F, not ported */
+                    a1[8] = 15; a1[9] = 0;
+                    check(object_commandRun(a1, 0x01u) == OBJ_CMD_UNPORTED,
+                          "an unported tail is reported");
+                }
+                /* load_terrain_b's 0xF0..0xF2 tile: the shared decoration
+                 * handler (1000:556B) appends {x, y, frame, +8 = frame} with
+                 * behaviour 1 (frame 0xC1 / 0xC5 / 0xC9). */
+                {
+                    static uint8_t m[640];
+                    unsigned n;
+                    uint8_t *r;
+
+                    memset(m, 0, sizeof m);
+                    m[2u * 32u + 3u] = 0xF0u;             /* row 2, col 3 */
+                    m[5u * 32u + 7u] = 0xF2u;             /* row 5, col 7 */
+                    object_init();
+                    n = object_loadTerrainObjects(m);
+                    check(n == 10u, "the decorations append two records");
+                    r = object_slot(9);
+                    check(r != NULL && (r[0] | (r[1] << 8)) == 48u &&
+                          (r[2] | (r[3] << 8)) == 32u &&
+                          (r[4] | (r[5] << 8)) == 0x00C1u &&
+                          (r[8] | (r[9] << 8)) == 0x00C1u,
+                          "0xF0 appends frame 0xC1 at (col*16, row*16)");
+                    r = object_slot(10);
+                    check(r != NULL && (r[0] | (r[1] << 8)) == 112u &&
+                          (r[4] | (r[5] << 8)) == 0x00C9u,
+                          "0xF2 appends frame 0xC9");
+                }
+                /* load_terrain_b's 0xA9 tile: 1000:51F9 appends the five
+                 * records from the 0x1EFE offset table at
+                 * (col*16 + dx, row*16 + 1 + dy), frames 0x33..0x37. */
+                {
+                    static uint8_t m[640];
+
+                    memset(m, 0, sizeof m);
+                    m[3u * 32u + 2u] = 0xA9u;             /* row 3, col 2 */
+                    object_init();
+                    check(object_loadTerrainObjects(m) == 13u,
+                          "0xA9 appends its five records");
+                    check((object_slot(9)[0] | (object_slot(9)[1] << 8)) == 48u &&
+                          (object_slot(9)[2] | (object_slot(9)[3] << 8)) == 0x44u &&
+                          (object_slot(9)[4] | (object_slot(9)[5] << 8)) == 0x33u,
+                          "the first record is (col*16+0x10, row*16+0x14) frame 0x33");
+                    check((object_slot(13)[4] | (object_slot(13)[5] << 8)) == 0x37u,
+                          "the fifth record is frame 0x37");
+                    check(m[4u * 32u + 2u] == 0xC2u && m[4u * 32u + 3u] == 0xC9u,
+                          "0xA9 marks the two cells a row below as 0xC2/0xC9");
+                    /* 0xB7: two appended records, the only computed class
+                     * (+6 = (count-6)<<8) and frame 0x116 / 0x11A */
+                    {
+                        static uint8_t m3[640], m4[640];
+
+                        memset(m3, 0, sizeof m3);
+                        m3[2u * 32u + 2u] = 0xB7u;
+                        object_init();
+                        check(object_loadTerrainObjects(m3) == 10u,
+                              "0xB7 appends two records");
+                        check((object_slot(9)[4] | (object_slot(9)[5] << 8)) == 0x0116u &&
+                              (object_slot(9)[6] | (object_slot(9)[7] << 8)) == 0x0200u &&
+                              (object_slot(9)[0xA] | (object_slot(9)[0xB] << 8)) == 2u,
+                              "0xB7: frame 0x116, class (count-6)<<8, +0xA = 2");
+                        check((object_slot(10)[4] | (object_slot(10)[5] << 8)) == 0u &&
+                              object_slotClass(1u) == 8u &&
+                              object_slotClass(2u) == 0x85u,
+                              "0xB7: behaviour 8 then an empty record with 0x85");
+                        /* a 0xB6 within four columns either side: frame 0x11A */
+                        memset(m4, 0, sizeof m4);
+                        m4[2u * 32u + 5u] = 0xB7u;
+                        m4[2u * 32u + 2u] = 0xB6u;
+                        object_init();
+                        (void)object_loadTerrainObjects(m4);
+                        check((object_slot(10)[4] | (object_slot(10)[5] << 8)) == 0x011Au &&
+                              (object_slot(10)[0xA] | (object_slot(10)[0xB] << 8)) == 3u,
+                              "0xB7 beside a 0xB6: frame 0x11A and +0xA = 3");
+                        /* 0xBB / 0xC1: two more appends (0x26 / 0x100) */
+                        memset(m4, 0, sizeof m4);
+                        m4[1u * 32u + 1u] = 0xBBu;
+                        m4[1u * 32u + 2u] = 0xC1u;
+                        object_init();
+                        check(object_loadTerrainObjects(m4) == 10u &&
+                              (object_slot(9)[4] | (object_slot(9)[5] << 8)) == 0x0026u &&
+                              (object_slot(10)[4] | (object_slot(10)[5] << 8)) == 0x0100u &&
+                              (object_slot(10)[2] | (object_slot(10)[3] << 8)) == 0u,
+                              "0xBB appends 0x26, 0xC1 appends 0x100 at y-0x10");
+                        /* 0xBE + 0xBF: the join writes the 0xBF tile's x into the
+                         * record 0xBE made (+0xC) */
+                        memset(m4, 0, sizeof m4);
+                        m4[1u * 32u + 1u] = 0xBEu;
+                        m4[1u * 32u + 4u] = 0xBFu;
+                        object_init();
+                        check(object_loadTerrainObjects(m4) == 9u &&
+                              (object_slot(9)[4] | (object_slot(9)[5] << 8)) == 0x0082u &&
+                              (object_slot(9)[0xC] | (object_slot(9)[0xD] << 8)) == 64u,
+                              "0xBF joins into 0xBE's record (+0xC = its x)");
+                    }
+                    /* 0xAC/0xAD/0xAE: one record each, then 1000:5639 snaps its
+                     * y to the terrain step at (x+8, y+0x10) */
+                    {
+                        static uint8_t m2[640];
+
+                        memset(m2, 0, sizeof m2);
+                        m2[1u * 32u + 1u] = 0xACu;
+                        m2[1u * 32u + 2u] = 0xADu;
+                        m2[1u * 32u + 3u] = 0xAEu;
+                        object_init();
+                        check(object_loadTerrainObjects(m2) == 11u,
+                              "the three style tiles append one record each");
+                        check((object_slot(9)[4] | (object_slot(9)[5] << 8)) == 0x96u &&
+                              (object_slot(10)[4] | (object_slot(10)[5] << 8)) == 0x9Cu &&
+                              (object_slot(11)[4] | (object_slot(11)[5] << 8)) == 0x38u,
+                              "campfire 0x96, torch 0x9C, stone 0x38");
+                        /* level 1 is style 1, so 1000:5662's +3 nudge must not
+                         * apply even with a marked neighbour below-left */
+                        check((object_slot(9)[2] | (object_slot(9)[3] << 8)) !=
+                                  (uint16_t)(16u + 3u) || level_style() == 6u,
+                              "the +3 nudge is gated on the style");
+                        check((object_slot(9)[8] | (object_slot(9)[9] << 8)) == 0xFFFFu &&
+                              (object_slot(11)[8] | (object_slot(11)[9] << 8)) == 0u &&
+                              (object_slot(11)[0xC] | (object_slot(11)[0xD] << 8)) == 0xFFFFu,
+                              "the style fields (+8 / +0xC) are per tile");
+                    }
+                }
+                /* The +0xA hook, 1000:D8BD (the terrain settle), on a special
+                 * tile: the settle returns before writing anything, so the only
+                 * change is the idle handler's, and the tail still runs. */
+                {
+                    const uint8_t *map = level_map();
+                    unsigned sp0 = level_specialTile(0u), sp1 = level_specialTile(1u);
+                    uint8_t *a1;
+                    int found = 0, col = 0, row = 0;
+
+                    for (unsigned r = 0; r < 640u && !found; r++)
+                        if (map[r] == sp0 || map[r] == sp1) {
+                            found = 1; row = (int)(r / 32u); col = (int)(r % 32u);
+                        }
+                    check(found != 0, "a special tile for the settle test");
+                    object_init();
+                    a1 = object_slot(0);
+                    a1[0] = (uint8_t)(16 * col - 8); a1[1] = 0;
+                    a1[2] = (uint8_t)(16 * row - 0x18); a1[3] = 0;
+                    a1[4] = 0; a1[5] = 0; a1[6] = 0; a1[7] = 0;
+                    a1[8] = 2; a1[9] = 0; a1[0xA] = 0; a1[0xB] = 0;
+                    object_setActionEntity(0u);
+                    /* command 6 (input 0x04) -> 1000:E72A leaves the type at 2
+                     * (frame 0x10), so the hook runs; the feet are on a special
+                     * tile, which stops the settle before it writes anything */
+                    check(object_commandRun(a1, 0x04u) == OBJ_CMD_TAIL,
+                          "the settle hook runs and the tail still follows");
+                    check((a1[2] | (a1[3] << 8)) == (uint16_t)(16 * row - 0x18) &&
+                          (a1[4] | (a1[5] << 8)) == 0x0010u &&
+                          (a1[8] | (a1[9] << 8)) == 2u,
+                          "a special tile stops the settle before it writes");
+                }
+                }
                 /* the four placed humans again for the second-record check */
                 object_init();
                 for (unsigned i = 0; i < 4u; i++) {

@@ -294,6 +294,7 @@ int game_main(const OSystem *osys)
 
         osys->eventsPoll(&input);
         scene_noteInput(&input);   /* the waits read this tick's state */
+        level_noteInput(&input);   /* 1000:8526: the play loop's [0x5ACE] */
         if (input.quit) break;
 
         /* the attract phase plays the boot intro first (the original's

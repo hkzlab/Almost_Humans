@@ -30,8 +30,8 @@
  * object selector and the pending-action arm; op 7 is dead code and halts.
  *
  * Not ported, each its own sub-machine:
- *  - the per-record behaviour script (`0xF453`, run by the overlap fixup) —
- *    the object-side script runner;
+ *  - the group's *push* (`1000:E697`) and the stack's remaining verbs — the
+ *    scan and the dissolve (`1000:F453` / `1000:FA13`) are in;
  *  - the 23 tile handlers of `load_terrain_b`'s walk beyond the human/spear
  *    (the other levels' placed objects, e.g. `0xA9`, `0xB6`, `0xB7`, `0xB8`);
  *  - the claim's dirty-cell reveal (`init_dirty_cell_list` 1000:3E73, then
@@ -46,7 +46,8 @@
  *    registers the base, but push (`1000:E697`), pop (`1000:FDED`), leave
  *    (`1000:E860`), snap (`1000:E963`), dissolve (`1000:FA13` + the `0x6F0D`
  *    table) and the animator (`1000:D76F` + `0x66B3`) are not implemented — and
- *    their verbs are reached from the `0xF453` script, so that runner comes first.
+ *    their verbs are reached from the `0xF453` scan and the dissolve it calls
+ *    (both ported below); what is missing is the push that fills a member list.
  */
 #include "game.h"
 #include <string.h>
@@ -67,6 +68,22 @@ static unsigned objLiveCount = OBJ_LIVE0;/* [0x3E73]: the array's used slots    
 static unsigned objPlacedHumans;         /* [0x3E20]: the 0xAA handlers' count   */
 static unsigned objEntity;               /* [0x3E22]: the acting record          */
 static unsigned objProgramIndex = 1;     /* [0x5B56], 1-based                    */
+static uint16_t objCmdTimer;            /* [0x6DEA]: the command one-shot */
+static uint8_t objStackMask[2];         /* 0x64AD / 0x64C1: in-a-stack bits */
+static int16_t objSide;                 /* [0x4230]: which side the settle stepped from */
+static int objStepProbeAt(const uint8_t *actor, int dx, int dy, unsigned *cellOut);
+/* 0x649A / 0x64A2 / 0x64AE / 0x64B6: the four corner-pair blocks the 0xAF..0xB2
+ * tiles write at load ({x, y, x, y} followed by a zeroed 12-byte entry, or just
+ * {x, y}).  No ported consumer reads them yet - they are the level's "pair"
+ * markers, and the write is all the original does. */
+static uint16_t objPairA[8], objPairB[2], objPairC[8], objPairD[2];
+/* 0x32B9: the 0xA9 background-sprite records (12 bytes each), filled by that
+ * tile handler (1000:5206); the settle's 1000:DF2C reads them. */
+static struct {
+    uint16_t x, y;
+    uint8_t *dst;
+} objBg[32];
+static unsigned objBgCount;
 
 /* [0x5B56] is shared with the status bar (its action row's group), so every
  * write goes through here. */
@@ -140,6 +157,8 @@ void object_init(void)
     objPending = 0u;                 /* [0x1979]                          */
     objCursor = 1u;                  /* [0x1988]                          */
     objSetProgramIndex(1u);          /* [0x5B56]                          */
+    objCmdTimer = 0u;                /* [0x6DEA]                          */
+    objStackMask[0] = objStackMask[1] = 0u;
     objFault = 0u;
     memset(objRegister, 0xFF, sizeof objRegister);   /* 0x6F22, all free  */
     memset(objSpan, 0xFF, sizeof objSpan);   /* 0x6F92: 0x38 bytes at 0x60FF */
@@ -615,7 +634,7 @@ static const uint8_t objTiles[25] = {
 };
 
 /* 1000:524B (tile 0xAA): the human, into the first free static slot. */
-static void objPlaceHuman(unsigned x, unsigned y)
+static int objPlaceHuman(unsigned x, unsigned y)
 {
     for (unsigned i = 0; i < OBJ_STATIC; i++) {
         uint8_t *r = objArray + i * OBJ_STRIDE;
@@ -626,8 +645,9 @@ static void objPlaceHuman(unsigned x, unsigned y)
         wr16(r, 6u, 0u);
         wr16(r, 8u, 0x0002u);
         objPlacedHumans++;
-        return;
+        return (int)i;
     }
+    return -1;
 }
 
 /* 1000:527D (tile 0xAB): the spear, appended at the live end. */
@@ -647,24 +667,350 @@ static void objAppendSpear(unsigned x, unsigned y)
     objLiveCount++;
 }
 
-unsigned object_loadTerrainObjects(const uint8_t *map)
+/* 0xBE / 0xBF's hand-off: 0xBE keeps the record it appended (`0x1F1C`) and the
+ * slot 0xBF joins into (`0x1F1E`); the port keeps the record index. */
+static int objJoinSlot = -1;
+
+/* 1000:54D9 (0xBB): {x, y, +4 = 0x26, +6 = 0, +8 = the map cell - 1},
+ * behaviour 9. */
+static void objSpawnBB(unsigned col, unsigned row)
+{
+    uint8_t *r;
+
+    if (objLiveCount + 1u >= OBJ_SLOTS) return;
+    r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
+    wr16(r, 0u, (uint16_t)(col * 16u));
+    wr16(r, 2u, (uint16_t)(row * 16u));
+    wr16(r, 4u, 0x0026u);
+    wr16(r, 6u, 0x0000u);
+    wr16(r, 8u, (uint16_t)(row * OBJ_COLS + col - 1u));
+    objSlotClass[objLiveCount - 7u] = 9u;
+    objLiveCount++;
+}
+
+/* 1000:54FC (0xBE): {x, y, +4 = 0x82, +6 = 0, +8 = 0, +0xA = x, +0xE = 1},
+ * behaviour 2 - and it remembers the record for 0xBF. */
+static void objSpawnBE(unsigned col, unsigned row)
+{
+    uint8_t *r;
+
+    if (objLiveCount + 1u >= OBJ_SLOTS) return;
+    r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
+    wr16(r, 0u, (uint16_t)(col * 16u));
+    wr16(r, 2u, (uint16_t)(row * 16u));
+    wr16(r, 4u, 0x0082u);
+    wr16(r, 6u, 0x0000u);
+    wr16(r, 8u, 0x0000u);
+    wr16(r, 0xAu, (uint16_t)(col * 16u));
+    wr16(r, 0xEu, 0x0001u);
+    objSlotClass[objLiveCount - 7u] = 2u;
+    objJoinSlot = (int)(objLiveCount + 1u);      /* the record, not the count */
+    objLiveCount++;
+}
+
+/* 1000:552B (0xBF): the join half - written into the record 0xBE made. */
+static void objJoinBF(unsigned col)
+{
+    if (objJoinSlot < 0) return;
+    wr16(objArray + (unsigned)objJoinSlot * OBJ_STRIDE, 0xCu, (uint16_t)(col * 16u));
+}
+
+/* 1000:5535 / 1000:553D (0xC0 / 0xC1): 0xC0 runs the human handler and keeps
+ * its slot as the player's record ([0x180A]); 0xC1 appends {x, y-0x10,
+ * +4 = 0x100}, behaviour 0. */
+static void objSpawnC0(unsigned col, unsigned row)
+{
+    int slot = objPlaceHuman(col * 16u, row * 16u - 7u);
+
+    if (slot >= 0) objPlayer = slot;
+}
+
+static void objSpawnC1(unsigned col, unsigned row)
+{
+    uint8_t *r;
+
+    if (objLiveCount + 1u >= OBJ_SLOTS) return;
+    r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
+    wr16(r, 0u, (uint16_t)(col * 16u));
+    wr16(r, 2u, (uint16_t)(row * 16u - 0x10u));
+    wr16(r, 4u, 0x0100u);
+    wr16(r, 6u, 0x0000u);
+    objSlotClass[objLiveCount - 7u] = 0u;
+    objLiveCount++;
+}
+
+/* 1000:5310 / 1000:532F / 1000:5338 / 1000:5357: the four data-only tiles. */
+static void objWritePair(unsigned tile, unsigned x, unsigned y)
+{
+    switch (tile) {
+    case 0xAFu:
+        objPairA[0] = (uint16_t)x; objPairA[1] = (uint16_t)y;
+        objPairA[2] = (uint16_t)x; objPairA[3] = (uint16_t)y;
+        objPairA[4] = objPairA[5] = objPairA[6] = objPairA[7] = 0u;
+        break;
+    case 0xB0u:
+        objPairB[0] = (uint16_t)x; objPairB[1] = (uint16_t)y;
+        break;
+    case 0xB1u:
+        objPairC[0] = (uint16_t)x; objPairC[1] = (uint16_t)y;
+        objPairC[2] = (uint16_t)x; objPairC[3] = (uint16_t)y;
+        objPairC[4] = objPairC[5] = objPairC[6] = objPairC[7] = 0u;
+        break;
+    default:
+        objPairD[0] = (uint16_t)x; objPairD[1] = (uint16_t)y;
+        break;
+    }
+}
+
+/* 1000:53BA (0xB6): a placed object in the first *static* slot - frame 0xFE,
+ * type 0x1D, +0xA = 0xFA, +0xC = the record-area pointer - yet the live count
+ * still grows.  The pointer is stored as the record-area offset here. */
+static void objSpawnB6(unsigned col, unsigned row)
+{
+    for (unsigned i = 0; i < OBJ_STATIC; i++) {
+        uint8_t *r = objArray + i * OBJ_STRIDE;
+
+        if (!(r[6] & 0x80u)) continue;
+        wr16(r, 0u, (uint16_t)(col * 16u));
+        wr16(r, 2u, (uint16_t)(row * 16u - 0x10u));
+        wr16(r, 4u, 0x00FEu);
+        wr16(r, 6u, 0x0000u);
+        wr16(r, 8u, 0x001Du);
+        wr16(r, 0xAu, 0x00FAu);
+        wr16(r, 0xCu, (uint16_t)(((objLiveCount + 1u) * OBJ_STRIDE) & 0xFFFFu));
+        objSlotClass[objLiveCount - 7u] = 0u;
+        objLiveCount++;
+        return;
+    }
+}
+
+/* 1000:53FD (0xB7): TWO appended records; the first carries the only computed
+ * class (`+6 = (count - 6) << 8`), frame 0x11A when a 0xB6 tile sits within four
+ * columns either side, else 0x116, behaviour 8; the second is empty, behaviour
+ * 0x85. */
+static void objSpawnB7(const uint8_t *map, unsigned col, unsigned row)
+{
+    uint8_t *r;
+    unsigned cell;
+    int nearB6 = 0;
+
+    if (objLiveCount + 2u >= OBJ_SLOTS) return;
+    r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
+    cell = row * OBJ_COLS + col;
+    if (map) {
+        static const int off[8] = { -5, -4, -3, -2, 0, 1, 2, 3 };
+
+        for (unsigned k = 0; k < 8u; k++) {
+            long c = (long)cell + off[k];
+
+            if (c >= 0 && c < 640 && map[c] == 0xB6u) { nearB6 = 1; break; }
+        }
+    }
+    wr16(r, 0u, (uint16_t)(col * 16u));
+    wr16(r, 2u, (uint16_t)(row * 16u - 8u));
+    wr16(r, 4u, nearB6 ? 0x011Au : 0x0116u);
+    wr16(r, 6u, (uint16_t)(((objLiveCount - 6u) << 8) & 0xFF00u));
+    wr16(r, 8u, 0x0000u);
+    wr16(r, 0xAu, nearB6 ? 3u : 2u);
+    objSlotClass[objLiveCount - 7u] = 8u;
+    objLiveCount++;
+    r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
+    memset(r, 0, OBJ_STRIDE);
+    objSlotClass[objLiveCount - 7u] = 0x85u;
+    objLiveCount++;
+}
+
+/* 1000:5481 (0xB8): one appended record, frame 0xAF, behaviour 3, and
+ * `+0xE = SI - 1` - the map cell pointer, stored here as the cell index. */
+static void objSpawnB8(unsigned col, unsigned row)
+{
+    uint8_t *r;
+
+    if (objLiveCount + 1u >= OBJ_SLOTS) return;
+    r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
+    wr16(r, 0u, (uint16_t)(col * 16u));
+    wr16(r, 2u, (uint16_t)(row * 16u - 8u));
+    wr16(r, 4u, 0x00AFu);
+    wr16(r, 6u, 0x0000u);
+    wr16(r, 8u, 0x0000u);
+    wr16(r, 0xAu, 0x0000u);
+    wr16(r, 0xCu, 0x0000u);
+    wr16(r, 0xEu, (uint16_t)(row * OBJ_COLS + col - 1u));
+    objSlotClass[objLiveCount - 7u] = 3u;
+    objLiveCount++;
+}
+
+/* 1000:52A2 (0xAC, frame 0x96 -> behaviour 7), 1000:52C7 (0xAD, frame 0x9C ->
+ * behaviour 6) and 1000:52EB (0xAE, frame 0x38 -> behaviour 4): one appended
+ * record each, then the shared tail 1000:5639 snaps its y to the terrain step.
+ * Note the behaviours: the campfire (0x96) is 7 and the torch (0x9C) is 6 - the
+ * summary row in re_map.md had those two swapped until this read.
+ * 1000:5662 (called first) nudges y by 3 on a style-6 level when the cell
+ * diagonally below-left is marked in the static 0x1F20 table. */
+static void objAppendStyle(const uint8_t *map, unsigned col, unsigned row,
+                           unsigned frame, unsigned behaviour, unsigned f8, unsigned fc)
+{
+    /* 0x1F20: the per-tile bit table 1000:5662 tests (static in the image). */
+    static const uint8_t nudgeBits[19] = {
+        0x00, 0x00, 0x00, 0x00, 0x07, 0xFE, 0x00, 0x07, 0xE0, 0x00,
+        0x02, 0x02, 0x00, 0x03, 0xC3, 0x81, 0x80, 0x01, 0x80,
+    };
+    uint8_t *r;
+    unsigned y3 = 0u, probeCell;
+    int bx;
+
+    if (objLiveCount + 1u >= OBJ_SLOTS) return;
+    /* 1000:5662: on a style-6 level, the cell diagonally below-left decides
+     * whether the decoration sits 3 px lower (`[0x17EE] == 6`, the 0x1F20 bit). */
+    {
+        unsigned cell = row * OBJ_COLS + col;
+        unsigned tile2 = (map && cell + 0x1Fu < 640u) ? map[cell + 0x1Fu] : 0xFFu;
+
+        if (level_style() == 6u && tile2 <= 0x90u) {
+            uint8_t bit = (uint8_t)(1u << (7u - (tile2 & 7u)));
+
+            if (nudgeBits[tile2 >> 3] & bit) y3 = 3u;
+        }
+    }
+    r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
+    wr16(r, 0u, (uint16_t)(col * 16u));
+    wr16(r, 2u, (uint16_t)(row * 16u + y3));
+    wr16(r, 4u, frame);
+    wr16(r, 6u, 0u);
+    wr16(r, 8u, f8);
+    wr16(r, 0xAu, 0u);
+    wr16(r, 0xCu, fc);
+    objSlotClass[objLiveCount - 7u] = (uint8_t)behaviour;
+    objLiveCount++;
+    bx = objStepProbeAt(r, 8, 0x10, &probeCell);        /* 1000:5639 */
+    if (bx >= 0) wr16(r, 2u, (uint16_t)(bx - 0x10));
+}
+
+/* 1000:51F9 decode_terrain_row (tile 0xA9): five records from the 0x1EFE
+ * offset table at (col*16 + dx, row*16 + 1 + dy), frames 0x33..0x37, `+8 = 0`,
+ * behaviour 0, plus one 0x32B9 background entry whose `+4` points at their first
+ * record and whose `+8` is the map pointer + 0x20.
+ * Its first two instructions mark the two map cells one row below as 0xC2/0xC9 -
+ * the ids 1000:DF2C tests, so this handler is what makes the settle's background
+ * mark reachable. */
+static void objAppendRow9(uint8_t *map, unsigned col, unsigned row)
+{
+    static const uint8_t table[5][3] = {         /* 0x1EFE: dx, dy, frame */
+        { 0x10, 0x13, 0x33 }, { 0x16, 0x15, 0x34 }, { 0x1C, 0x16, 0x35 },
+        { 0x23, 0x15, 0x36 }, { 0x29, 0x13, 0x37 },
+    };
+    unsigned first = objLiveCount + 1u;
+    uint8_t *firstRec = objArray + first * OBJ_STRIDE;
+
+    for (unsigned i = 0; i < 5u; i++) {
+        uint8_t *r;
+
+        if (objLiveCount + 1u >= OBJ_SLOTS) return;
+        r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
+        wr16(r, 0u, (uint16_t)(col * 16u + table[i][0]));
+        wr16(r, 2u, (uint16_t)(row * 16u + 1u + table[i][1]));
+        wr16(r, 4u, table[i][2]);
+        wr16(r, 6u, 0u);
+        wr16(r, 8u, 0u);
+        objSlotClass[objLiveCount - 7u] = 0u;     /* behaviour 0 */
+        objLiveCount++;
+    }
+    /* 1000:51F9's first two instructions: mark the two cells one row below as
+     * the ids 1000:DF2C looks for.  The original's buffer carries a duplicated
+     * first row at +0x20, so its write always lands; the port's map is exactly
+     * 640 bytes, so the pair is bounds-checked instead. */
+    {
+        unsigned cell = row * OBJ_COLS + col;
+
+        if (cell + OBJ_COLS + 1u < 640u) {
+            map[cell + OBJ_COLS] = 0xC2u;
+            map[cell + OBJ_COLS + 1u] = 0xC9u;
+        }
+    }
+    if (objBgCount < sizeof objBg / sizeof objBg[0]) {
+        objBg[objBgCount].x = (uint16_t)(col * 16u);
+        objBg[objBgCount].y = (uint16_t)(row * 16u + 1u);
+        objBg[objBgCount].dst = firstRec;
+        objBgCount++;                            /* [0x32B9] */
+    }
+}
+
+/* 1000:556B terrain_append_decoration, the tile handler 0xF0/0xF1/0xF2 share
+ * (0xF0 is a four-instruction stub that sets BX and jumps in; the frame is
+ * 0xC1 / 0xC5 / 0xC9, per the table in re_map.md): an appended record
+ * {x, y, frame, +6 = 0, +8 = frame, +0xA = 0} with behaviour 1. */
+static void objAppendDecoration(unsigned x, unsigned y, uint8_t tile)
+{
+    static const uint16_t frame[3] = { 0x00C1u, 0x00C5u, 0x00C9u };
+    uint16_t f = frame[tile - 0xF0u];
+    uint8_t *r;
+
+    if (objLiveCount + 1u >= OBJ_SLOTS) return;
+    r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
+    wr16(r, 0u, (uint16_t)x);
+    wr16(r, 2u, (uint16_t)y);
+    wr16(r, 4u, f);
+    wr16(r, 6u, 0u);
+    wr16(r, 8u, f);
+    wr16(r, 0xAu, 0u);
+    objSlotClass[objLiveCount - 7u] = 1u;        /* [0x3E5F + count-8] = 0x01 */
+    objLiveCount++;
+}
+
+unsigned object_loadTerrainObjects(uint8_t *map)
 {
     if (!map) return objLiveCount;
     objLiveCount = OBJ_LIVE0;                    /* 1000:516F */
     memset(objSlotClass, 0, 20u);                /* 1000:5175: 0x14 bytes */
     for (unsigned t = 0; t < 25u; t++) {
         uint8_t tile = objTiles[t];
-        if (tile != 0xAAu && tile != 0xABu) continue;   /* not ported */
+        /* 0xAA/0xAB and the 0xF0..0xF2 decorations are ported; the rest of the
+         * 25 are not (re_map.md has each one's body summary). */
+        if (tile != 0xA9u && tile != 0xAAu && tile != 0xABu &&
+            tile != 0xACu && tile != 0xADu && tile != 0xAEu &&
+            tile != 0xAFu && tile != 0xB0u && tile != 0xB1u && tile != 0xB2u &&
+            tile != 0xB6u && tile != 0xB7u && tile != 0xB8u &&
+            tile != 0xBBu && tile != 0xBEu && tile != 0xBFu &&
+            tile != 0xC0u && tile != 0xC1u &&
+            (tile < 0xF0u || tile > 0xF2u)) continue;
         for (unsigned row = 0; row < OBJ_ROWS; row++)
             for (unsigned col = 0; col < OBJ_COLS; col++) {
                 if (map[row * OBJ_COLS + col] != tile) continue;
                 /* live-confirmed (2026-10-30): level 1's records read
                  * (48,25) (208,25) (256,137) (464,265) = row*16 - 7, exactly
                  * what 0x524B writes. */
-                if (tile == 0xAAu)
+                if (tile == 0xBBu)
+                    objSpawnBB(col, row);
+                else if (tile == 0xBEu)
+                    objSpawnBE(col, row);
+                else if (tile == 0xBFu)
+                    objJoinBF(col);
+                else if (tile == 0xC0u)
+                    objSpawnC0(col, row);
+                else if (tile == 0xC1u)
+                    objSpawnC1(col, row);
+                else if (tile == 0xB6u)
+                    objSpawnB6(col, row);
+                else if (tile == 0xB7u)
+                    objSpawnB7(map, col, row);
+                else if (tile == 0xB8u)
+                    objSpawnB8(col, row);
+                else if (tile >= 0xAFu && tile <= 0xB2u)
+                    objWritePair(tile, col * 16u, row * 16u);
+                else if (tile == 0xA9u)
+                    objAppendRow9(map, col, row);
+                else if (tile == 0xAAu)
                     objPlaceHuman(col * 16u, row * 16u - 7u);
-                else
+                else if (tile == 0xABu)
                     objAppendSpear(col * 16u, row * 16u);
+                else if (tile == 0xACu)
+                    objAppendStyle(map, col, row, 0x96u, 7u, 0xFFFFu, 0u);
+                else if (tile == 0xADu)
+                    objAppendStyle(map, col, row, 0x9Cu, 6u, 0xFFFFu, 0u);
+                else if (tile == 0xAEu)
+                    objAppendStyle(map, col, row, 0x38u, 4u, 0x0000u, 0xFFFFu);
+                else
+                    objAppendDecoration(col * 16u, row * 16u, tile);
             }
     }
     return objLiveCount;
@@ -1140,12 +1486,17 @@ static void objOpSetState(uint8_t *actor, unsigned type)
  * the actor whose type is "overlappable" ([0x6EC3 + type] == 0) becomes frame
  * 0x103, type 0x1E and params 6/0/0xA.  A record that is the player's is
  * replaced by the actor for the conversion ([0x4254]'s swap).  The original
- * runs 0xF453 (the record's behaviour script, DX = 5) before the conversion;
- * that is the entity bytecode machine, which the port does not have. */
+ * runs 0xF453 scan_groups_for_record (DX = 5) before the conversion: the group
+ * whose member list holds the acting record is dissolved. */
+static void objGroupDissolve(uint8_t *e);
+int object_stackScanDissolve(unsigned recIndex);
+
 static void objFindOverlap(uint8_t *actor)
 {
     int ax = (int16_t)rd16(actor, 0u);
     int bx = (int16_t)rd16(actor, 2u);
+
+    (void)object_stackScanDissolve((unsigned)(actor - objArray) / OBJ_STRIDE);
 
     for (unsigned i = 0; i < OBJ_STATIC; i++) {
         uint8_t *r = objArray + i * OBJ_STRIDE;
@@ -1164,9 +1515,8 @@ static void objFindOverlap(uint8_t *actor)
         found = (i == (unsigned)objPlayer) ? actor : r;
         type = rd16(found, 8u);
         if (type < 16u && objTypeOverlaps[type]) continue;
-        /* 1000:F453 scan_groups_for_record(DX = 5) -> 1000:FA13
-         * object_group_dissolve: the 0x6F22 group scan and the dissolve, not
-         * ported (re_map.md — it is a scan, not a bytecode interpreter) */
+        /* 1000:F453 scan_groups_for_record (DX = 5) -> 1000:FA13: the group
+         * whose member list holds this record is dissolved */
         wr16(found, 4u, 0x0103u);
         wr16(found, 8u, 0x001Eu);
         wr16(found, 0xAu, 0x0006u);
@@ -1193,6 +1543,957 @@ static void objOpMarkWalk(uint8_t *actor, unsigned step)
         wr16(r, 0xCu, 0x0000u);
     }
     objFindOverlap(actor);
+}
+
+
+/* DS:0x6908, DS:0x698A, DS:0x6918 — the command dispatch's three tables
+ * (1000:E3F6), copied verbatim from the image (file offset = DS offset + 0x106F0):
+ *  - objCmdKey      the input bit (low nibble of [0x5ACE]) -> command byte: bit 7
+ *                   = no handler, bit 6 = one-shot, low 6 bits = the command
+ *                   number; the 4 bytes past the 12-byte table are the 0x6914
+ *                   tail word the original reads for indexes 12..15, copied too;
+ *  - objCmdRows     the per-type rows, 32 bytes each (two 16-byte halves, bit 7
+ *                   of the input picks the second), ending exactly at 0x6DEA;
+ *  - objCmdHandlers the 57 handler addresses, index n = word at 0x6918+2(n-1).
+ * Index 2 is 1000:E609 (its tail holds the human-stack push), 10/11 the leaves,
+ * 14 the snap — re_map.md, "What selects the stack's verbs". */
+static const uint16_t objCmdHandlers[57] = {
+    0xE4F8u, 0xE609u, 0xE6FBu, 0xE72Au, 0xE764u, 0xE790u,
+    0xE7C0u, 0xE802u, 0xE831u, 0xE860u, 0xE8DDu, 0xE93Du,
+    0xE952u, 0xE963u, 0xE99Du, 0xEA0Eu, 0xEA0Fu, 0xEA4Du,
+    0xEA71u, 0xEAACu, 0xEAE6u, 0xEB5Cu, 0xEB6Au, 0xEB78u,
+    0xEBA0u, 0xEBCAu, 0xEBD0u, 0xEC98u, 0xEC99u, 0xECA8u,
+    0xECB7u, 0xECFEu, 0xED4Fu, 0xED69u, 0xED83u, 0xED9Du,
+    0xEDB7u, 0xEE07u, 0xEE3Bu, 0xEF0Au, 0xEF0Bu, 0xEF0Cu,
+    0xEF39u, 0xEF66u, 0xEFA1u, 0xEFB9u, 0xEFD1u, 0xEFD4u,
+    0xEFD7u, 0xF067u, 0xF078u, 0xF08Du, 0xF0A2u, 0xF0B3u,
+    0xF0C3u, 0xF0C6u, 0xF0C9u,
+};
+
+static const uint8_t objCmdKey[16] = {
+    0x48u, 0x00u, 0x04u, 0xFFu, 0x02u, 0x01u, 0x03u, 0xFFu, 0x06u, 0x07u, 0x05u, 0x00u, 0xC7u, 0xD9u, 0x00u, 0x00u,
+};
+
+static const uint8_t objCmdRows[35][32] = {
+    /* type  0 */ {0xFFu, 0x01u, 0x05u, 0x05u, 0x05u, 0x02u, 0x04u, 0x04u, 0x04u, 0x00u, 0xFFu, 0x01u, 0xC7u, 0xD9u, 0x00u, 0x00u, 0xFFu, 0x00u, 0x00u, 0x1Du, 0x00u, 0x11u, 0x00u, 0x00u, 0x00u, 0x00u, 0xFFu, 0x01u, 0xC7u, 0xD9u, 0x00u, 0x00u,},
+    /* type  1 */ {0xFFu, 0x01u, 0x06u, 0x06u, 0x06u, 0x02u, 0x03u, 0x03u, 0x03u, 0x00u, 0xFFu, 0x01u, 0xC7u, 0xD9u, 0x00u, 0x00u, 0xFFu, 0x00u, 0x00u, 0x00u, 0x00u, 0x12u, 0x00u, 0x1Eu, 0x00u, 0x00u, 0xFFu, 0x01u, 0xC7u, 0xD9u, 0x00u, 0x00u,},
+    /* type  2 */ {0x00u, 0x01u, 0x00u, 0x06u, 0x00u, 0x02u, 0x00u, 0x04u, 0x00u, 0x07u, 0xFFu, 0x01u, 0xC7u, 0xD9u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xFFu, 0x01u, 0xC7u, 0xD9u, 0x00u, 0x00u,},
+    /* type  3 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x01u, 0xE8u, 0xD9u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x01u, 0xE8u, 0xD9u, 0x00u, 0x00u,},
+    /* type  4 */ {0x00u, 0x00u, 0x00u, 0x35u, 0x00u, 0x02u, 0x00u, 0x34u, 0x00u, 0x00u, 0x00u, 0x01u, 0x02u, 0xE8u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x01u, 0xC7u, 0xD9u, 0x00u, 0x00u,},
+    /* type  5 */ {0x00u, 0x01u, 0x00u, 0x35u, 0x00u, 0x00u, 0x00u, 0x34u, 0x00u, 0x00u, 0x00u, 0x01u, 0x31u, 0xE8u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x01u, 0xC7u, 0xD9u, 0x00u, 0x00u,},
+    /* type  6 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x01u, 0x60u, 0xE8u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x01u, 0x60u, 0xE8u, 0x00u, 0x00u,},
+    /* type  7 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x01u, 0xDDu, 0xE8u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x01u, 0xDDu, 0xE8u, 0x00u, 0x00u,},
+    /* type  8 */ {0x00u, 0x0Eu, 0x00u, 0x0Du, 0x00u, 0x0Fu, 0x00u, 0x0Cu, 0x00u, 0x00u, 0x00u, 0x12u, 0xC7u, 0xD9u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x12u, 0xC7u, 0xD9u, 0x00u, 0x00u,},
+    /* type  9 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x48u, 0xDBu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x11u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x48u, 0xDBu, 0x00u, 0x00u,},
+    /* type 10 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x61u, 0xDBu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x12u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x61u, 0xDBu, 0x00u, 0x00u,},
+    /* type 11 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xACu, 0xEAu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xACu, 0xEAu, 0x00u, 0x00u,},
+    /* type 12 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xE6u, 0xEAu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xE6u, 0xEAu, 0x00u, 0x00u,},
+    /* type 13 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x5Cu, 0xEBu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x5Cu, 0xEBu, 0x00u, 0x00u,},
+    /* type 14 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x6Au, 0xEBu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x6Au, 0xEBu, 0x00u, 0x00u,},
+    /* type 15 */ {0x00u, 0x00u, 0x19u, 0x19u, 0x19u, 0x00u, 0x18u, 0x18u, 0x18u, 0x1Au, 0x00u, 0x00u, 0x1Fu, 0xDCu, 0x00u, 0x00u, 0x00u, 0x00u, 0x1Bu, 0x1Bu, 0x1Bu, 0x00u, 0x1Bu, 0x1Bu, 0x1Bu, 0x00u, 0x00u, 0x00u, 0x1Fu, 0xDCu, 0x00u, 0x00u,},
+    /* type 16 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x93u, 0xDDu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x10u, 0x00u, 0x00u, 0x93u, 0xDDu, 0x00u, 0x00u,},
+    /* type 17 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xB7u, 0xECu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xB7u, 0xECu, 0x00u, 0x00u,},
+    /* type 18 */ {0x00u, 0x27u, 0x27u, 0x22u, 0x25u, 0x25u, 0x25u, 0x21u, 0x27u, 0x27u, 0x00u, 0x02u, 0xC7u, 0xD9u, 0x00u, 0x00u, 0x00u, 0x26u, 0x26u, 0x26u, 0x25u, 0x25u, 0x25u, 0x26u, 0x26u, 0x26u, 0x00u, 0x02u, 0xC7u, 0xD9u, 0x00u, 0x00u,},
+    /* type 19 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x01u, 0x0Au, 0xEFu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x01u, 0x0Au, 0xEFu, 0x00u, 0x00u,},
+    /* type 20 */ {0x00u, 0x27u, 0x27u, 0x24u, 0x27u, 0x25u, 0x27u, 0x23u, 0x27u, 0x27u, 0x00u, 0x02u, 0xC7u, 0xD9u, 0x00u, 0x00u, 0x00u, 0x26u, 0x26u, 0x26u, 0x25u, 0x25u, 0x25u, 0x26u, 0x26u, 0x26u, 0x00u, 0x02u, 0xC7u, 0xD9u, 0x00u, 0x00u,},
+    /* type 21 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x01u, 0x0Bu, 0xEFu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x01u, 0x0Bu, 0xEFu, 0x00u, 0x00u,},
+    /* type 22 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x66u, 0xEFu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x66u, 0xEFu, 0x00u, 0x00u,},
+    /* type 23 */ {0x00u, 0x31u, 0x31u, 0x31u, 0x25u, 0x2Fu, 0x25u, 0x31u, 0x31u, 0x31u, 0x00u, 0x03u, 0xC7u, 0xD9u, 0x00u, 0x00u, 0x00u, 0x30u, 0x30u, 0x30u, 0x25u, 0x25u, 0x25u, 0x30u, 0x30u, 0x30u, 0x00u, 0x03u, 0xC7u, 0xD9u, 0x00u, 0x00u,},
+    /* type 24 */ {0x00u, 0x31u, 0x31u, 0x31u, 0x25u, 0x2Fu, 0x25u, 0x31u, 0x31u, 0x31u, 0x00u, 0x03u, 0xC7u, 0xD9u, 0x00u, 0x00u, 0x00u, 0x30u, 0x30u, 0x30u, 0x25u, 0x25u, 0x25u, 0x30u, 0x30u, 0x30u, 0x00u, 0x03u, 0xC7u, 0xD9u, 0x00u, 0x00u,},
+    /* type 25 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x03u, 0x67u, 0xF0u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x03u, 0x67u, 0xF0u, 0x00u, 0x00u,},
+    /* type 26 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x03u, 0x78u, 0xF0u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x03u, 0x78u, 0xF0u, 0x00u, 0x00u,},
+    /* type 27 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xC7u, 0xD9u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xC7u, 0xD9u, 0x00u, 0x00u,},
+    /* type 28 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xCDu, 0xDBu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xCDu, 0xDBu, 0x00u, 0x00u,},
+    /* type 29 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xDAu, 0xDDu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xDAu, 0xDDu, 0x00u, 0x00u,},
+    /* type 30 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x7Eu, 0xDEu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x7Eu, 0xDEu, 0x00u, 0x00u,},
+    /* type 31 */ {0x00u, 0x00u, 0x00u, 0x37u, 0x00u, 0x36u, 0x00u, 0x38u, 0x00u, 0x00u, 0x00u, 0x00u, 0xC8u, 0xD9u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xC8u, 0xD9u, 0x00u, 0x00u,},
+    /* type 32 */ {0x00u, 0x00u, 0x00u, 0x37u, 0x00u, 0x36u, 0x00u, 0x38u, 0x00u, 0x00u, 0x00u, 0x00u, 0xCDu, 0xD9u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xCDu, 0xD9u, 0x00u, 0x00u,},
+    /* type 33 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xC9u, 0xF0u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xC9u, 0xF0u, 0x00u, 0x00u,},
+    /* type 34 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xD1u, 0xDEu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xD1u, 0xDEu, 0x00u, 0x00u,},
+};
+
+/* 1000:E3F6's input normalisation: swap bits 2 and 3, drop bits 4..6, then kill
+ * each contradictory pair (0x3 / 0xC) the way the original does. */
+static uint8_t objNormaliseInput(uint8_t in)
+{
+    uint8_t v = (uint8_t)((in & 0x83u) | ((in & 0x08u) >> 1) | ((in & 0x04u) << 1));
+
+    if ((v & 0x03u) == 0x03u) v &= 0x8Du;
+    if ((v & 0x0Cu) == 0x0Cu) v &= 0x8Bu;
+    return v;
+}
+
+/* 1000:E3F6 dispatch_actor_command: the acting record's command for one input
+ * word.  The original calls the returned handler, or the row's tail handler when
+ * it is 0 and the handler did not change the record's type; the handlers are the
+ * next objective, so only the selection (and the one-shot counter's two writes)
+ * is ported.  One global counter, not one per command: [0x6DEA]. */
+ObjCommand object_commandSelect(uint8_t *rec, uint8_t input)
+{
+    ObjCommand out;
+    uint8_t v = objNormaliseInput(input);
+    uint8_t cmd = objCmdKey[v & 0x0Fu];
+    const uint8_t *row;
+    unsigned type = rd16(rec, 8u);           /* [SI+8] */
+    unsigned idx;
+
+    out.handler = 0u;
+    out.tail = 0u;
+    out.hook = 0u;
+    out.command = 0u;
+    if (type >= 35u) return out;             /* no row: the original reads 0x6DEA */
+    row = objCmdRows[type] + ((v & 0x80u) ? 0x10u : 0u);
+    out.tail = rd16(row, 0xCu);
+    out.hook = row[0xAu];
+    if (cmd & 0x80u) return out;             /* bit 7: this input has no command */
+    if (cmd & 0x40u) {                       /* bit 6: the 0x6DEA one-shot */
+        uint16_t n = objCmdTimer ? objCmdTimer : 0x4B0u;
+
+        if (objCmdTimer && row[0]) {
+            n--;
+            if (!n) wr16(rec, 8u, 0x0002u);  /* expired: the record is a human */
+        }
+        objCmdTimer = n;
+    }
+    cmd &= 0x3Fu;
+    out.command = cmd;
+    idx = cmd <= 7u ? row[1u + cmd] : 0u;
+    if (idx >= 1u && idx <= 57u) out.handler = objCmdHandlers[idx - 1u];
+    return out;
+}
+
+/* The original's `1 << (7 - n)` on a 16-bit register: for n > 7 the count is
+ * negative, and an 8086 SHL by a count >= 16 shifts every bit out, so the bit is
+ * 0.  Records 0..7 therefore own 0x80..0x01 and 8..14 own nothing. */
+static unsigned objIndexBit(unsigned idx)
+{
+    return idx <= 7u ? (1u << (7u - idx)) : 0u;
+}
+
+/* 1000:F3CA: clear the record's bit from both masks. */
+static void objStackUnmark(uint8_t *actor)
+{
+    uint8_t keep = (uint8_t)~objIndexBit((unsigned)(actor - objArray) / OBJ_STRIDE);
+
+    objStackMask[0] &= keep;
+    objStackMask[1] &= keep;
+}
+
+/* 1000:F38F test_bits_64ad_64c1: mark the record as being in a stack, in the
+ * mask that the list byte below it (`slot[-1]`) is marked in; when that byte is
+ * a terminator or unmarked, clear both instead. */
+static void objStackMark(uint8_t *actor, const uint8_t *slot)
+{
+    unsigned below = slot[-1];
+
+    if (!(below & 0x80u)) {
+        unsigned bit = objIndexBit(below);
+
+        for (unsigned m = 0; m < 2u; m++) {
+            if (objStackMask[m] & bit) {
+                objStackMask[m] |= (uint8_t)objIndexBit((unsigned)(actor - objArray) / OBJ_STRIDE);
+                return;
+            }
+        }
+    }
+    objStackUnmark(actor);
+}
+
+/* 1000:FD91: the walk frame step - `y--`, every 5th frame advance the frame by
+ * +/-1 (`+0xC` is the direction) and reverse at the `lo`/`hi` bounds.  Both
+ * leaves take this on a `y` mismatch. */
+static void objFrameStep(uint8_t *actor, unsigned lo, unsigned hi)
+{
+    unsigned f;
+
+    wr16(actor, 2u, (uint16_t)(rd16(actor, 2u) - 1u));
+    wr16(actor, 0xAu, (uint16_t)(rd16(actor, 0xAu) - 1u));
+    if ((int16_t)rd16(actor, 0xAu) >= 0) return;
+    wr16(actor, 0xAu, 0x0004u);
+    f = rd16(actor, 4u);
+    if (actor[0xCu] != 0u) {
+        if (--f == lo) actor[0xCu] = 0u;
+    } else {
+        if (++f == hi) actor[0xCu] = 0xFFu;
+    }
+    wr16(actor, 4u, (uint16_t)f);
+}
+
+/* 1000:E697 (a fall-through inside 1000:E609, the walk-up state): push the
+ * acting record onto the `0x6F22` group it stands under.  The original reaches
+ * this with AX = actor.x and BX = actor.y + 0x18, after the `0x6F92` span scan
+ * has failed; the port takes the record and derives the same two values.
+ * Returns 1 when a group took it (frame 0x25, type 7, `+0xE` = its slot). */
+int object_stackPush(uint8_t *actor)
+{
+    uint16_t ax = rd16(actor, 0u);
+    uint16_t bx = (uint16_t)(rd16(actor, 2u) + 0x18u);
+
+    for (unsigned i = 0; i < 8u; i++) {              /* `CX = 7` + `JNS`: 8 */
+        uint8_t *e = (uint8_t *)objRegister[i];
+        uint16_t ex, ey, dx;
+        uint8_t *di;
+        int de;
+
+        ex = rd16(e, 0u);
+        if (ex & 0x8000u) continue;               /* free */
+        de = (int)(int16_t)ex - (int)(int16_t)ax;
+        if (de < 0) de = -de;
+        if (de >= 8) continue;                    /* |entry.x - actor.x| < 8 */
+        ey = rd16(e, 2u);
+        if (bx >= ey) return 0;                   /* `JNC 0xE6FA`: not under it */
+        dx = ey;
+        di = e + 5;                               /* the owner byte */
+        for (;;) {
+            dx -= 0x10u;                          /* 16 px per member */
+            if (di[0] & 0x80u) { di++; break; }    /* the terminator */
+            di++;
+        }
+        dx += 0x18u;
+        if (bx < dx) return 0;                    /* `JC 0xE6FA` */
+        di--;                                     /* the terminator's slot */
+        *di = (uint8_t)objEntity;                 /* `[0x3E22]` into the list */
+        /* the original stores the slot's pointer; the port stores its offset in
+         * the register, the same relation the 0x3E24 paths use for records */
+        wr16(actor, 0xEu, (uint16_t)((uintptr_t)di - (uintptr_t)objRegister));
+        wr16(actor, 2u, (uint16_t)(rd16(actor, 2u) + 1u));
+        wr16(actor, 0u, ex);
+        wr16(actor, 4u, 0x0025u);
+        wr16(actor, 8u, 0x0007u);
+        wr16(actor, 0xAu, 0x0000u);
+        wr16(actor, 0xCu, 0x0000u);
+        objStackMark(actor, di);                  /* 1000:F38F */
+        return 1;
+    }
+    return 0;
+}
+
+/* 1000:FDED object_script_select (the pop): find the acting record in a
+ * `0x6F22` list and, if it is the topmost member, remove it.  Returns the
+ * original's AX: -1 = not present or not the top, 0 = the record below is within
+ * 8 px of `ax` (the caller's x) so the list is left alone, 1 = removed.
+ * `*below` = the record the original leaves in DI (NULL when the entry was
+ * freed). */
+int object_stackPop(uint16_t ax, uint8_t **below, uint8_t **entry)
+{
+    *below = NULL;
+    if (entry) *entry = NULL;
+    for (unsigned i = 0; i < 8u; i++) {
+        uint8_t *e = (uint8_t *)objRegister[i];
+        uint8_t *di = e;
+        int bl;
+
+        if (entry) *entry = e;                    /* 1000:FDF7: DX = the entry */
+
+        if (rd16(di, 0u) & 0x8000u) continue;     /* free */
+        di += 5;
+        while (!(di[0] & 0x80u) && di[0] != (uint8_t)objEntity) di++;
+        if (di[0] & 0x80u) continue;              /* not in this entry */
+        di++;                                     /* past the match */
+        if (!(di[0] & 0x80u)) return -1;          /* a member above it */
+        bl = (int8_t)di[-2];                      /* the list byte below */
+        if (bl >= 0) {
+            uint8_t *nb = object_slot((unsigned)bl);
+            int dx = nb ? (int)(int16_t)rd16(nb, 0u) - (int)(int16_t)ax : 8;
+
+            if (dx < 0) dx = -dx;
+            if (nb && dx < 8) return 0;           /* already aligned: no removal */
+        }
+        di[-1] = 0xFFu;                           /* terminate at the match */
+        bl = (int8_t)di[-2];
+        if (bl < 0) {                             /* nothing below: free the entry */
+            wr16(di - 6, 0u, 0xFFFFu);
+            wr16(di - 6, 2u, 0xFFFFu);
+            return 1;
+        }
+        *below = object_slot((unsigned)bl);
+        return 1;
+    }
+    return -1;
+}
+
+/* 1000:E58B (the tail of 1000:E4F8, the step-down state): grab the group the
+ * actor stands at - within 8 px in x and 4 px in y - and append it to the
+ * member list (frame 0x23, type 6).  With no group matching, register the
+ * actor's position in the last free `0x6F22` entry (frame 0x20, type 8).
+ * Returns 1 = grabbed, 0 = registered, -1 = nothing (no group, no free entry:
+ * the original would write through a stale `[0x423C]`, the port refuses). */
+int object_stackGrab(uint8_t *actor)
+{
+    uint16_t ax = rd16(actor, 0u);
+    uint16_t bx = rd16(actor, 2u);
+    uint8_t *lastFree = NULL;
+
+    for (unsigned i = 0; i < 8u; i++) {
+        uint8_t *e = (uint8_t *)objRegister[i];
+        uint16_t ex = rd16(e, 0u), ey;
+        uint8_t *di;
+        int d;
+
+        if (ex & 0x8000u) { lastFree = e + 2; continue; }   /* `[0x423C] = DI` */
+        d = (int)(int16_t)ex - (int)(int16_t)ax;
+        if (d < 0) d = -d;
+        if (d >= 8) continue;                              /* |entry.x - actor.x| < 8 */
+        ey = rd16(e, 2u);
+        d = (int)(int16_t)ey - (int)(int16_t)bx;
+        if (d < 0) d = -d;
+        if (d >= 4) continue;                              /* |entry.y - actor.y| < 4 */
+        di = e + 5;
+        while (!(di[0] & 0x80u)) di++;                     /* to the terminator */
+        *di = (uint8_t)objEntity;
+        wr16(actor, 2u, (uint16_t)(rd16(actor, 2u) - 1u));
+        wr16(actor, 0u, ex);
+        wr16(actor, 4u, 0x0023u);
+        wr16(actor, 8u, 0x0006u);
+        wr16(actor, 0xAu, 0x0000u);
+        wr16(actor, 0xCu, 0x0000u);
+        objStackMark(actor, di);                           /* 1000:F38F */
+        return 1;
+    }
+    if (!lastFree) return -1;
+    wr16(lastFree, 0u, bx);                                /* entry + 2: y */
+    lastFree[3] = (uint8_t)objEntity;                      /* entry + 5: the owner */
+    wr16(lastFree - 2, 0u, ax);                            /* entry + 0: x */
+    wr16(actor, 4u, 0x0020u);
+    wr16(actor, 8u, 0x0008u);
+    return 0;
+}
+
+/* 1000:E860 (handler 10): step off the group.  Finds the entry with the actor's
+ * x, the actor in its list, and on `entry.y - 0x18 == actor.y` moves the actor
+ * down 8 (frame 0x20, type 8) and the list byte below it likewise (frame 0x21).
+ * Returns 1 = acted, 0 = not in a group, -1 = the `y` mismatch branch (1000:E8D4
+ * -> 1000:FD91, the walk frame step). */
+int object_stackStepOff(uint8_t *actor)
+{
+    unsigned idx = (unsigned)((actor - objArray) / OBJ_STRIDE);
+    uint16_t ax = rd16(actor, 0u);
+
+    for (unsigned i = 0; i < 8u; i++) {
+        uint8_t *e = (uint8_t *)objRegister[i];
+        uint8_t *di;
+        uint16_t ey;
+
+        if (rd16(e, 0u) != ax) continue;
+        ey = rd16(e, 2u);
+        di = e + 6;
+        while (!(di[0] & 0x80u) && di[0] != (uint8_t)idx) di++;
+        if (di[0] & 0x80u) continue;
+        if ((uint16_t)(ey - 0x18u) != rd16(actor, 2u)) {
+            objFrameStep(actor, 0x23u, 0x25u);             /* 1000:E8D4 */
+            return -1;
+        }
+        wr16(actor, 2u, (uint16_t)(rd16(actor, 2u) + 8u));
+        wr16(actor, 4u, 0x0020u);
+        wr16(actor, 8u, 0x0008u);
+        if (!(di[-1] & 0x80u)) {
+            uint8_t *nb = object_slot(di[-1]);
+
+            if (nb) {
+                wr16(nb, 0u, ax);
+                wr16(nb, 2u, (uint16_t)(rd16(nb, 2u) + 8u));
+                wr16(nb, 4u, 0x0021u);
+            }
+        }
+        return 1;
+    }
+    return 0;
+}
+
+/* 1000:E8DD (handler 11): leave the group.  Same walk, and on `entry.y ==
+ * actor.y` the actor becomes a standing human (frame 0x10, type 2) and the list
+ * is cut at the slot the push stored in `actor+0xE`.
+ * Returns 1 = left, 0 = not in a group, -1 = the `y` mismatch branch (1000:E934
+ * -> 1000:FD91). */
+int object_stackLeave(uint8_t *actor)
+{
+    unsigned idx = (unsigned)((actor - objArray) / OBJ_STRIDE);
+    uint16_t ax = rd16(actor, 0u);
+
+    for (unsigned i = 0; i < 8u; i++) {
+        uint8_t *e = (uint8_t *)objRegister[i];
+        uint8_t *di;
+
+        if (rd16(e, 0u) != ax) continue;
+        di = e + 6;
+        while (!(di[0] & 0x80u) && di[0] != (uint8_t)idx) di++;
+        if (di[0] & 0x80u) continue;
+        if (rd16(e, 2u) != rd16(actor, 2u)) {
+            objFrameStep(actor, 0x23u, 0x25u);             /* 1000:E934 */
+            return -1;
+        }
+        wr16(actor, 4u, 0x0010u);
+        wr16(actor, 8u, 0x0002u);
+        {
+            unsigned off = rd16(actor, 0xEu);
+
+            if (off < sizeof objRegister)                  /* 1000:E922 */
+                ((uint8_t *)objRegister)[off] = 0xFFu;
+        }
+        return 1;
+    }
+    return 0;
+}
+
+/* 1000:E963 (handler 14): snap onto the group's x.  Only the topmost member
+ * (the byte after it is a terminator) moves: `actor.x = entry.x`, frame 0x20. */
+int object_stackSnap(uint8_t *actor)
+{
+    unsigned idx = (unsigned)((actor - objArray) / OBJ_STRIDE);
+
+    for (unsigned i = 0; i < 8u; i++) {
+        uint8_t *e = (uint8_t *)objRegister[i];
+        uint8_t *di;
+
+        if (rd16(e, 0u) & 0x8000u) continue;
+        di = e + 5;
+        while (!(di[0] & 0x80u) && di[0] != (uint8_t)idx) di++;
+        if (di[0] & 0x80u) continue;
+        di++;
+        if (!(di[0] & 0x80u)) return 0;                    /* a member above it */
+        wr16(actor, 0u, rd16(e, 0u));
+        wr16(actor, 4u, 0x0020u);
+        return 1;
+    }
+    return 0;
+}
+
+/* [0x4234] / [0x4238] / [0x423C] - the selector's three parameters.  The
+ * wrappers 1000:E93D/E952 set them and jump, and 1000:E6FB/E764 overwrite the
+ * frame/type pair for the walk step, so they are state, not arguments. */
+static uint16_t objSelXoff, objSelFrame, objSelType;
+
+/* 1000:E361 map_get, the law shared with objMapCell: the map cell at
+ * (x, y) is `map[32*(y>>4) + (x>>4)]`; `*sub` returns `x & 0xF`, the 0x92A0
+ * sub-column the step test indexes.  Out of the 640-byte map the original reads
+ * the neighbouring buffer, the port returns 0xFF. */
+static unsigned objMapAtAbs(int x, int y, unsigned *sub)
+{
+    const uint8_t *map = level_map();
+    unsigned cell;
+
+    *sub = (unsigned)x & 0xFu;
+    if (!map) return 0xFFu;
+    cell = 32u * (((unsigned)y & 0xFFF0u) >> 4) + ((unsigned)x >> 4);
+    return cell < 640u ? map[cell] : 0xFFu;
+}
+
+/* 1000:E389: the step test.  The cell ahead (x + 8, y + 0x18) and its 0x92A0
+ * byte decide the y the walk lands on: a flat cell keeps y, a slope adds its
+ * low bits, a solid cell takes the slope of the row below (blocked = -1 when
+ * that is solid too) or, for a zero byte, the row above. */
+static int objStepProbeAt(const uint8_t *actor, int dx, int dy, unsigned *cellOut)
+{
+    int x = (int)(int16_t)rd16(actor, 0u) + dx;
+    int y = (int)(int16_t)rd16(actor, 2u) + dy;
+    unsigned sub, id = objMapAtAbs(x, y, &sub);
+    unsigned b = level_pageByte(id, sub);
+
+    *cellOut = id;
+    if (!(b & 0x80u)) {
+        if (b != 0u) return y + (int)(int8_t)b;
+        *cellOut = objMapAtAbs(x, y - 0x10, &sub);    /* 1000:E3BA: the row above */
+        b = level_pageByte(*cellOut, sub);
+        if (b & 0x80u) return y;                      /* 1000:E3CA, AX = 0 */
+        return y - 0x10 + (int)b;
+    }
+    *cellOut = objMapAtAbs(x, y + 0x10, &sub);        /* 1000:E3E7: the row below */
+    b = level_pageByte(*cellOut, sub);
+    if (b & 0x80u) return -1;                         /* 1000:E3F1 */
+    return y + 0x10 + (int)b;
+}
+
+static int objStepProbe(const uint8_t *actor, unsigned *cellOut)
+{
+    return objStepProbeAt(actor, 8, 0x18, cellOut);
+}
+
+/* 1000:F25F: whether the walk can land - the step probe's result must not drop
+ * more than 8 px, and the item record's bit for the sub-cell 0x10 below the
+ * actor's y must be clear.  Returns 0 = free, 0xFFFF = blocked. */
+static unsigned objWalkTest(const uint8_t *actor)
+{
+    unsigned sub, id, bit, cell;
+    int x, y, d;
+    int bx = objStepProbe(actor, &cell);
+
+    if (bx >= 0) {
+        d = bx - 0x18 - (int)(int16_t)rd16(actor, 2u);
+        if (d < 0 && d + 8 < 0) return 0xFFFFu;
+    }
+    x = (int)(int16_t)rd16(actor, 0u) + (int)(int16_t)objSelFrame;
+    y = (int)(int16_t)rd16(actor, 2u) + 0x10;
+    id = objMapAtAbs(x, y, &sub);
+    bit = 1u << (0xFu - ((unsigned)x & 0xFu));
+    return (level_itemWord(id, (unsigned)((unsigned)y & 0xFu)) & bit) ? 0xFFFFu : 0u;
+}
+
+/* 1000:E6FB (left) / 1000:E764 (right): the walk step.  Sets the result
+ * frame/type to 2/0x10 or 0xE/0x10, asks 1000:F25F, then moves x by one and
+ * advances the walk frame (8..0xF left, 0..7 right) every fifth frame. */
+static void objWalk(uint8_t *actor, int left)
+{
+    unsigned lo = left ? 8u : 0u, hi = left ? 0x10u : 8u, f;
+
+    objSelFrame = left ? 2u : 0xEu;
+    objSelType = 0x10u;
+    if (objWalkTest(actor) != 0u) return;             /* blocked: no step */
+    wr16(actor, 0u, (uint16_t)(rd16(actor, 0u) + (left ? 0xFFFFu : 1u)));
+    wr16(actor, 0xAu, (uint16_t)(rd16(actor, 0xAu) - 1u));
+    if ((int16_t)rd16(actor, 0xAu) >= 0) return;
+    wr16(actor, 0xAu, 0x0004u);
+    f = (unsigned)((rd16(actor, 4u) + 1u) & 0xFFFFu);
+    if (f >= hi) f = lo;
+    wr16(actor, 4u, (uint16_t)f);
+}
+
+/* The settle's static data: the per-type gate at 0x6EBE (32 bytes) and the two
+ * 32-byte footing offset tables at 0x689E / 0x68BE, copied from the image. */
+static const uint8_t objTypeGate[32] = {
+    0x0F, 0xFF, 0xC2, 0x1D, 0xA0, 0x00, 0x00, 0x00,
+    0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x01, 0x01,
+    0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+};
+static const uint8_t objFootA[32] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x08,
+    0x08, 0x08, 0x08, 0x08, 0x1A, 0x1A, 0x1A, 0x1A,
+    0x1A, 0x1A, 0x2C, 0x2C, 0x2C, 0x2C, 0x2C, 0x2C,
+    0x3E, 0x3E, 0x3E, 0x3E, 0x3E, 0x3E, 0x3E, 0x50,
+};
+static const uint8_t objFootB[32] = {
+    0x08, 0x1A, 0x1A, 0x1A, 0x1A, 0x1A, 0x1A, 0x1A,
+    0x2C, 0x2C, 0x2C, 0x2C, 0x2C, 0x2C, 0x3E, 0x3E,
+    0x3E, 0x3E, 0x3E, 0x3E, 0x50, 0x50, 0x50, 0x50,
+    0x50, 0x50, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+/* 0x6847: the per-record settled position (4 bytes per record). */
+static uint16_t objSettled[OBJ_SLOTS][2];
+/* [0x4220] / [0x4222]: the settle's footing, read by 1000:DF2C. */
+static uint16_t objFootX, objFootY;
+
+/* 1000:F423: does the actor (BX = x, CX = y) fall inside the 0x6F92 span?  A
+ * match does `OR byte[span+0x13], bit` and returns -1. */
+static int objSpanRect(uint16_t *span, int bx, int cx, uint8_t bit)
+{
+    int d;
+
+    if (rd16((uint8_t *)span, 0x10u) & 0x8000u) return 0;   /* free */
+    d = (int16_t)rd16((uint8_t *)span, 0u) - 0x10 - bx;
+    if (d >= 0) return 0;
+    d += 0x1A;
+    if (d < 0) return 0;
+    d = (int16_t)rd16((uint8_t *)span, 2u) - cx;
+    if (d < 0) return 0;
+    d -= 5;
+    if (d < 0 || d > 4) return 0;
+    ((uint8_t *)span)[0x13] |= bit;
+    return -1;
+}
+
+/* 1000:F3ED: clear the stack bits, then - unless the actor's type is marked at
+ * 0x6EBE - let the two 0x6F92 spans claim it.  Returns 1 when the settle may
+ * run (the original's ZF). */
+static int objSettleGate(uint8_t *actor)
+{
+    unsigned t = rd16(actor, 8u);
+    uint8_t bit = (uint8_t)(1u << (7u - (t & 7u)));
+
+    objStackUnmark(actor);                                   /* 1000:F3CA */
+    if (objTypeGate[(t >> 3) & 0x1Fu] & bit) return 1;       /* 1000:F450 */
+    if (objSpanRect(objSpan[0], (int16_t)rd16(actor, 0u), (int16_t)rd16(actor, 2u), bit))
+        return 0;
+    if (objSpanRect(objSpan[1], (int16_t)rd16(actor, 0u), (int16_t)rd16(actor, 2u), bit))
+        return 0;
+    return 1;
+}
+
+/* 1000:DF2C: the footing landed inside one of the level's 0xA9 sprites?  Marks
+ * that sprite's own buffer and returns -1 (the settle then skips its cache). */
+static int objBgMark(const uint8_t *actor)
+{
+    unsigned sub, cell = objMapAtAbs((int)objFootX, (int)objFootY, &sub);
+    unsigned idx = (unsigned)((actor - objArray) / OBJ_STRIDE);
+    const uint8_t *tbl;
+    unsigned bl;
+
+    if (cell < 0xC2u || cell > 0xCFu) return 0;              /* 1000:DF77 */
+    for (unsigned i = 0; i < objBgCount; i++) {
+        unsigned rx = objBg[i].x, ry = objBg[i].y;
+        int d = (int)objFootX - (int)((rx + 0x10u) & 0xFFF0u);
+
+        if ((objFootY & 0xFFF0u) != ((ry + 0x10u) & 0xFFF0u)) continue;
+        if (d < 0 || d >= 0x20) continue;
+        if (idx < 8u) {
+            if (rd16(actor, 8u) > 1u) return -1;             /* 1000:E001 */
+            tbl = objFootB;
+        } else {
+            int side = (int16_t)objSide;
+            if (side == 0) return -1;                        /* 1000:DFF8 */
+            tbl = side < 0 ? objFootB : objFootA;
+        }
+        bl = tbl[(unsigned)(objFootX - rx) & 0x1Fu];
+        if (bl && objBg[i].dst) objBg[i].dst[bl] = 0xFFu;
+        return -1;
+    }
+    return 0;
+}
+
+/* 1000:D8BD: the terrain settle the type rows' +0xA hook runs.  Snaps the actor
+ * to the slope under its feet, lands it (type 3) on a drop of more than 8 px,
+ * and caches the settled position at 0x6847. */
+static void objCmdSettle(uint8_t *actor)
+{
+    int x = (int16_t)rd16(actor, 0u);
+    int y = (int16_t)rd16(actor, 2u);
+    int ax = x + 8, line = y + 0x18, bx, d;
+    unsigned sub, cell, b;
+
+    if (!objSettleGate(actor)) return;
+    cell = objMapAtAbs(ax, line, &sub);
+    if (cell == level_specialTile(0u) || cell == level_specialTile(1u)) return;
+    b = level_pageByte(cell, sub);
+    objSide = 0;
+    if (b == 0u) {                                           /* 1000:D91D */
+        b = level_pageByte(objMapAtAbs(ax, line - 0x10, &sub), sub);
+        if (!(b & 0x80u)) {
+            objSide = 0xFFE0;
+            line -= 0x10;
+        } else {
+            b = 0u;
+        }
+    } else if (b & 0x80u) {                                  /* 1000:D945 */
+        line += 0x10;
+        objSide = 0x20;
+        b = level_pageByte(objMapAtAbs(ax, line, &sub), sub);
+        if (b & 0x80u) goto landed;                          /* 1000:D9B2 */
+    }
+    bx = line + (int)(int8_t)b;                              /* 1000:D967 */
+    d = (y + 0x18) - bx;
+    if (d < 0) {
+        d = -d;
+        if (d > 8) goto landed;
+    }
+    wr16(actor, 2u, (uint16_t)(bx - 0x18));
+    objFootX = (uint16_t)(rd16(actor, 0u) + 8u);
+    objFootY = (uint16_t)(rd16(actor, 2u) + 0x18u);
+    if (objBgMark(actor) != 0) return;                       /* 1000:D986 */
+    objSettled[(unsigned)((actor - objArray) / OBJ_STRIDE)][0] = rd16(actor, 0u);
+    objSettled[(unsigned)((actor - objArray) / OBJ_STRIDE)][1] = rd16(actor, 2u);
+    return;
+landed:
+    wr16(actor, 8u, 0x0003u);                                /* 1000:D9B2 */
+    wr16(actor, 0xAu, 0x0001u);
+    wr16(actor, 0xCu, 0x0004u);
+    wr16(actor, 0xEu, 0x0000u);
+}
+
+/* 1000:E72A (index 4) and 1000:E790 (index 6): the two idle handlers.  Both
+ * keep the frame in its cycle (8..0x10 / below 8 and 0x10) with a 4-frame
+ * countdown in `+0xA`; the first returns to frame 0x10/type 2 and then 8/1, the
+ * second to 0x10/type 2 and then 0/0. */
+static void objCmdIdleA(uint8_t *actor)
+{
+    unsigned f = rd16(actor, 4u);
+
+    if (f < 8u || f > 0x10u) {                 /* 1000:E739: stand up */
+        wr16(actor, 4u, 0x0010u);
+        wr16(actor, 8u, 0x0002u);
+        wr16(actor, 0xAu, 0x0004u);
+        return;
+    }
+    wr16(actor, 0xAu, (uint16_t)(rd16(actor, 0xAu) - 1u));   /* 1000:E74F */
+    if ((int16_t)rd16(actor, 0xAu) >= 0) return;
+    wr16(actor, 4u, 0x0008u);
+    wr16(actor, 8u, 0x0001u);
+    wr16(actor, 0xAu, 0x0004u);
+}
+
+static void objCmdIdleB(uint8_t *actor)
+{
+    unsigned f = rd16(actor, 4u);
+
+    if (f >= 8u && f != 0x10u) {               /* 1000:E79D: stand up */
+        wr16(actor, 4u, 0x0010u);
+        wr16(actor, 8u, 0x0002u);
+        wr16(actor, 0xAu, 0x0004u);
+        return;
+    }
+    wr16(actor, 0xAu, (uint16_t)(rd16(actor, 0xAu) - 1u));   /* 1000:E7AD */
+    if ((int16_t)rd16(actor, 0xAu) >= 0) return;
+    wr16(actor, 4u, 0x0000u);
+    wr16(actor, 8u, 0x0000u);
+    wr16(actor, 0xAu, 0x0004u);
+}
+
+/* 1000:E4BD's `CALL word ptr [BX + 0x6916]` — the ported handlers, by address.
+ * Returns 0 when the address has no port yet (the caller reports it). */
+static int objCmdCall(uint8_t *actor, unsigned addr)
+{
+    switch (addr) {
+    case 0xD9C7u: return 1;                      /* the common tail: a bare RET */
+    case 0xE4F8u: (void)object_stepDown(actor); return 1;
+    case 0xE609u: (void)object_stepUp(actor); return 1;
+    case 0xE72Au: objCmdIdleA(actor); return 1;
+    case 0xE790u: objCmdIdleB(actor); return 1;
+    case 0xE860u: (void)object_stackStepOff(actor); return 1;
+    case 0xE8DDu: (void)object_stackLeave(actor); return 1;
+    case 0xE963u: (void)object_stackSnap(actor); return 1;
+    case 0xE93Du: (void)object_selectorWalk(actor, 0); return 1;
+    case 0xE952u: (void)object_selectorWalk(actor, 1); return 1;
+    default: return 0;
+    }
+}
+
+/* [0x6916] / [0x6917]: the per-call output state the handlers may set; 1000:E4E7
+ * copies it to [0x1979] / [0x1988] when it is non-zero.  No ported handler sets
+ * it yet. */
+static uint8_t objOutState, objOutStateHi;
+
+/* 1000:E4B0..E4F7: run one command for the acting record.  The type row's
+ * handler runs first, and when it changes the record's type the tail is skipped
+ * (1000:E4CC); otherwise the row's +0xA hook (1000:D8BD, the terrain settle)
+ * and then the tail handler run. */
+int object_commandRun(uint8_t *actor, uint8_t input)
+{
+    ObjCommand c = object_commandSelect(actor, input);
+    unsigned before = rd16(actor, 8u);
+    int ran = OBJ_CMD_NONE;
+
+    if (c.handler) {
+        if (!objCmdCall(actor, c.handler)) return OBJ_CMD_UNPORTED;
+        ran = OBJ_CMD_HANDLER;
+        if (rd16(actor, 8u) != before) goto out;   /* 1000:E4CC */
+    }
+    if (c.hook) objCmdSettle(actor);               /* 1000:D8BD */
+    if (c.tail) {
+        if (!objCmdCall(actor, c.tail)) return OBJ_CMD_UNPORTED;
+        ran = OBJ_CMD_TAIL;
+    }
+out:
+    if (objOutState != 0u) {                       /* 1000:E4E4 */
+        objPending = objOutState;
+        objCursor = objOutStateHi;
+    }
+    return ran;
+}
+
+/* 1000:E4F8 (handler 1): the **step-down** state.  The cell at the feet
+ * (`x + 8`, `y + 0x16`) decides: a special tile (field K -> `[0x6F20]`/`[0x6F21]`)
+ * snaps the actor to the tile grid, a `0x6F92` span at that column takes it
+ * onto the span, else the grab (1000:E58B) runs.  Returns 1 tile rule,
+ * 2 span, 3 grabbed, 4 registered, -1 nothing. */
+int object_stepDown(uint8_t *actor)
+{
+    int x = (int)(int16_t)rd16(actor, 0u);
+    int y = (int)(int16_t)rd16(actor, 2u);
+    unsigned sub, cell = objMapAtAbs(x + 8, y + 0x16, &sub);
+
+    if (cell == level_specialTile(0u) || cell == level_specialTile(1u)) {
+        wr16(actor, 0u, (uint16_t)((x + 8) & 0xFFF0));
+        wr16(actor, 2u, (uint16_t)(y - 1));
+        wr16(actor, 4u, 0x0023u);
+        wr16(actor, 8u, 0x0004u);
+        wr16(actor, 0xAu, 0x0000u);
+        wr16(actor, 0xCu, 0x0000u);
+        return 1;
+    }
+    for (unsigned i = 0; i < 2u; i++) {
+        uint16_t *s = objSpan[i];
+        int sx = (int16_t)s[1], sy = (int16_t)s[2], sh = (int16_t)s[3], d;
+
+        if (rd16((uint8_t *)s, 0u) & 0x8000u) continue;
+        d = sx - (x + 8);
+        if (d < 0) d = -d;
+        if (d >= 8) continue;                        /* |span.x - (x+8)| < 8 */
+        d = sy - y;
+        if (d >= 0 && d >= 0x18) continue;           /* span.y - y < 0x18 */
+        if (sy + sh < y) continue;                   /* the span covers y */
+        wr16(actor, 2u, (uint16_t)(y - 1));
+        wr16(actor, 0u, (uint16_t)(sx - 8));
+        wr16(actor, 4u, 0x0052u);
+        wr16(actor, 8u, 0x000Bu);
+        wr16(actor, 0xAu, 0x0000u);
+        wr16(actor, 0xCu, 0x0000u);
+        wr16(actor, 0xEu, (uint16_t)((uintptr_t)s - (uintptr_t)objSpan));
+        objStackUnmark(actor);                       /* 1000:F3CA */
+        return 2;
+    }
+    {
+        int r = object_stackGrab(actor);
+
+        return r == 1 ? 3 : (r == 0 ? 4 : -1);
+    }
+}
+
+/* 1000:E609 (handler 2): the **walk-up** state.  Same three-way split, with
+ * `x + 8, y + 0x19` as the feet cell; the span test uses `y + 0x18` as the line
+ * and a 0x10-px column window, and the fall-through is the push (1000:E697).
+ * Returns 1 tile rule, 2 span, 3 pushed, 4 nothing. */
+int object_stepUp(uint8_t *actor)
+{
+    int x = (int)(int16_t)rd16(actor, 0u);
+    int y = (int)(int16_t)rd16(actor, 2u);
+    unsigned sub, cell = objMapAtAbs(x + 8, y + 0x19, &sub);
+
+    if (cell == level_specialTile(0u) || cell == level_specialTile(1u)) {
+        wr16(actor, 0u, (uint16_t)((x + 8) & 0xFFF0));
+        wr16(actor, 2u, (uint16_t)(y + 1));
+        wr16(actor, 4u, 0x0025u);
+        wr16(actor, 8u, 0x0005u);
+        wr16(actor, 0xAu, 0x0000u);
+        wr16(actor, 0xCu, 0x0000u);
+        return 1;
+    }
+    for (unsigned i = 0; i < 2u; i++) {
+        uint16_t *s = objSpan[i];
+        int sx = (int16_t)s[1], sy = (int16_t)s[2], sh = (int16_t)s[3], d;
+        int line = y + 0x18;
+
+        if (rd16((uint8_t *)s, 0u) & 0x8000u) continue;
+        d = sx - (x + 8);
+        if (d < 0) d = -d;
+        if (d >= 0x10) continue;                     /* |span.x - (x+8)| < 0x10 */
+        if (sy >= line) continue;
+        if (sy + sh < line) continue;
+        wr16(actor, 2u, (uint16_t)(y + 1));
+        wr16(actor, 0u, (uint16_t)(sx - 8));
+        wr16(actor, 4u, 0x0054u);
+        wr16(actor, 8u, 0x000Cu);
+        wr16(actor, 0xAu, 0x0000u);
+        wr16(actor, 0xCu, 0x0000u);
+        wr16(actor, 0xEu, (uint16_t)((uintptr_t)s - (uintptr_t)objSpan));
+        objStackUnmark(actor);
+        return 2;
+    }
+    return object_stackPush(actor) ? 3 : 4;
+}
+
+/* 1000:E93D / 1000:E952: the two wrappers that set the selector's constants and
+ * jump into it - left: xoff -1, frame 8, type 1; right: xoff 1, frame 0, type 0. */
+int object_selectorWalk(uint8_t *actor, int right)
+{
+    return right ? object_selector(actor, 1u, 0u, 0u)
+                 : object_selector(actor, 0xFFFFu, 8u, 1u);
+}
+
+/* 1000:F17C script_op_select_on_zero: the object selector, and the stack's
+ * "walk off" path.  `xoff` = [0x4234], `frame` = [0x4238], `type` = [0x423C] -
+ * the two wrappers 1000:E93D (8/1) and 1000:E952 (0/0) set them and jump here.
+ * Returns 0 = done, -1 = nothing found (the original's `JS`), -2 = the branch
+ * needs the terrain step test (1000:E389 / 1000:F25F), which is not ported. */
+int object_selector(uint8_t *actor, uint16_t xoff, uint16_t frame, uint16_t type)
+{
+    uint16_t ax;
+    uint8_t *below, *entry;
+    int r;
+
+    objSelXoff = xoff;
+    objSelFrame = frame;
+    objSelType = type;
+    ax = (uint16_t)(objSelXoff + rd16(actor, 0u));          /* 1000:F185 */
+    r = object_stackPop(ax, &below, &entry);
+    if (r < 0) return -1;                                  /* 1000:F18D */
+    if (r == 0) {
+        if (rd16(actor, 4u) != 0x20u) {                    /* 1000:F1F2 */
+            int d = (int)(int16_t)rd16(actor, 4u) - (int)(int16_t)objSelFrame;
+
+            if (d < 0 || d >= 8) {
+                wr16(actor, 4u, objSelFrame);              /* 1000:F20C */
+                return 0;
+            }
+            objWalk(actor, objSelType != 0u);              /* 1000:E6FB / 0xE764 */
+            return 0;
+        }
+        wr16(actor, 4u, objSelFrame);                      /* 1000:F191 */
+        return 0;
+    }
+    if (below) {                                           /* 1000:F198 */
+        wr16(below, 2u, (uint16_t)(rd16(below, 2u) - 8u));
+        wr16(below, 4u, 0x0020u);
+    }
+    wr16(actor, 4u, frame);
+    wr16(actor, 8u, type);
+    /* 1000:F1B2 also writes [0x6FE6] = 0xFF; that byte has no decoded reader. */
+    {
+        unsigned bit = objIndexBit((unsigned)(actor - objArray) / OBJ_STRIDE);
+
+        if ((objStackMask[0] | objStackMask[1]) & bit) return 0;  /* 1000:F1CB */
+    }
+    /* 1000:F1D7: the step probe's distance test.  A blocked probe, or a step
+     * of 10 px or more, goes to 1000:F223; a small step does nothing. */
+    {
+        unsigned cell = 0xFFu;
+        int bx = objStepProbe(actor, &cell), d;
+
+        if (bx >= 0) {
+            d = bx - 0x18 - (int)(int16_t)rd16(actor, 2u);
+            if (d < 0) d = -d;
+            if (d - 0xA < 0) return 0;                 /* 1000:F1F1 */
+        }
+        /* 1000:F223: DI is the cell 1000:E389 ended on; when it is one of the
+         * level's two special tiles (field K -> [0x6F20]/[0x6F21]) the actor
+         * stays put, otherwise it takes the found entry's x. */
+        if (cell == level_specialTile(0u) || cell == level_specialTile(1u)) return 0;
+        if (entry) wr16(actor, 0u, rd16(entry, 0u));
+        return 0;
+    }
+}
+
+/* 1000:FADA: the per-member restore inside a dissolve. */
+static void objGroupRestoreMember(uint8_t *rec)
+{
+    wr16(rec, 4u, 0x0010u);                  /* frame 0x10 */
+    wr16(rec, 8u, 0x0003u);                  /* type 3     */
+    wr16(rec, 0xAu, 0x0001u);
+    wr16(rec, 0xCu, 0x0004u);
+    wr16(rec, 0xEu, 0x0000u);
+}
+
+/* 1000:FA13 object_group_dissolve: free the entry, then give the owner (n = 0)
+ * its standing human form, or each member (n >= 1) the FADA form.  `n` is the
+ * member-list length - 1, exactly `(run length from +5) - 2` as the code
+ * computes it; the `n >= 2` handler's second `XCHG CX,BX` at FA78 leaves
+ * BX = n, so its loop runs `n - 1` times after the first member: n calls in
+ * all, one per member. */
+static void objGroupDissolve(uint8_t *e)
+{
+    uint8_t *bp;
+    unsigned n;
+    uint8_t *last;                 /* the topmost list byte's record */
+
+    e[0] = 0xFF; e[1] = 0xFF;                /* +0/+2 = 0xFFFF: free */
+    bp = e + 5;
+    while (!(bp[0] & 0x80u)) bp++;            /* past the terminator */
+    n = (unsigned)(bp - (e + 5)) - 1u;        /* list length - 1     */
+    if (n == 0u) {
+        last = object_slot(bp[-1]);           /* the owner byte      */
+        if (!last) return;
+        wr16(last, 4u, 0x0010u);              /* frame 0x10          */
+        wr16(last, 8u, 0x0002u);              /* type 2, a human     */
+        return;
+    }
+    last = object_slot(bp[-1]);               /* n = 1: the only member */
+    if (!last) return;
+    objGroupRestoreMember(last);
+    for (unsigned k = 1u; k < n; k++) {       /* the members below it */
+        uint8_t *m = object_slot(bp[-1 - (int)k]);
+        if (m) objGroupRestoreMember(m);
+    }
+}
+
+/* 1000:F453 scan_groups_for_record: the first 0x6F22 entry whose member list
+ * (from +5) contains `recIndex` gets dissolved.  Returns 1 when one was. */
+int object_stackScanDissolve(unsigned recIndex)
+{
+    for (unsigned i = 0; i < 8u; i++) {
+        uint8_t *e = (uint8_t *)objRegister[i];
+        if (e[1] & 0x80u) continue;                       /* +0 bit 15 set = free */
+        for (uint8_t *p = e + 5; !(p[0] & 0x80u); p++)
+            if (p[0] == (uint8_t)recIndex) { objGroupDissolve(e); return 1; }
+    }
+    return 0;
 }
 
 /* 0xEA71 (op 8): on odd frames reset the span entry of the acting record.

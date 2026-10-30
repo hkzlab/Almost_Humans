@@ -50,6 +50,10 @@ static uint16_t rd_le16(const uint8_t *p)
 }
 
 static LevelData level_data_cur;
+/* The writable map the game plays on: 1000:3138 copies the record's 640 bytes
+ * to [0x1FA0], and 1000:51F9 (the 0xA9 handler) marks two cells of it.  Keeping
+ * the copy means the parsed record stays byte-exact (tests/test_level). */
+static uint8_t levelMapCopy[640];
 static int level_loaded;
 static uint8_t *boxSpr;           /* apl\box.spr (the dialog tiles)      */
 static uint8_t *objBank;          /* apl\sprites.dat (the object sprites) */
@@ -160,6 +164,7 @@ static uint8_t pageMask[256][16];
 static uint8_t *pageItems;            /* field B + its record area          */
 static uint32_t pageItemsSize;
 static int pageValid;
+static uint8_t kBytes[4];             /* field K: [0x6F20], [0x6F0B]        */
 static uint8_t *animTable;
 static unsigned animCount;
 
@@ -221,7 +226,10 @@ static uint32_t bd_walk(const uint8_t *b, uint32_t size, unsigned *bgIndex,
     si += 0x200u + 0xC0u;                  /* H + I                        */
     if (si + 2u > size) return 0;
     si += rd_le16(b + si) + 8u;            /* J                            */
-    si += 4u;                              /* K                            */
+    if (si + 4u > size) return 0;
+    kBytes[0] = b[si]; kBytes[1] = b[si + 1];  /* K: [0x6F20] = two tile ids */
+    kBytes[2] = b[si + 2]; kBytes[3] = b[si + 3]; /* K2: [0x6F0B]            */
+    si += 4u;
     if (si + 2u > size) return 0;
     *bgIndex = rd_le16(b + si);            /* L                            */
     si += 2u;
@@ -473,7 +481,11 @@ int level_load(unsigned levelId)
     /* the level's placed objects (load_terrain_b 1000:5168): the array is
      * cleared, then the map's 0xAA/0xAB cells become the humans and the spear. */
     object_init();
-    object_loadTerrainObjects(level_data_cur.map);
+    /* the loaded record is the writable map: 1000:51F9 marks two cells a
+     * row below (the original works on its [0x1FA0] copy). */
+    memset(levelMapCopy, 0, sizeof levelMapCopy);
+    memcpy(levelMapCopy, level_data_cur.map, sizeof levelMapCopy);
+    object_loadTerrainObjects(levelMapCopy);
 
     /* the bar (level_start 1000:957B + build_statusbar_layout 1000:961B):
      * the time limit and the tribe pair.  On a fresh game both come from the
@@ -790,9 +802,43 @@ int level_pageFree(unsigned id)
     return sum == 0u;
 }
 
+/* The `0x92A0` page mask's byte for a tile id and sub-column: bit 7 = solid,
+ * the low 7 bits are the step 1000:E389 follows.  `level_pageFree` reads the
+ * same table for op 3. */
+unsigned level_pageByte(unsigned id, unsigned subcol)
+{
+    if (!pageValid || id > 0xFFu || subcol > 0xFu) return 0x80u;
+    return pageMask[id][subcol];
+}
+
+/* The `[0x1FD6]` item record's `row` word: `B + word[B + 2*id]` then `2*row`,
+ * i.e. the 16-bit sub-cell occupancy mask 1000:F25F tests. 0xFFFF when absent. */
+unsigned level_itemWord(unsigned id, unsigned row)
+{
+    unsigned off;
+
+    if (!pageValid || id > 0xFFu || row > 0xFu) return 0xFFFFu;
+    off = rd_le16(pageItems + 2u * id);
+    if (off + 32u > pageItemsSize) return 0xFFFFu;
+    return rd_le16(pageItems + off + 2u * row);
+}
+
+/* Field K's first word, the level's two special tile ids (`[0x6F20]` and
+ * `[0x6F21]`): the walk states compare the cell under the feet with them. */
+unsigned level_specialTile(unsigned i)
+{
+    return i < 2u ? kBytes[i] : 0xFFFFu;
+}
+
+/* The record's style byte (header +0, `[0x17EE]`): 1000:5662 tests it against 6. */
+unsigned level_style(void)
+{
+    return level_loaded ? level_data_cur.style : 0u;
+}
+
 const uint8_t *level_map(void)
 {
-    return level_loaded ? level_data_cur.map : NULL;
+    return level_loaded ? levelMapCopy : NULL;
 }
 
 /* the level's working palette 202F:0x14D3 (levelPal above) */
@@ -814,6 +860,16 @@ unsigned level_tribeMembers(void) { return tribeMembers; }
  * scroll 0,0), the status bar, and the working palette 202F:0x14D3 built at
  * load.  The entity / logic systems land with entity.c.  Returns 1 while
  * the level is running. */
+static uint8_t levelJoy;               /* [0x5ACE]: this tick's input word  */
+
+/* The play loop's input (1000:8526's output; the backend already produces the
+ * same shape in InputState.joyBits).  Kept out of level_tick's signature so the
+ * front-end screens call it the same way as the original's shared sampler. */
+void level_noteInput(const InputState *in)
+{
+    levelJoy = in ? in->joyBits : 0u;
+}
+
 int level_tick(void)
 {
     if (!level_loaded) return 0;
@@ -889,7 +945,15 @@ int level_tick(void)
     /* the object machine's frame (the claim's sequence and its fades); the
      * original runs it from the level's per-frame body, so not during the
      * start chain. */
-    if (startPhase == LVSTART_PLAYING) object_tick(level_palette());
+    if (startPhase == LVSTART_PLAYING) {
+        /* 1000:80AD update_world: get_object_ptr (1000:79F4) then the input
+         * command (1000:E3F6) for the acting record, before the object tick.
+         * `joyBits` is the port's [0x5ACE] (backend -> 1000:8526's shape). */
+        uint8_t *actor = object_slot(object_actionEntity());
+
+        if (actor) (void)object_commandRun(actor, levelJoy);
+        object_tick(level_palette());
+    }
 
     if (bgImage) memcpy(world, bgImage, WORLD_W * WORLD_H);
     else memset(world, 0, WORLD_W * WORLD_H);

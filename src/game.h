@@ -232,13 +232,23 @@ int  level_init(const OSystem *osys);
 int  level_load(unsigned levelId);          /* 0..159; 0 = ok            */
 const LevelData *level_data(void);          /* NULL before a load        */
 const uint8_t *level_map(void);             /* == level_data()->map      */
+unsigned level_style(void);                  /* [0x17EE]: the record's style */
 /* the working palette 202F:0x14D3 (the fade target of the claim, the level's
  * own fades and the rotate hook) */
 const uint8_t *level_palette(void);
 /* page_offset_to_ptr (1000:F123): 1 = the tile id's page is free (the ACTION
  * op 3 gate) — the BD file's page mask + its 16-word item record. */
 int level_pageFree(unsigned id);
+/* The two level maps the walk reads: `0x92A0`'s page bytes (bit 7 = solid, the
+ * low 7 bits the step, 1000:E389) and `[0x1FD6]`'s 16-word item records
+ * (1000:F25F's occupancy bit). */
+/* Field K's first word: the level's two special tile ids ([0x6F20]/[0x6F21]). */
+unsigned level_specialTile(unsigned i);
+unsigned level_pageByte(unsigned id, unsigned subcol);
+unsigned level_itemWord(unsigned id, unsigned row);
 int  level_tick(void);                      /* 1 = the level is running  */
+/* 1000:8526's [0x5ACE] for the play loop's command dispatch (1000:E3F6). */
+void level_noteInput(const InputState *in);
 
 /* menu_loop (1000:012A), the MAP/high-score screen after the ending.
  * START: the HIGH.BIT card + the title, key/ACTION exit; the full
@@ -376,7 +386,7 @@ void object_publishBank(const uint8_t *bank, uint32_t size);
  * the first free static slot, frame 0x10, type 2) and 0xAB (the spear,
  * appended, frame 0x60, +8 = 0xFFFF, behaviour 5) in table order.  The other
  * 23 tiles are not ported; returns [0x3E73]. */
-unsigned object_loadTerrainObjects(const uint8_t *map);
+unsigned object_loadTerrainObjects(uint8_t *map);
 unsigned object_placedHumans(void);      /* [0x3E20]                       */
 /* the map cell under a static record (0xF761 with AX = 8, BX = 0xC); the
  * score's object bonus reads it: 0xA8 -> +1000, 0xA7 -> +2000 (1000:55FA). */
@@ -387,6 +397,58 @@ void object_render(uint8_t *page, int scrollX, int scrollY);
  * red/white flash, the blinks, the animation, the append and the settle.
  * `recipe` = 1/0/3 for the three handlers.  object_tick drives the sequence
  * and supplies the level's palette (the fades return to it). */
+/* 1000:E3F6's command dispatch: the acting record's handler for one input word
+ * (`[0x5ACE]`).  `handler` is the in-segment address the original calls
+ * (0 = none, so the row's `tail` applies); `command` is the 0..7 number the
+ * type row was indexed by.  Index 2 is 1000:E609, whose tail holds the human
+ * stack's push.  The handlers themselves are not ported yet. */
+typedef struct {
+    unsigned handler;
+    unsigned tail;
+    unsigned hook;      /* the row's +0xA: run 1000:D8BD before the tail */
+    unsigned command;
+} ObjCommand;
+ObjCommand object_commandSelect(uint8_t *rec, uint8_t input);
+
+/* 1000:E4B0's outcome for one command. */
+#define OBJ_CMD_NONE      0   /* neither a handler nor a tail ran          */
+#define OBJ_CMD_HANDLER   1   /* the type row's handler ran                */
+#define OBJ_CMD_TAIL      2   /* the row's tail handler ran                */
+#define OBJ_CMD_UNPORTED (-1) /* the selected handler/hook/tail has no port */
+/* 1000:E4B0..E4F7: select and run one command for the acting record.  Only the
+ * ported handlers are dispatched (the two movement states, the leaves, the snap,
+ * the selector wrappers and the bare-RET tail). */
+int  object_commandRun(uint8_t *actor, uint8_t input);
+
+/* The human stack (`0x6F22`, 8 entries x 0x0E: +0/+2 x/y, bit 15 = free, +4 the
+ * animator state, +5 the owner index, +6ff the bit-7-terminated member list).
+ * `object_stackPush` is the push block of 1000:E609 (1000:E697) and
+ * `object_stackGrab` the one of 1000:E4F8 (1000:E58B), `object_stackPop` is
+ * 1000:FDED, the leaves are 1000:E860 / 1000:E8DD, the snap 1000:E963, the
+ * selector 1000:F17C, and `object_stackScanDissolve` is 1000:F453 (the scan that
+ * finds the group holding a record and dissolves it).  The `0x64AD`/`0x64C1`
+ * in-a-stack masks (1000:F38F/F3CA) are written by the two pushes and read by
+ * the selector. */
+int  object_stackPush(uint8_t *actor);            /* 1 = a group took it      */
+int  object_stackGrab(uint8_t *actor);            /* 1 = grabbed, 0 = registered */
+/* -1 / 0 / 1 as 1000:FDED; `*below` = the record it leaves in DI and `*entry` =
+ * the 0x6F22 entry it was scanning (1000:FDF7's DX, which 1000:F223 reads). */
+int  object_stackPop(uint16_t ax, uint8_t **below, uint8_t **entry);
+int  object_stackStepOff(uint8_t *actor);         /* 1000:E860: 1/0/-1        */
+int  object_stackLeave(uint8_t *actor);           /* 1000:E8DD: 1/0/-1        */
+int  object_stackSnap(uint8_t *actor);            /* 1000:E963: 1/0           */
+/* 1000:F17C: 0 = done, -1 = nothing found, -2 = needs the terrain step test
+ * (1000:E389 / 1000:F25F), which is not ported. */
+int  object_selector(uint8_t *actor, uint16_t xoff, uint16_t frame, uint16_t type);
+int  object_stackScanDissolve(unsigned recIndex); /* 1 = a group was dissolved */
+/* 1000:E4F8 / 1000:E609: the two movement states that feed the stack - the feet
+ * cell's special tile (field K), a 0x6F92 span, else the grab / the push.
+ * Codes: 1 tile rule, 2 span, 3 grabbed/pushed, 4 registered/nothing, -1 nothing. */
+int  object_stepDown(uint8_t *actor);
+int  object_stepUp(uint8_t *actor);
+/* 1000:E93D (left) / 1000:E952 (right): the selector with the wrappers' constants. */
+int  object_selectorWalk(uint8_t *actor, int right);
+
 int  object_claimBegin(unsigned recipe, int actor);
 int  object_claimActive(void);
 void object_claimTick(const uint8_t *levelPal);

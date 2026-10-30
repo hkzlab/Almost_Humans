@@ -793,7 +793,15 @@ int frontend_tick(const InputState *in)
         }
         return 1;
     case FE_EXITFADE:
-        compose(1);
+        /* The fade holds the frame the screen last presented.  This used to
+         * pass 1, which swapped pageDraw to 0x7D00 - the ROOM's second page,
+         * where the setup's 2-frame loop (1000:A5A1) had drawn the seeded
+         * "DARWIN".  The name screen is single-buffered (its cursor+present
+         * double-swap cancels, so it composes with 0), so swapping here put
+         * the stale room page on screen after the first fade tick: a correct
+         * code started the right level, but the old DARWIN showed through the
+         * fade-out.  Keep the name screen's page (0x2800). */
+        compose(0);
         if (!palette_fadeActive()) return 0;   /* the room has exited */
         return 1;
     }
