@@ -413,6 +413,7 @@ enum {
     PH_SWAPWAIT,                               /* 2bda's {28e9; 8b9a; JC} */
     PH_SET1, PH_SET1_WAIT,                     /* 2600..2699             */
     PH_SET2, PH_SET2_WAIT,                     /* 269b..2703             */
+    PH_GAMEOVER,                               /* 2739: the need>members page */
     PH_EXITWAIT, PH_PRESENT, PH_DONE           /* 2711..272b             */
 };
 
@@ -422,6 +423,7 @@ static unsigned waitLeft;              /* 297f's AX                           */
 static int      keyCaught;             /* the JNS's source                    */
 static unsigned presentLeft;           /* 835a's 0x4B cycles                  */
 static unsigned swapNext;              /* the 2bda's tail's next phase        */
+static int      gameOverMode;          /* level_intro_screen 2739's variant   */
 
 /* 2bda's internal split: its own fade-wait (2bec..2bf2), THEN the 0xE0
  * mask reset (2bf4) + clear + band redraws (2c01..2c1c) — the tail is
@@ -542,6 +544,8 @@ void party_intro_setValues(unsigned level, unsigned need, unsigned members,
     memcpy(s_fire,  "PRESS FIRE TO START LEVEL....", 30);
 }
 
+void party_intro_setGameOver(int on) { gameOverMode = on ? 1 : 0; }
+
 static uint8_t *load(const char *name)
 {
     uint32_t sz = 0; uint16_t ck = 0;
@@ -615,7 +619,10 @@ int party_intro_tick(const InputState *in)
     switch (phase) {
     case PH_FADEWAIT:
         anim_entities();
-        if (!palette_fadeActive()) { phase = PH_SET1; step = 0u; }
+        if (!palette_fadeActive()) {
+            phase = gameOverMode ? PH_GAMEOVER : PH_SET1;
+            step = 0u;
+        }
         break;
 
     case PH_SWAPWAIT:                          /* 2bec..2c1c: the fade wait,
@@ -715,6 +722,22 @@ int party_intro_tick(const InputState *in)
             if (keyCaught) swap_begin((unsigned)-1);   /* 270b          */
             else swap_begin(PH_SET1);
         }
+        break;
+
+    case PH_GAMEOVER:                         /* 2739..27e9: the GAME OVER
+                                                * variant of the briefing  */
+        if (step == 0u) {
+            clear_canvas();
+            draw_text_ramped("GAME OVER!", 0xA0u, 0x14u);
+            draw_text_ramped("YOUR TRIBE IS TOO SMALL TOO CONTINUE", 0xA0u, 0x28u);
+            draw_text_ramped("IN THE RACE FOR EVOLUTION!", 0xA0u, 0x34u);
+            draw_text_ramped("PRESS FIRE TO TRY AGAIN!", 0xA0u, 0x48u);
+            intro_anim();                  /* 2b9c: the band redraws carry
+                                            * the canvas text to the display */
+            step = 1u;
+        }
+        anim_entities();
+        if (fire || anyk) swap_begin((unsigned)-1);
         break;
 
     case PH_EXITWAIT:                         /* 2720: {28e9; 8b9a; JC}  */

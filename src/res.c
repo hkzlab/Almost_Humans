@@ -352,3 +352,14 @@ uint8_t *res_loadChunk(const char *name, uint32_t *sizeOut, uint16_t *chkOut)
 }
 
 int res_init(const OSystem *osys) { (void)osys; return 0; }
+
+/* the disc-presence probe: draw_status_indicator's open test (1000:20CF)
+ * opens the volume file for the disc and closes it; 0 = the disc is not
+ * available (the "PUT THE DISK INTO DRIVE n" screen). */
+int res_volumePresent(unsigned disc)
+{
+    FSVolume *v = fs.openVolume(disc);
+    if (!v) return 0;
+    fs.closeVolume(v);
+    return 1;
+}

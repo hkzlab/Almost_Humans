@@ -89,7 +89,30 @@ int main(int argc, char **argv)
                           "the loading DAC is dicon+0x18");
             }
         }
-        for (unsigned t = 0; t < 0xA0u; t++) level_loadingTick();
+        /* the background: a clean black page plus BACKS\DICON.APL's 80x56
+         * card at (0x50,0x60) above the status bar — the 1000:3310 blit's
+         * visible position, 4 px/byte (not doubled) */
+        level_loadingTick();               /* the first frame composes it */
+        {
+            char dp[512];
+            snprintf(dp, sizeof dp, "%s/HUMANS.001/BACKS/DICON.APL", fix_dir);
+            FILE *df = fopen(dp, "rb");
+            if (df) {
+                uint8_t dic[0x1580];
+                size_t n = fread(dic, 1, sizeof dic, df);
+                fclose(df);
+                if (n == sizeof dic && dic[0] == 'A') {
+                    const uint8_t *page = osys_null_page(0);
+                    check(page[0] == 0u, "the loading background is cleared");
+                    check(page[(0x60u + 10u) * 320u + 0x50u + 40u] ==
+                              dic[0x400u + 10u * 80u + 40u] &&
+                          page[(0x60u + 10u) * 320u + 0x50u + 41u] ==
+                              dic[0x400u + 10u * 80u + 41u],
+                          "the dicon card is at (0x50,0x60), 1x");
+                }
+            }
+        }
+        for (unsigned t = 0; t < 0x9Fu; t++) level_loadingTick();
         check(level_loadingScreen(), "the letters phase follows");
         {
             uint32_t sz = 0;
@@ -114,9 +137,9 @@ int main(int argc, char **argv)
                 unsigned badpx = 0;
                 for (unsigned r = 0; r < 24u; r++)
                     for (unsigned c = 0; c < 16u; c++)
-                        if (L[r * 16u + c] && page[(0x1Cu + r) * 320u + 0xB0u + c] != L[r * 16u + c])
+                        if (L[r * 16u + c] && page[(0x1Cu + r) * 320u + 0x60u + c] != L[r * 16u + c])
                             badpx++;
-                check(badpx == 0u, "the 'L' block drawn at x=0xB0 (bad chars)");
+                check(badpx == 0u, "the 'L' block drawn at x=0x60 (bad chars)");
                 free(bank);
             }
         }
@@ -165,6 +188,106 @@ int main(int argc, char **argv)
         }
     } else {
         printf("skip: the level data is not on the disc\n");
+    }
+
+    /* 6. the level-end trigger (object_test_dispatch 1000:35D6): the goal
+     * hook wins; losing the whole tribe ends the level with [0x138E]=0 */
+    if (level_load(0) == 0) {
+        level_goalReached();
+        check(level_endTest() && level_ended() && level_outcome(),
+              "the goal hook ends the level as won");
+        check(level_load(0) == 0 && !level_ended(),
+              "a reload clears the end trigger");
+        {
+            unsigned n = level_members();
+            for (unsigned i = 0; i < n; i++) level_memberLost();
+            check(level_members() == 0u, "the tribe count reaches zero");
+            check(level_endTest() && level_ended() && !level_outcome(),
+                  "an extinct tribe ends the level as lost");
+        }
+        (void)level_load(0);
+    } else printf("skip: the level data is not on the disc\n");
+
+    /* 7. draw_status_indicator (1000:1FEF): a present volume returns at
+     * once (no screen); a missing one draws the prompt and waits */
+    check(res_volumePresent(1u), "disc 1 is present");
+    check(level_diskStatusBegin(1u) == 0, "a present disc skips the prompt");
+    {
+        check(!res_volumePresent(3u), "disc 3 is the missing-volume case");
+        check(level_diskStatusBegin(3u) == 1, "a missing disc draws the prompt");
+        check(palette_fadeActive(), "the prompt fades its palette in");
+        for (unsigned t = 0; t < 80u && palette_fadeActive(); t++) palette_tick();
+        check(!palette_fadeActive(), "the prompt fade completes");
+        {
+            InputState k;
+            memset(&k, 0, sizeof k);
+            k.lastKey = 1;
+            check(level_diskStatusTick(&k) == 1,
+                  "the prompt waits while the disc is still missing");
+        }
+        level_diskStatusReset();
+        check(res_volumePresent(0u), "disc 0 is present");
+    }
+
+    /* 7b. the post-level cutscene decision (entry 14E6/14FF) and the
+     * ending index (150C/1512), against the real header bytes */
+    check(gameflow_postLevelScene(1, 0u) == 0u,
+          "a won level with intro 0 plays scene 0");
+    check(gameflow_postLevelScene(1, 0xFFu) == 0xFFFFu,
+          "intro 0xFF = no newspaper");
+    check(gameflow_postLevelScene(0, 0u) == 0xFFFFu,
+          "a lost level never plays its newspaper");
+    check(gameflow_endingScene(1) == 7u && gameflow_endingScene(0) == 6u,
+          "ending scene 7 COMPLETE / 6 lost");
+    if (level_load(0) == 0)
+        check(level_data()->introIndex == 0u, "level 1's header intro is 0");
+    if (level_load(1) == 0)
+        check(level_data()->introIndex == 0xFFu,
+              "level 2's header intro is 0xFF (no newspaper)");
+    if (level_load(5) == 0)
+        check(level_data()->introIndex == 4u, "level 6's header intro is 4");
+
+    /* 7c. the corpus: every level's header intro byte gates its post-level
+     * newspaper; 14 of the 160 carry one (the corpus census) */
+    {
+        unsigned loaded = 0, newspapers = 0;
+        for (unsigned id = 0; id < 160u; id++) {
+            if (level_load(id) != 0) continue;
+            loaded++;
+            unsigned ii = level_data()->introIndex;
+            check(ii == 0xFFu || ii < 0x80u, "the header intro byte is 0xFF/0..9");
+            if (gameflow_postLevelScene(1, ii) != 0xFFFFu) newspapers++;
+        }
+        check(loaded == 160u, "all 160 level records load");
+        check(newspapers == 14u, "14 levels carry a post-level newspaper");
+    }
+
+    /* 7d. check_highscore's score/record screen (START): SCORE.BIT, the
+     * score line, the key, the 0x100 fade and the 0x4B hold */
+    check(score_begin(0u) == 1, "the score screen starts");
+    {
+        InputState k;
+        memset(&k, 0, sizeof k);
+        k.lastKey = 1;
+        check(score_tick(&k) == 1, "the score screen's first tick arms");
+        check(score_tick(&k) == 1, "the score screen waits on the card");
+        for (unsigned t = 0; t < 80u && palette_fadeActive(); t++) palette_tick();
+        check(!palette_fadeActive(), "the score's fade completes");
+        for (unsigned t = 0; t < 0x50u; t++) {
+            if (!score_tick(&k)) break;
+        }
+        check(!score_tick(&k), "the score screen exits after the hold");
+    }
+
+    /* 8. menu_loop's MAP screen (START): the card loads and the key exits */
+    check(map_begin() == 1, "the MAP screen starts");
+    {
+        InputState k;
+        memset(&k, 0, sizeof k);
+        k.lastKey = 1;
+        check(map_tick(&k) == 1,
+              "the MAP's first tick ignores the cutscene's held key");
+        check(map_tick(&k) == 0, "a key leaves the MAP screen");
     }
 
     if (bad) { fprintf(stderr, "flow: FAIL\n"); return 1; }

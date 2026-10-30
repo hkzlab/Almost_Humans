@@ -364,6 +364,28 @@ int main(int argc, char **argv)
         bad = 1;
     }
 
+    /* 5b. a new cutscene with the same index replays after a reset: cd_file_op
+     * reloads every time, while the per-tick player keeps a finished intro
+     * finished (test 5) */
+    {
+        InputState idle;
+        memset(&idle, 0, sizeof idle);
+        osys_null_inject(&idle);
+        scene_resetIntro();
+        if (scene_playLevelIntro(0) != 1) {
+            fprintf(stderr, "FAIL a reset did not restart the cutscene\n");
+            bad = 1;
+        }
+        {
+            InputState k;
+            memset(&k, 0, sizeof k);
+            k.lastKey = 1;
+            osys_null_inject(&k);
+            (void)scene_playLevelIntro(0);
+        }
+        osys_null_inject(&idle);
+    }
+
     /* 6b. [0x627C] (the boot's fast mode): play_scene_sequence's pre-frame
      * palette fade (1000:B263) is 4 entries div 2 in fast mode and 0x100
      * div 0x19 otherwise, and wait_flag_timeout (1000:B2D3) waits 1 tick per

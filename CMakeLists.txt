@@ -37,6 +37,8 @@ add_library(core STATIC
     src/statusbar.c
     src/scene.c
     src/level.c
+    src/map.c
+    src/score.c
     src/entity.c
     src/script.c
     src/audio.c

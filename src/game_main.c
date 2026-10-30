@@ -61,6 +61,17 @@ static int partyTried, partyPlaying;
  * next level ([0x22]++); levelSkipped is level_run's need > members arm (the
  * level is not started); endPageUp is draw_level_text's page. */
 static int levelReload, levelSkipped, endPageUp;
+/* the level entry's disc probe (draw_status_indicator) and the post-level
+ * newspaper (cd_file_op at entry 1000:00FF, the level we just finished) */
+static int levelEnterPending, diskChecked, diskUp;
+static int postScene;
+static unsigned postSceneIdx;
+/* check_highscore's score screen between the end page and the post-level
+ * step; postPending carries the step until the screen exits */
+static int scoreUp, postPending;
+/* the ending machine: 0 idle, 1 the 6/7 scene, 2 the disc probe, 3 the MAP */
+static int endPhase, endDiskUp;
+static unsigned endSceneIndex;
 
 /* The level the walk is currently on: the menu selection feeds it
  * (frontend_selectedLevel = the matched codes.bin index, 1-based, minus
@@ -140,6 +151,20 @@ GameFlow gameflow_timeUpAction(int choice, int *quit)
     return FLOW_LEVEL;
 }
 
+/* entry 14E6/14FF: the post-level newspaper.  A lost level goes to the
+ * ending ([0x138E]==0 at 14E6); a won one plays its header +1 index unless
+ * that byte is negative (0xFF = none; cd_file_op's own CMP AL,0x80 path). */
+unsigned gameflow_postLevelScene(int won, unsigned introIndex)
+{
+    if (!won) return 0xFFFFu;
+    if (introIndex & 0x80u) return 0xFFFFu;
+    return introIndex;
+}
+
+/* entry 150C/1512: [0x1e]=7 when the levels run out (COMPLETE); the lost
+ * path reaches 1512 with [0x1e]=6 (the restart-game arm set it at 14BE). */
+unsigned gameflow_endingScene(int won) { return won ? 7u : 6u; }
+
 /* level_run 3060/3062: load_level leaves [0x17FB] (the humans needed) and
  * [0x11FC] (the tribe); need > members takes the briefing's GAME OVER
  * variant and the level is NOT started. */
@@ -209,6 +234,39 @@ GameFlow gameflow_step(GameFlow state, const InputState *input)
         /* The level spine and the party pre-screen both live in game_main's
          * main-loop FLOW_LEVEL branch (the load + the tick gate are there). */
         return FLOW_LEVEL;
+
+    case FLOW_ENDING:
+        /* handled by game_main (the ending scene, the disc probe, the MAP) */
+        return FLOW_ENDING;
+    }
+    return state;
+}
+
+/* entry's post-level step after check_highscore: the finished level's
+ * newspaper (1000:00FF), the lost ending (14E6, scene 6), or the next
+ * level / COMPLETE (7). */
+static GameFlow postLevelStep(GameFlow state)
+{
+    const LevelData *lv = level_data();
+    unsigned cut = lv ? gameflow_postLevelScene(level_outcome(),
+                                                lv->introIndex) : 0xFFFFu;
+    if (cut != 0xFFFFu) {
+        postSceneIdx = cut;
+        scene_resetIntro();
+        postScene = 1;
+        return state;
+    }
+    if (!level_outcome()) {
+        endSceneIndex = gameflow_endingScene(0);
+        endPhase = 0;
+        return FLOW_ENDING;
+    }
+    state = gameflow_afterLevel(&level_current);
+    levelReload = (state == FLOW_LEVEL);
+    if (state != FLOW_LEVEL) {
+        endSceneIndex = gameflow_endingScene(1);
+        endPhase = 0;
+        return FLOW_ENDING;
     }
     return state;
 }
@@ -249,16 +307,32 @@ int game_main(const OSystem *osys)
 
         state = gameflow_step(state, &input);
         if (state == FLOW_LEVEL) {
-            /* entering the level: the header + map load, then the party's
-             * pre-level screen (level_run's fresh-load 307a path — the
-             * .ANI cutscene is not on this path, re_map.md); the level
-             * proper ticks after both. */
+            /* entering the level (entry 14CD): draw_status_indicator's disc
+             * probe, then level_run's header/map load and the party's
+             * fresh-load screen (307A).  The .ANI newspaper is NOT here: it
+             * is cd_file_op at entry 00FF, after the level. */
             int entered = 0;
             if (prev != FLOW_LEVEL || levelReload) {
                 levelReload = 0;
+                levelEnterPending = 1;
                 endPageUp = 0;
                 levelSkipped = 0;
                 partyTried = 0; partyPlaying = 0;
+                postScene = 0;
+                diskChecked = 0; diskUp = 0;
+            }
+            /* entry 14CD: draw_status_indicator (1000:1FEF) before level_run;
+             * only a missing volume draws the prompt. */
+            if (!diskChecked) {
+                if (!diskUp) diskUp = level_diskStatusBegin(1u);
+                if (diskUp) {
+                    if (level_diskStatusTick(&input)) goto present;
+                    diskUp = 0;
+                }
+                diskChecked = 1;
+            }
+            if (levelEnterPending) {
+                levelEnterPending = 0;
                 entered = 1;
                 if (level_load(level_current) == 0) {
                     /* load_terrain_b (1000:5168): the level's own map
@@ -298,6 +372,7 @@ int game_main(const OSystem *osys)
                      * 0xAA count — NOT the record's goal-count byte), the
                      * tribe ([0x11FC]) and the score ([0x592]; the port has
                      * no running score yet — 0, documented). */
+                    party_intro_setGameOver(levelSkipped);
                     party_intro_setValues(level_current + 1u,
                                           level_required(),
                                           level_tribeMembers(), 0u, "DARWIN");
@@ -311,27 +386,46 @@ int game_main(const OSystem *osys)
                 if (party_intro_tick(&input))
                     goto present;          /* the screen plays      */
                 partyPlaying = 0;          /* its exit finished      */
-            } else if (lv && !levelSkipped &&
-                       scene_playLevelIntro(lv->introIndex)) {
-                /* the .ANI cutscene (cd_file_op, ANIMATIONS-gated): the
-                 * party screen -> the movie -> the level; a skipped level
-                 * never reaches it (level_run 3065 JMPs out first) */
-            } else if (levelSkipped) {
-                /* level_run returned without the level (3065): the entry
-                 * state machine's [0x22]++/[0x26]-- arm runs next tick. */
+            } else if (scoreUp) {
+                /* check_highscore's score/record screen (1000:41AE) */
+                if (score_tick(&input)) goto present;
+                scoreUp = 0;
+                if (postPending) {
+                    postPending = 0;
+                    state = postLevelStep(state);
+                }
+            } else if (postScene) {
+                /* entry 1000:00FF: cd_file_op([0x17EF]) — the newspaper for
+                 * the level just finished, after check_highscore. */
+                if (scene_playLevelIntro(postSceneIdx))
+                    goto present;
+                postScene = 0;
                 state = gameflow_afterLevel(&level_current);
                 levelReload = (state == FLOW_LEVEL);
+                if (state != FLOW_LEVEL) {
+                    endSceneIndex = gameflow_endingScene(1); /* 150C */
+                    state = FLOW_ENDING; endPhase = 0;
+                }
+            } else if (levelSkipped) {
+                /* level_run 3065 + entry 1000:00DC: [0x1809] takes the
+                 * restart-game path (1000:002B: [0xF7E]=0, [0x34]=0, the
+                 * room), not the next level */
+                frontend_restart();
+                save_loadSlot(0u);
+                state = FLOW_MENU;
+                levelReload = 0;
             } else if (level_loadingScreen()) {
                 /* load_sprite_pal (1000:1DC0): the LOADING screen, between
-                 * the cutscene and the level's fade-in (a skipped level
-                 * never reaches it — level_run 3065 returns first) */
+                 * the party and the level's fade-in (a skipped level never
+                 * reaches it — level_run 3065 returns first) */
                 level_loadingTick();
             } else if (endPageUp) {
                 /* draw_level_text (1000:33A3): [0x138E] selects "WELL DONE!
                  * YOU FINISHED LEVEL nnn" or "YOUR TRIBE IS EXTINCT!!"; the
                  * box waits for a key or ACTION.  check_highscore's score /
-                 * record screen (1000:41AE) is NOT ported — STUB: the flow
-                 * advances straight after the page. */
+                 * record screen (1000:41AE) is NOT ported — STUB: after the
+                 * page the flow runs entry's post-level step (the finished
+                 * level's newspaper, the ending, or the next level). */
                 char text[40];
                 level_tick();
                 if (level_outcome())
@@ -343,8 +437,12 @@ int game_main(const OSystem *osys)
                 textpage_draw(osys->videoPage(0), text, -1, 0u, 0);
                 if (input.lastKey || (input.joyBits & 0x80u)) {
                     endPageUp = 0;
-                    state = gameflow_afterLevel(&level_current);
-                    levelReload = (state == FLOW_LEVEL);
+                    postPending = 1;
+                    scoreUp = score_begin(0u);   /* the port's score: 0 */
+                    if (!scoreUp) {
+                        postPending = 0;
+                        state = postLevelStep(state);
+                    }
                 }
             } else if (level_starting()) {
                 /* level_fade_in (1000:3334): after the party and the intro,
@@ -401,6 +499,38 @@ int game_main(const OSystem *osys)
                 if (quitRequested) break;
             }
         }
+
+        if (state == FLOW_ENDING) {
+            /* entry 150C/1512: cd_file_op(6 lost / 7 won), then
+             * draw_status_indicator([0xF7E]=0) and menu_loop (the MAP) */
+            if (endPhase == 0) {
+                scene_resetIntro();
+                endPhase = 1;
+            }
+            if (endPhase == 1) {
+                if (scene_playLevelIntro(endSceneIndex)) goto present;
+                endPhase = 2;
+            }
+            if (endPhase == 2) {
+                if (!endDiskUp) {
+                    endDiskUp = level_diskStatusBegin(0u);
+                    if (!endDiskUp) endPhase = 3;
+                }
+                if (endDiskUp) {
+                    if (level_diskStatusTick(&input)) goto present;
+                    endDiskUp = 0;
+                    endPhase = 3;
+                }
+                if (endPhase == 3) map_begin();
+            }
+            if (endPhase == 3) {
+                if (map_tick(&input)) goto present;
+                endPhase = 0;
+                state = FLOW_ATTRACT;
+            }
+            goto present;
+        }
+
         /* the intro/level draw into page 0; the CRTC-flip equivalent shows
          * the drawn page (the in-level page flip lands with the level
          * rendering) */

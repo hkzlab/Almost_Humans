@@ -67,6 +67,8 @@ static uint8_t *loadingBank;
 static uint32_t loadingSize;
 static uint8_t  loadList[10u * 10u];
 static uint8_t  loadPal[768];          /* dicon+0x18: the screen's DAC    */
+static uint8_t *loadDic;               /* BACKS\DICON.APL: the preview card */
+static uint32_t loadDicSize;
 static unsigned loadEntries;
 static int      loadCx, loadReload;    /* the particle counter [0xD7A]/[0xD7C] */
 static unsigned loadLeft;              /* particle_frame's CX             */
@@ -118,6 +120,7 @@ static unsigned tribeMembers;     /* [0x11FC]: 12/10/8 by the difficulty  */
 static unsigned levelRequired;    /* [0x17FB]: the map's 0xAA count        */
 static unsigned membersAtStart;   /* [0x1970]: the members at level start  */
 static int      endRequested;     /* the play loop's exit (35D6's -1)      */
+static int      goalHit;          /* the discovery/claim win hook          */
 static int      endWon;           /* [0x138E]: 1 won, 0 extinct            */
 
 /* --- the level's visual assets (re_formats.md §3-§5) -------------------
@@ -463,6 +466,7 @@ int level_load(unsigned levelId)
 
     endRequested = 0;                          /* [0x138E] = 0xFF in play */
     endWon = 1;
+    goalHit = 0;
     level_loaded = 1;
     return 0;
 }
@@ -481,14 +485,11 @@ void level_loadingBegin(void)
     /* 1000:1DCF..1E3F: dicon+0x18 -> 0x14D3 entries 0..0x7F, then the DAC
      * FADES to them (0x80 entries, div 0x19) before the frames run */
     memset(loadPal, 0, sizeof loadPal);
-    {
-        uint32_t ds = 0;
-        uint8_t *dic = res_loadChunk("BACKS\\DICON.APL", &ds, NULL);
-        if (dic && ds >= 0x18u + 0x180u) {
-            memcpy(loadPal, dic + 0x18, 0x180u);
-            palette_buildFade(0u, 0x80u, 0x19u, loadPal);
-        }
-        free(dic);
+    free(loadDic); loadDic = NULL; loadDicSize = 0;
+    loadDic = res_loadChunk("BACKS\\DICON.APL", &loadDicSize, NULL);
+    if (loadDic && loadDicSize >= 0x18u + 0x180u) {
+        memcpy(loadPal, loadDic + 0x18, 0x180u);
+        palette_buildFade(0u, 0x80u, 0x19u, loadPal);
     }
     loadingBank = res_loadChunk("APL\\LOADING.APL", &loadingSize, NULL);
     if (!loadingBank) { loadPhase = 3; return; }
@@ -507,19 +508,48 @@ int level_loadingScreen(void)
     return loadPhase == 1 || loadPhase == 2;
 }
 
+/* The background: a clean black page plus BACKS\DICON.APL's 80x56 card at
+ * (0x50,0x60), above the level's 40-row status bar (152..191).  The 3310
+ * blit writes 20 bytes per plane from the 80-pixel source with the page
+ * row stride 0x58; the image is 4 pixels per byte (80 px, not 160 — the
+ * party compose's x>>2 law), so it must NOT be doubled.  The card is
+ * opaque (index 0 = its black frame) — the level's DESERT preview. */
+static void load_drawBackground(uint8_t *page)
+{
+    memset(page, 0, 320u * 200u);
+    if (loadDic && loadDicSize >= 0x400u + 80u * 56u) {
+        const uint8_t *src = loadDic + 0x400u;
+        for (unsigned r = 0; r < 56u; r++) {
+            unsigned y = 0x60u + r;
+            if (y >= 200u) break;
+            memcpy(page + y * 320u + 0x50u, src + r * 80u, 80u);
+        }
+    }
+    statusbar_setActive(0);
+    statusbar_tick();                      /* the level's bar, frozen */
+}
+
+/* blit_sprite_scaled (1000:1F5A): the list x is in the 416-px source
+ * coordinate space; the visible 320-px window starts 0x50 pixels in
+ * (x/4 - 0x14 bytes), so screen x = list x - 0x50.  The frames are the
+ * 16x24 8bpp cells at bank + 0x400 + id*0x180; 0 = transparent. */
 static void load_drawList(uint8_t *page)
 {
     for (unsigned e = 0; e < loadEntries; e++) {
         const uint8_t *p = loadList + e * 10u;
-        unsigned x = ld16(p), y = ld16(p + 2), spr = ld16(p + 8);
-        if (x < 0x40u || x > 0x1A0u) continue;        /* blit_sprite_scaled */
+        int x = (int)ld16(p) - 0x50;
+        int y = (int)ld16(p + 2);
+        unsigned spr = ld16(p + 8);
+        if (x <= -16 || x >= 320) continue;           /* the 0x40..0x1A0 clip */
         uint32_t off = 0x400u + spr * 0x180u;
         if (off + 0x180u > loadingSize) continue;      /* the 0x25 sentinel  */
         if (y + 24u > 200u) continue;
         for (unsigned r = 0; r < 24u; r++)
             for (unsigned c = 0; c < 16u; c++) {
+                int px = x + (int)c;
+                if (px < 0 || px >= 320) continue;
                 uint8_t v = loadingBank[off + r * 16u + c];
-                if (v) page[(y + r) * 320u + x + c] = v;
+                if (v) page[(y + r) * 320u + (unsigned)px] = v;
             }
     }
 }
@@ -552,11 +582,11 @@ void level_loadingTick(void)
         }
         st16(p, (unsigned)x); st16(p + 2, (unsigned)y); st16(p + 8, spr);
     }
-    if (page) load_drawList(page);
+    if (page) { load_drawBackground(page); load_drawList(page); }
 
     if (--loadLeft == 0) {
         if (loadPhase == 1) {
-            if (page) load_drawList(page);    /* the extra 1000:1EF8 draw  */
+            if (page) { load_drawBackground(page); load_drawList(page); }    /* the extra 1000:1EF8 draw  */
             memcpy(loadList, loadLetters + 2, sizeof loadList);
             loadEntries = ld16(loadLetters);
             loadCx = 1; loadReload = 1;       /* particle_frame(1, 0x56)   */
@@ -564,6 +594,7 @@ void level_loadingTick(void)
             loadPhase = 2;
         } else {
             loadPhase = 3;
+            free(loadDic); loadDic = NULL; loadDicSize = 0;
         }
     }
 }
@@ -606,9 +637,31 @@ void level_restoreMembers(void)
     statusbar_start(timeLimit, tribeMembers, levelRequired);
 }
 
-/* the stub hook for object_test_dispatch's negative return (1000:35D6): the
- * play loop's exit.  The object/command system that decides it is pass 11's;
- * until then only the tests drive this. */
+/* the level-end test: object_test_dispatch (1000:35D6) returning negative
+ * ends the play loop; [0x138E] stays 0xFF for a win and is cleared for the
+ * extinct/time-out paths.  The object/command array the six test handlers
+ * read is not ported yet (the object system is the next pass), so the test
+ * the port can evaluate now is the two data conditions it already owns:
+ * the goal hook (set by the discovery/claim path once ported) and the live
+ * tribe count reaching zero.  level_endTest runs from level_tick's play
+ * phase, like the original's call in input_dispatch_loop. */
+void level_goalReached(void) { goalHit = 1; }
+
+void level_memberLost(void)
+{
+    if (tribeMembers > 0u) tribeMembers--;
+    statusbar_armOdometer();               /* the bar rolls down (1000:F682) */
+    if (tribeMembers == 0u) { endRequested = 1; endWon = 0; }
+}
+
+int level_endTest(void)
+{
+    if (endRequested) return 1;
+    if (goalHit) { level_requestEnd(1); return 1; }
+    if (tribeMembers == 0u) { level_requestEnd(0); return 1; }
+    return 0;
+}
+
 void level_requestEnd(int won) { endRequested = 1; endWon = won ? 1 : 0; }
 int  level_ended(void)   { return endRequested; }
 int  level_outcome(void) { return endWon; }
@@ -639,6 +692,10 @@ int level_tick(void)
      * before the draw pass (the original's 5cb6..d860 update chain, then
      * the page flip).  The entity state is what the dino draw will read. */
     entity_tick();
+
+    /* input_dispatch_loop 1000:34B8's object_test_dispatch call, after the
+     * world tick: a negative return ends the play loop */
+    if (startPhase == LVSTART_PLAYING) (void)level_endTest();
 
     if (!world || !level_osys) return 1;
 
@@ -728,4 +785,124 @@ int level_tick(void)
      * and faded in by the first tick above (re_map.md "The level's working
      * palette"). */
     return 1;
+}
+
+/* --- draw_status_indicator (1000:1FEF) ---------------------------------
+ *
+ * The disc-presence screen.  It is NOT a normal level screen: at the head it
+ * opens the volume file for [0xF7E] (1000:20CF); if the file opens, it
+ * returns at once.  Only a failed open draws the "PUT THE DISK INTO DRIVE n /
+ * PRESS FIRE WHEN READY" page, fades its palette in (0x100 div 0x1E),
+ * animates, retries the open on a key/ACTION, and on success fades to
+ * [0x48BC] (black), holds 0x4B frames and returns.
+ *
+ * The art: APL\DISKIMG1.DAT is consumed by blit_sprite_to_page
+ * (1000:2105): 4 planes, source stride 4, 0x1E40 = 7744 bytes per plane,
+ * written to the page at [0x5AC4] (= 0 here).  The port converts those
+ * planes to its chunky page with the same bit order.  The prompt's text is
+ * drawn with the game's font (APL\TEXT.SPR ships on every disc); the
+ * original draws the same two lines through the text renderer.
+ */
+enum { DISK_OFF, DISK_FADE_IN, DISK_WAIT, DISK_FADE_OUT, DISK_HOLD };
+
+static int      diskPhase = DISK_OFF;
+static unsigned diskDisc;
+static uint16_t diskHold;
+static uint8_t  diskPal[768];
+static const uint8_t diskBlack[768];
+static uint8_t *diskFont;
+
+static void disk_draw(unsigned disc)
+{
+    uint8_t *page = video_page(0);
+    memset(page, 0, VIEW_W * 200u);
+
+    uint8_t *img = NULL;
+    uint32_t isz = 0;
+    unsigned used = disc;
+    for (unsigned k = 0; k < 3u && !img; k++) {
+        used = (k == 0u) ? disc : (k == 1u ? 0u : (disc == 1u ? 2u : 1u));
+        res_setDisc(used);
+        img = res_loadChunk("APL\\DISKIMG1.DAT", &isz, NULL);
+    }
+    if (img) {
+        if (isz >= 0x18u + 768u) memcpy(diskPal, img + 0x18, 768u);
+        /* blit_sprite_to_page, 1000:2105: source byte 4g+p -> plane p of
+         * destination byte g; each byte is 8 pixels, MSB left */
+        for (uint32_t g = 0; 4u * g + 3u < isz && g * 8u < VIEW_W * 200u; g++) {
+            const uint8_t *q = img + 4u * g;
+            for (unsigned bit = 0; bit < 8u; bit++) {
+                unsigned px = ((q[0] >> (7u - bit)) & 1u) |
+                              (((q[1] >> (7u - bit)) & 1u) << 1) |
+                              (((q[2] >> (7u - bit)) & 1u) << 2) |
+                              (((q[3] >> (7u - bit)) & 1u) << 3);
+                page[g * 8u + bit] = (uint8_t)px;
+            }
+        }
+        free(img);
+    }
+
+    free(diskFont);
+    diskFont = res_loadChunk("APL\\TEXT.SPR", NULL, NULL);
+    font_publish(diskFont);
+
+    char line[32];
+    textpage_drawLine(page, "PUT THE DISK", 0x50u, 0x0Fu);
+    snprintf(line, sizeof line, "INTO DRIVE %c", (char)('1' + disc));
+    textpage_drawLine(page, line, 0x60u, 0x0Fu);
+    textpage_drawLine(page, "PRESS FIRE", 0x88u, 0x0Fu);
+    textpage_drawLine(page, "WHEN READY", 0x98u, 0x0Fu);
+}
+
+int level_diskStatusBegin(unsigned disc)
+{
+    if (diskPhase != DISK_OFF) return 1;
+    if (res_volumePresent(disc)) return 0;    /* 1000:2005: the disc is in */
+
+    diskDisc = disc;
+    memset(diskPal, 0, sizeof diskPal);
+    disk_draw(disc);
+    palette_buildFade(0u, 0x100u, 0x1Eu, diskPal);   /* 1000:2057 */
+    diskPhase = DISK_FADE_IN;
+    return 1;
+}
+
+void level_diskStatusReset(void)
+{
+    diskPhase = DISK_OFF;
+    diskHold = 0;
+    free(diskFont); diskFont = NULL;
+    font_publish(NULL);
+}
+
+int level_diskStatusTick(const InputState *in)
+{
+    switch (diskPhase) {
+    case DISK_FADE_IN:
+        if (palette_fadeActive()) return 1;
+        diskPhase = DISK_WAIT;
+        return 1;
+    case DISK_WAIT:
+        if (in->lastKey || (in->joyBits & 0x80u)) {
+            if (res_volumePresent(diskDisc)) {
+                palette_buildFade(0u, 0x100u, 0x1Eu, diskBlack);
+                diskPhase = DISK_FADE_OUT;
+            }
+            /* else: still the wrong disc — stay on the prompt */
+        }
+        return 1;
+    case DISK_FADE_OUT:
+        if (palette_fadeActive()) return 1;
+        diskPhase = DISK_HOLD;
+        diskHold = 0x4Bu;                      /* present_frames_75 */
+        return 1;
+    case DISK_HOLD:
+        if (diskHold > 0u) { diskHold--; return 1; }
+        diskPhase = DISK_OFF;
+        free(diskFont); diskFont = NULL;
+        font_publish(NULL);
+        return 0;
+    default:
+        return 0;
+    }
 }

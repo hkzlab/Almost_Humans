@@ -1,10 +1,10 @@
 /* test_smoke.c — full-game_main smoke test under the null backend.
  *
  * A scripted input sequence drives the whole flow: the attract dwell, fire
- * into the level, the level-intro cutscene (which plays its 35 scene
- * objects onto page 0), a key skip through the chain wait, and quit.
- * Asserts game_main exits cleanly with the intro's final page on page 0
- * and daily.bit's palette installed.
+ * into the room, walk right into level 1, leave the party, the LOADING
+ * screen, the goal page (dismissed by the held key) and the level; quit.
+ * The newspaper is post-level, so it is not on this path.  Asserts
+ * game_main exits cleanly with the level's rendered page on page 0.
  *
  * argv[1] = the game data directory holding HUMANS.000/001/002.
  * argv[2] = the extracted-tree fixture root (expected bytes).
@@ -62,16 +62,16 @@ static void dump_ppm(const char *name, const uint8_t *page)
     dumped++;
 }
 
-/* the milestones: the room's exit, the party's start/middle/end, the .ANI,
- * the level's start chain and the play frame */
+/* the milestones: the room's exit, the party, the LOADING screen and the
+ * level's first play frames (the goal page is dismissed by the held key) */
 static const unsigned dumpAt[] = { 6600, 6900, 6930, 7100, 7300, 7500, 7650,
                                    7800, 7900, 8100, 8300, 8600 };
 static const char *dumpName[] = { "flow_6600_room", "flow_6900_roomexit",
                                   "flow_6930_party_a", "flow_7100_party_b",
-                                  "flow_7300_after_party", "flow_7500_anim_a",
-                                  "flow_7650_anim_b", "flow_7800_chain",
-                                  "flow_7900_goal", "flow_8100_play_a",
-                                  "flow_8300_play_b", "flow_8600_play_c" };
+                                  "flow_7300_loading_a", "flow_7500_loading_b",
+                                  "flow_7650_level_a", "flow_7800_level_b",
+                                  "flow_7900_level_c", "flow_8100_level_d",
+                                  "flow_8300_level_e", "flow_8600_level_f" };
 #define DUMP_N (sizeof dumpAt / sizeof dumpAt[0])
 
 extern void osys_null_onPresent(void (*fn)(unsigned poll));
@@ -115,9 +115,13 @@ int main(int argc, char **argv)
      *   6700..6950 right    — the room's confirm: the rails walk
      *                           0x1D2 -> 0x208 (cell 6) -> 0x280, the
      *                           right-edge exit matches "DARWIN" (level 1
-     *                           = levelId 0) and fades out -> FLOW_LEVEL,
-     *                           the level intro starts (ANI00)
-     *   7700/7701  key      — skips the level intro
+     *                           = levelId 0) and fades out -> FLOW_LEVEL
+     *                           (disk probe -> party -> LOADING -> level;
+     *                           the newspaper is POST-level, entry 00FF)
+     *   7150       key      — leaves the party's SET1W window
+     *   7250..7700 key      — the level's goal page waits on any key
+     *                           (scroll_map 9E51); the page follows the
+     *                           LOADING screen
      *   7702..8698 idle      — the level proper
      *   8699       quit     — game_main exits                                */
     static InputState script[SCRIPT_N];
@@ -131,8 +135,9 @@ int main(int argc, char **argv)
      * wait fires [0x48A3]-shaped aborts exactly like the original's
      * wait_frames_or_key — one key inside the first set's wait exits  */
     script[7150].lastKey = 1u;            /* the party's SET1W window    */
-    /* the .ANI cutscene follows the party's exit; hold the key through its
-     * chain waits (the skip the old 7700/7701 press did) */
+    /* the LOADING screen follows, then the level's goal page; hold the key
+     * through the goal wait so the page is dismissed and the play loop is
+     * what the final page shows */
     for (unsigned i = 7250u; i <= 7700u; i++) script[i].lastKey = 1u;
     script[SCRIPT_N - 1].quit = 1u;
 
@@ -230,6 +235,6 @@ int main(int argc, char **argv)
         free(p4);
     }
 
-    if (!bad) printf("smoke test: OK (flow + the boot intro + the level intro + the palette)\n");
+    if (!bad) printf("smoke test: OK (flow + the boot intro + the level + the palette)\n");
     return bad;
 }

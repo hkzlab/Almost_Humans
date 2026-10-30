@@ -18,6 +18,9 @@ int  res_init(const OSystem *osys);
  * HUMANS.000/.001/.002; the original opens ONE volume file built from the
  * [0xF7E] disc number and never scans across discs). */
 void     res_setDisc(unsigned disc);
+/* draw_status_indicator's disc probe (1000:20CF): opens the volume file for
+ * `disc` and closes it; 0 = the disc is not available. */
+int      res_volumePresent(unsigned disc);
 /* The level-header intro-movie/disc index -> disc byte: the ported table
  * `202F:0x6287` (1000:AFF8's lookup; corpus-verified 10/10 — every
  * ANI<idx>.ANI ships on the disc the table names).  0xFF = no entry — the
@@ -171,6 +174,10 @@ int  scene_playLevelIntro(unsigned introIndex);   /* the cd_file_op body   */
  * scene player then fades 4 palette entries div 2 instead of 0x100 div 0x19
  * and waits 1 tick per object instead of 6.  The level's .ANI runs clear. */
 void scene_setFastMode(int on);
+/* Force the next scene_playLevelIntro call to load its .ANI even when the
+ * index equals the last one (cd_file_op always reloads; the per-tick player
+ * keeps a finished intro finished otherwise). */
+void scene_resetIntro(void);
 /* The boot intro (boot_intro_sequence, 1000:B590): the full four-stage
  * chain — the Gametek logo (GAMETEK.RSC's display list), the IDI and FIRST
  * cards, then the ITB card + INTRO.RSC's display list over the scrolled
@@ -211,6 +218,18 @@ int  level_load(unsigned levelId);          /* 0..159; 0 = ok            */
 const LevelData *level_data(void);          /* NULL before a load        */
 const uint8_t *level_map(void);             /* == level_data()->map      */
 int  level_tick(void);                      /* 1 = the level is running  */
+
+/* menu_loop (1000:012A), the MAP/high-score screen after the ending.
+ * START: the HIGH.BIT card + the title, key/ACTION exit; the full
+ * map/cursor/score tables are the next pass. */
+int  map_begin(void);                       /* 1 = the screen is up      */
+int  map_tick(const InputState *in);        /* 1 = still up              */
+
+/* check_highscore (1000:41AE), the score/record screen between the level's
+ * end page and the post-level newspaper.  START: SCORE.BIT + the score line
+ * + the key/ACTION exit and the 0x100-entry fade to 0x48BC (div 0x23). */
+int  score_begin(unsigned value);           /* 1 = the screen is up      */
+int  score_tick(const InputState *in);      /* 1 = still up              */
 /* level_fade_in (1000:3334): the start chain — fade out of the pre-level
  * screen, the eight update_world frames, the fade in to the working palette,
  * then the bar's ticking gate.  level_begin arms it once; the phases advance
@@ -225,8 +244,8 @@ void level_loadingTick(void);
 
 /* level_run 3060/3062: the level's required humans ([0x17FB], the map's
  * 0xAA count) against the tribe ([0x11FC]).  A tribe that is too small plays
- * the briefing's GAME OVER variant and the level is SKIPPED (the entry
- * state machine's [0x22]++/[0x26]-- runs instead of the level). */
+ * the briefing's GAME OVER variant and the level is SKIPPED; [0x1809] then
+ * takes entry 1000:00DC -> 002B (the restart-game path), not the next level. */
 unsigned level_required(void);
 unsigned level_members(void);
 
@@ -238,10 +257,24 @@ void level_restoreMembers(void);
 
 /* level_run's end: the play loop exits when object_test_dispatch
  * (1000:35D6) returns negative, and [0x138E] (0xFF won / 0 extinct) then
- * selects draw_level_text's page.  That dispatch is not ported yet (the
- * object/command system is pass 11's), so this is the stub hook the object
- * system will call; level_requestEnd(1) = the level was completed. */
+ * selects draw_level_text's page.  The six test handlers need the placed-
+ * object array (0x3E75), not ported yet; level_endTest evaluates the goal
+ * hook / the live tribe count in the meantime.  level_requestEnd(1) = the
+ * level was completed. */
 void level_requestEnd(int won);
+/* draw_status_indicator (1000:1FEF): the disc probe + the "PUT THE DISK
+ * INTO DRIVE n / PRESS FIRE WHEN READY" screen.  Begin returns 0 when the
+ * volume is present (the normal, no-screen path); Tick returns 1 while the
+ * screen is up. */
+int  level_diskStatusBegin(unsigned disc);
+int  level_diskStatusTick(const InputState *in);
+void level_diskStatusReset(void);          /* test/lifecycle: drop the screen */
+/* the level-end test (object_test_dispatch 1000:35D6's negative return).
+ * level_goalReached is the win hook the discovery/claim path sets; a lost
+ * tribe member decrements the live count and ends the level at zero. */
+void level_goalReached(void);
+void level_memberLost(void);
+int  level_endTest(void);
 int  level_ended(void);
 int  level_outcome(void);            /* [0x138E]: 1 won, 0 extinct */
 
@@ -380,6 +413,10 @@ unsigned frontend_cellForProbe(void);   /* [0x4220]: the walk's rail node  */
  * (2026-10-29)" (all render gates closed); the memory model and the
  * machine notes are in party_intro.c's header.
  */
+/* level_intro_screen 2739 (need > members): the GAME OVER briefing variant
+ * (the same art; GAME OVER / YOUR TRIBE IS TOO SMALL / IN THE RACE / PRESS
+ * FIRE, one key/fire exit). */
+void party_intro_setGameOver(int on);
 void party_intro_setValues(unsigned level, unsigned need, unsigned members,
                            unsigned score, const char *tribe);
 void party_intro_seedScripts(const uint8_t *bytes, unsigned len);
@@ -468,7 +505,9 @@ int  save_writeSlot(unsigned slot, unsigned level, uint16_t timeWord,
 typedef enum GameFlow {
     FLOW_ATTRACT = 0,      /* game_loop 1000:131E: the effect cycle      */
     FLOW_MENU,             /* the map/level-select room                   */
-    FLOW_LEVEL             /* a level is installed and running            */
+    FLOW_LEVEL,            /* a level is installed and running            */
+    FLOW_ENDING            /* entry 1512: cd_file_op(6 lost / 7 won),
+                            * draw_status_indicator, menu_loop (the MAP)   */
 } GameFlow;
 
 /* The tick rate the port assumes: the original MEASURES it at boot
@@ -499,8 +538,14 @@ GameFlow gameflow_pauseAction(int choice, int *quit);
  * this level (level_restore), 1 restart this game (the room), 2 quit. */
 GameFlow gameflow_timeUpAction(int choice, int *quit);
 /* entry LAB_00CD's post-level step: [0x22]++ / [0x26]-- -> the next level of
- * the 160, or COMPLETE (the ending + the MAP screen, then the attract). */
+ * the 160; when they run out this returns FLOW_ATTRACT (the caller starts
+ * FLOW_ENDING: scene 7 -> the disc probe -> the MAP -> the attract). */
 GameFlow gameflow_afterLevel(unsigned *levelCurrent);
+/* entry 14E6/14FF and 150C/1512: the post-level newspaper index (0xFFFF =
+ * none: lost, or the header byte 0xFF) and the ending scene (6 lost,
+ * 7 COMPLETE). */
+unsigned gameflow_postLevelScene(int won, unsigned introIndex);
+unsigned gameflow_endingScene(int won);
 /* level_run 3060/3062's gate: the level's required humans vs the tribe. */
 int      gameflow_tribeTooSmall(unsigned need, unsigned members);
 

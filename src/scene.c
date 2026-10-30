@@ -220,8 +220,11 @@ static uint8_t   curScene;
 static uint16_t  dwellTicks;
 static uint8_t   panelPal[768];     /* daily.bit's palette (masked 6-bit) */
 static int       panelPalValid;
-/* c537/c563's target: [0x48BC] is zeroed by the level-end screen (0x191C)
- * and by BSS at boot, so the panel's pre-scene fade is a fade to black. */
+/* c537/c563's target: [0x48BC] is the 256x3 scratch ramp, and every writer
+ * restores it to zero — clear_fade_ramp (1000:B90F) at boot, the level's
+ * discovery op (1000:3A6A) on every exit (1000:3CF9/3D01), run_screen_
+ * transition (1000:B82E), and menu_loop's 0xC0 only (1000:051C) — so the
+ * panel's pre-scene fade and the key exit are fades to black. */
 static const uint8_t sceneBlackPal[768];
 /* [0x627C]: boot_intro_sequence's fast mode — its only writer (set at
  * 1000:B59F, cleared at 1000:B623, entry's caller only).  play_scene_sequence
@@ -231,6 +234,16 @@ static const uint8_t sceneBlackPal[768];
 static int sceneFast;
 
 void scene_setFastMode(int on) { sceneFast = on ? 1u : 0u; }
+
+/* Start a NEW cutscene on the next scene_playLevelIntro call: cd_file_op has
+ * no cache of its own, so two consecutive levels with the same intro index
+ * must reload it.  The per-tick player otherwise keeps the finished index
+ * (a finished intro stays finished). */
+void scene_resetIntro(void)
+{
+    scene_level = 0xFFFFu;
+    scene_phase = SCENE_IDLE;
+}
 
 /* play_scene_sequence's pre-frame palette fade (1000:B263), shared by the
  * level's .ANI and the boot's logo: fast mode = 4 entries div 2, otherwise
@@ -289,6 +302,7 @@ static void scene_unload(void)
     free(scriptBuf); scriptBuf = NULL; indices = NULL; plays = 0;
     free(objBuf); objBuf = NULL;
     free(scoopsBuf); scoopsBuf = NULL; scoopsSize = 0;
+    if (textSpr) font_publish(NULL);        /* the glyph table dies with it */
     free(textSpr); textSpr = NULL;
     memset(&ani, 0, sizeof ani);
 }
