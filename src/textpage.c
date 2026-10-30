@@ -126,6 +126,16 @@ static void draw_line(uint8_t *page, const char *line, unsigned cell,
     }
 }
 
+/* One centred line on the page at `row` in a solid `colour` — the same
+ * blit_text_tile (1000:47D5) path the dialog lines use, without the box.
+ * The cutscene panel's headline is drawn this way (1000:B0D4: centre 0xA0,
+ * row 0x41, colour 0x10). */
+void textpage_drawLine(uint8_t *page, const char *line, unsigned row,
+                       uint8_t colour)
+{
+    draw_line(page, line, row, colour);
+}
+
 /* One 16x16 box tile (blit_sprite_planar A10E's layout). */
 static void blit_box_tile(uint8_t *page, unsigned x0, unsigned y0,
                           const uint8_t *tile)

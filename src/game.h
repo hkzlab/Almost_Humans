@@ -167,6 +167,10 @@ int  scene_init(const OSystem *osys);
 /* introIndex = the level header's +0x01 byte: the intro-movie index
    (0..9; 0xFF = the level has no cutscene). */
 int  scene_playLevelIntro(unsigned introIndex);   /* the cd_file_op body   */
+/* [0x627C]: boot_intro_sequence's fast mode (its only writer).  The shared
+ * scene player then fades 4 palette entries div 2 instead of 0x100 div 0x19
+ * and waits 1 tick per object instead of 6.  The level's .ANI runs clear. */
+void scene_setFastMode(int on);
 /* The boot intro (boot_intro_sequence, 1000:B590): the full four-stage
  * chain — the Gametek logo (GAMETEK.RSC's display list), the IDI and FIRST
  * cards, then the ITB card + INTRO.RSC's display list over the scrolled
@@ -213,6 +217,11 @@ int  level_tick(void);                      /* 1 = the level is running  */
  * in level_tick, so level_starting() is true until the level is playable. */
 void level_begin(void);
 int  level_starting(void);
+/* load_sprite_pal's LOADING screen (1000:1DC0): ten walkers for 0xA0 frames,
+ * then the "LOADING!" letters for 0x56.  level_loadingScreen() starts it and
+ * reports whether it is showing; level_loadingTick draws one frame. */
+int  level_loadingScreen(void);
+void level_loadingTick(void);
 
 /* level_run 3060/3062: the level's required humans ([0x17FB], the map's
  * 0xAA count) against the tribe ([0x11FC]).  A tribe that is too small plays
@@ -393,6 +402,10 @@ void textpage_publishBox(const uint8_t *box);
  * draws the marker pair on that option row (grid = the cell pair). */
 void textpage_draw(uint8_t *page, const char *text, int cursorRow,
                    unsigned cursorCol, int grid);
+/* one centred line (blit_text_tile 1000:47D5) in a solid colour — the
+ * cutscene panel's headline uses this. */
+void textpage_drawLine(uint8_t *page, const char *line, unsigned row,
+                       uint8_t colour);
 
 /* --- src/menu.c — the in-level dialogs (pause menu + SAVE GAME) -------
  *

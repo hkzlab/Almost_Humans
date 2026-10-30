@@ -293,7 +293,13 @@ int game_main(const OSystem *osys)
                 /* level_run 3073: [0x34] != 0 takes the JNZ 307D path and
                  * skips the fresh-load party screen entirely. */
                 if (!save_present()) {
-                    party_intro_setValues(level_current + 1u, lv->goalCount,
+                    /* level_intro_screen's values: the level number
+                     * ([0x1F41]), the humans needed ([0x17FB] = the map's
+                     * 0xAA count — NOT the record's goal-count byte), the
+                     * tribe ([0x11FC]) and the score ([0x592]; the port has
+                     * no running score yet — 0, documented). */
+                    party_intro_setValues(level_current + 1u,
+                                          level_required(),
                                           level_tribeMembers(), 0u, "DARWIN");
                     partyPlaying = party_intro_start();
                 }
@@ -315,6 +321,11 @@ int game_main(const OSystem *osys)
                  * state machine's [0x22]++/[0x26]-- arm runs next tick. */
                 state = gameflow_afterLevel(&level_current);
                 levelReload = (state == FLOW_LEVEL);
+            } else if (level_loadingScreen()) {
+                /* load_sprite_pal (1000:1DC0): the LOADING screen, between
+                 * the cutscene and the level's fade-in (a skipped level
+                 * never reaches it — level_run 3065 returns first) */
+                level_loadingTick();
             } else if (endPageUp) {
                 /* draw_level_text (1000:33A3): [0x138E] selects "WELL DONE!
                  * YOU FINISHED LEVEL nnn" or "YOUR TRIBE IS EXTINCT!!"; the

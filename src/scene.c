@@ -172,9 +172,28 @@ static const uint8_t sceneChainTable[10] = { 0, 1, 2, 3, 8, 5, 6, 7, 4, 9 };
  * 0xE00-byte apl\scoops.apl block drawn as the cutscene background. */
 static const uint8_t sceneBgTable[10] = { 1, 2, 3, 4, 5, 6, 8, 0, 5, 7 };
 
+/* 202F:0x6304 — the panel's "scoop" headlines, one per scene index (the
+ * 10th is empty).  Drawn centred at 0xA0, row 0x41, colour 0x10. */
+static const char *const sceneHeadline[10] = {
+    "HUMANS INVENT WEAPON! THE SPEAR!",
+    "HUMANS RESCUE BABY DINOSAUR!",
+    "REVOLUTION IN TRANSPORT! THE WHEEL!",
+    "BRAVE HUMAN RESCUES THE QUEEN!",
+    "SPECIAL REPORT ON NEW DISCOVERY! FIRE!",
+    "UNIDENTIFIED FLYING HUMAN SPOTTED!",
+    "HUMANS FAIL IN RACE FOR EVOLUTION!",
+    "HUMANS WIN THE RACE FOR EVOLUTION!",
+    "HUMANS RECOVER THE STOLEN IDOL!",
+    ""
+};
+
 typedef enum {
     SCENE_IDLE,        /* not started                                */
+    SCENE_PANEL_FADE,  /* the panel's first 0x20 entries fade in     */
     SCENE_DWELL,       /* the 210-tick pre-scene dwell               */
+    SCENE_PANEL_OUT,   /* the 0x20-entry fade to black before frames */
+    SCENE_PALFADE,     /* the fade to the script object's palette    */
+    SCENE_QUIT_FADE,   /* key-skip: the 0x100-entry fade to black    */
     SCENE_PLAY,        /* decode + draw the next object (instant)    */
     SCENE_WAIT,        /* per-object 6-tick wait                     */
     SCENE_CHAIN,       /* decide the next scene (instant)            */
@@ -195,9 +214,40 @@ static const uint16_t *indices;     /* into scriptBuf + 2 + 768             */
 static uint8_t   *objBuf;           /* 64K segment model                    */
 static uint8_t   *scoopsBuf;
 static uint32_t   scoopsSize;
+static uint8_t   *textSpr;        /* apl\text.spr — the panel's font */
 
 static uint8_t   curScene;
 static uint16_t  dwellTicks;
+static uint8_t   panelPal[768];     /* daily.bit's palette (masked 6-bit) */
+static int       panelPalValid;
+/* c537/c563's target: [0x48BC] is zeroed by the level-end screen (0x191C)
+ * and by BSS at boot, so the panel's pre-scene fade is a fade to black. */
+static const uint8_t sceneBlackPal[768];
+/* [0x627C]: boot_intro_sequence's fast mode — its only writer (set at
+ * 1000:B59F, cleared at 1000:B623, entry's caller only).  play_scene_sequence
+ * reads it twice: the pre-frame palette fade is 4 entries div 2 instead of
+ * 0x100 div 0x19 (1000:B263), and wait_flag_timeout waits 1 tick instead of
+ * 6 per object (1000:B2D3).  The level's .ANI always runs with it clear. */
+static int sceneFast;
+
+void scene_setFastMode(int on) { sceneFast = on ? 1u : 0u; }
+
+/* play_scene_sequence's pre-frame palette fade (1000:B263), shared by the
+ * level's .ANI and the boot's logo: fast mode = 4 entries div 2, otherwise
+ * all 256 entries div 0x19. */
+static void scene_paletteFade(const uint8_t *target)
+{
+    if (sceneFast) palette_buildFade(0u, 4u, 2u, target);
+    else           palette_buildFade(0u, 0x100u, 0x19u, target);
+}
+
+/* cd_file_op's key exit (1000:B157): a 0x100-entry fade to [0x48BC]
+ * (black) before the function returns. */
+static void scene_quitFade(void)
+{
+    palette_buildFade(0u, 0x100u, 0x19u, sceneBlackPal);
+    scene_phase = SCENE_QUIT_FADE;
+}
 static uint16_t  objWait;
 static uint16_t  chainWait;
 static unsigned  objIndex;
@@ -239,12 +289,13 @@ static void scene_unload(void)
     free(scriptBuf); scriptBuf = NULL; indices = NULL; plays = 0;
     free(objBuf); objBuf = NULL;
     free(scoopsBuf); scoopsBuf = NULL; scoopsSize = 0;
+    free(textSpr); textSpr = NULL;
     memset(&ani, 0, sizeof ani);
 }
 
 /* Load ANI<index>.ANI + the background assets, draw the background and
  * the palette onto page 0.  Returns 0 on success. */
-static int scene_start(unsigned index)
+static int scene_start(unsigned index, int initial)
 {
     scene_unload();
     curScene = (uint8_t)index;
@@ -265,10 +316,22 @@ static int scene_start(unsigned index)
         uint8_t *page = video_page(0);
         if (!daily) { scene_unload(); return -1; }
         memcpy(page, daily, dailySize < PAGE_SIZE ? dailySize : PAGE_SIZE);
-        if (dailySize > PAGE_SIZE)
-            palette_setDac(daily + PAGE_SIZE, 0, 256);
+        /* 1000:B0AF (palette_load_6bit, 1000:8D24): daily.bit's 768 bytes
+         * are masked to 6 bits and staged at 0x4BBC, NOT installed — the
+         * panel's first 0x20 entries FADE in (1000:B0DA) */
+        panelPalValid = dailySize >= PAGE_SIZE + 768u;
+        if (panelPalValid)
+            for (unsigned i = 0; i < 768u; i++)      /* 1000:8D24's AND 0x3F */
+                panelPal[i] = daily[PAGE_SIZE + i] & 0x3Fu;
         free(daily);
     }
+
+    /* apl\text.spr (the original's second load, 1000:C491): the panel's
+     * headline is drawn with these glyphs (blit_text_tile), so the scene
+     * publishes them for its own frame */
+    free(textSpr);
+    textSpr = res_loadChunk("APL\\TEXT.SPR", NULL, NULL);
+    font_publish(textSpr);
 
     /* apl\scoops.apl -> the background block, overlaid onto the page */
     scoopsBuf = res_loadChunk("APL\\SCOOPS.APL", &scoopsSize, NULL);
@@ -276,9 +339,14 @@ static int scene_start(unsigned index)
         uint8_t *page = video_page(0);
         uint32_t srcOff = 0x400u + (uint32_t)sceneBgTable[index] * 0xE00u;
         if (srcOff + 0xE00u <= scoopsSize) {
+            /* 1000:B1CF: 56 rows of 64 bytes at 0x8270 (= row 104, x 112 of
+             * the 320-wide panel).  The original's row step is the REP
+             * MOVSB advance (0x40) PLUS its `ADD DI,0x100`, i.e. 0x140 — the
+             * panel's 320-byte row; taking only the 0x100 shears the
+             * thumbnail 64 px left per row. */
             const uint8_t *src = scoopsBuf + srcOff;
-            for (unsigned row = 0; row < 0x38u; row++) {       /* 56 rows   */
-                memcpy(page + 0x8270u + row * 0x100u, src, 0x40u);  /* 64 B */
+            for (unsigned row = 0; row < 0x38u; row++) {
+                memcpy(page + 0x8270u + row * 0x140u, src, 0x40u);
                 src += 0x40u;
             }
         }
@@ -286,7 +354,19 @@ static int scene_start(unsigned index)
         scoopsBuf = NULL;
     }
 
+    /* the panel's headline (1000:B0D4: blit_text_tile at centre 0xA0, row
+     * 0x41, colour 0x10) — the index-th string of 202F:0x6304 */
+    if (sceneHeadline[index][0])
+        textpage_drawLine(video_page(0), sceneHeadline[index], 0x41u, 0x10u);
+
     scene_osys->videoPresent(0);
+
+    /* 1000:B0DA: after the panel is drawn and flipped, its first 0x20 DAC
+     * entries fade from the previous screen's palette to daily.bit's
+     * (div 0x19); the 210-tick dwell starts only after that fade.  A chain
+     * advance (C57A) skips the panel and its fade. */
+    if (initial && panelPalValid)
+        palette_buildFade(0u, 0x20u, 0x19u, panelPal);
     return 0;
 }
 
@@ -299,7 +379,7 @@ int scene_playLevelIntro(unsigned introIndex)
 
     if (introIndex != scene_level) {          /* (re)start on level change   */
         scene_level = introIndex;
-        if (scene_start(introIndex)) { scene_phase = SCENE_DONE; return 0; }
+        if (scene_start(introIndex, 1)) { scene_phase = SCENE_DONE; return 0; }
 
         /* the script object (entry 0): [u16 plays-1][768 palette][indices] */
         uint16_t chk = 0;
@@ -312,9 +392,17 @@ int scene_playLevelIntro(unsigned introIndex)
             return 0;
         }
         indices = (const uint16_t *)(scriptBuf + 2 + 768);
+        /* the script object (entry 0) carries the cutscene's 768-byte
+         * 6-bit palette at +2, but it belongs to the FRAMES: the panel is
+         * shown in daily.bit's palette for the whole dwell and only then
+         * does the DAC fade to the script palette (1000:B263, below). */
         objIndex = 0;
-        scene_phase = SCENE_DWELL;
-        dwellTicks = 210u;
+        if (panelPalValid) {
+            scene_phase = SCENE_PANEL_FADE;
+        } else {
+            scene_phase = SCENE_DWELL;
+            dwellTicks = 210u;
+        }
     }
 
     if (scene_phase == SCENE_DONE) return 0;
@@ -323,10 +411,55 @@ int scene_playLevelIntro(unsigned introIndex)
 
     for (;;) {   /* instant phases resolve within one tick */
         switch (scene_phase) {
+        case SCENE_PANEL_FADE:
+            if (palette_fadeActive()) return 1;
+            /* 1000:B0EC: the 210-tick count starts at 0 AFTER the fade
+             * returns, so this tick is not one of the 210 */
+            dwellTicks = 210u;
+            scene_phase = SCENE_DWELL;
+            return 1;
+
         case SCENE_DWELL:
             if (keyHeld) dwellTicks = 0;      /* any key skips the remainder */
             if (dwellTicks > 0) { --dwellTicks; return 1; }
-            if (keyHeld) { scene_phase = SCENE_DONE; return 0; }
+            if (keyHeld) { scene_quitFade(); return 1; }
+            /* 1000:B13F: the panel's first 0x20 entries fade back to
+             * [0x48BC] (black) over div 0x19; play_scene_sequence's own
+             * head (B248) waits for that fade before the prologue frame. */
+            palette_buildFade(0u, 0x20u, 0x19u, sceneBlackPal);
+            scene_phase = SCENE_PANEL_OUT;
+            return 1;
+
+        case SCENE_QUIT_FADE:
+            if (palette_fadeActive()) return 1;
+            scene_phase = SCENE_DONE;
+            return 0;
+
+        case SCENE_PANEL_OUT:
+            if (palette_fadeActive()) return 1;
+            /* 1000:B24E..B260: the FIRST frame is decoded, drawn and flipped
+             * BEFORE the palette fade, so the fade happens over the frame and
+             * not over the panel (the loop then replays index 0).  A decode
+             * failure unwinds the whole player (B22C: JMP B2C4). */
+            {
+                uint16_t chk = 0;
+                int sz = ani_decode_object(&ani, indices[0], objBuf,
+                                           OBJ_SEG_SIZE, &chk);
+                if (sz < 0 || chk != 0) { scene_phase = SCENE_DONE; return 0; }
+                scene_al_expand(objBuf, (uint32_t)sz, video_page(0), PAGE_SIZE);
+                scene_osys->videoPresent(0);
+            }
+            /* 1000:B263: now the DAC fades to the script object's palette at
+             * 0x6FEA (= scriptBuf+2): the whole 256 entries div 0x19 (or 4
+             * entries div 2 when [0x627C] is set — the instant path), then
+             * wait_palette_fade_done. */
+            scene_paletteFade(scriptBuf + 2);
+            scene_phase = SCENE_PALFADE;
+            return 1;
+
+        case SCENE_PALFADE:
+            if (keyHeld) { scene_quitFade(); return 1; }
+            if (palette_fadeActive()) return 1;
             scene_phase = SCENE_PLAY;
             objIndex = 0;
             break;                             /* play the first object now */
@@ -342,20 +475,20 @@ int scene_playLevelIntro(unsigned introIndex)
                 }
                 scene_al_expand(objBuf, (uint32_t)sz, video_page(0), PAGE_SIZE);
                 scene_osys->videoPresent(0);
-                objWait = 6u;                  /* wait_flag_timeout, [0x627c] clear */
+                objWait = sceneFast ? 1u : 6u; /* wait_flag_timeout 1000:B2D3 */
                 objIndex++;
                 scene_phase = SCENE_WAIT;
                 return 1;
             }
 
         case SCENE_WAIT:
-            if (keyHeld) { scene_phase = SCENE_DONE; return 0; }
+            if (keyHeld) { scene_quitFade(); return 1; }
             if (--objWait == 0) scene_phase = SCENE_PLAY;
             return 1;
 
         case SCENE_CHAIN: {
             uint8_t nxt = sceneChainTable[curScene];
-            if (keyHeld) { scene_phase = SCENE_DONE; return 0; }
+            if (keyHeld) { scene_quitFade(); return 1; }
             if (nxt == curScene || nxt == 4u) {  /* replay / tail loop */
                 scene_phase = SCENE_CHAIN_WAIT;
                 chainWait = 210u;
@@ -367,12 +500,12 @@ int scene_playLevelIntro(unsigned introIndex)
         }
 
         case SCENE_CHAIN_WAIT:
-            if (keyHeld) { scene_phase = SCENE_DONE; return 0; }
+            if (keyHeld) { scene_quitFade(); return 1; }
             if (--chainWait == 0) scene_phase = SCENE_PLAY;   /* replay it */
             return 1;
 
         case SCENE_RESTART:                       /* chain advance: no dwell */
-            if (scene_start(curScene)) { scene_phase = SCENE_DONE; return 0; }
+            if (scene_start(curScene, 0)) { scene_phase = SCENE_DONE; return 0; }
             scene_phase = SCENE_PLAY;
             objIndex = 0;
             break;
@@ -734,10 +867,11 @@ static void boot_compose_present(uint8_t *page)
 
 int scene_playBootIntro(void)
 {
-    if (boot_phase == BOOT_DONE) return 0;
+    if (boot_phase == BOOT_DONE) { sceneFast = 0; return 0; }   /* 1000:B623 */
 
     switch (boot_phase) {
     case BOOT_START:
+        sceneFast = 1;                     /* 1000:B59F */
         boot_unload();
         res_setDisc(0u);                   /* the boot assets ship on disc 0 */
         bootGt = res_loadChunk("INTRO\\GAMETEK.RSC", &bootGtSize, NULL);
@@ -821,7 +955,10 @@ int scene_playBootIntro(void)
                            ((unsigned)bootGtList[0x303u] << 8);
             boot_gt_show(idx);
         }
-        palette_buildFade(0u, 4u, 2u, bootGtList + 2u);
+        /* b26a: the boot's first fade — the fast branch ([0x627C] is set for
+         * the whole boot), i.e. entries 0-3 at BP=2; the b27b branch (all
+         * 256 at BP=0x19) would show the 4-19 dark reds/teals */
+        scene_paletteFade(bootGtList + 2u);
         boot_phase = BOOT_GT_FADE0;
         return 1;
 

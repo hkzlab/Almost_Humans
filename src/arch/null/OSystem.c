@@ -19,7 +19,14 @@ static unsigned script_n, script_i;
 
 static void null_setMode(void) {}
 static uint8_t *null_page(int which) { return pages[which & 1]; }
-static void null_present(int which) { (void)which; }
+/* a test hook: the frame-evidence dumps key on the poll count, which only
+ * the backend knows (the smoke script is indexed by eventsPoll calls) */
+static void (*present_hook)(unsigned poll);
+static void null_present(int which)
+{
+    (void)which;
+    if (present_hook) present_hook(script_i);
+}
 static void null_setPalette(const uint8_t *p6, unsigned first, unsigned n)
 {
     if (first + n > 256) n = 256 - first;
@@ -79,6 +86,11 @@ void osys_null_inject(const InputState *in) { the_input = *in; }
 
 unsigned osys_null_audioStarts(void) { return audio_starts; }
 unsigned osys_null_audioStops(void)  { return audio_stops; }
+
+/* the script cursor = the eventsPoll count: the smoke test's frame dumps
+ * key on it ("dump at tick N" = "dump when the N-th poll has happened") */
+unsigned osys_null_pollCount(void) { return script_i; }
+void osys_null_onPresent(void (*fn)(unsigned poll)) { present_hook = fn; }
 
 void osys_null_inputScript(const InputState *states, unsigned n)
 {

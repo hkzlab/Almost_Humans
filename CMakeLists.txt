@@ -224,4 +224,4 @@ add_executable(test_flow tests/test_flow.c
 target_include_directories(test_flow PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 target_link_libraries(test_flow PRIVATE core fs_posix)
 humansre_warnings(test_flow)
-add_test(NAME level_flow COMMAND test_flow ${HUMANS_DATA_DIR})
+add_test(NAME level_flow COMMAND test_flow ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})

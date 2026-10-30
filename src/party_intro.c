@@ -108,12 +108,12 @@ static char     g_tribe[16];           /* 0x1189                             */
 
 /* === the string table (verbatim templates; the digit slots rewritten) ======= */
 
-static char s_all[24];     /* 0x105F: "COMING UP.... LEVEL 0" (digit 0x1073)  */
+static char s_all[28];     /* 0x105F: "COMING UP.... LEVEL 000"  (3 slots)    */
 static char s_need[40];    /* 0x1077: "YOU WILL NEED 0 HUMANS TO COMPLETE"    */
 static char s_this[16];    /* 0x109A: "THIS LEVEL"                            */
-static char s_has[32];     /* 0x10A5: "YOUR TRIBE NOW HAS 0 MEMBERS!"         */
-static char s_code[36];    /* 0x10CE: "THE CODE FOR THIS LEVEL IS....."       */
-static char s_score[20];   /* 0x10EE: "YOUR SCORE IS 0"                       */
+static char s_has[32];     /* 0x10A5: "YOUR TRIBE NOW HAS 00 MEMBERS!" (2)    */
+static char s_code[36];    /* 0x10C6: "THE CODE FOR THIS LEVEL IS......"      */
+static char s_score[20];   /* 0x10E0: "YOUR SCORE IS 0000"    (4 slots)       */
 static char s_fire[32];    /* 0x1108: "PRESS FIRE TO START LEVEL...."         */
 
 static const uint8_t ramp10[10] =          /* 2e94's ramp -> CS:[0x2DFE+i]  */
@@ -215,6 +215,29 @@ void party_intro_formatScore(unsigned v, char *out)
     }
     *out++ = (char)('0' + (v % 10u));              /* 2b68                */
     *out = '\0';
+}
+
+/* the party's in-place number formatter (1000:3F1B): writes `width`
+ * characters at `dst` (zero- or space-padded) and returns; the string's
+ * tail is untouched, and a number wider than the field spills into it —
+ * both exactly as the original does (its "HUMANS TO COMPLETE" and
+ * " MEMBERS!" tails survive the patch). */
+static char *put_number(char *dst, unsigned v)
+{
+    char buf[10];
+    unsigned n = 0;
+    do { buf[n++] = (char)('0' + v % 10u); v /= 10u; } while (v && n < 10u);
+    for (unsigned i = 0; i < n; i++) dst[i] = buf[n - 1u - i];
+    return dst + n;                        /* the formatter's SI          */
+}
+
+/* the string appender at 0x2660: the tail replaces whatever the template
+ * had after the digits (" MEMBERS!" for the tribe line) */
+static char *append_str(char *dst, const char *src)
+{
+    while (*src) *dst++ = *src++;
+    *dst = '\0';
+    return dst;
 }
 
 /* === the vram-layer helpers ================================================== */
@@ -508,12 +531,14 @@ void party_intro_setValues(unsigned level, unsigned need, unsigned members,
     g_members = (uint16_t)members; g_score = (uint16_t)score;
     memset(g_tribe, 0, sizeof g_tribe);
     if (tribe) memcpy(g_tribe, tribe, sizeof g_tribe - 1u);
-    memcpy(s_all,   "COMING UP.... LEVEL 0", 22);
+    /* the image's verbatim strings (202F:0x105F..; the digit fields are
+     * fixed-width and the formatter rewrites them in place, 0x3F1B) */
+    memcpy(s_all,   "COMING UP.... LEVEL 000", 23);
     memcpy(s_need,  "YOU WILL NEED 0 HUMANS TO COMPLETE", 35);
     memcpy(s_this,  "THIS LEVEL", 11);
-    memcpy(s_has,   "YOUR TRIBE NOW HAS 0 MEMBERS!", 30);
-    memcpy(s_code,  "THE CODE FOR THIS LEVEL IS.....", 32);
-    memcpy(s_score, "YOUR SCORE IS 0", 16);
+    memcpy(s_has,   "YOUR TRIBE NOW HAS 00 MEMBERS!", 30);
+    memcpy(s_code,  "THE CODE FOR THIS LEVEL IS......", 32);
+    memcpy(s_score, "YOUR SCORE IS 0000", 18);
     memcpy(s_fire,  "PRESS FIRE TO START LEVEL....", 30);
 }
 
@@ -622,30 +647,30 @@ int party_intro_tick(const InputState *in)
 
     case PH_SET1:                              /* 2600..268d             */
         switch (step) {
-        case 0u:
-            clear_canvas();                    /* 2600 (2af5)             */
-            party_intro_formatScore(g_level, s_all + 0x14u);   /* 2603    */
-            *(s_all + 0x14u + strlen(s_all + 0x14u)) = '\0';   /* 260e    */
-            draw_text_ramped(s_all, 0xA0u, 0x14u);             /* 2611    */
+        case 0u:                               /* 2600..2611              */
+            clear_canvas();
+            *put_number(s_all + 0x14u, g_level) = '\0';        /* 260e    */
+            draw_text_ramped(s_all, 0xA0u, 0x14u);
             break;
-        case 1u:
-            party_intro_formatScore(g_need, s_need + 0x0Eu);   /* 2623    */
+        case 1u:                               /* 2623..263a: no NUL — the
+                                                * " HUMANS TO COMPLETE" tail
+                                                * survives the patch        */
+            (void)put_number(s_need + 0x0Eu, g_need);
             draw_text_ramped(s_need, 0xA0u, 0x28u);
             break;
         case 2u:
             draw_text_ramped(s_this, 0xA0u, 0x34u);            /* 2640    */
             break;
-        case 3u: {                             /* 2652..268a              */
-            party_intro_formatScore(g_members, s_has + 0x13u);
-            char *q = s_has + 0x13u + strlen(s_has + 0x13u);
-            const char *tail = " MEMBERS!";
-            while (*tail) *q++ = *tail++;
-            *q = '\0';
-            if (g_members == 1u) {             /* 266d..267a              */
-                q -= 3u; *q = '!'; *(q + 1u) = '\0';
+        case 3u:                               /* 2652..268a              */
+            {
+                char *q = append_str(put_number(s_has + 0x13u, g_members),
+                                     " MEMBERS!");          /* 2660    */
+                if (g_members == 1u) {         /* 266d..267a              */
+                    q -= 3; *q = '!'; *(q + 1u) = '\0';
+                }
             }
             draw_text_ramped(s_has, 0xA0u, 0x48u);
-            break; }
+            break;
         }
         if (step < 3u) step++;
         else { intro_anim(); phase = PH_SET1_WAIT; waitLeft = 0xC8u; keyCaught = 0; }
@@ -671,8 +696,7 @@ int party_intro_tick(const InputState *in)
             draw_text_ramped(g_tribe, 0xA0u, 0x20u);           /* 26b3    */
             break;
         case 2u:
-            party_intro_formatScore(g_score, s_score + 0x0Eu); /* 26c5    */
-            s_score[0x0Eu + strlen(s_score + 0x0Eu)] = '\0';   /* 26d3    */
+            *put_number(s_score + 0x0Eu, g_score) = '\0';      /* 26d3    */
             draw_text_ramped(s_score, 0xA0u, 0x34u);
             break;
         case 3u:

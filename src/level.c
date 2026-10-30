@@ -55,6 +55,48 @@ static uint8_t *boxSpr;           /* apl\box.spr (the dialog tiles)      */
 static uint32_t boxSize;
 static uint8_t levelPal[768];     /* the working palette 202F:0x14D3     */
 
+/* --- load_sprite_pal's LOADING screen (1000:1DC0) ----------------------
+ * 0xA0 frames of ten walkers (APL\LOADING.APL blocks 0..0x10, two 5-strong
+ * groups converging at y=0x6E), then 0x56 frames of the eight "LOADING!"
+ * letters (blocks 0x11..0x18) falling to y=0x56.  Both lists are the static
+ * templates at 202F:0xD7E and 202F:0xDE4: [u16 count][{u16 x, u16 y,
+ * s16 dx, s16 dy, u16 sprite}].  The sprite blit skips x outside
+ * 0x40..0x1A0 (blit_sprite_scaled 1000:1F5A) and the templates' 0x25
+ * sprite ids are past the 26-frame bank, so those entries draw nothing. */
+static uint8_t *loadingBank;
+static uint32_t loadingSize;
+static uint8_t  loadList[10u * 10u];
+static uint8_t  loadPal[768];          /* dicon+0x18: the screen's DAC    */
+static unsigned loadEntries;
+static int      loadCx, loadReload;    /* the particle counter [0xD7A]/[0xD7C] */
+static unsigned loadLeft;              /* particle_frame's CX             */
+static int      loadPhase;             /* 0 idle, 1 walkers, 2 letters, 3 done */
+
+static const uint8_t loadWalkers[2u + 10u * 10u] = {
+    0x0A, 0x00,
+    0x40, 0x00, 0x6E, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x30, 0x00, 0x6E, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x20, 0x00, 0x6E, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x10, 0x00, 0x6E, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x6E, 0x00, 0x01, 0x00, 0x00, 0x00, 0x25, 0x00,
+    0x90, 0x01, 0x6E, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x08, 0x00,
+    0xA0, 0x01, 0x6E, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x08, 0x00,
+    0xB0, 0x01, 0x6E, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x08, 0x00,
+    0xC0, 0x01, 0x6E, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x08, 0x00,
+    0xD0, 0x01, 0x6E, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x25, 0x00
+};
+static const uint8_t loadLetters[2u + 8u * 10u] = {
+    0x08, 0x00,
+    0xB0, 0x00, 0x1A, 0x00, 0x00, 0x00, 0x02, 0x00, 0x11, 0x00,
+    0xC0, 0x00, 0x19, 0x00, 0x00, 0x00, 0x02, 0x00, 0x12, 0x00,
+    0xD0, 0x00, 0x18, 0x00, 0x00, 0x00, 0x02, 0x00, 0x13, 0x00,
+    0xE0, 0x00, 0x17, 0x00, 0x00, 0x00, 0x02, 0x00, 0x14, 0x00,
+    0xF0, 0x00, 0x16, 0x00, 0x00, 0x00, 0x02, 0x00, 0x15, 0x00,
+    0x00, 0x01, 0x15, 0x00, 0x00, 0x00, 0x02, 0x00, 0x16, 0x00,
+    0x10, 0x01, 0x14, 0x00, 0x00, 0x00, 0x02, 0x00, 0x17, 0x00,
+    0x20, 0x01, 0x13, 0x00, 0x00, 0x00, 0x02, 0x00, 0x18, 0x00
+};
+
 /* level_fade_in (1000:3334) — the level's start chain.  The original blocks
  * in the foreground for each fade (wait_palette_fade_done) while the ISR
  * steps it; the port's loop is tick-driven, so the chain advances one phase
@@ -65,6 +107,12 @@ static int      startPhase = LVSTART_IDLE;
 static unsigned warmupLeft;
 /* the fade-to-black target: 0x48BC, the ramp the boot leaves zeroed */
 static const uint8_t blackPal[768];
+/* level_video_init's palette state at its fades (32F4/3309): 0x14D3 holds
+ * only the bar's bank (0xC0..0xFF) at that point, everything else still
+ * zeroed by level_setup — the screen goes black except the bar before
+ * level_fade_in runs.  Installing it at the chain's start keeps the port's
+ * first level frame off the pre-level screen's palette. */
+static uint8_t palBarOnly[768];
 static uint16_t timeLimit;        /* [0x5D31]: the difficulty's BCD pick  */
 static unsigned tribeMembers;     /* [0x11FC]: 12/10/8 by the difficulty  */
 static unsigned levelRequired;    /* [0x17FB]: the map's 0xAA count        */
@@ -379,6 +427,7 @@ int level_load(unsigned levelId)
         levelRequired  = required;
         membersAtStart = tribeMembers;         /* [0x1970] (306D)         */
         statusbar_start(timeLimit, tribeMembers, required);
+        memset(palBarOnly, 0, sizeof palBarOnly);
 
         /* The working palette 0x14D3 (the level's DAC base): entries
          * 0..31 = APL\SPRPAL.APL+0x18 (the UI, verified live), 32..63 =
@@ -398,7 +447,10 @@ int level_load(unsigned levelId)
             memcpy(levelPal + 64u * 3u, bgImage + WORLD_W * WORLD_H, 0xC0u);
         {
             const uint8_t *bank = statusbar_palette();
-            if (bank) memcpy(levelPal + 0xC0u * 3u, bank, 0xC0u);
+            if (bank) {
+                memcpy(levelPal + 0xC0u * 3u, bank, 0xC0u);
+                memcpy(palBarOnly + 0xC0u * 3u, bank, 0xC0u);
+            }
         }
         /* level_fade_in runs after the party (level_run 30AB): level_begin
          * starts the chain once the play begins, not here. */
@@ -406,10 +458,114 @@ int level_load(unsigned levelId)
 
     /* a fresh load starts the chain again (level_fade_in runs per level) */
     startPhase = LVSTART_IDLE;
+    free(loadingBank); loadingBank = NULL; loadingSize = 0;
+    loadPhase = 0;                             /* the LOADING screen repeats */
+
     endRequested = 0;                          /* [0x138E] = 0xFF in play */
     endWon = 1;
     level_loaded = 1;
     return 0;
+}
+
+/* --- load_sprite_pal's LOADING screen (1000:1DC0) ---------------------- */
+
+static unsigned ld16(const uint8_t *p) { return p[0] | ((unsigned)p[1] << 8); }
+static void st16(uint8_t *p, unsigned v) { p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); }
+
+/* load_sprite_pal's palette step (1000:1DCF..1DF2): BACKS\DICON.APL's
+ * 0x180 bytes at +0x18 are the screen's DAC (entries 0..0x7F). */
+void level_loadingBegin(void)
+{
+    if (!level_loaded || loadPhase) return;
+
+    /* 1000:1DCF..1E3F: dicon+0x18 -> 0x14D3 entries 0..0x7F, then the DAC
+     * FADES to them (0x80 entries, div 0x19) before the frames run */
+    memset(loadPal, 0, sizeof loadPal);
+    {
+        uint32_t ds = 0;
+        uint8_t *dic = res_loadChunk("BACKS\\DICON.APL", &ds, NULL);
+        if (dic && ds >= 0x18u + 0x180u) {
+            memcpy(loadPal, dic + 0x18, 0x180u);
+            palette_buildFade(0u, 0x80u, 0x19u, loadPal);
+        }
+        free(dic);
+    }
+    loadingBank = res_loadChunk("APL\\LOADING.APL", &loadingSize, NULL);
+    if (!loadingBank) { loadPhase = 3; return; }
+
+    memcpy(loadList, loadWalkers + 2, sizeof loadList);
+    loadEntries  = ld16(loadWalkers);
+    loadCx       = 3;                      /* particle_frame(3, 0xA0)       */
+    loadReload   = 3;
+    loadLeft     = 0xA0u;
+    loadPhase    = 1;
+}
+
+int level_loadingScreen(void)
+{
+    if (!loadPhase) level_loadingBegin();
+    return loadPhase == 1 || loadPhase == 2;
+}
+
+static void load_drawList(uint8_t *page)
+{
+    for (unsigned e = 0; e < loadEntries; e++) {
+        const uint8_t *p = loadList + e * 10u;
+        unsigned x = ld16(p), y = ld16(p + 2), spr = ld16(p + 8);
+        if (x < 0x40u || x > 0x1A0u) continue;        /* blit_sprite_scaled */
+        uint32_t off = 0x400u + spr * 0x180u;
+        if (off + 0x180u > loadingSize) continue;      /* the 0x25 sentinel  */
+        if (y + 24u > 200u) continue;
+        for (unsigned r = 0; r < 24u; r++)
+            for (unsigned c = 0; c < 16u; c++) {
+                uint8_t v = loadingBank[off + r * 16u + c];
+                if (v) page[(y + r) * 320u + x + c] = v;
+            }
+    }
+}
+
+/* particle_frame (1000:1E78) + update_particles (1000:1E98): one frame of
+ * the list — the counter reload, the per-entry step and sprite cycle — then
+ * the draw and the present. */
+void level_loadingTick(void)
+{
+    uint8_t *page;
+
+    if (loadPhase != 1 && loadPhase != 2) return;
+    page = level_osys->videoPage(0);
+
+    if (--loadCx < 0) loadCx = loadReload;
+    for (unsigned e = 0; e < loadEntries; e++) {
+        uint8_t *p = loadList + e * 10u;
+        int x = (int)ld16(p), y = (int)ld16(p + 2);
+        int dx = (int)(int16_t)ld16(p + 4), dy = (int)(int16_t)ld16(p + 6);
+        unsigned spr = ld16(p + 8);
+        x += dx;
+        if (dy) {
+            y += dy;
+            if (y > 0x56) y = 0x56;
+        }
+        if (loadCx == 0 && spr < 0x10u) {
+            spr++;
+            if (spr == 8u) spr = 0u;
+            else if (spr == 0x10u) spr = 8u;
+        }
+        st16(p, (unsigned)x); st16(p + 2, (unsigned)y); st16(p + 8, spr);
+    }
+    if (page) load_drawList(page);
+
+    if (--loadLeft == 0) {
+        if (loadPhase == 1) {
+            if (page) load_drawList(page);    /* the extra 1000:1EF8 draw  */
+            memcpy(loadList, loadLetters + 2, sizeof loadList);
+            loadEntries = ld16(loadLetters);
+            loadCx = 1; loadReload = 1;       /* particle_frame(1, 0x56)   */
+            loadLeft = 0x56u;
+            loadPhase = 2;
+        } else {
+            loadPhase = 3;
+        }
+    }
 }
 
 /* level_fade_in (1000:3334), first half: after the party and the level
@@ -420,6 +576,11 @@ int level_load(unsigned levelId)
 void level_begin(void)
 {
     if (!level_loaded || startPhase != LVSTART_IDLE) return;
+    /* level_video_init (32F4/3309): the DAC drops to 0x14D3's state at that
+     * moment — the bar's bank only, the rest black (div 2, effectively
+     * immediate, so the port installs it).  Without this the first level
+     * frame is drawn in the pre-level screen's palette. */
+    palette_setDac(palBarOnly, 0, 256);
     palette_buildFade(0, 0xC0, 0x19, blackPal);
     startPhase = LVSTART_FADE_OUT;
 }

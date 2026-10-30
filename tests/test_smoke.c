@@ -19,6 +19,7 @@ extern const OSystem osys_null;
 extern void osys_null_inputScript(const InputState *states, unsigned n);
 extern const uint8_t *osys_null_page(int which);
 extern const uint8_t *osys_null_palette(void);
+extern unsigned osys_null_pollCount(void);
 
 static uint8_t *read_file(const char *path, uint32_t *size)
 {
@@ -35,6 +36,55 @@ static uint8_t *read_file(const char *path, uint32_t *size)
 }
 
 enum { SCRIPT_N = 8700 };
+
+/* Optional frame evidence (argv[3] = a directory): page 0 + the DAC shadow
+ * at the flow's milestones, so the room -> party -> .ANI -> level relay can
+ * be looked at instead of guessed. */
+static const char *dump_dir;
+static unsigned dumped;
+
+static void dump_ppm(const char *name, const uint8_t *page)
+{
+    char path[512];
+    snprintf(path, sizeof path, "%s/%s.ppm", dump_dir, name);
+    FILE *f = fopen(path, "wb");
+    if (!f) return;
+    fprintf(f, "P6\n320 200\n255\n");
+    const uint8_t *pal = osys_null_palette();
+    for (unsigned i = 0; i < 64000u; i++) {
+        unsigned v = page[i];
+        unsigned char rgb[3] = { (unsigned char)(pal[v*3] << 2),
+                                 (unsigned char)(pal[v*3+1] << 2),
+                                 (unsigned char)(pal[v*3+2] << 2) };
+        fwrite(rgb, 1, 3, f);
+    }
+    fclose(f);
+    dumped++;
+}
+
+/* the milestones: the room's exit, the party's start/middle/end, the .ANI,
+ * the level's start chain and the play frame */
+static const unsigned dumpAt[] = { 6600, 6900, 6930, 7100, 7300, 7500, 7650,
+                                   7800, 7900, 8100, 8300, 8600 };
+static const char *dumpName[] = { "flow_6600_room", "flow_6900_roomexit",
+                                  "flow_6930_party_a", "flow_7100_party_b",
+                                  "flow_7300_after_party", "flow_7500_anim_a",
+                                  "flow_7650_anim_b", "flow_7800_chain",
+                                  "flow_7900_goal", "flow_8100_play_a",
+                                  "flow_8300_play_b", "flow_8600_play_c" };
+#define DUMP_N (sizeof dumpAt / sizeof dumpAt[0])
+
+extern void osys_null_onPresent(void (*fn)(unsigned poll));
+
+static void present_hook(unsigned poll)
+{
+    if (!dump_dir || dumped >= DUMP_N) return;
+    if (poll < dumpAt[dumped]) return;
+    while (dumped < DUMP_N && poll >= dumpAt[dumped]) {
+        dump_ppm(dumpName[dumped], osys_null_page(0));
+        dumped++;
+    }
+}
 
 int main(int argc, char **argv)
 {
@@ -86,7 +136,9 @@ int main(int argc, char **argv)
     for (unsigned i = 7250u; i <= 7700u; i++) script[i].lastKey = 1u;
     script[SCRIPT_N - 1].quit = 1u;
 
+    dump_dir = argc > 3 ? argv[3] : NULL;
     osys_null_inputScript(script, SCRIPT_N);
+    osys_null_onPresent(present_hook);
 
     if (game_main(&osys_null) != 0) {
         fprintf(stderr, "FAIL game_main returned nonzero\n");
