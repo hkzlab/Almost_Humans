@@ -740,12 +740,11 @@ void level_restoreMembers(void)
 
 /* the level-end test: object_test_dispatch (1000:35D6) returning negative
  * ends the play loop; [0x138E] stays 0xFF for a win and is cleared for the
- * extinct/time-out paths.  The object/command array the six test handlers
- * read is not ported yet (the object system is the next pass), so the test
- * the port can evaluate now is the two data conditions it already owns:
- * the goal hook (set by the discovery/claim path once ported) and the live
- * tribe count reaching zero.  level_endTest runs from level_tick's play
- * phase, like the original's call in input_dispatch_loop. */
+ * extinct/time-out paths.  The six handlers all exist now: object_testDispatch
+ * maps the level's own mode word onto them (the array predicates, the entity
+ * table and the two data conditions this file owns — the goal hook and the
+ * tribe count).  level_endTest runs from level_tick's play phase, like the
+ * original's call in input_dispatch_loop. */
 void level_goalReached(void) { goalHit = 1; }
 
 void level_memberLost(void)

@@ -205,6 +205,7 @@ int main(int argc, char **argv)
             statusbar_start(0x0530u, 12u, 4u);        /* 5:30 left */
             check(score_levelScore() == 1u * 12u * 10u + 330u * 10u,
                   "the score follows the remaining time (5:30 = 3420)");
+
         }
         check(level_load(0) == 0 && !level_ended(),
               "a reload clears the end trigger");
@@ -367,6 +368,11 @@ int main(int argc, char **argv)
         const uint8_t *sp = object_slot(9);
         check(object_liveCount() == 9u && object_placedHumans() == 4u,
               "the walk leaves 9 used records and counts 4 humans");
+        /* 0xF761's cell mapping (the score's object bonus reads it): the first
+         * human sits one row above the 0xAA marker at (3,2), so the cell under
+         * it -- 32*((24+0xC)/16) + (48+8)/16 -- is that 0xAA */
+        check(object_recordMapCell(0u) == 0xAAu,
+              "the map cell under a record is the 0xAA marker");
         check((sp[0] | (sp[1] << 8)) == 28u * 16u &&
               (sp[2] | (sp[3] << 8)) == 2u * 16u,
               "the 0xAB cell at (28,2) appends at (448,32)");

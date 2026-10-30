@@ -9,14 +9,14 @@
  *
  * The score is `check_highscore`'s arithmetic (1000:41AE), all of it here:
  *   [0x1DCA] += [0x1F41] * [0x11FC] * 10      (55EA: level x members x 10)
- *   [0x1DCA] += the placed-object bonuses     (55FA: +1000 per 0x3E75 record
- *                                              of type 0xA8, +2000 per 0xA7)
+ *   [0x1DCA] += the placed-object bonuses     (55FA..5635: for each of the 8
+ *                                              records at 0x3E75, the map cell
+ *                                              under it via 0xF761(AX=8,BX=0xC):
+ *                                              0xA8 -> +1000, 0xA7 -> +2000)
  *   [0x1DCE]  = remaining_seconds * 10        (569B..56CB, from the countdown)
  *   total     = [0x1DCA] + [0x1DCE]           (5733)
- * A lost level adds nothing at all (55B3 -> 578A).  The object bonus needs the
- * placed-object array (0x3E75), which is not ported: it is 0 here and this is
- * the score's only missing term.  The cross-level running total ([0x592]/594)
- * is not modelled either, so the value is this level's.
+ * A lost level adds nothing at all (55B3 -> 578A).  The cross-level running
+ * total ([0x592]/594) is not modelled, so the value is this level's.
  */
 #include "game.h"
 #include <stdio.h>
@@ -39,7 +39,7 @@ static unsigned scoreValue;
 unsigned score_levelScore(void)
 {
     uint16_t t;
-    unsigned mins, secs, remaining, levelNo;
+    unsigned mins, secs, remaining, levelNo, bonus;
 
     if (!level_outcome()) return 0u;         /* 55B3: a lost level adds none */
 
@@ -49,7 +49,16 @@ unsigned score_levelScore(void)
     remaining = mins * 60u + secs;
 
     levelNo = gameflow_levelForProbe() + 1u; /* [0x1F41] */
-    return levelNo * level_members() * 10u + remaining * 10u;
+    bonus = levelNo * level_members() * 10u + remaining * 10u;
+
+    /* 55FA..5635: the eight static records' cells, 0xA8 (+1000) / 0xA7 (+2000) */
+    for (unsigned i = 0; i < object_staticSlots(); i++) {
+        unsigned cell = object_recordMapCell(i);
+        if (cell == 0xA8u) bonus += 1000u;
+        else if (cell == 0xA7u) bonus += 2000u;
+    }
+    (void)remaining;
+    return bonus;
 }
 
 int score_begin(unsigned value)

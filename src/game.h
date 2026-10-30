@@ -374,6 +374,9 @@ void object_publishBank(const uint8_t *bank, uint32_t size);
  * 23 tiles are not ported; returns [0x3E73]. */
 unsigned object_loadTerrainObjects(const uint8_t *map);
 unsigned object_placedHumans(void);      /* [0x3E20]                       */
+/* the map cell under a static record (0xF761 with AX = 8, BX = 0xC); the
+ * score's object bonus reads it: 0xA8 -> +1000, 0xA7 -> +2000 (1000:55FA). */
+unsigned object_recordMapCell(unsigned slot);
 void object_render(uint8_t *page, int scrollX, int scrollY);
 /* The adjacent-object op of the entity bytecode (1000:3A6A): the gate and the
  * scan around the *acting* record (`actor`, the entity's own slot), then the

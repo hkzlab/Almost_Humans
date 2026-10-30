@@ -24,18 +24,24 @@
  * append/settle sequence.  `[0x1AF2]` is the claimed record, `[0x180A]` the
  * player's own (`resolve_object_sprite` `1000:4147` gives it the program index).
  *
+ * The ACTION machine (`script_op_dispatch` 1000:3979, `object_actionRun`) is
+ * ported with ops 1, 2/6, 3, 4, 5, 8, 9 and 10/11/12, the collision pass with
+ * both direction actions (the pickup writes the class — level 1's win), the
+ * object selector and the pending-action arm; op 7 is dead code and halts.
+ *
  * Not ported, each its own sub-machine:
- *  - the entity bytecode VM (`0x4D79`'s dispatch through `CS:0x399C`) that
- *    *calls* the claim (handlers 4E5A/4E5F/4E64 pass the recipe index), and
- *    the pointer table `0x3E24` that maps `[0x3E22]` to the actor's record;
+ *  - the per-record behaviour script (`0xF453`, run by the overlap fixup) —
+ *    the object-side script runner;
+ *  - the 23 tile handlers of `load_terrain_b`'s walk beyond the human/spear
+ *    (the other levels' placed objects, e.g. `0xA9`, `0xB6`, `0xB7`, `0xB8`);
  *  - the claim's dirty-cell reveal (`init_dirty_cell_list` 1000:3E73, then
  *    `flush_dirty_cell_list` 1000:3F4A looping `queue_dirty_cell_packed`
  *    1000:3FB3 until `[0x1B02]`: 0x100 queued cells over the 0x2C0-byte list
- *    at 0x48BC, from the coordinate table 0x1B76, shaded from 0x19EA) and
- *    its `claim_pan_view_two_frames` (1000:3D04, a hardware view scroll);
+ *    at 0x48BC) and its `claim_pan_view_two_frames` (1000:3D04);
  *  - the class/behaviour overlays of `1000:653C` (`DS:0x3566`/`0x368A`/
- *    `0x3766`), reached only when a record's `+7 != 0`, and the `[0x1996]`
- *    half of `1000:3600`.
+ *    `0x3766`, reached only when a record's `+7 != 0`), the `[0x1996]` half of
+ *    `1000:3600`, and the mover frames (`0x12/0x14/0x8C/0x91`) which are not
+ *    in the sprite table.
  */
 #include "game.h"
 #include <string.h>
@@ -227,6 +233,14 @@ static unsigned objMapCell(const uint8_t *rec)
     if (y < 16u) return 0xFFFFu;
     cell = 32u * (y / 16u) + (x / 16u);
     return cell < 640u ? map[cell] : 0xFFFFu;
+}
+
+/* The map cell under a record, for the score (55FA calls 0xF761 with AX = 8,
+ * BX = 0xC on each of the eight static records): 0xFFFF outside the map. */
+unsigned object_recordMapCell(unsigned slot)
+{
+    if (slot >= OBJ_STATIC) return 0xFFFFu;
+    return objMapCell(objArray + slot * OBJ_STRIDE);
 }
 
 /* 1000:36AB — the record's type is <= 2 and the map cell under it equals the
