@@ -19,6 +19,9 @@
  *   blit_text_tile    (1000:47D5) the lines: 16-row pitch, the line's top =
  *                                 box top + 15, the text centred at x=160
  *                                 (draw_text 1000:4989).
+ *   text_page_outline (1000:9FB1, its call at 1000:9FA7) the black outline:
+ *                                 the box interior, every 4-neighbour of a
+ *                                 pixel in [0xF4,0xFC) that is < 0xF4 -> 0.
  *   A203 + A266                   the option markers: the 8x11 patterns at
  *                                 202F:0x5D33 (left) / 0x5D8B (right) /
  *                                 0x5DE3 (blank), placed 16 px inside the
@@ -27,12 +30,20 @@
  *                                 same pair around the selected cell.
  *
  * The palette: the tile bytes are indices into the level's palette (0..63)
- * and the text/marker indices 0xF4 / 0xE3/0xE4 are the bar's bank (0xC0..0xFF,
- * level_video_init's panel4 copy) — exactly what the live capture shows.
- * The level DAC base is the working palette 202F:0x14D3 (level.c; re_map.md
- * "The level's working palette") and the box's indices ride it.  The port's
- * font is 1-bpp, so the lives' three-level glyph shading collapses to the
- * text colour 0xF4 (a cosmetic deviation).
+ * and the marker indices 0xE3/0xE4 are the bar's bank (0xC0..0xFF,
+ * level_video_init's panel4 copy).  The level DAC base is the working palette
+ * 202F:0x14D3 (level.c; re_map.md "The level's working palette") and the
+ * box's indices ride it.
+ *
+ * The text's shading: blit_text_tile writes through write mode 2 with the OR
+ * ALU (GC3 := 0x10, 1000:9F76) and the bit mask = its DL argument (0x10 at
+ * 1000:9F90), so a glyph pixel becomes `box pixel | 0x10`.  BOX.SPR's fill
+ * tile (tile 4) is a vertical ramp EB EA E9 E8 E7 E6 E5 E4 E4 E5 E6 E7 E8 E9
+ * EA EB — eight distinct indices that are all (30,0,0) in the palette, so the
+ * box looks flat while `| 0x10` turns its rows into the bar bank's grey ramp
+ * F4..FB.  The goal page's one line lands on fill rows 3..12 (box top =
+ * 76-(lines+2)*8 = 52, text top = +15, glyph rows 4..13) and so prints
+ * F8 F7 F6 F5 F4 F4 F5 F6 F7 F8 — the live capture's ramp, exactly.
  */
 #include "game.h"
 #include <string.h>
@@ -106,8 +117,13 @@ static void scroll_text_measure(const char *text, unsigned *tiles,
     *lines = nlines;
 }
 
+/* blit_text_tile (1000:47D5) writes through write mode 2 with the OR ALU
+ * (GC3 := 0x10 at 1000:9F76) and the bit mask = DL, so a glyph pixel is
+ * `destination | mask`, never a solid colour: the shading comes from
+ * whatever the box tile already put there.  `mask` != 0 selects that path;
+ * `mask` == 0 writes the solid `colour` for the pages drawn outside a box. */
 static void draw_line(uint8_t *page, const char *line, unsigned cell,
-                      unsigned colour)
+                      unsigned colour, int mask)
 {
     memset(tp_arena, 0, sizeof tp_arena);
     font_drawText(tp_arena, line, 0xA0u, 0);
@@ -120,20 +136,32 @@ static void draw_line(uint8_t *page, const char *line, unsigned cell,
             for (unsigned p = 0; p < 4u; p++)
                 if (b & (1u << p)) {
                     unsigned x = c * 4u + p;
-                    if (x < 320u) page[y * 320u + x] = (uint8_t)colour;
+                    if (x < 320u) {
+                        unsigned at = y * 320u + x;
+                        if (mask) page[at] |= (uint8_t)colour;
+                        else      page[at] = (uint8_t)colour;
+                    }
                 }
         }
     }
 }
 
-/* One centred line on the page at `row` in a solid `colour` — the same
- * blit_text_tile (1000:47D5) path the dialog lines use, without the box.
- * The cutscene panel's headline is drawn this way (1000:B0D4: centre 0xA0,
- * row 0x41, colour 0x10). */
+/* One centred line on the page at `row` in a solid `colour` (not the
+ * blit_text_tile path — used where there is no box underneath). */
 void textpage_drawLine(uint8_t *page, const char *line, unsigned row,
                        uint8_t colour)
 {
-    draw_line(page, line, row, colour);
+    draw_line(page, line, row, colour, 0);
+}
+
+/* One centred line blitted the original way: `mask` OR'd into the page.
+ * The box's fill tile is a vertical ramp EB..E4..EB (all the same red in the
+ * palette) so the text becomes the grey ramp FB..F4..FB; that is why the
+ * level's goal text is shaded and not flat white. */
+void textpage_drawLineMask(uint8_t *page, const char *line, unsigned row,
+                           uint8_t mask)
+{
+    draw_line(page, line, row, mask, 1);
 }
 
 /* One 16x16 box tile (blit_sprite_planar A10E's layout). */
@@ -166,6 +194,37 @@ static void blit_marker(uint8_t *page, unsigned x0, unsigned y0,
                     page[y * 320u + x] = pat[r * 8u + p + 4u * k];
             }
     }
+}
+
+/* text_page_outline (1000:9FB1, called at the tail of draw_map_object 9EA3):
+ * a glyph pixel is any byte in [0xF4,0xFC) — the bar bank's grey ramp; every
+ * 4-neighbour that is not one of those (< 0xF4) is set to 0, which is the
+ * black outline the original draws around the box text.  The original walks
+ * the four planes with the map mask/read map (1000:A012 + A025) and re-tests
+ * per plane; with one byte per pixel the same rule is a single raster pass.
+ * The scanned rectangle is [0x5D2F] = the box's interior base (box top + 16),
+ * lines*16 rows, from the box's left edge for (tiles+1)*16 px (1000:9FBB). */
+static void draw_outline(uint8_t *page, unsigned top, unsigned left,
+                         unsigned tiles, unsigned lines)
+{
+    unsigned x0 = left, x1 = left + (tiles + 1u) * 16u;
+    unsigned y0 = top + 16u, y1 = y0 + lines * 16u;
+
+    if (x1 > 320u) x1 = 320u;
+    if (y1 > 200u) y1 = 200u;
+    for (unsigned y = y0; y < y1; y++)
+        for (unsigned x = x0; x < x1; x++) {
+            uint8_t v = page[y * 320u + x];
+            if (v < 0xF4u || v >= 0xFCu) continue;
+            if (y && page[(y - 1u) * 320u + x] < 0xF4u)
+                page[(y - 1u) * 320u + x] = 0;
+            if (y + 1u < 200u && page[(y + 1u) * 320u + x] < 0xF4u)
+                page[(y + 1u) * 320u + x] = 0;
+            if (x && page[y * 320u + x - 1u] < 0xF4u)
+                page[y * 320u + x - 1u] = 0;
+            if (x + 1u < 320u && page[y * 320u + x + 1u] < 0xF4u)
+                page[y * 320u + x + 1u] = 0;
+        }
 }
 
 void textpage_draw(uint8_t *page, const char *text, int cursorRow,
@@ -209,9 +268,13 @@ void textpage_draw(uint8_t *page, const char *text, int cursorRow,
             while (*p && *p != '\r' && n + 1 < sizeof buf) buf[n++] = *p++;
             buf[n] = 0;
             if (*p == '\r') p++;
-            draw_line(page, buf, top + 15u + i * 16u, 0xF4u);
+            draw_line(page, buf, top + 15u + i * 16u, 0x10u, 1);
         }
     }
+
+    /* the black outline (draw_map_object 1000:9FA7 -> 9FB1), after the lines
+     * and before the markers — dialog_menu_loop draws those last */
+    draw_outline(page, top, left, tiles, lines);
 
     /* the cursor: the pause rows' edge markers, or the grid's cell pair */
     if (cursorRow >= 0) {

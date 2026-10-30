@@ -369,9 +369,10 @@ static int scene_start(unsigned index, int initial)
     }
 
     /* the panel's headline (1000:B0D4: blit_text_tile at centre 0xA0, row
-     * 0x41, colour 0x10) — the index-th string of 202F:0x6304 */
+     * 0x41, mask 0x10 — OR'd into the panel art, so it takes the panel's own
+     * vertical ramp) — the index-th string of 202F:0x6304 */
     if (sceneHeadline[index][0])
-        textpage_drawLine(video_page(0), sceneHeadline[index], 0x41u, 0x10u);
+        textpage_drawLineMask(video_page(0), sceneHeadline[index], 0x41u, 0x10u);
 
     scene_osys->videoPresent(0);
 

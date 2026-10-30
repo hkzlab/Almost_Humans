@@ -32,9 +32,12 @@
  *   ([0x5B10] = 2: 2 phase-bytes per 2 frames), and the time-up
  *   ([0x5B12] := 0, [0x5E44] := 0xFF).
  *
- * Not ported, with the original's references: the elapsed 1/60s clock
- * [0x5B0C..0E] (consumed by check_highscore's score arithmetic, unported);
- * the line-compare reveal ([0x5B0A] 200→152 over 48 ticks, driven by the
+ * The elapsed clock [0x5B0C..0E] is ported: one step per second in the same
+ * gate (1000:96C6: ones 0..9, tens 0..5, minutes), reset by level_start
+ * (1000:95B5), exposed as statusbar_elapsedWord() in the packing
+ * check_highscore uses for the per-level best-time compare (1000:42CE).
+ *
+ * Not ported, with the original's references: the line-compare reveal ([0x5B0A] 200→152 over 48 ticks, driven by the
  * pre-level party screens — the port has no party phase yet, so the bar
  * starts fully revealed); the time-up dialog ([0x5E44] → the
  * input_dispatch_loop pause branch — the frontend's; the bar itself just
@@ -52,6 +55,7 @@
 static const OSystem *sb_osys;
 static uint8_t *strip;        /* the four-plane panel strip                */
 static uint8_t *panel4;       /* LBM\PANEL4.BIT (the art + the palette)   */
+static uint8_t *icons3;       /* APL\ICONS3.SPR: 12 x 16x24 (0x180 each)  */
 
 static int active;            /* [0x5B12]: the bar's ticking gate         */
 static int timeUp;            /* [0x5E44]: the countdown reached zero     */
@@ -63,6 +67,12 @@ static uint16_t cdPhase[3];
 static uint8_t cdSlide[3];
 static uint8_t secDiv;        /* [0x5B14], seeded 0x46 = 70 frames       */
 static uint8_t slideDiv;      /* [0x5B10], seeded 2                      */
+
+/* the elapsed clock [0x5B0C..0E] = seconds ones (0..9), tens (0..5), minutes
+ * (1000:96C6, one step per second; reset by level_start at 1000:95B5).  The
+ * level-end score packs it as minutes<<8 | tens<<4 | ones for the per-level
+ * best-time comparison (check_highscore 1000:42CE). */
+static uint8_t elapsed[3];
 
 /* the tribe odometer: values [0x5B25/26], phases [0x5B27/29], state
  * [0x5B22], slides [0x5B23/24] — indices 0 = tens, 1 = ones */
@@ -112,6 +122,119 @@ static void draw_band(uint8_t *page)
         const uint8_t *src = panel4 + y * 320u;
         for (unsigned x = 0; x < 320u; x++)
             dst[x] = (uint8_t)(0xC0u | src[x]);
+    }
+}
+
+/* --- the action row (the bar's centre) ---------------------------------
+ *
+ * blit_sprite_loop (1000:990A) draws a *group* of icon slots selected by
+ * [0x5B56] from the six word pointers at 202F:0x5B2B.  Each group is
+ * `count, frame, icon...` with 1-based ICONS3 cells; the shipped groups are
+ *
+ *   1: 2 icons  02 01        2: 4 icons  03 04 05 06
+ *   3: 4 icons  03 07 08 06  4: 4 icons  03 05 09 06
+ *   5: 4 icons  09 0a 0b 0c  6: 1 icon   06
+ *
+ * so the level's start (group 1, [0x5B56] = 1) shows ICONS3 cells 1 and 0.
+ * The row starts at x = (0x140 - (count*23 + (count-1)*12)) / 2, the slot
+ * pitch is 0x1F and every slot sits at bar row 5 (1000:993B..9947).  Each
+ * slot gets an embossed 23x31 bevel (1000:997D, its mask 0x48BC zeroed = a
+ * pure shade: top/right -4, bottom/left +4, clamped to the bar bank's
+ * 0xC0..0xCF greys) and slot 0 also the gold 21x29 inner frame at +1,+1
+ * (1000:996E from the 0x5B57 ramp d0..e3..d0, one ramp byte per pixel or
+ * row).  The icon (1000:9993) is the 16x24 cell at +4,+4: byte != 0 stored
+ * +0xC0, 0 transparent.
+ *
+ * [0x5B56] is the port's `actionSel`; the action/claim pass will drive it
+ * (the selection routine at 1000:5547 writes it), so today it keeps the
+ * level-start group. */
+static const uint8_t actionGroup[6][6] = {
+    { 2u, 1u, 2u, 1u },
+    { 4u, 1u, 3u, 4u, 5u, 6u },
+    { 4u, 1u, 3u, 7u, 8u, 6u },
+    { 4u, 1u, 3u, 5u, 9u, 6u },
+    { 4u, 1u, 9u, 10u, 11u, 12u },
+    { 1u, 1u, 6u },
+};
+static const uint8_t actionGold[40] = {   /* 202F:0x5B57 */
+    0xD0,0xD1,0xD2,0xD3,0xD4,0xD5,0xD6,0xD7,0xD8,0xD9,
+    0xDA,0xDB,0xDC,0xDD,0xDE,0xDF,0xE0,0xE1,0xE2,0xE3,
+    0xE3,0xE2,0xE1,0xE0,0xDF,0xDE,0xDD,0xDC,0xDB,0xDA,
+    0xD9,0xD8,0xD7,0xD6,0xD5,0xD4,0xD3,0xD2,0xD1,0xD0,
+};
+static unsigned actionSel = 1u;           /* [0x5B56] */
+
+/* 0xAFFE: one frame pixel — the mask byte when it is non-zero, else the
+ * destination shaded by `d` and clamped to the bar bank. */
+static void frame_px(uint8_t *page, unsigned x, unsigned y, int d,
+                     uint8_t mask)
+{
+    unsigned at;
+    int v;
+    if (x >= 320u || y >= 200u) return;
+    at = y * 320u + x;
+    if (mask) { page[at] = mask; return; }
+    v = (int)page[at] + d;
+    if (v >= 0xD0) v = 0xCF;
+    if (v < 0xC0) v = 0xC0;
+    page[at] = (uint8_t)v;
+}
+
+/* 0xAF7D / 0xAF6E: the four edges in the original's order (top -4, left +4,
+ * bottom +4, right -4).  Only the vertical runs advance the mask (0xAFF6's
+ * INC SI per row); a horizontal run re-uses one byte for the whole edge
+ * (0xAFF5 loops without touching SI), and the bottom edge reads the byte at
+ * base+h because BX was stepped by the height first (0xAFAE). */
+static void frame_box(uint8_t *page, unsigned x, unsigned y, unsigned w,
+                      unsigned h, const uint8_t *mask, unsigned base)
+{
+    unsigned i;
+    uint8_t top = mask ? mask[base] : 0u;
+    uint8_t bottom = mask ? mask[base + h] : 0u;
+
+    for (i = 0; i < w; i++) frame_px(page, x + i, y, -4, top);
+    for (i = 0; i < h; i++)
+        frame_px(page, x, y + i, 4, mask ? mask[base + i] : 0u);
+    for (i = 0; i < w; i++) frame_px(page, x + i, y + h, 4, bottom);
+    for (i = 0; i < h; i++)
+        frame_px(page, x + w, y + i, -4, mask ? mask[base + i] : 0u);
+}
+
+static void draw_actionIcon(uint8_t *page, unsigned x, unsigned y,
+                            unsigned cell)
+{
+    const uint8_t *src;
+    if (!icons3 || cell >= 12u) return;
+    src = icons3 + cell * 0x180u;
+    for (unsigned r = 0; r < 24u; r++)
+        for (unsigned c = 0; c < 16u; c++) {
+            uint8_t v = src[r * 16u + c];
+            if (!v) continue;
+            if (x + c < 320u && y + r < 200u)
+                page[(y + r) * 320u + x + c] = (uint8_t)(v + 0xC0u);
+        }
+}
+
+static void draw_actions(uint8_t *page)
+{
+    const uint8_t *g;
+    unsigned count;
+
+    /* [0x5B56] is 1..6 (level_video_init sets 1 at 1000:32DC); the original
+     * indexes 202F:0x5B2B with it unguarded, the port must not run off. */
+    if (actionSel < 1u || actionSel > 6u) return;
+    g = actionGroup[actionSel - 1u];
+    count = g[0];
+    unsigned span = count * 23u + (count - 1u) * 12u;
+    unsigned x = (0x140u - span) / 2u;
+    unsigned y = BAR_FIRST_ROW + 5u;
+
+    for (unsigned i = 0; i + 1u < count + 1u && i < 4u; i++) {
+        frame_box(page, x, y, 23u, 31u, NULL, 0u);
+        if (i == 0u && g[1])
+            frame_box(page, x + 1u, y + 1u, 21u, 29u, actionGold, 6u);
+        draw_actionIcon(page, x + 4u, y + 4u, (unsigned)(g[i + 2u] - 1u));
+        x += 4u + 0x1Fu;      /* the icon's +4 is never undone (0xAD6A/7C) */
     }
 }
 
@@ -174,6 +297,18 @@ static void odometer_tick(void)
  * down one cell ([0x5B16] := 8 unconditionally); the carry rolls 0->9
  * (phase 0xB0, one cell above the target) and 0->5 (0x70, in PANELN2);
  * a minutes underflow is the time-up. */
+/* 1000:96C6: the elapsed clock's per-second step (ones 0..9, tens 0..5). */
+static void elapsed_tick(void)
+{
+    if (++elapsed[0] == 10u) {
+        elapsed[0] = 0u;
+        if (++elapsed[1] == 6u) {
+            elapsed[1] = 0u;
+            elapsed[2]++;
+        }
+    }
+}
+
 static void clock_tick(void)
 {
     cdSlide[2] = 8;
@@ -207,6 +342,7 @@ void statusbar_tick(void)
     if (!strip || !panel4 || !page) return;
 
     draw_band(page);
+    draw_actions(page);
 
     if (active) {
         int died = 0;
@@ -215,6 +351,7 @@ void statusbar_tick(void)
 
         if (--secDiv == 0) {
             secDiv = 70;                       /* one second at 70 Hz      */
+            elapsed_tick();                    /* 1000:96C6                */
             clock_tick();
             died = timeUp;                     /* the original skips the
                                                   slide block on time-up  */
@@ -241,7 +378,7 @@ void statusbar_tick(void)
 void statusbar_start(uint16_t packedTimeBcd, unsigned tribeMembers,
                      unsigned tribeRequired)
 {
-    uint32_t n1Size = 0, n2Size = 0, p4Size = 0;
+    uint32_t n1Size = 0, n2Size = 0, p4Size = 0, i3Size = 0;
     uint16_t chk = 0;
     uint8_t *n1, *n2;
     uint8_t m = (uint8_t)(packedTimeBcd >> 8);
@@ -272,6 +409,13 @@ void statusbar_start(uint16_t packedTimeBcd, unsigned tribeMembers,
         return;
     }
 
+    free(icons3);
+    icons3 = res_loadChunk("APL\\ICONS3.SPR", &i3Size, &chk);
+    if (!icons3 || i3Size != 4608u) {
+        free(icons3);
+        icons3 = NULL;
+    }
+
     cd[0] = m;
     cd[1] = (uint8_t)(s >> 4);
     cd[2] = (uint8_t)(s & 0xFu);
@@ -288,6 +432,7 @@ void statusbar_start(uint16_t packedTimeBcd, unsigned tribeMembers,
     odoState = 0;
     odoSlide[0] = odoSlide[1] = 0;
 
+    elapsed[0] = elapsed[1] = elapsed[2] = 0u;  /* level_start 1000:95B5  */
     secDiv = 70;                              /* [0x5B14] = 0x46          */
     slideDiv = 2;                             /* [0x5B10] = 2             */
     /* active stays 0: [0x5B12] is level_fade_in's, set when the start chain
@@ -322,4 +467,13 @@ uint16_t statusbar_timeWord(void)
     return (uint16_t)(((unsigned)cd[0] << 8) |
                       (((unsigned)cd[1] & 0x0Fu) << 4) |
                       ((unsigned)cd[2] & 0x0Fu));
+}
+
+/* [0x1E84] after check_highscore's repack (1000:42CE): the *elapsed* clock as
+ * minutes<<8 | tens<<4 | ones — the value the per-level best compares. */
+uint16_t statusbar_elapsedWord(void)
+{
+    return (uint16_t)(((unsigned)elapsed[2] << 8) |
+                      (((unsigned)elapsed[1] & 0x0Fu) << 4) |
+                      ((unsigned)elapsed[0] & 0x0Fu));
 }

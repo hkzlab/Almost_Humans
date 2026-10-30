@@ -691,6 +691,13 @@ int level_endTest(void)
 {
     if (endRequested) return 1;
     if (goalHit) { level_requestEnd(1); return 1; }
+    /* object_test_dispatch (1000:35D6): the level record's +0x04 word is the
+     * goal test.  A level with no test byte (0x0000) relies on the hook. */
+    if (level_loaded && level_data_cur.objectTest &&
+        object_testDispatch(level_data_cur.objectTest)) {
+        level_requestEnd(1);
+        return 1;
+    }
     if (tribeMembers == 0u) { level_requestEnd(0); return 1; }
     return 0;
 }

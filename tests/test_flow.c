@@ -196,6 +196,16 @@ int main(int argc, char **argv)
         level_goalReached();
         check(level_endTest() && level_ended() && level_outcome(),
               "the goal hook ends the level as won");
+        /* check_highscore's score (1000:41AE): [0x1F41]*[0x11FC]*10 (55EA)
+         * + the remaining seconds*10 (569B..56CB) */
+        {
+            statusbar_start(0x0600u, 12u, 4u);        /* 6:00, 12 members */
+            check(score_levelScore() == 1u * 12u * 10u + 360u * 10u,
+                  "the score: level 1 x 12 members + 6:00 left = 3720");
+            statusbar_start(0x0530u, 12u, 4u);        /* 5:30 left */
+            check(score_levelScore() == 1u * 12u * 10u + 330u * 10u,
+                  "the score follows the remaining time (5:30 = 3420)");
+        }
         check(level_load(0) == 0 && !level_ended(),
               "a reload clears the end trigger");
         {
@@ -204,9 +214,116 @@ int main(int argc, char **argv)
             check(level_members() == 0u, "the tribe count reaches zero");
             check(level_endTest() && level_ended() && !level_outcome(),
                   "an extinct tribe ends the level as lost");
+            check(score_levelScore() == 0u,
+                  "a lost level adds no score (55B3 -> 578A)");
         }
         (void)level_load(0);
     } else printf("skip: the level data is not on the disc\n");
+
+    /* 6b. the placed-object array (0x3E75) + object_test_dispatch's
+     * predicates (1000:35D6) and the claim's writes (1000:3A6A) */
+    {
+        uint8_t *r;
+        object_init();
+        check(object_staticSlots() == 8u && object_slots() == 16u &&
+              object_liveCount() == 9u && object_current() == -1,
+              "the placed array is 8 static + the live ones, 9 used, none current");
+        check(object_noneType1d() == -1, "no 0x1D record -> true");
+        check(object_typeEquals(3u) == 0, "no current record -> false");
+
+        /* the player at (0x100, 0x80); a neighbour 0x20 right, 8 down, type 2 */
+        object_setPlayer(0);
+        r = object_slot(0);
+        r[0] = 0x00; r[1] = 0x01; r[2] = 0x80; r[3] = 0x00;
+        object_setCurrent(0);
+        check(object_findNeighbour() == -1, "an empty array has no neighbour");
+
+        r = object_slot(3);
+        r[0] = 0x20; r[1] = 0x01; r[2] = 0x88; r[3] = 0x00;  /* +0x20, +8 */
+        r[8] = 0x02;                                          /* type 2    */
+        check(object_findNeighbour() == 3, "the window finds the neighbour");
+        check(object_typeEquals(2u) == 0, "the predicate reads the *current*");
+        object_setCurrent(3);
+        check(object_typeEquals(2u) == -1, "the neighbour's type matches");
+        check(object_classMatches(0x15u) == 0, "its class is 0");
+        object_setCurrent(0);
+
+        /* out of the window on either axis, inactive, or type >= 3: no claim */
+        r[8] = 0x03;
+        check(object_findNeighbour() == -1, "a type >= 3 record is skipped");
+        r[8] = 0x00;
+        r[6] = 0x80;                                          /* inactive  */
+        check(object_findNeighbour() == -1, "an inactive record is skipped");
+        r[6] = 0x00;
+        r[0] = 0x22; r[1] = 0x01;                             /* +0x22     */
+        check(object_findNeighbour() == -1, "0x22 is outside |dx| <= 0x20");
+        r[0] = 0x20; r[1] = 0x01;
+        r[2] = 0x90; r[3] = 0x00;                             /* +0x10     */
+        check(object_findNeighbour() == -1, "0x10 is outside |dy| <= 8");
+        r[2] = 0x88; r[3] = 0x00;
+
+        check(object_noneType1d() == -1, "still no 0x1D record");
+        r[8] = 0x1d;
+        check(object_noneType1d() == 0, "a 0x1D record falsifies it");
+        r[8] = 0x02;
+
+        /* the claim's three writes (1000:3B1E) */
+        check(object_claimNeighbour() == 3, "the claim takes the neighbour");
+        check(r[4] == 0x03 && r[5] == 0x01, "the neighbour's frame becomes 0x103");
+        check(r[6] == 0 && r[7] == 0, "the neighbour's flags word clears");
+        check(object_slot(0)[4] == 0x20 && object_slot(0)[5] == 0,
+              "the current object's frame becomes 0x20");
+        /* the removal is the claim's *settle* step (`neighbour[+6] = 0xFFFF`,
+         * not ported): until then the record is still in the window */
+        check(object_findNeighbour() == 3,
+              "the three writes leave the neighbour in the window");
+        r[6] = 0x80;
+        check(object_findNeighbour() == -1,
+              "the settle step's 0xFFFF would remove it");
+        object_init();
+    }
+
+    /* 6c. the goal test (object_test_dispatch 1000:35D6) and the spawn
+     * recipes (202F:0x19BA) */
+    {
+        uint8_t *r;
+        object_init();
+        check(level_data() && level_data()->objectTest == 0x0502u,
+              "level 1's goal test word is 0x0502 (mode 2, arg 5)");
+        check(object_testDispatch(0x0502u) == 0, "an empty array does not meet it");
+        object_setCurrent(0);
+        object_setSlotClass(1u, 5u);
+        object_slot(0)[7] = 1u;                 /* the record's source slot */
+        check(object_testDispatch(0x0502u) == 1, "class 5 in slot 1 meets it");
+        object_setSlotClass(1u, 4u);
+        check(object_testDispatch(0x0502u) == 0, "class 4 does not");
+        object_setSlotClass(1u, 5u);
+        /* level_endTest is object_test_dispatch now */
+        (void)level_load(0);
+        object_setCurrent(0);
+        object_setSlotClass(1u, 5u);
+        object_slot(0)[7] = 1u;
+        check(level_endTest() && level_outcome(),
+              "the level's own goal test ends it as won");
+
+        /* the spawn: recipe 0 = one use, behaviour 5, sprite 0x60, +8 0xFFFF */
+        object_init();
+        check(object_spawnRecipe(0u, 0x30u, 0x40u) == 9,
+              "recipe 0 appends at slot 9");
+        r = object_slot(9);
+        check(r[0] == 0x30 && r[1] == 0 && r[2] == 0x49 && r[3] == 0,
+              "x = the neighbour's, y = its + 9");
+        check(r[4] == 0x60 && r[5] == 0x00, "the sprite word is 0x60");
+        check(r[8] == 0xFF && r[9] == 0xFF, "+8 = 0xFFFF");
+        check(object_slotClass(10u) == 5u, "its behaviour 5 lands in slot 10");
+        check(object_spawnRecipe(0u, 0, 0) == -1, "recipe 0 is one-shot");
+        check(object_spawnRecipe(3u, 0, 0) == 10, "recipe 3 is a second spawn");
+        r = object_slot(10);
+        check(r[4] == 0x38 && r[5] == 0x00 && r[8] == 0 && r[10] == 0xFF,
+              "recipe 3: sprite 0x38, +8 = 0, +0xA = 0xFFFF");
+        check(object_slotClass(11u) == 4u, "its behaviour 4 lands in slot 11");
+        object_init();
+    }
 
     /* 7. draw_status_indicator (1000:1FEF): a present volume returns at
      * once (no screen); a missing one draws the prompt and waits */

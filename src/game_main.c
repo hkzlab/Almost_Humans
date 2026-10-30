@@ -438,7 +438,7 @@ int game_main(const OSystem *osys)
                 if (input.lastKey || (input.joyBits & 0x80u)) {
                     endPageUp = 0;
                     postPending = 1;
-                    scoreUp = score_begin(0u);   /* the port's score: 0 */
+                    scoreUp = score_begin(score_levelScore());
                     if (!scoreUp) {
                         postPending = 0;
                         state = postLevelStep(state);

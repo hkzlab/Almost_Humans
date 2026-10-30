@@ -35,6 +35,7 @@ extern const uint8_t *osys_null_palette(void);
 
 static uint8_t strip[1280];
 static uint8_t panel4[12800 + 0xFA00 + 768]; /* art + the palette */
+static uint8_t icons3[4608];                /* APL\ICONS3.SPR, 12 x 0x180 */
 
 static uint8_t *read_file(const char *path, uint32_t *size)
 {
@@ -55,8 +56,8 @@ static uint8_t *read_file(const char *path, uint32_t *size)
 static int load_fixtures(const char *fix_dir)
 {
     char path[512];
-    uint32_t n1s = 0, n2s = 0, p4s = 0;
-    uint8_t *n1, *n2, *p4;
+    uint32_t n1s = 0, n2s = 0, p4s = 0, i3s = 0;
+    uint8_t *n1, *n2, *p4, *i3;
 
     snprintf(path, sizeof path, "%s/HUMANS.001/APL/PANELN1.SPR", fix_dir);
     n1 = read_file(path, &n1s);
@@ -64,16 +65,19 @@ static int load_fixtures(const char *fix_dir)
     n2 = read_file(path, &n2s);
     snprintf(path, sizeof path, "%s/HUMANS.001/LBM/PANEL4.BIT", fix_dir);
     p4 = read_file(path, &p4s);
+    snprintf(path, sizeof path, "%s/HUMANS.001/APL/ICONS3.SPR", fix_dir);
+    i3 = read_file(path, &i3s);
     if (!n1 || !n2 || !p4 || n1s != 768u || n2s != 512u ||
-        p4s < 0xFA00u + 768u) {
+        p4s < 0xFA00u + 768u || !i3 || i3s != sizeof icons3) {
         fprintf(stderr, "FAIL fixture assets unreadable at %s\n", fix_dir);
-        free(n1); free(n2); free(p4);
+        free(n1); free(n2); free(p4); free(i3);
         return -1;
     }
     memcpy(strip, n1, 768u);
     memcpy(strip + 768u, n2, 512u);
     memcpy(panel4, p4, 12800u + 0xFA00u + 768u);
-    free(n1); free(n2); free(p4);
+    memcpy(icons3, i3, sizeof icons3);
+    free(n1); free(n2); free(p4); free(i3);
     return 0;
 }
 
@@ -112,19 +116,86 @@ static void model_page(uint8_t *page, const uint8_t *ph)
     for (unsigned m = 0; m < 5u; m++) model_mark(page, m, ph[m]);
 }
 
+/* The action row (the two icon slots at the bar's centre) is a fixed overlay
+ * and is checked by check_actions below; the band+marks model skips the
+ * rectangle it covers (the slots sit at x 131..154 and 166..189). */
+#define ACTION_X0 128u
+#define ACTION_X1 192u
+
 static int diff_rows(const char *what, const uint8_t *page, const uint8_t *model)
 {
     unsigned bad = 0;
     for (unsigned y = BAR_Y; y < BAR_Y + 40u; y++)
-        for (unsigned x = 0; x < 320u; x++)
+        for (unsigned x = 0; x < 320u; x++) {
+            if (x >= ACTION_X0 && x < ACTION_X1) continue;
             if (page[y * 320u + x] != model[y * 320u + x]) {
                 if (bad < 4)
                     fprintf(stderr, "FAIL %s at (%u,%u): page %02x model %02x\n",
                             what, x, y, page[y * 320u + x], model[y * 320u + x]);
                 bad++;
             }
+        }
     if (bad) fprintf(stderr, "FAIL %s: %u mismatching pixels\n", what, bad);
     return bad != 0;
+}
+
+/* The bar's action row (blit_sprite_loop 1000:990A): [0x5B56] = 1 at the
+ * level start selects 202F:0x5B2B's group 1 = ICONS3 cells 1 and 0, drawn at
+ * (x+4, bar row 9) inside a 23x31 embossed slot, with the gold 0x5B57 ramp
+ * frame on slot 0 only.  The slot x = (0x140-(2*23+12))/2 = 131, the pitch
+ * 4+0x1F = 35. */
+static int check_actions(const uint8_t *page)
+{
+    static const unsigned cell[2] = { 1u, 0u };
+    static const unsigned cx[2] = { 131u + 4u, 131u + 35u + 4u };
+    unsigned bad = 0;
+    for (unsigned i = 0; i < 2u; i++) {
+        unsigned matched = 0;
+        for (unsigned r = 0; r < 24u; r++)
+            for (unsigned c = 0; c < 16u; c++) {
+                uint8_t v = icons3[cell[i] * 0x180u + r * 16u + c];
+                if (!v) continue;
+                if (page[(BAR_Y + 9u + r) * 320u + cx[i] + c] ==
+                    (uint8_t)(v + 0xC0u))
+                    matched++;
+            }
+        if (matched < 200u) {
+            fprintf(stderr, "FAIL action slot %u holds %s (only %u of its "
+                    "pixels)\n", i, i ? "ICONS3 cell 0" : "cell 1", matched);
+            bad = 1;
+        }
+    }
+    /* the gold inner frame: the top edge is the ramp's byte at +6 (0xD6), the
+     * bottom at +6+29 (0xD4), and the vertical edges ramp between them */
+    if (page[(BAR_Y + 6u) * 320u + 132u] != 0xD6u ||
+        page[(BAR_Y + 35u) * 320u + 132u] != 0xD4u) {
+        fprintf(stderr, "FAIL the action highlight frame is missing its top/"
+                "bottom edge (%02x/%02x)\n",
+                page[(BAR_Y + 6u) * 320u + 132u],
+                page[(BAR_Y + 35u) * 320u + 132u]);
+        bad = 1;
+    }
+    for (unsigned r = 0; r < 29u; r++) {          /* 0x5B57[6+r] */
+        uint8_t want = (r <= 13u) ? (uint8_t)(0xD6u + r)
+                                  : (uint8_t)(0xE3u - (r - 14u));
+        if (page[(BAR_Y + 6u + r) * 320u + 132u] != want) {
+            fprintf(stderr, "FAIL the action highlight frame's left edge at "
+                    "row %u is %02x, want %02x\n", r,
+                    page[(BAR_Y + 6u + r) * 320u + 132u], want);
+            bad = 1;
+            break;
+        }
+    }
+    /* slot 1 is plain: no gold in its frame */
+    for (unsigned r = 0; r < 31u; r++) {
+        uint8_t v = page[(BAR_Y + 5u + r) * 320u + 131u + 35u];
+        if (v >= 0xD0u && v <= 0xE3u) {
+            fprintf(stderr, "FAIL slot 1 carries the gold highlight\n");
+            bad = 1;
+            break;
+        }
+    }
+    return bad;
 }
 
 static void dump_ppm(const char *dir, const char *name, const uint8_t *page,
@@ -193,6 +264,7 @@ int main(int argc, char **argv)
     model_phases(ph, 0x0600, 12u - 4u);
     model_page(model, ph);
     bad |= diff_rows("the seeded stamp", page, model);
+    bad |= check_actions(page);
 
     /* 2. the first second rolls 6:00 -> 5:59.  On the tick that fires the
      * second the roll-start phases are stamped (the ones at 0xB0 = the
@@ -245,6 +317,28 @@ int main(int argc, char **argv)
     bad |= diff_rows("the time-up freeze", page, model);
     for (unsigned i = 0; i < 10u; i++) statusbar_tick();
     bad |= diff_rows("the time-up still frozen", page, model);
+
+    /* 4b. the elapsed clock [0x5B0C..0E] (1000:96C6): one step per second,
+     * packed minutes<<8 | tens<<4 | ones the way check_highscore repacks it
+     * (1000:42CE) for the per-level best-time compare. */
+    statusbar_start(0x0600, 12u, 4u);      /* 6:00 back on the countdown */
+    statusbar_setActive(1);
+    if (statusbar_elapsedWord() != 0u) {
+        fprintf(stderr, "FAIL the elapsed clock does not start at 0:00\n");
+        bad = 1;
+    }
+    for (unsigned i = 0; i < 70u * 65u; i++) statusbar_tick();   /* 1:05 */
+    if (statusbar_elapsedWord() != 0x0105u) {
+        fprintf(stderr, "FAIL 65 s of elapsed clock read %04x, want 0105\n",
+                statusbar_elapsedWord());
+        bad = 1;
+    }
+    for (unsigned i = 0; i < 70u * 55u; i++) statusbar_tick();   /* 2:00 */
+    if (statusbar_elapsedWord() != 0x0200u) {
+        fprintf(stderr, "FAIL 120 s of elapsed clock read %04x, want 0200\n",
+                statusbar_elapsedWord());
+        bad = 1;
+    }
 
     /* 5. the integration: level_load seeds the bar with the record's own
      * timeA and the map's 0xAA count, and level_tick composes world + bar

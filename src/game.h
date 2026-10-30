@@ -170,6 +170,8 @@ int  statusbar_timeUp(void);
 void statusbar_setActive(int on);
 /* The countdown word for the save's +0x07: minutes<<8 | BCD seconds. */
 uint16_t statusbar_timeWord(void);
+/* the elapsed clock [0x5B0C..0E] repacked as check_highscore does (1000:42CE) */
+uint16_t statusbar_elapsedWord(void);
 
 /* --- src/scene.c — .ANI/.RSC interpreter (subsystem 11, §8.5-8.7a) ---- */
 int  scene_init(const OSystem *osys);
@@ -234,6 +236,10 @@ int  map_tick(const InputState *in);        /* 1 = still up              */
 /* check_highscore (1000:41AE), the score/record screen between the level's
  * end page and the post-level newspaper.  START: SCORE.BIT + the score line
  * + the key/ACTION exit and the 0x100-entry fade to 0x48BC (div 0x23). */
+/* check_highscore's score terms (1000:41AE): level x members x 10 + the
+ * remaining seconds x 10; a lost level is 0.  The placed-object bonuses are
+ * the one term the object array (0x3E75) still owes. */
+unsigned score_levelScore(void);
 int  score_begin(unsigned value);           /* 1 = the screen is up      */
 int  score_tick(const InputState *in);      /* 1 = still up              */
 /* level_fade_in (1000:3334): the start chain — fade out of the pre-level
@@ -325,6 +331,32 @@ int entity_spawnFromMap(const uint8_t *map, unsigned style,
 
 const Entity *entity_at(unsigned i);   /* NULL past the count */
 unsigned entity_count(void);
+
+/* --- src/object.c — the placed-object array (0x3E75) ------------------
+ *
+ * 8 records of 0x12 bytes (check_highscore 1000:41D7 walks all eight); the
+ * fields and the remaining machine are in object.c's header.  The predicates
+ * are object_test_dispatch's (1000:35D6): -1 = true, 0 = false.
+ */
+void object_init(void);
+uint8_t *object_slot(unsigned i);        /* NULL past object_slots()      */
+unsigned object_slots(void);
+int  object_current(void);               /* [0x1AF2], -1 = none           */
+void object_setCurrent(int slot);
+int  object_player(void);                /* [0x180A], -1 = none           */
+void object_setPlayer(int slot);
+int  object_noneType1d(void);            /* 1000:3640                     */
+int  object_classMatches(unsigned want); /* 1000:3659                     */
+int  object_typeEquals(unsigned type);   /* 1000:3678                     */
+int  object_entitiesFinished(void);      /* 1000:3688 (the entity table)  */
+int  object_findNeighbour(void);         /* 1000:3A6A's scan, -1 = none   */
+int  object_claimNeighbour(void);        /* its writes + the slot free    */
+unsigned object_staticSlots(void);       /* the 8 the predicates scan     */
+unsigned object_liveCount(void);         /* [0x3E73]; 9 at the level start */
+uint8_t  object_slotClass(unsigned slot);/* [0x3E5E + slot]               */
+void     object_setSlotClass(unsigned slot, unsigned cls);
+int  object_testDispatch(uint16_t mode); /* 1000:35D6: 1 = goal met       */
+int  object_spawnRecipe(unsigned recipe, unsigned x, unsigned y);
 
 /* --- src/script.c — interpreter skeleton (re_scripts.md) -------------- */
 int  script_init(const OSystem *osys);
@@ -445,10 +477,15 @@ void textpage_publishBox(const uint8_t *box);
  * draws the marker pair on that option row (grid = the cell pair). */
 void textpage_draw(uint8_t *page, const char *text, int cursorRow,
                    unsigned cursorCol, int grid);
-/* one centred line (blit_text_tile 1000:47D5) in a solid colour — the
- * cutscene panel's headline uses this. */
+/* one centred line in a solid colour (no box underneath) — the disk prompt,
+ * the score screen and the MAP's list use this. */
 void textpage_drawLine(uint8_t *page, const char *line, unsigned row,
                        uint8_t colour);
+/* blit_text_tile (1000:47D5) proper: `mask` OR'd into the page (the OR ALU at
+ * 1000:9F76 + write mode 2).  The box text and the cutscene headline use it,
+ * so their shading is the box fill tile's own EB..E4..EB ramp. */
+void textpage_drawLineMask(uint8_t *page, const char *line, unsigned row,
+                           uint8_t mask);
 
 /* --- src/menu.c — the in-level dialogs (pause menu + SAVE GAME) -------
  *

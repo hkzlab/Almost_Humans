@@ -50,6 +50,32 @@ static void dump_ppm(const char *dir, const char *name, const uint8_t *page,
     fclose(f);
 }
 
+/* draw_map_object's outline pass (1000:9FA7 -> 9FB1): a text pixel is any
+ * byte in [0xF4,0xFB]; each of its four in-page neighbours is either text or
+ * 0 (the black outline).  Counts the text and outline pixels and the number
+ * of neighbours that are neither. */
+static void text_outline(const uint8_t *page, unsigned *text,
+                         unsigned *outline, unsigned *violations)
+{
+    static const int dx[4] = { 0, 0, -1, 1 }, dy[4] = { -1, 1, 0, 0 };
+
+    *text = *outline = *violations = 0;
+    for (unsigned y = 0; y < 200u; y++)
+        for (unsigned x = 0; x < 320u; x++) {
+            unsigned i = y * 320u + x;
+            if (page[i] < 0xF4u || page[i] > 0xFBu) continue;
+            (*text)++;
+            for (unsigned k = 0; k < 4u; k++) {
+                int nx = (int)x + dx[k], ny = (int)y + dy[k];
+                unsigned n;
+                if (nx < 0 || ny < 0 || nx > 319 || ny > 199) continue;
+                n = (unsigned)ny * 320u + (unsigned)nx;
+                if (page[n] == 0u) (*outline)++;
+                else if (page[n] < 0xF4u) (*violations)++;
+            }
+        }
+}
+
 static InputState idle(void)
 {
     InputState in;
@@ -158,14 +184,24 @@ int main(int argc, char **argv)
     menu_draw();
     {
         const uint8_t *page = osys_null_page(0);
-        unsigned fill = 0, text = 0;
-        for (unsigned i = 0; i < 320u * 200u; i++) {
+        unsigned fill = 0, text = 0, outline = 0, violations = 0;
+        for (unsigned i = 0; i < 320u * 200u; i++)
             if (page[i] == 26u) fill++;          /* BOX.SPR's fill index */
-            if (page[i] == 0xF4u) text++;        /* the text colour      */
-        }
+        /* the text = the fill tile's EB..E4..EB ramp | 0x10 -> F4..FB, and
+         * the black outline around it (1000:9FA7 -> 9FB1) */
+        text_outline(page, &text, &outline, &violations);
         if (fill < 500u || text < 50u) {
             fprintf(stderr, "FAIL the dialog did not render (fill %u, text %u)\n",
                     fill, text);
+            bad = 1;
+        }
+        if (outline == 0u) {
+            fprintf(stderr, "FAIL the dialog's text has no black outline\n");
+            bad = 1;
+        }
+        if (violations) {
+            fprintf(stderr, "FAIL %u text-neighbour pixels are neither text nor "
+                    "the outline\n", violations);
             bad = 1;
         }
     }
@@ -201,6 +237,21 @@ int main(int argc, char **argv)
     }
     menu_close();
 
+    /* the grid page is the same draw_map_object, so it gets the outline too */
+    menu_openPause();
+    (void)press(0x02u); (void)press(0x02u); (void)press(0x02u);
+    (void)press(0x80u);
+    {
+        const uint8_t *page = osys_null_page(0);
+        unsigned text = 0, outline = 0, violations = 0;
+        menu_draw();
+        text_outline(page, &text, &outline, &violations);
+        if (text < 50u || outline == 0u || violations) {
+            fprintf(stderr, "FAIL the grid page (text %u, outline %u, %u bad "
+                    "neighbours)\n", text, outline, violations);
+            bad = 1;
+        }
+    }
     menu_openPause();
     (void)press(0x02u); (void)press(0x02u); (void)press(0x02u);
     (void)press(0x80u);

@@ -173,15 +173,20 @@ int main(int argc, char **argv)
                 bad = 1;
             }
             /* the panel's headline (1000:B0D4: blit_text_tile, centre
-             * 0xA0, row 0x41, colour 0x10) — black glyph pixels inside
-             * the line's 0x45..0x4E band */
+             * 0xA0, row 0x41, mask 0x10) — bit 4 forced over the paper,
+             * i.e. `daily pixel | 0x10`, inside the line's 0x45..0x4E band */
             {
                 unsigned ink = 0;
                 for (unsigned y = 0x45u; y <= 0x4Eu; y++)
-                    for (unsigned x = 0; x < 320u; x++)
-                        if (page[y * 320u + x] == 0x10u) ink++;
-                if (!ink) {
-                    fprintf(stderr, "FAIL the panel's headline is not drawn\n");
+                    for (unsigned x = 0; x < 320u; x++) {
+                        unsigned at = y * 320u + x;
+                        if (page[at] == (uint8_t)(daily[at] | 0x10u) &&
+                            page[at] != daily[at])
+                            ink++;
+                    }
+                if (ink < 20u) {
+                    fprintf(stderr, "FAIL the panel's headline is not drawn "
+                            "(%u glyph pixels)\n", ink);
                     bad = 1;
                 }
             }

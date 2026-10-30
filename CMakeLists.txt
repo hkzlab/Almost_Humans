@@ -40,6 +40,7 @@ add_library(core STATIC
     src/map.c
     src/score.c
     src/entity.c
+    src/object.c
     src/script.c
     src/audio.c
     src/frontend.c

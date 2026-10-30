@@ -3,9 +3,20 @@
  *
  * START (this pass): LBM\SCORE.BIT's card and palette, the level score and a
  * key/ACTION exit with the original's fade to 0x48BC (div 0x23).  The
- * record table (HISCORES.HUM), the SCORENUM/RECORD sprites and the
- * NEW RECORD detection are the next pass; the score value the port owns is
- * the statusbar's running score word (0 until the accumulation lands).
+ * record table (HISCORES.HUM), the SCORENUM/RECORD sprites, the per-level
+ * best-time table ([0x138A + level*2]) and the NEW RECORD detection are the
+ * next pass (re_map.md, "The level-end score").
+ *
+ * The score is `check_highscore`'s arithmetic (1000:41AE), all of it here:
+ *   [0x1DCA] += [0x1F41] * [0x11FC] * 10      (55EA: level x members x 10)
+ *   [0x1DCA] += the placed-object bonuses     (55FA: +1000 per 0x3E75 record
+ *                                              of type 0xA8, +2000 per 0xA7)
+ *   [0x1DCE]  = remaining_seconds * 10        (569B..56CB, from the countdown)
+ *   total     = [0x1DCA] + [0x1DCE]           (5733)
+ * A lost level adds nothing at all (55B3 -> 578A).  The object bonus needs the
+ * placed-object array (0x3E75), which is not ported: it is 0 here and this is
+ * the score's only missing term.  The cross-level running total ([0x592]/594)
+ * is not modelled either, so the value is this level's.
  */
 #include "game.h"
 #include <stdio.h>
@@ -22,6 +33,24 @@ static int scorePhase;
 static int scoreArmed;
 static uint16_t scoreHold;
 static unsigned scoreValue;
+
+/* check_highscore's score terms (1000:41AE).  [0x1F41] = the level number
+ * (1-based, the same value draw_level_text prints), [0x11FC] = the members. */
+unsigned score_levelScore(void)
+{
+    uint16_t t;
+    unsigned mins, secs, remaining, levelNo;
+
+    if (!level_outcome()) return 0u;         /* 55B3: a lost level adds none */
+
+    t = statusbar_timeWord();                /* [0x5B19/1A/1B] */
+    mins = (unsigned)(t >> 8);
+    secs = (unsigned)(((t >> 4) & 0xFu) * 10u + (t & 0xFu));
+    remaining = mins * 60u + secs;
+
+    levelNo = gameflow_levelForProbe() + 1u; /* [0x1F41] */
+    return levelNo * level_members() * 10u + remaining * 10u;
+}
 
 int score_begin(unsigned value)
 {
