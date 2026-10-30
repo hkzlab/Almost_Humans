@@ -580,6 +580,45 @@ int main(int argc, char **argv)
                         if (page[(10u + row) * 320u + 10u + col] != v) wrong++;
                     }
                 check(wrong == 0u, "the spear frame (h=16, block h*4) is drawn");
+                /* the generated frame table now carries every slot, so the
+                 * carried frames draw too -- and the descriptor's ybias is added
+                 * to y (select_object_tile 1000:6642: ADD DX,AX) */
+                {
+                    unsigned bad2 = 0;
+                    memset(page, 0, sizeof page);
+                    object_init();
+                    rec = object_slot(0);
+                    rec[0] = 20; rec[1] = 0; rec[2] = 20; rec[3] = 0;
+                    rec[4] = 0x5D; rec[6] = 0; rec[8] = 0x02;
+                    object_render(page, 0, 0);
+                    for (unsigned row = 0; row < 11u; row++)
+                        for (unsigned col = 0; col < 16u; col++) {
+                            uint8_t v = bank[0x0DF0u + (col & 3u) * 44u +
+                                             row * 4u + (col >> 2)];
+                            if (page[(22u + row) * 320u + 20u + col] != v) bad2++;
+                        }
+                    check(bad2 == 0u && page[21u * 320u + 20u] == 0u,
+                          "frame 0x5D (carried) draws at y + ybias");
+                }
+                /* mode 2 (1000:6C74): 32 px wide, block rows*8, row stride 8 --
+                 * frame 0x2B is rows 20 at SPRITES.DAT + 0xD930 */
+                {
+                    unsigned bad3 = 0;
+                    memset(page, 0, sizeof page);
+                    object_init();
+                    rec = object_slot(0);
+                    rec[0] = 40; rec[1] = 0; rec[2] = 40; rec[3] = 0;
+                    rec[4] = 0x2B; rec[6] = 0; rec[8] = 0x02;
+                    object_render(page, 0, 0);
+                    for (unsigned row = 0; row < 20u; row++)
+                        for (unsigned col = 0; col < 32u; col++) {
+                            uint8_t v = bank[0xD930u + (col & 3u) * 160u +
+                                             row * 8u + (col >> 2)];
+                            /* y + ybias: frame 0x2B carries ybias 4 */
+                            if (page[(44u + row) * 320u + 40u + col] != v) bad3++;
+                        }
+                    check(bad3 == 0u, "frame 0x2B (mode 2) draws 32 px wide");
+                }
                 /* the four placed humans again for the second-record check */
                 object_init();
                 for (unsigned i = 0; i < 4u; i++) {

@@ -39,9 +39,9 @@
  *    1000:3FB3 until `[0x1B02]`: 0x100 queued cells over the 0x2C0-byte list
  *    at 0x48BC) and its `claim_pan_view_two_frames` (1000:3D04);
  *  - the class/behaviour overlays of `1000:653C` (`DS:0x3566`/`0x368A`/
- *    `0x3766`, reached only when a record's `+7 != 0`), the `[0x1996]` half of
- *    `1000:3600`, and the mover frames (`0x12/0x14/0x8C/0x91`) which are not
- *    in the sprite table;
+ *    `0x3766`, reached only when a record's `+7 != 0`) and the `[0x1996]` half
+ *    of `1000:3600` (the frame table itself is complete now — see below — so the
+ *    movers' and the stack's frames all draw);
  *  - the **human stack** `0x6F22` (8 x 0x0E, decoded 2026-10-30): op 1 already
  *    registers the base, but push (`1000:E697`), pop (`1000:FDED`), leave
  *    (`1000:E860`), snap (`1000:E963`), dissolve (`1000:FA13` + the `0x6F0D`
@@ -686,29 +686,97 @@ unsigned object_loadTerrainObjects(const uint8_t *map)
  * i.e. four column-class blocks of h*4 bytes.  A frame advances 0x180 and
  * (for h = 24) its slot is 4*0x60 = 0x180 — block = h*4.
  *
- * The frame addresses come from the runtime descriptor table `DS:0x39A8`,
- * whose entries are LINEAR ADDRESSES HALVED: `data = desc.offset*2 - K` with
- * `K = image_base - bank*0x20000` (live: K = 0x15790, bank 2).  The table is
- * built at load, so these values were read from the running game and are
- * recorded -- the *relation* is derived, the numbers are measured:
+ * The frames come from the descriptor table `DS:0x39A8`, which the game builds
+ * at boot in `apply_relocations` (1000:569E) from the six manifests at
+ * `DS:0x252C`.  The rule is derived and was verified against a live dump
+ * (248/248 descriptors byte-identical, re_map.md "the renderer chain"):
  *
- *   frame 0x10 -> 0x4800, h 24   the caveman    (verified 294/294 px live)
- *   frame 0x38 -> 0x0650, h 16   the stone
- *   frame 0x60 -> 0x10A0, h 16   the spear
- *   frame 0x96 -> 0x20B0, h  6   the campfire
- *   frame 0x9C -> 0x2560, h 12   the torch
+ *   id[F]  = word at image DS:0x39A8 + 4F        (pre-baked in the image)
+ *   rank   = number of earlier slots with the same id
+ *   off    = bswap(word at t1[id] + 4*rank + 2)
+ *   X      = (w1<<11) | (hi(t2)<<6) | hi(t3)
+ *   rows = X & 0x3F   ybias = (X>>6) & 0x1F   mode = (X>>11) & 3
  *
- * All five render as those objects, which is what confirms the law for the
- * non-24-row classes.
+ * The six manifests are contiguous chunks of `APL\SPRITES.DAT`, so
+ * `off` below is the sprite's file offset in that one file (bankbase =
+ * {1:0x0000, 2:0x3080, 3:0xD3F0, 4:0xD3F0, 5:0xD3F0, 6:0xE130}, which tile the
+ * file's 81744 bytes exactly).  The table below is generated from the image by
+ * `tools/sprite_frames.py`; don't hand-edit it.
+ *
+ * `select_object_tile` (1000:6625) draws at `y + ybias` (`ADD DX,AX` after
+ * `SHR AL,1 / AND 0x1F`) and dispatches on `mode`; only mode 1 (the unscaled
+ * blit) is ported, and every frame the port draws so far is mode 1.
  */
-typedef struct { uint8_t frame, rows; uint16_t off; } ObjSprite;
+typedef struct { uint32_t off; uint8_t rows, ybias, mode; } ObjSprite;
+#define OBJ_FRAME_SLOTS 0x110u
 
-static const ObjSprite objSprites[] = {
-    { 0x10u, 24u, 0x4800u },      /* the placed human         */
-    { 0x38u, 16u, 0x0650u },      /* the stone                */
-    { 0x60u, 16u, 0x10A0u },      /* the spear                */
-    { 0x96u,  6u, 0x20B0u },      /* the campfire             */
-    { 0x9Cu, 12u, 0x2560u },      /* the torch                */
+static const ObjSprite objSprites[OBJ_FRAME_SLOTS] = {
+    /* 000 */ {12416,24, 0,1}, {12800,24, 0,1}, {13184,23, 1,1}, {13552,23, 1,1},
+    /* 004 */ {13920,24, 0,1}, {14304,24, 0,1}, {14688,23, 1,1}, {15056,23, 1,1},
+    /* 008 */ {15424,24, 0,1}, {15808,24, 0,1}, {16192,23, 1,1}, {16560,23, 1,1},
+    /* 00C */ {16928,24, 0,1}, {17312,24, 0,1}, {17696,23, 1,1}, {18064,23, 1,1},
+    /* 010 */ {18432,24, 0,1}, {18816, 0,24,1}, {18816,24, 0,1}, {19200,24, 0,1},
+    /* 014 */ {19584,24, 0,1}, {19968,24, 0,1}, {20352,24, 0,1}, {    0,13, 2,1},
+    /* 018 */ {20736, 0,24,1}, {20736, 0,24,1}, {20736, 0,24,1}, {20736, 0,24,1},
+    /* 01C */ {20736, 0,24,1}, {54256, 0, 0,1}, {54256, 0, 0,1}, {54256, 0,16,1},
+    /* 020 */ {20736,24, 0,1}, {  208,16, 0,1}, {  464,16, 0,1}, {21120,24, 0,1},
+    /* 024 */ {21504,23, 0,1}, {21872,24, 0,1}, {0,0,0,0}, {0,0,0,0},
+    /* 028 */ {54256, 9,15,2}, {54544,15, 9,2}, {55024,18, 6,2}, {55600,20, 4,2},
+    /* 02C */ {56240,22, 2,2}, {56944,22, 1,2}, {  720,14, 0,1}, {  944,14, 0,1},
+    /* 030 */ { 1168,14, 0,1}, { 1392,14, 0,1}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0},
+    /* 038 */ { 1616,16, 0,1}, { 1872,16, 0,1}, { 2128,16, 0,1}, { 2384,16, 0,1},
+    /* 03C */ {57648,32, 0,2}, {58672,31, 1,2}, {59664,32, 0,2}, {60688,31, 1,2},
+    /* 040 */ {61680, 0, 0,3}, {61680,32, 0,2}, {62704,31, 1,2}, {63696,32, 0,2},
+    /* 044 */ {64720,31, 1,2}, {65712,32, 0,2}, {66736,31, 1,2}, {67728, 0, 0,3},
+    /* 048 */ {67728,32, 0,2}, {68752,31, 1,2}, {69744,32, 0,2}, {70768,32, 0,2},
+    /* 04C */ {71792,32, 0,2}, {72816,32, 0,2}, {73840,32, 0,2}, {74864,32, 0,2},
+    /* 050 */ {75888,32, 0,2}, {76912,32, 0,2}, {22256,24, 0,1}, {22640,23, 0,1},
+    /* 054 */ {23008,24, 0,1}, {23392,24, 0,1}, {23776,23, 1,1}, {24144,24, 0,1},
+    /* 058 */ { 2640,16, 0,1}, { 2896,16, 0,1}, { 3152,14, 0,1}, { 3376, 7, 4,1},
+    /* 05C */ { 3488, 5, 5,1}, { 3568,11, 2,1}, { 3744,16, 0,1}, { 4000,16, 0,1},
+    /* 060 */ { 4256,16, 0,1}, { 4512,16, 0,1}, { 4768,14, 2,1}, { 4992, 7, 5,1},
+    /* 064 */ { 5104, 5, 6,1}, { 5184,11, 3,1}, { 5360,16, 0,1}, { 5616,16, 0,1},
+    /* 068 */ {24528, 5,13,1}, {24608, 5,13,1}, {24688, 5,12,1}, {24768, 5,14,1},
+    /* 06C */ {24848, 6,13,1}, {24944, 5,14,1}, {25024, 5,15,1}, {25104, 5,15,1},
+    /* 070 */ {25184, 6,13,1}, {25280, 5,13,1}, {25360, 5,12,1}, {25440, 5,14,1},
+    /* 074 */ {25520, 5,14,1}, {25600, 5,14,1}, {25680, 5,14,1}, {25760, 4,15,1},
+    /* 078 */ {25824, 4,15,1}, {25888, 6, 0,1}, {25984, 5, 0,1}, {26064, 5, 1,1},
+    /* 07C */ {26144, 6, 0,1}, {26240, 5, 0,1}, {26320, 5, 1,1}, {26400,24, 0,1},
+    /* 080 */ {26784,24, 0,1}, {27168,24, 0,1}, { 5872,16, 0,1}, { 6128,15, 1,1},
+    /* 084 */ { 6368,16, 0,1}, { 6624,15, 1,1}, { 6864,16, 0,1}, { 7120,15, 1,1},
+    /* 088 */ { 7360,16, 0,1}, { 7616,15, 1,1}, { 7856,16, 0,1}, { 8112,16, 0,1},
+    /* 08C */ {27552,24, 0,1}, {27936,24, 0,1}, {28320,24, 0,1}, {28704, 0,24,1},
+    /* 090 */ {28704, 0,24,1}, {28704,24, 0,1}, {29088,24, 0,1}, {29472,24, 0,1},
+    /* 094 */ {29856, 0,24,1}, {29856, 0,24,1}, { 8368, 6,10,1}, { 8464,13, 1,1},
+    /* 098 */ { 8672,15, 1,1}, { 8912,15, 1,1}, { 9152,14, 1,1}, { 9376,12, 1,1},
+    /* 09C */ { 9568,12, 4,1}, { 9760,13, 3,1}, { 9968,11, 5,1}, {10144, 0,16,1},
+    /* 0A0 */ {10144, 0,16,1}, {10144, 7, 7,1}, {10256,10, 3,1}, {10416,14, 0,1},
+    /* 0A4 */ {10640,14, 0,1}, {10864,10, 3,1}, {11024, 7, 7,1}, {11136, 0,16,1},
+    /* 0A8 */ {11136, 0,16,1}, {11136,10, 4,1}, {11296,13, 1,1}, {29856,24, 0,1},
+    /* 0AC */ {30240,24, 0,1}, {30624,24, 0,1}, {31008,24, 0,1}, {31392,16, 8,1},
+    /* 0B0 */ {31648,16, 8,1}, {31904,23, 1,1}, {32272,22, 2,1}, {32624,23, 1,1},
+    /* 0B4 */ {32992,15, 9,1}, {33232,13,11,1}, {33440,13,11,1}, {0,0,0,0},
+    /* B8.. */ {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {33648,23, 1,1},
+    /* 0BC */ {34016,24, 0,1}, {34400,23, 0,1}, {34768,23, 1,1}, {35136,24, 0,1},
+    /* 0C0 */ {35520,23, 0,1}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0},
+    /* C8.. */ {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {11504,11, 5,1}, {11680,11, 5,1}, {11856, 8, 8,1},
+    /* 0D0 */ {11984, 8, 8,1}, {12112, 5,11,1}, {12192, 5,11,1}, {12272, 9, 7,1},
+    /* 0D4 */ {35888,24, 0,1}, {36272,23, 1,1}, {36640,24, 0,1}, {37024,24, 0,1},
+    /* 0D8 */ {37408,24, 0,1}, {37792,23, 1,1}, {38160,24, 0,1}, {38544,24, 0,1},
+    /* 0DC */ {38928,23, 1,1}, {39296,23, 1,1}, {39664,24, 0,1}, {40048,23, 1,1},
+    /* 0E0 */ {40416,24, 0,1}, {40800,23, 1,1}, {41168,24, 0,1}, {41552,24, 0,1},
+    /* 0E4 */ {41936,24, 0,1}, {42320,23, 1,1}, {42688,24, 0,1}, {43072,24, 0,1},
+    /* 0E8 */ {43456,23, 1,1}, {43824,23, 1,1}, {44192,24, 0,1}, {44576,23, 1,1},
+    /* 0EC */ {44944, 4,14,1}, {45008, 4,15,1}, {45072, 4,13,1}, {45136, 4,12,1},
+    /* 0F0 */ {45200, 5,14,1}, {45280, 4,14,1}, {45344, 4,13,1}, {45408, 4,12,1},
+    /* 0F4 */ {45472, 4, 2,1}, {45536, 4,14,1}, {45600, 4,15,1}, {45664, 4,13,1},
+    /* 0F8 */ {45728, 4,12,1}, {45792, 5,14,1}, {45872, 4,14,1}, {45936, 4,13,1},
+    /* 0FC */ {46000, 4,12,1}, {46064, 4, 2,1}, {77936,24, 8,2}, {78704,24, 8,2},
+    /* 100 */ {79472,22,10,2}, {80176,22,10,2}, {80880,27, 5,2}, {46128,24, 0,1},
+    /* 104 */ {46512,24, 0,1}, {46896,24, 0,1}, {47280,24, 0,1}, {47664,24, 0,1},
+    /* 108 */ {48048,24, 0,1}, {48432,24, 0,1}, {48816,19, 5,1}, {49120,11,13,1},
+    /* 10C */ {49296,14,10,1}, {49520,14,10,1}, {49744,24, 0,1}, {50128,24, 0,1},
+
 };
 
 static const uint8_t *objBank;            /* APL\\SPRITES.DAT, the sprite image */
@@ -720,17 +788,20 @@ void object_publishBank(const uint8_t *bank, uint32_t size)
     objBankSize = size;
 }
 
-/* 1000:653C's base blit: the sprite at `src`, top-left (x,y), 0 = transparent. */
+/* 1000:653C's base blit: the sprite at `src`, top-left (x,y), 0 = transparent.
+ * `cols` is 16 for mode 1 (`1000:66EC`, block rows*4, row 4) and 32 for mode 2
+ * (`1000:6C74`, block rows*8, row 8) — the only difference between the two
+ * (the frame stride confirms it: mode-2 frames advance rows*32 bytes). */
 static void blitSprite(uint8_t *page, const uint8_t *src, unsigned rows,
-                       int x, int y)
+                       unsigned cols, int x, int y)
 {
-    unsigned block = rows * 4u;
+    unsigned w = cols >> 2, block = rows * w;
 
     for (unsigned row = 0; row < rows; row++) {
         int py = y + (int)row;
         if (py < 0 || py >= 200) continue;
-        for (unsigned col = 0; col < 16u; col++) {
-            uint8_t v = src[(col & 3u) * block + row * 4u + (col >> 2)];
+        for (unsigned col = 0; col < cols; col++) {
+            uint8_t v = src[(col & 3u) * block + row * w + (col >> 2)];
             int px = x + (int)col;
             if (!v) continue;
             if (px < 0 || px >= 320) continue;
@@ -748,17 +819,18 @@ void object_render(uint8_t *page, int scrollX, int scrollY)
 
     for (unsigned i = 0; i < objLiveCount && i < OBJ_SLOTS; i++) {
         const uint8_t *r = objArray + i * OBJ_STRIDE;
-        unsigned frame = rd16(r, 4u);
+        unsigned frame = rd16(r, 4u), cols;
         const ObjSprite *sp = NULL;
 
         if (r[6] & 0x80u) continue;                 /* 1000:794C */
-        for (unsigned k = 0; k < sizeof objSprites / sizeof objSprites[0]; k++)
-            if (objSprites[k].frame == frame) { sp = &objSprites[k]; break; }
-        if (!sp) continue;
-        if ((uint32_t)sp->off + 4u * sp->rows * 4u > objBankSize) continue;
-        blitSprite(page, objBank + sp->off, sp->rows,
+        if (frame >= OBJ_FRAME_SLOTS) continue;
+        sp = &objSprites[frame];
+        if (!sp->rows || sp->mode > 2u) continue;   /* blank / mode 0 or 3: not drawn */
+        cols = sp->mode == 2u ? 32u : 16u;          /* 1000:6C74 vs 1000:66EC */
+        if ((uint32_t)sp->off + sp->rows * cols > objBankSize) continue;
+        blitSprite(page, objBank + sp->off, sp->rows, cols,
                    (int)(int16_t)rd16(r, 0u) - scrollX,
-                   (int)(int16_t)rd16(r, 2u) - scrollY);
+                   (int)(int16_t)rd16(r, 2u) - scrollY + (int)sp->ybias);
     }
 }
 
@@ -1092,7 +1164,9 @@ static void objFindOverlap(uint8_t *actor)
         found = (i == (unsigned)objPlayer) ? actor : r;
         type = rd16(found, 8u);
         if (type < 16u && objTypeOverlaps[type]) continue;
-        /* 0xF453(r, DX = 5): the record's behaviour script — not ported */
+        /* 1000:F453 scan_groups_for_record(DX = 5) -> 1000:FA13
+         * object_group_dissolve: the 0x6F22 group scan and the dissolve, not
+         * ported (re_map.md — it is a scan, not a bytecode interpreter) */
         wr16(found, 4u, 0x0103u);
         wr16(found, 8u, 0x001Eu);
         wr16(found, 0xAu, 0x0006u);
