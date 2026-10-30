@@ -1935,6 +1935,50 @@ int object_stackLeave(uint8_t *actor)
     return 0;
 }
 
+/* 1000:E99D (index 15): stand back on the group.  The topmost member takes the
+ * entry's x, `y -= 7`, frame 0x25 and type 7 - and stores its slot in `+0xE` -
+ * while the list byte below it moves up 8 (frame 0x20).  Like the pop, its
+ * "below" lookup reads `match-1` literally, so for the owner itself that byte is
+ * the entry's `+4` state. */
+int object_stackStand(uint8_t *actor)
+{
+    unsigned idx = (unsigned)((actor - objArray) / OBJ_STRIDE);
+
+    for (unsigned i = 0; i < 8u; i++) {
+        uint8_t *e = (uint8_t *)objRegister[i];
+        uint8_t *di;
+        int bl;
+
+        if (rd16(e, 0u) & 0x8000u) continue;
+        di = e + 5;
+        while (!(di[0] & 0x80u) && di[0] != (uint8_t)idx) di++;
+        if (di[0] & 0x80u) continue;
+        di++;
+        if (!(di[0] & 0x80u)) return 0;                 /* a member above it */
+        di--;                                            /* the match */
+        wr16(actor, 0xEu, (uint16_t)((uintptr_t)di - (uintptr_t)objRegister));
+        di--;
+        bl = (int8_t)di[0];
+        if (bl < 0) return 0;
+        {
+            uint8_t *nb = object_slot((unsigned)bl);
+
+            if (nb) {
+                wr16(nb, 2u, (uint16_t)(rd16(nb, 2u) - 8u));
+                wr16(nb, 4u, 0x0020u);
+            }
+        }
+        wr16(actor, 0u, rd16(e, 0u));
+        wr16(actor, 2u, (uint16_t)(rd16(actor, 2u) - 7u));
+        wr16(actor, 4u, 0x0025u);
+        wr16(actor, 8u, 0x0007u);
+        wr16(actor, 0xAu, 0x0000u);
+        wr16(actor, 0xCu, 0x0000u);
+        return 1;
+    }
+    return 0;
+}
+
 /* 1000:E963 (handler 14): snap onto the group's x.  Only the topmost member
  * (the byte after it is a terminator) moves: `actor.x = entry.x`, frame 0x20. */
 int object_stackSnap(uint8_t *actor)
@@ -2240,6 +2284,7 @@ static int objCmdCall(uint8_t *actor, unsigned addr)
     case 0xE860u: (void)object_stackStepOff(actor); return 1;
     case 0xE8DDu: (void)object_stackLeave(actor); return 1;
     case 0xE963u: (void)object_stackSnap(actor); return 1;
+    case 0xE99Du: (void)object_stackStand(actor); return 1;
     case 0xE93Du: (void)object_selectorWalk(actor, 0); return 1;
     case 0xE952u: (void)object_selectorWalk(actor, 1); return 1;
     default: return 0;

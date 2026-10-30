@@ -762,6 +762,32 @@ int main(int argc, char **argv)
                           "the leave restores the actor (frame 0x10 / type 2)");
                     check(object_stackScanDissolve(1u) == 0,
                           "the leave cut the list at the actor's slot");
+                    /* 1000:E99D (index 15): stand back on the group - the
+                     * topmost member takes the entry's x, y-7, frame 0x25,
+                     * and the record below moves up 8 with frame 0x20 */
+                    object_init();
+                    base = object_slot(0);
+                    base[0] = 100; base[1] = 0; base[2] = 100; base[3] = 0;
+                    base[4] = 0x10; base[6] = 0; base[8] = 2; base[9] = 0;
+                    object_setActionEntity(0u);
+                    object_actionSetProgram(1u);
+                    object_actionSetCursor(2u);
+                    object_actionRun();
+                    top = object_slot(1);
+                    top[0] = 100; top[1] = 0; top[2] = 70; top[3] = 0;
+                    top[4] = 0x10; top[6] = 0; top[8] = 2; top[9] = 0;
+                    object_setActionEntity(1u);
+                    check(object_stackPush(top) == 1, "the push before the stand");
+                    check(object_stackStand(top) == 1 &&
+                          (top[0] | (top[1] << 8)) == 100u &&
+                          (top[2] | (top[3] << 8)) == 64u &&   /* 71 after the push */
+                          (top[4] | (top[5] << 8)) == 0x0025u &&
+                          (top[8] | (top[9] << 8)) == 7u &&
+                          (top[0xE] | (top[0xF] << 8)) != 0u,
+                          "1000:E99D stands the member (x, y-7, frame 0x25)");
+                    check((base[2] | (base[3] << 8)) == 92u &&
+                          (base[4] | (base[5] << 8)) == 0x0020u,
+                          "1000:E99D moves the record below up 8");
                 }
                 /* the selector (1000:F17C): its stack path removes the member,
                  * and its two terrain-dependent branches report -2 */

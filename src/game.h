@@ -440,6 +440,7 @@ int  object_stackPop(uint16_t ax, uint8_t **below, uint8_t **entry);
 int  object_stackStepOff(uint8_t *actor);         /* 1000:E860: 1/0/-1        */
 int  object_stackLeave(uint8_t *actor);           /* 1000:E8DD: 1/0/-1        */
 int  object_stackSnap(uint8_t *actor);            /* 1000:E963: 1/0           */
+int  object_stackStand(uint8_t *actor);           /* 1000:E99D: 1/0           */
 /* 1000:F17C: 0 = done, -1 = nothing found, -2 = needs the terrain step test
  * (1000:E389 / 1000:F25F), which is not ported. */
 int  object_selector(uint8_t *actor, uint16_t xoff, uint16_t frame, uint16_t type);
