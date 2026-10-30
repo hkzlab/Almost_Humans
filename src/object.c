@@ -75,7 +75,8 @@ static unsigned objPending;              /* [0x1979]                            
 static unsigned objCursor = 1;           /* [0x1988]                             */
 static unsigned objFault;                /* op 7 was dispatched (see below)      */
 static const OSystem *objOsys;           /* the fatal halt's route (osystem.h)   */
-static uint16_t objRegister[7][7];       /* 0x6F22, stride 0xE, bit15 = free     */
+static uint16_t objRegister[8][7];       /* 0x6F22: 8 x 0xE (clear is 0x70 bytes at
+                                          * 0x60F4; op 1 walks AX = 7..0), bit15 = free */
 static uint16_t objSpan[2][14];          /* 0x6F92, 2 x 0x1C: {id, .. +6, +8, +0x12} */
 
 /* [0x3E5E + b] — the class byte of the object in source slot b (0 = none).
@@ -136,8 +137,7 @@ void object_init(void)
     objSetProgramIndex(1u);          /* [0x5B56]                          */
     objFault = 0u;
     memset(objRegister, 0xFF, sizeof objRegister);   /* 0x6F22, all free  */
-    memset(objSpan, 0, sizeof objSpan);
-    for (unsigned i = 0; i < 2u; i++) objSpan[i][0] = 0xFFFFu;  /* 0x6F92 */
+    memset(objSpan, 0xFF, sizeof objSpan);   /* 0x6F92: 0x38 bytes at 0x60FF */
     for (unsigned i = 0; i < 4u; i++) objUses[i] = objRecipes[i][0];
 }
 
@@ -800,7 +800,7 @@ void object_tick(const uint8_t *levelPal)
  * `prog[prog[1] + 1]` from the object's **program** and jumps through the 12-entry CS table at
  * `0x399C`:
  *
- *   1  0x3A26 register the object in the 0x6F22 table (7 slots, stride 0xE), frame 0x20, type 8
+ *   1  0x3A26 register the object in the 0x6F22 table (8 slots, stride 0xE), frame 0x20, type 8
  *   2  0x9C1B the collision pass (also op 6) — see below
  *   3  0x3A1A -> 0xECFE  `cmd_select_8c_or_91_and_draw` (needs a class; sets frame 0x8C/0x91)
  *   4  0x3A05 -> 0xEFA1/0xEFB9                                  (per-type, not decoded)
@@ -881,7 +881,7 @@ unsigned object_actionPending(void) { return objPending; }
 static void objOpRegister(uint8_t *actor)
 {
     if (rd16(actor, 8u) > 2u) return;
-    for (unsigned i = 0; i < 7u; i++) {
+    for (unsigned i = 0; i < 8u; i++) {
         uint16_t *s = objRegister[i];
         if (!(s[0] & 0x8000u)) continue;         /* testw $0x8000 -> free  */
         s[0] = rd16(actor, 0u);
