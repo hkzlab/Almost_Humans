@@ -56,6 +56,15 @@ static unsigned objLiveCount = OBJ_LIVE0;/* [0x3E73]: the array's used slots    
 static unsigned objPlacedHumans;         /* [0x3E20]: the 0xAA handlers' count   */
 static unsigned objEntity;               /* [0x3E22]: the acting record          */
 static unsigned objProgramIndex = 1;     /* [0x5B56], 1-based                    */
+
+/* [0x5B56] is shared with the status bar (its action row's group), so every
+ * write goes through here. */
+static void objSetProgramIndex(unsigned index)
+{
+    if (index < 1u || index > 6u) return;
+    objProgramIndex = index;
+    statusbar_setActionGroup(index);
+}
 static unsigned objPending;              /* [0x1979]                             */
 static unsigned objCursor = 1;           /* [0x1988]                             */
 static unsigned objFault;                /* op 7 was dispatched (see below)      */
@@ -118,7 +127,7 @@ void object_init(void)
     objEntity = 0u;                  /* [0x3E22] cleared (1000:4CB7)      */
     objPending = 0u;                 /* [0x1979]                          */
     objCursor = 1u;                  /* [0x1988]                          */
-    objProgramIndex = 1u;            /* [0x5B56]                          */
+    objSetProgramIndex(1u);          /* [0x5B56]                          */
     objFault = 0u;
     memset(objRegister, 0xFF, sizeof objRegister);   /* 0x6F22, all free  */
     memset(objSpan, 0, sizeof objSpan);
@@ -828,6 +837,12 @@ static uint8_t objPrograms[6][12] = {
  * ported. */
 static const uint8_t objBehProgram[8] = { 0, 0, 0, 0, 5, 1, 3, 2 };
 static const uint8_t objBehDir[8] = { 0xFF, 0xFF, 0xFF, 0xFF, 0, 1, 1, 1 };
+/* DS:0x6EC3, 16 bytes: object_find_overlap's "this type does not take part"
+ * flag.  Types 0..2 and 8 are 0 (they *do*), the rest 1.  Types >= 0x10 read
+ * past the table in the original; the port treats them as "no". */
+static const uint8_t objTypeOverlaps[16] = {
+    0, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1
+};
 
 unsigned object_actionEntity(void) { return objEntity; }
 void object_setActionEntity(unsigned i) { objEntity = i < OBJ_STATIC ? i : objEntity; }
@@ -838,10 +853,7 @@ unsigned object_actionFault(void) { return objFault; }
 void object_attachOsys(const OSystem *osys) { objOsys = osys; }
 /* [0x5B56] (1-based): the shipped writers only produce 1..6, so this exists
  * for tests and for a future caller that restores a program from a save. */
-void object_actionSetProgram(unsigned index)
-{
-    if (index >= 1u && index <= 6u) objProgramIndex = index;
-}
+void object_actionSetProgram(unsigned index) { objSetProgramIndex(index); }
 /* [0x1988]: the program cursor byte (the pending action 5 writes it, 0x382D). */
 void object_actionSetCursor(unsigned cursor)
 {
@@ -939,7 +951,7 @@ static void objOpCollide(uint8_t *actor)
         else if (!objTakeFound(actor, found, slot, ordinal)) continue;
         objPending = 5u;                         /* [0x1979] = 5 */
         objCursor = 1u;                          /* [0x1988] = 1 */
-        objProgramIndex = 1u;                    /* [0x5B56] = 1 */
+        objSetProgramIndex(1u);                  /* [0x5B56] = 1 */
         return;
     }
 }
@@ -955,7 +967,7 @@ static void objResolveSprite(unsigned index)
     objEntity = index;
     if (r[7]) prog = objBehProgram[objSlotClass[r[7]] & 0x3Fu];
     if (index == (unsigned)objPlayer) prog = 4u;
-    objProgramIndex = prog + 1u;
+    objSetProgramIndex(prog + 1u);
     objPending = 1u;
 }
 
@@ -1033,9 +1045,46 @@ static void objOpSetState(uint8_t *actor, unsigned type)
     /* [0x6F1D] = 0 (the dialog flag) — the port has no separate flag */
 }
 
+/* 0xF2E0 (object_find_overlap): the static record within |dx|,|dy| <= 0x10 of
+ * the actor whose type is "overlappable" ([0x6EC3 + type] == 0) becomes frame
+ * 0x103, type 0x1E and params 6/0/0xA.  A record that is the player's is
+ * replaced by the actor for the conversion ([0x4254]'s swap).  The original
+ * runs 0xF453 (the record's behaviour script, DX = 5) before the conversion;
+ * that is the entity bytecode machine, which the port does not have. */
+static void objFindOverlap(uint8_t *actor)
+{
+    int ax = (int16_t)rd16(actor, 0u);
+    int bx = (int16_t)rd16(actor, 2u);
+
+    for (unsigned i = 0; i < OBJ_STATIC; i++) {
+        uint8_t *r = objArray + i * OBJ_STRIDE;
+        uint8_t *found;
+        unsigned type;
+        int dx, dy;
+
+        if (r == actor) continue;
+        if (r[6] & 0x80u) continue;
+        dx = (int16_t)rd16(r, 0u) - ax;
+        if (dx < 0) dx = -dx;
+        if (dx > 0x10) continue;
+        dy = (int16_t)rd16(r, 2u) - bx;
+        if (dy < 0) dy = -dy;
+        if (dy > 0x10) continue;
+        found = (i == (unsigned)objPlayer) ? actor : r;
+        type = rd16(found, 8u);
+        if (type < 16u && objTypeOverlaps[type]) continue;
+        /* 0xF453(r, DX = 5): the record's behaviour script — not ported */
+        wr16(found, 4u, 0x0103u);
+        wr16(found, 8u, 0x001Eu);
+        wr16(found, 0xAu, 0x0006u);
+        wr16(found, 0xCu, 0x0000u);
+        wr16(found, 0xEu, 0x000Au);
+    }
+}
+
 /* 0xEF0C / 0xEF39 (op 9, non-player): mark the walked record as state 1,
- * gated on the behaviour's state byte being 3 (behaviour 6).  The original
- * then calls object_find_overlap (0xF2E0), which is not ported. */
+ * gated on the behaviour's state byte being 3 (behaviour 6), then run
+ * object_find_overlap (0xF2E0). */
 static void objOpMarkWalk(uint8_t *actor, unsigned step)
 {
     int slot;
@@ -1050,7 +1099,7 @@ static void objOpMarkWalk(uint8_t *actor, unsigned step)
         wr16(r, 0xAu, 0x0003u);
         wr16(r, 0xCu, 0x0000u);
     }
-    /* object_find_overlap (0xF2E0), the overlap fixup, is not ported */
+    objFindOverlap(actor);
 }
 
 /* 0xEA71 (op 8): on odd frames reset the span entry of the acting record.
@@ -1070,8 +1119,11 @@ static void objOpResetSpan(void)
 
 /* The pending-action dispatch ([0x1979] -> the table at 0x197B), one frame
  * later.  Action 5 is event_anim_script_advance (1000:382D): it rewinds the
- * program's cursor byte to [0x1988] and then applies the action to the map
- * (1000:990A, not ported).  The other actions are not decoded. */
+ * program's cursor byte to [0x1988], then calls blit_sprite_loop (1000:990A),
+ * which re-draws the status bar's action row for the program's first two bytes
+ * (count, gold flag) — the same bytes as the 0x5B2B group header.  That
+ * drawing is already ported in statusbar.c as draw_actions() and runs every
+ * tick via statusbar_tick(), so the press needs no extra call here. */
 void object_pendingRun(void)
 {
     if (objPending == 5u) {
@@ -1109,17 +1161,30 @@ void object_actionRun(void)
         objOpResetSpan();
         break;
     case OP_SELECT:            /* 0x3A1A -> 0xECFE                   */
-        /* Needs the record's class, then calls page_offset_to_ptr (0xF123) on
-         * the map cell under the record and on the cell one to the left/right;
-         * only if both come back 0 does it set frame 0x8C/type 0x12 (type 0)
-         * or 0x91/0x14.  0xF123 is decoded: a cell is free when its 16-byte
-         * page mask (the BD file's "P" table, overridden by "N"/"O" at
-         * 0x92A0) is all-negative AND its 16-word item record
-         * ("[0x1FD6] + word[[0x1FD6] + 2*id]") sums to zero.
-         * shortcut: the page gate is not evaluated, so a mover never enters
-         * this state; upgrade when the mover art (frames 0x12/0x14/0x8C/0x91)
-         * is in the sprite table, or when 0xF2E0's overlap pass needs the
-         * page tables — re_plan.md, "op 3's page gate". */
+        /* 0xECFE: needs a class, then page_offset_to_ptr (0xF123) on the map
+         * cell under the record and on the cell one to the right (type 0) or
+         * left; only when both are free does it set type 0x12/frame 0x8C
+         * (type 0) or type 0x14/frame 0x91.  The 16-bit `DI += CX` can walk
+         * off the map, so both indices are bounds-checked. */
+        {
+            unsigned t = rd16(actor, 8u);
+            unsigned step = (t == 0u) ? 1u : 0xFFFFu;
+            unsigned frame = (t == 0u) ? 0x8Cu : 0x91u;
+            const uint8_t *map = level_map();
+            int col = (int16_t)rd16(actor, 0u) >> 4;
+            int row = (int16_t)rd16(actor, 2u) >> 4;
+            int cell = row * 32 + col;
+            int next = cell + (int)(int16_t)step;
+
+            if (!actor[7u] || t > 2u || !map) break;
+            if (cell < 0 || cell >= 640) break;
+            if (!level_pageFree(map[cell])) break;
+            if (next < 0 || next >= 640) break;
+            if (!level_pageFree(map[next])) break;
+            wr16(actor, 8u, (uint16_t)((t == 0u) ? 0x12u : 0x14u));
+            wr16(actor, 4u, (uint16_t)frame);
+            /* [0x6F1D] = 0 at 0xED49 (the dialog flag) — no port equivalent */
+        }
         break;
     case OP_TYPE_B:            /* 0x39CF -> 0xEA0F / 0xEA4D          */
         /* Dispatched, and recorded — but its two targets are not callable, so

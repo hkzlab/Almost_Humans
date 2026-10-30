@@ -152,6 +152,14 @@ static uint8_t *world;      /* the 512x320 composite (BG + terrain)       */
  * per range: {timer, reload, first DAC entry, entry count}.  It is the table
  * palette_rotate_table (1000:8C78) walks from 202F:0x1FC6; only BD3 has a
  * range (4 entries at 0x71, every 4th tick). */
+/* DEFS\BD<style>.BIN's page tables (the terrain-page system behind
+ * page_offset_to_ptr, 1000:F123): 256 x 16 mask bytes per tile id and the
+ * 16-word item records field B offsets into.  Built by the same loader that
+ * `load_terrain_pages` (1000:505C) implements. */
+static uint8_t pageMask[256][16];
+static uint8_t *pageItems;            /* field B + its record area          */
+static uint32_t pageItemsSize;
+static int pageValid;
 static uint8_t *animTable;
 static unsigned animCount;
 
@@ -161,6 +169,9 @@ static void visuals_free(void)
     free(bgImage); bgImage = NULL;
     free(world); world = NULL;
     free(animTable); animTable = NULL;
+    free(pageItems); pageItems = NULL;
+    pageItemsSize = 0;
+    pageValid = 0;
     animCount = 0;
 }
 
@@ -170,8 +181,19 @@ static void visuals_free(void)
  * by the LITERAL si += word[si] (the length word is part of the skip), then
  * 8 bytes; field M (a u16 count + 4-byte entries) is the palette-rotation
  * table, handed back to the caller.  Byte-exact over BD1..BD6 (2026-10-23). */
+typedef struct BdPage {
+    const uint8_t *items;       /* field B: 256 word offsets             */
+    uint32_t itemsSize;         /* maxB + 0x20: the record area          */
+    const uint8_t *masks;       /* field P: 256 x 16 bytes               */
+    const uint8_t *nList;       /* field N: count + 17-byte {id, 16}     */
+    unsigned nCount;
+    const uint8_t *oList;       /* field O: count + 16 id bytes          */
+    unsigned oCount;
+} BdPage;
+
 static uint32_t bd_walk(const uint8_t *b, uint32_t size, unsigned *bgIndex,
-                        const uint8_t **anim, unsigned *animEntries)
+                        const uint8_t **anim, unsigned *animEntries,
+                        BdPage *page)
 {
     uint32_t si = 0;
 
@@ -183,6 +205,10 @@ static uint32_t bd_walk(const uint8_t *b, uint32_t size, unsigned *bgIndex,
         for (unsigned i = 0; i < 256u; i++) {
             uint32_t v = rd_le16(b + si + i * 2u);
             if (v > m) m = v;
+        }
+        if (pass == 1u) {                   /* B: the item offset table */
+            page->items = b + si;
+            page->itemsSize = m + 0x20u;
         }
         si += m + (pass ? 0x20u : 0x10u);
     }
@@ -207,10 +233,16 @@ static uint32_t bd_walk(const uint8_t *b, uint32_t size, unsigned *bgIndex,
     si += 2u + 4u * m;
     if (si + 1u > size) return 0;
     n = b[si];
+    page->nList = b + si;
+    page->nCount = n;
     si += 1u + 17u * n;                    /* N                            */
     if (si + 1u > size) return 0;
     n = b[si];
+    page->oList = b + si;
+    page->oCount = n;
     si += 1u + n;                          /* O                            */
+    if (si + 0x1000u > size) return 0;
+    page->masks = b + si;                  /* P: 256 x 16                  */
     si += 0x1000u;                         /* P                            */
     if (si + 2u > size) return 0;
     return si + 2u;                        /* Q                            */
@@ -230,12 +262,34 @@ static int visuals_load(unsigned style)
     if (!bd) return -1;
     unsigned bgIdx = 0, animN = 0;
     const uint8_t *anim = NULL;
-    uint32_t end = bd_walk(bd, bdSize, &bgIdx, &anim, &animN);
+    BdPage page;
+    memset(&page, 0, sizeof page);
+    uint32_t end = bd_walk(bd, bdSize, &bgIdx, &anim, &animN, &page);
     if (end == bdSize && animN) {
         animTable = malloc(4u * animN);
         if (animTable) {
             memcpy(animTable, anim, 4u * animN);
             animCount = animN;
+        }
+    }
+    /* the page tables (load_terrain_pages, 1000:505C): field P is the base
+     * mask, the O list marks whole-tile empties, the N entries override. */
+    if (page.masks && page.items && page.itemsSize <= bdSize) {
+        memcpy(pageMask, page.masks, sizeof pageMask);
+        for (unsigned k = 0; k < page.oCount; k++) {
+            unsigned id = page.oList[1u + k];
+            memset(pageMask[id], 0xFF, 16u);
+        }
+        for (unsigned k = 0; k < page.nCount; k++) {
+            const uint8_t *e = page.nList + 1u + 17u * k;
+            memcpy(pageMask[e[0]], e + 1u, 16u);
+        }
+        free(pageItems);
+        pageItems = malloc(page.itemsSize);
+        if (pageItems) {
+            memcpy(pageItems, page.items, page.itemsSize);
+            pageItemsSize = page.itemsSize;
+            pageValid = 1;
         }
     }
     free(bd);
@@ -719,6 +773,23 @@ int level_endTest(void)
 void level_requestEnd(int won) { endRequested = 1; endWon = won ? 1 : 0; }
 int  level_ended(void)   { return endRequested; }
 int  level_outcome(void) { return endWon; }
+
+/* page_offset_to_ptr (1000:F123): 0 when the tile id's 16-byte page mask is
+ * all-negative (every sub-cell empty) AND its 16-word item record sums to 0
+ * (16-bit wrap, as DX).  The caller (op 3) bails on a non-zero return. */
+int level_pageFree(unsigned id)
+{
+    unsigned off, k;
+    uint16_t sum = 0;
+
+    if (!pageValid || id > 0xFFu) return 0;
+    for (k = 0; k < 16u; k++)
+        if (!(pageMask[id][k] & 0x80u)) return 0;    /* a byte >= 0 */
+    off = rd_le16(pageItems + 2u * id);             /* word[B + 2*id] */
+    if (off + 32u > pageItemsSize) return 0;
+    for (k = 0; k < 16u; k++) sum = (uint16_t)(sum + rd_le16(pageItems + off + 2u * k));
+    return sum == 0u;
+}
 
 const uint8_t *level_map(void)
 {

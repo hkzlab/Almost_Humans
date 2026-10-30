@@ -432,6 +432,7 @@ int main(int argc, char **argv)
             object_attachOsys(&osys_null);    /* the game's halt route back   */
         }
 
+
         /* and the level's own flow ends it as won */
         object_pendingRun();
         level_begin();
@@ -442,6 +443,75 @@ int main(int argc, char **argv)
         level_tick();
         check(level_ended() && level_outcome(),
               "the pickup ends level 1 as won");
+
+        /* op 9 (0x39E4 -> 0xEF0C) + object_find_overlap (0xF2E0): a behaviour-6
+         * actor walks the live record with slot 3 in its upper-left window,
+         * marks it type 1, then converts the static record overlapping it */
+        if (level_load(0) == 0) {
+            uint8_t *mv, *live, *victim;
+            object_actionSetProgram(5u);        /* program 5: prog[2] = op 9 */
+            object_actionSetCursor(1u);
+            object_setSlotClass(2u, 6u);        /* class 2 -> behaviour 6    */
+            object_setSlotClass(1u, 3u);        /* live ordinal 1 -> behav 3 */
+            mv = object_slot(0);
+            mv[0] = (uint8_t)440u; mv[1] = (uint8_t)(440u >> 8);
+            mv[2] = 32u; mv[3] = 0;
+            mv[4] = 0x10; mv[6] = 0; mv[7] = 2u; mv[8] = 0; mv[9] = 0;
+            victim = object_slot(1);            /* a neighbour at the same x */
+            victim[0] = (uint8_t)440u; victim[1] = (uint8_t)(440u >> 8);
+            victim[2] = 32u; victim[3] = 0;
+            victim[4] = 0x10; victim[6] = 0; victim[7] = 0;
+            victim[8] = 2u; victim[9] = 0;
+            live = object_slot(9);              /* the spear, +8 px right  */
+            check((live[4] | (live[5] << 8)) == 0x0060u,
+                  "the live record is the spear");
+            object_actionRun();
+            check((live[8] | (live[9] << 8)) == 0x0001u &&
+                  (live[10] | (live[11] << 8)) == 0x0003u,
+                  "op 9 marks the walked live record as state 1");
+            check((victim[4] | (victim[5] << 8)) == 0x0103u &&
+                  (victim[8] | (victim[9] << 8)) == 0x001Eu &&
+                  (victim[10] | (victim[11] << 8)) == 0x0006u &&
+                  (victim[14] | (victim[15] << 8)) == 0x000Au,
+                  "the overlap fixup converts the overlapping record");
+        }
+
+        /* op 3 (0xECFE) with its page gate: level 1's cells (22,1) and (23,1)
+         * hold ids 0x1E/0x1F (free) while (24,1) is a wall (0x00), so a carrier
+         * on the first two enters the open state and one on the third does not */
+        check(level_pageFree(0x1Eu) == 1 && level_pageFree(0x1Fu) == 1 &&
+              level_pageFree(0x00u) == 0 && level_pageFree(0xB8u) == 0,
+              "the page gate: free tiles vs walls (and 0xB8, an item tile)");
+        {
+            uint8_t *mv;
+            object_init();
+            object_actionSetProgram(1u);
+            object_actionSetCursor(5u);        /* prog[6] = 0x03 (op 3)     */
+            mv = object_slot(0);
+            mv[0] = (uint8_t)(22u * 16u); mv[1] = (uint8_t)((22u * 16u) >> 8);
+            mv[2] = (uint8_t)(1u * 16u); mv[3] = (uint8_t)((1u * 16u) >> 8);
+            mv[4] = 0x10; mv[6] = 0; mv[7] = 1u;   /* a class -> the op runs */
+            mv[8] = 0; mv[9] = 0;                  /* type 0 -> step +1     */
+            object_actionRun();
+            check((mv[4] | (mv[5] << 8)) == 0x008Cu &&
+                  (mv[8] | (mv[9] << 8)) == 0x0012u,
+                  "op 3 moves a carrier on open ground (0x8C/0x12)");
+            /* one cell right: (23,1) is free but its neighbour (24,1) is not */
+            object_init();
+            object_actionSetProgram(1u);
+            object_actionSetCursor(5u);
+            mv = object_slot(0);
+            mv[0] = (uint8_t)(23u * 16u); mv[1] = (uint8_t)((23u * 16u) >> 8);
+            mv[2] = (uint8_t)(1u * 16u); mv[3] = (uint8_t)((1u * 16u) >> 8);
+            mv[4] = 0x10; mv[6] = 0; mv[7] = 1u;
+            mv[8] = 0; mv[9] = 0;
+            object_actionRun();
+            check((mv[4] | (mv[5] << 8)) == 0x0010u &&
+                  (mv[8] | (mv[9] << 8)) == 0x0000u,
+                  "op 3 refuses when the neighbour is a wall");
+            object_init();
+        }
+
     }
 
     /* 6d. the object pass (render_objects 1000:5D56 -> 0x653C): the four

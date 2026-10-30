@@ -168,6 +168,9 @@ void statusbar_armOdometer(void);
 int  statusbar_timeUp(void);
 /* [0x5B12]: the ticking gate (the in-level dialogs clear it). */
 void statusbar_setActive(int on);
+/* [0x5B56] (1..6): the current ACTION program — draws both the program and
+ * the action row's group.  object.c owns it; the bar follows. */
+void statusbar_setActionGroup(unsigned sel);
 /* The countdown word for the save's +0x07: minutes<<8 | BCD seconds. */
 uint16_t statusbar_timeWord(void);
 /* the elapsed clock [0x5B0C..0E] repacked as check_highscore does (1000:42CE) */
@@ -228,6 +231,9 @@ const uint8_t *level_map(void);             /* == level_data()->map      */
 /* the working palette 202F:0x14D3 (the fade target of the claim, the level's
  * own fades and the rotate hook) */
 const uint8_t *level_palette(void);
+/* page_offset_to_ptr (1000:F123): 1 = the tile id's page is free (the ACTION
+ * op 3 gate) — the BD file's page mask + its 16-word item record. */
+int level_pageFree(unsigned id);
 int  level_tick(void);                      /* 1 = the level is running  */
 
 /* menu_loop (1000:012A), the MAP/high-score screen after the ending.

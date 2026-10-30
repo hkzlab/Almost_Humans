@@ -164,6 +164,14 @@ static const uint8_t actionGold[40] = {   /* 202F:0x5B57 */
 };
 static unsigned actionSel = 1u;           /* [0x5B56] */
 
+/* [0x5B56] is one global: the ACTION machine's program index selects both the
+ * program and the action row's group (its first two bytes are the group
+ * header).  object.c drives it through this setter. */
+void statusbar_setActionGroup(unsigned sel)
+{
+    if (sel >= 1u && sel <= 6u) actionSel = sel;
+}
+
 /* 0xAFFE: one frame pixel — the mask byte when it is non-zero, else the
  * destination shaded by `d` and clamped to the bar bank. */
 static void frame_px(uint8_t *page, unsigned x, unsigned y, int d,
