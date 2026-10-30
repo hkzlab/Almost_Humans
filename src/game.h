@@ -225,6 +225,9 @@ int  level_init(const OSystem *osys);
 int  level_load(unsigned levelId);          /* 0..159; 0 = ok            */
 const LevelData *level_data(void);          /* NULL before a load        */
 const uint8_t *level_map(void);             /* == level_data()->map      */
+/* the working palette 202F:0x14D3 (the fade target of the claim, the level's
+ * own fades and the rotate hook) */
+const uint8_t *level_palette(void);
 int  level_tick(void);                      /* 1 = the level is running  */
 
 /* menu_loop (1000:012A), the MAP/high-score screen after the ending.
@@ -350,21 +353,53 @@ int  object_classMatches(unsigned want); /* 1000:3659                     */
 int  object_typeEquals(unsigned type);   /* 1000:3678                     */
 int  object_entitiesFinished(void);      /* 1000:3688 (the entity table)  */
 int  object_mapCellEquals(unsigned cell); /* 1000:36AB (the map cell)     */
-int  object_findNeighbour(void);         /* 1000:3A6A's scan, -1 = none   */
-int  object_claimNeighbour(void);        /* its writes + the slot free    */
 unsigned object_staticSlots(void);       /* the 8 the predicates scan     */
 unsigned object_liveCount(void);         /* [0x3E73]; 9 at the level start */
 uint8_t  object_slotClass(unsigned slot);/* [0x3E5E + slot]               */
 void     object_setSlotClass(unsigned slot, unsigned cls);
 int  object_testDispatch(uint16_t mode); /* 1000:35D6: 1 = goal met       */
-int  object_spawnRecipe(unsigned recipe, unsigned x, unsigned y);
 /* render_objects' object pass (1000:5D56 -> 0x653C): the base sprite of every
  * live record, drawn at (x - scrollX, y - scrollY). */
 void object_publishBank(const uint8_t *bank, uint32_t size);
-/* the placed records' fill: one record per map 0xAA cell at
- * (col*16, row*16 - 8), frame 0x10, type 2 (measured on level 1). */
-unsigned object_placeFromMap(const uint8_t *map);
+/* load_terrain_b's per-tile object walk (1000:5168): [0x3E73] = 8, the 20
+ * behaviour bytes cleared, then each map cell of tiles 0xAA (the human, into
+ * the first free static slot, frame 0x10, type 2) and 0xAB (the spear,
+ * appended, frame 0x60, +8 = 0xFFFF, behaviour 5) in table order.  The other
+ * 23 tiles are not ported; returns [0x3E73]. */
+unsigned object_loadTerrainObjects(const uint8_t *map);
+unsigned object_placedHumans(void);      /* [0x3E20]                       */
 void object_render(uint8_t *page, int scrollX, int scrollY);
+/* The adjacent-object op of the entity bytecode (1000:3A6A): the gate and the
+ * scan around the *acting* record (`actor`, the entity's own slot), then the
+ * red/white flash, the blinks, the animation, the append and the settle.
+ * `recipe` = 1/0/3 for the three handlers.  object_tick drives the sequence
+ * and supplies the level's palette (the fades return to it). */
+int  object_claimBegin(unsigned recipe, int actor);
+int  object_claimActive(void);
+void object_claimTick(const uint8_t *levelPal);
+/* the scan at 4E91: the first record beside `actor` (|dx| <= 0x20,
+ * |dy| <= 8, type <= 2, active) or -1. */
+int  object_findNeighbour(int actor);
+/* one level frame of the object machine (the frame counter + the claim) */
+void object_tick(const uint8_t *levelPal);
+int  object_lowPhaseMatch(void);        /* 1000:3600: -1 when met         */
+/* The ACTION program machine (script_op_dispatch, 1000:3979): ACTION with no
+ * direction held runs the acting record's program.  The acting record is
+ * [0x3E22]; object_actionRun() performs one press, object_cycleEntity(±1) is
+ * the object selector (1000:410A/4147). */
+void object_actionRun(void);
+void object_pendingRun(void);      /* the [0x1979] dispatch, per frame */
+int  object_cycleEntity(int step);
+unsigned object_actionEntity(void);
+void object_setActionEntity(unsigned index);
+unsigned object_actionProgram(void);
+unsigned object_actionPending(void);
+void object_actionSetCursor(unsigned cursor);
+void object_actionSetProgram(unsigned index);   /* [0x5B56], 1..6        */
+unsigned object_actionFault(void);              /* 7 = op 7 was dispatched */
+/* The arch's fatal route for the op-7 halt (NULL detaches it, the tests do
+ * that on purpose); level_init attaches the game's OSystem. */
+void object_attachOsys(const OSystem *osys);
 
 /* --- src/script.c — interpreter skeleton (re_scripts.md) -------------- */
 int  script_init(const OSystem *osys);

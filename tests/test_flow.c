@@ -224,42 +224,46 @@ int main(int argc, char **argv)
      * predicates (1000:35D6) and the claim's writes (1000:3A6A) */
     {
         uint8_t *r;
+        static uint8_t testPal[768];    /* the level palette the fades return to */
         object_init();
-        check(object_staticSlots() == 8u && object_slots() == 16u &&
-              object_liveCount() == 9u && object_current() == -1,
-              "the placed array is 8 static + the live ones, 9 used, none current");
+        check(object_staticSlots() == 8u && object_slots() == 29u &&
+              object_liveCount() == 8u && object_current() == -1,
+              "the placed array starts at 8 used (load_terrain_b) with none current");
         check(object_noneType1d() == -1, "no 0x1D record -> true");
-        check(object_typeEquals(3u) == 0, "no current record -> false");
+        check(object_typeEquals(3u) == 0, "record 0 is not type 3");
 
         /* the player at (0x100, 0x80); a neighbour 0x20 right, 8 down, type 2 */
         object_setPlayer(0);
         r = object_slot(0);
         r[0] = 0x00; r[1] = 0x01; r[2] = 0x80; r[3] = 0x00;
+        r[6] = 0x00;                                  /* active */
         object_setCurrent(0);
-        check(object_findNeighbour() == -1, "an empty array has no neighbour");
+        object_setActionEntity(0u);
+        check(object_findNeighbour(0) == -1, "an empty array has no neighbour");
 
         r = object_slot(3);
         r[0] = 0x20; r[1] = 0x01; r[2] = 0x88; r[3] = 0x00;  /* +0x20, +8 */
+        r[6] = 0x00;                                          /* active    */
         r[8] = 0x02;                                          /* type 2    */
-        check(object_findNeighbour() == 3, "the window finds the neighbour");
-        check(object_typeEquals(2u) == 0, "the predicate reads the *current*");
-        object_setCurrent(3);
+        check(object_findNeighbour(0) == 3, "the window finds the neighbour");
+        check(object_typeEquals(2u) == 0, "the predicate reads the *acting* record");
+        object_setActionEntity(3u);
         check(object_typeEquals(2u) == -1, "the neighbour's type matches");
         check(object_classMatches(0x15u) == 0, "its class is 0");
-        object_setCurrent(0);
+        object_setActionEntity(0u);
 
         /* out of the window on either axis, inactive, or type >= 3: no claim */
         r[8] = 0x03;
-        check(object_findNeighbour() == -1, "a type >= 3 record is skipped");
+        check(object_findNeighbour(0) == -1, "a type >= 3 record is skipped");
         r[8] = 0x00;
         r[6] = 0x80;                                          /* inactive  */
-        check(object_findNeighbour() == -1, "an inactive record is skipped");
+        check(object_findNeighbour(0) == -1, "an inactive record is skipped");
         r[6] = 0x00;
         r[0] = 0x22; r[1] = 0x01;                             /* +0x22     */
-        check(object_findNeighbour() == -1, "0x22 is outside |dx| <= 0x20");
+        check(object_findNeighbour(0) == -1, "0x22 is outside |dx| <= 0x20");
         r[0] = 0x20; r[1] = 0x01;
         r[2] = 0x90; r[3] = 0x00;                             /* +0x10     */
-        check(object_findNeighbour() == -1, "0x10 is outside |dy| <= 8");
+        check(object_findNeighbour(0) == -1, "0x10 is outside |dy| <= 8");
         r[2] = 0x88; r[3] = 0x00;
 
         check(object_noneType1d() == -1, "still no 0x1D record");
@@ -267,20 +271,45 @@ int main(int argc, char **argv)
         check(object_noneType1d() == 0, "a 0x1D record falsifies it");
         r[8] = 0x02;
 
-        /* the claim's three writes (1000:3B1E) */
-        check(object_claimNeighbour() == 3, "the claim takes the neighbour");
+        /* the claim (1000:3A6A): the gate, the scan, the writes and then the
+         * whole sequence — red/white flash, blinks, the animation, the spawn
+         * and the settle — driven with object_tick + palette_tick */
+        check(object_claimBegin(0u, 0) == 3, "the claim takes the neighbour");
         check(r[4] == 0x03 && r[5] == 0x01, "the neighbour's frame becomes 0x103");
         check(r[6] == 0 && r[7] == 0, "the neighbour's flags word clears");
         check(object_slot(0)[4] == 0x20 && object_slot(0)[5] == 0,
-              "the current object's frame becomes 0x20");
-        /* the removal is the claim's *settle* step (`neighbour[+6] = 0xFFFF`,
-         * not ported): until then the record is still in the window */
-        check(object_findNeighbour() == 3,
-              "the three writes leave the neighbour in the window");
-        r[6] = 0x80;
-        check(object_findNeighbour() == -1,
-              "the settle step's 0xFFFF would remove it");
-        object_init();
+              "the old current object's frame becomes 0x20");
+        check(object_current() == 3, "the claim makes the neighbour current");
+        check(object_claimActive() == 1, "the sequence starts");
+        {
+            unsigned t = 0, spawned = 0;
+            while (object_claimActive() && t++ < 20000u) {
+                palette_tick();
+                object_tick(testPal);
+            }
+            check(!object_claimActive(), "the claim sequence finishes");
+            spawned = object_liveCount();
+            check(spawned == 9u, "the spawn appended one live record");
+            if (spawned == 9u) {
+                /* 0x3F17 + 0x12*(8-8) = port index 9, class 8-7 = 1 */
+                const uint8_t *nr = object_slot(9);
+                check((nr[0] | (nr[1] << 8)) == 0x0120u,
+                      "the spawned record takes the neighbour's x");
+                check((nr[2] | (nr[3] << 8)) == 0x88u + 9u,
+                      "the spawned record sits 9 below the neighbour");
+                check((nr[4] | (nr[5] << 8)) == 0x0060u,
+                      "its frame is the recipe's 0x60 (the spear)");
+                check((nr[8] | (nr[9] << 8)) == 0xFFFFu,
+                      "its +8 is the recipe's first parameter");
+                check(object_slotClass(1u) == 5u,
+                      "its behaviour 5 lands in class slot 1");
+            }
+            check(r[6] & 0x80, "the settle step removes the neighbour");
+            /* the animation's six 4FE9 increments over its 6 x 9 frames */
+            check((r[4] | (r[5] << 8)) == 0x0109u,
+                  "the neighbour animates 0x103 -> 0x109");
+            object_init();
+        }
     }
 
     /* 6c. the goal test (object_test_dispatch 1000:35D6) and the spawn
@@ -329,24 +358,90 @@ int main(int argc, char **argv)
         check(object_testDispatch(0x0005u | (level_map()[34] << 8)) == 1,
               "mode 5 dispatches to the map cell");
         object_init();
+    }
 
-        /* the spawn: recipe 0 = one use, behaviour 5, sprite 0x60, +8 0xFFFF */
-        object_init();
-        check(object_spawnRecipe(0u, 0x30u, 0x40u) == 9,
-              "recipe 0 appends at slot 9");
-        r = object_slot(9);
-        check(r[0] == 0x30 && r[1] == 0 && r[2] == 0x49 && r[3] == 0,
-              "x = the neighbour's, y = its + 9");
-        check(r[4] == 0x60 && r[5] == 0x00, "the sprite word is 0x60");
-        check(r[8] == 0xFF && r[9] == 0xFF, "+8 = 0xFFFF");
-        check(object_slotClass(10u) == 5u, "its behaviour 5 lands in slot 10");
-        check(object_spawnRecipe(0u, 0, 0) == -1, "recipe 0 is one-shot");
-        check(object_spawnRecipe(3u, 0, 0) == 10, "recipe 3 is a second spawn");
-        r = object_slot(10);
-        check(r[4] == 0x38 && r[5] == 0x00 && r[8] == 0 && r[10] == 0xFF,
-              "recipe 3: sprite 0x38, +8 = 0, +0xA = 0xFFFF");
-        check(object_slotClass(11u) == 4u, "its behaviour 4 lands in slot 11");
-        object_init();
+    /* 6c. load_terrain_b's object walk (1000:5168): level 1's four 0xAA cells
+     * become the humans in static slots 0..3 and its one 0xAB cell (28,2) the
+     * spear appended at index 9 — the live [0x3E73] = 9 / [0x3E5F] = 5 state */
+    if (level_load(0) == 0) {
+        const uint8_t *sp = object_slot(9);
+        check(object_liveCount() == 9u && object_placedHumans() == 4u,
+              "the walk leaves 9 used records and counts 4 humans");
+        check((sp[0] | (sp[1] << 8)) == 28u * 16u &&
+              (sp[2] | (sp[3] << 8)) == 2u * 16u,
+              "the 0xAB cell at (28,2) appends at (448,32)");
+        check((sp[4] | (sp[5] << 8)) == 0x0060u &&
+              (sp[8] | (sp[9] << 8)) == 0xFFFFu,
+              "the spear's frame 0x60 and +8 = 0xFFFF");
+        check(object_slotClass(1u) == 5u,
+              "its behaviour 5 lands in class slot 1");
+    }
+
+    /* 6c2. the ACTION program machine (script_op_dispatch 1000:3979): level 1's
+     * win is the pickup — the collision pass finds the spear, marks its slot
+     * 0x85 and writes the live ordinal as the actor's class, which the goal
+     * word 0x0502 (class match, argument 5) then accepts */
+    if (level_load(0) == 0) {
+        uint8_t *actor, *spear;
+
+        object_setActionEntity(0u);
+        actor = object_slot(0);
+        spear = object_slot(9);
+        check(spear != NULL && (spear[4] | (spear[5] << 8)) == 0x0060u,
+              "the walk put the spear at index 9");
+        /* stand the actor 8 px left of the spear, type 2 (a human) */
+        actor[0] = (uint8_t)(448u - 8u); actor[1] = (uint8_t)((448u - 8u) >> 8);
+        actor[2] = 32u; actor[3] = 0;
+        actor[4] = 0x10; actor[6] = 0; actor[8] = 2; actor[9] = 0;
+        check(object_testDispatch(0x0502u) == 0,
+              "the goal is not met before the pickup");
+        object_actionRun();
+        check((actor[7]) == 1u, "the pickup writes the ordinal as the class");
+        check(object_slotClass(1u) == 0x85u,
+              "the spear's slot is marked taken (0x85)");
+        check(object_testDispatch(0x0502u) == 1,
+              "level 1's goal (class match, arg 5) is met after the pickup");
+        /* op 4 (0xEFA1): the record's state byte must be 1 (behaviour 5, the
+         * spear, whose slot 5 maps to state 1 in 0x6EB6); program 2 with the
+         * cursor at 5 runs op 4, which sets the fixed frame/type */
+        object_actionSetCursor(6u);          /* program 1: prog[7] = op 4  */
+        actor[8] = 0x00; actor[9] = 0x00;    /* type <= 2 gates the op      */
+        object_actionRun();
+        check((actor[4] | (actor[5] << 8)) == 0x00BBu &&
+              (actor[8] | (actor[9] << 8)) == 0x0017u,
+              "op 4 sets the fixed state (frame 0xBB, type 0x17)");
+        object_actionSetCursor(1u);
+
+        /* op 7 (0x39CF) is dispatched when a cursor > 1 selects it (program 3,
+         * prog[2+1] = 0x07): it records the fault and touches nothing.  The
+         * osys is detached for this block because the game attaches the arch's
+         * fatal route (which halts) — the headless run must survive to check
+         * the flag and the untouched record. */
+        {
+            uint8_t before[0x12];
+            memcpy(before, actor, sizeof before);
+            object_attachOsys(NULL);
+            object_actionSetProgram(3u);
+            object_actionSetCursor(2u);       /* prog[3] = 0x07 */
+            object_actionRun();
+            check(object_actionFault() == 7u, "op 7 is recorded when dispatched");
+            check(memcmp(before, actor, sizeof before) == 0,
+                  "op 7 touches no state (its targets are wild writes)");
+            object_actionSetProgram(1u);
+            object_actionSetCursor(1u);
+            object_attachOsys(&osys_null);    /* the game's halt route back   */
+        }
+
+        /* and the level's own flow ends it as won */
+        object_pendingRun();
+        level_begin();
+        for (unsigned t = 0; t < 4000u && level_starting(); t++) {
+            level_tick();
+            palette_tick();
+        }
+        level_tick();
+        check(level_ended() && level_outcome(),
+              "the pickup ends level 1 as won");
     }
 
     /* 6d. the object pass (render_objects 1000:5D56 -> 0x653C): the four
@@ -361,12 +456,13 @@ int main(int argc, char **argv)
         /* the level's own four placed humans, as the live game has them */
         for (unsigned i = 0; i < 4u; i++) {
             static const uint16_t pos[4][2] = {
-                { 48, 24 }, { 208, 24 }, { 256, 136 }, { 464, 264 }
+                { 48, 25 }, { 208, 25 }, { 256, 137 }, { 464, 265 }
             };
             rec = object_slot(i);
             rec[0] = (uint8_t)pos[i][0]; rec[1] = (uint8_t)(pos[i][0] >> 8);
             rec[2] = (uint8_t)pos[i][1]; rec[3] = (uint8_t)(pos[i][1] >> 8);
             rec[4] = 0x10;
+            rec[6] = 0x00;                        /* active */
             rec[8] = 0x02;
         }
         bank = res_loadChunk("APL\\SPRITES.DAT", &bankSize, NULL);
@@ -384,21 +480,54 @@ int main(int argc, char **argv)
                     for (unsigned col = 0; col < 16u; col++) {
                         uint8_t v = bank[0x4800u + (col & 3u) * 0x60u +
                                          row * 4u + (col >> 2)];
-                        uint8_t got = page[(24u + row) * 320u + 48u + col];
+                        uint8_t got = page[(25u + row) * 320u + 48u + col];
                         if (v) { ink++; if (got != v) wrong++; }
                         else if (got) wrong++;
                     }
                 check(ink > 200u && wrong == 0u,
                       "the object pass draws the caveman with the measured law");
             }
-            /* and the same law at the second human (208,24) */
+            /* the non-24-row classes: the spear (frame 0x60, h 16) uses
+             * block = h*4 = 0x40, at SPRITES.DAT + 0x10A0 */
+            {
+                unsigned wrong = 0;
+                memset(page, 0, sizeof page);
+                object_init();
+                rec = object_slot(0);
+                rec[0] = 10; rec[1] = 0; rec[2] = 10; rec[3] = 0;
+                rec[4] = 0x60; rec[6] = 0; rec[8] = 0x02;
+                object_render(page, 0, 0);
+                for (unsigned row = 0; row < 16u; row++)
+                    for (unsigned col = 0; col < 16u; col++) {
+                        uint8_t v = bank[0x10A0u + (col & 3u) * 0x40u +
+                                         row * 4u + (col >> 2)];
+                        if (page[(10u + row) * 320u + 10u + col] != v) wrong++;
+                    }
+                check(wrong == 0u, "the spear frame (h=16, block h*4) is drawn");
+                /* the four placed humans again for the second-record check */
+                object_init();
+                for (unsigned i = 0; i < 4u; i++) {
+                    static const uint16_t pos[4][2] = {
+                        { 48, 25 }, { 208, 25 }, { 256, 137 }, { 465, 265 }
+                    };
+                    rec = object_slot(i);
+                    rec[0] = (uint8_t)pos[i][0]; rec[1] = (uint8_t)(pos[i][0] >> 8);
+                    rec[2] = (uint8_t)pos[i][1]; rec[3] = (uint8_t)(pos[i][1] >> 8);
+                    rec[4] = 0x10;
+                    rec[6] = 0x00;
+                    rec[8] = 0x02;
+                }
+                memset(page, 0, sizeof page);
+                object_render(page, 0, 0);
+            }
+            /* and the same law at the second human (208,25) */
             {
                 unsigned wrong = 0;
                 for (unsigned row = 0; row < 24u; row++)
                     for (unsigned col = 0; col < 16u; col++) {
                         uint8_t v = bank[0x4800u + (col & 3u) * 0x60u +
                                          row * 4u + (col >> 2)];
-                        if (page[(24u + row) * 320u + 208u + col] != v) wrong++;
+                        if (page[(25u + row) * 320u + 208u + col] != v) wrong++;
                     }
                 check(wrong == 0u, "the second placed record is drawn too");
             }

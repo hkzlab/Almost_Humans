@@ -79,9 +79,9 @@ static unsigned endSceneIndex;
  * with its own +0x00 (entry:004C's POP AX). */
 static unsigned level_current = 0u;
 
-/* The pause menu's press latch (pause_toggle 1000:3523 opens on a held
- * ACTION; the port requires a release between opens). */
-static int menuPrevAction;
+/* [0x13A4]: the ACTION press's latch — poll_input masks the ACTION bit while
+ * the key is held (1000:9998), so one press runs the ACTION program once. */
+static int actionLatched;
 
 /* [0x5BBA] != 0: the level's goal page (scroll_map 1000:9E51) is up. */
 static int goalPage;
@@ -471,12 +471,20 @@ int game_main(const OSystem *osys)
                     timeoutShown = 1;
                     menu_openTimeUp();
                 }
-                if (!menu_active() && !menuPrevAction &&
+                /* ACTION with no direction held runs the acting record's
+                 * ACTION program (pause_toggle 1000:3523 -> script_op_dispatch
+                 * 1000:3979); a dialog blocks it through [0x6F1D].  This is
+                 * NOT the pause menu: the 0x5BEC option block's trigger is
+                 * still unidentified, so menu_openPause() is no longer bound
+                 * to ACTION. */
+                if (!menu_active() && !actionLatched &&
                     (input.joyBits & 0x80u) && !(input.joyBits & 0x0Fu))
-                    menu_openPause();
-                menuPrevAction = (input.joyBits & 0x80u) != 0;
-
+                    object_actionRun();
+                /* [0x13A4] (poll_input 1000:9998): one action per press —
+                 * the ACTION bit is masked while the key is held. */
+                actionLatched = (input.joyBits & 0x80u) != 0;
                 level_tick();          /* the party done: the level runs */
+                object_pendingRun();   /* the [0x1979] dispatch (1000:382D) */
                 if (level_ended()) {
                     /* object_test_dispatch returned negative (1000:35D6):
                      * the play loop is over; [0x138E] keeps its outcome */

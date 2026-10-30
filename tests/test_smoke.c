@@ -161,8 +161,8 @@ int main(int argc, char **argv)
         const uint8_t *page = osys_null_page(0);
         unsigned nz = 0;
         for (unsigned i = 0; i < 58880u; i++) if (page[i]) nz++;
-        if (nz != 27091u) {
-            fprintf(stderr, "FAIL page: the level render nz %u, want 27091\n", nz);
+        if (nz != 27058u) {
+            fprintf(stderr, "FAIL page: the level render nz %u, want 27058\n", nz);
             bad = 1;
         }
     }

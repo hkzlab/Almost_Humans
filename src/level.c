@@ -276,6 +276,7 @@ static int visuals_load(unsigned style)
 int level_init(const OSystem *osys)
 {
     level_osys = osys;         /* the render goes through videoSetPalette  */
+    object_attachOsys(osys);   /* the ACTION machine's fatal route         */
     return 0;
 }
 
@@ -415,10 +416,10 @@ int level_load(unsigned levelId)
     objBank = res_loadChunk("APL\\SPRITES.DAT", &objBankSize, NULL);
     object_publishBank(objBank, objBankSize);
 
-    /* the placed records: one per map 0xAA cell (the required-humans marker),
-     * at (col*16, row*16 - 8) — the same cells [0x17FB] counts. */
+    /* the level's placed objects (load_terrain_b 1000:5168): the array is
+     * cleared, then the map's 0xAA/0xAB cells become the humans and the spear. */
     object_init();
-    object_placeFromMap(level_data_cur.map);
+    object_loadTerrainObjects(level_data_cur.map);
 
     /* the bar (level_start 1000:957B + build_statusbar_layout 1000:961B):
      * the time limit and the tribe pair.  On a fresh game both come from the
@@ -724,6 +725,12 @@ const uint8_t *level_map(void)
     return level_loaded ? level_data_cur.map : NULL;
 }
 
+/* the level's working palette 202F:0x14D3 (levelPal above) */
+const uint8_t *level_palette(void)
+{
+    return levelPal;
+}
+
 /* [0x5D31] and [0x11FC] after the LEVEL board's pick (the bar's seed; the
  * party screen reads the members too). */
 uint16_t level_timeLimit(void) { return timeLimit; }
@@ -789,9 +796,11 @@ int level_tick(void)
      * (entry 0 takes the last one) and those DAC entries are re-sent.
      * The original reads the table from 202F:0x1FC6, i.e. field M.  The
      * hook is installed only after level_fade_in's fade completes (the
-     * fade chases this same buffer), so no rotation while one is running. */
+     * fade chases this same buffer), so no rotation while one is running.
+     * The claim also freezes it (`[0x410C] = 0xFF` at 1000:3B16). */
     for (unsigned e = 0; e < animCount && startPhase == LVSTART_PLAYING &&
-                              !palette_fadeActive(); e++) {
+                              !palette_fadeActive() &&
+                              !object_claimActive(); e++) {
         uint8_t *a = animTable + 4u * e;
         unsigned first = a[2], n = a[3];
         if (n < 2u || first + n > 256u) continue;
@@ -806,6 +815,11 @@ int level_tick(void)
         memcpy(p, last, 3);
         palette_setDac(p, first, n);
     }
+
+    /* the object machine's frame (the claim's sequence and its fades); the
+     * original runs it from the level's per-frame body, so not during the
+     * start chain. */
+    if (startPhase == LVSTART_PLAYING) object_tick(level_palette());
 
     if (bgImage) memcpy(world, bgImage, WORLD_W * WORLD_H);
     else memset(world, 0, WORLD_W * WORLD_H);
