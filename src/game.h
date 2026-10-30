@@ -279,8 +279,8 @@ void level_restoreMembers(void);
 /* level_run's end: the play loop exits when object_test_dispatch
  * (1000:35D6) returns negative, and [0x138E] (0xFF won / 0 extinct) then
  * selects draw_level_text's page.  The six test handlers need the placed-
- * object array (0x3E75), not ported yet; level_endTest evaluates the goal
- * hook / the live tribe count in the meantime.  level_requestEnd(1) = the
+ * object array (0x3E75), which object.c holds; level_endTest evaluates the
+ * six predicates through object_testDispatch.  level_requestEnd(1) = the
  * level was completed. */
 void level_requestEnd(int won);
 /* draw_status_indicator (1000:1FEF): the disc probe + the "PUT THE DISK

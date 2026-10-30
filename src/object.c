@@ -41,7 +41,12 @@
  *  - the class/behaviour overlays of `1000:653C` (`DS:0x3566`/`0x368A`/
  *    `0x3766`, reached only when a record's `+7 != 0`), the `[0x1996]` half of
  *    `1000:3600`, and the mover frames (`0x12/0x14/0x8C/0x91`) which are not
- *    in the sprite table.
+ *    in the sprite table;
+ *  - the **human stack** `0x6F22` (8 x 0x0E, decoded 2026-10-30): op 1 already
+ *    registers the base, but push (`1000:E697`), pop (`1000:FDED`), leave
+ *    (`1000:E860`), snap (`1000:E963`), dissolve (`1000:FA13` + the `0x6F0D`
+ *    table) and the animator (`1000:D76F` + `0x66B3`) are not implemented — and
+ *    their verbs are reached from the `0xF453` script, so that runner comes first.
  */
 #include "game.h"
 #include <string.h>
