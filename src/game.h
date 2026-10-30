@@ -4,6 +4,10 @@
  * one subsystem of game_structure.md §1, and the init/step pairs are the
  * translation of the original's ISRs and main-loop stages
  * (port_structure.md §3).
+ *
+ * Addresses (§4a): `1000:XXXX` is a Ghidra in-segment offset of a routine in
+ * the original; `[0xXXXX]` / `202F:XXXX` is a game data address; anything else
+ * (a file offset, a VGA page, a run-time segment) says so at the use.
  */
 #ifndef HUMANSRE_GAME_H
 #define HUMANSRE_GAME_H
