@@ -78,7 +78,7 @@ int main(int argc, char **argv)
         check(!palette_fadeActive(), "the loading fade completes");
         {
             char dp[512];
-            snprintf(dp, sizeof dp, "%s/HUMANS.001/BACKS/DICON.APL", fix_dir);
+            snprintf(dp, sizeof dp, "%s/HUMANS.001/BACKS/CICON.APL", fix_dir);
             FILE *df = fopen(dp, "rb");
             if (df) {
                 uint8_t buf[0x198];
@@ -95,7 +95,7 @@ int main(int argc, char **argv)
         level_loadingTick();               /* the first frame composes it */
         {
             char dp[512];
-            snprintf(dp, sizeof dp, "%s/HUMANS.001/BACKS/DICON.APL", fix_dir);
+            snprintf(dp, sizeof dp, "%s/HUMANS.001/BACKS/CICON.APL", fix_dir);
             FILE *df = fopen(dp, "rb");
             if (df) {
                 uint8_t dic[0x1580];
@@ -104,11 +104,11 @@ int main(int argc, char **argv)
                 if (n == sizeof dic && dic[0] == 'A') {
                     const uint8_t *page = osys_null_page(0);
                     check(page[0] == 0u, "the loading background is cleared");
-                    check(page[(0x60u + 10u) * 320u + 0x50u + 40u] ==
+                    check(page[(0x60u + 10u) * 320u + 0x78u + 40u] ==
                               dic[0x400u + 10u * 80u + 40u] &&
-                          page[(0x60u + 10u) * 320u + 0x50u + 41u] ==
+                          page[(0x60u + 10u) * 320u + 0x78u + 41u] ==
                               dic[0x400u + 10u * 80u + 41u],
-                          "the dicon card is at (0x50,0x60), 1x");
+                          "the style card is at (0x78,0x60), 1x");
                 }
             }
         }
@@ -131,13 +131,13 @@ int main(int argc, char **argv)
             if (bank) {
                 /* the state after one tick: the "L" at (0xB0, 0x1C) — the
                  * template's y=0x1A plus one dy step */
-                level_loadingTick();
+                for (unsigned k = 0; k < 0x20u; k++) level_loadingTick();
                 const uint8_t *page = osys_null_page(0);
                 const uint8_t *L = bank + 0x400u + 0x11u * 0x180u;
                 unsigned badpx = 0;
                 for (unsigned r = 0; r < 24u; r++)
                     for (unsigned c = 0; c < 16u; c++)
-                        if (L[r * 16u + c] && page[(0x1Cu + r) * 320u + 0x60u + c] != L[r * 16u + c])
+                        if (L[r * 16u + c] && page[(0x24u + r) * 320u + 0x60u + c] != L[r * 16u + c])
                             badpx++;
                 check(badpx == 0u, "the 'L' block drawn at x=0x60 (bad chars)");
                 free(bank);

@@ -66,6 +66,8 @@ static uint8_t levelPal[768];     /* the working palette 202F:0x14D3     */
 static uint8_t *loadingBank;
 static uint32_t loadingSize;
 static uint8_t  loadList[10u * 10u];
+static uint8_t  loadWalkerSnap[10u * 10u];   /* the walkers at the letters switch */
+static unsigned loadWalkerCount;
 static uint8_t  loadPal[768];          /* dicon+0x18: the screen's DAC    */
 static uint8_t *loadDic;               /* BACKS\DICON.APL: the preview card */
 static uint32_t loadDicSize;
@@ -486,10 +488,23 @@ void level_loadingBegin(void)
      * FADES to them (0x80 entries, div 0x19) before the frames run */
     memset(loadPal, 0, sizeof loadPal);
     free(loadDic); loadDic = NULL; loadDicSize = 0;
-    loadDic = res_loadChunk("BACKS\\DICON.APL", &loadDicSize, NULL);
+    /* 1000:1E9C's style table f,s,c,w,d,p indexed by style-1; 0xEA8 is
+     * the 'd' in "backs\dicon.apl" — the level's own preview card */
+    {
+        static const char letter[6] = { 'f','s','c','w','d','p' };
+        unsigned st = level_data_cur.style;
+        char icon[32];
+        char l = (st >= 1u && st <= 6u) ? letter[st - 1u] : 'd';
+        snprintf(icon, sizeof icon, "BACKS\\%cICON.APL", l);
+        loadDic = res_loadChunk(icon, &loadDicSize, NULL);
+    }
     if (loadDic && loadDicSize >= 0x18u + 0x180u) {
         memcpy(loadPal, loadDic + 0x18, 0x180u);
         palette_buildFade(0u, 0x80u, 0x19u, loadPal);
+    }
+    {
+        const uint8_t *bank = statusbar_palette();
+        if (bank) palette_setDac(bank, 0xC0u, 0x40u);
     }
     loadingBank = res_loadChunk("APL\\LOADING.APL", &loadingSize, NULL);
     if (!loadingBank) { loadPhase = 3; return; }
@@ -516,34 +531,38 @@ int level_loadingScreen(void)
  * opaque (index 0 = its black frame) — the level's DESERT preview. */
 static void load_drawBackground(uint8_t *page)
 {
+    /* load_sprite_pal sets the vertical display scroll [0x2] := 0x32
+     * (0x31F2), so every page-relative y loses 0x32: the card's source
+     * DI=0x324E row 0x92 becomes 0x60, exactly above the 152-row bar. */
     memset(page, 0, 320u * 200u);
     if (loadDic && loadDicSize >= 0x400u + 80u * 56u) {
         const uint8_t *src = loadDic + 0x400u;
         for (unsigned r = 0; r < 56u; r++) {
             unsigned y = 0x60u + r;
-            if (y >= 200u) break;
-            memcpy(page + y * 320u + 0x50u, src + r * 80u, 80u);
+            if (y >= 192u) break;
+            memcpy(page + y * 320u + 0x78u, src + r * 80u, 80u);
         }
     }
     statusbar_setActive(0);
-    statusbar_tick();                      /* the level's bar, frozen */
+    statusbar_tick();
 }
 
 /* blit_sprite_scaled (1000:1F5A): the list x is in the 416-px source
  * coordinate space; the visible 320-px window starts 0x50 pixels in
  * (x/4 - 0x14 bytes), so screen x = list x - 0x50.  The frames are the
  * 16x24 8bpp cells at bank + 0x400 + id*0x180; 0 = transparent. */
-static void load_drawList(uint8_t *page)
+static void load_drawOne(uint8_t *page, const uint8_t *list, unsigned entries,
+                         int lo, int hi, int yoff)
 {
-    for (unsigned e = 0; e < loadEntries; e++) {
-        const uint8_t *p = loadList + e * 10u;
+    for (unsigned e = 0; e < entries; e++) {
+        const uint8_t *p = list + e * 10u;
         int x = (int)ld16(p) - 0x50;
-        int y = (int)ld16(p + 2);
+        int y = (int)ld16(p + 2) + yoff;
         unsigned spr = ld16(p + 8);
-        if (x <= -16 || x >= 320) continue;           /* the 0x40..0x1A0 clip */
+        if (x <= lo || x >= hi) continue;             /* the screen window */
         uint32_t off = 0x400u + spr * 0x180u;
         if (off + 0x180u > loadingSize) continue;      /* the 0x25 sentinel  */
-        if (y + 24u > 200u) continue;
+        if (y < 0 || y + 24 > 200) continue;
         for (unsigned r = 0; r < 24u; r++)
             for (unsigned c = 0; c < 16u; c++) {
                 int px = x + (int)c;
@@ -552,6 +571,16 @@ static void load_drawList(uint8_t *page)
                 if (v) page[(y + r) * 320u + (unsigned)px] = v;
             }
     }
+}
+
+static void load_drawList(uint8_t *page)
+{
+    /* the arms-up group is the eight under the eight letters (the two edge
+     * walkers at screen x=0x50/0xE0 are outside the LOADING! span) */
+    if (loadPhase == 2 && loadWalkerCount)
+        load_drawOne(page, loadWalkerSnap, loadWalkerCount, 0x60 - 1, 0xD0 + 1,
+                     -0x32);
+    load_drawOne(page, loadList, loadEntries, -16, 320, -0x32);
 }
 
 /* particle_frame (1000:1E78) + update_particles (1000:1E98): one frame of
@@ -587,6 +616,10 @@ void level_loadingTick(void)
     if (--loadLeft == 0) {
         if (loadPhase == 1) {
             if (page) { load_drawBackground(page); load_drawList(page); }    /* the extra 1000:1EF8 draw  */
+            memcpy(loadWalkerSnap, loadList, sizeof loadWalkerSnap);
+            loadWalkerCount = loadEntries;
+            for (unsigned e = 0; e < loadWalkerCount; e++)
+                st16(loadWalkerSnap + e * 10u + 8u, 0x10u); /* arms-up hold */
             memcpy(loadList, loadLetters + 2, sizeof loadList);
             loadEntries = ld16(loadLetters);
             loadCx = 1; loadReload = 1;       /* particle_frame(1, 0x56)   */

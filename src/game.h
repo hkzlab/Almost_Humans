@@ -94,6 +94,12 @@ void font_drawText(uint8_t *arena, const char *s, unsigned centreX,
 /* draw_text's own measure: the advance-table sum (stops at CR/NUL). */
 unsigned font_textWidth(const char *s);
 
+/* The shipped 202F:0x4DE top-10 (the attract's default table), for the
+ * MAP/score screens' list. */
+unsigned attract_hiscoreCount(void);
+uint32_t attract_hiscoreScore(unsigned i);
+const char *attract_hiscoreName(unsigned i);
+
 /* --- src/attract.c — the ATTRACT loop (game_loop 1000:131E) -------------
  *
  * The four intro effects in the original's order (1 -> 3 -> 2 -> 4),

@@ -10,6 +10,7 @@
  * (the disc-0 probe) before menu_loop, so the asset loads from disc 0.
  */
 #include "game.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -40,6 +41,16 @@ int map_begin(void)
     mapFont = res_loadChunk("APL\\TEXT.SPR", NULL, NULL);
     font_publish(mapFont);
     textpage_drawLine(page, "WELL DONE!", 0x10u, 0x0Fu);
+    /* the shipped top-10 list (the full map/cursor/score tables are the
+     * next pass; this is the high-score half of menu_loop) */
+    {
+        char line[40];
+        for (unsigned i = 0; i < attract_hiscoreCount(); i++) {
+            snprintf(line, sizeof line, "%u %-14s %06u", i + 1u,
+                     attract_hiscoreName(i), attract_hiscoreScore(i));
+            textpage_drawLine(page, line, 0x24u + i * 0x0Cu, 0x0Fu);
+        }
+    }
 
     mapUp = 1;
     mapArmed = 0;

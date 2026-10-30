@@ -74,6 +74,17 @@ static const struct { uint32_t score; char name[15]; } hiscore[10] = {
     {20000u,  "SIMON HIRST"},   {10000u, "CRAIG MASSEY"}
 };
 
+/* the shipped default table, exposed to the MAP's high-score list */
+unsigned attract_hiscoreCount(void) { return 10u; }
+uint32_t attract_hiscoreScore(unsigned i)
+{
+    return i < 10u ? hiscore[i].score : 0u;
+}
+const char *attract_hiscoreName(unsigned i)
+{
+    return i < 10u ? hiscore[i].name : "";
+}
+
 /* 202F:0x38C — 160 per-level records of [seconds][minutes] (two
  * pseudo-decimal nibbles / one digit), shipped as 99 09 ("9:99") for every
  * level. */
