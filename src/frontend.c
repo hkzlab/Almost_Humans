@@ -602,8 +602,13 @@ static void cycle_option(void)
 /* --- the name screen ----------------------------------------------------- */
 
 /* name_screen_anim_frame (1000:ACB9): the slot advances +3 every 5 ticks
- * (a 0 table byte wraps to slot 0); the pan := (byte & 0xF) - 4.  The two
- * decor sprite draws are the documented deviation. */
+ * (a 0 table byte wraps to slot 0); the pan := (byte & 0xF) - 4.  Its two
+ * draws are the two humans (1000:ADB6 -> sprite_stage_rows), which the port
+ * makes in draw_humans: the 20x20 strips at code2 + 0x15400 / + 0x17C00,
+ * source column 0x9E - nibble, into the name page's 0x000 / 0xA00 windows or
+ * (room) page rows 136.. through ADB6's [0x6267]-clear offset.  (An earlier
+ * note here called them "decor sprites ... not ported": that was stale - the
+ * routine below is their port.) */
 static void anim_frame(void)
 {
     slotCnt = (uint16_t)(slotCnt - 1u);

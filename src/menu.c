@@ -18,16 +18,12 @@
  *    with up/down wrapping inside the 4 rows and left/right wrapping across
  *    the 5 columns (1000:A312..A3AD).
  *
- * DEVIATION (port-only, documented): the original draws the dialog through
- * `draw_map_object` (1000:9EA3) — a 9-slice box blitted with
- * `blit_sprite_planar` (1000:A10E) and the text through `blit_text_tile`
- * (1000:47D5) on the mode-X level page.  The port has neither the mode-X
- * level page nor the box tile set yet, so it draws the same block with the
- * TEXT.SPR font on the flat page (a filled box, the same lines, the same
- * box geometry from `draw_scroll_text`'s measure, the palette-bank colours
- * the original's patterns use: 0xE4 fill, 0xE3 marker, 0xF4 text,
- * 0xD7 border).  The
- * text renderer's exact pass is the remaining fidelity item.
+ * The dialog is drawn by the original renderer: `menu_draw` hands the block to
+ * `textpage_draw`, which is `draw_map_object` (1000:9EA3, the 9-slice
+ * `blit_sprite_planar` box from APL\BOX.SPR) plus `blit_text_tile`'s glyph
+ * pass with its `GC3 = 0x1003` OR and mask 0x10 shading.  (An earlier revision
+ * drew it with the TEXT.SPR font on the flat page and carried a DEVIATION note
+ * here; that renderer landed in pass 10/12 and the note was stale.)
  */
 #include "game.h"
 #include <string.h>
