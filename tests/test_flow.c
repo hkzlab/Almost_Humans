@@ -306,6 +306,30 @@ int main(int argc, char **argv)
         check(level_endTest() && level_outcome(),
               "the level's own goal test ends it as won");
 
+        /* 0x36AB: the map cell under the record (the helper is 0xF761, the
+         * map address, not a random generator) */
+        object_init();
+        (void)level_load(0);
+        object_setCurrent(0);
+        r = object_slot(0);
+        r[0] = 0x20; r[1] = 0x00;                    /* x = 0x20          */
+        r[2] = 0x10; r[3] = 0x00;                    /* y = 0x10          */
+        r[8] = 0x02;                                 /* type 2            */
+        {
+            /* cell = 32*((0x10+0xC)/16) + (0x20+8)/16 = 32*1 + 2 = 34 */
+            unsigned cell = level_map()[34];
+            check(object_mapCellEquals(cell) == -1,
+                  "the map cell under the record matches");
+            check(object_mapCellEquals(cell + 1u) == 0, "a different cell does not");
+        }
+        r[8] = 0x03;
+        check(object_mapCellEquals(level_map()[34]) == 0,
+              "a type > 2 record is not tested against the map");
+        r[8] = 0x02;
+        check(object_testDispatch(0x0005u | (level_map()[34] << 8)) == 1,
+              "mode 5 dispatches to the map cell");
+        object_init();
+
         /* the spawn: recipe 0 = one use, behaviour 5, sprite 0x60, +8 0xFFFF */
         object_init();
         check(object_spawnRecipe(0u, 0x30u, 0x40u) == 9,
@@ -324,6 +348,65 @@ int main(int argc, char **argv)
         check(object_slotClass(11u) == 4u, "its behaviour 4 lands in slot 11");
         object_init();
     }
+
+    /* 6d. the object pass (render_objects 1000:5D56 -> 0x653C): the four
+     * placed records' base sprites, drawn with the measured storage law */
+    if (level_load(0) == 0) {
+        static uint8_t page[320u * 200u];
+        uint8_t *bank = NULL;
+        uint32_t bankSize = 0;
+        uint8_t *rec;
+
+        object_init();
+        /* the level's own four placed humans, as the live game has them */
+        for (unsigned i = 0; i < 4u; i++) {
+            static const uint16_t pos[4][2] = {
+                { 48, 24 }, { 208, 24 }, { 256, 136 }, { 464, 264 }
+            };
+            rec = object_slot(i);
+            rec[0] = (uint8_t)pos[i][0]; rec[1] = (uint8_t)(pos[i][0] >> 8);
+            rec[2] = (uint8_t)pos[i][1]; rec[3] = (uint8_t)(pos[i][1] >> 8);
+            rec[4] = 0x10;
+            rec[8] = 0x02;
+        }
+        bank = res_loadChunk("APL\\SPRITES.DAT", &bankSize, NULL);
+        if (!bank || bankSize < 0x4800u + 0x180u) {
+            fprintf(stderr, "FAIL SPRITES.DAT unreadable\n");
+            bad = 1;
+        } else {
+            memset(page, 0, sizeof page);
+            object_publishBank(bank, bankSize);
+            object_render(page, 0, 0);
+            /* the first human's visible pixels must equal the measured law */
+            {
+                unsigned ink = 0, wrong = 0;
+                for (unsigned row = 0; row < 24u; row++)
+                    for (unsigned col = 0; col < 16u; col++) {
+                        uint8_t v = bank[0x4800u + (col & 3u) * 0x60u +
+                                         row * 4u + (col >> 2)];
+                        uint8_t got = page[(24u + row) * 320u + 48u + col];
+                        if (v) { ink++; if (got != v) wrong++; }
+                        else if (got) wrong++;
+                    }
+                check(ink > 200u && wrong == 0u,
+                      "the object pass draws the caveman with the measured law");
+            }
+            /* and the same law at the second human (208,24) */
+            {
+                unsigned wrong = 0;
+                for (unsigned row = 0; row < 24u; row++)
+                    for (unsigned col = 0; col < 16u; col++) {
+                        uint8_t v = bank[0x4800u + (col & 3u) * 0x60u +
+                                         row * 4u + (col >> 2)];
+                        if (page[(24u + row) * 320u + 208u + col] != v) wrong++;
+                    }
+                check(wrong == 0u, "the second placed record is drawn too");
+            }
+            object_publishBank(NULL, 0u);
+            free(bank);
+        }
+        object_init();
+    } else printf("skip: the level data is not on the disc\n");
 
     /* 7. draw_status_indicator (1000:1FEF): a present volume returns at
      * once (no screen); a missing one draws the prompt and waits */

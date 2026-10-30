@@ -234,7 +234,10 @@ int main(int argc, char **argv)
                 sum += page[i];
                 if (page[i]) nz++;
             }
-            if (sum != 1161943u || nz != 25840u) {
+            /* the composite now includes the object pass: the three visible
+             * placed cavemen (the map's 0xAA cells at (3,2) (13,2) (16,9),
+             * drawn at (48,24) (208,24) (256,136)) over the terrain */
+            if (sum != 1154234u || nz != 26429u) {
                 fprintf(stderr, "FAIL level 0 page: sum %u nz %u\n",
                         sum, nz);
                 bad = 1;

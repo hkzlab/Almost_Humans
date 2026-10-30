@@ -155,13 +155,14 @@ int main(int argc, char **argv)
      * composite is test_level/test_statusbar's; here the assertion is the
      * coverage (the measured nonzero count of the level-0 composite's
      * first 184 rows, which since the bar include rows 152..183 of its
-     * 0xC0-tagged band) */
+     * 0xC0-tagged band, and since the object pass the three visible placed
+     * cavemen at (48,24) (208,24) (256,136)) */
     {
         const uint8_t *page = osys_null_page(0);
         unsigned nz = 0;
         for (unsigned i = 0; i < 58880u; i++) if (page[i]) nz++;
-        if (nz != 26502u) {
-            fprintf(stderr, "FAIL page: the level render nz %u, want 26502\n", nz);
+        if (nz != 27091u) {
+            fprintf(stderr, "FAIL page: the level render nz %u, want 27091\n", nz);
             bad = 1;
         }
     }

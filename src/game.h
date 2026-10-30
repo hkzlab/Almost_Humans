@@ -349,6 +349,7 @@ int  object_noneType1d(void);            /* 1000:3640                     */
 int  object_classMatches(unsigned want); /* 1000:3659                     */
 int  object_typeEquals(unsigned type);   /* 1000:3678                     */
 int  object_entitiesFinished(void);      /* 1000:3688 (the entity table)  */
+int  object_mapCellEquals(unsigned cell); /* 1000:36AB (the map cell)     */
 int  object_findNeighbour(void);         /* 1000:3A6A's scan, -1 = none   */
 int  object_claimNeighbour(void);        /* its writes + the slot free    */
 unsigned object_staticSlots(void);       /* the 8 the predicates scan     */
@@ -357,6 +358,13 @@ uint8_t  object_slotClass(unsigned slot);/* [0x3E5E + slot]               */
 void     object_setSlotClass(unsigned slot, unsigned cls);
 int  object_testDispatch(uint16_t mode); /* 1000:35D6: 1 = goal met       */
 int  object_spawnRecipe(unsigned recipe, unsigned x, unsigned y);
+/* render_objects' object pass (1000:5D56 -> 0x653C): the base sprite of every
+ * live record, drawn at (x - scrollX, y - scrollY). */
+void object_publishBank(const uint8_t *bank, uint32_t size);
+/* the placed records' fill: one record per map 0xAA cell at
+ * (col*16, row*16 - 8), frame 0x10, type 2 (measured on level 1). */
+unsigned object_placeFromMap(const uint8_t *map);
+void object_render(uint8_t *page, int scrollX, int scrollY);
 
 /* --- src/script.c — interpreter skeleton (re_scripts.md) -------------- */
 int  script_init(const OSystem *osys);

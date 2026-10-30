@@ -52,6 +52,8 @@ static uint16_t rd_le16(const uint8_t *p)
 static LevelData level_data_cur;
 static int level_loaded;
 static uint8_t *boxSpr;           /* apl\box.spr (the dialog tiles)      */
+static uint8_t *objBank;          /* apl\sprites.dat (the object sprites) */
+static uint32_t objBankSize;
 static uint32_t boxSize;
 static uint8_t levelPal[768];     /* the working palette 202F:0x14D3     */
 
@@ -406,6 +408,17 @@ int level_load(unsigned levelId)
     free(boxSpr);
     boxSpr = res_loadChunk("APL\\BOX.SPR", &boxSize, NULL);
     textpage_publishBox(boxSpr && boxSize >= 0x900u ? boxSpr : NULL);
+
+    /* load_level_assets (1000:3488): APL\SPRITES.DAT is the object sprite
+     * image (81744 = 0x13F50 bytes); the object pass draws from it. */
+    free(objBank); objBank = NULL;
+    objBank = res_loadChunk("APL\\SPRITES.DAT", &objBankSize, NULL);
+    object_publishBank(objBank, objBankSize);
+
+    /* the placed records: one per map 0xAA cell (the required-humans marker),
+     * at (col*16, row*16 - 8) — the same cells [0x17FB] counts. */
+    object_init();
+    object_placeFromMap(level_data_cur.map);
 
     /* the bar (level_start 1000:957B + build_statusbar_layout 1000:961B):
      * the time limit and the tribe pair.  On a fresh game both come from the
@@ -815,6 +828,13 @@ int level_tick(void)
     uint8_t *page = level_osys->videoPage(0);
     for (unsigned y = 0; y < VIEW_H; y++)
         memcpy(page + y * VIEW_W, world + y * WORLD_W, VIEW_W);
+
+    /* the object pass (render_objects 1000:5D56): the placed records' base
+     * sprites over the terrain, before the bar */
+    /* the port's world render is unscrolled ([0x0]/[0x2] are 0: the view is
+     * copied 1:1 to the page), so the object pass draws at the record's own
+     * (x, y) like the original's scroll-0 frame. */
+    object_render(page, 0, 0);
 
     /* the bar over the world rows (the original's band lives below the
      * 192-row visible window via the line compare; the flat page redraws

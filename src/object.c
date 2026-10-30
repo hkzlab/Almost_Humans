@@ -115,11 +115,16 @@ void object_setPlayer(int slot)
 
 /* --- object_test_dispatch's predicates (1000:35D6) ---------------------
  *
- * Six handlers are reachable from the level's goal-test byte stream at
- * [0x17F2] through the CS word table at 0x35F4.  Four are pure functions of
- * the array or the entity table and are ported here; 0x3600 and 0x36AB need
- * the random generator 0xF761 (0x3600 also keeps a 140-tick counter at
- * [0x1972]) and belong to the test-stream pass.
+ * The six handlers are reachable from the level's goal-test word at
+ * [0x17F2] through the CS word table at 0x35F4.  Five are ported here; only
+ * 0x3600 is left (it needs the 140-tick counter at [0x1976] and the [0x1996]
+ * byte its second test reads).
+ *
+ * 0xF761 is NOT a random generator (the earlier docs called it that): it adds
+ * the record's x/y to its arguments and turns them into a **map address** —
+ * `cell = 32*((y+0xC)/16) + (x+8)/16` — returning the map byte there and a
+ * tile-row pointer in BP.  So `pred_map_cell_equals` compares the map cell
+ * under the current object with the test's byte.
  *
  * The convention is the original's: -1 = true, 0 = false.  Every handler runs
  * against SI = the current record, i.e. what `object_current()` selects. */
@@ -150,6 +155,33 @@ int object_typeEquals(unsigned type)
 {
     if (objCurrent < 0) return 0;
     return rd16(objArray + objCurrent * OBJ_STRIDE, 8u) == type ? -1 : 0;
+}
+
+/* 0xF761's map addressing for a record: `cell = 32*((y+0xC)&0xFFF0)/16 +
+ * ((x+8)>>4)` — the row is the record's y rounded down to the 16-px grid,
+ * doubled into the 32-column row stride.  0xFFFF when it falls outside the
+ * map (the original would read whatever follows it). */
+static unsigned objMapCell(const uint8_t *rec)
+{
+    const uint8_t *map = level_map();
+    unsigned x, y, cell;
+
+    if (!map) return 0xFFFFu;
+    x = (unsigned)rd16(rec, 0u) + 8u;
+    y = (unsigned)rd16(rec, 2u) + 0xCu;
+    if (y < 16u) return 0xFFFFu;
+    cell = 32u * (y / 16u) + (x / 16u);
+    return cell < 640u ? map[cell] : 0xFFFFu;
+}
+
+/* 1000:36AB — the record's type is <= 2 and the map cell under it equals the
+ * test's byte. */
+int object_mapCellEquals(unsigned want)
+{
+    if (objCurrent < 0) return 0;
+    if (rd16(objArray + objCurrent * OBJ_STRIDE, 8u) > 2u) return 0;
+    return objMapCell(objArray + objCurrent * OBJ_STRIDE) == (uint16_t)want
+           ? -1 : 0;
 }
 
 /* 1000:3688 — the entity table (count 0x64C2, records 0x64C4, stride 0x10):
@@ -224,7 +256,9 @@ int object_claimNeighbour(void)
  * the port masks it off.  Modes 0 and 5 need the random table 0xF761 and are
  * not evaluated: they report "not met".
  *
- * Returns 1 = the goal is met (the original's -1). */
+ * Returns 1 = the goal is met (the original's -1).  Handler 0 (0x3600) is the
+ * one not evaluated: "the map cell under the record is 0xA8 (or [0x1996] is),
+ * once per tick, 140 times". */
 int object_testDispatch(uint16_t mode)
 {
     unsigned op = mode & 0x7Fu;
@@ -235,7 +269,8 @@ int object_testDispatch(uint16_t mode)
     case 2: return object_classMatches(arg) == -1;    /* 1000:3659 */
     case 3: return object_typeEquals(arg) == -1;      /* 1000:3678 */
     case 4: return object_entitiesFinished() == -1;   /* 1000:3688 */
-    default: return 0;                                /* 0/5: the RNG 0xF761 */
+    case 5: return object_mapCellEquals(arg) == -1;   /* 1000:36AB */
+    default: return 0;                                /* 0x3600: not ported */
     }
 }
 
@@ -266,4 +301,112 @@ int object_spawnRecipe(unsigned recipe, unsigned x, unsigned y)
     objUses[recipe]--;
     objLiveCount++;
     return (int)(objLiveCount - 1u);
+}
+
+/* --- the placed records' fill (level load) ----------------------------
+ *
+ * The four placed records are the map's **0xAA** cells — the same marker
+ * `load_level` (1000:315F) counts into `[0x17FB]`, the level's required-humans
+ * count.  Measured on level 1: the 0xAA cells are (3,2) (13,2) (16,9) (29,17)
+ * and each record is `x = col*16`, `y = row*16 - 8` — one tile row *above* the
+ * marker — with frame 0x10 and type 2, in row-major order (slots 0..3), which
+ * reproduces the live records (48,24) (208,24) (256,136) (464,264) exactly.
+ */
+#define OBJ_MARK 0xAAu
+#define OBJ_COLS 32u
+
+unsigned object_placeFromMap(const uint8_t *map)
+{
+    unsigned n = 0u;
+
+    if (!map) return 0u;
+    for (unsigned row = 1u; row < 20u && n < OBJ_STATIC; row++)
+        for (unsigned col = 0u; col < OBJ_COLS && n < OBJ_STATIC; col++) {
+            uint8_t *r;
+            if (map[row * OBJ_COLS + col] != OBJ_MARK) continue;
+            r = objArray + n * OBJ_STRIDE;
+            wr16(r, 0u, (uint16_t)(col * 16u));
+            wr16(r, 2u, (uint16_t)(row * 16u - 8u));
+            wr16(r, 4u, 0x0010u);            /* the placed human's frame */
+            wr16(r, 6u, 0u);
+            wr16(r, 8u, 0x0002u);            /* its type                 */
+            n++;
+        }
+    return n;
+}
+
+/* --- the renderer (render_objects 1000:5D56 -> 0x7829 -> 0x653C) -------
+ *
+ * The base sprite of a placed record is `select_object_tile` (1000:6625),
+ * gated by the record's flags byte (+6 bit 7, 1000:653C's 794C) and by the
+ * per-frame flag table `DS:0x3570 + frame` (bit 7 = skip; the shipped bytes
+ * for frames 0x10..0x16 are 01 00 12 12 12 12 12, all drawable).
+ *
+ * The sprite's storage law was measured on the running game (re_map.md,
+ * "the renderer chain"): 16 x 24 pixels, 0 = transparent, byte-per-pixel,
+ *
+ *     value(col,row) = SPRITES.DAT[frame_data + (col % 4)*0x60 + row*4 + (col/4)]
+ *
+ * i.e. four column-class blocks of 0x60 bytes, and consecutive frames are
+ * 0x180 apart.  Frame 0x10 (the placed humans' caveman) lives at file offset
+ * 0x4800; frames 0x10..0x16 were verified live (four render as consecutive
+ * animation frames).  The descriptor's bank arithmetic is still unresolved,
+ * so this table is MEASURED, not derived — it must be extended by probing
+ * (re_map.md) before other sprite classes are drawn.
+ */
+#define SPR_FIRST 0x10u
+#define SPR_LAST  0x16u
+#define SPR_BASE  0x4800u
+#define SPR_STEP  0x180u
+#define SPR_BLOCK 0x60u
+#define SPR_W     16u
+#define SPR_H     24u
+
+static const uint8_t *objBank;            /* APL\SPRITES.DAT, the sprite image */
+static uint32_t objBankSize;
+
+void object_publishBank(const uint8_t *bank, uint32_t size)
+{
+    objBank = bank;
+    objBankSize = size;
+}
+
+/* 1000:653C's base blit: the sprite at `src`, top-left (x,y), 0 = transparent. */
+static void blitSprite(uint8_t *page, const uint8_t *src, int x, int y)
+{
+    for (unsigned row = 0; row < SPR_H; row++) {
+        int py = y + (int)row;
+        if (py < 0 || py >= 200) continue;
+        for (unsigned col = 0; col < SPR_W; col++) {
+            uint8_t v = src[(col & 3u) * SPR_BLOCK + row * 4u + (col >> 2)];
+            int px = x + (int)col;
+            if (!v) continue;
+            if (px < 0 || px >= 320) continue;
+            page[(unsigned)py * 320u + (unsigned)px] = v;
+        }
+    }
+}
+
+/* render_objects' object pass: every live placed record, the base sprite only
+ * (the class/behaviour overlays of 1000:653C are not ported — the placed
+ * humans have +7 == 0 and never reach them). */
+void object_render(uint8_t *page, int scrollX, int scrollY)
+{
+    if (!page || !objBank) return;
+
+    for (unsigned i = 0; i < objLiveCount && i < OBJ_SLOTS; i++) {
+        const uint8_t *r = objArray + i * OBJ_STRIDE;
+        unsigned frame = rd16(r, 4u);
+        int x, y;
+
+        if (r[6] & 0x80u) continue;                 /* 1000:794C */
+        if (frame < SPR_FIRST || frame > SPR_LAST) continue;
+        x = (int)(int16_t)rd16(r, 0u) - scrollX;
+        y = (int)(int16_t)rd16(r, 2u) - scrollY;
+        {
+            uint32_t off = SPR_BASE + (frame - SPR_FIRST) * SPR_STEP;
+            if (off + 4u * SPR_BLOCK > objBankSize) continue;
+            blitSprite(page, objBank + off, x, y);
+        }
+    }
 }
