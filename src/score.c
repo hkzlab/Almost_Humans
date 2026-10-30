@@ -65,6 +65,8 @@ int score_begin(unsigned value)
 {
     if (scorePhase != SCORE_OFF) return 1;
 
+    video_setMode(VIDEO_MODE_13H);    /* check_highscore (1000:41ae): the
+                                       * flat 320x200 score card          */
     scoreValue = value;
     res_setDisc(1u);                          /* the score assets' disc */
     free(scoreBit); scoreBit = NULL; scoreSize = 0;

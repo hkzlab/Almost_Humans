@@ -59,6 +59,9 @@ int res_decode_lzw_mem(const uint8_t *data, uint32_t data_size,
 int  video_init(const OSystem *osys);
 void video_tick(void);
 uint8_t *video_page(int which);   /* 320x200x8 page 0 or 1                    */
+/* the mode set, forwarded to the backend (osystem.h's VideoMode): the page
+ * layout never changes, only which field the display scans out. */
+void video_setMode(VideoMode mode);
 
 /* --- src/palette.c — fades/DAC (subsystem 4, §6) ---------------------- */
 int  palette_init(const OSystem *osys);

@@ -18,6 +18,7 @@
 extern const OSystem osys_null;
 extern const uint8_t *osys_null_page(int which);
 extern const uint8_t *osys_null_palette(void);
+extern VideoMode osys_null_videoMode(void);
 
 static int bad;
 
@@ -1248,6 +1249,10 @@ int main(int argc, char **argv)
     /* 7d. check_highscore's score/record screen (START): SCORE.BIT, the
      * score line, the key, the 0x100 fade and the 0x4B hold */
     check(score_begin(0u) == 1, "the score screen starts");
+    /* check_highscore (1000:41ae) writes CRTC 0x12 = 0x8F: the level's
+     * mode-X field goes back to the 320x200 one */
+    check(osys_null_videoMode() == VIDEO_MODE_13H,
+          "the score screen switches the display back to mode 13h");
     {
         InputState k;
         memset(&k, 0, sizeof k);

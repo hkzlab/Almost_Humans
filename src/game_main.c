@@ -274,7 +274,7 @@ static GameFlow postLevelStep(GameFlow state)
 int game_main(const OSystem *osys)
 {
     // Initialize the video mode
-    osys->videoSetMode();
+    osys->videoSetMode(VIDEO_MODE_13H);   /* bios_set_mode_13h (1000:88fb) */
 
     // Initialize resources
     if (resources_init(osys)) return 1;

@@ -576,6 +576,7 @@ static void next_effect(void);   /* below: the 1->3->2->4 cycle            */
 /* game_loop's prologue + LAB_000E's disc reset: run at every (re)entry. */
 static void attract_restart(void)
 {
+    video_setMode(VIDEO_MODE_13H);       /* 132f: vga_set_mode_13h (1000:8300) */
     res_setDisc(0u);                     /* LAB_000E: [0xF7E] := 0         */
     free(textSpr);
     textSpr = res_loadChunk("APL\\TEXT.SPR", NULL, NULL);

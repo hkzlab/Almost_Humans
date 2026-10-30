@@ -662,6 +662,8 @@ static void start_exit(void)
 static void do_load(void)
 {
     uint8_t *textSpr = NULL;
+    video_setMode(VIDEO_MODE_X);       /* frontend_room_setup: reset_display_mode
+                                        * (1000:82c6) — the 320x192 field   */
     code2   = res_loadChunk("LBM\\CODE2.RAW",   &code2Size,   NULL);
     codehum = res_loadChunk("APL\\CODEHUM.SPR", &codehumSize, NULL);
     codes   = res_loadChunk("LEVELS\\CODES.BIN", &codesSize,  NULL);

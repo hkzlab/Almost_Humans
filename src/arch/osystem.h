@@ -8,7 +8,7 @@
  * per DOS mechanism (port_structure.md §2):
  *
  *   DOS mechanism                          OSystem call
- *   mode 13h -> unchained mode-X           videoSetMode()
+ *   the mode set (13h / mode X)            videoSetMode(mode)
  *   two 320x200 pages + CRTC flip          videoPage()/videoPresent()
  *   DAC palette (OUT 3C8h/3C9h)            videoSetPalette()
  *   keyboard/joystick ISRs                 eventsPoll()
@@ -34,6 +34,23 @@ typedef struct InputState {
  * flip apply) happens here, once per tick. */
 typedef void (*TickFn)(void);
 
+/* The two VGA modes the game sets; the core keeps its 320x200x8 pages and
+ * only says which field the CRTC would scan out, so the backend can present
+ * that field (and nothing past it — the mode-X pages carry stale rows below
+ * the 192nd):
+ *   VIDEO_MODE_13H  320x200 — BIOS mode 13h (1000:88FB) and the attract's
+ *                   vga_set_mode_13h (1000:8300): CRTC 0x12 = 0x8F,
+ *                   0x13 = 0x28.
+ *   VIDEO_MODE_X    320x192 — reset_display_mode (1000:82C6), the room /
+ *                   party / level field: CRTC 0x12 = 0x7F, 0x13 = 0x2C
+ *                   (the level's 40-row status bar ends on row 191, and
+ *                   the DOSBox raw frames of those screens are 320x192).
+ */
+typedef enum VideoMode {
+    VIDEO_MODE_13H = 0,
+    VIDEO_MODE_X   = 1
+} VideoMode;
+
 /* The tick-boundary gate: the arch owns the tick counter (the ISR's
  * [0x5AC8]) and tickSync is the foreground's [0x48BA] mechanism — it waits
  * until the tick source has advanced past *lastSeen, then stores the new
@@ -45,7 +62,7 @@ typedef void (*TickSyncFn)(unsigned *lastSeen);
 
 typedef struct OSystem {
     /* --- video ------------------------------------------------------- */
-    void     (*videoSetMode)(void);                 /* once at boot               */
+    void     (*videoSetMode)(VideoMode mode);       /* every mode set (13h/X)    */
     uint8_t *(*videoPage)(int which);               /* which: 0 or 1; 320x200x8   */
     void     (*videoPresent)(int which);            /* the CRTC-flip equivalent   */
     void     (*videoSetPalette)(const uint8_t *p6, unsigned first, unsigned n);

@@ -562,6 +562,8 @@ int party_intro_start(void)
 {
     char name[24]; uint8_t *b;
 
+    video_setMode(VIDEO_MODE_X);       /* level_intro_screen 1000:2508 calls
+                                        * reset_display_mode (1000:82c6)  */
     pageDraw = 0x1200u; pageDisp = 0x8100u;    /* 2519/2523               */
     /* 2a3a's counters are static DS data: [0xf9c]=0, [0xf9e]=0, [0xfa6]=1
      * (the MZ image; a 0 hold DEC-wraps and freezes the flap on run 1) */

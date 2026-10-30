@@ -564,6 +564,10 @@ void level_loadingBegin(void)
 {
     if (!level_loaded || loadPhase) return;
 
+    /* level_video_init (1000:329d) calls reset_display_mode (1000:82c6)
+     * before load_sprite_pal's screen: the level's 320x192 field */
+    video_setMode(VIDEO_MODE_X);
+
     /* 1000:1DCF..1E3F: dicon+0x18 -> 0x14D3 entries 0..0x7F, then the DAC
      * FADES to them (0x80 entries, div 0x19) before the frames run */
     memset(loadPal, 0, sizeof loadPal);
@@ -1067,6 +1071,9 @@ int level_diskStatusBegin(unsigned disc)
     if (diskPhase != DISK_OFF) return 1;
     if (res_volumePresent(disc)) return 0;    /* 1000:2005: the disc is in */
 
+    /* draw_status_indicator (1000:1fef) sets mode 13h on the missing-disc
+     * page (its flat 320x200 image) */
+    video_setMode(VIDEO_MODE_13H);
     diskDisc = disc;
     memset(diskPal, 0, sizeof diskPal);
     disk_draw(disc);

@@ -29,6 +29,7 @@ extern const OSystem osys_null;
 extern const uint8_t *osys_null_page(int which);
 extern unsigned osys_null_audioStarts(void);
 extern unsigned osys_null_audioStops(void);
+extern VideoMode osys_null_videoMode(void);
 
 static void tick(const InputState *in)
 {
@@ -179,6 +180,10 @@ int main(int argc, char **argv)
     if (osys_null_audioStarts() != 1u || osys_null_audioStops() != 0u) {
         fprintf(stderr, "FAIL MUSIC on should resume once (starts %u, "
                 "stops %u)\n", osys_null_audioStarts(), osys_null_audioStops());
+        bad = 1;
+    }
+    if (osys_null_videoMode() != VIDEO_MODE_X) {
+        fprintf(stderr, "FAIL the room did not set the mode-X field\n");
         bad = 1;
     }
 

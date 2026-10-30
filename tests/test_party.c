@@ -20,6 +20,7 @@
 #include "compat.h"
 
 extern const OSystem osys_null;
+extern VideoMode osys_null_videoMode(void);
 
 static uint8_t *read_file(const char *path, uint32_t *size)
 {
@@ -63,6 +64,11 @@ int main(int argc, char **argv)
     if (!party_intro_start()) {
         printf("PARTY: SKIP (the load path returned 0 — no volume data)\n");
         free(bit); return 0;
+    }
+    /* level_intro_screen (1000:2508) leaves the 320x192 mode-X field */
+    if (osys_null_videoMode() != VIDEO_MODE_X) {
+        printf("PARTY: FAIL the party did not set the mode-X field\n");
+        free(bit); return 1;
     }
 
     /* one tick: the anim runs, the per-tick compose lands */

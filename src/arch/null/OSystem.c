@@ -16,8 +16,9 @@ static unsigned the_rate;
 static InputState the_input;    /* injected input (idle by default) */
 static const InputState *script_states;   /* scripted input for smoke tests */
 static unsigned script_n, script_i;
+static VideoMode modeSet;                 /* the core's last videoSetMode */
 
-static void null_setMode(void) {}
+static void null_setMode(VideoMode mode) { modeSet = mode; }
 static uint8_t *null_page(int which) { return pages[which & 1]; }
 /* a test hook: the frame-evidence dumps key on the poll count, which only
  * the backend knows (the smoke script is indexed by eventsPoll calls) */
@@ -86,6 +87,7 @@ void osys_null_inject(const InputState *in) { the_input = *in; }
 
 unsigned osys_null_audioStarts(void) { return audio_starts; }
 unsigned osys_null_audioStops(void)  { return audio_stops; }
+VideoMode osys_null_videoMode(void)  { return modeSet; }
 
 /* the script cursor = the eventsPoll count: the smoke test's frame dumps
  * key on it ("dump at tick N" = "dump when the N-th poll has happened") */

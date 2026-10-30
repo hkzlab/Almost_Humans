@@ -11,7 +11,7 @@
 #include <unistd.h>
 #endif
 
-void sdl3_videoInit(void);
+void sdl3_videoSetMode(VideoMode mode);
 uint8_t *sdl3_videoPage(int which);
 void sdl3_videoPresent(int which);
 void sdl3_videoSetPalette(const uint8_t *p6, unsigned first, unsigned n);
@@ -30,7 +30,7 @@ static void fatal(const char *msg)
 }
 
 const OSystem osys_sdl3 = {
-    sdl3_videoInit, sdl3_videoPage, sdl3_videoPresent, sdl3_videoSetPalette,
+    sdl3_videoSetMode, sdl3_videoPage, sdl3_videoPresent, sdl3_videoSetPalette,
     sdl3_eventsPoll, sdl3_timerStart, sdl3_tickSync,
     sdl3_audioStart, sdl3_audioPlayTune, sdl3_audioStop,
     fatal
