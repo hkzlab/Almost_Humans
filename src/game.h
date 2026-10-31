@@ -479,6 +479,8 @@ void object_actionRun(void);
 void object_pendingRun(void);      /* the [0x1979] dispatch, per frame */
 int  object_cycleEntity(int step);
 unsigned object_actionEntity(void);
+/* level_fade_in's slot-8 init (1000:3344): frame 0x17, type 0x1A. */
+void object_levelStartRecord(void);
 void object_setActionEntity(unsigned index);
 unsigned object_actionProgram(void);
 unsigned object_actionPending(void);

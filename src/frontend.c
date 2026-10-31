@@ -68,10 +68,13 @@
  *    name goes to the arena via draw_text and the WM2 bit-7 copy loop
  *    carries it to the page — DARWIN shows in the entry box; the prior
  *    "never displayed" reading is archived in re_history.md..
- *  - the backdrop's last 8 rows are BLANKED: the original's 200-row copy
- *    reads the palette bytes + the pool tail (indeterminate); the
- *    palette-as-pixels overread showed as glitching, so the port zeros
- *    rows 192..199.
+ *  - the backdrop copy is the original's 200-row one (`room_backdrop_build`
+ *    `1000:AF07`, CX = 0xC8): rows 192..199 are the bytes past the 640x192
+ *    image — its palette tail, then the heap pool.  The room's field is
+ *    `reset_display_mode`'s 320x192 (`1000:82C6`, called at `1000:A544`),
+ *    so those 8 rows are written but never presented, exactly as in the
+ *    original; past the loaded chunk the port writes zeros (the original's
+ *    pool tail is uninitialised memory).
  *  - with no data (the headless tests) a failed load skips the palette and
  *    the fade phases, and the code match answers index 1 (DARWIN) so the
  *    flow completes — the attract's asset-failure pattern.
@@ -197,10 +200,11 @@ static void put_pixel(unsigned rowBase, unsigned px, uint8_t v)
 }
 
 /* blit_planar_strip (1000:AEAD): planarise chunky 640-px rows into the
- * page at `base` — dest[base + r*160 + c] plane p = src[r*640 + c*4 + p],
- * reading past `size` as zeros (the original's 200-row backdrop copy reads
- * 8 rows past the image into the palette bytes and then the pool — the
- * port clamps at the loaded chunk). */
+ * page at `base` — dest[base + r*160 + c] plane p = src[r*640 + c*4 + p].
+ * `size` is the whole loaded chunk, so the 200-row backdrop copy reads the 8
+ * rows past the 192-row image out of its palette tail, as `1000:AEDB`'s row
+ * loop does; only the bytes past the chunk (the original's uninitialised
+ * pool) are written as zeros.  The room's 320x192 field never shows them. */
 static void planarise_rows(const uint8_t *src, uint32_t size,
                            unsigned base, unsigned rows)
 {
@@ -698,12 +702,13 @@ static void do_load(void)
          * file's tail, right after the 640x192 image (0x1E000 bytes).
          * palette_load_6bit (1000:8D24) masks each byte & 0x3F. */
         palette_loadWorking(code2 + 0x1E000u);
-        /* 200 rows; the original's copy reads 8 rows past the 640x192
-         * image (the palette bytes, then the pool) — the port BLANKS
-         * them (the overread's palette-as-pixels showed as glitching;
-         * the original's pool tail is indeterminate anyway). */
-        planarise_rows(code2, 0x1E000u, 0,      200u);
-        planarise_rows(code2, 0x1E000u, 0x7D00, 200u);
+        /* 200 rows (room_backdrop_build 1000:AF07, CX=0xC8): rows 192..199
+         * are the chunk's palette tail, then the pool — copied from
+         * `code2Size` here.  reset_display_mode's 320x192 field (1000:82C6,
+         * called at 1000:A544) ends on row 191, so the original never shows
+         * them either. */
+        planarise_rows(code2, code2Size, 0,      200u);
+        planarise_rows(code2, code2Size, 0x7D00, 200u);
         /* the setup's 2-frame loop (A5A1..A5DB): the full frame — the
          * badges, the character, the name line — drawn on BOTH pages
          * before the fade, so the fade-in holds a complete static frame

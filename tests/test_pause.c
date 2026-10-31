@@ -424,6 +424,7 @@ int main(int argc, char **argv)
         for (unsigned i = 0; i < 400u && level_starting(); i++) {
             level_tick();
             palette_tick();
+            if (level_loadingScreen()) level_loadingTick();
         }
         level_tick();
         menu_openPause();

@@ -1201,7 +1201,10 @@ void object_render(uint8_t *page, int scrollX, int scrollY)
 {
     if (!page || !objBank) return;
 
-    for (unsigned i = 0; i < objLiveCount && i < OBJ_SLOTS; i++) {
+    /* scan_object_rows (1000:6433): AX = [0x3E73] - 8, then `DEC AX / JNS`, so the
+     * walk covers 0x3F05 .. the record at [0x3E73] INCLUSIVE - `[0x3E73]` counts the
+     * top live index, not the number of records (level 1: 9 draws slots 8 and 9). */
+    for (unsigned i = 0; i <= objLiveCount && i < OBJ_SLOTS; i++) {
         const uint8_t *r = objArray + i * OBJ_STRIDE;
         unsigned frame = rd16(r, 4u), cols;
         const ObjSprite *sp = NULL;
@@ -1320,6 +1323,24 @@ static const uint8_t objTypeOverlaps[16] = {
 };
 
 unsigned object_actionEntity(void) { return objEntity; }
+
+/* 1000:3344..336C (level_fade_in): slot 8 (`0x3F05`) takes frame 0x17, type 0x1A,
+ * +0xA = 0x1006 and +0xC = 0xFF.  `scan_object_rows` starts its walk there and
+ * counts `[0x3E73]-8+1` records, so this slot is drawn; its x/y are still the
+ * array init's 0xFFFF, which is why a sliver of the sprite shows at the top-left
+ * (faithful - the walk has no off-screen test). */
+void object_levelStartRecord(void)
+{
+    uint8_t *r = object_slot(8u);
+
+    if (!r) return;
+    wr16(r, 4u, 0x0017u);
+    wr16(r, 6u, 0x0000u);
+    wr16(r, 8u, 0x001Au);
+    wr16(r, 0xAu, 0x1006u);
+    r[0xCu] = 0xFFu;
+}
+
 void object_setActionEntity(unsigned i) { objEntity = i < OBJ_STATIC ? i : objEntity; }
 unsigned object_actionProgram(void) { return objProgramIndex; }
 unsigned object_actionFault(void) { return objFault; }

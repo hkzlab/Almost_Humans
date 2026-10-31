@@ -111,8 +111,8 @@ static const uint8_t loadLetters[2u + 8u * 10u] = {
  * in the foreground for each fade (wait_palette_fade_done) while the ISR
  * steps it; the port's loop is tick-driven, so the chain advances one phase
  * per level_tick and the play loop only starts once it is done. */
-enum { LVSTART_IDLE, LVSTART_FADE_BASE, LVSTART_FADE_BAR, LVSTART_FADE_OUT,
-       LVSTART_WARMUP, LVSTART_FADE_IN, LVSTART_PLAYING };
+enum { LVSTART_IDLE, LVSTART_VIDEO_BASE, LVSTART_VIDEO_BAR, LVSTART_LOADING,
+       LVSTART_FADE_OUT, LVSTART_WARMUP, LVSTART_FADE_IN, LVSTART_PLAYING };
 static int      startPhase = LVSTART_IDLE;
 static unsigned warmupLeft;
 /* the fade-to-black target: 0x48BC, the ramp the boot leaves zeroed */
@@ -125,6 +125,7 @@ static const uint8_t blackPal[768];
 static uint8_t palBarOnly[768];
 static uint16_t timeLimit;        /* [0x5D31]: the difficulty's BCD pick  */
 static unsigned tribeMembers;     /* [0x11FC]: 12/10/8 by the difficulty  */
+static const uint8_t zeroPal[768];   /* the zeroed 0x14D3 (1000:3170) */
 static unsigned viewX, viewY;
 static unsigned levelRequired;    /* [0x17FB]: the map's 0xAA count        */
 static unsigned membersAtStart;   /* [0x1970]: the members at level start  */
@@ -739,8 +740,12 @@ void level_loadingBegin(void)
     loadPhase    = 1;
 }
 
+/* level_run (1000:3054) runs level_video_init's two fades (3083) BEFORE
+ * load_sprite_pal (3086), so the loading screen exists only once the chain has
+ * poured the palette to black. */
 int level_loadingScreen(void)
 {
+    if (startPhase != LVSTART_LOADING) return 0;
     if (!loadPhase) level_loadingBegin();
     return loadPhase == 1 || loadPhase == 2;
 }
@@ -880,12 +885,23 @@ void level_begin(void)
      *   3309       entries 0xC0..0xFF to 0x1713, div 2, then 8B8B + one frame
      *   then level_fade_in (0x3334): entries 0..0xBF to 0x48BC, div 0x19.
      * Each wait is one display period; the phase switch below walks them. */
+    /* The pre-level screen fades itself to black (the party's 1000:2711,
+     * 0x100 entries div 0x23).  In the original level_video_init's fades start
+     * from that black; entering the level state before it has finished must
+     * not override it - palette_buildFade replaces the ramp, so overriding
+     * recoloured the still-lit party art in the level's palette.  Wait here
+     * (the caller retries next tick) and let it finish. */
+    if (palette_fadeActive()) return;
     /* [0x5B12] is level_fade_in's gate and is 0 until the chain completes, so
      * the bar's countdown cannot run during the fades (1000:95B5 reseeds the
      * clock but leaves the gate clear). */
     statusbar_setActive(0);
-    palette_buildFade(0u, 0x100u, 2u, levelPal);          /* 1000:32F4 */
-    startPhase = LVSTART_FADE_BASE;
+    /* 1000:32F4: all 0x100 entries to 0x14D3, which 1000:3170 (level_setup)
+     * has just zeroed - a fade to BLACK over 2 steps.  level_run (1000:3054)
+     * puts it BEFORE the loading screen (level_video_init 1000:3083,
+     * load_sprite_pal 1000:3086). */
+    palette_buildFade(0u, 0x100u, 2u, zeroPal);             /* 1000:32F4 */
+    startPhase = LVSTART_VIDEO_BASE;
 }
 
 /* still inside level_fade_in's chain?  game_main holds the goal page and the
@@ -1029,6 +1045,60 @@ void level_noteInput(const InputState *in)
     levelJoy = in ? in->joyBits : 0u;
 }
 
+/* The world pass: `render_level_frame`'s terrain + `render_objects` + the bar,
+ * i.e. everything 1000:4C28's pre-draw and every play frame put on the page.
+ * The original's `blit_bitmap_call` (`1000:4C28`) draws the level bitmap into
+ * BOTH pages before level_fade_in's eight `update_world` frames:
+ *   DI = 0x1200 -> CALL 0x4C4E     (page A)
+ *   DI = 0x8100 -> CALL 0x4C4E     (page B)
+ * The flat port has one page, so a single pass is the whole of that pre-draw,
+ * and the same function serves the frames after it. */
+static void renderWorld(void)
+{
+    if (bgImage) memcpy(world, bgImage, WORLD_W * WORLD_H);
+    else memset(world, 0, WORLD_W * WORLD_H);
+
+    for (unsigned r = 0; r < MAP_ROWS; r++) {
+        for (unsigned c = 0; c < MAP_COLS; c++) {
+            unsigned tile = level_data_cur.map[r * MAP_COLS + c];
+            if (tile >= 0xA9u) continue;
+            const uint8_t *src = atlas + 0x400u + tile * 0x100u;
+            uint8_t *dst = world + (r * 16u) * WORLD_W + c * 16u;
+            for (unsigned y = 0; y < 16u; y++) {
+                for (unsigned x = 0; x < 16u; x++) {
+                    uint8_t v = src[y * 16u + x];
+                    dst[y * WORLD_W + x] = v ? (uint8_t)(v + 0x20u) : 0u;
+                }
+            }
+        }
+    }
+
+    /* 1000:3D5E's four-plane presented frame, as a flat compose: the visible
+     * window is the world at the view's origin ([0x1AEA]/[0x1AEC], set by
+     * 1000:3DC0), written through the chained page and read back. */
+    for (unsigned y = 0; y < VIEW_H; y++)
+        for (unsigned x = 0; x < VIEW_W; x++) {
+            unsigned wx = viewX + x, wy = viewY + y;
+
+            lvlPlane[y * 88u + (x >> 2)][x & 3u] =
+                (wx < WORLD_W && wy < WORLD_H) ? world[wy * WORLD_W + wx] : 0u;
+        }
+    if (sparkOn) sparkDraw();
+    uint8_t *page = level_osys->videoPage(0);
+    for (unsigned y = 0; y < VIEW_H; y++)
+        for (unsigned x = 0; x < VIEW_W; x++)
+            page[y * VIEW_W + x] = lvlPlane[y * 88u + (x >> 2)][x & 3u];
+
+    /* the object pass (render_objects 1000:5D56): the placed records' base
+     * sprites over the terrain, before the bar */
+    object_render(page, (int)viewX, (int)viewY);
+
+    /* the bar over the world rows (the original's band lives below the
+     * 192-row visible window via the line compare; the flat page redraws
+     * band + marks per tick instead) */
+    statusbar_tick();
+}
+
 int level_tick(void)
 {
     if (!level_loaded) return 0;
@@ -1053,24 +1123,39 @@ int level_tick(void)
     case LVSTART_IDLE:
         level_begin();
         break;
-    case LVSTART_FADE_BASE:
+    case LVSTART_VIDEO_BASE:
         if (!palette_fadeActive()) {
-            /* 1000:3309: DI = 0x1713 = the bar's 0xC0..0xFF block (its 64
-             * entries), BX = 0xC0 (the DAC start), CX = 0x40, BP = 2.  The
-             * fade reads the target from its own start, so it is the bank
-             * itself, not palBarOnly (which holds it at +0xC0). */
+            /* 1000:3309: the `0xC0..0xFF` block to 0x1713, filled at 1000:32CA
+             * with panel4's palette (1000:4BBC) - the bar's colours. */
             palette_buildFade(0xC0u, 0x40u, 2u, statusbar_palette());
-            startPhase = LVSTART_FADE_BAR;
+            startPhase = LVSTART_VIDEO_BAR;
         }
         break;
-    case LVSTART_FADE_BAR:
-        if (!palette_fadeActive()) {
-            palette_buildFade(0u, 0xC0u, 0x19u, blackPal);     /* level_fade_in */
-            startPhase = LVSTART_FADE_OUT;
-        }
+    case LVSTART_VIDEO_BAR:
+        if (!palette_fadeActive())
+            startPhase = LVSTART_LOADING;      /* 1000:3086 runs the loading */
+        break;
+    case LVSTART_LOADING:
+        if (level_loadingScreen()) break;      /* 1000:1DC0's screen is up */
+        /* 1000:3334: the loading art fades to black (0..0xBF -> 0x48BC, div 0x19) */
+        palette_buildFade(0u, 0xC0u, 0x19u, blackPal);
+        /* level_fade_in's scroll seeds ([0x0] = [0x14] = 0x60, [0x2] = 0x50)
+         * are the display window in page pixels/rows (1000:4C4E adds [0x0]/4 to
+         * BOTH pointers, so they only move the window).  They are not applied:
+         * the port has no per-frame scroll to restore the view afterwards, so a
+         * seed would freeze the level at (96,80).  Recorded in re_map.md. */
+        startPhase = LVSTART_FADE_OUT;
         break;
     case LVSTART_FADE_OUT:
         if (!palette_fadeActive()) {
+            /* 1000:3334's order after the fade-out: the scroll seeds
+             * ([0x0] = [0x14] = 0x60, [0x2] = 0x50), slot 8's init, then
+             * 1000:4C28 blit_bitmap_call - the world drawn into BOTH pages
+             * (DI = 0x1200 then 0x8100) before the eight update_world frames.
+             * The port has one page, so its first WARMUP tick is that pre-draw;
+             * the seeds are recorded but not applied (see the note below). */
+            object_levelStartRecord();
+            renderWorld();                 /* 1000:4C28's pre-draw (one page) */
             startPhase = LVSTART_WARMUP;
             warmupLeft = 8u;                   /* level_fade_in's LOOP CX=8 */
         }
@@ -1130,49 +1215,25 @@ int level_tick(void)
         object_tick(level_palette());
     }
 
-    if (bgImage) memcpy(world, bgImage, WORLD_W * WORLD_H);
-    else memset(world, 0, WORLD_W * WORLD_H);
-
-    for (unsigned r = 0; r < MAP_ROWS; r++) {
-        for (unsigned c = 0; c < MAP_COLS; c++) {
-            unsigned tile = level_data_cur.map[r * MAP_COLS + c];
-            if (tile >= 0xA9u) continue;
-            const uint8_t *src = atlas + 0x400u + tile * 0x100u;
-            uint8_t *dst = world + (r * 16u) * WORLD_W + c * 16u;
-            for (unsigned y = 0; y < 16u; y++) {
-                for (unsigned x = 0; x < 16u; x++) {
-                    uint8_t v = src[y * 16u + x];
-                    dst[y * WORLD_W + x] = v ? (uint8_t)(v + 0x20u) : 0u;
-                }
-            }
-        }
+    /* The world is not drawn during level_video_init's two component fades
+     * (1000:32F4 / 1000:3309): in the original the screen still holds the
+     * pre-level art there, so those fades recolour IT while the DAC walks to
+     * 0x14D3 - the world's first frames are the eight update_world passes of
+     * level_fade_in, drawn while the DAC is at black (the fade-out of 0..0xBF
+     * runs first, 1000:3334).  Drawing here made the level appear at full
+     * brightness for those frames and then fade to black and in again. */
+    /* 0x3FB3 is the play frame's flush; the chain's fades and the loading come
+     * before the first play frame, so the effect is not advanced there. */
+    if (startPhase == LVSTART_PLAYING) sparkStep();
+    if (startPhase != LVSTART_WARMUP && startPhase != LVSTART_FADE_IN &&
+        startPhase != LVSTART_PLAYING) {
+        /* the bar is up from the mode reset onward (1000:952C/957B), so it is
+         * redrawn here while the world waits for its black frames */
+        statusbar_tick();
+        return 1;
     }
 
-    /* 1000:3D5E's four-plane presented frame, as a flat compose: the visible
-     * window is the world at the view's origin ([0x1AEA]/[0x1AEC], set by
-     * 1000:3DC0), written through the chained page and read back. */
-    sparkStep();
-    for (unsigned y = 0; y < VIEW_H; y++)
-        for (unsigned x = 0; x < VIEW_W; x++) {
-            unsigned wx = viewX + x, wy = viewY + y;
-
-            lvlPlane[y * 88u + (x >> 2)][x & 3u] =
-                (wx < WORLD_W && wy < WORLD_H) ? world[wy * WORLD_W + wx] : 0u;
-        }
-    if (sparkOn) sparkDraw();
-    uint8_t *page = level_osys->videoPage(0);
-    for (unsigned y = 0; y < VIEW_H; y++)
-        for (unsigned x = 0; x < VIEW_W; x++)
-            page[y * VIEW_W + x] = lvlPlane[y * 88u + (x >> 2)][x & 3u];
-
-    /* the object pass (render_objects 1000:5D56): the placed records' base
-     * sprites over the terrain, before the bar */
-    object_render(page, (int)viewX, (int)viewY);
-
-    /* the bar over the world rows (the original's band lives below the
-     * 192-row visible window via the line compare; the flat page redraws
-     * band + marks per tick instead) */
-    statusbar_tick();
+    renderWorld();
 
     /* the colours are the working palette 202F:0x14D3, built in level_load
      * and faded in by the first tick above (re_map.md "The level's working

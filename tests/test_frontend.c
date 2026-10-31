@@ -186,6 +186,26 @@ int main(int argc, char **argv)
         fprintf(stderr, "FAIL the room did not set the mode-X field\n");
         bad = 1;
     }
+    /* The backdrop is the original's 200-row copy (room_backdrop_build
+     * 1000:AF07, CX=0xC8): rows 192..199 are the chunk's palette tail, and
+     * reset_display_mode's 320x192 field (1000:82C6, called at 1000:A544)
+     * ends on row 191, so they are written and never shown - not blanked. */
+    {
+        unsigned lit = 0;
+
+        for (unsigned pg = 0; pg < 2u; pg++) {
+            const uint8_t *q = osys_null_page((int)pg);
+
+            for (unsigned r = 192u; r < 200u; r++)
+                for (unsigned c = 0; c < 320u; c++)
+                    if (q[r * 320u + c]) lit++;
+        }
+        if (!lit) {
+            fprintf(stderr,
+                    "FAIL the backdrop's rows past the image are blanked\n");
+            bad = 1;
+        }
+    }
 
     /* --- LEVEL: cell 2 (EASY/NORMAL/HARD = 3 states) ------------------- */
     bad |= walk_to(0x01u, 1u, "up to the walkway");

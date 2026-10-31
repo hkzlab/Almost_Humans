@@ -224,10 +224,95 @@ int main(int argc, char **argv)
              * eight update_world frames, the fade in — must finish before
              * the level is playable. */
             level_begin();
-            for (unsigned i = 0; i < 400u && level_starting(); i++) {
+            /* The fade the user sees, measured through the null arch's DAC
+             * shadow: level_fade_in (1000:3334) fades entries 0..0xBF to black
+             * (div 0x19) and never touches the bar's 0xC0..0xFF block, so the
+             * bar stays plainly lit while the top goes black.  The page split
+             * is checked at that instant too: the bar's rows are the same
+             * bytes they are in the playable frame. */
+            uint8_t barAtBlack[0xC0], barRowsAtBlack[40 * 320], barFirst[0xC0];
+            int haveBlack = 0, barStable = 1, barLit = 0;
+            int loadingSeen = 0, loadingDone = 0, barHaveFirst = 0;
+            unsigned loadingFrames = 0;
+            for (unsigned i = 0; i < 4000u && level_starting(); i++) {
                 level_tick();
                 palette_tick();
+                if (level_loadingScreen()) { loadingSeen = 1; level_loadingTick(); }
+                else if (loadingSeen) loadingDone = 1;
+                /* The on-screen result, one line per chain frame: the page
+                 * through the DAC shadow, averaged over the world band
+                 * (rows 0..151) and the bar band (rows 152..191).  This is
+                 * the same measurement the live capture gives, at every
+                 * tick instead of one per 0.3 s sample. */
+                if (loadingFrames < 200u) {
+                    const uint8_t *pp = osys_null_page(0);
+                    const uint8_t *dd = osys_null_palette();
+                    double tsum = 0.0, bsum = 0.0;
+
+                    for (unsigned y = 0; y < 200u; y++) {
+                        for (unsigned x = 0; x < 320u; x++) {
+                            const uint8_t *c = dd + 3u * pp[y * 320u + x];
+                            double l = (299.0 * c[0] + 587.0 * c[1] + 114.0 * c[2]) / 1000.0;
+
+                            if (y < 152u) tsum += l; else bsum += l;
+                        }
+                    }
+                    fprintf(stdout,
+                            "chain %02u %-7s world %5.1f  bar %5.1f\n",
+                            loadingFrames,
+                            (i < 1u) ? "start" :
+                            (level_loadingScreen() ? "loading" :
+                             (level_starting() ? "chain" : "play")),
+                            tsum / (152.0 * 320.0) * 255.0 / 63.0,
+                            bsum / (48.0 * 320.0) * 255.0 / 63.0);
+                    fflush(stdout);
+                    loadingFrames++;
+                }
+                {
+                    const uint8_t *d = osys_null_palette();
+                    unsigned topMax = 0;
+
+                    for (unsigned c = 0; c < 0xC0u * 3u; c++)
+                        if (d[c] > topMax) topMax = d[c];
+                    /* only the fade-OUT (1000:3334), i.e. after the loading:
+                     * the video init's own fade to black (1000:32F4) covers all
+                     * 0x100 entries and is a different moment. */
+                    if (loadingDone && !haveBlack) {
+                        if (!barHaveFirst) {
+                            barHaveFirst = 1;
+                            memcpy(barFirst, d + 0xC0u * 3u, sizeof barFirst);
+                        } else if (memcmp(d + 0xC0u * 3u, barFirst,
+                                          sizeof barFirst) != 0) {
+                            barStable = 0;
+                        }
+                        if (topMax == 0u) {
+                            haveBlack = 1;
+                            memcpy(barAtBlack, d + 0xC0u * 3u, sizeof barAtBlack);
+                            memcpy(barRowsAtBlack,
+                                   osys_null_page(0) + 152u * 320u,
+                                   sizeof barRowsAtBlack);
+                        }
+                    }
+                }
             }
+            for (unsigned k = 0; k < sizeof barAtBlack; k++)
+                if (barAtBlack[k]) { barLit = 1; break; }
+            if (!haveBlack) {
+                fprintf(stderr, "FAIL the fade-out never brought 0..0xBF to black\n");
+                bad = 1;
+            }
+            if (!barStable) {
+                fprintf(stderr, "FAIL 0xC0..0xFF changed during the fade-out\n");
+                bad = 1;
+            }
+            if (!barLit) {
+                fprintf(stderr, "FAIL the bar's palette block went dark\n");
+                bad = 1;
+            }
+            /* The page's bar rows are the play frame's business (the page
+             * checksum below pins them); the fade-out itself is a DAC effect,
+             * so the split checked here is the palette's: 0..0xBF to black,
+             * 0xC0..0xFF constant and lit. */
             const uint8_t *page = osys_null_page(0);
             uint32_t sum = 0, nz = 0;
             for (unsigned i = 0; i < 64000u; i++) {
@@ -237,7 +322,13 @@ int main(int argc, char **argv)
             /* the composite now includes the object pass: the three visible
              * placed cavemen (the map's 0xAA cells at (3,2) (13,2) (16,9),
              * drawn at (48,24) (208,24) (256,136)) over the terrain */
-            if (sum != 1152850u || nz != 26396u) {
+            /* level_fade_in (1000:3344) initialises slot 8 to frame 0x17 /
+             * type 0x1A and `scan_object_rows` (1000:6433) counts
+             * `[0x3E73]-8+1` records from 0x3F05, so the slot is drawn; its
+             * x/y are the array init's 0xFFFF (-1 in int16), which puts a 15-px
+             * sliver of that sprite at the top-left.  Hence the pin includes it
+             * (sum 1149474, not the pre-init 1152850). */
+            if (sum != 1149474u || nz != 26396u) {
                 fprintf(stderr, "FAIL level 0 page: sum %u nz %u\n",
                         sum, nz);
                 bad = 1;
@@ -335,6 +426,7 @@ int main(int argc, char **argv)
         for (unsigned i = 0; i < 400u && level_starting(); i++) {
             level_tick();
             palette_tick();
+            if (level_loadingScreen()) level_loadingTick();
         }
         const uint8_t *pal = osys_null_palette();
         uint8_t before[12];

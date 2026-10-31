@@ -71,6 +71,13 @@ int main(int argc, char **argv)
      * 0xA0 frames, then the letters (blocks 0x11..0x18) — the letters land
      * as the 16x24 "L" block at x=0xB0 falling from y=0x1A. */
     if (level_load(0) == 0) {
+        /* level_run 1000:3054 runs level_video_init's two fades (1000:3083)
+         * before the loading screen (1000:3086), so drive the chain to it. */
+        for (unsigned t = 0; t < 400u && !level_loadingScreen(); t++) {
+            level_begin();
+            level_tick();
+            palette_tick();
+        }
         check(level_loadingScreen(), "the LOADING screen starts");
         /* load_sprite_pal's fade (1000:1E33): 0x80 entries toward
          * dicon+0x18, div 0x19, before the frames */
@@ -147,7 +154,13 @@ int main(int argc, char **argv)
         for (unsigned t = 0; t < 0x60u; t++) level_loadingTick();
         check(!level_loadingScreen(), "the LOADING screen finishes");
         if (level_load(0) == 0 && !level_loadingScreen()) {
-            /* a fresh load starts it again */
+            /* a fresh load starts again with the chain's fades to black */
+            level_begin();
+            for (unsigned t = 0; t < 400u && !level_loadingScreen(); t++) {
+                level_begin();
+                level_tick();
+                palette_tick();
+            }
             check(level_loadingScreen(), "a reload restarts the screen");
             for (unsigned t = 0; t < 0x100u; t++) level_loadingTick();
         }
@@ -276,6 +289,7 @@ int main(int argc, char **argv)
         /* the claim (1000:3A6A): the gate, the scan, the writes and then the
          * whole sequence — red/white flash, blinks, the animation, the spawn
          * and the settle — driven with object_tick + palette_tick */
+
         check(object_claimBegin(0u, 0) == 3, "the claim takes the neighbour");
         check(r[4] == 0x03 && r[5] == 0x01, "the neighbour's frame becomes 0x103");
         check(r[6] == 0 && r[7] == 0, "the neighbour's flags word clears");
@@ -307,9 +321,31 @@ int main(int argc, char **argv)
             check(!object_claimActive(), "the claim sequence finishes");
             check(level_sparkActive(),
                   "the claim's append starts the particle effect");
+            /* the particles run in play: the chain (fades + loading) is driven
+             * first, and the effect's spawns are counted from the first play
+             * frame (sparkStep is PLAYING-only, like the original's frame body) */
+            if (level_starting()) {
+                for (unsigned i = 0; i < 1200u && level_starting(); i++) {
+                    level_begin();          /* waits for a running fade */
+                    level_tick();
+                    palette_tick();
+                    if (level_loadingScreen()) level_loadingTick();
+                }
+            }
             {
                 unsigned t2 = 0, seen = 0, bitOK = 1;
 
+                /* the particles are drawn by the compose, which only runs once
+                 * the start chain has finished */
+                if (level_starting()) {
+                    level_begin();
+                    for (unsigned i = 0; i < 1200u && level_starting(); i++) {
+                        level_begin();          /* waits for a running fade */
+                        level_tick();
+                        palette_tick();
+                        if (level_loadingScreen()) level_loadingTick();
+                    }
+                }
                 while (level_sparkActive() && t2++ < 400u) {
                     unsigned sx = 0, sy = 0, sv = 0;
 
@@ -486,6 +522,7 @@ int main(int argc, char **argv)
         for (unsigned t = 0; t < 4000u && level_starting(); t++) {
             level_tick();
             palette_tick();
+            if (level_loadingScreen()) level_loadingTick();
         }
         level_tick();
         check(level_ended() && level_outcome(),
