@@ -24,13 +24,15 @@
  *   the non-arrival path counts the +0xA hold down and walks the +0xC
  *   waypoint, which snaps back to the primary when it reaches primary+8 —
  *   an 8-frequency animation clock.  Nothing here reads the map or the
- *   video; the sprite draw is the REX.DAT consumer (not ported yet).
+ *   video.  The sprite draw is the REX.DAT consumer, ported below:
+ *   `entity_render` (1000:5823 -> 0x5894 -> 0x58A5 -> 0x5C5F), two mode-2
+ *   32-px cells per entity from the bank's three big-endian frame tables.
  *
- * Not ported from the tail: the ca43..cb77 body that walks the placed-
- * object array (0x3E75, stride 0x12), tests the ±x/±y overlap windows and
- * posts a type-0x22 record with a CALL 83b7(9) — it reads the entity's x/y
- * and writes nothing of the movement state, so the stub below is exact for
- * the entity record itself; the interaction lands with object.c.
+ * The tail's interaction pass (0xCA43..CB77) is ported as
+ * `entity_tailInteract`: it walks the placed-object array (0x3E75), tests the
+ * ±x/±y overlap windows and posts the type-0x22 carry record with a call to
+ * the sound driver (9).  It writes the entity's handler/waypoint/hold, which
+ * is what makes handlers 2 and 3 (the carry animation) reachable.
  */
 #include "game.h"
 #include <stddef.h>
@@ -214,15 +216,98 @@ int entity_spawnFromMap(const uint8_t *map, unsigned style, unsigned lifeSeed)
  * primary / step) freshly latched from the baked slots, `endX` = the
  * handler's endpoint word (DX: handler 0 passes x1, handler 1 passes
  * x0).  Everything below is the listing, step for step. */
-static void entity_tail(Entity *ep, const uint16_t *wp, uint16_t endX)
+/* The handler tables are contiguous in DS (0x64E4 / 0x64F8, eight words per
+ * record), and the tail reads past its own row - 1000:CB0E onward consumes
+ * wp[5..9], which for handler 0 runs into slot 3.  The port therefore addresses
+ * them flat. */
+static uint16_t entWord(unsigned slot, unsigned off, unsigned k)
 {
-    uint16_t w0 = wp[0];
+    const uint16_t *flat = &ents[0][0];
+    unsigned i = slot * 8u + off + k;
+
+    return i < ENT_MAX * 8u ? flat[i] : 0u;
+}
+
+/* DS:0x6EC3 - the 44-byte table the interaction gate tests: a record whose type
+ * has a non-zero byte here is not picked up. */
+static const uint8_t entNoPick[0x2C] = {
+    0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x01, 0x01, 0x01,
+    0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00,
+    0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+static uint16_t entRd(const uint8_t *r, unsigned o) { return (uint16_t)(r[o] | (r[o + 1] << 8)); }
+static void entWr(uint8_t *r, unsigned o, uint16_t v)
+{
+    r[o] = (uint8_t)v;
+    r[o + 1] = (uint8_t)(v >> 8);
+}
+
+/* 1000:CA43..CB77 - the tail's interaction pass, run on every walk-branch tick
+ * that does not reach the endpoint.  It walks the eight static placed records
+ * and takes the first one that
+ *   - is active ([+6] bit 7 clear),
+ *   - sits at `x - entity.x + wp[3]` in 0..2 and `y - entity.y - 0x14` in
+ *     0..0x2C (wp[3] is a negative x tolerance: 0xFFDD = -35),
+ *   - is not the type wp[4] names, not type 4/5, and not marked in 0x6EC3,
+ * dissolves it (1000:F453 with DX = 5) and posts the carry: the record becomes
+ * type 0x22, its +0xA the entity link, +0xE = wp[5], +0x10 = wp[7] + the
+ * entity word wp[6] names; the entity's handler becomes wp[8], its waypoint
+ * wp[9] and its hold 0xA032 (the "stuck while carrying" sentinel), effect 9.
+ *
+ * `+0xA` holds a DS pointer to the entity record in the original; the port has
+ * no DS image, so it stores `entity index + 1` (0 = none) - the same internal
+ * encoding policy the object links use. */
+static void entity_tailInteract(Entity *ep, unsigned slot, unsigned off)
+{
+    unsigned w3 = entWord(slot, off, 3), w4 = entWord(slot, off, 4);
+    unsigned w5 = entWord(slot, off, 5), w6 = entWord(slot, off, 6);
+    unsigned w7 = entWord(slot, off, 7), w8 = entWord(slot, off, 8);
+    unsigned w9 = entWord(slot, off, 9);
+
+    for (unsigned i = 0; i < 8u; i++) {           /* DX = 7: the static eight */
+        uint8_t *rec = object_slot(i);
+        int dx, dy;
+        unsigned type;
+
+        if (!rec) return;
+        if (rec[6] & 0x80u) continue;             /* 1000:CA6B */
+        dx = (int)(int16_t)(uint16_t)(entRd(rec, 0u) - ep->x) + (int)(int16_t)w3;
+        if (dx < 0 || dx > 2) continue;           /* 1000:CA8A */
+        dy = (int)(int16_t)(uint16_t)(entRd(rec, 2u) - ep->y) - 0x14;
+        if (dy < 0 || dy > 0x2C) continue;        /* 1000:CAA4 */
+        type = entRd(rec, 8u);
+        if (type == w4) continue;                 /* 1000:CABC */
+        if (type == 4u || type == 5u) continue;   /* 1000:CAC5 */
+        if (type < sizeof entNoPick && entNoPick[type]) continue;  /* 1000:CAE1 */
+        (void)object_stackScanDissolve(i);        /* 1000:CAFE: 0xF453, DX = 5 */
+        entWr(rec, 8u, 0x0022u);                  /* 1000:CB15 */
+        entWr(rec, 0xAu, (uint16_t)(i + 1u));     /* 1000:CB19: the link */
+        entWr(rec, 0xEu, (uint16_t)w5);           /* 1000:CB23 */
+        {                                          /* 1000:CB35..CB4C */
+            unsigned idx = w6 / 2u;                /* the entity's word offset */
+            uint16_t base = 0;
+
+            if (w6 <= 0xEu && !(w6 & 1u)) base = ((const uint16_t *)ep)[idx];
+            entWr(rec, 0x10u, (uint16_t)(w7 + base));
+        }
+        ep->handler = (uint16_t)w8;               /* 1000:CB56 */
+        ep->waypoint = (uint16_t)w9;              /* 1000:CB65 */
+        ep->hold = 0xA032u;                       /* 1000:CB6A */
+        return;
+    }
+}
+
+static void entity_tail(Entity *ep, unsigned slot, unsigned off, uint16_t endX)
+{
+    uint16_t w0 = entWord(slot, off, 0);
     sel_primary = w0;                          /* c9c1/c9c5 */
     /* c9c8: ADD BP,2 — the walk branch reads the NEXT words          */
 
     if (w0 != ep->waypoint) {                  /* c9cb/c9ce: the walk branch */
-        sel_primary = wp[1];                   /* c9dd */
-        sel_secondary = wp[2];                 /* c9e4/c9e8 */
+        sel_primary = entWord(slot, off, 1);   /* c9dd */
+        sel_secondary = entWord(slot, off, 2); /* c9e4/c9e8 */
         ep->x += sel_secondary;                /* c9ee/c9f1: ADD [DI],AX */
         if (endX == ep->x) {                   /* c9f3: the endpoint hit   */
             sel_primary ^= 0x000Eu;            /* c9f7 */
@@ -230,15 +315,17 @@ static void entity_tail(Entity *ep, const uint16_t *wp, uint16_t endX)
             ep->handler ^= 1u;                 /* ca02/ca05: the ping-pong */
             return;
         }
-        /* ca09: the beat path (the object-walk + type-0x22 post lives at
-         * ca43..cb77 in the original and reads this x/y without writing
-         * the movement state — stubbed for now, see the file head). */
-        if ((int16_t)--ep->hold >= 0) return;  /* ca0f/ca13/ca17/ca18 */
-        ep->hold = 4;                          /* ca1a */
-        ep->waypoint += 1u;                    /* ca20 */
-        sel_secondary = (uint16_t)(sel_primary + 8u);   /* ca24/ca27/ca2a */
-        if (sel_secondary == ep->waypoint)     /* ca2f/ca32/ca36 */
-            ep->waypoint = sel_primary;        /* ca38/ca3b: the 8-snap */
+        /* ca09..ca3b: the beat (the hold countdown, then the waypoint step and
+         * its 8-snap), and then CA43's interaction pass, which runs on BOTH
+         * beat exits - ca18's JNS and the ca1a path both land on ca3f. */
+        if ((int16_t)--ep->hold < 0) {         /* ca0f/ca13/ca17/ca18 */
+            ep->hold = 4;                      /* ca1a */
+            ep->waypoint += 1u;                /* ca20 */
+            sel_secondary = (uint16_t)(sel_primary + 8u);   /* ca24/ca27/ca2a */
+            if (sel_secondary == ep->waypoint) /* ca2f/ca32/ca36 */
+                ep->waypoint = sel_primary;    /* ca38/ca3b: the 8-snap */
+        }
+        entity_tailInteract(ep, slot, off);    /* ca3f -> ca43..cb77 */
         return;
     }
 
@@ -246,7 +333,109 @@ static void entity_tail(Entity *ep, const uint16_t *wp, uint16_t endX)
      * waypoint takes the primary... the pair's +2 word (c9d5 uses [BP] at
      * the +2 position = wp[1]). */
     if ((int16_t)--ep->hold < 0)
-        ep->waypoint = wp[1];                  /* c9d5/c9d9 */
+        ep->waypoint = entWord(slot, off, 1);  /* c9d5/c9d9 */
+}
+
+static uint16_t rd16e(const uint8_t *r) { return (uint16_t)(r[0] | (r[1] << 8)); }
+static void wr16e(uint8_t *r, uint16_t v) { r[0] = (uint8_t)v; r[1] = (uint8_t)(v >> 8); }
+
+/* 1000:CB99: the carry animation stepper handlers 2 and 3 jump into.  The
+ * record's fields are used as BYTES here: +0xA is a 4-tick hold, +0xB the
+ * animation sub-step (stepped down by 0x10) and +0xC a word frame counter that
+ * walks up to the target in [0x423C].  On reaching it the target drops by 0xC
+ * and the counter takes it; when the sub-step's 0x10 bit has gone, the handler
+ * returns to the base in [0x4238] (0 for handler 3, 1 for handler 2) with the
+ * hold cleared.  Effect 0xB plays on each 0x10 step. */
+static void entity_carry_anim(Entity *ep)
+{
+    uint8_t *b = (uint8_t *)ep;
+    unsigned frame;
+
+    if ((int8_t)--b[0xAu] >= 0) return;          /* cb9e/cba2 */
+    b[0xAu] = 4;                                 /* cba4 */
+    {
+        unsigned sub = b[0xBu];                  /* cbaa */
+
+        frame = (unsigned)(rd16e(b + 0xCu) + 1u); /* cbb3: INC word [BP] */
+        wr16e(b + 0xCu, (uint16_t)frame);
+        if (frame != sel_primary) return;        /* cbba */
+        wr16e(b + 0xCu, (uint16_t)(frame - 2u)); /* cbc0 */
+        if (sub & 0xF0u) {                       /* cbc8 */
+            sub -= 0x10u;                        /* cbe8 */
+            b[0xBu] = (uint8_t)sub;
+            if (sub & 0x10u) object_driverCall(0xBu);       /* cbf0..cbf9 */
+            return;
+        }
+    }
+    sel_primary = (uint16_t)(sel_primary - 0xCu);  /* cbca */
+    wr16e(b + 0xCu, sel_primary);                 /* cbd2 */
+    b[0xAu] = 0;                                 /* cbd9 */
+    b[0xBu] = 0;                                 /* the word store at BP-2 clears both bytes */
+    ep->handler = sel_secondary;                 /* cbe2/cbe5: [0x4238] */
+}
+
+/* --- the REX.DAT frame tables (1000:58A5) ------------------------------
+ *
+ * `update_object_list` (1000:5823) walks the entities, sets `ES` to the
+ * `apl\rex.dat` slot and calls `draw_objects_all` (1000:5894) with the entity's
+ * x - 0xC, its y, its waypoint as the animation index and mode 2.  That routine
+ * doubles the index (`SHL CX,1`) and draws TWO cells 0x20 px apart, whose index
+ * `a` is `2*waypoint + k`.  For each cell the bank is read through three
+ * BIG-ENDIAN tables (the file is a byte-swapped export - re_formats.md §7.3):
+ *
+ *   BE16(4a + 2)      the block offset; the sprite data starts 0x1C0 into it
+ *   BE16(2a + 0xE0)   a y offset added to the entity's y
+ *   BE16(2a + 0x150)  the row count
+ *
+ * and the cell is blitted with mode 2 (`1000:5C5F` -> `1000:6C74`): 32 px wide,
+ * 8 source bytes per row per plane pass - the same storage law as the object
+ * sprites (`block = rows * 8`).
+ */
+static const uint8_t *entBank;
+static uint32_t entBankSize;
+
+static unsigned entBe16(const uint8_t *p) { return (unsigned)((p[0] << 8) | p[1]); }
+
+/* The three table reads for one cell index; 0 = the indices are outside the
+ * bank (the original would read whatever follows it in memory). */
+int entity_frameInfo(unsigned a, unsigned *src, unsigned *rows, unsigned *yoff)
+{
+    if (!entBank || 4u * a + 4u > entBankSize || 2u * a + 0x152u > entBankSize)
+        return 0;
+    *yoff = entBe16(entBank + 2u * a + 0xE0u);
+    *rows = entBe16(entBank + 2u * a + 0x150u);
+    *src  = entBe16(entBank + 4u * a + 2u) + 0x1C0u;
+    return (*src <= entBankSize) ? 1 : 0;
+}
+
+void entity_publishBank(const uint8_t *bank, uint32_t size)
+{
+    entBank = bank;
+    entBankSize = size;
+}
+
+/* 1000:5823 / 0x5894: the entity pass.  Runs after the placed records
+ * (render_objects 0x5D56 calls 0x6421 then 0x5823), before the bar. */
+void entity_render(uint8_t *page, int scrollX, int scrollY)
+{
+    if (!page || !entBank) return;
+    for (unsigned i = 0; i < ent_count; i++) {
+        const Entity *e = (const Entity *)ents[i];
+        int x = (int)(int16_t)e->x - 0xC;
+        int y = (int)(int16_t)e->y;
+
+        if ((int16_t)e->waypoint < 0) continue;      /* 1000:583D OR CX,CX */
+        for (unsigned k = 0; k < 2u; k++) {          /* 1000:589A + 0x58A4 */
+            unsigned a = (unsigned)(2u * e->waypoint) + k;
+            unsigned src, rows, yoff;
+
+            if (!entity_frameInfo(a, &src, &rows, &yoff)) break;
+            if ((uint32_t)src + rows * 8u > entBankSize) break;
+            object_blitSprite(page, entBank + src, rows, 32u,
+                              x - scrollX, y + (int)yoff - scrollY);
+            x += 0x20;                               /* 1000:58A1 ADD AX,0x20 */
+        }
+    }
 }
 
 /* --- the dispatch (1000:C93C) ------------------------------------------- */
@@ -262,17 +451,26 @@ void entity_tick(void)
          * handler 1 steps -1 px toward x0. */
         switch (ep->handler) {
         case 0u:                               /* 1000:C96C: DX = CX     */
-            entity_tail(ep, ents[2], ep->x1);
+            entity_tail(ep, 2u, 0u, ep->x1);
             break;
         case 1u:                               /* 1000:C973: DX = BX     */
-            entity_tail(ep, ents[3] + 2, ep->x0);
+            entity_tail(ep, 3u, 2u, ep->x0);
+            break;
+        case 2u:                               /* 1000:C97A: base 1, target 0x1A */
+            sel_secondary = 1u;
+            sel_primary = 0x1Au;
+            entity_carry_anim(ep);
+            break;
+        case 3u:                               /* 1000:C989: base 0, target 0xC */
+            sel_secondary = 0u;
+            sel_primary = 0x0Cu;
+            entity_carry_anim(ep);
             break;
         default:
-            /* Handlers 2/3/4/5: no reachable index exists (re_formats.md
-             * §12.6 — every reachable writer of +4 stores 0, 1 or 5; the
-             * index-4 writer is unreachable), and the shipped corpus
-             * never reaches this branch because the flip only yields
-             * 0/1.  The original would call the table's own stubs. */
+            /* Handlers 4 and 5: only the tail's wp[8] ever writes a handler
+             * other than 0/1, and the two shipped tables give 3 and 2 - so
+             * 4 (1000:C998) and 5 (the bare RET at 1000:C9C0) stay
+             * unreachable.  The old "0/1 only" reading missed the tail. */
             break;
         }
     }

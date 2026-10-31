@@ -326,9 +326,15 @@ int main(int argc, char **argv)
              * type 0x1A and `scan_object_rows` (1000:6433) counts
              * `[0x3E73]-8+1` records from 0x3F05, so the slot is drawn; its
              * x/y are the array init's 0xFFFF (-1 in int16), which puts a 15-px
-             * sliver of that sprite at the top-left.  Hence the pin includes it
-             * (sum 1149474, not the pre-init 1152850). */
-            if (sum != 1149474u || nz != 26396u) {
+             * sliver of that sprite at the top-left.
+             *
+             * The pin moved once more when the type-3 rows' tail (1000:D9E8)
+             * was ported: the level's type-3 placed record now runs its gravity
+             * tail during the start chain's update_world frames, so its y
+             * settles (sum 1153797, nz 26444, was 1149474 / 26396 with the tail
+             * unported).  `test_flow` pins D9E8's crash and platform branches
+             * directly. */
+            if (sum != 1153797u || nz != 26444u) {
                 fprintf(stderr, "FAIL level 0 page: sum %u nz %u\n",
                         sum, nz);
                 bad = 1;

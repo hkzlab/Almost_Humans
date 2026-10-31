@@ -173,6 +173,10 @@ const uint8_t *statusbar_palette(void);
 void statusbar_armOdometer(void);
 /* [0x5E44]: the countdown reached zero (the time-up dialog's flag). */
 int  statusbar_timeUp(void);
+/* 1000:F5E3: [0x5B25] | [0x5B26] != 0 - the odometer is showing a count. */
+int  statusbar_tribeActive(void);
+/* test seam: sets the odometer digits ([0x5B25]/[0x5B26]) that 1000:F5BC gates on. */
+void statusbar_setTribeDigits(unsigned tens, unsigned ones);
 /* [0x5B12]: the ticking gate (the in-level dialogs clear it). */
 void statusbar_setActive(int on);
 /* [0x5B56] (1..6): the current ACTION program — draws both the program and
@@ -249,6 +253,7 @@ int level_pageFree(unsigned id);
 unsigned level_specialTile(unsigned i);
 unsigned level_pageByte(unsigned id, unsigned subcol);
 unsigned level_itemWord(unsigned id, unsigned row);
+unsigned level_itemByte(unsigned id, unsigned off);
 int  level_tick(void);                      /* 1 = the level is running  */
 /* 1000:3DC0: the view's world origin (the CRTC start's source). */
 void level_setView(unsigned x, unsigned y);
@@ -258,6 +263,11 @@ void level_followView(void);
 /* [0xC]: update_world's gate (set by level_fade_in 1000:336C, cleared by the
  * claim at 1000:3B19 and restored at 1000:3CAB). */
 void level_setUpdates(int on);
+/** [0x2D8E]: the follower's +-1 px offset walk enabler (1000:DAC7 / 0xF8CE). */
+void     level_set_offsetWord(uint16_t v);
+uint16_t level_offsetWord(void);
+/* 1000:5D37's walk pointer ([0x2D90]) back to the table's first pair. */
+void     level_reset_offsetWalk(void);
 int  level_updates(void);            /* [0xC] */
 unsigned level_viewX(void);
 unsigned level_viewY(void);
@@ -302,6 +312,7 @@ void level_loadingTick(void);
  * takes entry 1000:00DC -> 002B (the restart-game path), not the next level. */
 unsigned level_required(void);
 unsigned level_members(void);
+void     level_addMember(void);          /* 1000:DE1F: [0x11FC]++ */
 
 /* level_restore (1000:35AF): [0x11FC] := [0x1970] — the members the level
  * started with, before the level's own joins (level_start 1000:3032 then
@@ -330,6 +341,7 @@ void level_goalReached(void);
 void level_memberLost(void);
 int  level_endTest(void);
 int  level_ended(void);
+void level_setEnd(int won);             /* 1000:F66D: [0x138E] = 0 */
 int  level_outcome(void);            /* [0x138E]: 1 won, 0 extinct */
 
 /* [0x5D31] / [0x11FC] after level_load's LEVEL-board pick: the record's
@@ -348,6 +360,12 @@ unsigned level_tribeMembers(void);
  */
 int  entity_init(const OSystem *osys);
 void entity_tick(void);
+/* 1000:5823 / 0x5894: the entity sprite pass over apl\rex.dat (mode 2, two
+ * 0x20-px cells per entity), and the three big-endian frame-table reads it
+ * uses (1000:58A5).  Returns 1 when the index is inside the bank. */
+void entity_publishBank(const uint8_t *bank, uint32_t size);
+void entity_render(uint8_t *page, int scrollX, int scrollY);
+int  entity_frameInfo(unsigned a, unsigned *src, unsigned *rows, unsigned *yoff);
 
 /* One entity record: the DS layout word-for-word (+0x00..+0x0E). */
 typedef struct {
@@ -381,6 +399,14 @@ unsigned entity_count(void);
  * are object_test_dispatch's (1000:35D6): -1 = true, 0 = false.
  */
 void object_init(void);
+void     object_blitSprite(uint8_t *page, const uint8_t *src, unsigned rows,
+                           unsigned cols, int x, int y);
+/* 1000:5C2F draw_objects_pass2: the two TER.DAT slots at DS:0x649A, disabled by
+ * object_array_init (0x4CAB) through their +0x10 flag words. */
+void     object_terSlotInit(void);
+uint8_t *object_terSlotAt(unsigned i);           /* NULL past the two slots */
+void     object_publishTer(const uint8_t *bank, uint32_t size);
+void     object_renderTer(uint8_t *page, int scrollX, int scrollY);
 uint8_t *object_slot(unsigned i);        /* NULL past object_slots()      */
 unsigned object_slots(void);
 int  object_current(void);               /* [0x1AF2], -1 = none           */
@@ -457,10 +483,13 @@ int  object_stackStepOff(uint8_t *actor);         /* 1000:E860: 1/0/-1        */
 int  object_stackLeave(uint8_t *actor);           /* 1000:E8DD: 1/0/-1        */
 int  object_stackSnap(uint8_t *actor);            /* 1000:E963: 1/0           */
 int  object_stackStand(uint8_t *actor);           /* 1000:E99D: 1/0           */
-/* 1000:F17C: 0 = done, -1 = nothing found, -2 = needs the terrain step test
- * (1000:E389 / 1000:F25F), which is not ported. */
+/* 1000:F17C: 0 = done, -1 = nothing found.  The terrain branch is in
+ * (1000:F1D7's step probe, 1000:F223's field-K special-tile test). */
 int  object_selector(uint8_t *actor, uint16_t xoff, uint16_t frame, uint16_t type);
 int  object_stackScanDissolve(unsigned recIndex); /* 1 = a group was dissolved */
+/* 1000:FA13 object_group_dissolve, by group slot (the 0x6F22 entry the tail holds
+ * in BP when it calls it). */
+void object_groupDissolveAt(unsigned slot);
 /* 1000:E4F8 / 1000:E609: the two movement states that feed the stack - the feet
  * cell's special tile (field K), a 0x6F92 span, else the grab / the push.
  * Codes: 1 tile rule, 2 span, 3 grabbed/pushed, 4 registered/nothing, -1 nothing. */
@@ -477,7 +506,11 @@ void object_claimTick(const uint8_t *levelPal);
 int  object_findNeighbour(int actor);
 /* one level frame of the object machine (the frame counter + the claim) */
 void object_tick(const uint8_t *levelPal);
-int  object_lowPhaseMatch(void);        /* 1000:3600: -1 when met         */
+int  object_lowPhaseMatch(void);          /* 1000:3600: -1 when met         */
+/* 1000:F423's window, against the type row 1000:E467 hands the hook as DI:
+ * the row's own words are the "rect", so it never matches on shipped data -
+ * the test asserts that over every type and both halves. */
+int  object_rowWindowMatches(unsigned type, unsigned half, int x, int y);
 /* The ACTION program machine (script_op_dispatch, 1000:3979): ACTION with no
  * direction held runs the acting record's program.  The acting record is
  * [0x3E22]; object_actionRun() performs one press, object_cycleEntity(±1) is
@@ -493,7 +526,16 @@ unsigned object_actionProgram(void);
 unsigned object_actionPending(void);
 void object_actionSetCursor(unsigned cursor);
 void object_actionSetProgram(unsigned index);   /* [0x5B56], 1..6        */
-unsigned object_actionFault(void);              /* 7 = op 7 was dispatched */
+unsigned object_actionFault(void);
+/* 1000:83B7 driver_call: the last sfx number a handler asked for (the audio
+ * surface has no sfx entry until M6, so the request is only recorded). */
+unsigned object_lastSfx(void);
+/* [0x6FE6]: the marker 1000:EAE6/0xF1B2 write (no ported reader yet). */
+int      object_flag6fE6(void);
+void     object_driverCall(unsigned n);   /* 1000:83B7 from another module */
+/* [0x13A4]: the ACTION press's latch as the command handlers see it. */
+int  object_actionLatched(void);
+void object_setActionLatched(int on);              /* 7 = op 7 was dispatched */
 /* The arch's fatal route for the op-7 halt (NULL detaches it, the tests do
  * that on purpose); level_init attaches the game's OSystem. */
 void object_attachOsys(const OSystem *osys);

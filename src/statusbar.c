@@ -77,6 +77,17 @@ static uint8_t elapsed[3];
 /* the tribe odometer: values [0x5B25/26], phases [0x5B27/29], state
  * [0x5B22], slides [0x5B23/24] — indices 0 = tens, 1 = ones */
 static uint8_t td[2];
+/* 1000:F5E3: the "anything collected" test ([0x5B25] | [0x5B26] != 0). */
+int statusbar_tribeActive(void) { return (td[0] | td[1]) != 0; }
+/* The odometer's digits are [0x5B25]/[0x5B26]; the game only writes them through
+ * statusbar_start (members - required) and the roll animation.  This setter is
+ * a test seam for the object machine's level-end probe, whose two branches key
+ * on that word. */
+void statusbar_setTribeDigits(unsigned tens, unsigned ones)
+{
+    td[0] = (uint8_t)(tens % 10u);
+    td[1] = (uint8_t)(ones % 10u);
+}
 static uint16_t tdPhase[2];
 static uint8_t odoState;
 static uint8_t odoSlide[2];

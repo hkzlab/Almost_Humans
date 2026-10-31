@@ -149,6 +149,115 @@ int main(int argc, char **argv)
         }
     }
 
+    /* 2b. the entity sprite law (1000:58A5 / 0x5C5F): the three big-endian
+     * frame-table reads, against the shipped apl\rex.dat: index 0's block
+     * offset is 0 (so the data starts at 0x1C0), with its y offset and row
+     * count.  The bank is published by level_load (1000:4F82). */
+    {
+        unsigned src = 0, rows = 0, yoff = 0;
+
+        if (entity_frameInfo(0u, &src, &rows, &yoff)) {
+            if (src != 0x1C0u) failf("frame 0's source (block 0 + 0x1C0)", 10u, src, 0x1C0);
+            if (rows < 32u || rows > 48u)
+                failf("frame 0's row count (a sane sprite)", 10u, rows, 39);
+            if (yoff > 64u) failf("frame 0's y offset", 10u, yoff, 25);
+            /* the next cell of the same animation is a different block */
+            {
+                unsigned s1 = 0, r1 = 0, o1 = 0;
+
+                if (!entity_frameInfo(1u, &s1, &r1, &o1) || s1 == src)
+                    failf("frame 1's source differs", 10u, s1, src);
+            }
+        } else {
+            fprintf(stderr, "FAIL the rex.dat frame tables did not read\n");
+            bad = 1;
+        }
+    }
+
+    /* 2c. the pass itself, on a synthetic bank: two 0x20-px cells, mode 2
+     * (32 px, 8 bytes per row per plane pass), each with its own y offset,
+     * row count and source. */
+    {
+        static uint8_t bank[0x1000];
+        static uint8_t page[320 * 200];
+        uint8_t *e8;
+
+        memset(bank, 0, sizeof bank);
+        bank[4 * 0 + 3] = 0x00;                 /* cell 0: block offset 0 */
+        bank[0xE0] = 0; bank[0xE1] = 5;         /* its y offset             */
+        bank[0x150] = 0; bank[0x151] = 2;       /* its row count            */
+        bank[4 * 1 + 3] = 0x40;                 /* cell 1: block offset 0x40 */
+        bank[0xE2] = 0; bank[0xE3] = 6;
+        bank[0x152] = 0; bank[0x153] = 2;
+        for (unsigned i = 0; i < 0x40; i++) {   /* the two frames' bytes */
+            bank[0x1C0 + i] = (uint8_t)(0x10u + i);
+            bank[0x200 + i] = (uint8_t)(0x80u + i);
+        }
+        entity_publishBank(bank, sizeof bank);
+        e8 = (uint8_t *)entity_at(0u);          /* mutate the live record */
+        if (e8) {
+            e8[6] = 100; e8[7] = 0;             /* x = 100 */
+            e8[8] = 50;  e8[9] = 0;             /* y = 50  */
+            e8[0xC] = 0; e8[0xD] = 0;           /* waypoint 0 */
+            memset(page, 0, sizeof page);
+            entity_render(page, 0, 0);
+            /* cell 0 at (100-12, 50+5) = (88, 55), block = 2 rows * 8 */
+            if (page[55 * 320 + 88] != bank[0x1C0])
+                failf("cell 0's first pixel", 10u, page[55 * 320 + 88], bank[0x1C0]);
+            /* col 31, row 1: block 3 of 4 -> 3*16 + 8 + 7 = 63 */
+            if (page[(55 + 1) * 320 + 88 + 31] != bank[0x1C0 + 63])
+                failf("cell 0's last pixel (block = rows*8)", 10u,
+                      page[(55 + 1) * 320 + 88 + 31], bank[0x1C0 + 63]);
+            /* cell 1 at x + 0x20, y + 6, from block 0x40 */
+            if (page[(50 + 6) * 320 + 88 + 0x20] != bank[0x200])
+                failf("cell 1's first pixel", 10u, page[(50 + 6) * 320 + 120], bank[0x200]);
+        }
+    }
+
+    /* 3b. the tail's interaction pass (1000:CA43): a placed record inside the
+     * window is picked up - it becomes type 0x22, carries the entity link at
+     * +0xA, and the entity switches to handler 3 (the 0x655C table's
+     * entity_select_frame_0c), which the earlier "0/1 only" reading missed. */
+    {
+        const Entity *p = entity_at(0);
+        uint8_t *rec = object_slot(0u);
+
+        if (p && rec && p->handler == 0u) {
+            unsigned ex = p->x, ey = p->y;
+
+            memset(rec, 0, 0x12u);
+            rec[0] = (uint8_t)(ex + 36u); rec[1] = (uint8_t)((ex + 36u) >> 8);
+            rec[2] = (uint8_t)(ey + 30u); rec[3] = (uint8_t)((ey + 30u) >> 8);
+            rec[4] = 0x10u;
+            rec[8] = 0x01u;                 /* type 1: pickable (0x6EC3 = 0) */
+            entity_tick();
+            if ((rec[8] | (rec[9] << 8)) != 0x22u)
+                failf("the pick-up's type", 10u, rec[8], 0x22);
+            if ((rec[10] | (rec[11] << 8)) != 1u)
+                failf("the entity link at +0xA", 10u, rec[10], 1);
+            if (entity_at(0)->handler != 3u)
+                failf("the carry handler", 10u, entity_at(0)->handler, 3);
+            if (entity_at(0)->hold != 0xA032u)
+                failf("the carry hold", 10u, entity_at(0)->hold, 0xA032);
+            if (entity_at(0)->waypoint != 8u)
+                failf("the carry waypoint (wp[9])", 10u, entity_at(0)->waypoint, 8);
+            /* 1000:CB99: the carry animation runs the hold/sub-step/frame
+             * counter and hands the entity back to its walk handler (3's base
+             * is 0). */
+            {
+                unsigned t = 0;
+
+                while (entity_at(0)->handler == 3u && t++ < 4000u) entity_tick();
+                if (entity_at(0)->handler != 0u)
+                    failf("the carry animation returns to handler 0", 10u,
+                          entity_at(0)->handler, 0);
+                if (entity_at(0)->hold != 0u)
+                    failf("the carry animation clears the hold", 10u,
+                          entity_at(0)->hold, 0);
+            }
+        }
+    }
+
     /* 4. the whole corpus: count == #B3, the spawn fields (the prologue
      * included), and a 4-tick walk inside each record's window. */
     for (unsigned id = 0; id < 160u; id++) {

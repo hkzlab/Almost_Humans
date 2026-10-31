@@ -1097,19 +1097,33 @@ int main(int argc, char **argv)
                           (a1[4] | (a1[5] << 8)) == 8u &&
                           (a1[8] | (a1[9] << 8)) == 1u,
                           "command 6 runs the other idle handler (frame 8 / type 1)");
-                    /* a handler with no port still reports it */
-                    a1[8] = 18; a1[9] = 0;
-                    check(object_commandRun(a1, 0x08u) == OBJ_CMD_UNPORTED,
-                          "an unported handler is reported");
+                    /* every row's tail is ported now: drive each type's
+                     * command 0 (input 0x01) and require that none reports an
+                     * unported handler or tail. */
+                    {
+                        unsigned unported = 0;
+
+                        for (unsigned t = 0; t < 35u; t++) {
+                            a1[8] = (uint8_t)t; a1[9] = 0;
+                            a1[0xA] = 0; a1[0xB] = 0;
+                            a1[0xE] = 0; a1[0xF] = 0;
+                            if (object_commandRun(a1, 0x01u) == OBJ_CMD_UNPORTED)
+                                unported++;
+                        }
+                        check(unported == 0u,
+                              "every one of the 35 rows runs to its tail");
+                    }
                     /* type 6's row has no handler for command 0, hook 0 and the
                      * tail 1000:E860 (the step off) */
                     a1[8] = 6; a1[9] = 0;
                     check(object_commandRun(a1, 0x01u) == OBJ_CMD_TAIL,
                           "a row with only a ported tail reports the tail");
-                    /* type 15's tail is 1000:DC1F, not ported */
+                    /* type 15's tail is 1000:DC1F, now ported: the command
+                     * runs its handler and reports the tail */
                     a1[8] = 15; a1[9] = 0;
-                    check(object_commandRun(a1, 0x01u) == OBJ_CMD_UNPORTED,
-                          "an unported tail is reported");
+                    check(object_commandRun(a1, 0x01u) == OBJ_CMD_TAIL ||
+                          object_commandRun(a1, 0x01u) == OBJ_CMD_HANDLER,
+                          "type 15's command now reaches its tail (1000:DC1F)");
                 }
                 /* load_terrain_b's 0xF0..0xF2 tile: the shared decoration
                  * handler (1000:556B) appends {x, y, frame, +8 = frame} with
@@ -1289,6 +1303,29 @@ int main(int argc, char **argv)
                     }
                 check(wrong == 0u, "the second placed record is drawn too");
             }
+            /* the class overlay (1000:653C): record 0 carries class id 5, whose
+             * behaviour class 5 maps to column 1 (0x3566[5]); frame 1's row is
+             * 2 (0x3570[1]), so the entry is 0x368A[3*2+1] = 2 = the
+             * {4, 8, 0x5A, 0x69} record: the class's placed record (slot 8+5)
+             * is moved to (x+4, y+8), given frame 0x5A and drawn. */
+            {
+                uint8_t *host = object_slot(0u);
+                uint8_t *carried = object_slot(13u);
+
+                rec = host;
+                rec[4] = 0x01; rec[5] = 0x00;          /* frame 1 */
+                rec[7] = 5u;                            /* the class slot id */
+                object_setSlotClass(4u, 5u);            /* behaviour class 5 */
+                memset(carried, 0, 0x12u);
+                memset(page, 0, sizeof page);
+                object_render(page, 0, 0);
+                check((carried[0] | (carried[1] << 8)) == 52u &&
+                      (carried[2] | (carried[3] << 8)) == 33u &&
+                      (carried[4] | (carried[5] << 8)) == 0x5Au,
+                      "the class overlay moves and frames the carried record");
+                rec[7] = 0u;
+                object_setSlotClass(4u, 5u);
+            }
             object_publishBank(NULL, 0u);
             free(bank);
         }
@@ -1370,6 +1407,322 @@ int main(int argc, char **argv)
         check(!score_tick(&k), "the score screen exits after the hold");
     }
 
+    /* 7a. 1000:3600, the goal predicate: the feet cell, and the cell one map row
+     * below it (`[DI+0x20]`), both count if they are the goal tile 0xA8. */
+    {
+        static uint8_t pal[768];
+        uint8_t *map = (uint8_t *)level_map();
+        uint8_t *r = object_slot(0u);
+        unsigned cell;
+        int met = 0;
+
+        r[0] = 0x40u; r[1] = 0x00u;
+        r[2] = 0x40u; r[3] = 0x00u;
+        r[8] = 0x02u; r[9] = 0x00u;                 /* type 2: the gate passes */
+        cell = 32u * ((0x40u + 0x0Cu) / 16u) + ((0x40u + 8u) / 16u);
+        if (map && cell + 32u < 640u) {
+            map[cell] = 0x00u;                      /* the feet are not the goal */
+            map[cell + 32u] = 0xA8u;                /* the row below is         */
+            for (unsigned i = 0; i < 0x8Cu + 2u; i++) {
+                object_tick(pal);
+                if (object_lowPhaseMatch() < 0) { met = 1; break; }
+            }
+            check(met, "a goal tile one row below counts (1000:3624)");
+            /* negative control: the same cell cleared never meets the goal */
+            map[cell + 32u] = 0x00u;
+            met = 0;
+            for (unsigned i = 0; i < 0x8Cu + 8u; i++) {
+                object_tick(pal);
+                if (object_lowPhaseMatch() < 0) { met = 1; break; }
+            }
+            check(!met, "with neither cell the goal is not met");
+        }
+    }
+
+    /* 7a-bis. 1000:F423's "rect" is the type row DI points at (1000:E467), not a
+     * 0x6F92 span.  Its y word is far above the 320-row map in every shipped
+     * row, so no window ever matches: the settle gate reduces to the 0x6EBE
+     * type bit.  Assert exactly that, over every type and both halves. */
+    {
+        unsigned matches = 0, types = 0;
+
+        for (unsigned t = 0; t < 35u; t++)
+            for (unsigned h = 0; h < 2u; h++) {
+                types++;
+                for (int x = 0; x < 512; x += 7)
+                    for (int y = 0; y < 320; y += 11)
+                        if (object_rowWindowMatches(t, h, x, y)) matches++;
+            }
+        check(types == 70u && matches == 0u,
+              "no shipped row's window ever matches (1000:F423 over the row)");
+    }
+
+    /* 7b. the rest of the type rows' handlers (DS:0x6918) */
+    {
+        uint8_t *a = object_slot(0u);
+        #define rd16t(r, o) ((unsigned)((r)[o] | ((r)[(o) + 1] << 8)))
+        #define wr16t(r, o, v) ((r)[o] = (uint8_t)(v), (r)[(o) + 1] = (uint8_t)((v) >> 8))
+
+        /* type 18 (0x12), input 0x06 -> normalised 0x0A -> key 0x05 -> command
+         * 5 -> index 37 (1000:EDB7): the home-state transition */
+        wr16t(a, 8u, 0x12u);
+        wr16t(a, 4u, 0x20u);
+        wr16t(a, 0xAu, 0x7u);
+        wr16t(a, 0xCu, 0x7u);
+        wr16t(a, 0xEu, 0x7u);
+        wr16t(a, 0x10u, 0x7u);
+        check(object_commandRun(a, 0x06u) == OBJ_CMD_HANDLER,
+              "type 18 command 5 runs the home-state handler");
+        check(rd16t(a, 4u) == 0u && rd16t(a, 8u) == 0u,
+              "type 0x12 becomes frame 0 / type 0 (1000:EDD9)");
+        check(rd16t(a, 0xAu) == 0u && rd16t(a, 0xEu) == 0u &&
+              rd16t(a, 0x10u) == 0u, "the pending words are cleared");
+        check(object_actionLatched(), "the transition consumes the ACTION press");
+
+        /* input 0x81 -> half 1, command 0 -> index 38 (1000:EE07): the turn,
+         * which needs the ACTION press to have been released (1000:EE0C) */
+        object_setActionLatched(0);
+        wr16t(a, 8u, 0x12u);
+        wr16t(a, 0xEu, 0u);
+        check(object_commandRun(a, 0x81u) != OBJ_CMD_UNPORTED,
+              "type 18 half-1 command 0 runs the turn handler");
+        check(rd16t(a, 0xEu) == 4u, "the turn advances the direction counter by 4");
+
+        /* input 0x01 -> half 0, command 0 -> index 39 (1000:EE3B): the door */
+        wr16t(a, 4u, 0x8Cu);
+        check(object_commandRun(a, 0x01u) != OBJ_CMD_UNPORTED,
+              "the latched latch runs the enter-the-building sequence");
+        check(rd16t(a, 4u) == 0u && rd16t(a, 8u) == 0u,
+              "the door vector 0 sets frame 0 / type 0");
+        check(object_lastSfx() == 3u, "the entry plays effect 3 (1000:EEF2)");
+        check(!object_actionLatched(), "the entry releases the latch");
+
+        /* type 18 command 6 -> index 33 (1000:ED4F): the frame nudge toward
+         * 0x8E, one step per 25 frames */
+        wr16t(a, 8u, 0x12u);
+        wr16t(a, 4u, 0x8Cu);
+        wr16t(a, 0xAu, 0u);
+        wr16t(a, 0xEu, 0x19u);
+        {
+            static uint8_t pal[768];
+
+            /* 1000:F9E4 counts one tick per *frame* ([0x4103]), so the frame
+             * has to advance between the calls: object_tick is what counts it. */
+            for (unsigned i = 0; i < 28u; i++) {
+                (void)object_commandRun(a, 0x04u);   /* normalises to key 8 */
+                object_tick(pal);
+            }
+        }
+        check(rd16t(a, 4u) == 0x8Du, "the 25-frame cadence steps the frame once");
+
+        /* 1000:D9E8 (type 3's tail): the two deterministic branches.
+         *   - y + 0x18 >= 0x158 takes the hard landing (0xDB15);
+         *   - a 0xF0 cell one row above the probe is the platform snap. */
+        {
+            uint8_t *m = (uint8_t *)level_map();
+
+            wr16t(a, 8u, 3u);
+            wr16t(a, 4u, 0x20u);
+            wr16t(a, 0u, 100u);
+            wr16t(a, 2u, 0x150u);          /* probe y 0x168 >= 0x158 */
+            wr16t(a, 0xAu, 0u);
+            (void)object_commandRun(a, 0x01u);
+            check(rd16t(a, 0u) == 93u && rd16t(a, 4u) == 0x28u &&
+                  rd16t(a, 8u) == 0x16u && rd16t(a, 0xAu) == 5u &&
+                  object_lastSfx() == 4u,
+                  "a probe past 0x158 takes the hard landing (1000:DB15)");
+            wr16t(a, 8u, 3u);              /* the crash left type 0x16 */
+            wr16t(a, 0u, 100u);
+            wr16t(a, 2u, 100u);
+            wr16t(a, 4u, 0x20u);
+            wr16t(a, 0xAu, 0u);
+            if (m) m[198] = 0xF0u;         /* 2*0x60 + (108 >> 4) */
+            (void)object_commandRun(a, 0x01u);
+            /* 1000:DA1C left AX = the FINE x (108 & 0xF = 12), so the snap is
+             * ((12 + 8) & ~0xF) - 4 + 8 = 20, not the absolute x */
+            check(rd16t(a, 0u) == 20u && rd16t(a, 2u) == 84u &&
+                  rd16t(a, 4u) == 0xCDu && rd16t(a, 8u) == 0x1Cu &&
+                  rd16t(a, 0xAu) == 9u && object_lastSfx() == 6u,
+                  "a 0xF0 cell one row above is the platform snap (1000:DA3E)");
+            if (m) m[198] = 0u;
+        }
+
+        /* the path handlers (indices 25 / 27): a type-0x0F record whose +0xE
+         * links to another record (the 1000:9CF0 give/hold form), whose +8 is
+         * the progress.  1000:EBA0 nudges it through 1000:FC32. */
+        {
+            uint8_t *node = object_slot(1u);
+
+            wr16t(a, 8u, 0x0Fu);
+            wr16t(a, 4u, 0x20u);
+            wr16t(a, 0xAu, 0u);
+            wr16t(a, 0xEu, 1u * 0x12u + 4u);   /* the link to slot 1 */
+            memset(node, 0, 0x12u);
+            /* the handler runs; the run still reports UNPORTED because the
+             * type-15 rows' *tail* (0xDC1F) is not ported yet - the next
+             * objective - and the dispatcher stops there. */
+            (void)object_commandRun(a, 0x08u);
+            check(rd16t(node, 8u) == 1u && rd16t(a, 0xAu) == 1u,
+                  "the nudge adds the actor's ramped +0xA to the node's +8");
+            for (unsigned i = 0; i < 4u; i++) (void)object_commandRun(a, 0x08u);
+            check(rd16t(node, 8u) == 10u,
+                  "the progress ramps 1+2+3+4 and stops at 0xA (1000:FC78)");
+            (void)object_commandRun(a, 0x08u);
+            check(rd16t(node, 8u) == 10u, "and stays there");
+            /* the park: [node+7] & 7 == 4 refuses all further nudges */
+            node[7] = 0x0Cu;
+            (void)object_commandRun(a, 0x08u);
+            check(rd16t(node, 8u) == 10u, "a parked node is not nudged");
+            /* the arrival: a progress already past -0xF takes frame 0x4A */
+            node[7] = 0u;
+            wr16t(node, 8u, 0xFFF1u);          /* -15 */
+            (void)object_commandRun(a, 0x08u);
+            check(rd16t(a, 4u) == 0x4Au && node[7] == 0x0Cu,
+                  "reaching +-0xF sets frame 0x4A and parks the node");
+            /* 1000:EBD0 (type 15 half-1 command 1): the advance writes the
+             * node's y at +0x10 and its scaled progress at +8 */
+            node[7] = 0u;
+            memset(node, 0, 0x12u);
+            wr16t(node, 0u, 100u);
+            wr16t(node, 2u, 100u);
+            (void)object_commandRun(a, 0x89u);
+            check(rd16t(node, 0x10u) == 100u,
+                  "the advance stores the node's y at +0x10");
+        }
+
+        /* 1000:DC1F, the type-15 rows' tail: a placed record inside the node's
+         * window (|dy| <= 8 of node.y + 0x10, |dx| <= 1 of node.x + 8, type
+         * <= 2) becomes the carried form (frame 0x55, type 0x10, +0xE =
+         * 0xF0 + ([0x4103] & 0x3F)) with effect 8.  Type 15 command 0 has no
+         * handler, so the run reports the tail alone. */
+        {
+            uint8_t *node = object_slot(1u);
+            uint8_t *target = object_slot(2u);
+
+            wr16t(a, 8u, 0x0Fu);
+            wr16t(a, 4u, 0x20u);
+            wr16t(a, 0xEu, 1u * 0x12u + 4u);   /* the link to slot 1 */
+            memset(node, 0, 0x12u);
+            wr16t(node, 0u, 100u);
+            wr16t(node, 2u, 100u);
+            wr16t(node, 8u, 1u);               /* a non-zero progress */
+            memset(target, 0, 0x12u);
+            wr16t(target, 0u, 108u);           /* node.x + 8 */
+            wr16t(target, 2u, 92u);            /* node.y - 8 */
+            wr16t(target, 8u, 1u);             /* type 1 */
+            check(object_commandRun(a, 0x01u) == OBJ_CMD_TAIL,
+                  "a type-15 command with no handler reports its tail (1000:DC1F)");
+            check(rd16t(target, 4u) == 0x55u && rd16t(target, 8u) == 0x10u,
+                  "the record in the window takes the carried form");
+            check(rd16t(target, 0xAu) == 0u && rd16t(target, 0xCu) == 0u,
+                  "the carried form clears +0xA and +0xC");
+            /* a word add, so the phase (0..0x3F) can carry past 0xFF */
+            check(rd16t(target, 0xEu) >= 0xF0u && rd16t(target, 0xEu) <= 0x12Fu,
+                  "the carried form's +0xE is 0xF0 + the frame phase");
+            check(object_lastSfx() == 8u, "the carried form plays effect 8");
+            memset(target, 0, 0x12u);
+            memset(node, 0, 0x12u);
+        }
+
+        /* 1000:DD3C, the give exit: when the record in the window is the
+         * player's, the actor's class slot is freed and the actor is re-framed
+         * at that class's placed record (frame 0x103, type 0x1E, +0xA = 6). */
+        {
+            uint8_t *node = object_slot(1u);
+            uint8_t *target = object_slot(2u);
+            uint8_t *slotRec = object_slot(9u);
+
+            wr16t(a, 8u, 0x0Fu);
+            a[7] = 1u;                          /* class id 1 -> record 8+1 */
+            wr16t(a, 0xEu, 1u * 0x12u + 4u);
+            memset(node, 0, 0x12u);
+            wr16t(node, 0u, 100u);
+            wr16t(node, 2u, 100u);
+            wr16t(node, 8u, 1u);
+            memset(target, 0, 0x12u);
+            wr16t(target, 0u, 108u);
+            wr16t(target, 2u, 92u);
+            wr16t(target, 8u, 1u);
+            memset(slotRec, 0, 0x12u);
+            wr16t(slotRec, 0u, 200u);
+            wr16t(slotRec, 2u, 200u);
+            object_setPlayer(2u);
+            (void)object_commandRun(a, 0x01u);
+            check(rd16t(a, 0u) == 200u && rd16t(a, 2u) == 192u,
+                  "the give exit takes the class record's position, y - 8");
+            check(rd16t(a, 4u) == 0x103u && rd16t(a, 8u) == 0x1Eu,
+                  "the give exit sets frame 0x103 / type 0x1E");
+            check(a[7] == 0u && rd16t(slotRec, 0xEu) == 0xFFFFu,
+                  "the class slot is freed and its record marked removed");
+            object_setPlayer(-1);
+            memset(target, 0, 0x12u);
+            memset(node, 0, 0x12u);
+            memset(slotRec, 0, 0x12u);
+        }
+
+        /* type 0x17 half-1 command 0 -> index 48 (1000:EFD4, the turn), then
+         * half-0 command 0 -> index 49 (1000:EFD7, the idle form): with the
+         * latch set that is the LEAVE sequence 1000:EFE4, which nudges the
+         * record and runs the fall machine 1000:F6F6.  A 0xF0 cell at the
+         * probe's row makes it the platform branch. */
+        {
+            uint8_t *m = (uint8_t *)level_map();
+
+            object_setActionLatched(0);
+            wr16t(a, 8u, 0x17u);
+            wr16t(a, 4u, 0x20u);
+            wr16t(a, 0u, 100u);
+            wr16t(a, 2u, 100u);
+            wr16t(a, 0xEu, 0u);
+            check(object_commandRun(a, 0x81u) != OBJ_CMD_UNPORTED &&
+                  rd16t(a, 0xEu) == 4u,
+                  "type 0x17 half-1 command 0 arms the turn (+0xE = 4)");
+            if (m) m[198] = 0xF0u;   /* 2*(rowY-0x10) + (cx>>4), cx=110, rowY=112 */
+            check(object_commandRun(a, 0x01u) != OBJ_CMD_UNPORTED,
+                  "the latched idle command runs the leave sequence");
+            /* frame 0x20 != 0xBB, so the leave nudges LEFT (x -= 4) and the
+             * probe is at cx = 96 - 2 + 8 = 102, rowY = 112: the grid snap is
+             * ((102 + 8) & ~0xF) - 4 + 8 = 100, and y = rowY - 0x1C = 84. */
+            check(rd16t(a, 0u) == 100u && rd16t(a, 2u) == 84u,
+                  "the platform branch snaps to the tile grid (600): x 100, y 84");
+            check(rd16t(a, 4u) == 0xCDu && rd16t(a, 8u) == 0x1Cu,
+                  "the platform branch sets frame 0xCD / type 0x1C");
+            check(rd16t(a, 0xAu) == 9u && object_lastSfx() == 6u,
+                  "a nine-frame hold and effect 6");
+            if (m) m[198] = 0u;
+        }
+
+        /* type 0 half-1 command 2 -> index 29 (1000:EC99): the walk, then the
+         * neighbour pass.  A class-4 neighbour inside the window whose type
+         * magnitude is over 0xA is skipped (1000:FB7E); one under it takes the
+         * caller's +0xA delta (1000:FC21) or stays, depending on the item word's
+         * bit for its fine x. */
+        {
+            uint8_t *nb = object_slot(9u);
+
+            wr16t(a, 8u, 0u);
+            wr16t(a, 4u, 0x10u);
+            wr16t(a, 0u, 0x40u);
+            wr16t(a, 2u, 0x40u);
+            object_setSlotClass(1u, 4u);            /* live record 9's class */
+            wr16t(nb, 0u, 0x46u);                   /* the window of the probe */
+            wr16t(nb, 2u, 0x44u);
+            wr16t(nb, 8u, 0x20u);                   /* |type| > 0xA: skipped */
+            wr16t(nb, 6u, 0u);
+            check(object_commandRun(a, 0x88u) != OBJ_CMD_UNPORTED &&
+                  rd16t(nb, 8u) == 0x20u,
+                  "a neighbour with |type| > 0xA is skipped");
+            wr16t(nb, 8u, 0x8u);
+            wr16t(a, 0u, 0x40u);
+            (void)object_commandRun(a, 0x88u);
+            check(rd16t(nb, 8u) == 0x8u || rd16t(nb, 8u) == 0x12u,
+                  "a neighbour under the gate takes +0xA or keeps its type");
+            object_setSlotClass(1u, 5u);            /* restore the spear's class */
+        }
+        #undef rd16t
+        #undef wr16t
+    }
+
     /* 8. the camera follower (1000:5CB6): target = record - (0x88, 0x44),
      * clamped to the pan range (0xC0, 0xA8), 4 px per axis per frame; the
      * record's offset pair ([0x2D90] -> 0x2D92) is {0,0} at rest */
@@ -1378,6 +1731,10 @@ int main(int argc, char **argv)
 
         object_setActionEntity(0u);
         level_setView(0u, 0u);
+        /* 1000:5D37's walk is idle while [0x2D8E]'s bit 15 is set; the fall
+         * machine may have cleared it in an earlier test, so start from rest. */
+        level_set_offsetWord(0xFFFFu);
+        level_reset_offsetWalk();
         rec[0] = (uint8_t)(0x88u + 0x20u); rec[1] = 0x00u;  /* (0x20,0x10) */
         rec[2] = (uint8_t)(0x44u + 0x10u); rec[3] = 0x00u;
         level_followView();
@@ -1402,6 +1759,76 @@ int main(int argc, char **argv)
         level_setView(0u, 0u);
     }
 
+    #define wr16t2(r, o, v) ((r)[o] = (uint8_t)(v), (r)[(o) + 1] = (uint8_t)((v) >> 8))
+    /* 8b. 1000:5D37, the follower's offset walk.  The pair at [0x2D90] is added
+     * to the record's position before the clamp, and the pointer advances one
+     * pair per call while [0x2D8E]'s bit 15 is clear; on the last pair (0x2DA2)
+     * the original writes 0x2D92 into the *gate* and decrements it, leaving the
+     * pointer there - so the camera keeps the (1, 1) offset for good.  That is
+     * the write objFallMachine makes at 0xF8CE (`[0x2D8E] = vx >> 3`). */
+    {
+        uint8_t *rec = object_slot(0u);
+
+        object_setActionEntity(0u);
+        wr16t2(rec, 0u, 0x88u + 0x20u);
+        wr16t2(rec, 2u, 0x44u + 0x10u);
+        level_setView(0u, 0u);
+        level_set_offsetWord(0xFFFFu);      /* bit 15: the walk idles */
+        level_reset_offsetWalk();
+        for (unsigned i = 0; i < 16u; i++) level_followView();
+        check(level_viewX() == 0x20u && level_viewY() == 0x10u,
+              "an idle gate leaves the follower's target alone");
+        /* 0xF8CE's write: a small vertical speed clears bit 15 */
+        level_set_offsetWord(0x0000u);
+        for (unsigned i = 0; i < 16u; i++) level_followView();
+        check(level_viewX() == 0x21u && level_viewY() == 0x11u,
+              "the cleared gate walks the pairs and shifts the camera to (1, 1)");
+        check(level_offsetWord() == 0x2D91u,
+              "the last pair writes 0x2D91 into the gate (1000:5D47/5D4D)");
+    }
+    #undef wr16t2
+
+    /* 10. 1000:5C2F, the two TER.DAT slots.  object_array_init (0x4CAB) hides
+     * them with 0xFFFF in their +0x10 flag words - the live game reads exactly
+     * that (00 x16, ff ff, 00 00 in both slots) - so nothing is drawn until a
+     * slot is enabled by hand. */
+    {
+        static uint8_t page[320 * 200];
+        uint8_t *s0 = object_terSlotAt(0u);
+
+        check(s0 && (s0[0x10] | (s0[0x11] << 8)) == 0xFFFFu,
+              "1000:4CAB disables both TER slots (0x64AA/0x64BE = 0xFFFF)");
+        memset(page, 0, sizeof page);
+        object_renderTer(page, 0, 0);
+        {
+            unsigned nz = 0;
+
+            for (unsigned i = 0; i < sizeof page; i++) if (page[i]) nz++;
+            check(nz == 0u, "a disabled slot draws nothing (1000:587F)");
+        }
+        /* enable slot 0: index 0 -> TER source 0x40, y offset 6, 24 rows */
+        s0[0x10] = 0; s0[0x11] = 0;
+        s0[0] = 0x0C + 20; s0[1] = 0;      /* x: the sprite starts at 20 */
+        s0[2] = 30; s0[3] = 0;             /* y: 30 + the y offset 6 -> 36 */
+        s0[0x0C] = 0; s0[0x0D] = 0;        /* the 0x2D7E index */
+        memset(page, 0, sizeof page);
+        object_renderTer(page, 0, 0);
+        {
+            unsigned inside = 0, outside = 0;
+
+            for (unsigned y = 0; y < 200u; y++)
+                for (unsigned x = 0; x < 320u; x++) {
+                    int in = (x >= 20u && x < 52u && y >= 36u && y < 60u);
+                    if (page[y * 320u + x]) {
+                        if (in) inside++; else outside++;
+                    }
+                }
+            check(inside != 0u && outside == 0u,
+                  "an enabled slot draws the 32x24 cell at (x-0xC, y+yoff)");
+        }
+        s0[0x10] = 0xFFu; s0[0x11] = 0xFFu;   /* back off */
+    }
+
     /* 9. menu_loop's MAP screen (START): the card loads and the key exits */
     check(map_begin() == 1, "the MAP screen starts");
     {
@@ -1411,6 +1838,136 @@ int main(int argc, char **argv)
         check(map_tick(&k) == 1,
               "the MAP's first tick ignores the cutscene's held key");
         check(map_tick(&k) == 0, "a key leaves the MAP screen");
+    }
+
+
+    /* 9. the last four tails and the level-end probe, field by field.
+     *    These run last: they free records and re-arm the bar. */
+    {
+        #define R16(r, o) ((unsigned)((r)[o] | ((r)[(o) + 1] << 8)))
+        #define W16(r, o, v) ((r)[o] = (uint8_t)(v), (r)[(o) + 1] = (uint8_t)((v) >> 8))
+        uint8_t *t = object_slot(1u);
+        uint8_t *spare = object_slot(5u);
+
+        /* the odometer is armed from the level start (12 members, 4 required),
+         * so the probes below would take the goal form; empty it first to
+         * exercise 0xF5BC's taken branch, and re-arm it for the goal test. */
+        statusbar_setTribeDigits(0u, 0u);
+        check(!statusbar_tribeActive(), "an empty odometer is the taken branch");
+
+        /* --- 1000:DBCD (type 28): the 0x6868 table walk.  The stepper only
+         * fires when +0xA counts below zero, so each step re-seeds it. --- */
+        memset(spare, 0, 0x12u);
+        W16(spare, 8u, 28u);
+        W16(spare, 4u, 0x20u);
+        W16(spare, 0xCu, 0u);
+        W16(spare, 0xAu, 0u);
+        (void)object_commandRun(spare, 0x01u);
+        check(R16(spare, 4u) == 0xCDu && R16(spare, 0xCu) == 1u &&
+              R16(spare, 0xAu) == 9u,
+              "0xDBCD: the frame takes the 0x6868 byte and the cursor steps");
+        W16(spare, 0xAu, 0u);
+        (void)object_commandRun(spare, 0x01u);
+        check(R16(spare, 4u) == 0xCEu && R16(spare, 0xCu) == 2u,
+              "0xDBCD: the next byte (0x6868[1] = 0xCE)");
+        /* the climb: at frame 0xD3 with y not on a row boundary */
+        W16(spare, 4u, 0xD3u);
+        W16(spare, 2u, 0x45u);
+        W16(spare, 0xAu, 0u);
+        (void)object_commandRun(spare, 0x01u);
+        check(R16(spare, 2u) == 0x46u, "0xDBCD: at 0xD3 the record climbs a pixel");
+        /* and the row boundary runs the level-end probe (0xFFFF scratch pairs,
+         * a non-acting record: the taken branch) */
+        W16(spare, 2u, 0x40u);
+        W16(spare, 0xAu, 0u);
+        W16(spare, 6u, 0u);
+        (void)object_commandRun(spare, 0x01u);
+        check(R16(spare, 0u) == 0xFFFFu && R16(spare, 2u) == 0xFFFFu &&
+              spare[6] == 0xFFu && R16(spare, 8u) == 0x1Bu,
+              "0xDBCD: a row boundary runs 0xF5BC's taken branch");
+
+        /* --- 1000:DE7E (type 30): the 0x687C {dx, dy, flag} walk.  Every flag
+         * byte in the shipped table is 0x01, so the armed-odometer probe inside
+         * this tail is unreachable with the shipped data (re_map.md). --- */
+        memset(spare, 0, 0x12u);
+        W16(spare, 8u, 30u);
+        W16(spare, 4u, 0x20u);
+        W16(spare, 0xCu, 0u);
+        W16(spare, 0xAu, 0u);
+        (void)object_commandRun(spare, 0x01u);
+        check(R16(spare, 0xCu) == 2u && R16(spare, 0xAu) == 6u &&
+              R16(spare, 4u) == 0x21u,
+              "0xDE7E: entry {1, 6, 1} steps the cursor, hold and frame");
+        W16(spare, 0xCu, 0x0Cu);          /* the {-1, 0x32, 1} entry */
+        W16(spare, 0xAu, 0u);
+        (void)object_commandRun(spare, 0x01u);
+        check(R16(spare, 0xCu) == 0x0Eu && R16(spare, 0xAu) == 0x32u &&
+              R16(spare, 4u) == 0x20u,
+              "0xDE7E: entry {-1, 0x32, 1} walks the frame down");
+
+        /* --- 1000:DED1 (type 34): both +6-bit-7 states and the +0xC match --- */
+        memset(spare, 0, 0x12u);
+        W16(spare, 8u, 34u);
+        W16(spare, 0xAu, 1u * 0x12u + 4u);  /* the link to slot 1 */
+        W16(spare, 0xEu, 0x77u);
+        memset(t, 0, 0x12u);
+        W16(t, 4u, 2u);                    /* the target's +4 = 2 */
+        W16(t, 0xCu, 0x77u);
+        (void)object_commandRun(spare, 0x01u);
+        check(spare[6] == 0x80u,
+              "0xDED1: a +0xC == +0xE match on a 2/3 target sets bit 7");
+        spare[6] = 0x80u;
+        t[4] = 2u;
+        (void)object_commandRun(spare, 0x01u);
+        check(spare[6] == 0x80u && R16(spare, 4u) == 0u,
+              "0xDED1: with bit 7 set a 2/3 target holds");
+        /* bit 7 set and a target outside 2..3 → the probe (taken branch) */
+        W16(t, 4u, 5u);
+        W16(spare, 0x10u, 0x40u);
+        (void)object_commandRun(spare, 0x01u);
+        check(R16(spare, 0u) == 0xFFFFu && spare[6] == 0xFFu,
+              "0xDED1: bit 7 + a non-2/3 target runs the probe");
+        /* bit 7 clear and a target outside 2..3 → the home form */
+        memset(spare, 0, 0x12u);
+        W16(spare, 8u, 34u);
+        W16(spare, 0xAu, 1u * 0x12u + 4u);
+        W16(spare, 4u, 0x21u);
+        W16(spare, 0xCu, 0x55u);
+        W16(t, 8u, 0u);
+        (void)object_commandRun(spare, 0x01u);
+        check(R16(spare, 4u) == 0x10u && R16(spare, 8u) == 2u &&
+              R16(spare, 0xAu) == 0u && R16(spare, 0xCu) == 0u,
+              "0xDED1: bit 7 clear + a non-2/3 target is the home form");
+
+        /* --- 1000:EF66 (type 22): the 5-frame step to frame 0x2E, then the
+         * probe.  With the odometer empty the record is taken. --- */
+        memset(spare, 0, 0x12u);
+        W16(spare, 8u, 22u);
+        W16(spare, 4u, 0x2Du);
+        W16(spare, 0xAu, 0u);
+        (void)object_commandRun(spare, 0x01u);
+        check(R16(spare, 4u) == 0x2Eu && R16(spare, 0xAu) == 5u &&
+              R16(spare, 0u) == 0xFFFFu && R16(spare, 8u) == 0x1Bu,
+              "0xEF66: the step to 0x2E runs 0xF5BC's taken branch");
+
+        /* --- 1000:F5BC's goal branch: with the tribe odometer showing a count
+         * the record takes the goal form instead (frame 0x2D / type 0x21). --- */
+        statusbar_setTribeDigits(0u, 4u);   /* the digits show "04" */
+        check(statusbar_tribeActive(), "the odometer is armed for the goal form");
+        memset(spare, 0, 0x12u);
+        W16(spare, 8u, 34u);
+        W16(spare, 0xAu, 1u * 0x12u + 4u);
+        W16(spare, 0x10u, 100u);            /* -> [0x4220] */
+        W16(spare, 0xEu, 0u);
+        spare[6] = 0x80u;                   /* bit 7: the probe path */
+        W16(t, 4u, 5u);
+        W16(t, 8u, 50u);                    /* -> [0x4222] = 50 + 0x28 */
+        (void)object_commandRun(spare, 0x01u);
+        check(R16(spare, 4u) == 0x2Du && R16(spare, 8u) == 0x21u &&
+              R16(spare, 0xAu) == 5u && R16(spare, 0u) == 92u,
+              "0xF5BC: the armed odometer takes the goal form at [0x4220] - 8");
+        #undef R16
+        #undef W16
     }
 
     if (bad) { fprintf(stderr, "flow: FAIL\n"); return 1; }

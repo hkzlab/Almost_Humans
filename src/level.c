@@ -57,6 +57,10 @@ static uint8_t levelMapCopy[640];
 static int level_loaded;
 static uint8_t *boxSpr;           /* apl\box.spr (the dialog tiles)      */
 static uint8_t *objBank;          /* apl\sprites.dat (the object sprites) */
+static uint8_t *entBank;          /* apl\rex.dat (the entity sprites)     */
+static uint32_t entBankSize;
+static uint8_t *terBank;          /* apl\TER.dat (the 0x649A slots)       */
+static uint32_t terBankSize;
 static uint32_t objBankSize;
 static uint32_t boxSize;
 static uint8_t levelPal[768];     /* the working palette 202F:0x14D3     */
@@ -132,6 +136,17 @@ static unsigned viewX, viewY;
  * (1000:3CAB), so the world is frozen while the claim's blocking sequence
  * runs.  Zero until the level's own chain reaches that store. */
 static int worldUpdates;
+/* [0x2D8E]: the follower's +-1 px offset walk enabler.  Its two writers are
+ * 1000:DAC7 (the entity/collision path) and 0xF8CE (the fall machine); the walk
+ * itself over 0x2D92..0x2DA2 is not modelled, so the follower still runs with
+ * the pair at {0,0} - but the word the fall machine writes is kept. */
+static uint16_t levelOffsetWord = 0xFFFFu;   /* [0x2D8E]: bit 15 idles the walk */
+/* DS:0x2D92..0x2DA4 - the follower's five offset pairs, read through the
+ * pointer at [0x2D90] (0x2D92 at rest).  [0x2DA2]'s pair is (1, 1). */
+static const int16_t levelOffsetPairs[10] = {
+    0, 0,  1, -1,  -1, 1,  -1, -1,  1, 1,
+};
+static uint16_t levelOffsetPtr = 0x2D92u;   /* [0x2D90] */
 static unsigned levelRequired;    /* [0x17FB]: the map's 0xAA count        */
 static unsigned membersAtStart;   /* [0x1970]: the members at level start  */
 static int      endRequested;     /* the play loop's exit (35D6's -1)      */
@@ -622,6 +637,18 @@ int level_load(unsigned levelId)
     objBank = res_loadChunk("APL\\SPRITES.DAT", &objBankSize, NULL);
     object_publishBank(objBank, objBankSize);
 
+    /* load_level_assets 1000:4F82: apl\rex.dat into the entity slot [0x13AD]
+     * (the entity pass's bank, 1000:5823). */
+    free(entBank); entBank = NULL; entBankSize = 0;
+    entBank = res_loadChunk("APL\\REX.DAT", &entBankSize, NULL);
+    entity_publishBank(entBank, entBankSize);
+
+    /* load_level_assets 1000:4F89: apl\TER.dat into [0x13AF] (the 0x649A
+     * slots' draw pass, 1000:5C2F). */
+    free(terBank); terBank = NULL; terBankSize = 0;
+    terBank = res_loadChunk("APL\\TER.DAT", &terBankSize, NULL);
+    object_publishTer(terBank, terBankSize);
+
     /* the level's placed objects (load_terrain_b 1000:5168): the array is
      * cleared, then the map's 0xAA/0xAB cells become the humans and the spear. */
     object_init();
@@ -881,6 +908,40 @@ void level_setView(unsigned x, unsigned y)
     viewY = y;
 }
 
+/* The pair the follower adds to the record's position ([0x2D90] indexes
+ * DS:0x2D92..0x2DA4).  Outside that range the original would read whatever
+ * follows in DS; the pointer cannot leave it (see the walk below), so the port
+ * returns zero there. */
+static void level_offsetPair(int *dx, int *dy)
+{
+    unsigned i = (unsigned)(levelOffsetPtr - 0x2D92u) / 2u;
+
+    if (i + 1u < sizeof levelOffsetPairs / sizeof levelOffsetPairs[0]) {
+        *dx = levelOffsetPairs[i];
+        *dy = levelOffsetPairs[i + 1u];
+    } else {
+        *dx = 0;
+        *dy = 0;
+    }
+}
+
+/* 1000:5D37: the walk at the end of clip_object_x.  While [0x2D8E]'s bit 15 is
+ * clear the pointer advances one pair per call (4 bytes); on the last pair
+ * (0x2DA2) the original stores `0x2D92` into [0x2D8E] and then decrements that
+ * word - i.e. it writes 0x2D91 into the GATE and leaves the pointer on the last
+ * pair, so the camera keeps the (1, 1) offset and the gate stays 0x2D91 from
+ * then on.  Transcribed as it stands. */
+static void level_offsetWalk(void)
+{
+    if (levelOffsetWord & 0x8000u) return;
+    if (levelOffsetPtr != 0x2DA2u) {
+        levelOffsetPtr = (uint16_t)(levelOffsetPtr + 4u);
+        return;
+    }
+    levelOffsetWord = 0x2D92u;
+    levelOffsetWord = (uint16_t)(levelOffsetWord - 1u);   /* 0x2D91 */
+}
+
 /* 1000:5CB6 — the first call of `update_world` (`1000:80AD`), guarded there by
  * `[0xC] != 0`: the camera follows the **acting record** (`get_object_ptr`,
  * `1000:79F4`, walks the 29-word table at `0x3E24` with `[0x3E22]`, i.e.
@@ -894,8 +955,9 @@ void level_setView(unsigned x, unsigned y)
  * The offset pair is **{0,0} at rest** and that is the only state the port
  * needs: `[0x2D90]` = 0x2D92 (the first pair of the 0x2D92..0x2DA2 table) and
  * `[0x2D8E]` = 0xFFFF, whose bit 15 idles the 4-entry +-1 px walk at 0x5D37.
- * The walk's only enabler is `MOV [0x2D8E], AX` (0xDAC7), inside the
- * entity/collision path that is not ported — so the pair stays {0,0} here too.
+ * The walk has exactly two enablers, both `MOV [0x2D8E], ...`: `0xDAC7` (the
+ * entity/collision path) and `0xF8CE` (the fall machine's slow descent, also
+ * unported) - so the pair stays {0,0} here too.
  * `update_view` (1000:80F1) then scrolls the page by the difference; the flat
  * compose reads the window directly, which is the same visible result. */
 void level_followView(void)
@@ -906,6 +968,13 @@ void level_followView(void)
     if (!rec) return;
     x = (int16_t)(uint16_t)(rec[0] | ((uint16_t)rec[1] << 8));
     y = (int16_t)(uint16_t)(rec[2] | ((uint16_t)rec[3] << 8));
+    {
+        int ox, oy;
+
+        level_offsetPair(&ox, &oy);                  /* 1000:5CCB/5CCD */
+        x += ox;
+        y += oy;
+    }
     tx = x - 0x88;
     ty = y - 0x44;
     tx = tx < 0 ? 0 : (tx > 0xC0 ? 0xC0 : tx);
@@ -916,6 +985,7 @@ void level_followView(void)
     if (dy > 4) dy = 4; else if (dy < -4) dy = -4;
     viewX = (unsigned)((int)viewX + dx);
     viewY = (unsigned)((int)viewY + dy);
+    level_offsetWalk();                              /* 1000:5D37 */
 }
 
 unsigned level_viewX(void) { return viewX; }
@@ -925,6 +995,11 @@ unsigned level_viewY(void) { return viewY; }
  * the closing page frames (1000:3CAB). */
 void level_setUpdates(int on) { worldUpdates = on ? 1 : 0; }
 int  level_updates(void) { return worldUpdates; }
+void level_set_offsetWord(uint16_t v) { levelOffsetWord = v; }
+uint16_t level_offsetWord(void) { return levelOffsetWord; }
+/* test seam: the walk's pointer back to the table's first pair */
+void level_reset_offsetWalk(void) { levelOffsetPtr = 0x2D92u; }
+
 
 void level_begin(void)
 {
@@ -965,6 +1040,8 @@ int level_starting(void)
 
 unsigned level_required(void) { return levelRequired; }
 unsigned level_members(void)  { return tribeMembers; }
+/* 1000:DE1F: the join tail increments the tribe count ([0x11FC]). */
+void level_addMember(void) { if (tribeMembers < 0xFFu) tribeMembers++; }
 
 /* level_restore (1000:35AF): the members go back to the level's own start
  * value, then level_start re-picks the time (the port re-runs level_load, so
@@ -1008,6 +1085,10 @@ int level_endTest(void)
 
 void level_requestEnd(int won) { endRequested = 1; endWon = won ? 1 : 0; }
 int  level_ended(void)   { return endRequested; }
+/* 1000:F66D: the goal-record tail's "no survivor" exit sets [0x138E] = 0 and
+ * ends the play loop (the same state object_test_dispatch's negative return
+ * produces, reached from the object machine instead). */
+void level_setEnd(int won) { endRequested = 1; endWon = won ? 1 : 0; }
 int  level_outcome(void) { return endWon; }
 
 /* page_offset_to_ptr (1000:F123): 0 when the tile id's 16-byte page mask is
@@ -1038,6 +1119,18 @@ unsigned level_pageByte(unsigned id, unsigned subcol)
 
 /* The `[0x1FD6]` item record's `row` word: `B + word[B + 2*id]` then `2*row`,
  * i.e. the 16-bit sub-cell occupancy mask 1000:F25F tests. 0xFFFF when absent. */
+/* The item record's raw byte at `off` from the tile's offset (1000:EC27 reads
+ * one byte, not a word: the same table `level_itemWord` indexes by row). */
+unsigned level_itemByte(unsigned id, unsigned off)
+{
+    unsigned o;
+
+    if (!pageValid || id > 0xFFu) return 0x80u;
+    o = rd_le16(pageItems + 2u * id);
+    if (o + off >= pageItemsSize) return 0x80u;
+    return pageItems[o + off];
+}
+
 unsigned level_itemWord(unsigned id, unsigned row)
 {
     unsigned off;
@@ -1145,6 +1238,13 @@ static void renderWorld(void)
     /* the object pass (render_objects 1000:5D56): the placed records' base
      * sprites over the terrain, before the bar */
     object_render(page, (int)viewX, (int)viewY);
+
+    /* the entity pass (render_objects 1000:5D56: 0x6421 then 0x5823) */
+    entity_render(page, (int)viewX, (int)viewY);
+
+    /* update_object_list's tail: the two TER.DAT slots (1000:5C2F), off on
+     * shipped data because 1000:4CAB disables them */
+    object_renderTer(page, (int)viewX, (int)viewY);
 
     /* the bar over the world rows (the original's band lives below the
      * 192-row visible window via the line compare; the flat page redraws
