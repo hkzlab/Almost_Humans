@@ -177,6 +177,7 @@ int  statusbar_timeUp(void);
 int  statusbar_tribeActive(void);
 /* test seam: sets the odometer digits ([0x5B25]/[0x5B26]) that 1000:F5BC gates on. */
 void statusbar_setTribeDigits(unsigned tens, unsigned ones);
+unsigned statusbar_tribeValue(void);     /* [0x5B25]*10 + [0x5B26] */
 /* [0x5B12]: the ticking gate (the in-level dialogs clear it). */
 void statusbar_setActive(int on);
 /* [0x5B56] (1..6): the current ACTION program — draws both the program and
@@ -292,6 +293,22 @@ int  map_tick(const InputState *in);        /* 1 = still up              */
  * remaining seconds x 10; a lost level is 0.  The placed-object bonuses are
  * the one term the object array (0x3E75) still owes. */
 unsigned score_levelScore(void);
+/* --- check_highscore's data (1000:41B8..4352) ------------------------- */
+unsigned score_members(void);                /* [0x11FC]'s recompute      */
+void     score_prepare(void);                /* terms, best, NEW RECORD, totals */
+int      score_countersRun(void);            /* 1000:475D: one 10-point step */
+int      score_isRecord(void);               /* [0x1DD6]                  */
+int      score_blinkTick(void);              /* 1000:467A: 1 = phase flipped */
+int      scoreBlinkOn(void);                 /* [0x1DC4]: 1 = the stamp is up */
+void     score_stampDraw(uint8_t *page, int on);   /* 1000:46FC / 0x46A3 */
+void     score_column(uint8_t *page, uint32_t value, int x, int y, unsigned digits);
+void     score_drawColumns(uint8_t *page);   /* 1000:4471                 */
+void     score_drawNum3(uint8_t *page, unsigned ax, uint16_t value,
+                        unsigned bx, unsigned bp);   /* 1000:44BB / 0x450F */
+uint16_t score_bestFor(unsigned level);      /* DS:0x38A + level*2        */
+uint16_t score_bestTime(void);               /* [0x1E88]                  */
+unsigned score_totalLo(void), score_totalHi(void);    /* [0x592]/[0x594]   */
+unsigned score_shownLo(void), score_shownHi(void);    /* [0x1DD2]/[0x1DD4] */
 int  score_begin(unsigned value);           /* 1 = the screen is up      */
 int  score_tick(const InputState *in);      /* 1 = still up              */
 /* level_fade_in (1000:3334): the start chain — fade out of the pre-level

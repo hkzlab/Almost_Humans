@@ -79,6 +79,9 @@ static uint8_t elapsed[3];
 static uint8_t td[2];
 /* 1000:F5E3: the "anything collected" test ([0x5B25] | [0x5B26] != 0). */
 int statusbar_tribeActive(void) { return (td[0] | td[1]) != 0; }
+/* The two digits as the number the check_highscore arithmetic reads (1000:41B8:
+ * `[0x5B25]*10 + [0x5B26]`). */
+unsigned statusbar_tribeValue(void) { return (unsigned)td[0] * 10u + td[1]; }
 /* The odometer's digits are [0x5B25]/[0x5B26]; the game only writes them through
  * statusbar_start (members - required) and the roll animation.  This setter is
  * a test seam for the object machine's level-end probe, whose two branches key

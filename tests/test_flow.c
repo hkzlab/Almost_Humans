@@ -1388,15 +1388,198 @@ int main(int argc, char **argv)
 
     /* 7d. check_highscore's score/record screen (START): SCORE.BIT, the
      * score line, the key, the 0x100 fade and the 0x4B hold */
+    /* 8a. check_highscore's data (1000:41B8..4352): the member recount, the
+     * best-time table with its 0x0999 sentinel, the NEW RECORD flag and the
+     * running total the screen counts up. */
+    {
+        unsigned before;
+        unsigned t1;
+
+        for (unsigned i = 0; i < object_staticSlots(); i++) {
+            uint8_t *r = object_slot(i);
+
+            if (r) r[6] |= 0x80u;                  /* all inactive */
+        }
+        statusbar_setTribeDigits(1u, 2u);          /* the odometer shows 12 */
+        check(score_members() == 12u,
+              "the member count is the odometer plus the live records");
+        {
+            uint8_t *r0 = object_slot(0u);
+
+            if (r0) r0[6] &= 0x7Fu;                /* one active record */
+            check(score_members() == 13u, "an active record adds one");
+            if (r0) r0[6] |= 0x80u;
+        }
+        check(score_bestFor(1u) == 0x0999u,
+              "the best-time table ships as the 0x0999 sentinel");
+        before = score_totalLo() | (score_totalHi() << 16);
+        score_prepare();
+        check(score_isRecord() == 1 && score_bestFor(1u) == statusbar_elapsedWord() &&
+              score_bestTime() == statusbar_elapsedWord(),
+              "the first win beats the sentinel and stores its elapsed time");
+        check(score_shownLo() == (before & 0xFFFFu) &&
+              score_shownHi() == (before >> 16),
+              "the displayed total starts at the old running total");
+        t1 = score_totalLo() | (score_totalHi() << 16);
+        check(t1 > before, "the running total keeps the level's two terms");
+        score_prepare();                            /* the same elapsed time */
+        check(score_isRecord() == 0,
+              "an equal (not better) time is not a new record");
+        check((score_totalLo() | (score_totalHi() << 16)) > t1,
+              "a second level adds its terms again");
+        {
+            unsigned guard = 0;
+
+            while (score_countersRun() && guard++ < 20000u) { }
+            check(guard < 20000u &&
+                  score_shownLo() == score_totalLo() &&
+                  score_shownHi() == score_totalHi(),
+                  "1000:475D counts the display up to the running total");
+        }
+    }
+
     check(score_begin(0u) == 1, "the score screen starts");
     /* check_highscore (1000:41ae) writes CRTC 0x12 = 0x8F: the level's
      * mode-X field goes back to the 320x200 one */
     check(osys_null_videoMode() == VIDEO_MODE_13H,
           "the score screen switches the display back to mode 13h");
+    /* 1000:428D sets CRTC 0x12 = 0x8F (400 scanlines = the 320x200 field) at
+     * the screen's start, so the entry mode is the card's; 0x439F's 0x8300 is
+     * the full mode set at the end. */
+    {
+        const uint8_t *pg = osys_null_page(0);
+        unsigned low = 0, high = 0;
+
+        for (unsigned i = 0; i < 320u * 200u; i++) {
+            /* the card biases to 0xC0..0xFF; the digits and the NEW RECORD line
+             * draw 0x0F; nothing may land in the un-biased 0x01..0x0E or
+             * 0x10..0xBF ranges */
+            if (pg[i] >= 0xC0u) high++;
+            else if (pg[i] != 0u && pg[i] != 0x0Fu) low++;
+        }
+        check(low == 0u && high != 0u,
+              "the card's pixels are 0xC0 + the 6-bit index (1000:4403)");
+    }
     {
         InputState k;
         memset(&k, 0, sizeof k);
         k.lastKey = 1;
+    /* 8a-digit. 1000:462D's digit law: block `digit*256` of SCORE.SPR, 16 rows
+     * x 4 bytes, one byte = 4 px (bits 0..3), all four plane passes equal so a
+     * set bit is 0xF.  Digit 3 is block 12 (SI = 3*256 = 12*64); its row 0 is
+     * 02 02 02 02 -> cols 1, 5, 9, 13, and row 2 is 02 29 2d 0c -> cols
+     * 1, 4, 7, 8, 10, 11, 14, 15. */
+    {
+        static uint8_t page[320 * 200];
+        static uint8_t page2[320 * 200];
+
+        memset(page, 0, sizeof page);
+        score_column(page, 3u, 0, 0, 1u);
+        check(page[0 * 320u + 1] == 0x0Fu && page[0] == 0u && page[2] == 0u,
+              "1000:462D: digit 3 sets (row 0, col 1) only");
+        check(page[2 * 320u + 4] == 0x0Fu && page[2 * 320u + 7] == 0x0Fu &&
+              page[2 * 320u + 2] == 0u,
+              "the block's low-nibble bits are the row's four pixels");
+        /* 1234 in 5 digits is "01234", right to left in 16-px steps */
+        memset(page, 0, sizeof page);
+        memset(page2, 0, sizeof page2);
+        score_column(page, 1234u, 0, 0, 5u);
+        score_column(page2, 0u, 0, 0, 1u);
+        score_column(page2, 1u, 16, 0, 1u);
+        score_column(page2, 2u, 32, 0, 1u);
+        score_column(page2, 3u, 48, 0, 1u);
+        score_column(page2, 4u, 64, 0, 1u);
+        check(memcmp(page, page2, sizeof page) == 0,
+              "a 5-digit column is zero-padded and 16 px per digit");
+    }
+
+        /* 1000:44BB draw_scorenum_three_passes: the elapsed and best times are
+         * three SCORENUM digits at row 181, px 80..87 and px 240..247, every
+         * byte stored as v | 0xC0 (0x450F: 8 rows x 2 page bytes, +0x58/row). */
+        {
+            static uint8_t a[320 * 200], b[320 * 200];
+            unsigned ina = 0, outside = 0, low = 0, diff = 0;
+
+            memset(a, 0, sizeof a);
+            memset(b, 0, sizeof b);
+            score_drawNum3(a, 0x50u, 0x0123u, 0xB5u, 0u);
+            score_drawNum3(b, 0x50u, 0x0456u, 0xB5u, 0u);
+            for (unsigned i = 0; i < sizeof a; i++) {
+                unsigned y = i / 320u, x = i % 320u;
+                if (a[i]) {
+                    if (y < 181u || y >= 189u || x < 104u || x >= 128u) outside++;
+                    else if (a[i] < 0xC0u) low++;
+                    else ina++;
+                }
+                if (a[i] != b[i]) diff++;
+            }
+            check(ina != 0u && outside == 0u && low == 0u,
+                  "1000:44BB draws the time digits at row 181, px 104..127");
+            check(diff != 0u, "a different time draws different digits");
+            memset(a, 0, sizeof a);
+            score_drawNum3(a, 0xF0u, 0x0123u, 0xB5u, 0x280u);
+            {
+                unsigned hit = 0;
+
+                for (unsigned y = 181u; y < 189u; y++)
+                    for (unsigned x = 264u; x < 288u; x++)
+                        if (a[y * 320u + x]) hit++;
+                check(hit != 0u, "the best time sits at px 264 with BP = 0x280");
+            }
+        }
+
+        /* 1000:475D's tail + [0x1DC8] = 0x15E: once both terms are spent the
+         * screen runs its own countdown and then ends by itself. */
+        {
+            unsigned ticks = 0;
+
+            score_prepare();
+            while (score_countersRun() && ticks < 100000u) ticks++;
+            check(ticks >= 0x15Eu + 0x50u && ticks < 100000u,
+                  "1000:475D: the screen ends on its own 0x15E countdown");
+        }
+
+        /* 1000:46FC: the NEW RECORD stamp - apl\RECORD.SPR's 16x24 cell drawn
+         * at row 176, byte column 32 (px 128..191), one value per 4-px group,
+         * non-zero as 0xC0 + v.  The shipped file's values are only {0, 2, 3},
+         * so every set pixel must be 0xC2 or 0xC3, and its first four rows are
+         * empty. */
+        {
+            static uint8_t page[320 * 200];
+            unsigned set = 0, bad = 0, top = 0, outside = 0;
+
+            memset(page, 0, sizeof page);
+            score_stampDraw(page, 1);
+            for (unsigned y = 0; y < 200u; y++)
+                for (unsigned x = 0; x < 320u; x++) {
+                    uint8_t v = page[y * 320u + x];
+
+                    if (!v) continue;
+                    if (x < 128u || x >= 192u || y < 176u || y >= 200u) outside++;
+                    else if (y < 180u) top++;
+                    else if (v != 0xC2u && v != 0xC3u) bad++;
+                    else set++;
+                }
+            check(set != 0u && bad == 0u && top == 0u && outside == 0u,
+                  "1000:46FC: the stamp is 0xC0 + RECORD.SPR's 2/3 values, 64x24");
+            score_stampDraw(page, 0);
+            {
+                unsigned nz = 0;
+
+                for (unsigned i = 0; i < sizeof page; i++) if (page[i]) nz++;
+                check(nz == 0u, "the off phase clears the stamp's cell");
+            }
+        }
+
+        /* 1000:467A: with NEW RECORD set the 0x19-frame blink toggles; at the
+         * 26th tick the phase flips once (the previous 8a prepared a record) */
+        if (score_isRecord()) {
+            unsigned flips = 0;
+
+            for (unsigned i = 0; i < 26u; i++) if (score_blinkTick()) flips++;
+            check(flips == 1u, "1000:467A: the NEW RECORD blink toggles once");
+        }
+
         check(score_tick(&k) == 1, "the score screen's first tick arms");
         check(score_tick(&k) == 1, "the score screen waits on the card");
         for (unsigned t = 0; t < 80u && palette_fadeActive(); t++) palette_tick();
