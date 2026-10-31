@@ -15,7 +15,7 @@
  *   +0x8  u16 type               0x1D/0x1E are the "not a human" markers
  *                                (`check_highscore`); < 3 gates the claim
  *   +0xA..+0x11                  the spawn's four parameter words, copied
- *                                from the recipe (4F43..4F4C -> 5049..5061)
+ *                                from the recipe (1000:3B43..1000:3B4C -> 1000:3C49..1000:3C61)
  *
  * The placed records are built by `load_terrain_b`'s tile walk
  * (`object_loadTerrainObjects`: the map's `0xAA` humans + `0xAB` spears), their
@@ -316,7 +316,7 @@ int object_lowPhaseMatch(void)
     if (lastFrame == objFrame) return 0;            /* once per frame */
     lastFrame = objFrame;
     if (objMapCell(objActor()) != 0xA8u) {
-        lowPhaseCount = 0u;                         /* 4A2C */
+        lowPhaseCount = 0u;                         /* 1000:362C */
         return 0;
     }
     if (++lowPhaseCount != 0x8Cu) return 0;
@@ -328,37 +328,37 @@ int object_lowPhaseMatch(void)
  * The op runs with SI = the **acting entity's** record (`0x8DF4`: the current
  * entity index `[0x3E22]` through the pointer table `[0x3E24]`), and is
  * dispatched from the jump table at `CS:0x399C`; the three handlers at
- * 4E5A/4E5F/4E64 pass AX = 1, 0 and 3, the recipe index.  The claimed
+ * 1000:3A5A/1000:3A5F/1000:3A64 pass AX = 1, 0 and 3, the recipe index.  The claimed
  * record `[0x1AF2]` is only ever *written* here.
  *
- * The gate and the scan (4E6D..4ED9): the actor's type must be <= 2 and the
+ * The gate and the scan (1000:3A6D..1000:3AD9): the actor's type must be <= 2 and the
  * recipe (`202F:0x19BA + 12*AX`, `[recipe+0]` = the remaining uses) must
  * still have a use; then the other eight records are scanned in array order
  * for `|dx| <= 0x20`, `|dy| <= 8`, `type <= 2`, `+6` bit 7 clear.  The first
  * hit is the neighbour.
  *
- * The writes (4EDC..4F1E): the neighbour's source slot `[0x3E5F+class-1]` is
+ * The writes (1000:3ADC..1000:3B1E): the neighbour's source slot `[0x3E5F+class-1]` is
  * cleared and its live record (`0x3F17 + 0x12*(class-1)`) gets
  * `+6 = 0xFFFF`; `[0x1AF2]` becomes the neighbour with frame `0x103` and
  * flags 0; the **actor** gets frame `0x20`; the status bar goes off
  * (`[0x5B12] = 0`); the fade ramp `202F:0x48BC` is filled.
  *
- * The sequence (4F33..50F0), one port tick per original frame (`0x9F56` = one
+ * The sequence (1000:3B33..1000:3CF0), one port tick per original frame (`0x9F56` = one
  * vsync, `0x54CA`/`0x9BF8` = a presented frame):
  *
  *   red     entries 1..0x7F -> (0x3F,0,0), div 5, then -> the level div 0x1E
- *   white   1..0x7F -> (0x3F,0x3F,0x3F), div 5, then `0x5104`'s two-frame pan
+ *   white   1..0x7F -> (0x3F,0x3F,0x3F), div 5, then `1000:3D04`'s two-frame pan
  *           (**not ported**: the port's view is unscrolled), then -> the
  *           level div 0x19
  *   frame   one `0x9F56`
  *   blinks  10x: the 0x80 bank -> white div n, -> the level div n, n = 10..1
  *           (2 * (10+...+1) = 110 frames)
- *   anim    6 passes of 8 waits + the frame that does the `frame++` (4FE9),
+ *   anim    6 passes of 8 waits + the frame that does the `frame++` (1000:3BE9),
  *           then two frames = 56 frames; the neighbour goes 0x103 -> 0x109
- *   append  (4FF9..5064) x from the neighbour, y = neighbour + 9, the stashed
+ *   append  (1000:3BF9..1000:3C64) x from the neighbour, y = neighbour + 9, the stashed
  *           recipe fields, `[0x3E73]++`, the behaviour id into the source
  *           slots
- *   reveal  `init_dirty_cell_list` (0x5273) then `flush_dirty_cell_list`
+ *   reveal  `init_dirty_cell_list` (`1000:3C70`) then `flush_dirty_cell_list`
  *           (0x534A) looping `queue_dirty_cell_packed` (0x53B3) until
  *           `[0x1B02]`: 0x100 dirty cells queued from the 0x1B76 coordinate
  *           table over the 0x48BC list, shaded from 0x19EA — **not ported**
@@ -369,20 +369,20 @@ int object_lowPhaseMatch(void)
  */
 enum {
     CLAIM_OFF,
-    CLAIM_TO_RED,        /* 4F56  1..0x7F -> red, div 5                */
-    CLAIM_RED_BACK,      /* 4F68  -> the level palette, div 0x1E       */
-    CLAIM_TO_WHITE,      /* 4F82  1..0x7F -> white, div 5              */
-    CLAIM_PAN,           /* 4F91  0x5104: the two-frame pan            */
-    CLAIM_WHITE_BACK,    /* 4F97  -> the level palette, div 0x19       */
-    CLAIM_FRAME,         /* 4FA9  one 0x9F56 frame, then the blinks    */
-    CLAIM_BLINK_WHITE,   /* 4FB3  the 0x80 bank -> white, div n        */
-    CLAIM_BLINK_LEVEL,   /* 4FC3  the 0x80 bank -> the level, div n    */
-    CLAIM_ANIM,          /* 4FD6  6 x 9 frames, `frame++` per pass     */
-    CLAIM_HOLD,          /* 507D  41 frames                            */
-    CLAIM_WHITE_OUT,     /* 5088  1..0xBF -> white, div 5              */
-    CLAIM_FRAME2,        /* 509F  one frame, then the remove           */
-    CLAIM_FLIP,          /* 50B5  the two page frames                  */
-    CLAIM_SETTLE         /* 50DE  1..0xBF -> the level, div 0x28       */
+    CLAIM_TO_RED,        /* 1000:3B56  1..0x7F -> red, div 5                */
+    CLAIM_RED_BACK,      /* 1000:3B68  -> the level palette, div 0x1E       */
+    CLAIM_TO_WHITE,      /* 1000:3B82  1..0x7F -> white, div 5              */
+    CLAIM_PAN,           /* 1000:3B91  1000:3D04: the two-frame present    */
+    CLAIM_WHITE_BACK,    /* 1000:3B97  -> the level palette, div 0x19       */
+    CLAIM_FRAME,         /* 1000:3BA9  one 0x9F56 frame, then the blinks    */
+    CLAIM_BLINK_WHITE,   /* 1000:3BB3  the 0x80 bank -> white, div n        */
+    CLAIM_BLINK_LEVEL,   /* 1000:3BC3  the 0x80 bank -> the level, div n    */
+    CLAIM_ANIM,          /* 1000:3BD6  6 x 9 frames, `frame++` per pass     */
+    CLAIM_HOLD,          /* 1000:3C7D  41 frames                            */
+    CLAIM_WHITE_OUT,     /* 1000:3C88  1..0xBF -> white, div 5              */
+    CLAIM_FRAME2,        /* 1000:3C9F  one frame, then the remove           */
+    CLAIM_FLIP,          /* 1000:3CB5  the two page frames                  */
+    CLAIM_SETTLE         /* 1000:3CDE  1..0xBF -> the level, div 0x28       */
 };
 
 static int      claimPhase = CLAIM_OFF;
@@ -403,7 +403,7 @@ static void claimFillRamp(uint8_t *ramp, unsigned r, unsigned g, unsigned b)
     }
 }
 
-/* The scan at 4E91..4ED9, for the acting record `actor`. */
+/* The scan at 1000:3A91..1000:3AD9, for the acting record `actor`. */
 int object_findNeighbour(int actor)
 {
     const uint8_t *cur;
@@ -418,7 +418,7 @@ int object_findNeighbour(int actor)
         const uint8_t *r = objArray + i * OBJ_STRIDE;
         int dx, dy;
 
-        if ((int)i == actor) continue;               /* 4E9C */
+        if ((int)i == actor) continue;               /* 1000:3A9C */
         if (rd16(r, 8u) > 2u) continue;              /* type <= 2 */
         dx = (int)(int16_t)rd16(r, 0u) - cx;
         dy = (int)(int16_t)rd16(r, 2u) - cy;
@@ -440,26 +440,31 @@ int object_claimBegin(unsigned recipe, int actor)
     if (actor < 0 || (unsigned)actor >= OBJ_STATIC) return -1;
     if (recipe >= 4u) return -1;
     if (rd16(objArray + actor * OBJ_STRIDE, 8u) > 2u) return -1;
-    if (!objUses[recipe]) return -1;                 /* 4E89: the use counter */
+    if (!objUses[recipe]) return -1;                 /* 1000:3A89: the use counter */
 
     n = object_findNeighbour(actor);
     if (n < 0) return -1;
 
     rec = objArray + n * OBJ_STRIDE;
     cls = rec[7u];
-    if (cls) {                                       /* 4EE2..4F00 */
+    if (cls) {                                       /* 1000:3AE2..1000:3B00 */
         unsigned slot = cls - 1u;
         objSlotClass[cls] = 0u;                      /* 0x3E5F + slot */
         live = objArray + (OBJ_LIVE0 + slot) * OBJ_STRIDE;
         wr16(live, 6u, 0xFFFFu);                     /* 0x3F17 + 0x12*slot */
     }
-    object_setCurrent(n);                            /* 4F03 */
-    wr16(rec, 4u, 0x0103u);                          /* 4F07 */
-    wr16(rec, 6u, 0u);                               /* 4F0D */
-    wr16(objArray + actor * OBJ_STRIDE, 4u, 0x0020u);/* 4F13 */
-    statusbar_setActive(0);                          /* 4F1E: [0x5B12] = 0 */
+    object_setCurrent(n);                            /* 1000:3B03 */
+    wr16(rec, 4u, 0x0103u);                          /* 1000:3B07 */
+    wr16(rec, 6u, 0u);                               /* 1000:3B0D */
+    wr16(objArray + actor * OBJ_STRIDE, 4u, 0x0020u);/* 1000:3B13 */
+    statusbar_setActive(0);                          /* 1000:3B23: [0x5B12] = 0 */
+    /* 1000:3B19/3B28: the world freezes for the sequence, and the display
+     * window is snapped to a 4-pixel boundary (`AND [0x0], 0xFFFC`) because the
+     * strip save below works in whole page bytes.  Neither moves the camera. */
+    level_setUpdates(0);
+    level_setView(level_viewX() & ~3u, level_viewY());
 
-    /* 4F34..4F46: spend the use and stash the recipe's fields (the recipe
+    /* 1000:3B34..1000:3B46: spend the use and stash the recipe's fields (the recipe
      * itself is no longer readable once its use is gone) */
     objUses[recipe]--;
     claimBehav = objRecipes[recipe][1];
@@ -468,12 +473,12 @@ int object_claimBegin(unsigned recipe, int actor)
         claimParams[k] = rd16(objRecipes[recipe], 4u + 2u * k);
 
     claimNeighbour = n;
-    claimBlinks = 10u;                               /* 4FAC */
+    claimBlinks = 10u;                               /* 1000:3BAC */
     claimTimer = 0u;
-    claimFillRamp(claimRed, 0x3Fu, 0u, 0u);          /* 4F4F: AX=0, BL=0x3F */
-    claimFillRamp(claimWhite, 0x3Fu, 0x3Fu, 0x3Fu);  /* 4F7A: AX=0x3F3F   */
+    claimFillRamp(claimRed, 0x3Fu, 0u, 0u);          /* 1000:3B4F: AX=0, BL=0x3F */
+    claimFillRamp(claimWhite, 0x3Fu, 0x3Fu, 0x3Fu);  /* 1000:3B7A: AX=0x3F3F   */
     claimPhase = CLAIM_TO_RED;
-    palette_buildFade(1u, 0x7Fu, 5u, claimRed + 3u); /* 4F56 */
+    palette_buildFade(1u, 0x7Fu, 5u, claimRed + 3u); /* 1000:3B56 */
     return n;
 }
 
@@ -490,63 +495,50 @@ void object_claimTick(const uint8_t *levelPal)
     switch (claimPhase) {
     case CLAIM_OFF:
         return;
-    case CLAIM_TO_RED:                               /* 4F56 */
+    case CLAIM_TO_RED:                               /* 1000:3B56 */
         if (palette_fadeActive()) return;
         claimPhase = CLAIM_RED_BACK;
-        palette_buildFade(1u, 0x7Fu, 0x1Eu, levelPal + 3u);  /* 4F68 */
+        palette_buildFade(1u, 0x7Fu, 0x1Eu, levelPal + 3u);  /* 1000:3B68 */
         break;
-    case CLAIM_RED_BACK:                             /* 4F68 */
+    case CLAIM_RED_BACK:                             /* 1000:3B68 */
         if (palette_fadeActive()) return;
         claimPhase = CLAIM_TO_WHITE;
-        palette_buildFade(1u, 0x7Fu, 5u, claimWhite + 3u);   /* 4F82 */
+        palette_buildFade(1u, 0x7Fu, 5u, claimWhite + 3u);   /* 1000:3B82 */
         break;
-    case CLAIM_TO_WHITE:                             /* 4F91: 0x5104 */
+    case CLAIM_TO_WHITE:                             /* 1000:3B91: 1000:3D04 */
         if (palette_fadeActive()) return;
         claimTimer = 0u;
         claimPhase = CLAIM_PAN;                      /* two frames */
         break;
-    case CLAIM_PAN:                                  /* 4F91 -> 1000:3D04 */
-        if (claimTimer == 0u) {
-            /* 1000:3D41: SI = [0x180A] (the player), DI = [0x1AF2] (the claimed
-             * record); AX/BX become min of the two x/y and 1000:3DC0 stores them
-             * as [0x1AEA]/[0x1AEC] - the view's world origin. */
-            uint8_t *pl = object_slot((unsigned)objPlayer);
-            uint8_t *cl = object_slot((unsigned)objCurrent);
-
-            if (pl && cl) {
-                unsigned px = rd16(pl, 0u), cx = rd16(cl, 0u);
-                unsigned py = rd16(pl, 2u), cy = rd16(cl, 2u);
-
-                level_setView(px < cx ? px : cx, py < cy ? py : cy);
-            }
-        }
+    case CLAIM_PAN:                                  /* 1000:3D04, two frames */
+        /* 1000:3D04 presents the world twice (5810, 5d56, 3d5e); on the first
+         * pass 1000:3D41 hands min(player, claimed) to 1000:3DC0, which SAVES a
+         * 64x18-byte page strip at that point to A000:0xF000 — a scratch save
+         * for the sequence, not a scroll: no [0x0]/[0x2] write exists anywhere
+         * in it.  The camera stays where the follower left it (frozen above). */
         if (++claimTimer < 2u) break;
         claimTimer = 0u;
-        /* 1000:3DC0 leaves the origin set; in the original update_view
-         * (1000:80F1) walks it back on the next frame.  That routine is not
-         * ported, so the play origin is restored here rather than left stale. */
-        level_setView(0u, 0u);
         claimPhase = CLAIM_WHITE_BACK;
-        palette_buildFade(1u, 0x7Fu, 0x19u, levelPal + 3u);  /* 4F97 */
+        palette_buildFade(1u, 0x7Fu, 0x19u, levelPal + 3u);  /* 1000:3B97 */
         break;
-    case CLAIM_WHITE_BACK:                           /* 4FA9 */
+    case CLAIM_WHITE_BACK:                           /* 1000:3BA9 */
         if (palette_fadeActive()) return;
         claimTimer = 0u;
         claimPhase = CLAIM_FRAME;
         break;
     case CLAIM_FRAME:
-        if (++claimTimer <= 1u) break;               /* 4FA9's 0x9F56 */
+        if (++claimTimer <= 1u) break;               /* 1000:3BA9's 0x9F56 */
         claimTimer = 0u;
         claimPhase = CLAIM_BLINK_WHITE;
-        palette_buildFade(0x80u, 0x40u, claimBlinks, claimWhite); /* 4FB3 */
+        palette_buildFade(0x80u, 0x40u, claimBlinks, claimWhite); /* 1000:3BB3 */
         break;
-    case CLAIM_BLINK_WHITE:                          /* 4FB3 */
+    case CLAIM_BLINK_WHITE:                          /* 1000:3BB3 */
         if (palette_fadeActive()) return;
         claimPhase = CLAIM_BLINK_LEVEL;
         palette_buildFade(0x80u, 0x40u, claimBlinks,
-                          levelPal + 0x80u * 3u);   /* 4FC3 */
+                          levelPal + 0x80u * 3u);   /* 1000:3BC3 */
         break;
-    case CLAIM_BLINK_LEVEL:                          /* 4FC3 */
+    case CLAIM_BLINK_LEVEL:                          /* 1000:3BC3 */
         if (palette_fadeActive()) return;
         if (--claimBlinks == 0u) {
             claimTimer = 0u;
@@ -556,12 +548,12 @@ void object_claimTick(const uint8_t *levelPal)
         claimPhase = CLAIM_BLINK_WHITE;
         palette_buildFade(0x80u, 0x40u, claimBlinks, claimWhite);
         break;
-    case CLAIM_ANIM:                                 /* 4FD6..4FF6 */
-        if (++claimTimer % 9u == 0u)                 /* the 4FE9 frame++ */
+    case CLAIM_ANIM:                                 /* 1000:3BD6..1000:3BF6 */
+        if (++claimTimer % 9u == 0u)                 /* the 1000:3BE9 frame++ */
             wr16(nrec, 4u, (uint16_t)(rd16(nrec, 4u) + 1u));
         if (claimTimer < 56u) break;
         claimTimer = 0u;
-        /* 4FF9..5064: the append from the stashed fields.  The live record is
+        /* 1000:3BF9..1000:3C64: the append from the stashed fields.  The live record is
          * `0x3F17 + 0x12*([0x3E73]-8)` (port index count+1) and its class
          * `[0x3E5F + count-8]` = `[0x3E5E + count-7]` (count-7 here), i.e.
          * class c <-> live index 8+c. */
@@ -577,13 +569,11 @@ void object_claimTick(const uint8_t *levelPal)
             wr16(nr, 0xEu, (uint16_t)claimParams[3]);
             objSlotClass[objLiveCount - 7u] = (uint8_t)claimBehav;
             objLiveCount++;
-            /* 1000:5070 calls init_dirty_cell_list (1000:3E73), whose tail jumps
-             * to 1000:3DC0 with (x - 0x20, y - 0x20) of the appended record: the
-             * view scrolls onto it.  The 0x48BC cell list that routine also
-             * builds is a redraw optimisation - the port composes the frame, so
-             * only the view set has a visible effect. */
-            level_setView((unsigned)(rd16(nr, 0u) - 0x20u),
-                          (unsigned)(rd16(nr, 2u) - 0x20u));
+            /* 1000:3C70 calls init_dirty_cell_list (1000:3E73), whose tail
+             * hands (x - 0x20, y - 0x20) of the appended record to 1000:3DC0:
+             * the same strip save, at the new record.  It does not move the
+             * window either; the 0x48BC cell list it builds is the redraw list
+             * this flat compose replaces. */
             {
                 /* 1000:3E73's other half: the shade table from the recipe's
                  * sprite, and the list starts around the appended record. */
@@ -595,36 +585,33 @@ void object_claimTick(const uint8_t *levelPal)
         }
         claimPhase = CLAIM_HOLD;
         break;
-    case CLAIM_HOLD:                                 /* 507D: 0x28+1 */
+    case CLAIM_HOLD:                                 /* 1000:3C7D: 0x28+1 */
         if (++claimTimer < 41u) break;
         claimTimer = 0u;
         claimPhase = CLAIM_WHITE_OUT;
-        palette_buildFade(1u, 0xBFu, 5u, claimWhite + 3u);   /* 5090 */
+        palette_buildFade(1u, 0xBFu, 5u, claimWhite + 3u);   /* 1000:3C90 */
         break;
-    case CLAIM_WHITE_OUT:                            /* 5088 */
+    case CLAIM_WHITE_OUT:                            /* 1000:3C88 */
         if (palette_fadeActive()) return;
         claimTimer = 0u;
         claimPhase = CLAIM_FRAME2;
         break;
-    case CLAIM_FRAME2:                               /* 509F */
+    case CLAIM_FRAME2:                               /* 1000:3C9F */
         if (++claimTimer <= 1u) break;               /* one 0x9F56 */
         claimTimer = 0u;
         wr16(nrec, 6u, 0xFFFFu);                     /* 50A6: removed */
         statusbar_setActive(1);                      /* 50B0: [0x5B12] */
         claimPhase = CLAIM_FLIP;
         break;
-    case CLAIM_FLIP:                                 /* 50B5: LOOP CX=2 */
+    case CLAIM_FLIP:                                 /* 1000:3CB5: LOOP CX=2 */
+        if (claimTimer == 0u) level_setUpdates(1);   /* 1000:3CAB: [0xC] = 0xFF */
         if (++claimTimer < 2u) break;
         claimTimer = 0u;
         claimPhase = CLAIM_SETTLE;
         palette_buildFade(1u, 0xBFu, 0x28u, levelPal + 3u);  /* 50DE */
         break;
-    case CLAIM_SETTLE:                               /* 50DE */
+    case CLAIM_SETTLE:                               /* 1000:3CDE */
         if (palette_fadeActive()) return;
-        /* 1000:3E73 scrolled the view onto the appended record; in the original
-         * update_view (1000:80F1) re-centres it on the player on the next
-         * frame.  That routine is not ported, so the play origin is restored. */
-        level_setView(0u, 0u);
         claimPhase = CLAIM_OFF;
         claimNeighbour = -1;
         break;
@@ -1173,9 +1160,14 @@ void object_publishBank(const uint8_t *bank, uint32_t size)
 }
 
 /* 1000:653C's base blit: the sprite at `src`, top-left (x,y), 0 = transparent.
- * `cols` is 16 for mode 1 (`1000:66EC`, block rows*4, row 4) and 32 for mode 2
- * (`1000:6C74`, block rows*8, row 8) — the only difference between the two
- * (the frame stride confirms it: mode-2 frames advance rows*32 bytes). */
+ * `cols` is 16 for mode 1 (`1000:66EC`) and 32 for mode 2 (`1000:6C74`) — the
+ * only difference between the two (the frame stride confirms it: mode-2 frames
+ * advance rows*32 bytes).  The layout is derived, not probed: the blit is four
+ * plane passes (`67BA: AH = 1 << ([0x6C32] & 3)`, `OUT 0x3C4`), each row-taking
+ * `LODSW`/store/INC DI x2 (`67F9..681A`) = **4 bytes, one per pixel, 4 px per
+ * byte of one plane**; between passes `6C15 ADD SI, [0x6C2C]` and [0x6C2C] is 0
+ * unless clipped at the top, so the frame is consumed linearly in four blocks
+ * of 4h (`block = col mod 4`, `byte = row*4 + col/4`). */
 static void blitSprite(uint8_t *page, const uint8_t *src, unsigned rows,
                        unsigned cols, int x, int y)
 {
@@ -1338,7 +1330,9 @@ void object_levelStartRecord(void)
     wr16(r, 6u, 0x0000u);
     wr16(r, 8u, 0x001Au);
     wr16(r, 0xAu, 0x1006u);
-    r[0xCu] = 0xFFu;
+    /* The next instruction of level_fade_in, `MOV byte ptr [0xc], 0xff` at
+     * 1000:336C, is the GLOBAL update_world gate (level.c's worldUpdates) -
+     * not this record's +0xC, which stays 0 as the asm leaves it. */
 }
 
 void object_setActionEntity(unsigned i) { objEntity = i < OBJ_STATIC ? i : objEntity; }

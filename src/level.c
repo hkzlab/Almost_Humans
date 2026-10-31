@@ -127,6 +127,11 @@ static uint16_t timeLimit;        /* [0x5D31]: the difficulty's BCD pick  */
 static unsigned tribeMembers;     /* [0x11FC]: 12/10/8 by the difficulty  */
 static const uint8_t zeroPal[768];   /* the zeroed 0x14D3 (1000:3170) */
 static unsigned viewX, viewY;
+/* [0xC]: update_world's (1000:80AD) gate.  level_fade_in sets it at 1000:336C,
+ * before its eight frames; the claim clears it (1000:3B19) and restores it
+ * (1000:3CAB), so the world is frozen while the claim's blocking sequence
+ * runs.  Zero until the level's own chain reaches that store. */
+static int worldUpdates;
 static unsigned levelRequired;    /* [0x17FB]: the map's 0xAA count        */
 static unsigned membersAtStart;   /* [0x1970]: the members at level start  */
 static int      endRequested;     /* the play loop's exit (35D6's -1)      */
@@ -864,17 +869,62 @@ void level_loadingTick(void)
  * the zeroed 0x48BC ramp, div 0x19.  The rest of the chain (the eight
  * update_world frames, the fade in to 0x14D3, the tick hook) advances in
  * level_tick. */
-/* 1000:3DC0: the view's world origin.  The original stores [0x1AEA]/[0x1AEC]
- * and derives the CRTC start `y*88 + x/4` from them; the flat compose reads the
- * same pair, so this is the whole of that routine the port needs. */
+/* [0x0]/[0x2]: the display window into the 512x320 level page, in pixels and
+ * rows — `set_display_ptr` (1000:882D) starts the CRTC at
+ * `pagebase + 0x58*[0x2] + [0x0]/4`, and the object pass subtracts the same
+ * pair (`draw_object_scaled_x1` 1000:66EC clips `x - [0x0]` against
+ * [-0x10,0x140]).  The two stores are level_reset_view's (`1000:319D`), and in
+ * play `level_followView` below is their only writer. */
 void level_setView(unsigned x, unsigned y)
 {
     viewX = x;
     viewY = y;
 }
 
+/* 1000:5CB6 — the first call of `update_world` (`1000:80AD`), guarded there by
+ * `[0xC] != 0`: the camera follows the **acting record** (`get_object_ptr`,
+ * `1000:79F4`, walks the 29-word table at `0x3E24` with `[0x3E22]`, i.e.
+ * `object_slot(object_actionEntity())`).
+ *
+ *   target = record + the offset pair at `[0x2D90]` - (0x88, 0x44)
+ *   clamped to the pan range: 0xC0 = 512-320 px, 0xA8 = 320-152 rows (the
+ *   play area; the bar owns the last 40 rows), then each axis moves at most
+ *   `[0x2DA6]` = 4 px per frame (0x5D09 / 0x5D21), stored at 0x5D2F/0x5D33.
+ *
+ * The offset pair is **{0,0} at rest** and that is the only state the port
+ * needs: `[0x2D90]` = 0x2D92 (the first pair of the 0x2D92..0x2DA2 table) and
+ * `[0x2D8E]` = 0xFFFF, whose bit 15 idles the 4-entry +-1 px walk at 0x5D37.
+ * The walk's only enabler is `MOV [0x2D8E], AX` (0xDAC7), inside the
+ * entity/collision path that is not ported — so the pair stays {0,0} here too.
+ * `update_view` (1000:80F1) then scrolls the page by the difference; the flat
+ * compose reads the window directly, which is the same visible result. */
+void level_followView(void)
+{
+    uint8_t *rec = object_slot(object_actionEntity());
+    int x, y, tx, ty, dx, dy;
+
+    if (!rec) return;
+    x = (int16_t)(uint16_t)(rec[0] | ((uint16_t)rec[1] << 8));
+    y = (int16_t)(uint16_t)(rec[2] | ((uint16_t)rec[3] << 8));
+    tx = x - 0x88;
+    ty = y - 0x44;
+    tx = tx < 0 ? 0 : (tx > 0xC0 ? 0xC0 : tx);
+    ty = ty < 0 ? 0 : (ty > 0xA8 ? 0xA8 : ty);
+    dx = tx - (int)viewX;
+    dy = ty - (int)viewY;
+    if (dx > 4) dx = 4; else if (dx < -4) dx = -4;
+    if (dy > 4) dy = 4; else if (dy < -4) dy = -4;
+    viewX = (unsigned)((int)viewX + dx);
+    viewY = (unsigned)((int)viewY + dy);
+}
+
 unsigned level_viewX(void) { return viewX; }
 unsigned level_viewY(void) { return viewY; }
+
+/* [0xC]: the claim clears it at its start (1000:3B19) and restores it before
+ * the closing page frames (1000:3CAB). */
+void level_setUpdates(int on) { worldUpdates = on ? 1 : 0; }
+int  level_updates(void) { return worldUpdates; }
 
 void level_begin(void)
 {
@@ -1074,8 +1124,11 @@ static void renderWorld(void)
     }
 
     /* 1000:3D5E's four-plane presented frame, as a flat compose: the visible
-     * window is the world at the view's origin ([0x1AEA]/[0x1AEC], set by
-     * 1000:3DC0), written through the chained page and read back. */
+     * window is the world at the display window ([0x0], [0x2] — see
+     * `level_followView`), written through the chained page and read back.
+     * ([0x1AEA]/[0x1AEC] are 1000:3DC0's *strip save* coordinate, not the
+     * window: that routine copies a 64x18-byte page strip to A000:0xF000 and
+     * never scrolls.) */
     for (unsigned y = 0; y < VIEW_H; y++)
         for (unsigned x = 0; x < VIEW_W; x++) {
             unsigned wx = viewX + x, wy = viewY + y;
@@ -1139,22 +1192,21 @@ int level_tick(void)
         if (level_loadingScreen()) break;      /* 1000:1DC0's screen is up */
         /* 1000:3334: the loading art fades to black (0..0xBF -> 0x48BC, div 0x19) */
         palette_buildFade(0u, 0xC0u, 0x19u, blackPal);
-        /* level_fade_in's scroll seeds ([0x0] = [0x14] = 0x60, [0x2] = 0x50)
-         * are the display window in page pixels/rows (1000:4C4E adds [0x0]/4 to
-         * BOTH pointers, so they only move the window).  They are not applied:
-         * the port has no per-frame scroll to restore the view afterwards, so a
-         * seed would freeze the level at (96,80).  Recorded in re_map.md. */
         startPhase = LVSTART_FADE_OUT;
         break;
     case LVSTART_FADE_OUT:
         if (!palette_fadeActive()) {
-            /* 1000:3334's order after the fade-out: the scroll seeds
-             * ([0x0] = [0x14] = 0x60, [0x2] = 0x50), slot 8's init, then
-             * 1000:4C28 blit_bitmap_call - the world drawn into BOTH pages
-             * (DI = 0x1200 then 0x8100) before the eight update_world frames.
-             * The port has one page, so its first WARMUP tick is that pre-draw;
-             * the seeds are recorded but not applied (see the note below). */
-            object_levelStartRecord();
+            /* 1000:3334's order after the fade-out: the scroll seeds (set in
+             * the LOADING case above), slot 8's init, then 1000:4C28
+             * blit_bitmap_call - the world drawn into BOTH pages (DI = 0x1200
+             * then 0x8100) before the eight update_world frames.  The port has
+             * one page, so its first WARMUP tick is that pre-draw. */
+            /* 1000:3346/334C/334F: the display window's seeds - the eight
+             * update_world frames run with the camera at (0x60,0x50), and
+             * 1000:5CB6 walks it onto the acting record at <=4 px a frame. */
+            level_setView(0x60u, 0x50u);
+            object_levelStartRecord();     /* 1000:3355 */
+            worldUpdates = 1;              /* 1000:336C: [0xC] = 0xFF */
             renderWorld();                 /* 1000:4C28's pre-draw (one page) */
             startPhase = LVSTART_WARMUP;
             warmupLeft = 8u;                   /* level_fade_in's LOOP CX=8 */
@@ -1205,14 +1257,22 @@ int level_tick(void)
     /* the object machine's frame (the claim's sequence and its fades); the
      * original runs it from the level's per-frame body, so not during the
      * start chain. */
-    if (startPhase == LVSTART_PLAYING) {
+    if (startPhase == LVSTART_WARMUP || startPhase == LVSTART_FADE_IN ||
+        startPhase == LVSTART_PLAYING) {
         /* 1000:80AD update_world: get_object_ptr (1000:79F4) then the input
          * command (1000:E3F6) for the acting record, before the object tick.
-         * `joyBits` is the port's [0x5ACE] (backend -> 1000:8526's shape). */
+         * `joyBits` is the port's [0x5ACE] (backend -> 1000:8526's shape).
+         * The whole chain is behind `[0xC]` (1000:80AD's first test), which
+         * level_fade_in sets before its eight frames - so it runs from
+         * LVSTART_WARMUP on, and freezes while the claim holds it at 0. */
         uint8_t *actor = object_slot(object_actionEntity());
 
-        if (actor) (void)object_commandRun(actor, levelJoy);
-        object_tick(level_palette());
+        if (worldUpdates) {
+            level_followView();           /* 1000:5CB6, first in update_world */
+            if (actor) (void)object_commandRun(actor, levelJoy);
+        }
+        object_tick(level_palette());     /* the claim's phase machine: blocking
+                                           * in the original, so not gated here */
     }
 
     /* The world is not drawn during level_video_init's two component fades

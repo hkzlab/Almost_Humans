@@ -372,6 +372,10 @@ int main(int argc, char **argv)
                 static uint8_t before[64000];
                 const uint8_t *p0 = osys_null_page(0);
                 memcpy(before, p0, sizeof before);
+                /* the follower (1000:5CB6) owns the window in play, so the
+                 * pan is exercised with the world frozen ([0xC] = 0, the state
+                 * the claim holds): the compose still presents. */
+                level_setUpdates(0);
                 level_setView(16u, 8u);
                 level_tick();
                 {
@@ -392,6 +396,7 @@ int main(int argc, char **argv)
                 }
                 level_setView(0u, 0u);
                 level_tick();
+                level_setUpdates(1);
             }
 
             /* The palette rotation (palette_rotate_table 1000:8C78), from

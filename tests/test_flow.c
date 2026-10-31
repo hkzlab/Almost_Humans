@@ -290,6 +290,8 @@ int main(int argc, char **argv)
          * whole sequence — red/white flash, blinks, the animation, the spawn
          * and the settle — driven with object_tick + palette_tick */
 
+        /* the window is not 4-aligned on the way in: 1000:3B28 snaps it */
+        level_setView(18u, 8u);
         check(object_claimBegin(0u, 0) == 3, "the claim takes the neighbour");
         check(r[4] == 0x03 && r[5] == 0x01, "the neighbour's frame becomes 0x103");
         check(r[6] == 0 && r[7] == 0, "the neighbour's flags word clears");
@@ -297,27 +299,25 @@ int main(int argc, char **argv)
               "the old current object's frame becomes 0x20");
         check(object_current() == 3, "the claim makes the neighbour current");
         check(object_claimActive() == 1, "the sequence starts");
+        unsigned spawned = 0;
         {
-            unsigned t = 0, spawned = 0, panSeen = 0, panOK = 0;
+            unsigned t = 0, moved = 0;
+            int frozen = 0;
+
+            /* 1000:3B19/3B28: the sequence freezes the world and snaps the
+             * window to 4 px; nothing in it writes the window (the 3D41/3DC0
+             * pair is a strip SAVE), so the camera must not move. */
+            check(level_viewX() == 16u && level_viewY() == 8u,
+                  "the claim snaps the window to 4 px, without moving it");
             while (object_claimActive() && t++ < 20000u) {
                 palette_tick();
                 object_tick(testPal);
-                if (!panSeen && (level_viewX() || level_viewY())) {
-                    /* the pan (1000:3D41) centres on min(player, claimed) */
-                    const uint8_t *pl = object_slot(0);
-                    const uint8_t *cl = object_slot(object_current());
-                    unsigned px = pl[0] | (pl[1] << 8), cx = cl[0] | (cl[1] << 8);
-                    unsigned py = pl[2] | (pl[3] << 8), cy = cl[2] | (cl[3] << 8);
-
-                    panSeen = 1;
-                    panOK = level_viewX() == (px < cx ? px : cx) &&
-                            level_viewY() == (py < cy ? py : cy);
-                }
+                if (!level_updates()) frozen = 1;
+                if (level_viewX() != 16u || level_viewY() != 8u) moved = 1;
             }
-            check(panSeen && panOK,
-                  "the claim's pan sets the view to min(player, claimed)");
-            check(level_viewX() == 0u && level_viewY() == 0u,
-                  "the claim restores the play origin");
+            check(frozen, "the claim freezes update_world ([0xC] = 0)");
+            check(!moved, "the claim never moves the window");
+            check(level_updates(), "the claim restores [0xC] (1000:3CAB)");
             check(!object_claimActive(), "the claim sequence finishes");
             check(level_sparkActive(),
                   "the claim's append starts the particle effect");
@@ -1370,7 +1370,39 @@ int main(int argc, char **argv)
         check(!score_tick(&k), "the score screen exits after the hold");
     }
 
-    /* 8. menu_loop's MAP screen (START): the card loads and the key exits */
+    /* 8. the camera follower (1000:5CB6): target = record - (0x88, 0x44),
+     * clamped to the pan range (0xC0, 0xA8), 4 px per axis per frame; the
+     * record's offset pair ([0x2D90] -> 0x2D92) is {0,0} at rest */
+    {
+        uint8_t *rec = object_slot(0u);
+
+        object_setActionEntity(0u);
+        level_setView(0u, 0u);
+        rec[0] = (uint8_t)(0x88u + 0x20u); rec[1] = 0x00u;  /* (0x20,0x10) */
+        rec[2] = (uint8_t)(0x44u + 0x10u); rec[3] = 0x00u;
+        level_followView();
+        check(level_viewX() == 4u && level_viewY() == 4u,
+              "the follower moves 4 px an axis (0x5D09/0x5D21)");
+        for (unsigned i = 0; i < 16u; i++) level_followView();
+        check(level_viewX() == 0x20u && level_viewY() == 0x10u,
+              "the follower settles on record - (0x88, 0x44)");
+
+        rec[0] = 0x68u; rec[1] = 0x01u;             /* 0x0168: past 0xC0+0x88 */
+        rec[2] = 0x04u; rec[3] = 0x01u;             /* 0x0104: past 0xA8+0x44 */
+        for (unsigned i = 0; i < 64u; i++) level_followView();
+        check(level_viewX() == 0xC0u && level_viewY() == 0xA8u,
+              "the pan clamps to 512-320 px x 320-152 rows");
+
+        rec[0] = 0x10u; rec[1] = 0x00u;             /* left of the anchor */
+        rec[2] = 0x10u; rec[3] = 0x00u;
+        for (unsigned i = 0; i < 64u; i++) level_followView();
+        check(level_viewX() == 0u && level_viewY() == 0u,
+              "a record left of the anchor pins the pan at 0");
+        object_setActionEntity(0u);
+        level_setView(0u, 0u);
+    }
+
+    /* 9. menu_loop's MAP screen (START): the card loads and the key exits */
     check(map_begin() == 1, "the MAP screen starts");
     {
         InputState k;

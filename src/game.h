@@ -252,6 +252,13 @@ unsigned level_itemWord(unsigned id, unsigned row);
 int  level_tick(void);                      /* 1 = the level is running  */
 /* 1000:3DC0: the view's world origin (the CRTC start's source). */
 void level_setView(unsigned x, unsigned y);
+/* 1000:5CB6: the camera follows the acting record (update_world's first call,
+ * 4 px/frame, clamped to the 512x320 page's pan range). */
+void level_followView(void);
+/* [0xC]: update_world's gate (set by level_fade_in 1000:336C, cleared by the
+ * claim at 1000:3B19 and restored at 1000:3CAB). */
+void level_setUpdates(int on);
+int  level_updates(void);            /* [0xC] */
 unsigned level_viewX(void);
 unsigned level_viewY(void);
 /* The claim's particles (1000:3E73/0x3FB3/0x3F4A): begin at the appended record
