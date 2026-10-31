@@ -273,6 +273,36 @@ int main(int argc, char **argv)
             }
             free(sp); free(bs); free(bg); free(p4);
 
+            /* 1000:3DC0's view origin: the compose reads the world at
+             * [0x1AEA]/[0x1AEC], so a scrolled frame is the previous one
+             * shifted by that offset (the bar rows and the countdown are
+             * excluded: they are drawn after the world, per tick). */
+            {
+                static uint8_t before[64000];
+                const uint8_t *p0 = osys_null_page(0);
+                memcpy(before, p0, sizeof before);
+                level_setView(16u, 8u);
+                level_tick();
+                {
+                    const uint8_t *p1 = osys_null_page(0);
+                    unsigned sample = 0, diffs = 0;
+
+                    for (unsigned y = 0; y + 8u < 140u; y += 3u)
+                        for (unsigned x = 0; x + 16u < 320u; x += 3u) {
+                            sample++;
+                            if (p1[y * 320u + x] !=
+                                before[(y + 8u) * 320u + x + 16u]) diffs++;
+                        }
+                    if (sample == 0u || diffs != 0u) {
+                        fprintf(stderr, "FAIL the view scroll: %u/%u differ\n",
+                                diffs, sample);
+                        bad = 1;
+                    }
+                }
+                level_setView(0u, 0u);
+                level_tick();
+            }
+
             /* The palette rotation (palette_rotate_table 1000:8C78), from
              * the level's ISR hook: BD3's field M (timer 3, reload 3, first
              * 0x71, 4 entries) rotates that range one step every 4 ticks —

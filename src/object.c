@@ -72,6 +72,7 @@ static uint16_t objCmdTimer;            /* [0x6DEA]: the command one-shot */
 static uint8_t objStackMask[2];         /* 0x64AD / 0x64C1: in-a-stack bits */
 static int16_t objSide;                 /* [0x4230]: which side the settle stepped from */
 static int objStepProbeAt(const uint8_t *actor, int dx, int dy, unsigned *cellOut);
+static void objBuildShade(unsigned frame, uint8_t *out);
 /* 0x649A / 0x64A2 / 0x64AE / 0x64B6: the four corner-pair blocks the 0xAF..0xB2
  * tiles write at load ({x, y, x, y} followed by a zeroed 12-byte entry, or just
  * {x, y}).  No ported consumer reads them yet - they are the level's "pair"
@@ -504,9 +505,27 @@ void object_claimTick(const uint8_t *levelPal)
         claimTimer = 0u;
         claimPhase = CLAIM_PAN;                      /* two frames */
         break;
-    case CLAIM_PAN:
+    case CLAIM_PAN:                                  /* 4F91 -> 1000:3D04 */
+        if (claimTimer == 0u) {
+            /* 1000:3D41: SI = [0x180A] (the player), DI = [0x1AF2] (the claimed
+             * record); AX/BX become min of the two x/y and 1000:3DC0 stores them
+             * as [0x1AEA]/[0x1AEC] - the view's world origin. */
+            uint8_t *pl = object_slot((unsigned)objPlayer);
+            uint8_t *cl = object_slot((unsigned)objCurrent);
+
+            if (pl && cl) {
+                unsigned px = rd16(pl, 0u), cx = rd16(cl, 0u);
+                unsigned py = rd16(pl, 2u), cy = rd16(cl, 2u);
+
+                level_setView(px < cx ? px : cx, py < cy ? py : cy);
+            }
+        }
         if (++claimTimer < 2u) break;
         claimTimer = 0u;
+        /* 1000:3DC0 leaves the origin set; in the original update_view
+         * (1000:80F1) walks it back on the next frame.  That routine is not
+         * ported, so the play origin is restored here rather than left stale. */
+        level_setView(0u, 0u);
         claimPhase = CLAIM_WHITE_BACK;
         palette_buildFade(1u, 0x7Fu, 0x19u, levelPal + 3u);  /* 4F97 */
         break;
@@ -558,6 +577,21 @@ void object_claimTick(const uint8_t *levelPal)
             wr16(nr, 0xEu, (uint16_t)claimParams[3]);
             objSlotClass[objLiveCount - 7u] = (uint8_t)claimBehav;
             objLiveCount++;
+            /* 1000:5070 calls init_dirty_cell_list (1000:3E73), whose tail jumps
+             * to 1000:3DC0 with (x - 0x20, y - 0x20) of the appended record: the
+             * view scrolls onto it.  The 0x48BC cell list that routine also
+             * builds is a redraw optimisation - the port composes the frame, so
+             * only the view set has a visible effect. */
+            level_setView((unsigned)(rd16(nr, 0u) - 0x20u),
+                          (unsigned)(rd16(nr, 2u) - 0x20u));
+            {
+                /* 1000:3E73's other half: the shade table from the recipe's
+                 * sprite, and the list starts around the appended record. */
+                uint8_t shade[16 * 16];
+
+                objBuildShade(claimSprite, shade);
+                level_sparkBegin(rd16(nr, 0u), rd16(nr, 2u), shade);
+            }
         }
         claimPhase = CLAIM_HOLD;
         break;
@@ -587,6 +621,10 @@ void object_claimTick(const uint8_t *levelPal)
         break;
     case CLAIM_SETTLE:                               /* 50DE */
         if (palette_fadeActive()) return;
+        /* 1000:3E73 scrolled the view onto the appended record; in the original
+         * update_view (1000:80F1) re-centres it on the player on the next
+         * frame.  That routine is not ported, so the play origin is restored. */
+        level_setView(0u, 0u);
         claimPhase = CLAIM_OFF;
         claimNeighbour = -1;
         break;
@@ -2231,6 +2269,28 @@ landed:
     wr16(actor, 0xAu, 0x0001u);
     wr16(actor, 0xCu, 0x0004u);
     wr16(actor, 0xEu, 0x0000u);
+}
+
+/* 1000:3E73's shade table: the recipe sprite's bytes as a 16x16 table.  Rows
+ * 0..ybias-1 stay zero, then `rows` rows copy four bytes per pass; pass p fills
+ * `row*16 + p + 4*j`, so the four passes fill every byte of each row. */
+static void objBuildShade(unsigned frame, uint8_t *out)
+{
+    const ObjSprite *sp;
+    unsigned s = 0;
+
+    memset(out, 0, 256u);
+    if (frame >= OBJ_FRAME_SLOTS) return;
+    sp = &objSprites[frame];
+    for (unsigned pass = 0; pass < 4u; pass++)
+        for (unsigned row = 0; row < 16u; row++) {
+            if (row < sp->ybias || row >= sp->ybias + sp->rows) continue;
+            for (unsigned j = 0; j < 4u; j++) {
+                if ((uint32_t)(sp->off + s) < objBankSize)
+                    out[row * 16u + pass + 4u * j] = objBank[sp->off + s];
+                s++;
+            }
+        }
 }
 
 /* 1000:E72A (index 4) and 1000:E790 (index 6): the two idle handlers.  Both

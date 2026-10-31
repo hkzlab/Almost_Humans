@@ -250,6 +250,15 @@ unsigned level_specialTile(unsigned i);
 unsigned level_pageByte(unsigned id, unsigned subcol);
 unsigned level_itemWord(unsigned id, unsigned row);
 int  level_tick(void);                      /* 1 = the level is running  */
+/* 1000:3DC0: the view's world origin (the CRTC start's source). */
+void level_setView(unsigned x, unsigned y);
+unsigned level_viewX(void);
+unsigned level_viewY(void);
+/* The claim's particles (1000:3E73/0x3FB3/0x3F4A): begin at the appended record
+ * with the 16x16 shade table object.c builds from the recipe sprite. */
+void level_sparkBegin(unsigned ox, unsigned oy, const uint8_t *shade);
+int  level_sparkActive(void);
+int  level_sparkPeek(unsigned *x, unsigned *y, unsigned *value);
 /* 1000:8526's [0x5ACE] for the play loop's command dispatch (1000:E3F6). */
 void level_noteInput(const InputState *in);
 

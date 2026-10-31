@@ -111,8 +111,8 @@ static const uint8_t loadLetters[2u + 8u * 10u] = {
  * in the foreground for each fade (wait_palette_fade_done) while the ISR
  * steps it; the port's loop is tick-driven, so the chain advances one phase
  * per level_tick and the play loop only starts once it is done. */
-enum { LVSTART_IDLE, LVSTART_FADE_OUT, LVSTART_WARMUP, LVSTART_FADE_IN,
-       LVSTART_PLAYING };
+enum { LVSTART_IDLE, LVSTART_FADE_BASE, LVSTART_FADE_BAR, LVSTART_FADE_OUT,
+       LVSTART_WARMUP, LVSTART_FADE_IN, LVSTART_PLAYING };
 static int      startPhase = LVSTART_IDLE;
 static unsigned warmupLeft;
 /* the fade-to-black target: 0x48BC, the ramp the boot leaves zeroed */
@@ -125,6 +125,7 @@ static const uint8_t blackPal[768];
 static uint8_t palBarOnly[768];
 static uint16_t timeLimit;        /* [0x5D31]: the difficulty's BCD pick  */
 static unsigned tribeMembers;     /* [0x11FC]: 12/10/8 by the difficulty  */
+static unsigned viewX, viewY;
 static unsigned levelRequired;    /* [0x17FB]: the map's 0xAA count        */
 static unsigned membersAtStart;   /* [0x1970]: the members at level start  */
 static int      endRequested;     /* the play loop's exit (35D6's -1)      */
@@ -144,6 +145,143 @@ static int      endWon;           /* [0x138E]: 1 won, 0 extinct            */
 #define VIEW_H 200u
 #define WORLD_W 512u
 #define WORLD_H 320u
+/* The chained screen the original draws into: one byte = 4 pixels, 88 bytes per
+ * row (352 px, of which the visible window is 320 — that slack is what lets the
+ * CRTC start sit on a 4-px column boundary, 1000:3DC0's `y*88 + x/4`). */
+static uint8_t lvlPlane[VIEW_H * 88u][4];
+
+/* --- the claim's particles (1000:3E73 init, 0x3FB3 step, 0x3F4A flush) ------
+ * The list at 0x48BC is 0x58 slots of 8 bytes {live, value, x, y, age}.  The
+ * tables are the image's: the age -> direction walk at 0x1B03, the eight
+ * directions at 0x1B56 and the spawn nibbles at 0x1B76. */
+static const uint8_t sparkPath[83] = {
+    0x00u, 0x00u, 0x00u, 0x01u, 0x00u, 0x00u, 0x01u, 0x00u, 0x01u, 0x01u, 0x01u, 0x01u, 0x01u, 0x02u, 0x01u, 0x02u,
+    0x02u, 0x01u, 0x02u, 0x02u, 0x02u, 0x02u, 0x02u, 0x02u, 0x03u, 0x02u, 0x02u, 0x03u, 0x02u, 0x03u, 0x03u, 0x03u,
+    0x03u, 0x03u, 0x04u, 0x03u, 0x04u, 0x04u, 0x03u, 0x04u, 0x04u, 0x04u, 0x04u, 0x04u, 0x04u, 0x05u, 0x04u, 0x04u,
+    0x05u, 0x04u, 0x05u, 0x05u, 0x05u, 0x05u, 0x05u, 0x06u, 0x05u, 0x06u, 0x06u, 0x05u, 0x06u, 0x06u, 0x06u, 0x06u,
+    0x06u, 0x06u, 0x07u, 0x06u, 0x06u, 0x07u, 0x06u, 0x07u, 0x07u, 0x07u, 0x07u, 0x07u, 0x00u, 0x07u, 0x00u, 0x00u,
+    0x07u, 0x00u, 0x00u,
+};
+
+static const uint8_t sparkStream[256] = {
+    0x88u, 0x45u, 0xE1u, 0x08u, 0x6Bu, 0xDBu, 0x63u, 0xC4u, 0x3Bu, 0x8Eu, 0xFEu, 0xA0u,
+    0xD8u, 0x1Eu, 0xA6u, 0x26u, 0xBBu, 0x32u, 0x67u, 0xF4u, 0x4Fu, 0x81u, 0xC9u, 0x4Du,
+    0x8Bu, 0x61u, 0xF8u, 0x0Cu, 0x5Bu, 0x11u, 0x65u, 0xA2u, 0x38u, 0x13u, 0x78u, 0xACu,
+    0x19u, 0xC1u, 0x6Eu, 0x94u, 0x4Au, 0xCDu, 0x74u, 0x2Eu, 0x52u, 0x0Fu, 0x47u, 0xE9u,
+    0x92u, 0x7Cu, 0x2Au, 0x34u, 0x85u, 0xA9u, 0x31u, 0xCBu, 0x1Bu, 0xB2u, 0xAEu, 0xE6u,
+    0x02u, 0x43u, 0xEBu, 0xB3u, 0x59u, 0xE3u, 0x9Fu, 0x55u, 0xB8u, 0x0Au, 0x76u, 0xDCu,
+    0x05u, 0x56u, 0xD0u, 0x5Fu, 0xB6u, 0x25u, 0xCAu, 0x21u, 0xA7u, 0x6Du, 0xFAu, 0x58u,
+    0x5Du, 0x9Du, 0x28u, 0xC8u, 0x72u, 0x3Cu, 0xF9u, 0xA4u, 0x4Bu, 0x0Eu, 0x44u, 0x93u,
+    0xCCu, 0x64u, 0x50u, 0xD2u, 0x3Eu, 0x98u, 0xC7u, 0x69u, 0x04u, 0xE8u, 0x77u, 0x8Au,
+    0x12u, 0x46u, 0xC3u, 0x7Au, 0x2Du, 0x79u, 0x22u, 0x8Cu, 0xDEu, 0xFDu, 0x5Au, 0x42u,
+    0xA5u, 0x29u, 0xAAu, 0xC5u, 0xA1u, 0x00u, 0x99u, 0x3Du, 0xD9u, 0xB1u, 0x24u, 0x5Cu,
+    0xB5u, 0x3Fu, 0x80u, 0xFFu, 0x48u, 0x96u, 0x83u, 0x16u, 0x49u, 0x89u, 0xABu, 0xD1u,
+    0x1Du, 0x41u, 0x68u, 0xFCu, 0x36u, 0xB7u, 0x73u, 0xD6u, 0x39u, 0xF6u, 0x03u, 0x14u,
+    0x53u, 0xA8u, 0xFBu, 0xDAu, 0x57u, 0x66u, 0x23u, 0xD7u, 0x60u, 0xC0u, 0x07u, 0x2Bu,
+    0x75u, 0x3Au, 0xEAu, 0xD5u, 0xF2u, 0x87u, 0x09u, 0x37u, 0x27u, 0xBFu, 0x40u, 0x9Bu,
+    0x6Fu, 0x1Fu, 0x33u, 0x6Au, 0xDFu, 0x70u, 0x01u, 0x62u, 0x86u, 0x2Fu, 0xB9u, 0x82u,
+    0x90u, 0x06u, 0x91u, 0x51u, 0xB4u, 0xEFu, 0xE5u, 0xC2u, 0xE0u, 0x54u, 0x0Bu, 0x0Du,
+    0x15u, 0xD4u, 0xF1u, 0x7Du, 0x35u, 0x10u, 0x84u, 0x7Eu, 0x8Fu, 0x1Au, 0x6Cu, 0xD3u,
+    0xF7u, 0x30u, 0xB0u, 0x5Eu, 0x17u, 0x8Du, 0xC6u, 0x20u, 0x1Cu, 0xA3u, 0xE2u, 0x18u,
+    0x2Cu, 0xF0u, 0xBAu, 0x97u, 0x71u, 0x7Fu, 0xAFu, 0x4Cu, 0x7Bu, 0x9Eu, 0xF5u, 0xCFu,
+    0x4Eu, 0x95u, 0xEDu, 0xBCu, 0xADu, 0xEEu, 0xCEu, 0xF3u, 0xECu, 0xE4u, 0xDDu, 0xE7u,
+    0xBEu, 0x9Au, 0xBDu, 0x9Cu,
+};
+static const int8_t sparkDir[8][2] = {
+    { 1, 0 }, { 1, -1 }, { 0, -1 }, { -1, -1 },
+    { -1, 0 }, { -1, 1 }, { 0, 1 }, { 1, 1 },
+};
+static struct { uint8_t live, value; uint16_t x, y, age; } spark[0x58];
+static unsigned sparkWrite, sparkSpawned;   /* [0x1AF8] cursor, [0x1AFC] count */
+static unsigned sparkOX, sparkOY;           /* [0x1AFE] / [0x1B00]            */
+static uint8_t sparkShade[16][16];          /* 0x19EA, from the recipe sprite */
+static int sparkOn;
+
+/* 1000:3E73: clear the list, take the shade table and the origin (its tail is
+ * the view set the claim already does). */
+void level_sparkBegin(unsigned ox, unsigned oy, const uint8_t *shade)
+{
+    memset(spark, 0, sizeof spark);
+    if (shade) memcpy(sparkShade, shade, sizeof sparkShade);
+    sparkWrite = 0u;
+    sparkSpawned = 0u;
+    sparkOX = ox;
+    sparkOY = oy;
+    sparkOn = 1;
+}
+
+int level_sparkActive(void) { return sparkOn; }
+
+/* the first live slot, for the tests: writes its world position and value. */
+int level_sparkPeek(unsigned *x, unsigned *y, unsigned *value)
+{
+    for (unsigned i = 0; i < 0x58u; i++)
+        if (spark[i].live) {
+            if (x) *x = spark[i].x;
+            if (y) *y = spark[i].y;
+            if (value) *value = spark[i].value;
+            return 1;
+        }
+    return 0;
+}
+
+/* 1000:3FB3: spawn one cell (while fewer than 0x100 have been spawned and the
+ * write slot is free), then move every live cell by path[age] and drop it at
+ * age 0x53.  Stops when the spawns are done and nothing is live ([0x1B02]). */
+static void sparkStep(void)
+{
+    unsigned live = 0;
+
+    if (!sparkOn) return;
+    if (sparkSpawned < 0x100u && !spark[sparkWrite].live) {
+        uint8_t b = sparkStream[sparkSpawned & 0xFFu];
+        uint8_t dx = (uint8_t)(b & 0x0Fu), dy = (uint8_t)(b >> 4);
+
+        spark[sparkWrite].live = 1;
+        spark[sparkWrite].value = sparkShade[dy][dx];
+        spark[sparkWrite].x = (uint16_t)(sparkOX + dx);
+        spark[sparkWrite].y = (uint16_t)(sparkOY + dy);
+        spark[sparkWrite].age = 0u;
+        sparkWrite = (sparkWrite + 1u) % 0x58u;
+        sparkSpawned++;
+    }
+    for (unsigned i = 0; i < 0x58u; i++) {
+        unsigned d;
+
+        if (!spark[i].live) continue;
+        live = 1;
+        d = sparkPath[spark[i].age] & 7u;
+        spark[i].x = (uint16_t)(spark[i].x + sparkDir[d][0]);
+        spark[i].y = (uint16_t)(spark[i].y + sparkDir[d][1]);
+        if (++spark[i].age >= 0x53u) spark[i].live = 0;
+    }
+    if (sparkSpawned >= 0x100u && !live) sparkOn = 0;
+}
+
+/* 0x4073's store, in the flat model: the cell writes one byte of four pixels on
+ * one plane, so each of the four columns gets its bit replaced. */
+static void sparkDraw(void)
+{
+    for (unsigned i = 0; i < 0x58u; i++) {
+        int sx, sy;
+        unsigned plane, addr, base;
+
+        if (!spark[i].live || spark[i].value == 0u) continue;
+        sx = (int)spark[i].x - (int)viewX;
+        sy = (int)spark[i].y - (int)viewY;
+        if (sx < 0 || sx >= (int)VIEW_W || sy < 0 || sy >= (int)VIEW_H) continue;
+        plane = (unsigned)sx & 3u;
+        base = (unsigned)sx & ~3u;
+        addr = (unsigned)sy * 88u + ((unsigned)sx >> 2);
+        for (unsigned k = 0; k < 4u; k++) {
+            uint8_t bit = (uint8_t)(((spark[i].value >> k) & 1u) << plane);
+            uint8_t *px = &lvlPlane[addr][(base + k) & 3u];
+
+            *px = (uint8_t)((*px & (uint8_t)~(1u << plane)) | bit);
+        }
+    }
+}
+
 #define ATLAS_TILES 169u
 
 static const OSystem *level_osys;
@@ -721,16 +859,33 @@ void level_loadingTick(void)
  * the zeroed 0x48BC ramp, div 0x19.  The rest of the chain (the eight
  * update_world frames, the fade in to 0x14D3, the tick hook) advances in
  * level_tick. */
+/* 1000:3DC0: the view's world origin.  The original stores [0x1AEA]/[0x1AEC]
+ * and derives the CRTC start `y*88 + x/4` from them; the flat compose reads the
+ * same pair, so this is the whole of that routine the port needs. */
+void level_setView(unsigned x, unsigned y)
+{
+    viewX = x;
+    viewY = y;
+}
+
+unsigned level_viewX(void) { return viewX; }
+unsigned level_viewY(void) { return viewY; }
+
 void level_begin(void)
 {
     if (!level_loaded || startPhase != LVSTART_IDLE) return;
-    /* level_video_init (32F4/3309): the DAC drops to 0x14D3's state at that
-     * moment — the bar's bank only, the rest black (div 2, effectively
-     * immediate, so the port installs it).  Without this the first level
-     * frame is drawn in the pre-level screen's palette. */
-    palette_setDac(palBarOnly, 0, 256);
-    palette_buildFade(0, 0xC0, 0x19, blackPal);
-    startPhase = LVSTART_FADE_OUT;
+    /* level_video_init's two component fades, in its own order:
+     *   32EE/32F1  two frames of wait (CALL 8B56 twice)
+     *   32F4       all 0x100 entries to 0x14D3, div 2, then 8B8B + one frame
+     *   3309       entries 0xC0..0xFF to 0x1713, div 2, then 8B8B + one frame
+     *   then level_fade_in (0x3334): entries 0..0xBF to 0x48BC, div 0x19.
+     * Each wait is one display period; the phase switch below walks them. */
+    /* [0x5B12] is level_fade_in's gate and is 0 until the chain completes, so
+     * the bar's countdown cannot run during the fades (1000:95B5 reseeds the
+     * clock but leaves the gate clear). */
+    statusbar_setActive(0);
+    palette_buildFade(0u, 0x100u, 2u, levelPal);          /* 1000:32F4 */
+    startPhase = LVSTART_FADE_BASE;
 }
 
 /* still inside level_fade_in's chain?  game_main holds the goal page and the
@@ -898,6 +1053,22 @@ int level_tick(void)
     case LVSTART_IDLE:
         level_begin();
         break;
+    case LVSTART_FADE_BASE:
+        if (!palette_fadeActive()) {
+            /* 1000:3309: DI = 0x1713 = the bar's 0xC0..0xFF block (its 64
+             * entries), BX = 0xC0 (the DAC start), CX = 0x40, BP = 2.  The
+             * fade reads the target from its own start, so it is the bank
+             * itself, not palBarOnly (which holds it at +0xC0). */
+            palette_buildFade(0xC0u, 0x40u, 2u, statusbar_palette());
+            startPhase = LVSTART_FADE_BAR;
+        }
+        break;
+    case LVSTART_FADE_BAR:
+        if (!palette_fadeActive()) {
+            palette_buildFade(0u, 0xC0u, 0x19u, blackPal);     /* level_fade_in */
+            startPhase = LVSTART_FADE_OUT;
+        }
+        break;
     case LVSTART_FADE_OUT:
         if (!palette_fadeActive()) {
             startPhase = LVSTART_WARMUP;
@@ -977,16 +1148,26 @@ int level_tick(void)
         }
     }
 
+    /* 1000:3D5E's four-plane presented frame, as a flat compose: the visible
+     * window is the world at the view's origin ([0x1AEA]/[0x1AEC], set by
+     * 1000:3DC0), written through the chained page and read back. */
+    sparkStep();
+    for (unsigned y = 0; y < VIEW_H; y++)
+        for (unsigned x = 0; x < VIEW_W; x++) {
+            unsigned wx = viewX + x, wy = viewY + y;
+
+            lvlPlane[y * 88u + (x >> 2)][x & 3u] =
+                (wx < WORLD_W && wy < WORLD_H) ? world[wy * WORLD_W + wx] : 0u;
+        }
+    if (sparkOn) sparkDraw();
     uint8_t *page = level_osys->videoPage(0);
     for (unsigned y = 0; y < VIEW_H; y++)
-        memcpy(page + y * VIEW_W, world + y * WORLD_W, VIEW_W);
+        for (unsigned x = 0; x < VIEW_W; x++)
+            page[y * VIEW_W + x] = lvlPlane[y * 88u + (x >> 2)][x & 3u];
 
     /* the object pass (render_objects 1000:5D56): the placed records' base
      * sprites over the terrain, before the bar */
-    /* the port's world render is unscrolled ([0x0]/[0x2] are 0: the view is
-     * copied 1:1 to the page), so the object pass draws at the record's own
-     * (x, y) like the original's scroll-0 frame. */
-    object_render(page, 0, 0);
+    object_render(page, (int)viewX, (int)viewY);
 
     /* the bar over the world rows (the original's band lives below the
      * 192-row visible window via the line compare; the flat page redraws

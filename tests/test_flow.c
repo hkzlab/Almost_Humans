@@ -284,12 +284,52 @@ int main(int argc, char **argv)
         check(object_current() == 3, "the claim makes the neighbour current");
         check(object_claimActive() == 1, "the sequence starts");
         {
-            unsigned t = 0, spawned = 0;
+            unsigned t = 0, spawned = 0, panSeen = 0, panOK = 0;
             while (object_claimActive() && t++ < 20000u) {
                 palette_tick();
                 object_tick(testPal);
+                if (!panSeen && (level_viewX() || level_viewY())) {
+                    /* the pan (1000:3D41) centres on min(player, claimed) */
+                    const uint8_t *pl = object_slot(0);
+                    const uint8_t *cl = object_slot(object_current());
+                    unsigned px = pl[0] | (pl[1] << 8), cx = cl[0] | (cl[1] << 8);
+                    unsigned py = pl[2] | (pl[3] << 8), cy = cl[2] | (cl[3] << 8);
+
+                    panSeen = 1;
+                    panOK = level_viewX() == (px < cx ? px : cx) &&
+                            level_viewY() == (py < cy ? py : cy);
+                }
             }
+            check(panSeen && panOK,
+                  "the claim's pan sets the view to min(player, claimed)");
+            check(level_viewX() == 0u && level_viewY() == 0u,
+                  "the claim restores the play origin");
             check(!object_claimActive(), "the claim sequence finishes");
+            check(level_sparkActive(),
+                  "the claim's append starts the particle effect");
+            {
+                unsigned t2 = 0, seen = 0, bitOK = 1;
+
+                while (level_sparkActive() && t2++ < 400u) {
+                    unsigned sx = 0, sy = 0, sv = 0;
+
+                    level_tick();
+                    if (!seen && level_sparkPeek(&sx, &sy, &sv) && sv != 0u) {
+                        unsigned px = sx - level_viewX();
+                        unsigned py = sy - level_viewY();
+                        const uint8_t *pg = osys_null_page(0);
+
+                        if (px < 320u && py < 200u) {
+                            seen = 1;
+                            bitOK = (((pg[py * 320u + px] >> (px & 3u)) & 1u) ==
+                                     ((sv >> (px & 3u)) & 1u));
+                        }
+                    }
+                }
+                check(seen != 0u, "a spawned cell carries a sprite value");
+                check(bitOK != 0u, "the composed pixel carries the cell's plane bit");
+                check(!level_sparkActive(), "the effect ends after its 0x53 life");
+            }
             spawned = object_liveCount();
             check(spawned == 9u, "the spawn appended one live record");
             if (spawned == 9u) {
