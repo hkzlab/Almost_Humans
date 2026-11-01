@@ -1734,13 +1734,27 @@ int main(int argc, char **argv)
                 check(profile == 0x00FE1FF0u,
                       "the stamp's ink rows are 4..12 and 17..23 (live profile)");
             }
-            /* 0x4697/0x46A3: the on phase saves the cell, the off phase
-             * restores exactly those 64x24 pixels (not a clear). */
+            /* 0x4697/0x46A3: the cell is saved to A000:0000 (the page's
+             * top-left 64x24), the sprite is drawn, and the off phase copies
+             * that page area back.  The top-left is deliberately overwritten. */
             memset(page, 0, sizeof page);
+            for (unsigned y = 0; y < 24u; y++)
+                for (unsigned x = 0; x < 64u; x++) page[y * 320u + x] = 0x11u;
             for (unsigned y = 176u; y < 200u; y++)
                 for (unsigned x = 128u; x < 192u; x++)
                     page[y * 320u + x] = 0x5Au;
             score_stampDraw(page, 1);
+            {
+                unsigned scratch = 0, bad = 0;
+
+                for (unsigned y = 0; y < 24u; y++)
+                    for (unsigned x = 0; x < 64u; x++) {
+                        if (page[y * 320u + x] == 0x5Au) scratch++;
+                        else bad++;
+                    }
+                check(scratch == 64u * 24u && bad == 0u,
+                      "the on phase saves the cell to page 0");
+            }
             score_stampDraw(page, 0);
             {
                 unsigned kept = 0, other = 0;
@@ -1751,7 +1765,7 @@ int main(int argc, char **argv)
                         else other++;
                     }
                 check(kept == 64u * 24u && other == 0u,
-                      "the off phase restores the saved 64x24 underlay");
+                      "the off phase restores the cell from page 0");
             }
         }
 

@@ -257,17 +257,31 @@ unsigned score_levelScore(void)
  * the group's colour is the last plane pass's value, as the planes are written
  * in order 1, 2, 4, 8.
  *
- * 0x4697/0x46A3 are one body at 0x46AF with source and destination swapped:
- * the on phase (`0x46FC`) first saves the 16 x 24 byte cell into the DS:0
- * scratch and then draws the sprite; the off phase (`0x46A3`) copies the
- * scratch back.  The port keeps the underlay in a flat-page buffer of the same
- * 64 x 24 pixels; the on phase saves, the off phase restores.  Both phases use
- * the same STAMP_ROW/STAMP_COL and the same shape, so they cannot drift.
+ * 0x4697/0x46A3 are one body at 0x46AF with source and destination swapped.
+ * Its segment setup is `B8 00 A0 / 8E C0 / 8E D8`: ES and DS are both A000,
+ * so the scratch is **A000:0000**, not DS:0.  The on phase (`0x46FC`) copies
+ * the 16 x 24 cell to page 0 and then draws the sprite; the off phase
+ * (`0x46A3`) copies page 0 back.  In the flat page that is 64 x 24 pixels at
+ * rows 0..23, columns 0..63.  The copy deliberately overwrites the top-left
+ * of the page, exactly as the original does.  Both phases use the same
+ * STAMP_ROW/STAMP_COL and shape, so they cannot drift.
  */
 #define STAMP_ROW 176u
 #define STAMP_COL 32u
 
-static uint8_t stampUnder[24u * 64u];
+/* 1000:46AF: 24 rows x 16 page bytes (64 flat pixels) at an 88-byte page
+ * stride.  Both offsets are absolute A000 page offsets. */
+static void stampCopy(uint8_t *page, unsigned srcRow, unsigned srcPx,
+                      unsigned dstRow, unsigned dstPx)
+{
+    for (unsigned r = 0; r < 24u; r++) {
+        unsigned sy = srcRow + r, dy = dstRow + r;
+
+        if (sy >= 200u || dy >= 200u) continue;
+        for (unsigned j = 0; j < 64u; j++)
+            page[dy * 320u + dstPx + j] = page[sy * 320u + srcPx + j];
+    }
+}
 
 void score_stampDraw(uint8_t *page, int on)
 {
@@ -275,25 +289,12 @@ void score_stampDraw(uint8_t *page, int on)
 
     if (!page) return;
     if (!on) {
-        /* 1000:46A3: restore the underlay saved by the last on phase. */
-        for (r = 0; r < 24u; r++) {
-            unsigned py = STAMP_ROW + r;
-
-            if (py >= 200u) continue;
-            for (j = 0; j < 64u; j++)
-                page[py * 320u + STAMP_COL * 4u + j] =
-                    stampUnder[r * 64u + j];
-        }
+        /* 1000:46A3: A000:0000 -> the cell. */
+        stampCopy(page, 0u, 0u, STAMP_ROW, STAMP_COL * 4u);
         return;
     }
-    /* 1000:4697: save 16 x 24 page bytes (64 x 24 flat pixels), then draw. */
-    for (r = 0; r < 24u; r++) {
-        unsigned py = STAMP_ROW + r;
-
-        if (py >= 200u) continue;
-        for (j = 0; j < 64u; j++)
-            stampUnder[r * 64u + j] = page[py * 320u + STAMP_COL * 4u + j];
-    }
+    /* 1000:4697: the cell -> A000:0000, then draw the sprite. */
+    stampCopy(page, STAMP_ROW, STAMP_COL * 4u, 0u, 0u);
     for (r = 0; r < 24u; r++)
         for (j = 0; j < 16u; j++) {
             unsigned v = scoreRecord
