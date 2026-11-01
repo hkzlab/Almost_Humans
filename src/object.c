@@ -2518,9 +2518,14 @@ static int objStepProbe(const uint8_t *actor, unsigned *cellOut)
     return objStepProbeAt(actor, 8, 0x18, cellOut);
 }
 
-/* 1000:F25F: whether the walk can land - the step probe's result must not drop
- * more than 8 px, and the item record's bit for the sub-cell 0x10 below the
- * actor's y must be clear.  Returns 0 = free, 0xFFFF = blocked. */
+/* 1000:F25F: whether the walk can land - the step probe's landing must not
+ * rise more than 8 px above the feet (a step-up blocks), and the item record's
+ * bit for the sub-cell 0x10 below the actor's y must be clear.  0 = free,
+ * 0xFFFF = blocked.
+ * ⚠ Two deviations (port_deviations.md D-35/D-37): the original probes
+ * (x + [0x4238], y + 0x18) and its item table is built at runtime by
+ * draw_objects (1000:558B) - here the probe is x + 8 and pageItems is the
+ * shipped, all-zero field B. */
 static unsigned objWalkTest(const uint8_t *actor)
 {
     unsigned sub, id, bit, cell;
@@ -2696,7 +2701,10 @@ static int objBgMark(const uint8_t *actor)
 
 /* 1000:D8BD: the terrain settle the type rows' +0xA hook runs.  Snaps the actor
  * to the slope under its feet, lands it (type 3) on a drop of more than 8 px,
- * and caches the settled position at 0x6847. */
+ * and caches the settled position at 0x6847.
+ * ⚠ The original masks the row base (`AND BX,0xFFF0` at 1000:D8D0) and keeps
+ * the unaligned feet line in CX for the distance test; here `line` is the
+ * unaligned value (port_deviations.md D-36). */
 static void objCmdSettle(uint8_t *actor)
 {
     int x = (int16_t)rd16(actor, 0u);
@@ -4226,6 +4234,9 @@ static void objFallMachine(uint8_t *actor)
 
     above = objMapAtAbs(cx, (int)rowY - 0x10, NULL); /* 1000:F761: [DI-0x20] */
     if (above >= 0xF0u) {                            /* 1000:F766 */
+        /* ⚠ 1000:F772 builds the x from AX = record.x + [+0x10], not from CX;
+         * `cx` here is already ax + 8, so this is one tile right
+         * (port_deviations.md D-38). */
         unsigned gx = (unsigned)(cx + 8) & ~0xFu;
 
         if (above != 0xF1u) {
