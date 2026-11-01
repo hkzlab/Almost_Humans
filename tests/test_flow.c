@@ -1616,27 +1616,34 @@ int main(int argc, char **argv)
         }
         check(other == 0u && drawn != 0u && kept != 0u,
               "the card is drawn as 0xC0 + v and leaves zero bytes alone");
+        /* chunky 1:1 copy: pixel (x,y) = SCORE.BIT[y*320+x] + 0xC0.  These
+         * three bytes (0x28/0x04/0x22) are exactly where a plane-3 subsample
+         * would give 0x29/0x04/0x04, so they pin the linear read. */
+        check(page[18u * 320u + 18u] == 0xE8u &&
+              page[40u * 320u + 60u] == 0xC4u &&
+              page[185u * 320u + 60u] == 0xE2u,
+              "1000:4403: the card is SCORE.BIT read 1 byte per pixel");
     }
     {
         InputState k;
         memset(&k, 0, sizeof k);
         k.lastKey = 1;
     /* 8a-digit. 1000:462D's digit law: block `digit*256` of SCORE.SPR, 16 rows
-     * x 4 bytes, one byte = 4 px (bits 0..3), all four plane passes equal so a
-     * set bit is 0xF.  Digit 3 is block 12 (SI = 3*256 = 12*64); its row 0 is
-     * 02 02 02 02 -> cols 1, 5, 9, 13, and row 2 is 02 29 2d 0c -> cols
-     * 1, 4, 7, 8, 10, 11, 14, 15. */
+     * x 4 bytes; the four plane passes reread the same bytes (no INC SI), so
+     * one byte is a 4-px block drawn as 0xC0 | v.  Digit 3's row 0 is
+     * 02 02 02 02 -> four 0xC2 blocks; row 2 is 02 29 2d 0c. */
     {
         static uint8_t page[320 * 200];
         static uint8_t page2[320 * 200];
 
         memset(page, 0, sizeof page);
         score_column(page, 3u, 0, 0, 1u);
-        check(page[0 * 320u + 1] == 0x0Fu && page[0] == 0u && page[2] == 0u,
-              "1000:462D: digit 3 sets (row 0, col 1) only");
-        check(page[2 * 320u + 4] == 0x0Fu && page[2 * 320u + 7] == 0x0Fu &&
-              page[2 * 320u + 2] == 0u,
-              "the block's low-nibble bits are the row's four pixels");
+        check(page[0 * 320u + 0] == 0xC2u && page[0 * 320u + 3] == 0xC2u &&
+              page[0 * 320u + 4] == 0xC2u,
+              "1000:462D: digit 3's row 0 is four 0xC2 blocks");
+        check(page[2 * 320u + 0] == 0xC2u && page[2 * 320u + 5] == 0xE9u &&
+              page[2 * 320u + 9] == 0xEDu && page[2 * 320u + 12] == 0xCCu,
+              "one byte is a 4-px block (row 2: 02 29 2d 0c)");
         /* 1234 in 5 digits is "01234", right to left in 16-px steps */
         memset(page, 0, sizeof page);
         memset(page2, 0, sizeof page2);
@@ -1672,6 +1679,12 @@ int main(int argc, char **argv)
             }
             check(ina != 0u && outside == 0u && low == 0u,
                   "1000:44BB draws the time digits at row 181, px 104..127");
+            /* the first digit of 0x0123 is slot 1; its row 0 is
+             * 17 17 02 02 02 02 17 17 -> D7 D7 C2 C2 C2 C2 D7 D7 */
+            check(a[181u * 320u + 104u] == 0xD7u &&
+                  a[181u * 320u + 105u] == 0xD7u &&
+                  a[181u * 320u + 106u] == 0xC2u,
+                  "1000:450F: the SCORENUM slot is a chunky 8x8 image");
             check(diff != 0u, "a different time draws different digits");
             memset(a, 0, sizeof a);
             score_drawNum3(a, 0xF0u, 0x0123u, 0xB5u, 0x280u);
@@ -1713,15 +1726,14 @@ int main(int argc, char **argv)
 
                     if (!v) continue;
                     if (x < 128u || x >= 192u || y < 176u || y >= 200u) outside++;
-                    else if (y < 180u) top++;
+                    else if (y < 178u) top++;
                     else if (v != 0xC2u && v != 0xC3u) bad++;
                     else set++;
                 }
             check(set != 0u && bad == 0u && top == 0u && outside == 0u,
-                  "1000:46FC: the stamp is 0xC0 + RECORD.SPR's 2/3 values, 64x24");
-            /* the sprite's own row profile, confirmed against the live screen
-             * (2026-11-01): rows 0..3 empty, the arrow in 4..12, the words in
-             * 17..23 - and nothing in 13..16. */
+                  "1000:46FC: the stamp is 0xC0 + RECORD.SPR, 64x24, rows 2..");
+            /* apl\RECORD.SPR is chunky 64x24: pixel (x,y) = src[y*64+x].
+             * Row 4's ink starts at x 32; its row profile is 0xFE7FFC. */
             {
                 unsigned inkRow[24] = { 0 };
                 unsigned profile = 0;
@@ -1731,12 +1743,16 @@ int main(int argc, char **argv)
                         if (page[y * 320u + x]) { inkRow[y - 176u] = 1; break; }
                 for (unsigned r = 0; r < 24u; r++)
                     if (inkRow[r]) profile |= (1u << r);
-                check(profile == 0x00FE1FF0u,
-                      "the stamp's ink rows are 4..12 and 17..23 (live profile)");
+                check(profile == 0x00FE7FFCu,
+                      "the stamp is the sprite's chunky 64x24 row profile");
+                check(page[180u * 320u + 128u + 32u] == 0xC2u &&
+                      page[180u * 320u + 128u + 31u] == 0u,
+                      "the stamp's row 4 ink starts at sprite x 32");
             }
-            /* 0x4697/0x46A3: the cell is saved to A000:0000 (the page's
-             * top-left 64x24), the sprite is drawn, and the off phase copies
-             * that page area back.  The top-left is deliberately overwritten. */
+            /* 0x4697/0x46A3: the cell is saved to A000:0000 - which is
+             * OUTSIDE the visible page ([0x4106] = 0x1230 live) - the sprite
+             * is drawn, and the off phase copies the scratch back.  A uniform
+             * cell restores exactly. */
             memset(page, 0, sizeof page);
             for (unsigned y = 0; y < 24u; y++)
                 for (unsigned x = 0; x < 64u; x++) page[y * 320u + x] = 0x11u;
@@ -1745,15 +1761,15 @@ int main(int argc, char **argv)
                     page[y * 320u + x] = 0x5Au;
             score_stampDraw(page, 1);
             {
-                unsigned scratch = 0, bad = 0;
+                unsigned kept = 0, bad = 0;
 
                 for (unsigned y = 0; y < 24u; y++)
                     for (unsigned x = 0; x < 64u; x++) {
-                        if (page[y * 320u + x] == 0x5Au) scratch++;
+                        if (page[y * 320u + x] == 0x11u) kept++;
                         else bad++;
                     }
-                check(scratch == 64u * 24u && bad == 0u,
-                      "the on phase saves the cell to page 0");
+                check(kept == 64u * 24u && bad == 0u,
+                      "1000:4697: the scratch is not the visible page");
             }
             score_stampDraw(page, 0);
             {
@@ -1765,7 +1781,26 @@ int main(int argc, char **argv)
                         else other++;
                     }
                 check(kept == 64u * 24u && other == 0u,
-                      "the off phase restores the cell from page 0");
+                      "the off phase restores the cell");
+            }
+            /* the copy runs with Map Mask 0x0F / read map 0, so a group's
+             * four pixels collapse to its plane-0 pixel on the way back. */
+            memset(page, 0, sizeof page);
+            for (unsigned y = 176u; y < 200u; y++)
+                for (unsigned x = 128u; x < 192u; x++)
+                    page[y * 320u + x] = (uint8_t)(0x10u + (x & 3u));
+            score_stampDraw(page, 1);
+            score_stampDraw(page, 0);
+            {
+                unsigned kept = 0, bad = 0;
+
+                for (unsigned y = 176u; y < 200u; y++)
+                    for (unsigned x = 128u; x < 192u; x++) {
+                        if (page[y * 320u + x] == 0x10u) kept++;
+                        else bad++;
+                    }
+                check(kept == 64u * 24u && bad == 0u,
+                      "the restore collapses each 4-px group to plane 0");
             }
         }
 

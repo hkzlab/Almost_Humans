@@ -248,102 +248,112 @@ unsigned score_levelScore(void)
  *
  * `blink_tick` toggles `[0x1DC4]` and jumps on the new phase: 0 -> `0x46A3`,
  * 1 -> `0x46FC`.  `0x46FC` draws `apl\record.spr` ([0x1DDE]) into the page at
- * byte `0x3CA0 + [0x4106]`: 0x18 rows x 16 bytes, `LODSB` + `ADD SI,3` (the
- * `p::4` de-interleave), a non-zero byte drawn as `0xC0 + v`, four Map-Mask
- * passes.  `0x3CA0` is not a multiple of the 88-byte row: 0x3CA0 = 176*88 + 32,
- * so the stamp sits at row 176, byte column 32 - a 64 x 24 cell at px 128..191
- * on rows 176..199.  The page's law (re_formats.md, SCOREBIT/RECORD are
- * byte-wide with four planes) is one value per byte covering a 4-px group, so
- * the group's colour is the last plane pass's value, as the planes are written
- * in order 1, 2, 4, 8.
+ * byte `0x3CA0 + [0x4106]`: 0x18 rows x 64 bytes, `LODSB` + `ADD SI,3` (the
+ * `p::4` pass de-interleave), a non-zero byte drawn as `0xC0 + v`, four
+ * Map-Mask passes.  A page address is a 4-pixel group (plane p = pixel 4j+p),
+ * so the four passes read `src[4j+p]` into pixel `4j+p`: a 1:1 copy of the
+ * chunky 64 x 24 sprite.  `0x3CA0` is not a multiple of the 88-address row:
+ * 0x3CA0 = 176*88 + 32, so the stamp sits at row 176, address column 32 -
+ * a 64 x 24 cell at px 128..191 on rows 176..199.
  *
  * 0x4697/0x46A3 are one body at 0x46AF with source and destination swapped.
  * Its segment setup is `B8 00 A0 / 8E C0 / 8E D8`: ES and DS are both A000,
  * so the scratch is **A000:0000**, not DS:0.  The on phase (`0x46FC`) copies
  * the 16 x 24 cell to page 0 and then draws the sprite; the off phase
- * (`0x46A3`) copies page 0 back.  In the flat page that is 64 x 24 pixels at
- * rows 0..23, columns 0..63.  The copy deliberately overwrites the top-left
- * of the page, exactly as the original does.  Both phases use the same
- * STAMP_ROW/STAMP_COL and shape, so they cannot drift.
+ * (`0x46A3`) copies page 0 back.  The copy runs with Map Mask 0x0F and read
+ * map 0, so it carries one page byte per 4-px group (plane 0's pixel) and
+ * writes it to all four; the port keeps that shape (`stampCopy`).
  */
 #define STAMP_ROW 176u
 #define STAMP_COL 32u
 
-/* 1000:46AF: 24 rows x 16 page bytes (64 flat pixels) at an 88-byte page
- * stride.  Both offsets are absolute A000 page offsets. */
-static void stampCopy(uint8_t *page, unsigned srcRow, unsigned srcPx,
-                      unsigned dstRow, unsigned dstPx)
-{
-    for (unsigned r = 0; r < 24u; r++) {
-        unsigned sy = srcRow + r, dy = dstRow + r;
-
-        if (sy >= 200u || dy >= 200u) continue;
-        for (unsigned j = 0; j < 64u; j++)
-            page[dy * 320u + dstPx + j] = page[sy * 320u + srcPx + j];
-    }
-}
+/* 1000:46AF: 24 rows x 16 page bytes at the 88-byte stride, Map Mask 0x0F
+ * and read map 0.  A page address is a 4-pixel group (plane p = pixel 4j+p),
+ * so the copy carries the group's plane-0 pixel (the first of the four) and
+ * writes it back to all four.
+ *
+ * The scratch itself is A000:0000, while the screen's page base ([0x4106])
+ * is elsewhere (the live screen had 0x1230), so the scratch is NOT part of
+ * the visible page.  The port keeps it in a private buffer of the same shape
+ * instead of the flat page's top-left. */
+static uint8_t stampUnder[24u * 16u];
 
 void score_stampDraw(uint8_t *page, int on)
 {
-    unsigned r, j, k;
+    unsigned r, j;
 
     if (!page) return;
     if (!on) {
         /* 1000:46A3: A000:0000 -> the cell. */
-        stampCopy(page, 0u, 0u, STAMP_ROW, STAMP_COL * 4u);
+        for (r = 0; r < 24u; r++)
+            for (j = 0; j < 16u; j++) {
+                unsigned v = stampUnder[r * 16u + j];
+                unsigned py = STAMP_ROW + r;
+                unsigned px = (STAMP_COL + j) * 4u;
+
+                if (py >= 200u || px + 3u >= 320u) continue;
+                page[py * 320u + px + 0u] = (uint8_t)v;
+                page[py * 320u + px + 1u] = (uint8_t)v;
+                page[py * 320u + px + 2u] = (uint8_t)v;
+                page[py * 320u + px + 3u] = (uint8_t)v;
+            }
         return;
     }
     /* 1000:4697: the cell -> A000:0000, then draw the sprite. */
-    stampCopy(page, STAMP_ROW, STAMP_COL * 4u, 0u, 0u);
     for (r = 0; r < 24u; r++)
         for (j = 0; j < 16u; j++) {
-            unsigned v = scoreRecord
-                       ? scoreRecord[3u + 4u * (r * 16u + j)]   /* plane 3 */
-                       : 0u;
             unsigned py = STAMP_ROW + r;
-            unsigned px = 4u * (STAMP_COL + j);
+            unsigned px = (STAMP_COL + j) * 4u;
 
-            if (py >= 200u) continue;
-            for (k = 0; k < 4u; k++)
-                page[py * 320u + px + k] = v ? (uint8_t)(v + 0xC0u) : 0u;
+            stampUnder[r * 16u + j] =
+                (py < 200u && px < 320u) ? page[py * 320u + px] : 0u;
+        }
+    /* 1000:46FC: apl\RECORD.SPR is chunky 64x24; the four passes read
+     * src[4j+p] into plane p at address j, i.e. pixel 4j+p = src[4j+p].
+     * A zero byte leaves the saved underlay alone. */
+    for (r = 0; r < 24u; r++)
+        for (j = 0; j < 64u; j++) {
+            unsigned v = scoreRecord ? scoreRecord[r * 64u + j] : 0u;
+            unsigned py = STAMP_ROW + r;
+            unsigned px = STAMP_COL * 4u + j;
+
+            if (!v || py >= 200u || px >= 320u) continue;
+            page[py * 320u + px] = (uint8_t)(v + 0xC0u);
         }
 }
 
 /* --- 1000:462D / 1000:4578: the score screen's digit columns ------------
  *
- * `blit_score_block` (0x462D): `SI = digit*256` into SCORE.SPR, four Map-Mask
- * passes (`AH = 1,2,4,8`) that each copy the SAME 16 rows x 4 bytes with no
- * source advance, so all four planes get the same bits and a covered pixel is
- * 0xF.  On this page one byte covers four pixels - the level page's law, which
- * `statusbar_segment`'s `x/4` and the game's `1 << (x & 3)` masks both use - so
- * the glyph is 16 px wide (4 bytes) x 16 rows.  The block's bytes are masks, not
- * 4-bit values (digit 3: 02 02 02 02 / 02 0a 0a 0c / ...), and the low nibble
- * reads as the digit while the high nibble is never reached by `1 << (x & 3)`.
- *
- * `statusbar_segment` (0x4578): a 32-bit value from [0x4228]/[0x422A] drawn as
- * DX digits at (AX, BX), right to left in 4-byte (16 px) steps.  The value is
- * divided by 10000 first, the extra digits emitted when the quotient is not
- * zero, then by 10 per digit; an exhausted value keeps drawing block 0, i.e. the
- * display is zero-padded.
+ * `blit_score_block` (0x462D): `SI = digit*256` into SCORE.SPR (ten 0x100-byte
+ * slots).  The page address is a 4-pixel group (plane p = pixel 4j+p) and the
+ * four Map-Mask passes (`AH = 1,2,4,8`) reread the SAME 16 rows x 4 bytes with
+ * no source advance, so one source byte becomes a 4-px block.  `or_region_c0`
+ * (0x4278) has already ORed 0xC0 into the sheet, so a block's colour is
+ * 0xC0 | v and the glyph is 16 x 16.  `statusbar_segment` (0x4578): a 32-bit
+ * value from [0x4228]/[0x422A] drawn as DX digits at (AX, BX), right to left
+ * in 4-address (16 px) steps; the value is divided by 10000 first, then by 10,
+ * and an exhausted value keeps drawing block 0 (zero-padded).
  */
 static void score_digitBlock(uint8_t *page, unsigned digit, int x, int y)
 {
     const uint8_t *src;
 
-    if (!scoreDigits || digit > 39u) return;
-    src = scoreDigits + digit * 256u;               /* SI = digit*256 */
+    if (!scoreDigits || digit > 9u) return;   /* ten 0x100-byte slots */
+    src = scoreDigits + digit * 256u;         /* SI = AX = digit*0x100 */
+    /* 1000:462D: 16 rows x 4 bytes; the four plane passes reread the same
+     * bytes (no INC SI), so one byte is a 4-px block.  The runtime OR of
+     * 0xC0 into the sheet (0x4278) makes the colour 0xC0 | v, opaque. */
     for (unsigned r = 0; r < 16u; r++)
         for (unsigned j = 0; j < 4u; j++) {
-            unsigned b = src[r * 4u + j];
+            uint8_t v = (uint8_t)(src[r * 4u + j] | 0xC0u);
 
-            for (unsigned bit = 0; bit < 4u; bit++)
-                if ((b >> bit) & 1u) {
-                    int px = x + (int)(j * 4u + bit);
-                    int py = y + (int)r;
+            for (unsigned k = 0; k < 4u; k++) {
+                int px = x + (int)(j * 4u + k);
+                int py = y + (int)r;
 
-                    if (px >= 0 && px < 320 && py >= 0 && py < 200)
-                        page[(unsigned)py * 320u + (unsigned)px] = 0x0Fu;
-                }
+                if (px >= 0 && px < 320 && py >= 0 && py < 200)
+                    page[(unsigned)py * 320u + (unsigned)px] = v;
+            }
         }
 }
 
@@ -372,7 +382,7 @@ void score_drawColumns(uint8_t *page)
 /* --- 1000:44BB / 1000:450F: the elapsed and best times -------------------
  *
  * `draw_scorenum_three_passes` (`0x44BB`) draws one word as **three digits** at
- * `(AX, BX)` on the 88-stride page, `DI` bytes into the SCORENUM slot:
+ * `(AX, BX)` on the 88-address page, `DI` addresses into the SCORENUM slot:
  *
  *   iVar2 = BX*88 + (AX>>2) + [0x4106]
  *   digit 1 = (DX>>8) & 0x0F        at iVar2 + 6
@@ -380,37 +390,33 @@ void score_drawColumns(uint8_t *page)
  *   digit 3 =  DX      & 0x0F       at iVar2 + 10
  *
  * and `blit_scorenum_slot_plane` (`0x450F`) draws one slot: `DS:[0x1DDC]` +
- * `digit*0x40` + `BP`, **8 rows x 2 page bytes** (`src[0]` and `src[4]`, `src += 8`
- * per row) at `dst += 0x58` (88) per row, each byte stored as `v | 0xC0`.  Four
- * plane passes run with the source one byte further in each time; the page keeps
- * one value per byte, so the last pass (offset +3) is the visible one.
+ * `digit*0x40` + `BP`, **8 rows x 2 page addresses** (`src[0]` and `src[4]`,
+ * `src += 8` per row) at `dst += 0x56` after the two stores (88 per row), each
+ * byte stored as `v | 0xC0`.  The four plane passes take source byte +p, so
+ * pixel x of a row is `src[r*8 + x]`: the slot is a chunky 8x8 image.
  *
  * So the two times are drawn with SCORENUM's 8x8 digits: `(0x50, 0xB5)` the
  * elapsed word `[0x1E84]` with `BP = 0` (slots 0..9) and `(0xF0, 0xB5)` the best
- * time `[0x1E88]` with `BP = 0x280` (slots 10..19) - 4 px per page byte, so the
- * digits sit at row 181, px 80..87 and px 240..247.
+ * time `[0x1E88]` with `BP = 0x280` (slots 10..19) - one page address = 4 px,
+ * so the digits sit at row 181, px 104..127 and px 264..287.
  */
 static void score_numBlock(uint8_t *page, unsigned digit, unsigned bp, unsigned off)
 {
-    unsigned r, c;
+    unsigned row = off / 88u, col = off % 88u;
+    unsigned px = col * 4u;                  /* one address = 4 px */
 
-    if (!page || !scoreNum || digit > 19u) return;
-    for (r = 0; r < 8u; r++) {
-        unsigned at = off + r * 88u;
-        unsigned row = at / 88u;
-        unsigned col = at % 88u;
+    if (!page || !scoreNum || digit > 19u || row >= 200u) return;
+    /* 1000:450F: 8 rows x 2 addresses.  Pass p takes src[slot + r*8 + p] and
+     * src[slot + r*8 + 4 + p], so pixel x of the row is src[r*8 + x]: the
+     * slot is a chunky 8x8 image, stored as v | 0xC0. */
+    for (unsigned r = 0; r < 8u; r++) {
+        unsigned y = row + r;
 
-        if (row >= 200u) continue;
-        for (c = 0; c < 2u; c++) {
-            unsigned v = scoreNum[digit * 0x40u + bp + 3u + r * 8u + c * 4u];
-            unsigned px = 4u * (col + c);
-
-            if (px + 3u < 320u) {
-                page[row * 320u + px + 0u] = (uint8_t)(v | 0xC0u);
-                page[row * 320u + px + 1u] = (uint8_t)(v | 0xC0u);
-                page[row * 320u + px + 2u] = (uint8_t)(v | 0xC0u);
-                page[row * 320u + px + 3u] = (uint8_t)(v | 0xC0u);
-            }
+        if (y >= 200u) break;
+        for (unsigned x = 0; x < 8u; x++) {
+            if (px + x >= 320u) continue;
+            page[y * 320u + px + x] =
+                (uint8_t)(scoreNum[digit * 0x40u + bp + r * 8u + x] | 0xC0u);
         }
     }
 }
@@ -425,31 +431,23 @@ void score_drawNum3(uint8_t *page, unsigned ax, uint16_t value, unsigned bx, uns
 }
 
 
-/* 1000:4403 reblit_framebuffer_88's card pass: each source byte is a 6-bit
- * index drawn as 0xC0 + v over the 4-px group it covers, and a zero byte is
- * LEFT ALONE - the page keeps what was there (the level caption, in practice).
- * The file's first 64 palette entries are the card's own DAC 0xC0..0xFF bank. */
+/* 1000:4403 reblit_framebuffer_88's card pass: SCORE.BIT is a chunky 320x200
+ * image (one byte per pixel); the four plane passes read `src[4j+p]` into
+ * plane p at address j, i.e. pixel 4j+p = src[4j+p] - a plain 1:1 copy.  A
+ * non-zero byte is drawn as 0xC0 + v, a zero byte is LEFT ALONE (the page
+ * keeps the level caption).  The file's first 64 palette entries are the
+ * card's own DAC 0xC0..0xFF bank. */
 void score_drawCard(uint8_t *page)
 {
-    unsigned r, j;
+    if (!page || !scoreBit || scoreSize < 320u * 200u) return;
+    /* 1000:4403: SI walks the chunky 320-byte row at stride 4 (one byte per
+     * plane pass) and DI is the 4-px page group, so pixel 4j+p = src[4j+p]:
+     * a plain 1:1 copy.  A zero byte is LEFT ALONE (the level caption). */
+    for (unsigned i = 0; i < 320u * 200u; i++) {
+        unsigned v = scoreBit[i];
 
-    if (!page || !scoreBit) return;
-    /* `reblit` walks 80 bytes per row (stride 88) and four plane passes, each
-     * taking src[4*(row*80+col) + p]; the page is the 4-px-per-byte one the
-     * stamp lives on, so a group's colour is the LAST pass's byte, plane 3. */
-    for (r = 0; r < 200u; r++)
-        for (j = 0; j < 80u; j++) {
-            unsigned i = 4u * (r * 80u + j) + 3u;
-            unsigned v;
-
-            if (i >= scoreSize || i >= SCORE_PAGE) return;
-            v = scoreBit[i];
-            if (!v) continue;
-            page[r * 320u + j * 4u + 0u] = (uint8_t)(v + 0xC0u);
-            page[r * 320u + j * 4u + 1u] = (uint8_t)(v + 0xC0u);
-            page[r * 320u + j * 4u + 2u] = (uint8_t)(v + 0xC0u);
-            page[r * 320u + j * 4u + 3u] = (uint8_t)(v + 0xC0u);
-        }
+        if (v) page[i] = (uint8_t)(v + 0xC0u);
+    }
 }
 
 int score_begin(unsigned value)
