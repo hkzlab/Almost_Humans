@@ -470,6 +470,57 @@ static void page_table_build(const BdPage *page)
     }
 }
 
+/* draw_objects (1000:558B): field B's item records are the terrain's per-row
+ * collision masks, NOT stored - the shipped descriptors are all zero and this
+ * pass fills them from the tile art.  `1000:5137` builds the `0x1FA4` flags
+ * from the J block's FIRST four bytes (0x1E98; the page table above uses the
+ * second four), then the pass walks the 0xA9 offset words:
+ *
+ *   55AF  a negative offset ends the walk;
+ *   55B7  a word equal to tab[0] is skipped (the shared "no collision" record)
+ *         and the art cursor SI advances one tile;
+ *   55C8  any word already non-zero is left alone - and that path does NOT
+ *         advance SI, so a tile whose descriptor an earlier tile already
+ *         computed reuses whatever art SI sits on.  Kept as the listing has it
+ *         (the live table is the check);
+ *   55DB  a zero word is 16 pixels of `ES:SI`, bit 0x8000 >> col for every
+ *         opaque one, and SI advances 16.
+ */
+static void item_masks_build(const BdPage *page)
+{
+    unsigned si = 0x400u;                    /* 1000:5595: ES:SI, the tiles    */
+    unsigned tab0;
+
+    if (!pageItems || !atlas || !page->jBytes || !pageValid) return;
+    page_mask_build(page->jBytes);           /* 0x1FA4 from 0x1E98's first 4   */
+    tab0 = rd_le16(pageItems);
+    for (unsigned id = 0; id <= 0xA8u; id++) {
+        unsigned off = rd_le16(pageItems + 2u * id);
+
+        if (off & 0x8000u) break;                        /* 1000:55AF JS     */
+        if (off == tab0) {                               /* 1000:55B7        */
+            si += 0x100u;
+            continue;
+        }
+        if ((uint32_t)off + 32u > pageItemsSize) continue;
+        for (unsigned row = 0; row < 16u; row++) {
+            unsigned o = off + 2u * row;
+            unsigned word = rd_le16(pageItems + o);
+
+            if (word != 0u) continue;                    /* 1000:55CC JNZ    */
+            word = 0u;
+            for (unsigned col = 0; col < 16u; col++) {   /* 1000:55D9        */
+                uint8_t px = si < 0x400u + ATLAS_TILES * 0x100u ? atlas[si] : 0u;
+
+                si++;
+                if (px < 32u && pageOpacity[px]) word |= 0x8000u >> col;
+            }
+            pageItems[o] = (uint8_t)word;
+            pageItems[o + 1u] = (uint8_t)(word >> 8);
+        }
+    }
+}
+
 /* draw_map_digit (1000:4F22) + the BD walk: the style's defs, atlas and
  * background, all off the current disc (everything ships on HUMANS.001). */
 static int visuals_load(unsigned style)
@@ -520,6 +571,9 @@ static int visuals_load(unsigned style)
     /* the page table is built from the atlas while the BD image (J/O/N)
      * is still alive; the pointers in `page` point into it. */
     page_table_build(&page);
+    /* draw_objects (1000:558B) then fills field B's item records; it needs
+     * the same J bytes, so it runs before the BD image is released. */
+    item_masks_build(&page);
     free(bd);
 
     if (bgIdx != 0u) {
@@ -1383,6 +1437,8 @@ int level_tick(void)
      * 256-entry fade to 0x14D3 (div 0x32), then the hook is installed (the
      * bar's ticking gate [0x5B12] := 0xFF).  The world is kept drawn behind
      * each phase. */
+    int doUpdate = (startPhase == LVSTART_PLAYING) ? 1 : 0;
+
     switch (startPhase) {
     case LVSTART_IDLE:
         level_begin();
@@ -1424,6 +1480,7 @@ int level_tick(void)
         }
         break;
     case LVSTART_WARMUP:
+        doUpdate = 1;                      /* 1000:3374's eight frames */
         if (--warmupLeft == 0u) {
             palette_buildFade(0, 256, 0x32, levelPal);
             startPhase = LVSTART_FADE_IN;
@@ -1468,19 +1525,24 @@ int level_tick(void)
     /* the object machine's frame (the claim's sequence and its fades); the
      * original runs it from the level's per-frame body, so not during the
      * start chain. */
-    if (startPhase == LVSTART_WARMUP || startPhase == LVSTART_FADE_IN ||
-        startPhase == LVSTART_PLAYING) {
-        /* 1000:80AD update_world: get_object_ptr (1000:79F4) then the input
-         * command (1000:E3F6) for the acting record, before the object tick.
-         * `joyBits` is the port's [0x5ACE] (backend -> 1000:8526's shape).
-         * The whole chain is behind `[0xC]` (1000:80AD's first test), which
-         * level_fade_in sets before its eight frames - so it runs from
-         * LVSTART_WARMUP on, and freezes while the claim holds it at 0. */
+    /* 1000:80AD update_world runs for level_fade_in's eight frames and then
+     * from the play loop; it does NOT run during the palette fade, where
+     * level_fade_in spins in `wait_palette_fade_done` (1000:8B8B).  The
+     * marker's lifetime shows it: the live record 8 reads type 0x18 /
+     * +0xA 0x1001 when play starts - exactly eight updates after the
+     * 0x1006 init (the fade-out tick that seeds the view does not count). */
+    if (doUpdate) {
+        /* get_object_ptr (1000:79F4) then the input command (1000:E3F6) for
+         * the acting record, before the object tick.  `joyBits` is the port's
+         * [0x5ACE] (backend -> 1000:8526's shape).  The whole chain is behind
+         * `[0xC]` (1000:80AD's first test), which level_fade_in sets before
+         * its eight frames, and the claim holds it at 0. */
         uint8_t *actor = object_slot(object_actionEntity());
 
         if (worldUpdates) {
             level_followView();           /* 1000:5CB6, first in update_world */
             if (actor) (void)object_commandRun(actor, levelJoy);
+            object_markerTick();          /* 1000:D64F, after the dispatch */
         }
         object_tick(level_palette());     /* the claim's phase machine: blocking
                                            * in the original, so not gated here */

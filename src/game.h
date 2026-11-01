@@ -612,6 +612,9 @@ int  object_cycleEntity(int step);
 unsigned object_actionEntity(void);
 /* level_fade_in's slot-8 init (1000:3344): frame 0x17, type 0x1A. */
 void object_levelStartRecord(void);
+/* 1000:D64F: the active-human marker (record 8) follows the acting record,
+ * bobs through its type word and expires; update_world calls it every frame. */
+void object_markerTick(void);
 void object_setActionEntity(unsigned index);
 unsigned object_actionProgram(void);
 unsigned object_actionPending(void);

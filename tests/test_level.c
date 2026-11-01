@@ -325,24 +325,26 @@ int main(int argc, char **argv)
             /* level_fade_in (1000:3344) initialises slot 8 to frame 0x17 /
              * type 0x1A and `scan_object_rows` (1000:6433) counts
              * `[0x3E73]-8+1` records from 0x3F05, so the slot is drawn.  Slot 8
-             * is the active-human arrow; the original repositions it every
-             * frame in 1000:D64F, which the port does not have, so its x/y stay
-             * the array init's 0xFFFF (-1) and the pin includes that top-left
-             * sliver (port_deviations.md D-39; it moves when D64F is ported).
+             * is the active-human arrow; 1000:D64F repositions it every frame
+             * (the camera seed puts it off-screen in this frame).
              *
-             * The pin moved once more when the type-3 rows' tail (1000:D9E8)
-             * was ported: the level's type-3 placed record now runs its gravity
-             * tail during the start chain's update_world frames, so its y
-             * settles (sum 1153797, nz 26444, was 1149474 / 26396 with the tail
-             * unported).  `test_flow` pins D9E8's crash and platform branches
-             * directly. */
+             * The pin moved when the terrain-movement pass landed
+             * (2026-11-01): the walk's item masks now come from draw_objects
+             * (1000:558B), the settle masks its row base (1000:D8D0), and the
+             * active-human arrow (record 8) is positioned by 1000:D64F instead
+             * of sitting at the array init.  It moved again with the start
+             * chain's tick model: update_world runs for level_fade_in's eight
+             * frames and then from the play loop, not during the palette fade
+             * (which spins in 1000:8B8B), so the first play frame is eight
+             * camera steps from the (0x60,0x50) seed.  This run pins sum
+             * 5743109; test_flow pins the live walk trace and the marker. */
             /* The BG fill is the 0x80..0xBF bank (load_level_assets' 0x4BE2
              * transform) and draw_terrain leaves the BG through a zero tile
              * byte, so every page byte is now part of the composite.  The
              * sum moved when the 0x92A0 page table was built correctly
              * (draw_terrain2 1000:505C): the placed records now settle and
              * walk on the real heights. */
-            if (sum != 6002975u || nz != 64000u) {
+            if (sum != 5743109u || nz != 64000u) {
                 fprintf(stderr, "FAIL level 0 page: sum %u nz %u\n",
                         sum, nz);
                 bad = 1;
@@ -362,6 +364,28 @@ int main(int argc, char **argv)
                     }
                 if (h != 0x26a3598fu) {
                     fprintf(stderr, "FAIL the 0x92A0 page table: %08x\n", h);
+                    bad = 1;
+                }
+            }
+
+            /* The item records (draw_objects 1000:558B): field B ships
+             * all-zero and the pass fills the per-row collision masks from
+             * the tile art with the J block's FIRST opacity mask.  This
+             * FNV-1a (low byte first, per 16-bit word) is the live
+             * original's [0x1FD6] for level 0's style 3 (read from DOSBox,
+             * DS = 0x123A, 2026-11-01, all 169 x 16 words) - exact. */
+            {
+                uint32_t h = 2166136261u;
+
+                for (unsigned id = 0; id <= 0xA8u; id++)
+                    for (unsigned row = 0; row < 16u; row++) {
+                        unsigned w = level_itemWord(id, row);
+
+                        h = (h ^ (w & 0xFFu)) * 16777619u;
+                        h = (h ^ (w >> 8)) * 16777619u;
+                    }
+                if (h != 0x27279109u) {
+                    fprintf(stderr, "FAIL the 0x1FD6 item masks: %08x\n", h);
                     bad = 1;
                 }
             }
@@ -433,11 +457,14 @@ int main(int argc, char **argv)
             {
                 static uint8_t before[64000];
                 const uint8_t *p0 = osys_null_page(0);
-                memcpy(before, p0, sizeof before);
                 /* the follower (1000:5CB6) owns the window in play, so the
                  * pan is exercised with the world frozen ([0xC] = 0, the state
-                 * the claim holds): the compose still presents. */
+                 * the claim holds): compose one frame at (0,0), then at
+                 * (16,8) and compare the two. */
                 level_setUpdates(0);
+                level_setView(0u, 0u);
+                level_tick();
+                memcpy(before, p0, sizeof before);
                 level_setView(16u, 8u);
                 level_tick();
                 {

@@ -1723,10 +1723,10 @@ unsigned object_actionEntity(void) { return objEntity; }
 /* 1000:3344..336C (level_fade_in): slot 8 (`0x3F05`) takes frame 0x17, type 0x1A,
  * +0xA = 0x1006 and +0xC = 0xFF.  `scan_object_rows` starts its walk there and
  * counts `[0x3E73]-8+1` records, so this slot is drawn.
- * Slot 8 is the active-human ARROW: the original positions it every frame in
- * 1000:D64F (update_world's 1000:80C9) and the selector arms it at 1000:4188.
- * ⚠ Neither exists here, so x/y stay the array init's 0xFFFF and the arrow is
- * drawn at the level's top-left, static (port_deviations.md D-39). */
+ * Slot 8 is the active-human ARROW: 1000:D64F (object_markerTick, called from
+ * update_world) positions and bobs it every frame, and the selector arms it in
+ * 1000:4188 (objMarkerArm), so the x/y the array init leaves at 0xFFFF are
+ * replaced on the first level frame. */
 void object_levelStartRecord(void)
 {
     uint8_t *r = object_slot(8u);
@@ -1739,6 +1739,59 @@ void object_levelStartRecord(void)
     /* The next instruction of level_fade_in, `MOV byte ptr [0xc], 0xff` at
      * 1000:336C, is the GLOBAL update_world gate (level.c's worldUpdates) -
      * not this record's +0xC, which stays 0 as the asm leaves it. */
+}
+
+/* 1000:4188 (the selector's tail): the selection arms the active-human marker,
+ * record 8, on the new acting record.  The original also writes
+ * [0x6DEA] = 0x3E8 (the one-shot command timer). */
+static void objMarkerArm(void)
+{
+    uint8_t *m = object_slot(8u);
+    uint8_t *r = objArray + objEntity * OBJ_STRIDE;
+
+    if (!m) return;
+    wr16(m, 0u, rd16(r, 0u));
+    wr16(m, 2u, (uint16_t)(rd16(r, 2u) - 0x1Au));
+    wr16(m, 6u, 0u);
+    wr16(m, 8u, 0x001Au);
+    wr16(m, 0xAu, 0x0605u);
+    objCmdTimer = 0x03E8u;
+}
+
+/* 1000:D64F (update_world's 1000:80C9): record 8 follows the acting record;
+ * its type word is subtracted from y and steps 0x1A,0x18,0x16,0x14,0x12 (two
+ * every third frame - the bob); a 32-px acting sprite shifts x by +8; and the
+ * word at +0xA is the lifetime - when its high byte underflows the marker is
+ * disabled (+6 = 0x80) and scan_object_rows stops drawing it. */
+void object_markerTick(void)
+{
+    uint8_t *m = object_slot(8u);
+    uint8_t *r = objArray + objEntity * OBJ_STRIDE;
+    unsigned type, frame, mode, ax;
+
+    if (!m) return;
+    if (m[6] & 0x80u) return;                        /* 1000:D655 */
+    wr16(m, 0u, rd16(r, 0u));                        /* 1000:D65B */
+    type = rd16(m, 8u);
+    wr16(m, 2u, (uint16_t)(rd16(r, 2u) - type));     /* 1000:D65F */
+    frame = rd16(r, 4u);
+    mode = frame < OBJ_FRAME_SLOTS ? objSprites[frame].mode : 0u;
+    wr16(m, 0u, (uint16_t)(rd16(m, 0u) + ((int)mode - 1) * 8));  /* 1000:D66B */
+    m[0xAu] = (uint8_t)(m[0xAu] - 1u);               /* 1000:D68F */
+    if (!(m[0xAu] & 0x80u)) {                        /* 1000:D693 JNS */
+        wr16(m, 8u, type);
+        return;
+    }
+    m[0xAu] = 2u;                                    /* 1000:D695 */
+    ax = type - 2u;                                  /* 1000:D699 */
+    if (ax >= 0x12u) {                               /* 1000:D69F JNC */
+        wr16(m, 8u, ax);
+        return;
+    }
+    ax = 0x001Au;                                    /* 1000:D6A1 */
+    m[0xBu] = (uint8_t)(m[0xBu] - 1u);               /* 1000:D6A4 */
+    if (m[0xBu] & 0x80u) m[6] = 0x80u;               /* 1000:D6A8 */
+    wr16(m, 8u, ax);                                 /* 1000:D6AE */
 }
 
 void object_setActionEntity(unsigned i) { objEntity = i < OBJ_STATIC ? i : objEntity; }
@@ -1865,6 +1918,7 @@ static void objResolveSprite(unsigned index)
     if (index == (unsigned)objPlayer) prog = 4u;
     objSetProgramIndex(prog + 1u);
     objPending = 1u;
+    objMarkerArm();                                  /* 1000:4188 */
 }
 
 /* 0x410A (resolve_next_eligible_object_sprite): cycle the 8 static records. */
@@ -2523,16 +2577,14 @@ static int objStepProbe(const uint8_t *actor, unsigned *cellOut)
 /* 1000:F25F: whether the walk can land - the step probe's landing must not
  * rise more than 8 px above the feet (a step-up blocks), and the item record's
  * bit for the sub-cell 0x10 below the actor's y must be clear.  0 = free,
- * 0xFFFF = blocked.
- * ⚠ Two deviations (port_deviations.md D-35/D-37): the original probes
- * (x + [0x4238], y + 0x18) and its item table is built at runtime by
- * draw_objects (1000:558B) - here the probe is x + 8 and pageItems is the
- * shipped, all-zero field B. */
+ * 0xFFFF = blocked.  `1000:F25F` loads AX = [0x4238] for the probe, i.e. it is
+ * `x + 2` walking left and `x + 0xE` walking right - not the selector's fixed
+ * `x + 8` (`1000:F1D7`). */
 static unsigned objWalkTest(const uint8_t *actor)
 {
     unsigned sub, id, bit, cell;
     int x, y, d;
-    int bx = objStepProbe(actor, &cell);
+    int bx = objStepProbeAt(actor, (int)(int16_t)objSelFrame, 0x18, &cell);
 
     if (bx >= 0) {
         d = bx - 0x18 - (int)(int16_t)rd16(actor, 2u);
@@ -2703,15 +2755,15 @@ static int objBgMark(const uint8_t *actor)
 
 /* 1000:D8BD: the terrain settle the type rows' +0xA hook runs.  Snaps the actor
  * to the slope under its feet, lands it (type 3) on a drop of more than 8 px,
- * and caches the settled position at 0x6847.
- * ⚠ The original masks the row base (`AND BX,0xFFF0` at 1000:D8D0) and keeps
- * the unaligned feet line in CX for the distance test; here `line` is the
- * unaligned value (port_deviations.md D-36). */
+ * and caches the settled position at 0x6847.  `1000:D8C3` keeps the unaligned
+ * feet line in CX for the distance test and masks BX to the row base
+ * (`AND BX,0xFFF0`, 1000:D8D0); the page lookup and the step use the masked
+ * value. */
 static void objCmdSettle(uint8_t *actor)
 {
     int x = (int16_t)rd16(actor, 0u);
     int y = (int16_t)rd16(actor, 2u);
-    int ax = x + 8, line = y + 0x18, bx, d;
+    int ax = x + 8, feet = y + 0x18, line = feet & ~0xF, bx, d;
     unsigned sub, cell, b;
 
     if (!objSettleGate(actor)) return;
@@ -2734,7 +2786,7 @@ static void objCmdSettle(uint8_t *actor)
         if (b & 0x80u) goto landed;                          /* 1000:D9B2 */
     }
     bx = line + (int)(int8_t)b;                              /* 1000:D967 */
-    d = (y + 0x18) - bx;
+    d = feet - bx;                                           /* 1000:D96A: CX */
     if (d < 0) {
         d = -d;
         if (d > 8) goto landed;
@@ -4236,10 +4288,9 @@ static void objFallMachine(uint8_t *actor)
 
     above = objMapAtAbs(cx, (int)rowY - 0x10, NULL); /* 1000:F761: [DI-0x20] */
     if (above >= 0xF0u) {                            /* 1000:F766 */
-        /* ⚠ 1000:F772 builds the x from AX = record.x + [+0x10], not from CX;
-         * `cx` here is already ax + 8, so this is one tile right
-         * (port_deviations.md D-38). */
-        unsigned gx = (unsigned)(cx + 8) & ~0xFu;
+        /* 1000:F772: AX is the record.x + [+0x10] captured at 1000:F736, not
+         * the probe x in CX (`ADD AX,8` then `AND AX,0xFFF0`). */
+        unsigned gx = (unsigned)(ax + 8) & ~0xFu;
 
         if (above != 0xF1u) {
             gx -= 4u;                                /* 1000:F778 */

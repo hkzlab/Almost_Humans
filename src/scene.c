@@ -217,6 +217,7 @@ static uint32_t   scoopsSize;
 static uint8_t   *textSpr;        /* apl\text.spr — the panel's font */
 
 static uint8_t   curScene;
+static int       chainReplay;       /* 210-tick wait ends in a self-replay */
 static uint16_t  dwellTicks;
 static uint8_t   panelPal[768];     /* daily.bit's palette (masked 6-bit) */
 static int       panelPalValid;
@@ -504,19 +505,38 @@ int scene_playLevelIntro(unsigned introIndex)
         case SCENE_CHAIN: {
             uint8_t nxt = sceneChainTable[curScene];
             if (keyHeld) { scene_quitFade(); return 1; }
-            if (nxt == curScene || nxt == 4u) {  /* replay / tail loop */
+            /* 1000:B17E: `CMP BL,[BX+0x6293]` - a scene whose chain entry is
+             * itself waits 210 ticks (1000:B1A6: also the key/fire poll) and
+             * then replays from its first object (1000:B189 -> 0xB14D ->
+             * 0xB211).  That is the ending's "loop until ESC" and the intros'
+             * "runs until skipped".  A chain entry of 4 is the 8->4 tail
+             * loop, which waits and then plays scene 4. */
+            chainReplay = (nxt == curScene) ? 1 : 0;
+            if (chainReplay) {
                 scene_phase = SCENE_CHAIN_WAIT;
                 chainWait = 210u;
                 return 1;
             }
             curScene = nxt;                      /* chain advance */
+            if (nxt == 4u) {                     /* 1000:B194: wait first */
+                scene_phase = SCENE_CHAIN_WAIT;
+                chainWait = 210u;
+                return 1;
+            }
             scene_phase = SCENE_RESTART;
             break;
         }
 
         case SCENE_CHAIN_WAIT:
             if (keyHeld) { scene_quitFade(); return 1; }
-            if (--chainWait == 0) scene_phase = SCENE_PLAY;   /* replay it */
+            if (--chainWait == 0) {
+                if (chainReplay) {
+                    objIndex = 0;                /* replay this scene */
+                    scene_phase = SCENE_PLAY;
+                } else {
+                    scene_phase = SCENE_RESTART; /* play the chained scene */
+                }
+            }
             return 1;
 
         case SCENE_RESTART:                       /* chain advance: no dwell */

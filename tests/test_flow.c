@@ -42,6 +42,17 @@ static void check(int ok, const char *what)
     if (!ok) { fprintf(stderr, "FAIL %s\n", what); bad = 1; }
 }
 
+/* the record-word helpers, also used by the walk/marker blocks below */
+static unsigned tf_rd16(const uint8_t *r, unsigned o)
+{
+    return (unsigned)(r[o] | (r[o + 1] << 8));
+}
+static void tf_wr16(uint8_t *r, unsigned o, unsigned v)
+{
+    r[o] = (uint8_t)v;
+    r[o + 1] = (uint8_t)(v >> 8);
+}
+
 int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";
@@ -997,6 +1008,81 @@ int main(int argc, char **argv)
                     check(stepped != 0, "some cell of level 1 lets the walk step");
                     check(refused != 0, "some cell of level 1 refuses the walk step");
                     check(right != 0, "the right walk step mirrors the left");
+                }
+
+                /* The walk against the live original (level 1, 2026-11-01,
+                 * DS = 0x123A).  From (48,24):
+                 *   - left: the original stops at x = 21 (tile 0x2A's item
+                 *     word blocks it - the draw_objects masks, 1000:558B);
+                 *   - right: the settled y is 27 at x = 70..89 and 24 by
+                 *     x = 94 (the settle masks the row base, 1000:D8D0).
+                 * Both are end-to-end, through the real map and tables. */
+                {
+                    uint8_t *w;
+                    unsigned i, x, y;
+
+                    object_init();
+                    w = object_slot(0);
+                    tf_wr16(w, 0u, 48); tf_wr16(w, 2u, 24); tf_wr16(w, 4u, 0x10u);
+                    tf_wr16(w, 8u, 0u); tf_wr16(w, 0xAu, 0u); tf_wr16(w, 0xCu, 0u);
+                    object_setActionEntity(0u);
+                    for (i = 0; i < 40u; i++) (void)object_commandRun(w, 0x04u);
+                    x = tf_rd16(w, 0u);
+                    check(x == 21u, "the wall stops the left walk at x 21");
+
+                    object_init();
+                    w = object_slot(0);
+                    tf_wr16(w, 0u, 48); tf_wr16(w, 2u, 24); tf_wr16(w, 4u, 0x10u);
+                    tf_wr16(w, 8u, 0u); tf_wr16(w, 0xAu, 0u); tf_wr16(w, 0xCu, 0u);
+                    object_setActionEntity(0u);
+                    for (i = 0; i < 41u; i++) (void)object_commandRun(w, 0x08u);
+                    x = tf_rd16(w, 0u); y = tf_rd16(w, 2u);
+                    check(x == 89u && y == 27u,
+                          "the right walk settles to y 27 at x 89");
+                    for (i = 0; i < 5u; i++) (void)object_commandRun(w, 0x08u);
+                    x = tf_rd16(w, 0u); y = tf_rd16(w, 2u);
+                    check(x == 94u && y == 24u,
+                          "the right walk is back at y 24 by x 94");
+                }
+
+                /* The active-human marker: the selector arms record 8
+                 * (1000:4188) and update_world's 1000:D64F follows the acting
+                 * record, bobs its type word and expires. */
+                {
+                    uint8_t *m, *h;
+
+                    object_init();
+                    h = object_slot(1);
+                    memset(h, 0, 0x12u);
+                    tf_wr16(h, 0u, 100); tf_wr16(h, 2u, 120); tf_wr16(h, 4u, 0x10u);
+                    tf_wr16(h, 8u, 2u);
+                    h = object_slot(2);
+                    memset(h, 0, 0x12u);
+                    tf_wr16(h, 0u, 200); tf_wr16(h, 2u, 80); tf_wr16(h, 4u, 0x10u);
+                    tf_wr16(h, 8u, 2u);
+                    object_setActionEntity(1u);
+                    m = object_slot(8u);
+                    memset(m, 0, 0x12u);
+                    tf_wr16(m, 0u, 0xFFFFu); tf_wr16(m, 2u, 0xFFFFu);
+                    check(object_cycleEntity(1) == 2,
+                          "the selector moves to the next enabled record");
+                    check(tf_rd16(m, 0u) == 200u && tf_rd16(m, 2u) == 80u - 0x1Au &&
+                          tf_rd16(m, 6u) == 0u && tf_rd16(m, 8u) == 0x1Au &&
+                          tf_rd16(m, 0xAu) == 0x0605u,
+                          "1000:4188 arms the marker on the new acting record");
+                    object_markerTick();
+                    check(tf_rd16(m, 0u) == 200u && tf_rd16(m, 2u) == 80u - 0x1Au,
+                          "1000:D64F tracks the acting record");
+                    for (unsigned k = 0; k < 6u; k++) object_markerTick();
+                    check(tf_rd16(m, 8u) == 0x18u,
+                          "the marker's type steps 0x1A -> 0x18 (the bob)");
+                    /* the lifetime: type 0x12 and a zero high byte expire */
+                    tf_wr16(m, 8u, 0x12u);
+                    tf_wr16(m, 0xAu, 0x0001u);
+                    object_markerTick();          /* low byte -> 0 */
+                    object_markerTick();          /* wrap: +B 0 -> -1 */
+                    check((m[6] & 0x80u) != 0u,
+                          "the marker disables when its +0xA lifetime ends");
                 }
 
                 /* The two movement states that feed the stack: 1000:E4F8 (step
@@ -2134,20 +2220,21 @@ int main(int argc, char **argv)
             object_setActionLatched(0);
             wr16t(a, 8u, 0x17u);
             wr16t(a, 4u, 0x20u);
-            wr16t(a, 0u, 100u);
+            wr16t(a, 0u, 106u);
             wr16t(a, 2u, 100u);
             wr16t(a, 0xEu, 0u);
             check(object_commandRun(a, 0x81u) != OBJ_CMD_UNPORTED &&
                   rd16t(a, 0xEu) == 4u,
                   "type 0x17 half-1 command 0 arms the turn (+0xE = 4)");
-            if (m) m[198] = 0xF0u;   /* 2*(rowY-0x10) + (cx>>4), cx=110, rowY=112 */
+            if (m) m[198] = 0xF0u;   /* 2*(rowY-0x10) + (cx>>4), cx=108, rowY=112 */
             check(object_commandRun(a, 0x01u) != OBJ_CMD_UNPORTED,
                   "the latched idle command runs the leave sequence");
-            /* frame 0x20 != 0xBB, so the leave nudges LEFT (x -= 4) and the
-             * probe is at cx = 96 - 2 + 8 = 102, rowY = 112: the grid snap is
-             * ((102 + 8) & ~0xF) - 4 + 8 = 100, and y = rowY - 0x1C = 84. */
+            /* frame 0x20 != 0xBB, so the leave nudges LEFT (x -= 4) and then
+             * xoff = -2: AX = 100 (1000:F736).  The splash x is
+             * ((AX + 8) & ~0xF) - 4 + 8 = 100 (1000:F772) - reading the probe
+             * CX instead would give 116.  y = rowY - 0x1C = 84. */
             check(rd16t(a, 0u) == 100u && rd16t(a, 2u) == 84u,
-                  "the platform branch snaps to the tile grid (600): x 100, y 84");
+                  "the platform branch snaps to AX, not CX (1000:F772): x 100, y 84");
             check(rd16t(a, 4u) == 0xCDu && rd16t(a, 8u) == 0x1Cu,
                   "the platform branch sets frame 0xCD / type 0x1C");
             check(rd16t(a, 0xAu) == 9u && object_lastSfx() == 6u,

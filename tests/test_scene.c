@@ -271,13 +271,27 @@ int main(int argc, char **argv)
 
     /* the rest of the palette fade to the script object's palette
      * (1000:B263, div 0x19) + the 34 objects (6 ticks each) end inside the
-     * chain wait, whose 210 ticks neither redraw nor touch the DAC: at 500
-     * ticks the page is the last frame and the DAC is the script palette. */
-    for (unsigned t = 1; t < 500; t++) {
-        palette_tick();                 /* the ISR body's fade step */
-        if (scene_playLevelIntro(0) != 1) {
-            fprintf(stderr, "FAIL intro ended early at tick %u\n", t);
-            return 1;
+     * chain wait, whose 210 ticks neither redraw nor touch the DAC.  Run
+     * until the page has been quiet for 60 ticks (inside that wait: the
+     * objects are 6 ticks apart), so the frame pinned below is the last one
+     * whether or not the chain then replays the scene. */
+    {
+        uint32_t last = 0;
+        unsigned quiet = 0;
+
+        for (unsigned t = 1; t < 3000u && quiet < 60u; t++) {
+            uint32_t h = 0;
+
+            palette_tick();             /* the ISR body's fade step */
+            if (scene_playLevelIntro(0) != 1) {
+                fprintf(stderr, "FAIL intro ended early at tick %u\n", t);
+                return 1;
+            }
+            for (unsigned i = 0; i + 1 < 320u * 200u; i += 2)
+                h ^= (uint32_t)(osys_null_page(0)[i] |
+                                (osys_null_page(0)[i + 1] << 8));
+            if (h == last) quiet++;
+            else { last = h; quiet = 0; }
         }
     }
 
@@ -451,6 +465,67 @@ int main(int argc, char **argv)
         bad = 1;
     }
 
-    if (!bad) printf("scene tests: OK (5 checks)\n");
+    /* 7. the ending scene loops until a key.  Scene 6 loses
+     * (HUMANS FAIL IN RACE FOR EVOLUTION) and its chain entry is itself
+     *(202F:0x6293[6] = 6): 1000:B17E's self case waits 210 ticks
+     *(1000:B1A6 - also the key/fire poll) and then replays from the first
+     * object (1000:B189 -> 0xB14D -> 0xB211).  With no key the page must
+     * start changing again after that quiet wait; a key then quits. */
+    {
+        InputState idle, key;
+        uint32_t last = 0;
+        unsigned quiet = 0, replayed = 0, t;
+
+        memset(&idle, 0, sizeof idle);
+        memset(&key, 0, sizeof key);
+        key.lastKey = 1;
+        osys_null_inject(&idle);
+        scene_resetIntro();
+        if (scene_playLevelIntro(6) != 1) {
+            fprintf(stderr, "FAIL the ending scene did not start\n");
+            bad = 1;
+        } else {
+            uint32_t h = 0;
+
+            for (t = 0; t < 3000u; t++) {
+                palette_tick();
+                if (scene_playLevelIntro(6) != 1) break;
+                h = 0;
+                for (unsigned i = 0; i + 1 < 320u * 200u; i += 2)
+                    h ^= (uint32_t)(osys_null_page(0)[i] |
+                                    (osys_null_page(0)[i + 1] << 8));
+                if (h == last) {
+                    quiet++;
+                } else {
+                    if (quiet >= 200u) replayed = 1;   /* after the wait */
+                    last = h;
+                    quiet = 0;
+                }
+            }
+            if (!replayed) {
+                fprintf(stderr, "FAIL the ending did not replay after the "
+                        "210-tick chain wait\n");
+                bad = 1;
+            }
+            osys_null_inject(&key);
+            if (scene_playLevelIntro(6) != 1) {
+                fprintf(stderr, "FAIL the key did not start the quit fade\n");
+                bad = 1;
+            } else {
+                int r = 1;
+                for (t = 0; t < 200u && r == 1; t++) {
+                    palette_tick();
+                    r = scene_playLevelIntro(6);
+                }
+                if (r != 0) {
+                    fprintf(stderr, "FAIL the key did not end the ending\n");
+                    bad = 1;
+                }
+            }
+            osys_null_inject(&idle);
+        }
+    }
+
+    if (!bad) printf("scene tests: OK (6 checks)\n");
     return bad;
 }
