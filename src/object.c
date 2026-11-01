@@ -36,15 +36,12 @@
  * the selector (`1000:F17C`) with its two wrappers, and the dissolve
  * (`1000:FA13`) with the `0xF453` scan that calls it.
  *
- * Not ported (port_deviations.md D-16):
- *  - the handler bodies `1000:E7C0` (type 2, command 8) and `1000:EBCA`
- *    (type 15, command 8) - `objCmdCall` returns 0 for them and the tick
- *    reports OBJ_CMD_UNPORTED;
- *  - the animator (`1000:D76F` + `1000:66B2`) that drives a dissolved group's
- *    members.
- * The class/behaviour overlays of `1000:653C` and all six `1000:35D6`
- * goal-test handlers are ported.  The bare-RET slot `1000:EA0E` is absent from
- * the table (type 16 command 8 reports UNPORTED; the caller ignores it).
+ * The two former gaps are ported: `1000:E7C0` (type 2 command 8, the timed
+ * frame stream at 0x6DF2) and `1000:EBCA` (type 15 command 8, clear the +0xA
+ * hold), and `1000:D6B2`'s phase-3 group-member animator (`object_animatorTick`,
+ * the 0x6F22 groups and the 0x66B3/0x66B5/objAnimX tables).  The class/behaviour
+ * overlays of `1000:653C` and all six `1000:35D6` goal-test handlers are
+ * ported.  The bare-RET slot `1000:EA0E` is in the table (type 16 command 8).
  */
 #include "game.h"
 #include <string.h>
@@ -66,6 +63,8 @@ static unsigned objPlacedHumans;         /* [0x3E20]: the 0xAA handlers' count  
 static unsigned objEntity;               /* [0x3E22]: the acting record          */
 static unsigned objProgramIndex = 1;     /* [0x5B56], 1-based                    */
 static uint16_t objCmdTimer;            /* [0x6DEA]: the command one-shot */
+static uint16_t objStreamCount;         /* [0x6DEC]: stream hold countdown */
+static const uint8_t *objStreamPtr;     /* [0x6DEE]: the script stream    */
 static uint8_t objStackMask[2];         /* 0x64AD / 0x64C1: in-a-stack bits */
 /* DI at the handler/hook call (1000:E467): the byte offset of the type row's
  * selected half inside objCmdRows.  Set by object_commandSelect, read by the
@@ -104,6 +103,123 @@ static const OSystem *objOsys;           /* the fatal halt's route (osystem.h)  
 static uint16_t objRegister[8][7];       /* 0x6F22: 8 x 0xE (clear is 0x70 bytes at
                                           * 0x60F4; op 1 walks AX = 7..0), bit15 = free */
 static uint16_t objSpan[2][14];          /* 0x6F92, 2 x 0x1C: {id, .. +6, +8, +0x12} */
+static int objAnimDiv;                   /* [0x66B1]: the 6-tick divider */
+static const int16_t objAnimX[6][15][9] = {
+    { /* length 3 */
+        { -2,-1,0,0,0,0,0,0,-1 },
+        { -1,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,1 },
+        { 1,0,0,0,0,0,0,0,2 },
+        { 2,1,0,0,0,0,0,0,3 },
+        { 0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0 },
+    },
+    { /* length 4 */
+        { -3,-2,-1,0,0,0,0,0,-2 },
+        { -2,-1,0,0,0,0,0,0,-1 },
+        { -1,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,1 },
+        { 1,0,0,0,0,0,0,0,2 },
+        { 2,1,0,0,0,0,0,0,3 },
+        { 3,2,1,0,0,0,0,0,4 },
+        { 0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0 },
+    },
+    { /* length 5 */
+        { -4,-3,-2,-1,0,0,0,0,-3 },
+        { -3,-2,-1,0,0,0,0,0,-2 },
+        { -2,-1,0,0,0,0,0,0,-1 },
+        { -1,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,1 },
+        { 1,0,0,0,0,0,0,0,2 },
+        { 2,1,0,0,0,0,0,0,3 },
+        { 3,2,1,0,0,0,0,0,4 },
+        { 4,3,2,1,0,0,0,0,5 },
+        { 0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0 },
+    },
+    { /* length 6 */
+        { -5,-4,-3,-2,-1,0,0,0,-4 },
+        { -4,-3,-2,-1,0,0,0,0,-3 },
+        { -3,-2,-1,0,0,0,0,0,-2 },
+        { -2,-1,0,0,0,0,0,0,-1 },
+        { -1,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,1 },
+        { 1,0,0,0,0,0,0,0,2 },
+        { 2,1,0,0,0,0,0,0,3 },
+        { 3,2,1,0,0,0,0,0,4 },
+        { 4,3,2,1,0,0,0,0,5 },
+        { 5,4,3,2,1,0,0,0,6 },
+        { 0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0 },
+    },
+    { /* length 7 */
+        { -6,-5,-4,-3,-2,-1,0,0,-5 },
+        { -5,-4,-3,-2,-1,0,0,0,-4 },
+        { -4,-3,-2,-1,0,0,0,0,-3 },
+        { -3,-2,-1,0,0,0,0,0,-2 },
+        { -2,-1,0,0,0,0,0,0,-1 },
+        { -1,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,1 },
+        { 1,0,0,0,0,0,0,0,2 },
+        { 2,1,0,0,0,0,0,0,3 },
+        { 3,2,1,0,0,0,0,0,4 },
+        { 4,3,2,1,0,0,0,0,5 },
+        { 5,4,3,2,1,0,0,0,6 },
+        { 6,5,4,3,2,1,0,0,7 },
+        { 0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0 },
+    },
+    { /* length 8 */
+        { -7,-6,-5,-4,-3,-2,-1,0,-6 },
+        { -6,-5,-4,-3,-2,-1,0,0,-5 },
+        { -5,-4,-3,-2,-1,0,0,0,-4 },
+        { -4,-3,-2,-1,0,0,0,0,-3 },
+        { -3,-2,-1,0,0,0,0,0,-2 },
+        { -2,-1,0,0,0,0,0,0,-1 },
+        { -1,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,1 },
+        { 1,0,0,0,0,0,0,0,2 },
+        { 2,1,0,0,0,0,0,0,3 },
+        { 3,2,1,0,0,0,0,0,4 },
+        { 4,3,2,1,0,0,0,0,5 },
+        { 5,4,3,2,1,0,0,0,6 },
+        { 6,5,4,3,2,1,0,0,7 },
+        { 7,6,5,4,3,2,1,0,0 },
+    },
+};
+
+/* 0x6DF2: the static two-byte (frame, hold) stream the type-2 command-8
+ * handler walks; 0xFF 0xFF terminates and wraps. */
+static const uint8_t objAnimStream[] = {
+    0x10,0xC8, 0x10,0xC8, 0x12,0x05, 0x10,0x14, 0x12,0x05, 0x10,0xC8,
+    0x10,0xC8, 0x13,0x06, 0x14,0x06, 0x15,0x06, 0x16,0x28, 0x15,0x06,
+    0x14,0x06, 0x13,0x06, 0x10,0xC8, 0x12,0x05, 0x10,0x0A, 0x12,0x05,
+    0x10,0x32, 0x13,0x06, 0x14,0x06, 0x15,0x06, 0x16,0x23, 0x15,0x06,
+    0x14,0x06, 0x13,0x06, 0x10,0xC8, 0x10,0xC8, 0x12,0x05, 0x10,0x14,
+    0x12,0x05, 0x10,0xC8, 0x10,0xC8, 0xFF,0xFF,
+};
+
 
 /* [0x3E5E + b] — the class byte of the object in source slot b (0 = none).
  * `pred_sprite_class_match` (1000:3659) reads it as `[0x3E5E + rec[+7]] & 0x3F`
@@ -162,6 +278,9 @@ void object_init(void)
     objCursor = 1u;                  /* [0x1988]                          */
     objSetProgramIndex(1u);          /* [0x5B56]                          */
     objCmdTimer = 0u;                /* [0x6DEA]                          */
+    objStreamCount = 0u;             /* [0x6DEC]                          */
+    objStreamPtr = objAnimStream;    /* [0x6DEE] = 0x6DF2                 */
+    objAnimDiv = 0;                  /* [0x66B1]                          */
     objStackMask[0] = objStackMask[1] = 0u;
     objFault = 0u;
     memset(objRegister, 0xFF, sizeof objRegister);   /* 0x6F22, all free  */
@@ -1521,6 +1640,7 @@ int object_testDispatch(uint16_t mode)
 void object_tick(const uint8_t *levelPal)
 {
     objFrame++;
+    object_animatorTick();
     object_claimTick(levelPal);
 }
 
@@ -4243,6 +4363,36 @@ static void objCmdStand(uint8_t *actor)
     wr16(actor, 0xAu, 0x0001u);
 }
 
+/* 1000:E7C0 stream_script_bytes_timed.  The dispatch's one-shot [0x6DEA]
+ * gates it; when the hold 0x6DEC expires, fetch a frame/hold pair, set the
+ * actor's +4 frame and the next hold, and wrap at 0xFF. */
+static void objCmdStreamTimed(uint8_t *actor)
+{
+    const uint8_t *p;
+
+    if (objCmdTimer != 0u) return;
+    if (objStreamCount != 0u) { objStreamCount--; return; }
+    objStreamCount = 0u;
+    p = objStreamPtr;
+    wr16(actor, 4u, p[0]);              /* MOV [SI+4], AX */
+    objStreamCount = p[1];              /* [0x6DEC] */
+    p += 2;
+    if (*p == 0xFFu) p = objAnimStream; /* 1000:E7FA */
+    objStreamPtr = p;                   /* [0x6DEE] */
+}
+
+/* 1000:EBCA: type 15 command 8 clears the record's +0xA hold. */
+static void objCmdClearCountdown(uint8_t *actor)
+{
+    wr16(actor, 0xAu, 0u);
+}
+
+/* Test seams for the two handler bodies (the row selector's one-shot gate
+ * keeps 1000:E7C0 from being driven directly in the unit test). */
+void object_streamCommand(uint8_t *actor) { objCmdStreamTimed(actor); }
+void object_clearCountdown(uint8_t *actor) { objCmdClearCountdown(actor); }
+void object_setCommandTimer(unsigned v) { objCmdTimer = (uint16_t)v; }
+
 static int objCmdCall(uint8_t *actor, unsigned addr)
 {
     switch (addr) {
@@ -4307,6 +4457,9 @@ static int objCmdCall(uint8_t *actor, unsigned addr)
     case 0xF0B3u: objCmdStand(actor); return 1;
     case 0xF0C3u: objCmdHomeState(actor); return 1;
     case 0xF0C6u: objCmdHomeState(actor); return 1;
+    case 0xE7C0u: objCmdStreamTimed(actor); return 1;
+    case 0xEBCAu: objCmdClearCountdown(actor); return 1;
+    case 0xEA0Eu: return 1;                            /* bare RET */
     default: return 0;
     }
 }
@@ -4798,3 +4951,54 @@ void object_loadSpans(const uint8_t *src)
     if (!src) return;
     memcpy(objSpan, src, sizeof objSpan);
 }
+
+
+/* --- 1000:D6B2 phase 3: the group-member animator ---------------------- */
+/* 0x6F22 entry: word0 = base x (bit 15 free), +4 = direction<<4 | count,
+ * +5.. = member list (bit-7 terminated).  Every 6th call the count steps
+ * and each member record whose frame is 0x20..0x22 gets
+ * x = group.word0 + objAnimX[length-3][count][member]. */
+void object_animatorTick(void)
+{
+    if (objAnimDiv-- <= 0) objAnimDiv = 6;
+
+    for (unsigned gi = 0; gi < 8u; gi++) {
+        uint8_t *g = (uint8_t *)objRegister[gi];
+        unsigned len = 0, limit, c;
+        uint8_t dir;
+
+        if (rd16(g, 0u) & 0x8000u) continue;
+        while ((g[5u + len] & 0x80u) == 0) len++;
+        if (len < 3u || len > 8u) continue;
+        limit = 2u * (len - 1u);
+        c = g[4] & 0x0Fu;
+        dir = g[4] & 0x10u;
+        if (objAnimDiv == 0) {
+            if (dir == 0u) {
+                if (c == 0u) dir = 0x10u;
+                else c--;
+            } else {
+                if (c >= limit) dir = 0u;
+                else c++;
+            }
+        }
+        if (c > limit) c = limit;
+        for (unsigned m = 0; m < len; m++) {
+            uint8_t *r = object_slot(g[5u + m]);
+            unsigned frame;
+
+            if (!r) continue;
+            frame = rd16(r, 4u);
+            if (frame < 0x20u || frame > 0x22u) continue;
+            wr16(r, 0u, (uint16_t)(rd16(g, 0u) +
+                                   (uint16_t)objAnimX[len - 3u][c][m]));
+        }
+        g[4] = (uint8_t)(dir | c);
+    }
+}
+
+uint8_t *object_groupAt(unsigned i)
+{
+    return i < 8u ? (uint8_t *)objRegister[i] : NULL;
+}
+void object_animatorReset(void) { objAnimDiv = 0; }

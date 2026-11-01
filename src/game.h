@@ -519,7 +519,7 @@ void object_render(uint8_t *page, int scrollX, int scrollY);
  * (0 = none, so the row's `tail` applies); `command` is the 0..7 number the
  * type row was indexed by.  Index 2 is 1000:E609, whose tail holds the human
  * stack's push.  The handler bodies are ported except 0xE7C0 and 0xEBCA
- * (port_deviations.md D-16). */
+ * (all rows are now ported). */
 typedef struct {
     unsigned handler;
     unsigned tail;
@@ -532,11 +532,18 @@ ObjCommand object_commandSelect(uint8_t *rec, uint8_t input);
 #define OBJ_CMD_NONE      0   /* neither a handler nor a tail ran          */
 #define OBJ_CMD_HANDLER   1   /* the type row's handler ran                */
 #define OBJ_CMD_TAIL      2   /* the row's tail handler ran                */
-#define OBJ_CMD_UNPORTED (-1) /* no port - port_deviations.md D-16 */
+#define OBJ_CMD_UNPORTED (-1) /* no port */
 /* 1000:E4B0..E4F7: select and run one command for the acting record.  Only the
  * ported handlers are dispatched (the two movement states, the leaves, the snap,
  * the selector wrappers and the bare-RET tail). */
 int  object_commandRun(uint8_t *actor, uint8_t input);
+/* handler test seams: the two bodies and the one-shot gate. */
+void object_streamCommand(uint8_t *actor);
+void object_clearCountdown(uint8_t *actor);
+void object_setCommandTimer(unsigned v);
+void object_animatorTick(void);               /* 1000:D6B2 phase 3 */
+uint8_t *object_groupAt(unsigned i);           /* 0x6F22 entry */
+void object_animatorReset(void);
 
 /* The human stack (`0x6F22`, 8 entries x 0x0E: +0/+2 x/y, bit 15 = free, +4 the
  * animator state, +5 the owner index, +6ff the bit-7-terminated member list).

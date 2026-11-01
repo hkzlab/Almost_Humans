@@ -1128,6 +1128,50 @@ int main(int argc, char **argv)
                         check(unported == 0u,
                               "every one of the 35 rows runs to its tail");
                     }
+                    /* D-16: type 2 command 8 (1000:E7C0) walks the timed
+                     * frame stream; the one-shot gate is cleared for the seam. */
+                    a1[8] = 2; a1[9] = 0;
+                    a1[4] = 0; a1[5] = 0;
+                    object_setCommandTimer(0u);
+                    object_streamCommand(a1);
+                    check((a1[4] | (a1[5] << 8)) == 0x10u,
+                          "1000:E7C0: type 2 command 8 takes the first stream frame");
+                    /* type 15 command 8 (1000:EBCA) clears the +0xA hold */
+                    a1[8] = 15; a1[9] = 0;
+                    a1[0xA] = 5; a1[0xB] = 0;
+                    object_clearCountdown(a1);
+                    check((a1[0xA] | (a1[0xB] << 8)) == 0u,
+                          "1000:EBCA: type 15 command 8 clears the hold");
+                    check(object_commandRun(a1, 0x00u) != OBJ_CMD_UNPORTED,
+                          "1000:EBCA is wired into the command table");
+                    /* 1000:D6B2 phase 3: three members on a group animate
+                     * their x by the length-3 count-0 offsets -2/-1/0. */
+                    {
+                        uint8_t *g = object_groupAt(7);
+                        uint8_t *m0 = object_slot(25);
+                        uint8_t *m1 = object_slot(26);
+                        uint8_t *m2 = object_slot(27);
+
+                        if (g && m0 && m1 && m2) {
+                            memset(g, 0, 14u);
+                            g[0] = 100; g[1] = 0;       /* group base x */
+                            g[4] = 0;                    /* dir 0, count 0 */
+                            g[5] = 25; g[6] = 26; g[7] = 27; g[8] = 0x80;
+                            m0[4] = m1[4] = m2[4] = 0x20;
+                            m0[5] = m1[5] = m2[5] = 0;
+                            m0[0] = m1[0] = m2[0] = 100;
+                            m0[1] = m1[1] = m2[1] = 0;
+                            object_animatorReset();
+                            for (unsigned i = 0; i < 7u; i++)
+                                object_animatorTick();
+                            check((m0[0] | (m0[1] << 8)) == 98u &&
+                                  (m1[0] | (m1[1] << 8)) == 99u &&
+                                  (m2[0] | (m2[1] << 8)) == 100u &&
+                                  (g[4] & 0x10u) != 0u,
+                                  "1000:D6B2: the group members take -2/-1/0");
+                            g[0] = 0xFF; g[1] = 0xFF;    /* free again */
+                        }
+                    }
                     /* type 6's row has no handler for command 0, hook 0 and the
                      * tail 1000:E860 (the step off) */
                     a1[8] = 6; a1[9] = 0;
