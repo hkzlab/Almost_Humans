@@ -143,6 +143,31 @@ int main(int argc, char **argv)
         }
     }
 
+    /* D-15: scan_id_list (1000:386E) binds ESC (scancode 0x01) to event 4,
+     * whose handler (1000:38EA) opens the 202F:0x5BBC block.  The port's
+     * lastKey is ASCII 0x1B for ESC. */
+    {
+        InputState k;
+
+        memset(&k, 0, sizeof k);
+        menu_close();
+        k.lastKey = 0x1Bu;
+        if (gameflow_pauseTrigger(&k) != 1 || !menu_active() || menu_timeUp()) {
+            fprintf(stderr, "FAIL D-15: ESC does not open the pause menu\n");
+            bad = 1;
+        }
+        if (gameflow_pauseTrigger(&k) != 0 || !menu_active()) {
+            fprintf(stderr, "FAIL D-15: the open menu re-fires\n");
+            bad = 1;
+        }
+        menu_close();
+        k.lastKey = 'Z';
+        if (gameflow_pauseTrigger(&k) != 0 || menu_active()) {
+            fprintf(stderr, "FAIL D-15: a non-ESC key opens the pause menu\n");
+            bad = 1;
+        }
+    }
+
     /* the level's assets: the dialog's box tiles (apl\box.spr, disc 1) and
      * the bar/level palette the page's indices ride */
     if (level_load(0) != 0) {

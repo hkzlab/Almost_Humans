@@ -132,6 +132,16 @@ GameFlow gameflow_pauseAction(int choice, int *quit)
     return FLOW_LEVEL;
 }
 
+/* scan_id_list (1000:386E): the key list at DS:0x1989 binds scancode 0x01
+ * (ESC) to event id 4; id 4's handler (1000:38EA) opens the 0x5BBC block via
+ * dialog_menu_loop (1000:A167).  The port's lastKey is ASCII 0x1B for ESC. */
+int gameflow_pauseTrigger(const InputState *in)
+{
+    if (!in || menu_active() || in->lastKey != 0x1Bu) return 0;
+    menu_openPause();
+    return 1;
+}
+
 /* input_dispatch_loop 34F9's inline time-up dispatch: 0 restart this level
  * (level_restore), 1 restart this game (the room), 2 quit. */
 GameFlow gameflow_timeUpAction(int choice, int *quit)
@@ -475,10 +485,9 @@ int game_main(const OSystem *osys)
                 }
                 /* ACTION with no direction held runs the acting record's
                  * ACTION program (pause_toggle 1000:3523 -> script_op_dispatch
-                 * 1000:3979); a dialog blocks it through [0x6F1D].  This is
-                 * NOT the pause menu: the 0x5BEC option block's trigger is
-                 * still unidentified, so menu_openPause() is no longer bound
-                 * to ACTION. */
+                 * 1000:3979); a dialog blocks it through [0x6F1D].  The
+                 * pause block (202F:0x5BBC) is scan_id_list's ESC event (id
+                 * 4 -> 1000:38EA), not ACTION. */
                 if (!menu_active() && !actionLatched &&
                     (input.joyBits & 0x80u) && !(input.joyBits & 0x0Fu))
                     object_actionRun();
@@ -493,6 +502,10 @@ int game_main(const OSystem *osys)
                     endPageUp = 1;
                     statusbar_setActive(0);
                 }
+                /* scan_id_list (1000:386E) runs after update_world and before
+                 * the pending-event table; ESC opens the pause menu there. */
+                if (!menu_active() && !level_ended())
+                    (void)gameflow_pauseTrigger(&input);
                 if (menu_active()) {
                     if (!menu_tick(&input)) {
                         int wasTimeUp = menu_timeUp();

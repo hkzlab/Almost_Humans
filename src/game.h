@@ -736,7 +736,7 @@ void textpage_drawLineMaskAt(uint8_t *page, const char *line, unsigned centreX,
  * (202F:0x5CD8, render_frame_loop's cursor): the behaviour is the original's
  * (0-based rows, wrap, ACTION/Enter selects; the countdown is suspended).
  * The dialog draws through draw_map_object (1000:9EA3); known deviations are
- * in port_deviations.md (the pause trigger is D-15).
+ * in port_deviations.md.
  */
 void     menu_init(const OSystem *osys);
 void     menu_openPause(void);          /* [0x5B12] := 0, cursor 0         */
@@ -821,6 +821,8 @@ unsigned gameflow_levelForProbe(void);
 /* The pause menu's five 0-based results (dispatch_by_result_a167 1000:38EA);
  * returns the flow the action leaves, sets *quit for QUIT THIS GAME. */
 GameFlow gameflow_pauseAction(int choice, int *quit);
+/* scan_id_list 1000:386E event 4: ESC opens the 0x5BBC pause block. */
+int      gameflow_pauseTrigger(const InputState *in);
 /* The time-up dialog's 3 results (1000:34F9's inline dispatch): 0 restart
  * this level (level_restore), 1 restart this game (the room), 2 quit. */
 GameFlow gameflow_timeUpAction(int choice, int *quit);

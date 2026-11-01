@@ -76,8 +76,13 @@ static const char *dumpName[] = { "flow_6600_room", "flow_6900_roomexit",
 
 extern void osys_null_onPresent(void (*fn)(unsigned poll));
 
+static int sawPause;
+
 static void present_hook(unsigned poll)
 {
+    /* D-15: the ESC at 8000 must have the pause block up on the next present;
+     * the Enter at 8050 selects CONTINUE and closes it. */
+    if (poll >= 8001u && poll <= 8051u && menu_active()) sawPause = 1;
     if (!dump_dir || dumped >= DUMP_N) return;
     if (poll < dumpAt[dumped]) return;
     while (dumped < DUMP_N && poll >= dumpAt[dumped]) {
@@ -139,6 +144,10 @@ int main(int argc, char **argv)
      * through the goal wait so the page is dismissed and the play loop is
      * what the final page shows */
     for (unsigned i = 7250u; i <= 7700u; i++) script[i].lastKey = 1u;
+    /* D-15: ESC opens the pause block in the play loop; Enter on row 0
+     * (CONTINUE) closes it again. */
+    script[8000].lastKey = 0x1Bu;
+    script[8050].lastKey = 0x0Du;
     script[SCRIPT_N - 1].quit = 1u;
 
     dump_dir = argc > 3 ? argv[3] : NULL;
@@ -148,6 +157,10 @@ int main(int argc, char **argv)
     if (game_main(&osys_null) != 0) {
         fprintf(stderr, "FAIL game_main returned nonzero\n");
         return 1;
+    }
+    if (!sawPause) {
+        fprintf(stderr, "FAIL D-15: ESC did not open the pause menu in game_main\n");
+        bad = 1;
     }
 
     /* the page: the level's rendered viewport (level_tick: BG4 + the terrain
