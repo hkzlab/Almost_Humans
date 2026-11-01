@@ -37,10 +37,10 @@
  * (1000:95B5), exposed as statusbar_elapsedWord() in the packing
  * check_highscore uses for the per-level best-time compare (1000:42CE).
  *
- * Not ported: the line-compare reveal ([0x5B0A] 200→152 over 48 ticks, driven
- * by the pre-level party screens — the port draws the bar already at
- * 152..191; port_deviations.md D-13).  The time-up dialog ([0x5E44] → the
- * input_dispatch_loop pause branch) IS ported: menu_openTimeUp / menu_tick.
+ * The line-compare reveal ([0x5B0A] 0xC9→0x98, one per tick) is ported:
+ * `barSplit` offsets the band, marks and action row; the time-up dialog
+ * ([0x5E44] → the input_dispatch_loop pause branch) is menu_openTimeUp /
+ * menu_tick.
  */
 #include "game.h"
 #include <stdlib.h>
@@ -50,6 +50,11 @@
 #define BAR_FIRST_ROW 152u   /* the line-compare split, [0x5B0A] = 0x98  */
 #define BAR_ROWS 40u        /* panel4's top 40 rows                      */
 #define MARK_Y 172u         /* bar row 20 (the destinations 0x6E2..)     */
+
+/* [0x5B0A]: the bar's first screen row.  The original's line-compare reveal
+ * starts at 201 (hidden) and the INT 8 hook 1000:331E decrements it to 0x98
+ * (152) over 48 ticks; crtc_set_scroll sets the line compare to 2*row-1. */
+static unsigned barSplit = 152u;
 
 static const OSystem *sb_osys;
 static uint8_t *strip;        /* the four-plane panel strip                */
@@ -143,10 +148,13 @@ static void stamp_marks(uint8_t *page)
     };
     for (unsigned m = 0; m < 5u; m++) {
         unsigned base = 4u * (unsigned)(ph[m] + markBias[m]);
-        for (unsigned r = 0; r < 8u; r++)
+        for (unsigned r = 0; r < 8u; r++) {
+            unsigned at = barSplit + 20u + r;
+            if (at >= 200u) continue;
             for (unsigned j = 0; j < 8u; j++)
-                page[(MARK_Y + r) * 320u + markX[m] + j] =
+                page[at * 320u + markX[m] + j] =
                     (uint8_t)(0xC0u | strip[base + 8u * r + j]);
+        }
     }
 }
 
@@ -159,8 +167,12 @@ static void stamp_marks(uint8_t *page)
 static void draw_band(uint8_t *page)
 {
     for (unsigned y = 0; y < BAR_ROWS; y++) {
-        uint8_t *dst = page + (BAR_FIRST_ROW + y) * 320u;
+        unsigned at = barSplit + y;
+        uint8_t *dst;
         const uint8_t *src = panel4 + y * 320u;
+
+        if (at >= 200u) continue;
+        dst = page + at * 320u;
         for (unsigned x = 0; x < 320u; x++)
             dst[x] = (uint8_t)(0xC0u | src[x]);
     }
@@ -276,7 +288,7 @@ static void draw_actions(uint8_t *page)
     count = g[0];
     unsigned span = count * 23u + (count - 1u) * 12u;
     unsigned x = (0x140u - span) / 2u;
-    unsigned y = BAR_FIRST_ROW + 5u;
+    unsigned y = barSplit + 5u;
 
     for (unsigned i = 0; i + 1u < count + 1u && i < 4u; i++) {
         frame_box(page, x, y, 23u, 31u, NULL, 0u);
@@ -387,6 +399,7 @@ void statusbar_tick(void)
     uint8_t *page;
 
     if (!sb_osys) return;
+    if (barSplit > 152u) barSplit--;   /* 1000:331E, one per display period */
     page = sb_osys->videoPage(0);
     if (!strip || !panel4 || !page) return;
 
@@ -465,6 +478,7 @@ void statusbar_start(uint16_t packedTimeBcd, unsigned tribeMembers,
         icons3 = NULL;
     }
 
+    barSplit = 0xC9u;                  /* 1000:3040: hidden at level start */
     cd[0] = m;
     cd[1] = (uint8_t)(s >> 4);
     cd[2] = (uint8_t)(s & 0xFu);
@@ -508,6 +522,8 @@ int statusbar_timeUp(void) { return timeUp; }
 /* [0x5B12]: the ticking gate.  The in-level dialogs clear it (A167's head)
  * and restore it on return; the band keeps drawing while it is clear. */
 void statusbar_setActive(int on) { active = on ? 1 : 0; }
+void statusbar_setSplit(unsigned row) { barSplit = row > 200u ? 200u : row; }
+unsigned statusbar_split(void) { return barSplit; }
 
 /* The countdown word the save writes at +0x07: minutes << 8 | BCD seconds
  * (the original's [0x5B19] and [0x5B1A]*16 + [0x5B1B]). */

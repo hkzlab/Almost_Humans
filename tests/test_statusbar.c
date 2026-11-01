@@ -258,6 +258,48 @@ int main(int argc, char **argv)
      * ticking gate [0x5B12] is level_fade_in's, so arm it here as the end of
      * the start chain does (level.c's level_begin). */
     statusbar_start(0x0600, 12u, 4u);
+    /* 1000:3040/331E: [0x5B0A] starts at 0xC9 and decrements to 0x98. */
+    {
+        unsigned i;
+
+        if (statusbar_split() != 0xC9u) {
+            fprintf(stderr, "FAIL 1000:3040: split starts at %u, want 0xC9\n",
+                    statusbar_split());
+            bad = 1;
+        }
+        for (i = 0; i < 48u; i++) statusbar_tick();
+        if (statusbar_split() != 0x99u) {
+            fprintf(stderr, "FAIL 1000:331E: 48 ticks leave %u, want 0x99\n",
+                    statusbar_split());
+            bad = 1;
+        }
+        statusbar_tick();
+        if (statusbar_split() != 0x98u) {
+            fprintf(stderr, "FAIL 1000:331E: the 49th tick leaves %u, want 0x98\n",
+                    statusbar_split());
+            bad = 1;
+        }
+        statusbar_tick();
+        if (statusbar_split() != 0x98u) {
+            fprintf(stderr, "FAIL 1000:3328: the split moved past 0x98 (%u)\n",
+                    statusbar_split());
+            bad = 1;
+        }
+    }
+    /* the band follows the split: at [0x5B0A]=160 the bar starts at row 159
+     * (the tick decrements first), and row 158 is still the world. */
+    {
+        uint8_t *pg = (uint8_t *)osys_null_page(0);
+
+        memset(pg, 0, 320u * 200u);
+        statusbar_setSplit(160u);
+        statusbar_tick();
+        if (pg[159u * 320u + 10u] == 0u || pg[158u * 320u + 10u] != 0u) {
+            fprintf(stderr, "FAIL the band does not follow [0x5B0A]\n");
+            bad = 1;
+        }
+    }
+    statusbar_setSplit(152u);
     statusbar_setActive(1);
     statusbar_tick();
     page = osys_null_page(0);
@@ -303,6 +345,7 @@ int main(int argc, char **argv)
     /* 4. the time-up: a 0:00 seed dies on the first second; the marks
      * freeze and the band keeps drawing. */
     statusbar_start(0x0000, 12u, 4u);
+    statusbar_setSplit(152u);
     statusbar_setActive(1);
     for (unsigned i = 0; i < 70u; i++) statusbar_tick();
     if (!statusbar_timeUp()) {
@@ -321,7 +364,8 @@ int main(int argc, char **argv)
     /* 4b. the elapsed clock [0x5B0C..0E] (1000:96C6): one step per second,
      * packed minutes<<8 | tens<<4 | ones the way check_highscore repacks it
      * (1000:42CE) for the per-level best-time compare. */
-    statusbar_start(0x0600, 12u, 4u);      /* 6:00 back on the countdown */
+    statusbar_start(0x0600, 12u, 4u);
+    statusbar_setSplit(152u);      /* 6:00 back on the countdown */
     statusbar_setActive(1);
     if (statusbar_elapsedWord() != 0u) {
         fprintf(stderr, "FAIL the elapsed clock does not start at 0:00\n");
