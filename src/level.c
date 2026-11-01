@@ -488,15 +488,16 @@ static int visuals_load(unsigned style)
          * level palette's 0x40..0x7F (the art), and load_level_assets'
          * 0x4BE2 transform rewrites the image: v (0..0x3F) becomes 0x40+v,
          * and the 0xFF empty fill becomes the BD row block's 64-colour
-         * gradient, 0x80 + (row * 0x280 / WORLD_W) mod 64 - the live image's
-         * fill steps every 0x280 bytes (0x80 at 0..0x23F, 0x81 at 0x280..)
-         * and the original's page shows ONE fill value per row (no horizontal
-         * seam), so the step is applied per row, not mid-row. */
+         * gradient.  The level-end fade frames put the gradient's entry
+         * 0x80..0xBF once over the world's height: row 30 shows entry 7,
+         * row 60 entry 12, row 120 entry 25 (the 0x1413 ramp, sampled from
+         * the live fade), i.e. 0x80 + row * 64 / WORLD_H - one gradient over
+         * the screen, no repeat and no mid-row seam. */
         for (unsigned i = 0; i < WORLD_W * WORLD_H; i++) {
             uint8_t v = bgImage[i];
             if (v == 0xFFu)
                 bgImage[i] = (uint8_t)(0x80u +
-                    ((i / WORLD_W) * 0x280u / WORLD_W) % 64u);
+                    ((i / WORLD_W) * 64u / WORLD_H) % 64u);
             else
                 bgImage[i] = (uint8_t)(v < 0x40u ? 0x40u + v : v);
         }
