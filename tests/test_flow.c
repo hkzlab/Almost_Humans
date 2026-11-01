@@ -1536,19 +1536,23 @@ int main(int argc, char **argv)
     /* 1000:428D sets CRTC 0x12 = 0x8F (400 scanlines = the 320x200 field) at
      * the screen's start, so the entry mode is the card's; 0x439F's 0x8300 is
      * the full mode set at the end. */
+    /* 1000:4403: the card's non-zero bytes are drawn as 0xC0 + v and a zero
+     * byte is LEFT ALONE - the page keeps what the level caption left there
+     * (the live stamp cell shows 1..0xBF inside the card where the sprite is
+     * transparent).  Draw onto a sentinel page and check the law directly. */
     {
-        const uint8_t *pg = osys_null_page(0);
-        unsigned low = 0, high = 0;
+        static uint8_t page[320 * 200];
+        unsigned kept = 0, drawn = 0, other = 0;
 
-        for (unsigned i = 0; i < 320u * 200u; i++) {
-            /* the card biases to 0xC0..0xFF; the digits and the NEW RECORD line
-             * draw 0x0F; nothing may land in the un-biased 0x01..0x0E or
-             * 0x10..0xBF ranges */
-            if (pg[i] >= 0xC0u) high++;
-            else if (pg[i] != 0u && pg[i] != 0x0Fu) low++;
+        memset(page, 0x5A, sizeof page);
+        score_drawCard(page);
+        for (unsigned i = 0; i < sizeof page; i++) {
+            if (page[i] == 0x5A) kept++;
+            else if (page[i] >= 0xC0u) drawn++;
+            else other++;
         }
-        check(low == 0u && high != 0u,
-              "the card's pixels are 0xC0 + the 6-bit index (1000:4403)");
+        check(other == 0u && drawn != 0u && kept != 0u,
+              "the card is drawn as 0xC0 + v and leaves zero bytes alone");
     }
     {
         InputState k;
@@ -1685,14 +1689,21 @@ int main(int argc, char **argv)
             check(flips == 1u, "1000:467A: the NEW RECORD blink toggles once");
         }
 
+        /* 1000:4333: the screen fades in before it takes input */
+        {
+            unsigned t;
+
+            for (t = 0; t < 200u && palette_fadeActive(); t++) palette_tick();
+            check(!palette_fadeActive(), "the score's fade-in completes");
+        }
         check(score_tick(&k) == 1, "the score screen's first tick arms");
         check(score_tick(&k) == 1, "the score screen waits on the card");
-        for (unsigned t = 0; t < 80u && palette_fadeActive(); t++) palette_tick();
-        check(!palette_fadeActive(), "the score's fade completes");
-        for (unsigned t = 0; t < 0x50u; t++) {
-            if (!score_tick(&k)) break;
+        {
+            unsigned guard = 0;
+
+            while (score_tick(&k) && guard++ < 5000u) palette_tick();
+            check(guard < 5000u, "the score screen exits after the hold");
         }
-        check(!score_tick(&k), "the score screen exits after the hold");
     }
 
     /* 7a. 1000:3600, the goal predicate: the feet cell, and the cell one map row

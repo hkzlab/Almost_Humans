@@ -329,6 +329,7 @@ int      scoreBlinkOn(void);                 /* [0x1DC4]: 1 = the stamp is up */
 void     score_stampDraw(uint8_t *page, int on);   /* 1000:46FC / 0x46A3 */
 void     score_column(uint8_t *page, uint32_t value, int x, int y, unsigned digits);
 void     score_drawColumns(uint8_t *page);   /* 1000:4471                 */
+void     score_drawCard(uint8_t *page);      /* 1000:4403, transparent for 0 */
 void     score_drawNum3(uint8_t *page, unsigned ax, uint16_t value,
                         unsigned bx, unsigned bp);   /* 1000:44BB / 0x450F */
 uint16_t score_bestFor(unsigned level);      /* DS:0x38A + level*2        */

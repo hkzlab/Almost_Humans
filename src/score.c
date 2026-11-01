@@ -204,6 +204,7 @@ static uint8_t *scoreRecord;      /* apl\RECORD.SPR (the NEW RECORD stamp)  */
 static uint8_t *scoreNum;         /* apl\SCORENUM.SPR (20 slots of 0x40)    */
 static int scorePhase;
 static int scoreArmed;
+static int scoreArmFade;   /* the entry fade is still running */
 static uint16_t scoreHold;
 
 /* check_highscore's score terms (1000:41AE).  [0x1F41] = the level number
@@ -402,6 +403,34 @@ void score_drawNum3(uint8_t *page, unsigned ax, uint16_t value, unsigned bx, uns
     score_numBlock(page, (unsigned)(value & 0x0Fu),        bp, off + 10u);
 }
 
+
+/* 1000:4403 reblit_framebuffer_88's card pass: each source byte is a 6-bit
+ * index drawn as 0xC0 + v over the 4-px group it covers, and a zero byte is
+ * LEFT ALONE - the page keeps what was there (the level caption, in practice).
+ * The file's first 64 palette entries are the card's own DAC 0xC0..0xFF bank. */
+void score_drawCard(uint8_t *page)
+{
+    unsigned r, j;
+
+    if (!page || !scoreBit) return;
+    /* `reblit` walks 80 bytes per row (stride 88) and four plane passes, each
+     * taking src[4*(row*80+col) + p]; the page is the 4-px-per-byte one the
+     * stamp lives on, so a group's colour is the LAST pass's byte, plane 3. */
+    for (r = 0; r < 200u; r++)
+        for (j = 0; j < 80u; j++) {
+            unsigned i = 4u * (r * 80u + j) + 3u;
+            unsigned v;
+
+            if (i >= scoreSize || i >= SCORE_PAGE) return;
+            v = scoreBit[i];
+            if (!v) continue;
+            page[r * 320u + j * 4u + 0u] = (uint8_t)(v + 0xC0u);
+            page[r * 320u + j * 4u + 1u] = (uint8_t)(v + 0xC0u);
+            page[r * 320u + j * 4u + 2u] = (uint8_t)(v + 0xC0u);
+            page[r * 320u + j * 4u + 3u] = (uint8_t)(v + 0xC0u);
+        }
+}
+
 int score_begin(unsigned value)
 {
     if (scorePhase != SCORE_OFF) return 1;
@@ -418,25 +447,32 @@ int score_begin(unsigned value)
     free(scoreBit); scoreBit = NULL; scoreSize = 0;
     scoreBit = res_loadChunk("LBM\\SCORE.BIT", &scoreSize, NULL);
     uint8_t *page = video_page(0);
-    memset(page, 0, SCORE_PAGE);
-    /* 1000:42E9 or_region_c0(10, 0x100, 0): OR 0xC0 into the page's first 4096
-     * bytes - the 0xC0 palette window the card's own colours live in.  The card
-     * copy below is transparent for a zero source byte, so this shows through. */
-    for (unsigned i = 0; i < 10u * 0x100u; i++) page[i] |= 0xC0u;
+    /* The page is NOT cleared: `check_highscore` draws the card straight over
+     * whatever the level's caption left on it (`draw_level_text` 0x33A3 ends
+     * with the page drawn and the DAC faded to black), and
+     * `reblit_framebuffer_88` skips a zero source byte.  The live stamp cell
+     * shows exactly that: bytes 1..0xBF (level-palette indices) inside the card
+     * where the sprite is transparent.  An earlier revision memset the page,
+     * which made those spots black instead - corrected. */
+    /* 1000:4278..4284 or_region_c0(10, 0x100, 0) runs with ES = [0x1DDA] =
+     * APL\SCORE.SPR, i.e. it ORs 0xC0 into the DIGIT SHEET's first 4096 bytes,
+     * not into the page.  The bias only sets bits 4..7, which this page's 4-px
+     * groups never read, so score_digitBlock's 0x0F ink is the same result. */
     if (scoreBit) {
-        /* 1000:4403 reblit_framebuffer_88: the card's bytes are 6-bit indices
-         * drawn as 0xC0 + v, a zero byte is LEFT ALONE (the OR'd window shows
-         * through), and the file's first 64 palette entries are loaded at DAC
-         * 0xC0..0xFF - the card's own 64 colours. */
-        unsigned n = scoreSize < SCORE_PAGE ? scoreSize : SCORE_PAGE;
+        score_drawCard(page);
+        if (scoreSize >= SCORE_PAGE + 768u) {
+            /* 1000:4333 palette_build_fade(0x100, 0, 0x23, 0x14D3): the screen
+             * FADES IN from the level's (black) palette to 0x14D3, whose
+             * 0xC0..0xFF bank is the card's own 64 colours - the file's first
+             * 64 entries.  The fade is stepped by the tick and waited out
+             * before the input loop. */
+            static uint8_t fadeTarget[768];
 
-        for (unsigned i = 0; i < n; i++) {
-            uint8_t v = scoreBit[i];
-
-            if (v) page[i] = (uint8_t)(v + 0xC0u);
+            memcpy(fadeTarget, palette_working(), sizeof fadeTarget);
+            memcpy(fadeTarget + 0xC0u * 3u, scoreBit + SCORE_PAGE, 192u);
+            palette_buildFade(0u, 0x100u, 0x23u, fadeTarget);
         }
-        if (scoreSize >= SCORE_PAGE + 768u)
-            palette_setDac(scoreBit + SCORE_PAGE, 0xC0, 64);
+        scoreArmFade = 1;
     }
     free(scoreFont);
     scoreFont = res_loadChunk("APL\\TEXT.SPR", NULL, NULL);
@@ -474,6 +510,10 @@ int score_tick(const InputState *in)
         /* The port's caller hands in the same InputState that dismissed the end
          * page, so the first tick skips the key test; the original calls
          * poll_input inside its loop and so never sees that key. */
+        if (scoreArmFade) {                  /* 1000:4333's wait_palette_fade_done */
+            if (palette_fadeActive()) return 1;
+            scoreArmFade = 0;
+        }
         if (!scoreArmed) { scoreArmed = 1; return 1; }
         {
             uint8_t *page = video_page(0);
