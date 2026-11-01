@@ -4682,3 +4682,119 @@ void object_actionRun(void)
         break;
     }
 }
+
+/* --- SAVE GAME state ranges (re_formats.md §10/§12.3) ------------------ */
+
+/* 0x3E20..0x407E: [0x3E20] placed humans, [0x3E22] entity index, the 29
+ * fixed pointers, the 20 class bytes, [0x3E73] live count and the 29 0x12
+ * records at 0x3E75.  The pointer table is the image's constant run. */
+void object_saveTable(uint8_t *dst)
+{
+    if (!dst) return;
+    memset(dst, 0, 0x25Fu);
+    wr16(dst, 0u, objPlacedHumans);
+    wr16(dst, 2u, objEntity);
+    for (unsigned i = 0; i < OBJ_SLOTS; i++)
+        wr16(dst, 4u + 2u * i, (uint16_t)(0x3E75u + 0x12u * i));
+    for (unsigned i = 0; i < 20u; i++) dst[0x3Eu + i] = objSlotClass[i];
+    dst[0x53] = (uint8_t)objLiveCount;          /* [0x3E73] */
+    memcpy(dst + 0x55u, objArray, OBJ_SLOTS * OBJ_STRIDE);
+}
+
+void object_loadTable(const uint8_t *src)
+{
+    if (!src) return;
+    objPlacedHumans = rd16(src, 0u);
+    objEntity = rd16(src, 2u);
+    if (objEntity >= OBJ_SLOTS) objEntity = 0u;
+    memset(objSlotClass, 0, sizeof objSlotClass);
+    for (unsigned i = 0; i < 20u; i++) objSlotClass[i] = src[0x3Eu + i];
+    objLiveCount = src[0x53];
+    if (objLiveCount > OBJ_SLOTS) objLiveCount = OBJ_SLOTS;
+    memcpy(objArray, src + 0x55u, OBJ_SLOTS * OBJ_STRIDE);
+}
+
+/* 0x5B37..0x5B56: the six overlapping programs and [0x5B56].  The port keeps
+ * six 12-byte copies; the original region is the 0x20-byte union, so save the
+ * union and overlay each program's cursor byte at its table start. */
+static const uint8_t objProgramBase[0x20] = {
+    0x02,0x01,0x02,0x01,0x04,0x01,0x03,0x04,0x05,0x06,0x04,0x01,
+    0x03,0x07,0x08,0x06,0x04,0x01,0x03,0x05,0x09,0x06,0x04,0x01,
+    0x09,0x0A,0x0B,0x0C,0x01,0x01,0x06,0x01,
+};
+static const unsigned objProgramStart[6] = { 0u, 4u, 10u, 16u, 22u, 28u };
+static uint8_t objProgramRegion[0x20];
+
+void object_savePrograms(uint8_t *dst)
+{
+    if (!dst) return;
+    memcpy(dst, objProgramBase, 0x20u);
+    for (unsigned i = 0; i < 6u; i++)
+        dst[objProgramStart[i] + 1u] = objPrograms[i][1];
+    dst[0x1F] = (uint8_t)objProgramIndex;
+}
+
+void object_loadPrograms(const uint8_t *src)
+{
+    if (!src) return;
+    memcpy(objProgramRegion, src, 0x20u);
+    for (unsigned i = 0; i < 6u; i++) {
+        unsigned start = objProgramStart[i];
+        unsigned n = 0x20u - start;
+
+        if (n > 12u) n = 12u;
+        memcpy(objPrograms[i], objProgramRegion + start, n);
+        /* n < 12 only for the last program: the save ends at 0x5B56, so its
+         * tail is not in the file and the port keeps the static tail. */
+    }
+    objProgramIndex = src[0x1F];
+    if (objProgramIndex < 1u || objProgramIndex > 6u) objProgramIndex = 1u;
+}
+
+/* 0x649A..0x64C2: the two TER.DAT slots (2 x 0x14). */
+void object_saveTer(uint8_t *dst)
+{
+    if (!dst) return;
+    memcpy(dst, objTerSlot[0], 0x14u);
+    memcpy(dst + 0x14u, objTerSlot[1], 0x14u);
+}
+
+void object_loadTer(const uint8_t *src)
+{
+    if (!src) return;
+    memcpy(objTerSlot[0], src, 0x14u);
+    memcpy(objTerSlot[1], src + 0x14u, 0x14u);
+}
+
+/* 0x6F20..0x82EA: the special tiles, the 8 group templates at 0x6F22 and the
+ * two 0x1C spans at 0x6F92; the image is zero elsewhere, and so is this. */
+void object_savePool(uint8_t *dst)
+{
+    if (!dst) return;
+    memset(dst, 0, 0x13CAu);
+    wr16(dst, 0u, (uint16_t)level_specialTile(0u));   /* [0x6F20] */
+    wr16(dst, 2u, (uint16_t)level_specialTile(1u));   /* [0x6F21] */
+    memcpy(dst + 2u, objRegister, sizeof objRegister);
+    memcpy(dst + 0x72u, objSpan, sizeof objSpan);
+}
+
+void object_loadPool(const uint8_t *src)
+{
+    if (!src) return;
+    memcpy(objRegister, src + 2u, sizeof objRegister);
+    memcpy(objSpan, src + 0x72u, sizeof objSpan);
+}
+
+/* 0x6F92..0x6FE6's second copy: the two spans, then zero. */
+void object_saveSpans(uint8_t *dst)
+{
+    if (!dst) return;
+    memset(dst, 0, 0x54u);
+    memcpy(dst, objSpan, sizeof objSpan);
+}
+
+void object_loadSpans(const uint8_t *src)
+{
+    if (!src) return;
+    memcpy(objSpan, src, sizeof objSpan);
+}

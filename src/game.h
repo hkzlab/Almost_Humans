@@ -178,6 +178,9 @@ int  statusbar_timeUp(void);
 int  statusbar_tribeActive(void);
 /* test seam: sets the odometer digits ([0x5B25]/[0x5B26]) that 1000:F5BC gates on. */
 void statusbar_setTribeDigits(unsigned tens, unsigned ones);
+unsigned statusbar_tribeDigit(unsigned i);   /* [0x5B25]/[0x5B26] by index */
+void statusbar_saveParams(uint8_t *out);      /* the 0x5B22..0x5B29 block   */
+void statusbar_loadParams(const uint8_t *in);
 unsigned statusbar_tribeValue(void);     /* [0x5B25]*10 + [0x5B26] */
 /* [0x5B12]: the ticking gate (the in-level dialogs clear it). */
 void statusbar_setActive(int on);
@@ -346,6 +349,7 @@ void     score_drawNum3(uint8_t *page, unsigned ax, uint16_t value,
 uint16_t score_bestFor(unsigned level);      /* DS:0x38A + level*2        */
 uint16_t score_bestTime(void);               /* [0x1E88]                  */
 unsigned score_totalLo(void), score_totalHi(void);    /* [0x592]/[0x594]   */
+void     score_setTotal(unsigned lo, unsigned hi); /* the save header's halves */
 unsigned score_shownLo(void), score_shownHi(void);    /* [0x1DD2]/[0x1DD4] */
 int  score_begin(unsigned value);           /* 1 = the screen is up      */
 int  score_tick(const InputState *in);      /* 1 = still up              */
@@ -446,6 +450,9 @@ int entity_spawnFromMap(const uint8_t *map, unsigned style,
 
 const Entity *entity_at(unsigned i);   /* NULL past the count */
 unsigned entity_count(void);
+/* save +0x1656+0x28: [0x64C2] and the first seven 0x10-byte records. */
+void entity_saveFixed(uint8_t *dst);
+void entity_loadFixed(const uint8_t *src);
 
 /* --- src/object.c — the placed-object array (0x3E75) ------------------
  *
@@ -464,6 +471,14 @@ void     object_publishTer(const uint8_t *bank, uint32_t size);
 void     object_renderTer(uint8_t *page, int scrollX, int scrollY);
 uint8_t *object_slot(unsigned i);        /* NULL past object_slots()      */
 unsigned object_slots(void);
+/* the SAVE GAME state ranges (re_formats.md §10/§12.3): object table
+ * (0x3E20, 0x25F), pools (0x6F20, 0x13CA), programs (0x5B37, 0x20),
+ * TER slots (0x649A, 0x28) and the 0x6F92 copy (0x54). */
+void object_saveTable(uint8_t *dst);   void object_loadTable(const uint8_t *src);
+void object_savePool(uint8_t *dst);    void object_loadPool(const uint8_t *src);
+void object_savePrograms(uint8_t *dst);void object_loadPrograms(const uint8_t *src);
+void object_saveTer(uint8_t *dst);     void object_loadTer(const uint8_t *src);
+void object_saveSpans(uint8_t *dst);   void object_loadSpans(const uint8_t *src);
 int  object_current(void);               /* [0x1AF2], -1 = none           */
 void object_setCurrent(int slot);
 int  object_player(void);                /* [0x180A], -1 = none           */
@@ -767,13 +782,13 @@ unsigned save_members(void);      /* +0x0B -> [0x1970]                   */
 /* The whole 0x1800 buffer ([0x1C92]): the header and the state ranges are
  * carried verbatim (the ranges have no port consumer yet). */
 const uint8_t *save_blob(void);
+void save_restoreState(void);   /* after level_load: the 0x1800 ranges */
 /* level_run 1000:30B4: [0x34] := 0 after the level starts, so a later
  * "restart this level" takes the LEVEL board's time again. */
 void save_consume(void);
-/* SAVE GAME (save_progress 1FE7:0000): the header from the live state, the
- * 0x1800 file.  The object/entity ranges are written ZERO (unported;
- * port_deviations.md D-14) — the
- * port's saves are header-complete, NOT blob-compatible. */
+/* SAVE GAME (save_progress 1FE7:0000): the live header and the five state
+ * ranges, 0x1800 bytes; save_restoreState puts them back after level_load.
+ * The +0x17F0 parameter block is the image's [0x5B22] defaults. */
 int  save_writeSlot(unsigned slot, unsigned level, uint16_t timeWord,
                     unsigned members);
 

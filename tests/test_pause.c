@@ -31,6 +31,12 @@ extern const uint8_t *osys_null_palette(void);
 #define SAVE_LEN 0x1800u
 #define SAVE_NAME "SAVEB"
 
+static void put16(uint8_t *p, unsigned v)
+{
+    p[0] = (uint8_t)v;
+    p[1] = (uint8_t)(v >> 8);
+}
+
 static void dump_ppm(const char *dir, const char *name, const uint8_t *page,
                      const uint8_t *pal)
 {
@@ -289,7 +295,18 @@ int main(int argc, char **argv)
     }
     menu_close();
 
-    /* 3. SAVE GAME writes the header; save_loadSlot reads it back */
+    /* 3. SAVE GAME writes the header and the state ranges; save_loadSlot
+     *    reads them back. */
+    score_setTotal(0x1234u, 1u);
+    statusbar_setTribeDigits(0u, 9u);
+    {
+        uint8_t *r0 = object_slot(0);
+
+        if (r0) {
+            r0[0] = 0x34; r0[1] = 0x12; r0[2] = 0x56; r0[3] = 0x78;
+        }
+        object_setSlotClass(1u, 6u);
+    }
     if (!save_writeSlot(2u, 2u, 0x0549u, 7u)) {
         fprintf(stderr, "FAIL save_writeSlot(SLOT 2) failed\n");
         return 1;
@@ -303,27 +320,159 @@ int main(int argc, char **argv)
             return 1;
         }
         fclose(f);
-        if (b[0x00] != 2u || b[0x01] != 0u || b[0x06] != 1u ||
+        if (b[0x00] != 2u || b[0x01] != 0u ||
+            b[0x02] != 0x34u || b[0x03] != 0x12u ||
+            b[0x04] != 0x01u || b[0x05] != 0x00u ||
+            b[0x06] != 1u ||
             b[0x07] != 0x49u || b[0x08] != 0x05u ||
+            b[0x09] != 0u || b[0x0A] != 9u ||
             b[0x0B] != 7u || b[0x0C] != 0u) {
             fprintf(stderr, "FAIL the written header (level %u, state %u, "
                     "time %02x%02x, members %u)\n", b[0], b[6], b[8], b[7],
                     b[0x0B]);
             bad = 1;
         }
-        for (unsigned i = 0x0Du; i < SAVE_LEN; i++) {
-            if (b[i] != 0u) {
-                fprintf(stderr, "FAIL the unported blob range is not zero at "
-                        "0x%X\n", i);
-                bad = 1;
-                break;
-            }
+        /* 0x3E20's fixed pointer table and 0x5B37's first program */
+        if (b[0x0D + 4u] != 0x75u || b[0x0D + 5u] != 0x3Eu ||
+            b[0x1636] != 0x02u || b[0x1637] != 0x01u ||
+            b[0x17F0] != 0u || b[0x17F4] != 9u ||
+            b[0x17F5] != 0x10u || b[0x17F7] != 0x90u) {
+            fprintf(stderr, "FAIL the written state ranges\n");
+            bad = 1;
         }
     }
     if (!save_loadSlot(2u) || !save_present() ||
         save_level() != 2u || save_time() != 0x0549u || save_members() != 7u) {
         fprintf(stderr, "FAIL the written save does not load back\n");
         bad = 1;
+    }
+    save_restoreState();
+    if (score_totalLo() != 0x1234u || score_totalHi() != 1u ||
+        statusbar_tribeDigit(0u) != 0u || statusbar_tribeDigit(1u) != 9u) {
+        fprintf(stderr, "FAIL the saved score/counter did not restore\n");
+        bad = 1;
+    }
+    {
+        const uint8_t *r0 = object_slot(0);
+
+        if (!r0 || r0[0] != 0x34u || r0[1] != 0x12u ||
+            r0[2] != 0x56u || object_slotClass(1u) != 6u) {
+            fprintf(stderr, "FAIL the saved object table did not restore\n");
+            bad = 1;
+        }
+    }
+    /* the object table and entity array round-trip their fields */
+    {
+        static uint8_t tbl[0x25F];
+        static uint8_t ent[0x72];
+        uint8_t *r = object_slot(0);
+
+        if (!r) {
+            fprintf(stderr, "FAIL no object slot 0\n");
+            bad = 1;
+        } else {
+            r[0] = 0x34; r[1] = 0x12; r[2] = 0x56; r[3] = 0x78;
+            object_setSlotClass(0u, 5u);
+            object_saveTable(tbl);
+            r[0] = 0; object_setSlotClass(0u, 0u);
+            object_loadTable(tbl);
+            if (r[0] != 0x34 || r[1] != 0x12 || r[2] != 0x56 ||
+                object_slotClass(0u) != 5u) {
+                fprintf(stderr, "FAIL the object table did not round-trip\n");
+                bad = 1;
+            }
+        }
+        memset(ent, 0, sizeof ent);
+        ent[0] = 1;                          /* [0x64C2] = 1 */
+        ent[2] = 0x34; ent[3] = 0x12;        /* slot 0 +0x0 */
+        entity_loadFixed(ent);
+        if (!entity_at(0u) || entity_at(0u)->x0 != 0x1234u) {
+            fprintf(stderr, "FAIL the entity array did not load\n");
+            bad = 1;
+        }
+        entity_saveFixed(ent);
+        if (ent[0] != 1u || ent[2] != 0x34u || ent[3] != 0x12u) {
+            fprintf(stderr, "FAIL the entity array did not save\n");
+            bad = 1;
+        }
+    }
+
+    /* 3b. byte-exact original-format fixture: load every state range, then
+     * write it back and compare all 0x1800 bytes. */
+    {
+        static const uint8_t prog[0x20] = {
+            0x02,0x01,0x02,0x01,0x04,0x01,0x03,0x04,0x05,0x06,0x04,0x01,
+            0x03,0x07,0x08,0x06,0x04,0x01,0x03,0x05,0x09,0x06,0x04,0x01,
+            0x09,0x0A,0x0B,0x0C,0x01,0x01,0x06,0x01,
+        };
+        static uint8_t fx[SAVE_LEN], got[SAVE_LEN];
+
+        memset(fx, 0, sizeof fx);
+        put16(fx + 0x00, 2u);
+        put16(fx + 0x02, 0x1234u); put16(fx + 0x04, 1u);
+        fx[0x06] = 1u;
+        put16(fx + 0x07, 0x0549u);
+        fx[0x09] = 0u; fx[0x0A] = 9u;
+        put16(fx + 0x0B, 7u);
+        /* 0x3E20 */
+        put16(fx + 0x0D + 0u, 5u);
+        put16(fx + 0x0D + 2u, 0u);
+        for (unsigned i = 0; i < 29u; i++)
+            put16(fx + 0x0D + 4u + 2u * i, (unsigned)(0x3E75u + 0x12u * i));
+        fx[0x0D + 0x3E + 1u] = 6u;                  /* class slot 1 */
+        fx[0x0D + 0x53u] = 9u;                      /* [0x3E73] */
+        put16(fx + 0x0D + 0x55u, 0x1234u);          /* record 0 x */
+        put16(fx + 0x0D + 0x57u, 0x5678u);          /* record 0 y */
+        /* 0x6F20: groups and spans all free, then the two specials */
+        memset(fx + 0x026C + 2u, 0xFF, 0x70u);
+        memset(fx + 0x026C + 0x72u, 0xFF, 0x38u);
+        put16(fx + 0x026C, (unsigned)level_specialTile(0u));
+        put16(fx + 0x026C + 2u, (unsigned)level_specialTile(1u));
+        /* 0x5B37 and its [0x5B56] */
+        memcpy(fx + 0x1636, prog, sizeof prog);
+        /* 0x649A TER slots zero, then 0x64C2 count + 7 records */
+        put16(fx + 0x167E, 1u);
+        put16(fx + 0x167E + 2u, 0x1234u);
+        put16(fx + 0x167E + 4u, 0x5678u);
+        /* 0x6F92 copy: spans + zero */
+        memset(fx + 0x16F0, 0xFF, 0x38u);
+        /* 0x5B22 block */
+        fx[0x17F0] = 1u; fx[0x17F1] = 2u; fx[0x17F2] = 3u;
+        fx[0x17F3] = 0u; fx[0x17F4] = 9u; fx[0x17F5] = 0x12u;
+        fx[0x17F6] = 0u; fx[0x17F7] = 0x34u;
+
+        f = fopen(SAVE_NAME, "wb");
+        if (!f || fwrite(fx, 1, sizeof fx, f) != sizeof fx) {
+            if (f) fclose(f);
+            fprintf(stderr, "FAIL cannot write the state fixture\n");
+            return 1;
+        }
+        fclose(f);
+        if (!save_loadSlot(2u)) {
+            fprintf(stderr, "FAIL the state fixture did not load\n");
+            bad = 1;
+        } else {
+            save_restoreState();
+            if (!save_writeSlot(2u, 2u, 0x0549u, 7u)) {
+                fprintf(stderr, "FAIL the state fixture did not write\n");
+                bad = 1;
+            }
+            f = fopen(SAVE_NAME, "rb");
+            if (!f || fread(got, 1, sizeof got, f) != sizeof got) {
+                if (f) fclose(f);
+                fprintf(stderr, "FAIL cannot read the state fixture back\n");
+                bad = 1;
+            } else {
+                fclose(f);
+                if (memcmp(fx, got, sizeof fx) != 0) {
+                    unsigned at = 0;
+                    while (at < sizeof fx && fx[at] == got[at]) at++;
+                    fprintf(stderr, "FAIL the state fixture differs at 0x%X "
+                            "(want %02x, got %02x)\n", at, fx[at], got[at]);
+                    bad = 1;
+                }
+            }
+        }
     }
 
     /* 4. save_consume (level_run 30B4): a restart takes the board's pick */

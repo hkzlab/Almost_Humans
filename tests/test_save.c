@@ -193,6 +193,13 @@ int main(int argc, char **argv)
             fprintf(stderr, "FAIL the save blob was not carried\n");
             bad = 1;
         }
+        /* entry:004C's state restore: the header score/counter */
+        save_restoreState();
+        if (score_totalLo() != 0x1234u || score_totalHi() != 1u ||
+            statusbar_tribeDigit(0u) != 0u || statusbar_tribeDigit(1u) != 9u) {
+            fprintf(stderr, "FAIL the save's score/counter did not restore\n");
+            bad = 1;
+        }
     }
 
     /* slot 0 = GAME OFF: the fresh path (LEVEL default EASY -> timeA/12) */

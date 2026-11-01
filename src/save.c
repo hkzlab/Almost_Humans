@@ -18,11 +18,11 @@
  *            [0x6F92] copies (load_level_record_a/_b) and the [0x5B22]
  *            parameter block at +0x17F0.
  *
- * The port consumes the header fields that have a consumer today: the level
- * (+0x00), the time (+0x07) and the members (+0x0B).  The rest of the header
- * and the whole state blob are carried verbatim in `save_blob` — the ranges
- * have no port consumer yet (the entity/object state is a later objective),
- * so they are NOT mapped into invented structures.
+ * The header and all five state ranges are now written from the live port
+ * state (score/counter, the object table, the group/span pools, the six
+ * programs, the TER slots and the entity array), and `save_restoreState` puts
+ * them back after `level_load`.  The 8 bytes at +0x17F0 are the live
+ * [0x5B22] odometer block (statusbar_saveParams/loadParams).
  *
  * The load mirrors entry:004C: a missing/short file is the original's JC
  * path (no save, the fresh game), never an abort. */
@@ -71,31 +71,55 @@ unsigned save_members(void)     { return rd16(save_buf + 0x0B); }
 const uint8_t *save_blob(void)  { return save_buf; }
 
 /* SAVE GAME (save_progress 1FE7:0000, re_formats.md §10.0): the 13-byte
- * header from the port's live state + the 0x1800 file.  The five state
- * ranges (+0x0D..) are the object/entity tables the port does not model:
- * they are written ZERO, deliberately (port_deviations.md D-14) — the port's
- * saves are complete for
- * the header (level/time/members) and NOT byte-compatible with the
- * original's blob.  The score/counter digits are likewise 0 (the score and
- * collect systems are unported); the state id is the level's [0x5B56] = 1. */
+ * header from the port's live state + the five state ranges. */
 int save_writeSlot(unsigned slot, unsigned level, uint16_t timeWord,
                    unsigned members)
 {
     static uint8_t out[SAVE_LEN];
+
     if (slot == 0u || slot > 20u) return 0;
 
     memset(out, 0, sizeof out);
     out[0x00] = (uint8_t)level;   out[0x01] = (uint8_t)(level >> 8);
-    /* +0x02..+0x05: the 32-bit score (0, unported) */
-    out[0x06] = 1;                                  /* [0x5B56] = 1      */
+    out[0x02] = (uint8_t)score_totalLo();
+    out[0x03] = (uint8_t)(score_totalLo() >> 8);
+    out[0x04] = (uint8_t)score_totalHi();
+    out[0x05] = (uint8_t)(score_totalHi() >> 8);
+    out[0x06] = (uint8_t)object_actionProgram();   /* [0x5B56] */
     out[0x07] = (uint8_t)(timeWord & 0xFFu);        /* BCD sec  | min    */
     out[0x08] = (uint8_t)(timeWord >> 8);
-    /* +0x09/+0x0A: the 2-digit counter (0, unported) */
+    out[0x09] = (uint8_t)statusbar_tribeDigit(0u);  /* [0x5B25] */
+    out[0x0A] = (uint8_t)statusbar_tribeDigit(1u);  /* [0x5B26] */
     out[0x0B] = (uint8_t)members; out[0x0C] = (uint8_t)(members >> 8);
+
+    object_saveTable(out + 0x000Du);          /* 0x3E20, 0x25F          */
+    object_savePool(out + 0x026Cu);           /* 0x6F20, 0x13CA         */
+    object_savePrograms(out + 0x1636u);       /* 0x5B37, 0x20           */
+    object_saveTer(out + 0x1656u);            /* 0x649A, 0x28           */
+    entity_saveFixed(out + 0x167Eu);          /* 0x64C2, 0x72           */
+    object_saveSpans(out + 0x16F0u);          /* 0x6F92, 0x54           */
+    statusbar_saveParams(out + 0x17F0u);      /* [0x5B22], 8            */
 
     FSSave *f = fs.createSave((char)('A' + (int)slot - 1));
     if (!f) return 0;
     uint32_t put = fs.saveWrite(f, 0, out, SAVE_LEN);
     fs.closeSave(f);
     return put == SAVE_LEN;
+}
+
+/* entry:004C / load_level_record_a+_b: put the saved ranges back after the
+ * level has been loaded and its map spawns have run. */
+void save_restoreState(void)
+{
+    if (!save_loaded) return;
+    object_loadTable(save_buf + 0x000Du);
+    object_loadPool(save_buf + 0x026Cu);
+    object_loadPrograms(save_buf + 0x1636u);
+    object_loadTer(save_buf + 0x1656u);
+    entity_loadFixed(save_buf + 0x167Eu);
+    object_loadSpans(save_buf + 0x16F0u);
+    score_setTotal(rd16(save_buf + 0x02), rd16(save_buf + 0x04));
+    statusbar_loadParams(save_buf + 0x17F0u);
+    statusbar_setTribeDigits(save_buf[0x09], save_buf[0x0A]);
+    object_actionSetProgram(save_buf[0x06]);
 }

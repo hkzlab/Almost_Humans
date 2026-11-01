@@ -351,6 +351,9 @@ int game_main(const OSystem *osys)
                     const LevelData *ld = level_data();
                     entity_spawnFromMap(level_map(), ld->style,
                                         ld->entityLife);
+                    /* entry:004C / load_level_record_a+_b: the save's state
+                     * ranges replace the level's fresh spawn. */
+                    if (save_present()) save_restoreState();
                     /* level_run 3060/3062: a tribe smaller than the level
                      * needs — party_intro_setGameOver plays the briefing's
                      * GAME OVER variant — and the level is skipped by the

@@ -103,6 +103,12 @@ static void score_terms(void)
 
 /* 1000:42CE..4352: the best-time comparison, the NEW RECORD flag and the
  * running total. */
+void score_setTotal(unsigned lo, unsigned hi)
+{
+    scoreTotalLo = (uint16_t)lo;
+    scoreTotalHi = (uint16_t)hi;
+}
+
 void score_prepare(void)
 {
     unsigned levelNo = gameflow_levelForProbe() + 1u;

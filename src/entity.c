@@ -36,6 +36,7 @@
  */
 #include "game.h"
 #include <stddef.h>
+#include <string.h>
 
 /* --- the record and the array space ------------------------------------ */
 
@@ -487,3 +488,23 @@ const Entity *entity_at(unsigned i)
 }
 
 unsigned entity_count(void) { return ent_count; }
+
+/* Save +0x1656+0x28 = [0x64C2] (u16) + the first seven 0x10-byte records
+ * (0x64C4..0x6534).  The original copies 0x70 bytes, i.e. slots 0..6. */
+void entity_saveFixed(uint8_t *dst)
+{
+    if (!dst) return;
+    dst[0] = (uint8_t)ent_count;
+    dst[1] = (uint8_t)(ent_count >> 8);
+    for (unsigned i = 0; i < 7u; i++)
+        memcpy(dst + 2u + i * 16u, ents[i], 16u);
+}
+
+void entity_loadFixed(const uint8_t *src)
+{
+    if (!src) return;
+    ent_count = (unsigned)(src[0] | (src[1] << 8));
+    if (ent_count > ENT_MAX) ent_count = ENT_MAX;
+    for (unsigned i = 0; i < 7u; i++)
+        memcpy(ents[i], src + 2u + i * 16u, 16u);
+}

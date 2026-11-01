@@ -76,11 +76,15 @@ static uint8_t elapsed[3];
 /* the tribe odometer: values [0x5B25/26], phases [0x5B27/29], state
  * [0x5B22], slides [0x5B23/24] — indices 0 = tens, 1 = ones */
 static uint8_t td[2];
+static uint16_t tdPhase[2];
+static uint8_t odoState;
+static uint8_t odoSlide[2];
 /* 1000:F5E3: the "anything collected" test ([0x5B25] | [0x5B26] != 0). */
 int statusbar_tribeActive(void) { return (td[0] | td[1]) != 0; }
 /* The two digits as the number the check_highscore arithmetic reads (1000:41B8:
  * `[0x5B25]*10 + [0x5B26]`). */
 unsigned statusbar_tribeValue(void) { return (unsigned)td[0] * 10u + td[1]; }
+unsigned statusbar_tribeDigit(unsigned i) { return td[i & 1u]; }
 /* The odometer's digits are [0x5B25]/[0x5B26]; the game only writes them through
  * statusbar_start (members - required) and the roll animation.  This setter is
  * a test seam for the object machine's level-end probe, whose two branches key
@@ -90,9 +94,33 @@ void statusbar_setTribeDigits(unsigned tens, unsigned ones)
     td[0] = (uint8_t)(tens % 10u);
     td[1] = (uint8_t)(ones % 10u);
 }
-static uint16_t tdPhase[2];
-static uint8_t odoState;
-static uint8_t odoSlide[2];
+
+/* 0x5B22..0x5B29, the save's +0x17F0 block: state, the two slide
+ * countdowns, the two digits, the two phase bytes and the 0x5B28 gap. */
+void statusbar_saveParams(uint8_t *out)
+{
+    if (!out) return;
+    out[0] = odoState;
+    out[1] = odoSlide[0];
+    out[2] = odoSlide[1];
+    out[3] = td[0];
+    out[4] = td[1];
+    out[5] = (uint8_t)tdPhase[0];
+    out[6] = 0u;
+    out[7] = (uint8_t)tdPhase[1];
+}
+
+void statusbar_loadParams(const uint8_t *in)
+{
+    if (!in) return;
+    odoState = in[0];
+    odoSlide[0] = in[1];
+    odoSlide[1] = in[2];
+    td[0] = (uint8_t)(in[3] % 10u);
+    td[1] = (uint8_t)(in[4] % 10u);
+    tdPhase[0] = in[5];
+    tdPhase[1] = in[7];
+}
 
 int statusbar_init(const OSystem *osys) { sb_osys = osys; return 0; }
 
