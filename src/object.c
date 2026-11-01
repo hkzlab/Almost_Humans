@@ -1722,9 +1722,11 @@ unsigned object_actionEntity(void) { return objEntity; }
 
 /* 1000:3344..336C (level_fade_in): slot 8 (`0x3F05`) takes frame 0x17, type 0x1A,
  * +0xA = 0x1006 and +0xC = 0xFF.  `scan_object_rows` starts its walk there and
- * counts `[0x3E73]-8+1` records, so this slot is drawn; its x/y are still the
- * array init's 0xFFFF, which is why a sliver of the sprite shows at the top-left
- * (faithful - the walk has no off-screen test). */
+ * counts `[0x3E73]-8+1` records, so this slot is drawn.
+ * Slot 8 is the active-human ARROW: the original positions it every frame in
+ * 1000:D64F (update_world's 1000:80C9) and the selector arms it at 1000:4188.
+ * ⚠ Neither exists here, so x/y stay the array init's 0xFFFF and the arrow is
+ * drawn at the level's top-left, static (port_deviations.md D-39). */
 void object_levelStartRecord(void)
 {
     uint8_t *r = object_slot(8u);

@@ -324,9 +324,11 @@ int main(int argc, char **argv)
              * drawn at (48,24) (208,24) (256,136)) over the terrain */
             /* level_fade_in (1000:3344) initialises slot 8 to frame 0x17 /
              * type 0x1A and `scan_object_rows` (1000:6433) counts
-             * `[0x3E73]-8+1` records from 0x3F05, so the slot is drawn; its
-             * x/y are the array init's 0xFFFF (-1 in int16), which puts a 15-px
-             * sliver of that sprite at the top-left.
+             * `[0x3E73]-8+1` records from 0x3F05, so the slot is drawn.  Slot 8
+             * is the active-human arrow; the original repositions it every
+             * frame in 1000:D64F, which the port does not have, so its x/y stay
+             * the array init's 0xFFFF (-1) and the pin includes that top-left
+             * sliver (port_deviations.md D-39; it moves when D64F is ported).
              *
              * The pin moved once more when the type-3 rows' tail (1000:D9E8)
              * was ported: the level's type-3 placed record now runs its gravity
