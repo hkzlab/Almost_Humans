@@ -503,6 +503,41 @@ int main(int argc, char **argv)
         }
     }
 
+    /* The placed decorations' spawn snap (1000:5639 -> map_get).  Level 15
+     * ("BAD TASTE", style 6) has the torch (0xAD, frame 0x9C) at col 17/row
+     * 11; the cell below (0x26) has page byte 1 and the style-6 nudge adds
+     * 3, so the record must land at y = 176 + 3 + 1 = 180.  Before the level
+     * was published before the spawn pass the map lookup returned NULL and
+     * the snap was skipped: y stayed 176 and the torch floated 4 px above
+     * the ground. */
+    if (level_load(15) != 0) {
+        fprintf(stderr, "FAIL level 15 reload for the torch\n");
+        bad = 1;
+    } else {
+        int found = 0;
+
+        if (level_data()->style != 6u) {
+            fprintf(stderr, "FAIL level 15 is not style 6\n");
+            bad = 1;
+        }
+        for (unsigned i = 0; i < object_slots(); i++) {
+            uint8_t *r = object_slot(i);
+
+            if (!r) continue;
+            if ((r[4] | (r[5] << 8)) != 0x9Cu) continue;
+            found = 1;
+            if ((r[0] | (r[1] << 8)) != 272u || (r[2] | (r[3] << 8)) != 180u) {
+                fprintf(stderr, "FAIL the torch is at x=%u y=%u, want 272/180\n",
+                        r[0] | (r[1] << 8), r[2] | (r[3] << 8));
+                bad = 1;
+            }
+        }
+        if (!found) {
+            fprintf(stderr, "FAIL level 15 has no torch record\n");
+            bad = 1;
+        }
+    }
+
     if (!bad) printf("level tests: OK (the 160-record census + the byte-exact maps + the render)\n");
     return bad;
 }

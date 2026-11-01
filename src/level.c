@@ -709,6 +709,13 @@ int level_load(unsigned levelId)
     terBank = res_loadChunk("APL\\TER.DAT", &terBankSize, NULL);
     object_publishTer(terBank, terBankSize);
 
+    /* Publish the level before the placed-object pass: the spawn's y snap
+     * (1000:5639 -> map_get) and the style-6 nudge (1000:5662) read the map
+     * and the style, so level_map()/level_style() must stop returning NULL/0
+     * here.  Without this the torch (0xAD) keeps its raw row*16 y and floats
+     * 4 px above the ground (the reported elevated torch). */
+    level_loaded = 1;
+
     /* the level's placed objects (load_terrain_b 1000:5168): the array is
      * cleared, then the map's 0xAA/0xAB cells become the humans and the spear. */
     object_init();
