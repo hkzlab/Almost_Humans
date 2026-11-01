@@ -331,7 +331,6 @@ int main(int argc, char **argv)
     model_page(model, ph);
     bad |= diff_rows("the seeded stamp", page, model);
     bad |= check_actions(page);
-
     /* 2. the first second rolls 6:00 -> 5:59.  On the tick that fires the
      * second the roll-start phases are stamped (the ones at 0xB0 = the
      * blank above '9'); 16 frames later the slides have settled. */
@@ -446,6 +445,33 @@ int main(int argc, char **argv)
             /* t90: one second rolled — recompute the settled phases      */
             for (unsigned i = 0; i < 16u; i++) { level_tick(); palette_tick(); }
             dump_ppm(dump_dir, "statusbar_port_t106", page, osys_null_palette());
+        }
+    }
+
+
+    /* 1000:3933 (SPACE): the group header's second byte is the selected cell,
+     * and the gold frame sits on that cell (1000:990A counts it down per
+     * slot).  Step it and the highlight moves to slot 1; past the count it
+     * wraps back to 1. */
+    {
+        const uint8_t *pg = osys_null_page(0);
+        unsigned gold0 = (BAR_Y + 6u) * 320u + 132u;          /* slot 0, +1 */
+        unsigned gold1 = (BAR_Y + 6u) * 320u + 167u;          /* slot 1, +1 */
+
+        statusbar_cycleAction();                              /* 1 -> 2 */
+        statusbar_tick();
+        if (statusbar_actionCell(1u) != 2u || pg[gold1] != 0xD6u ||
+            pg[gold0] == 0xD6u) {
+            fprintf(stderr, "FAIL SPACE does not move the gold frame to "
+                    "cell 2 (cell %u, %02x/%02x)\n", statusbar_actionCell(1u),
+                    pg[gold0], pg[gold1]);
+            bad = 1;
+        }
+        statusbar_cycleAction();                              /* 2 -> wrap 1 */
+        statusbar_tick();
+        if (statusbar_actionCell(1u) != 1u || pg[gold0] != 0xD6u) {
+            fprintf(stderr, "FAIL the action cell does not wrap to 1\n");
+            bad = 1;
         }
     }
 

@@ -163,28 +163,43 @@ int main(int argc, char **argv)
     }
 
     /* D-15: scan_id_list (1000:386E) binds ESC (scancode 0x01) to event 4,
-     * whose handler (1000:38EA) opens the 202F:0x5BBC block.  The port's
-     * lastKey is ASCII 0x1B for ESC. */
+     * whose handler (1000:38EA) opens the 202F:0x5BBC block.  The list's
+     * entries are scancodes and the world gate [0xC] must be open for them
+     * (1000:38AD), so drive it the way the play loop does. */
     {
         InputState k;
 
         memset(&k, 0, sizeof k);
         menu_close();
-        k.lastKey = 0x1Bu;
-        if (gameflow_pauseTrigger(&k) != 1 || !menu_active() || menu_timeUp()) {
+        level_setUpdates(1);
+        k.keyScan = 0x01u;                       /* ESC */
+        if (gameflow_keyList(&k) != 1 || !menu_active() || menu_timeUp()) {
             fprintf(stderr, "FAIL D-15: ESC does not open the pause menu\n");
             bad = 1;
         }
-        if (gameflow_pauseTrigger(&k) != 0 || !menu_active()) {
-            fprintf(stderr, "FAIL D-15: the open menu re-fires\n");
+        /* a second ESC while the block is open: the dialog owns the input in
+         * the original, so the list must not reopen or close it */
+        (void)gameflow_keyList(&k);
+        if (!menu_active() || menu_timeUp()) {
+            fprintf(stderr, "FAIL D-15: a second ESC disturbed the open menu\n");
             bad = 1;
         }
         menu_close();
+        k.keyScan = 0u;                          /* a non-listed key */
         k.lastKey = 'Z';
-        if (gameflow_pauseTrigger(&k) != 0 || menu_active()) {
+        if (gameflow_keyList(&k) != 0 || menu_active()) {
             fprintf(stderr, "FAIL D-15: a non-ESC key opens the pause menu\n");
             bad = 1;
         }
+        /* the [0xC] gate: a non-bit7 entry is skipped while the world is
+         * frozen (the claim holds it at 0) */
+        k.keyScan = 0x01u;
+        level_setUpdates(0);
+        if (gameflow_keyList(&k) != 0 || menu_active()) {
+            fprintf(stderr, "FAIL the [0xC] gate stopped a key event\n");
+            bad = 1;
+        }
+        level_setUpdates(1);
     }
 
     /* the level's assets: the dialog's box tiles (apl\box.spr, disc 1) and

@@ -77,12 +77,23 @@ static const char *dumpName[] = { "flow_6600_room", "flow_6900_roomexit",
 extern void osys_null_onPresent(void (*fn)(unsigned poll));
 
 static int sawPause;
+/* the goal page (scroll_map 1000:9E51): the actor must not move while it is
+ * up even with a direction held, and the page must be seen at all */
+static int sawGoal, goalMoved, goalTicks, goalX;
 
 static void present_hook(unsigned poll)
 {
     /* D-15: the ESC at 8000 must have the pause block up on the next present;
      * the Enter at 8050 selects CONTINUE and closes it. */
     if (poll >= 8001u && poll <= 8051u && menu_active()) sawPause = 1;
+    if (gameflow_goalPageUp()) {
+        uint8_t *a = object_slot(object_actionEntity());
+        int x = a ? (int)(int16_t)(a[0] | (a[1] << 8)) : -1;
+
+        if (!sawGoal) { sawGoal = 1; goalX = x; }
+        else if (x != goalX) goalMoved = 1;
+        goalTicks++;
+    }
     if (!dump_dir || dumped >= DUMP_N) return;
     if (poll < dumpAt[dumped]) return;
     while (dumped < DUMP_N && poll >= dumpAt[dumped]) {
@@ -140,13 +151,19 @@ int main(int argc, char **argv)
      * wait fires [0x48A3]-shaped aborts exactly like the original's
      * wait_frames_or_key — one key inside the first set's wait exits  */
     script[7150].lastKey = 1u;            /* the party's SET1W window    */
-    /* the LOADING screen follows, then the level's goal page; hold the key
-     * through the goal wait so the page is dismissed and the play loop is
-     * what the final page shows */
-    for (unsigned i = 7250u; i <= 7700u; i++) script[i].lastKey = 1u;
+    /* the LOADING screen follows, then the level's goal page.  Hold RIGHT
+     * (no key) while the page is up: scroll_map (1000:9E51) polls input only,
+     * so the actor must stay put; the key at 7695 dismisses the page and the
+     * play loop follows. */
+    for (unsigned i = 7200u; i <= 7690u; i++) script[i].joyBits = 0x08u;
+    script[7695].lastKey = 1u;
     /* D-15: ESC opens the pause block in the play loop; Enter on row 0
      * (CONTINUE) closes it again. */
-    script[8000].lastKey = 0x1Bu;
+    /* D-41/D-42 through the real flow: F2 selects record 1 (the second
+     * human), SPACE steps the action row's selected cell. */
+    script[7750].keyScan = 0x3Cu;         /* F2 */
+    script[7760].keyScan = 0x39u;         /* SPACE */
+    script[8000].keyScan = 0x01u;         /* ESC: the key list's id 4 */
     script[8050].lastKey = 0x0Du;
     script[SCRIPT_N - 1].quit = 1u;
 
@@ -160,6 +177,28 @@ int main(int argc, char **argv)
     }
     if (!sawPause) {
         fprintf(stderr, "FAIL D-15: ESC did not open the pause menu in game_main\n");
+        bad = 1;
+    }
+    /* D-40: the goal page was up (scroll_map) with RIGHT held and the actor
+     * did not move: the page's loop polls input only. */
+    if (!sawGoal || goalTicks < 5) {
+        fprintf(stderr, "FAIL the goal page was not reached (%d ticks)\n",
+                goalTicks);
+        bad = 1;
+    } else if (goalMoved) {
+        fprintf(stderr, "FAIL the actor moved while the goal page was up\n");
+        bad = 1;
+    }
+    /* D-41: the F2 make at 7750 selected record 1; D-42: the SPACE make at
+     * 7760 stepped the action row's cell from 1 to 2. */
+    if (object_actionEntity() != 1u) {
+        fprintf(stderr, "FAIL F2 did not select record 1 (entity %u)\n",
+                object_actionEntity());
+        bad = 1;
+    }
+    if (statusbar_actionCell(1u) != 2u) {
+        fprintf(stderr, "FAIL SPACE did not step the action cell (cell %u)\n",
+                statusbar_actionCell(1u));
         bad = 1;
     }
 

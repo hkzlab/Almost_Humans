@@ -92,6 +92,39 @@ static int actionLatched;
 
 /* [0x5BBA] != 0: the level's goal page (scroll_map 1000:9E51) is up. */
 static int goalPage;
+/* the page is being displayed (the flow is inside scroll_map's wait) - distinct
+ * from goalPage, which the level's entry sets long before the page shows. */
+static int goalShowing;
+/* scroll_map renders two frames and then polls input only; the port freezes
+ * the [0xC] update gate for the page's lifetime (1 = it was ours to restore,
+ * so a gate the claim already closed is left alone). */
+static int goalFrozeUpdates;
+int gameflow_goalPageUp(void) { return goalShowing; }
+
+/* [0x3954] (F10, the key list's id 9): a debug wait for key-up, key-down,
+ * key-up with [0x5B12] suspended.  0 idle, 1 waiting for the release, 2 for
+ * the press, 3 for the release. */
+static int keyWaitStage;
+int gameflow_keyWaitActive(void) { return keyWaitStage != 0; }
+
+/* one tick of 1000:3954's three wait loops; returns 1 while the wait owns the
+ * input. */
+static int keyWaitStep(const InputState *in)
+{
+    int down = in->lastKey != 0u || in->keyScan != 0u;
+
+    switch (keyWaitStage) {
+    case 1: if (!down) keyWaitStage = 2; break;
+    case 2: if (down) keyWaitStage = 3; break;
+    default:
+        if (!down) {
+            statusbar_setActive(1);              /* 1000:396E */
+            keyWaitStage = 0;
+        }
+        break;
+    }
+    return 1;
+}
 
 /* [0x5E44]: the time-up dialog has been shown for this countdown. */
 static int timeoutShown;
@@ -155,14 +188,56 @@ GameFlow gameflow_pauseAction(int choice, int *quit)
     return FLOW_LEVEL;
 }
 
-/* scan_id_list (1000:386E): the key list at DS:0x1989 binds scancode 0x01
- * (ESC) to event id 4; id 4's handler (1000:38EA) opens the 0x5BBC block via
- * dialog_menu_loop (1000:A167).  The port's lastKey is ASCII 0x1B for ESC. */
-int gameflow_pauseTrigger(const InputState *in)
+/* DS:0x1989 - scan_id_list's key list (1000:386E): {scancode, event id}
+ * pairs, terminated by 0xFF in the image.  The id's bit 7 means "run even
+ * when the world gate [0xC] is closed" (F10); every other entry is skipped
+ * while [0xC] == 0 (1000:38AD).  The ids dispatch through 202F:19A4:
+ *
+ *   1 1000:38C3  select the record `scancode - 0x3B` (F1..F8)
+ *   2 1000:38DE  the previous record (0x410A with AX = -0x12)
+ *   3 1000:38E4  the next record       (0x410A with AX = +0x12)
+ *   4 1000:38EA  the 0x5BBC pause block (ESC)
+ *   8 1000:3933  the action-icon step / home state (SPACE)
+ *   9 1000:3954  the key wait (F10)
+ */
+static const uint8_t keyList[][2] = {
+    { 0x44, 0x89 }, { 0x01, 0x04 }, { 0x39, 0x08 }, { 0x33, 0x02 },
+    { 0x34, 0x03 }, { 0x3B, 0x01 }, { 0x3C, 0x01 }, { 0x3D, 0x01 },
+    { 0x3E, 0x01 }, { 0x3F, 0x01 }, { 0x40, 0x01 }, { 0x41, 0x01 },
+    { 0x42, 0x01 },
+};
+
+/* 1000:386E.  Returns 1 when an entry ran (a non-bit7 entry whose gate [0xC]
+ * is closed returns 0 before the dispatch, 1000:38AD). */
+int gameflow_keyList(const InputState *in)
 {
-    if (!in || menu_active() || in->lastKey != 0x1Bu) return 0;
-    menu_openPause();
-    return 1;
+    if (!in) return 0;
+    if (keyWaitStage) return keyWaitStep(in);          /* 1000:3954 */
+    if (in->keyScan == 0u) return 0;
+    for (unsigned i = 0; i < sizeof keyList / sizeof keyList[0]; i++) {
+        unsigned id = keyList[i][1];
+
+        if (keyList[i][0] != in->keyScan) continue;
+        if (!(id & 0x80u) && !level_updates()) return 0;      /* 1000:38AD */
+        switch (id & 0x7Fu) {
+        case 1:                                              /* F1..F8     */
+            (void)object_selectByIndex((unsigned)in->keyScan - 0x3Bu);
+            return 1;                                        /* 1000:38C3  */
+        case 2: (void)object_cycleEntity(-1); return 1;      /* ','        */
+        case 3: (void)object_cycleEntity(1); return 1;       /* '.'        */
+        case 4:                                              /* ESC        */
+            if (!menu_active() && !level_ended())
+                menu_openPause();                            /* 1000:38EA  */
+            return 1;
+        case 8: (void)object_spaceAction(); return 1;        /* SPACE      */
+        case 9:                                              /* F10        */
+            statusbar_setActive(0);                          /* 1000:3954  */
+            keyWaitStage = 1;
+            return 1;
+        default: return 0;
+        }
+    }
+    return 0;
 }
 
 /* input_dispatch_loop 34F9's inline time-up dispatch: 0 restart this level
@@ -401,6 +476,8 @@ int game_main(const OSystem *osys)
                 {
                     const LevelData *g = level_data();
                     goalPage = !levelSkipped && g && g->goal[0] != 0;
+                    goalShowing = 0;
+                    goalFrozeUpdates = 0;
                     if (goalPage) statusbar_setActive(0);
                 }
             }
@@ -546,21 +623,36 @@ int game_main(const OSystem *osys)
                 level_tick();
                 goto present;
             } else if (goalPage && lv) {
-                /* scroll_map (1000:9E51): the level's goal page, the frame
-                 * re-rendered behind it, [0x5B12]=0 while up (so the clock
-                 * stands still after the start chain armed it); any key or
-                 * ACTION dismisses it and [0x5BBA] is cleared. */
+                /* scroll_map (1000:9E51): two rendered frames, the box, then
+                 * a loop that only runs 1000:8B56 + 1000:8526 (poll_input)
+                 * and tests [0x48A3]/the fire bit - **no update_world**, so
+                 * the world is frozen and the direction keys cannot move
+                 * anyone.  The port freezes the [0xC] gate (level_tick still
+                 * renders and keeps the ISR's palette rotation running, so
+                 * the box is redrawn over each frame). */
+                if (!goalFrozeUpdates) {
+                    goalFrozeUpdates = level_updates();
+                    level_setUpdates(0);
+                }
+                goalShowing = 1;
                 statusbar_setActive(0);
                 level_tick();
                 textpage_draw(osys->videoPage(0), lv->goal, -1, 0u, 0);
                 if (input.lastKey || (input.joyBits & 0x80u)) {
                     goalPage = 0;
+                    goalShowing = 0;
+                    if (goalFrozeUpdates) level_setUpdates(1);  /* 1000:9E9D */
+                    goalFrozeUpdates = 0;
                     statusbar_setActive(1);
                 }
             } else {
                 /* input_dispatch_loop (1000:349E): the pause gate (3523)
                  * then the world.  With a dialog up (A167) the world keeps
                  * animating behind it and the countdown is suspended. */
+                if (gameflow_keyWaitActive()) {   /* 1000:3954 blocks the world */
+                    (void)gameflow_keyList(&input);
+                    goto present;
+                }
                 if (statusbar_timeUp() && !timeoutShown && !menu_active()) {
                     timeoutShown = 1;
                     menu_openTimeUp();
@@ -586,9 +678,9 @@ int game_main(const OSystem *osys)
                     statusbar_setActive(0);   /* [0x5B12] = 0: the clock stops */
                 }
                 /* scan_id_list (1000:386E) runs after update_world and before
-                 * the pending-event table; ESC opens the pause menu there. */
+                 * the pending-event table. */
                 if (!menu_active() && !level_ended())
-                    (void)gameflow_pauseTrigger(&input);
+                    (void)gameflow_keyList(&input);
                 if (menu_active()) {
                     if (!menu_tick(&input)) {
                         int wasTimeUp = menu_timeUp();

@@ -73,6 +73,8 @@ static uint8_t objStackMask[2];         /* 0x64AD / 0x64C1: in-a-stack bits */
 static unsigned objRowOfs;
 static int16_t objSide;                 /* [0x4230]: which side the settle stepped from */
 static int objStepProbeAt(const uint8_t *actor, int dx, int dy, unsigned *cellOut);
+static int objCmdHomeState(uint8_t *actor);     /* 1000:EDB7               */
+static void objDriverCall(unsigned n);          /* 1000:83B7               */
 static uint8_t *objLinkRecord(unsigned off);   /* the +0xE record link */
 void object_terSlotInit(void);                 /* 1000:4CC3/4CC6 */
 static void objBuildShade(unsigned frame, uint8_t *out);
@@ -1919,6 +1921,34 @@ static void objResolveSprite(unsigned index)
     objSetProgramIndex(prog + 1u);
     objPending = 1u;
     objMarkerArm();                                  /* 1000:4188 */
+}
+
+/* 1000:38C3 (resolve_object_sprite_guarded): the key list's F1..F8 handler.
+ * AX is the scancode and the record is `scancode - 0x3B`; a slot with `+6`
+ * bit 7 set or type 0x1D is skipped, otherwise 1000:4147 resolves it.
+ * Returns 1 when a record was selected. */
+int object_selectByIndex(unsigned index)
+{
+    uint8_t *r;
+
+    if (index >= OBJ_STATIC) return 0;
+    r = objArray + index * OBJ_STRIDE;
+    if ((r[6] & 0x80u) || rd16(r, 8u) == 0x1Du) return 0;   /* 1000:38CE */
+    objResolveSprite(index);                                /* 1000:38DA */
+    return 1;
+}
+
+/* 1000:3933 (the key list's id 8, SPACE).  1000:392D runs the home-state
+ * conversion on the acting record (get_object_ptr + 0xEDB7) and the handler
+ * returns when it converted; otherwise it plays driver effect 0 and steps the
+ * action row's selected cell (1000:3941 -> 0x98F8 + the 0x5B2B header's second
+ * byte, wrapping to 1 past the cell count) before the bar redraw. */
+int object_spaceAction(void)
+{
+    if (objCmdHomeState(objActor())) return 1;   /* 1000:392D -> 0xEDB7 */
+    objDriverCall(0);                            /* 1000:393A */
+    statusbar_cycleAction();                     /* 1000:3941 */
+    return 1;
 }
 
 /* 0x410A (resolve_next_eligible_object_sprite): cycle the 8 static records. */
@@ -4098,7 +4128,7 @@ static void objCmdFrameStep(uint8_t *actor, unsigned bound, int up)
  * 0x14/0x18/0x20 become frame 8, type 1; anything else is left alone.  Either
  * way the pending words are cleared, the latch is released and [0x13A4] is set
  * to 0xFF (the ACTION press stays consumed). */
-static void objCmdHomeState(uint8_t *actor)
+static int objCmdHomeState(uint8_t *actor)
 {
     unsigned t = rd16(actor, 8u);
 
@@ -4109,7 +4139,7 @@ static void objCmdHomeState(uint8_t *actor)
         wr16(actor, 4u, 8u);                              /* 1000:EDE5 */
         wr16(actor, 8u, 1u);
     } else {
-        return;                                           /* 1000:EDD8 */
+        return 0;                                         /* 1000:EDD8 */
     }
     wr16(actor, 0xAu, 0u);                                /* 1000:EDEF */
     wr16(actor, 0xCu, 0u);
@@ -4117,6 +4147,7 @@ static void objCmdHomeState(uint8_t *actor)
     wr16(actor, 0x10u, 0u);
     objLat = 0;                                           /* 1000:EDFD */
     object_setActionLatched(1);                            /* 1000:EE01 */
+    return 1;                                             /* AX = 0: converted */
 }
 
 /* 1000:EE07 (and 0xEFD1 / 0xEFD4, its jump-table aliases): advance the record's

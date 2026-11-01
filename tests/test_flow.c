@@ -1085,6 +1085,88 @@ int main(int argc, char **argv)
                           "the marker disables when its +0xA lifetime ends");
                 }
 
+                /* The key list (1000:386E / DS:0x1989) and the action row:
+                 * F1..F8 select record `scancode - 0x3B`, ','/'.' the
+                 * previous/next record, SPACE either home-states the acting
+                 * record or steps the row's selected cell (1000:3933). */
+                {
+                    InputState k;
+                    uint8_t *r0, *r1;
+                    unsigned cell;
+
+                    memset(&k, 0, sizeof k);
+                    object_init();
+                    r0 = object_slot(0);
+                    memset(r0, 0, 0x12u);
+                    tf_wr16(r0, 8u, 2u);
+                    r1 = object_slot(1);
+                    memset(r1, 0, 0x12u);
+                    tf_wr16(r1, 8u, 2u);
+                    level_setUpdates(1);
+                    k.keyScan = 0x3Cu;                     /* F2 */
+                    check(gameflow_keyList(&k) == 1 &&
+                          object_actionEntity() == 1u,
+                          "F2 selects record 1 (1000:38C3)");
+                    k.keyScan = 0x3Bu;                     /* F1 */
+                    check(gameflow_keyList(&k) == 1 &&
+                          object_actionEntity() == 0u,
+                          "F1 selects record 0");
+                    k.keyScan = 0x34u;                     /* '.' next */
+                    check(gameflow_keyList(&k) == 1 &&
+                          object_actionEntity() == 1u,
+                          "'.' steps to the next record (1000:38E4)");
+                    k.keyScan = 0x33u;                     /* ',' previous */
+                    check(gameflow_keyList(&k) == 1 &&
+                          object_actionEntity() == 0u,
+                          "',' steps to the previous record");
+                    r1[6] = 0x80u;                         /* disabled */
+                    k.keyScan = 0x3Cu;
+                    check(gameflow_keyList(&k) == 1 &&
+                          object_actionEntity() == 0u,
+                          "a disabled record is not selected (1000:38CE)");
+                    r1[6] = 0u;
+                    /* SPACE: a convertible pose is stood up, the cell stays */
+                    statusbar_setActionGroup(1u);
+                    cell = statusbar_actionCell(1u);
+                    tf_wr16(r0, 8u, 0x12u);
+                    tf_wr16(r0, 4u, 0x2Bu);
+                    k.keyScan = 0x39u;
+                    check(gameflow_keyList(&k) == 1 &&
+                          tf_rd16(r0, 8u) == 0u &&
+                          statusbar_actionCell(1u) == cell,
+                          "SPACE home-states the acting record (1000:392D)");
+                    /* a normal pose steps the row's selected cell instead */
+                    k.keyScan = 0x39u;
+                    check(gameflow_keyList(&k) == 1 &&
+                          statusbar_actionCell(1u) != cell,
+                          "SPACE steps the action row's cell (1000:3933)");
+                    /* the [0xC] gate: F2 needs the world open, F10 (id bit 7)
+                     * runs regardless */
+                    level_setUpdates(0);
+                    k.keyScan = 0x3Cu;
+                    check(gameflow_keyList(&k) == 0,
+                          "the [0xC] gate stops F2 (1000:38AD)");
+                    k.keyScan = 0x44u;                     /* F10 */
+                    check(gameflow_keyList(&k) == 1 &&
+                          gameflow_keyWaitActive(),
+                          "F10 runs with the world gate closed (id bit 7)");
+                    /* 1000:3954: release -> press -> release, then back to
+                     * the play loop */
+                    memset(&k, 0, sizeof k);
+                    check(gameflow_keyList(&k) == 1 &&
+                          gameflow_keyWaitActive(),
+                          "F10 waits for the release");
+                    k.lastKey = 'A';                       /* a make */
+                    check(gameflow_keyList(&k) == 1 &&
+                          gameflow_keyWaitActive(),
+                          "F10 then waits for the press");
+                    memset(&k, 0, sizeof k);
+                    check(gameflow_keyList(&k) == 1 &&
+                          !gameflow_keyWaitActive(),
+                          "F10 releases the world after the second release");
+                    level_setUpdates(1);
+                }
+
                 /* The two movement states that feed the stack: 1000:E4F8 (step
                  * down) and 1000:E609 (walk up).  Their feet cell decides a
                  * special tile (field K), a 0x6F92 span, else the grab / the

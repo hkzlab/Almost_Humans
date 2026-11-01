@@ -194,6 +194,11 @@ unsigned statusbar_split(void);
 /* [0x5B56] (1..6): the current ACTION program — draws both the program and
  * the action row's group.  object.c owns it; the bar follows. */
 void statusbar_setActionGroup(unsigned sel);
+/* 1000:3933's tail: advance the current action row's selected cell (the
+ * 0x5B2B header's second byte) with the wrap to 1 past the count. */
+void statusbar_cycleAction(void);
+/* the group's selected-cell byte (1-based), for tests; 0 past the table. */
+unsigned statusbar_actionCell(unsigned group);
 /* The countdown word for the save's +0x07: minutes<<8 | BCD seconds. */
 uint16_t statusbar_timeWord(void);
 /* the elapsed clock [0x5B0C..0E] repacked as check_highscore does (1000:42CE) */
@@ -609,6 +614,12 @@ int  object_rowWindowMatches(unsigned type, unsigned half, int x, int y);
 void object_actionRun(void);
 void object_pendingRun(void);      /* the [0x1979] dispatch, per frame */
 int  object_cycleEntity(int step);
+/* 1000:38C3: select record `index` (F1..F8 = scancode-0x3B), skipping a
+ * disabled slot or type 0x1D.  Returns 1 when selected. */
+int  object_selectByIndex(unsigned index);
+/* 1000:3933 (SPACE): home-state the acting record, else step the action row's
+ * selected cell.  Returns 1 (the make is consumed). */
+int  object_spaceAction(void);
 unsigned object_actionEntity(void);
 /* level_fade_in's slot-8 init (1000:3344): frame 0x17, type 0x1A. */
 void object_levelStartRecord(void);
@@ -862,7 +873,16 @@ unsigned gameflow_levelForProbe(void);
 GameFlow gameflow_pauseAction(int choice, int *quit);
 unsigned gameflow_partyScore(void);          /* the briefing's [0x592] low word */
 /* scan_id_list 1000:386E event 4: ESC opens the 0x5BBC pause block. */
-int      gameflow_pauseTrigger(const InputState *in);
+/* scan_id_list 1000:386E: the DS:0x1989 key list.  Handles ESC (the 0x5BBC
+ * pause block), F1..F8 (select the record by scancode), ','/'.' (previous /
+ * next record), SPACE (the action-icon step / home state) and F10 (the key
+ * wait).  Returns 1 when an entry ran; a non-bit7 entry whose gate [0xC] is
+ * closed returns 0 (1000:38AD). */
+int      gameflow_keyList(const InputState *in);
+/* [0x5BBA]: the goal page (scroll_map 1000:9E51) is up. */
+int      gameflow_goalPageUp(void);
+/* 1000:3954's key wait (F10) owns the input and blocks the world. */
+int      gameflow_keyWaitActive(void);
 /* The time-up dialog's 3 results (1000:34F9's inline dispatch): 0 restart
  * this level (level_restore), 1 restart this game (the room), 2 quit. */
 GameFlow gameflow_timeUpAction(int choice, int *quit);

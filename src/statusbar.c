@@ -189,7 +189,9 @@ static void draw_band(uint8_t *page)
  *
  * blit_sprite_loop (1000:990A) draws a *group* of icon slots selected by
  * [0x5B56] from the six word pointers at 202F:0x5B2B.  Each group is
- * `count, frame, icon...` with 1-based ICONS3 cells; the shipped groups are
+ * `count, selected-cell, icon...` (the second byte is the 1-based selected
+ * cell, stepped by SPACE 1000:3933) with 1-based ICONS3 cells; the shipped
+ * groups are
  *
  *   1: 2 icons  02 01        2: 4 icons  03 04 05 06
  *   3: 4 icons  03 07 08 06  4: 4 icons  03 05 09 06
@@ -200,15 +202,16 @@ static void draw_band(uint8_t *page)
  * pitch is 0x1F and every slot sits at bar row 5 (1000:993B..9947).  Each
  * slot gets an embossed 23x31 bevel (1000:997D, its mask 0x48BC zeroed = a
  * pure shade: top/right -4, bottom/left +4, clamped to the bar bank's
- * 0xC0..0xCF greys) and slot 0 also the gold 21x29 inner frame at +1,+1
- * (1000:996E from the 0x5B57 ramp d0..e3..d0, one ramp byte per pixel or
- * row).  The icon (1000:9993) is the 16x24 cell at +4,+4: byte != 0 stored
+ * 0xC0..0xCF greys) and the selected cell also the gold 21x29 inner frame at
+ * +1,+1 (1000:996E from the 0x5B57 ramp d0..e3..d0, one ramp byte per pixel
+ * or row; 1000:990A counts the header's second byte down to pick it).  The
+ * icon (1000:9993) is the 16x24 cell at +4,+4: byte != 0 stored
  * +0xC0, 0 transparent.
  *
  * [0x5B56] is the port's `actionSel`; the action/claim pass will drive it
  * (the selection routine at 1000:5547 writes it), so today it keeps the
  * level-start group. */
-static const uint8_t actionGroup[6][6] = {
+static uint8_t actionGroup[6][6] = {
     { 2u, 1u, 2u, 1u },
     { 4u, 1u, 3u, 4u, 5u, 6u },
     { 4u, 1u, 3u, 7u, 8u, 6u },
@@ -230,6 +233,26 @@ static unsigned actionSel = 1u;           /* [0x5B56] */
 void statusbar_setActionGroup(unsigned sel)
 {
     if (sel >= 1u && sel <= 6u) actionSel = sel;
+}
+
+/* 1000:3933's tail: advance the current group's selected cell (the 0x5B2B
+ * header's second byte) with the wrap to 1 past the cell count; the bar is
+ * redrawn every tick, so the store is the whole effect. */
+void statusbar_cycleAction(void)
+{
+    uint8_t *g;
+
+    if (actionSel < 1u || actionSel > 6u) return;
+    g = actionGroup[actionSel - 1u];
+    if (g[0] == 0u) return;
+    g[1] = (uint8_t)(g[1] + 1u);
+    if (g[1] > g[0]) g[1] = 1u;
+}
+
+/* the group's selected-cell byte, for the tests (0 past the table). */
+unsigned statusbar_actionCell(unsigned group)
+{
+    return (group >= 1u && group <= 6u) ? actionGroup[group - 1u][1] : 0u;
 }
 
 /* 0xAFFE: one frame pixel — the mask byte when it is non-zero, else the
@@ -299,7 +322,10 @@ static void draw_actions(uint8_t *page)
 
     for (unsigned i = 0; i + 1u < count + 1u && i < 4u; i++) {
         frame_box(page, x, y, 23u, 31u, NULL, 0u);
-        if (i == 0u && g[1])
+        /* 1000:990A: the gold 21x29 inner frame sits on the cell the header's
+         * second byte counts down to - the cell `g[1] - 1`, not always the
+         * first (SPACE steps that byte, 1000:3933). */
+        if (g[1] != 0u && i == (unsigned)(g[1] - 1u))
             frame_box(page, x + 1u, y + 1u, 21u, 29u, actionGold, 6u);
         draw_actionIcon(page, x + 4u, y + 4u, (unsigned)(g[i + 2u] - 1u));
         x += 4u + 0x1Fu;      /* the icon's +4 is never undone (0xAD6A/7C) */

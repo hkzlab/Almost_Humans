@@ -37,6 +37,26 @@ static void joyBits(SDL_Keycode k, int down)
     else cur.joyBits &= (uint8_t)~mask;
 }
 
+/* The PC set-1 scancode of a make, for the keys the level's key list
+ * (DS:0x1989, scan_id_list 1000:386E) binds.  Only those are mapped: the
+ * port's other screens read the translated ASCII in lastKey. */
+static uint8_t scanCode(SDL_Keycode k)
+{
+    switch (k) {
+    case SDLK_ESCAPE: return 0x01u;
+    case SDLK_COMMA:  return 0x33u;
+    case SDLK_PERIOD: return 0x34u;
+    case SDLK_SPACE:  return 0x39u;
+    case SDLK_F1:  return 0x3Bu;  case SDLK_F2:  return 0x3Cu;
+    case SDLK_F3:  return 0x3Du;  case SDLK_F4:  return 0x3Eu;
+    case SDLK_F5:  return 0x3Fu;  case SDLK_F6:  return 0x40u;
+    case SDLK_F7:  return 0x41u;  case SDLK_F8:  return 0x42u;
+    case SDLK_F9:  return 0x43u;  case SDLK_F10: return 0x44u;
+    default: break;
+    }
+    return 0u;
+}
+
 static uint8_t keyCode(SDL_Keycode k)
 {
     switch (k) {
@@ -64,6 +84,7 @@ void sdl3_eventsPoll(InputState *out)
         case SDL_EVENT_KEY_DOWN:
             joyBits(ev.key.key, 1);
             cur.lastKey = keyCode(ev.key.key);
+            cur.keyScan = scanCode(ev.key.key);
             break;
         case SDL_EVENT_KEY_UP:
             /* the ISR's 942F: EVERY key-up clears the flag — a tapped
@@ -72,6 +93,7 @@ void sdl3_eventsPoll(InputState *out)
              * abort the boot intro AND immediately escape the attract) */
             joyBits(ev.key.key, 0);
             cur.lastKey = 0u;
+            cur.keyScan = 0u;
             break;
         default: break;
         }
@@ -85,6 +107,7 @@ void sdl3_eventsPoll(InputState *out)
      * and the name screen fills at tick rate instead of the typematic's
      * delay-then-repeat. */
     cur.lastKey = 0u;
+    cur.keyScan = 0u;
 }
 
 void sdl3_eventsInit(void) { memset(&cur, 0, sizeof cur); }

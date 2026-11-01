@@ -24,7 +24,7 @@
  * pass with its `GC3 = 0x1003` OR and mask 0x10 shading.  (An earlier revision
  * drew it with the TEXT.SPR font on the flat page and carried a DEVIATION note
  * here; that renderer landed in pass 10/12 and the note was stale.)  The
- * pause block is opened by `gameflow_pauseTrigger` (ESC, 1000:386E event 4).
+ * pause block is opened by `gameflow_keyList` (ESC, 1000:386E event 4).
  */
 #include "game.h"
 #include <string.h>
