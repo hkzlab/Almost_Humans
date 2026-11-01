@@ -28,6 +28,11 @@
  *                      written (< n = the error).
  *   closeSave(s)       releases the handle; NULL is accepted.
  *
+ *   openNamed(name)    opens a runtime file of the game directory for reading
+ *                      — the original's non-disc files (`HISCORES.HUM`,
+ *                      re_formats.md §11).  NULL = absent.
+ *   createNamed(name)  creates/truncates it for writing.
+ *
  * The modules never abort.  Every byte the game I/O needs goes through here —
  * the core (and its tests' game-side code) never includes a stdio path.
  */
@@ -50,6 +55,8 @@ typedef struct FSModule {
     uint32_t  (*saveWrite)(FSSave *s, uint32_t off, const uint8_t *src,
                            uint32_t n);
     void      (*closeSave)(FSSave *s);
+    FSSave   *(*openNamed)(const char *name);
+    FSSave   *(*createNamed)(const char *name);
 } FSModule;
 
 /* The selected module, defined by exactly one fs_*.c that the build links. */

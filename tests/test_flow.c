@@ -15,6 +15,21 @@
 #include <string.h>
 #include "compat.h"
 
+static void flow_dump_ppm(const char *path, const uint8_t *page)
+{
+    FILE *f = fopen(path, "wb");
+    unsigned i;
+
+    if (!f) return;
+    fprintf(f, "P6\n320 200\n255\n");
+    for (i = 0; i < 320u * 200u; i++) {
+        uint8_t v = page[i] % 64u;
+        fputc(v * 4, f); fputc(v * 4, f); fputc(v * 4, f);
+    }
+    fclose(f);
+}
+
+
 extern const OSystem osys_null;
 extern const uint8_t *osys_null_page(int which);
 extern const uint8_t *osys_null_palette(void);
@@ -1395,6 +1410,7 @@ int main(int argc, char **argv)
         unsigned before;
         unsigned t1;
 
+        hiscore_reset();           /* the shipped 0x0999 table */
         for (unsigned i = 0; i < object_staticSlots(); i++) {
             uint8_t *r = object_slot(i);
 
@@ -1436,6 +1452,79 @@ int main(int argc, char **argv)
                   score_shownHi() == score_totalHi(),
                   "1000:475D counts the display up to the running total");
         }
+    }
+
+    /* 8b. HISCORES.HUM (re_formats.md §11 / menu_loop 1000:012A): the
+     * obfuscation is an involution, the shipped table is the 0x0999 bests and
+     * the ten defaults, the insert shifts 18-byte entries, and the name entry
+     * follows the grid's 0x1C/0x1D columns. */
+    {
+        uint8_t buf[600];
+        unsigned len = 0;
+        char name[16];
+        int slot;
+
+        for (unsigned i = 0; i < sizeof buf; i++) buf[i] = (uint8_t)i;
+        hiscore_obfuscate(buf, sizeof buf);
+        {
+            int changed = 0;
+            for (unsigned i = 0; i < sizeof buf; i++) if (buf[i] != (uint8_t)i) changed = 1;
+            check(changed, "1000:06DE obfuscates the table");
+        }
+        hiscore_obfuscate(buf, sizeof buf);
+        {
+            int same = 1;
+            for (unsigned i = 0; i < sizeof buf; i++) if (buf[i] != (uint8_t)i) same = 0;
+            check(same, "1000:06DE is an involution (load and save share it)");
+        }
+
+        hiscore_reset();
+        check(hiscore_best(1u) == 0x0999u && hiscore_best(160u) == 0x0999u,
+              "every per-level best ships as 0x0999");
+        check(hiscore_score(0u) == 100000u &&
+              strcmp(hiscore_name(0u), "STEVE JONES") == 0,
+              "the shipped top-10 is the image's 0x4DE block");
+
+        check(!hiscore_qualifies(9999u) && hiscore_qualifies(10000u),
+              "a score equal to the last entry still displaces it");
+
+        slot = hiscore_insert(55000u, "AB CD");
+        check(slot == 5, "55000 lands between 60000 and 50000");
+        check(hiscore_score(5u) == 55000u && strcmp(hiscore_name(5u), "AB CD") == 0,
+              "the inserted entry carries its score and name");
+        check(hiscore_score(6u) == 50000u && hiscore_score(9u) == 20000u,
+              "the entries below shifted down one slot, the last dropped");
+
+        /* the name grid: 0..0x19 = A..Z, 0x1A = space, 0x1B = '.', 0x1C =
+         * delete, 0x1D = enter; 13 characters at most */
+        name[0] = 0;
+        check(hiscore_nameApply(name, 0u, &len) == 0 && len == 1u && name[0] == 'A',
+              "column 0 types 'A'");
+        hiscore_nameApply(name, 26u, &len);          /* space */
+        hiscore_nameApply(name, 27u, &len);          /* '.'   */
+        check(strcmp(name, "A .") == 0, "0x1A is space and 0x1B is '.'");
+        hiscore_nameApply(name, 28u, &len);
+        check(strcmp(name, "A ") == 0, "0x1C deletes the last character");
+        for (unsigned i = 0; i < 20u; i++) hiscore_nameApply(name, 1u, &len);
+        check(len == 13u, "the buffer holds 13 characters");
+        check(hiscore_nameApply(name, 29u, &len) == 1, "0x1D enters");
+
+        /* the file round-trip: insert writes HISCORES.HUM encrypted, and a
+         * reload reads it back through the same involution */
+        hiscore_reset();
+        check(hiscore_insert(77777u, "ROUND TRIP") == 3,
+              "77777 lands below 80000");
+        hiscore_reload();
+        check(hiscore_score(3u) == 77777u &&
+              strcmp(hiscore_name(3u), "ROUND TRIP") == 0,
+              "HISCORES.HUM survives a save/load round-trip");
+
+        /* the commit's 0x1A/0x1B mapping reaches the stored name */
+        hiscore_reset();
+        hiscore_insert(200000u, "A\x1A" "B\x1B" "C");
+        check(strcmp(hiscore_name(0u), "A B.C") == 0,
+              "0x1A/0x1B are stored as space and '.'");
+        hiscore_reset();
     }
 
     check(score_begin(0u) == 1, "the score screen starts");
@@ -2012,7 +2101,9 @@ int main(int argc, char **argv)
         s0[0x10] = 0xFFu; s0[0x11] = 0xFFu;   /* back off */
     }
 
-    /* 9. menu_loop's MAP screen (START): the card loads and the key exits */
+    /* 9. menu_loop's MAP screen: the card loads, the high-score insert runs
+     * first when the running total qualifies (1000:01CD), then the key exits. */
+    hiscore_reset();
     check(map_begin() == 1, "the MAP screen starts");
     {
         InputState k;
@@ -2020,6 +2111,156 @@ int main(int argc, char **argv)
         k.lastKey = 1;
         check(map_tick(&k) == 1,
               "the MAP's first tick ignores the cutscene's held key");
+        /* the score screen's `prepared` total qualifies, so the name grid is
+         * up.  Type two letters, delete one, type again, then Enter commits. */
+        {
+            uint32_t total = ((uint32_t)score_totalHi() << 16) | score_totalLo();
+            int found = 0;
+
+            check(hiscore_qualifies(total),
+                  "1000:01CD: the running total qualifies for the table");
+            k.lastKey = 'Q'; map_tick(&k);
+            k.lastKey = 'X'; map_tick(&k);
+            k.lastKey = 8u;  map_tick(&k);      /* delete */
+            k.lastKey = 'Z'; map_tick(&k);
+            k.lastKey = 13u; map_tick(&k);      /* Enter: commit */
+            for (unsigned i = 0; i < hiscore_count(); i++)
+                if (hiscore_score(i) == total && strcmp(hiscore_name(i), "QZ") == 0)
+                    found = 1;
+            check(found, "the typed name and the total reach the table");
+        }
+        /* 1000:0705 expand_nibbles_4plane: the 4bpp transpose.  ALPHA.SPR's
+         * first non-zero word is 0xE007 at offset 16; the expander turns it
+         * into [0, 14, 7, 0] on plane 0 and [0, 12, 15, 0] on plane 1. */
+        {
+            static uint8_t in[32], out[65536];
+
+            memset(in, 0, sizeof in);
+            in[16] = 0x07u; in[17] = 0xE0u;
+            memset(out, 0, sizeof out);
+            alpha_expand(in, out);
+            check(out[32] == 0u && out[33] == 14u && out[34] == 7u && out[35] == 0u,
+                  "1000:0705: plane 0 of 0xE007 is 0,14,7,0");
+            check(out[0x4000 + 32] == 0u && out[0x4000 + 33] == 12u &&
+                  out[0x4000 + 34] == 15u && out[0x4000 + 35] == 0u,
+                  "1000:0705: plane 1 is 0,12,15,0");
+        }
+
+        /* the ring: rotate_spinner_cell (1000:0F93) with the image's own
+         * parameters - sin table at DS:0xB8, [0xB2]/[0xB0] = 157/66 (the x),
+         * [0xB6]/[0xB4] = 79/62 (the y), page stride 80. */
+        {
+            unsigned src, dst;
+
+            alpha_cell(0u, 0x10Eu, &src, &dst);
+            check(dst == 997u && src == 16396u,
+                  "1000:0F93: cell 0 lands at row 12, px 148, plane 1");
+            alpha_cell(5u, 0x10Eu + 5u * 0x0Cu, &src, &dst);
+            check(dst == 3491u && src == 33100u,
+                  "cell 5 lands at row 43, px 204, plane 3");
+            alpha_cell(15u, 0x10Eu + 15u * 0x0Cu, &src, &dst);
+            check(dst == 10917u && src == 17356u,
+                  "cell 15 (the far side of the ring) lands at row 136");
+        }
+        {
+            static uint8_t page[320 * 200];
+            unsigned in = 0, out = 0;
+
+            memset(page, 0, sizeof page);
+            alpha_drawWheel(page, 0x10Eu);
+            for (unsigned i = 0; i < sizeof page; i++) if (page[i]) in++;
+            check(in != 0u, "the 30-cell letter wheel draws into the page");
+            flow_dump_ppm("map_ring.ppm", page);
+            memset(page, 0, sizeof page);
+            alpha_drawName(page, "AB");
+            for (unsigned y = 0; y < 200u; y++)
+                for (unsigned x = 0; x < 320u; x++)
+                    if (page[y * 320u + x]) {
+                        if (y < 70u || y >= 90u) out++;
+                    }
+            check(out == 0u, "the typed name is drawn at row 0x45 (72)");
+            flow_dump_ppm("map_wheel.ppm", page);
+            /* the glyph's bits are its pixels: a one-character name draws the
+             * 'A' cell (plane 0, x & 3 == 0) - 46 set bits in the shipped
+             * sheet's 16x4-byte cell - and nothing else */
+            {
+                unsigned lit = 0;
+
+                memset(page, 0, sizeof page);
+                alpha_drawName(page, "A");
+                for (unsigned i = 0; i < sizeof page; i++) if (page[i]) lit++;
+                check(lit == 46u,
+                      "the 'A' glyph is 46 pixels of the shipped alpha cell");
+            }
+
+            /* the cursor spins the ring: the selected column sits at the top */
+            {
+                unsigned src, dst, top = 0xFFFFu;
+
+                for (unsigned i = 0; i < 30u; i++) {
+                    unsigned ang = (0x10Eu - 7u * 0x0Cu + i * 0x0Cu) % 0x168u;
+
+                    alpha_cell(i, ang, &src, &dst);
+                    if (dst / 80u < top) top = dst / 80u;
+                }
+                check(top <= 20u,
+                      "the selected cell sits at the top of the ring");
+            }
+        }
+
+        /* 1000:0518: the entry animation runs [0x8AE] from 0x130 to 2 - about
+         * 0x12E frames - and the panel loop only starts after it. */
+        {
+            unsigned guard = 0;
+
+            k.lastKey = 0;
+            while (map_panel == 0u && guard++ < 1000u) map_tick(&k);
+            check(guard >= 0x12Eu && map_boxBottom == 2u && map_panel == 1u,
+                  "1000:0518: the frame unrolls from row 0x130 to row 2");
+        }
+        /* 1000:060C: a panel step moves the frame by 0x14 and stops at 6 */
+        {
+            unsigned before = map_boxBottom;
+
+            k.joyBits = 0x01u;
+            map_tick(&k);
+            check(map_boxBottom == before + 0x14u && map_panel == 2u,
+                  "1000:060C: an up step moves the frame 0x14 and the panel to 2");
+            k.joyBits = 0;
+            for (unsigned i = 0; i < 10u; i++) { k.joyBits = 0x01u; map_tick(&k); }
+            check(map_panel == 6u && map_boxBottom == 2u + 5u * 0x14u,
+                  "the panel stops at 6 with the frame at 2 + 5*0x14");
+            k.joyBits = 0;
+        }
+        /* 1000:07E6: the five frame rows, at rows 46/66/86/106/126 (the
+         * 0xE66/0x14A6/0x1AE6/0x2126/0x2766 offsets on an 80-byte stride),
+         * each one row of 74 bytes built from the 4/+7/24/+9/16/+0xE runs. */
+        {
+            static uint8_t page[320 * 200];
+            static const unsigned want[5] = { 46u, 66u, 86u, 106u, 126u };
+            unsigned hit[5] = { 0, 0, 0, 0, 0 }, stray = 0;
+            int inBlock = 0;
+
+            memset(page, 0, sizeof page);
+            map_drawBoxEdges(page, 2u);
+            for (unsigned y = 0; y < 200u; y++) {
+                unsigned n = 0;
+
+                for (unsigned x = 0; x < 320u; x++) if (page[y * 320u + x]) n++;
+                inBlock = 0;
+                for (unsigned k = 0; k < 5u; k++)
+                    if (y >= want[k] && y < want[k] + 13u) { inBlock = 1; hit[k] += n; }
+                if (n && !inBlock) stray++;
+            }
+            check(stray == 0u,
+                  "the frame blocks land at rows 46/66/86/106/126 (+13) only");
+            check(hit[0] && hit[1] && hit[2] && hit[3] && hit[4],
+                  "all five frame blocks are drawn");
+            check(hit[3] >= hit[4],
+                  "the 0xF0 block (all four pixels) is the widest mask");
+        }
+        flow_dump_ppm("map_frame.ppm", video_page(0));
+        k.lastKey = 1;
         check(map_tick(&k) == 0, "a key leaves the MAP screen");
     }
 

@@ -63,8 +63,19 @@ static uint32_t posix_saveWrite(FSSave *s, uint32_t off,
 
 static void posix_closeSave(FSSave *s) { if (s) fclose((FILE *)s); }
 
+/* the game-directory runtime files (HISCORES.HUM): the name is the game's */
+static FSSave *posix_openNamed(const char *name)
+{
+    return (FSSave *)fopen(name, "rb");
+}
+
+static FSSave *posix_createNamed(const char *name)
+{
+    return (FSSave *)fopen(name, "wb");
+}
+
 const FSModule fs = {
     posix_openVolume, posix_closeVolume, posix_volumeSize, posix_read,
     posix_openSave, posix_saveRead, posix_createSave, posix_saveWrite,
-    posix_closeSave
+    posix_closeSave, posix_openNamed, posix_createNamed
 };

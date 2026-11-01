@@ -16,8 +16,9 @@
  *     poll_input, ending on the fire bit, [0x48A3] or [0x1DC8]'s 0x15E
  *     countdown; then the fade to 0x48BC and vga_set_mode_13h.
  *
- * Not modelled: the high-score name entry (HISCORES.HUM / the 0x41AE insert),
- * and the scratch copies at 0x4697 / 0x46A3 (see score_stampDraw's deviation).
+ * The high-score file, the top-10 insert and the name entry live in hiscore.c
+ * (HISCORES.HUM) and map.c (the insert screen).  Not modelled: the scratch
+ * copies at 0x4697 / 0x46A3 (see score_stampDraw's deviation).
  */
 #include "game.h"
 #include <stdio.h>
@@ -44,9 +45,6 @@
  * copy `[0x1DD2]/[0x1DD4]` holding the *old* total - `1000:475D` then counts the
  * display up 10 at a time.
  */
-#define SCORE_LEVELS 161u          /* the table is 1-based; index 160 is slack */
-static uint16_t scoreBest[SCORE_LEVELS];
-static int scoreBestInit;
 static uint16_t scoreLevelTerm;    /* [0x1DCA] */
 static uint16_t scoreTimeTerm;     /* [0x1DCE] */
 static uint16_t scoreTotalLo, scoreTotalHi;       /* [0x592]/[0x594]  */
@@ -59,13 +57,6 @@ static uint16_t scoreBestTime;                    /* [0x1E88] */
 static int scoreIsRecord;                         /* [0x1DD6] */
 static uint8_t scoreBlink = 0x19;                 /* [0x1DD7] */
 static int scoreBlinkPhase;                       /* [0x1DC4]: the RECORD's on/off */
-
-static void score_tableInit(void)
-{
-    if (scoreBestInit) return;
-    for (unsigned i = 0; i < SCORE_LEVELS; i++) scoreBest[i] = 0x0999u;
-    scoreBestInit = 1;
-}
 
 /* 1000:41B8..41E6: the member count the score uses. */
 unsigned score_members(void)
@@ -115,14 +106,13 @@ void score_prepare(void)
 {
     unsigned levelNo = gameflow_levelForProbe() + 1u;
     uint16_t elapsed = statusbar_elapsedWord();     /* [0x1E84] */
-    unsigned idx = levelNo < SCORE_LEVELS ? levelNo : SCORE_LEVELS - 1u;
+    unsigned idx = levelNo;
 
-    score_tableInit();
     scoreLevelTerm = 0;                             /* [0x1DCA] starts at 0 */
     score_terms();
     scoreIsRecord = 0;                              /* 1000:42E4 */
-    if (elapsed < scoreBest[idx]) {                 /* 1000:42F9 */
-        scoreBest[idx] = elapsed;                   /* 1000:42FD */
+    if (elapsed < hiscore_best(idx)) {              /* 1000:42F9 */
+        hiscore_setBest(idx, elapsed);              /* 1000:42FD */
         scoreBestTime = elapsed;                    /* 1000:4301 */
         scoreIsRecord = 1;                          /* 1000:4305 */
     }
@@ -195,7 +185,7 @@ int score_countersRun(void)
 }
 
 int      score_isRecord(void) { return scoreIsRecord; }
-uint16_t score_bestFor(unsigned level) { score_tableInit(); return level < SCORE_LEVELS ? scoreBest[level] : 0x0999u; }
+uint16_t score_bestFor(unsigned level) { return hiscore_best(level); }
 uint16_t score_bestTime(void) { return scoreBestTime; }
 unsigned score_totalLo(void) { return scoreTotalLo; }
 unsigned score_totalHi(void) { return scoreTotalHi; }
@@ -429,16 +419,21 @@ int score_begin(unsigned value)
     scoreBit = res_loadChunk("LBM\\SCORE.BIT", &scoreSize, NULL);
     uint8_t *page = video_page(0);
     memset(page, 0, SCORE_PAGE);
+    /* 1000:42E9 or_region_c0(10, 0x100, 0): OR 0xC0 into the page's first 4096
+     * bytes - the 0xC0 palette window the card's own colours live in.  The card
+     * copy below is transparent for a zero source byte, so this shows through. */
+    for (unsigned i = 0; i < 10u * 0x100u; i++) page[i] |= 0xC0u;
     if (scoreBit) {
-        /* 1000:44xx reblit_framebuffer_88: the card's bytes are 6-bit indices
-         * drawn as 0xC0 + v (0 stays black), and the file's first 64 palette
-         * entries are loaded at DAC 0xC0..0xFF - the card's own 64 colours. */
+        /* 1000:4403 reblit_framebuffer_88: the card's bytes are 6-bit indices
+         * drawn as 0xC0 + v, a zero byte is LEFT ALONE (the OR'd window shows
+         * through), and the file's first 64 palette entries are loaded at DAC
+         * 0xC0..0xFF - the card's own 64 colours. */
         unsigned n = scoreSize < SCORE_PAGE ? scoreSize : SCORE_PAGE;
 
         for (unsigned i = 0; i < n; i++) {
             uint8_t v = scoreBit[i];
 
-            page[i] = v ? (uint8_t)(v + 0xC0u) : 0u;
+            if (v) page[i] = (uint8_t)(v + 0xC0u);
         }
         if (scoreSize >= SCORE_PAGE + 768u)
             palette_setDac(scoreBit + SCORE_PAGE, 0xC0, 64);

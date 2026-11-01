@@ -293,6 +293,32 @@ int  map_tick(const InputState *in);        /* 1 = still up              */
  * remaining seconds x 10; a lost level is 0.  The placed-object bonuses are
  * the one term the object array (0x3E75) still owes. */
 unsigned score_levelScore(void);
+/* --- HISCORES.HUM (re_formats.md §11, menu_loop 1000:012A) ------------ */
+void     hiscore_init(void);                 /* 1000:069F: load + decrypt  */
+void     hiscore_reset(void);                /* the shipped defaults       */
+void     hiscore_reload(void);               /* re-read the file           */
+void     hiscore_obfuscate(uint8_t *p, unsigned n);  /* 1000:06DE          */
+void     hiscore_write(void);                /* 1000:06CC: encrypt + save  */
+uint16_t hiscore_best(unsigned level);       /* DS:0x38A + 2*level         */
+void     hiscore_setBest(unsigned level, uint16_t value);
+unsigned hiscore_count(void);                /* 10                         */
+uint32_t hiscore_score(unsigned i);          /* the top-10, descending     */
+const char *hiscore_name(unsigned i);
+int      hiscore_qualifies(uint32_t score);
+int      hiscore_insert(uint32_t score, const char *name);   /* 0x01CD    */
+int      hiscore_nameApply(char *name, unsigned column, unsigned *len);
+
+/* --- the MAP screen's letter wheel (apl\alpha.spr, 1000:0705/0F93/0CBE) --- */
+void     alpha_expand(const uint8_t *src, uint8_t *dst);
+void     alpha_cell(unsigned cell, unsigned angle, unsigned *src, unsigned *dst);
+void     alpha_drawWheel(uint8_t *page, unsigned base);
+void     alpha_drawName(uint8_t *page, const char *name);
+/* --- the MAP screen's frame (apl\band.spr, 1000:12D3/0874/07E6) --------- */
+extern unsigned map_boxBottom;               /* [0x8AE]                    */
+extern unsigned map_panel;                   /* [0x8A2]: 1..6              */
+void     map_bandFill(uint8_t *page);        /* 1000:12D3                  */
+void     map_drawBoxEdges(uint8_t *page, unsigned row);   /* 1000:07E6    */
+
 /* --- check_highscore's data (1000:41B8..4352) ------------------------- */
 unsigned score_members(void);                /* [0x11FC]'s recompute      */
 void     score_prepare(void);                /* terms, best, NEW RECORD, totals */
