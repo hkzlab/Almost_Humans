@@ -117,6 +117,19 @@ static void level_restart(void)
  * which score_prepare maintains across levels. */
 unsigned gameflow_partyScore(void) { return score_totalLo(); }
 
+/* entry 1000:002B's opening: [0xF7E] := 0, then draw_status_indicator
+ * (1000:1FEF) probes volume 0; only a missing volume draws its page.  Every
+ * room entry (the attract exit, the pause's restart-game, the time-up
+ * dialog) goes through 002B, so the probe runs once before the room loads. */
+static int roomDiscPending, roomDiscUp;
+
+static GameFlow roomEnter(void)
+{
+    roomDiscPending = 1;
+    frontend_restart();
+    return FLOW_MENU;
+}
+
 /* dispatch_by_result_a167 (1000:38EA): the pause menu's five 0-based
  * results.  Returns the flow the action leaves (FLOW_MENU for RESTART THIS
  * GAME) and sets *quit for QUIT THIS GAME. */
@@ -129,9 +142,8 @@ GameFlow gameflow_pauseAction(int choice, int *quit)
         level_restart();
         break;
     case 2:                                     /* restart this game   */
-        frontend_restart();
         save_loadSlot(0u);                      /* entry 002B: [0x34]=0 */
-        return FLOW_MENU;
+        return roomEnter();
     case 3:                                     /* save game           */
         (void)save_writeSlot(menu_slot(), level_current + 1u,
                              statusbar_timeWord(), level_tribeMembers());
@@ -162,9 +174,8 @@ GameFlow gameflow_timeUpAction(int choice, int *quit)
         level_restart();
         break;
     case 1:
-        frontend_restart();
         save_loadSlot(0u);
-        return FLOW_MENU;
+        return roomEnter();
     case 2:
         *quit = 1;
         break;
@@ -229,10 +240,18 @@ GameFlow gameflow_step(GameFlow state, const InputState *input)
          * the room's setup runs again.  Without this the front-end keeps the
          * previous exit phase and hands straight back to the party/level
          * (the ending -> attract -> exit path showed exactly that). */
-        frontend_restart();
-        return FLOW_MENU;
+        return roomEnter();
 
     case FLOW_MENU:
+        if (roomDiscPending) {
+            res_setDisc(0u);                    /* entry 002B: [0xF7E]=0 */
+            if (!roomDiscUp) roomDiscUp = level_diskStatusBegin(0u);
+            if (roomDiscUp) {
+                if (level_diskStatusTick(input)) return FLOW_MENU;
+                roomDiscUp = 0;
+            }
+            roomDiscPending = 0;
+        }
         /* The front-end room (the walkable level-select): frontend_tick
          * runs the original's per-frame web — the walk on the rails, the
          * action key's option cycles, the name/code screen's key table.

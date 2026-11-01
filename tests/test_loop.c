@@ -58,6 +58,15 @@ int main(void)
     static const char nodata[] = "humans_flow_nodata";
     (void)compat_mkdir(nodata);            /* already present is fine */
     if (compat_chdir(nodata)) { perror(nodata); return 1; }
+    /* entry 1000:002B probes volume 0 before the room (draw_status_indicator
+     * 1000:1FEF).  A missing volume would (correctly) park the flow on the
+     * "PUT THE DISK INTO DRIVE 0" page forever, so the scratch tree needs an
+     * (empty) HUMANS.000: the probe passes and the room's own loads still
+     * fail, which is the no-data path this test drives. */
+    {
+        FILE *v = fopen("HUMANS.000", "wb");
+        if (v) fclose(v);
+    }
 
     /* the module set the attract needs (game_main's resources_init order,
      * trimmed to the flow-relevant ones) */
