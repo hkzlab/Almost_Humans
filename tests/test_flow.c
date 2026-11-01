@@ -1734,12 +1734,24 @@ int main(int argc, char **argv)
                 check(profile == 0x00FE1FF0u,
                       "the stamp's ink rows are 4..12 and 17..23 (live profile)");
             }
+            /* 0x4697/0x46A3: the on phase saves the cell, the off phase
+             * restores exactly those 64x24 pixels (not a clear). */
+            memset(page, 0, sizeof page);
+            for (unsigned y = 176u; y < 200u; y++)
+                for (unsigned x = 128u; x < 192u; x++)
+                    page[y * 320u + x] = 0x5Au;
+            score_stampDraw(page, 1);
             score_stampDraw(page, 0);
             {
-                unsigned nz = 0;
+                unsigned kept = 0, other = 0;
 
-                for (unsigned i = 0; i < sizeof page; i++) if (page[i]) nz++;
-                check(nz == 0u, "the off phase clears the stamp's cell");
+                for (unsigned y = 176u; y < 200u; y++)
+                    for (unsigned x = 128u; x < 192u; x++) {
+                        if (page[y * 320u + x] == 0x5Au) kept++;
+                        else other++;
+                    }
+                check(kept == 64u * 24u && other == 0u,
+                      "the off phase restores the saved 64x24 underlay");
             }
         }
 

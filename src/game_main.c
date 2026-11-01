@@ -444,8 +444,7 @@ int game_main(const OSystem *osys)
                  * box waits for a key or ACTION.  check_highscore's score /
                  * record screen (1000:41AE) then runs (score_begin/score_tick),
                  * followed by entry's post-level step (the finished level's
-                 * newspaper, the ending, or the next level).  The score
-                 * screen's remaining deviation is port_deviations.md D-07. */
+                 * newspaper, the ending, or the next level). */
                 char text[40];
                 level_tick();
                 if (level_outcome())

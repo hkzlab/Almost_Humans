@@ -17,9 +17,8 @@
  *     countdown; then the fade to 0x48BC and vga_set_mode_13h.
  *
  * The high-score file, the top-10 insert and the name entry live in hiscore.c
- * (HISCORES.HUM) and map.c (the insert screen).  Not modelled: the scratch
- * copies at 0x4697 / 0x46A3 (score_stampDraw's deviation, port_deviations.md
- * D-07).
+ * (HISCORES.HUM) and map.c (the insert screen).  The stamp's underlay is saved
+ * and restored by score_stampDraw (0x4697/0x46A3).
  */
 #include "game.h"
 #include <stdio.h>
@@ -258,33 +257,46 @@ unsigned score_levelScore(void)
  * the group's colour is the last plane pass's value, as the planes are written
  * in order 1, 2, 4, 8.
  *
- * deviation (port_deviations.md D-07): the original's two shared copies
- * (`0x4697` `DS:0x3CA0 + [0x4106] -> page 0`, `0x46A3` `DS:0000 -> page
- * 0x3CA0 + [0x4106]`) read the *data*
- * segment, which the port has no image of - the live page shows the phase-0 copy
- * putting DS:0000's bytes (the PSP, 0x3E/0x3F) at 0x4ED0.  The port models the
- * phase-0 half as **clearing the stamp's cell**, and does not draw the `0x4697`
- * border copy.
- *
- * Keep in sync: the two halves of the blink are one cell.  Both `score_stampDraw`
- * calls use the same STAMP_ROW/STAMP_COL and the same 24 x 16 shape, so the on
- * and off phases can never drift.  If the data segment is ever modelled (a DS
- * image, or the scratch at `0x3CA0` given a producer), the off phase must become
- * the original's copy and the `0x4697` border copy must be added with it - they
- * are one routine pair (one body at `0x46AF`, source and destination swapped), so
- * one without the other is a half-model.
+ * 0x4697/0x46A3 are one body at 0x46AF with source and destination swapped:
+ * the on phase (`0x46FC`) first saves the 16 x 24 byte cell into the DS:0
+ * scratch and then draws the sprite; the off phase (`0x46A3`) copies the
+ * scratch back.  The port keeps the underlay in a flat-page buffer of the same
+ * 64 x 24 pixels; the on phase saves, the off phase restores.  Both phases use
+ * the same STAMP_ROW/STAMP_COL and the same shape, so they cannot drift.
  */
 #define STAMP_ROW 176u
 #define STAMP_COL 32u
+
+static uint8_t stampUnder[24u * 64u];
 
 void score_stampDraw(uint8_t *page, int on)
 {
     unsigned r, j, k;
 
     if (!page) return;
+    if (!on) {
+        /* 1000:46A3: restore the underlay saved by the last on phase. */
+        for (r = 0; r < 24u; r++) {
+            unsigned py = STAMP_ROW + r;
+
+            if (py >= 200u) continue;
+            for (j = 0; j < 64u; j++)
+                page[py * 320u + STAMP_COL * 4u + j] =
+                    stampUnder[r * 64u + j];
+        }
+        return;
+    }
+    /* 1000:4697: save 16 x 24 page bytes (64 x 24 flat pixels), then draw. */
+    for (r = 0; r < 24u; r++) {
+        unsigned py = STAMP_ROW + r;
+
+        if (py >= 200u) continue;
+        for (j = 0; j < 64u; j++)
+            stampUnder[r * 64u + j] = page[py * 320u + STAMP_COL * 4u + j];
+    }
     for (r = 0; r < 24u; r++)
         for (j = 0; j < 16u; j++) {
-            unsigned v = on && scoreRecord
+            unsigned v = scoreRecord
                        ? scoreRecord[3u + 4u * (r * 16u + j)]   /* plane 3 */
                        : 0u;
             unsigned py = STAMP_ROW + r;
