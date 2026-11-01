@@ -1528,6 +1528,7 @@ int main(int argc, char **argv)
     }
 
     check(score_begin(0u) == 1, "the score screen starts");
+    flow_dump_ppm("score_port.ppm", osys_null_page(0));
     /* check_highscore (1000:41ae) writes CRTC 0x12 = 0x8F: the level's
      * mode-X field goes back to the 320x200 one */
     check(osys_null_videoMode() == VIDEO_MODE_13H,
@@ -1651,6 +1652,21 @@ int main(int argc, char **argv)
                 }
             check(set != 0u && bad == 0u && top == 0u && outside == 0u,
                   "1000:46FC: the stamp is 0xC0 + RECORD.SPR's 2/3 values, 64x24");
+            /* the sprite's own row profile, confirmed against the live screen
+             * (2026-11-01): rows 0..3 empty, the arrow in 4..12, the words in
+             * 17..23 - and nothing in 13..16. */
+            {
+                unsigned inkRow[24] = { 0 };
+                unsigned profile = 0;
+
+                for (unsigned y = 176u; y < 200u; y++)
+                    for (unsigned x = 128u; x < 192u; x++)
+                        if (page[y * 320u + x]) { inkRow[y - 176u] = 1; break; }
+                for (unsigned r = 0; r < 24u; r++)
+                    if (inkRow[r]) profile |= (1u << r);
+                check(profile == 0x00FE1FF0u,
+                      "the stamp's ink rows are 4..12 and 17..23 (live profile)");
+            }
             score_stampDraw(page, 0);
             {
                 unsigned nz = 0;

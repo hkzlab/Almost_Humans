@@ -456,7 +456,10 @@ int score_begin(unsigned value)
     /* 1000:4471: the three counter columns (the level term, the time term and
      * the running total) in SCORE.SPR's digits. */
     score_drawColumns(page);
-    if (scoreIsRecord) textpage_drawLine(page, "NEW RECORD", 0x90u, 0x0Fu);
+    /* The NEW RECORD stamp is apl\record.spr at row 176, px 128..191
+     * (0x3CA0 = 176*88 + 32) - blink_tick redraws it.  An earlier revision
+     * also drew the words with textpage_drawLine at row 0x90; the live screen
+     * (2026-11-01) shows only the sprite, so that stand-in is gone. */
 
     scorePhase = SCORE_WAIT;
     scoreArmed = 0;
