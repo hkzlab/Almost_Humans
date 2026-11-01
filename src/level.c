@@ -1162,6 +1162,14 @@ const uint8_t *level_palette(void)
     return levelPal;
 }
 
+/* draw_level_text 0x33E2's seal_triples(0x14D3, 0x80): the level palette
+ * itself becomes grey for 0..0x7F. */
+void level_greyscalePalette(unsigned entries)
+{
+    palette_sealTriples(levelPal, 0u, entries);
+}
+
+
 /* [0x5D31] and [0x11FC] after the LEVEL board's pick (the bar's seed; the
  * party screen reads the members too). */
 uint16_t level_timeLimit(void) { return timeLimit; }
@@ -1247,6 +1255,15 @@ static void renderWorld(void)
      * 192-row visible window via the line compare; the flat page redraws
      * band + marks per tick instead) */
     statusbar_tick();
+}
+
+/* draw_level_text 0x344C/0x3450: blit_bitmap_planes + render_objects render
+ * the world into the page after the caption has been dismissed, so the page
+ * behind check_highscore's card is the world, not the caption. */
+void level_redrawPage(void)
+{
+    if (!level_loaded || !level_osys) return;
+    renderWorld();
 }
 
 int level_tick(void)

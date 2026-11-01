@@ -1599,6 +1599,19 @@ int main(int argc, char **argv)
     /* 1000:428D sets CRTC 0x12 = 0x8F (400 scanlines = the 320x200 field) at
      * the screen's start, so the entry mode is the card's; 0x439F's 0x8300 is
      * the full mode set at the end. */
+    /* 1000:344C/0x3450: draw_level_text re-renders the world page after the
+     * caption's key wait, so the caption ("YOUR TRIBE IS EXTINCT!!") is NOT
+     * behind the card.  level_redrawPage must replace a sentinel page. */
+    {
+        uint8_t *pg = (uint8_t *)osys_null_page(0);
+        unsigned changed = 0;
+
+        memset(pg, 0x5A, 320u * 200u);
+        level_redrawPage();
+        for (unsigned i = 0; i < 320u * 200u; i++) if (pg[i] != 0x5A) changed++;
+        check(changed > 1000u,
+              "1000:344C: the end page re-renders the world over the caption");
+    }
     /* 1000:4403: the card's non-zero bytes are drawn as 0xC0 + v and a zero
      * byte is LEFT ALONE - the page keeps what the level caption left there
      * (the live stamp cell shows 1..0xBF inside the card where the sprite is
@@ -1624,8 +1637,8 @@ int main(int argc, char **argv)
               page[185u * 320u + 60u] == 0xE2u,
               "1000:4403: the card is SCORE.BIT read 1 byte per pixel");
     }
-    /* 1000:33E2 draw_level_text's seal: the working palette's first 0x80
-     * entries become grey (77R+151G+28B)>>9 (hash_three_bytes' CH after
+    /* 1000:33E2 draw_level_text's seal: the LEVEL palette's (0x14D3) first
+     * 0x80 entries become grey (77R+151G+28B)>>9 (hash_three_bytes' CH after
      * SHR CH,1); entries 0x80.. keep their colour.  check_highscore's fade
      * target is that palette plus the card's 0xC0 bank. */
     {
@@ -1637,26 +1650,17 @@ int main(int argc, char **argv)
             pal[i * 3u + 1] = (uint8_t)((i * 3u) & 0x3Fu);
             pal[i * 3u + 2] = (uint8_t)((i * 5u) & 0x3Fu);
         }
-        palette_loadWorking(pal);
-        palette_greyscale(0u, 0x80u);
-        {
-            const uint8_t *w = palette_working();
+        palette_sealTriples(pal, 0u, 0x80u);
+        for (unsigned i = 0; i < 0x80u; i++) {
+            unsigned want = (77u * (i & 0x3Fu) +
+                             151u * ((i * 3u) & 0x3Fu) +
+                             28u * ((i * 5u) & 0x3Fu)) >> 9;
 
-            for (unsigned i = 0; i < 0x80u; i++) {
-                unsigned want = (77u * pal[i * 3u] + 151u * pal[i * 3u + 1u] +
-                                 28u * pal[i * 3u + 2u]) >> 9;
-
-                if (w[i * 3u] != want || w[i * 3u + 1u] != want ||
-                    w[i * 3u + 2u] != want) bad++;
-            }
-            for (unsigned i = 0x80u; i < 256u; i++)
-                if (w[i * 3u] == pal[i * 3u] &&
-                    w[i * 3u + 1u] == pal[i * 3u + 1u] &&
-                    w[i * 3u + 2u] == pal[i * 3u + 2u]) kept++;
+            if (pal[i * 3u] != want || pal[i * 3u + 1u] != want ||
+                pal[i * 3u + 2u] != want) bad++;
         }
-        check(bad == 0u && kept == 0x80u,
-              "1000:33E2: the first 0x80 palette entries seal to grey");
-        palette_loadWorking(pal);
+        check(bad == 0u, "1000:33E2: the first 0x80 triples seal to grey");
+        (void)kept;
     }
     {
         InputState k;

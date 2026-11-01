@@ -487,7 +487,9 @@ int score_begin(unsigned value)
              * before the input loop. */
             static uint8_t fadeTarget[768];
 
-            memcpy(fadeTarget, palette_working(), sizeof fadeTarget);
+            /* 0x4333 targets 0x14D3, the LEVEL palette (sealed to grey), not
+             * the image working palette 0x4BBC. */
+            memcpy(fadeTarget, level_palette(), sizeof fadeTarget);
             memcpy(fadeTarget + 0xC0u * 3u, scoreBit + SCORE_PAGE, 192u);
             palette_buildFade(0u, 0x100u, 0x23u, fadeTarget);
         }

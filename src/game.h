@@ -71,9 +71,9 @@ void palette_tick(void);   /* palette_fade_step 1000:8bfd, once per tick  */
  * palette_setDac. */
 void palette_loadWorking(const uint8_t *p6);
 const uint8_t *palette_working(void);   /* the 0x4BBC buffer              */
-/* seal_triples/hash_three_bytes (1000:43C2/43D5): grey the given working
- * palette entries in place, value (77R+151G+28B) >> 9. */
-void palette_greyscale(unsigned first, unsigned entries);
+/* seal_triples/hash_three_bytes (1000:43C2/43D5): grey the given palette
+ * entries in place, value (77R+151G+28B) >> 9. */
+void palette_sealTriples(uint8_t *p6, unsigned first, unsigned entries);
 /* set_palette_dac (1000:8CEE): an immediate DAC write (the DAC shadow is
  * kept for the next fade's current-colour read). */
 void palette_setDac(const uint8_t *p6, unsigned first, unsigned n);
@@ -255,6 +255,12 @@ unsigned level_style(void);                  /* [0x17EE]: the record's style */
 /* the working palette 202F:0x14D3 (the fade target of the claim, the level's
  * own fades and the rotate hook) */
 const uint8_t *level_palette(void);
+/* draw_level_text 0x33E2: seal the level palette's first `entries` triples to
+ * grey (the 0x14D3 buffer itself). */
+void level_greyscalePalette(unsigned entries);
+/* draw_level_text 0x344C/0x3450: re-render the world page (blit_bitmap_planes
+ * + render_objects), erasing the caption before check_highscore's card. */
+void level_redrawPage(void);
 /* page_offset_to_ptr (1000:F123): 1 = the tile id's page is free (the ACTION
  * op 3 gate) — the BD file's page mask + its 16-word item record. */
 int level_pageFree(unsigned id);
