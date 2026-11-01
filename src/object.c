@@ -38,8 +38,9 @@
  *
  * The two former gaps are ported: `1000:E7C0` (type 2 command 8, the timed
  * frame stream at 0x6DF2) and `1000:EBCA` (type 15 command 8, clear the +0xA
- * hold), and `1000:D6B2`'s phase-3 group-member animator (`object_animatorTick`,
- * the 0x6F22 groups and the 0x66B3/0x66B5/objAnimX tables).  The class/behaviour
+ * hold), and `1000:D6B2`'s animator: phases 1/2 (`objPendingMovesTick`, the
+ * 0x67FF pending-move table) and phase 3 (`object_animatorTick`, the 0x6F22
+ * groups and the 0x66B3/0x66B5/objAnimX tables).  The class/behaviour
  * overlays of `1000:653C` and all six `1000:35D6` goal-test handlers are
  * ported.  The bare-RET slot `1000:EA0E` is in the table (type 16 command 8).
  */
@@ -104,6 +105,10 @@ static uint16_t objRegister[8][7];       /* 0x6F22: 8 x 0xE (clear is 0x70 bytes
                                           * 0x60F4; op 1 walks AX = 7..0), bit15 = free */
 static uint16_t objSpan[2][14];          /* 0x6F92, 2 x 0x1C: {id, .. +6, +8, +0x12} */
 static int objAnimDiv;                   /* [0x66B1]: the 6-tick divider */
+/* 0x67F1's pending-move chain: tag, phase-2 countdown, slot, phase-1
+ * divider/index/cursor into the 0x67FF (offset, divider) table. */
+static uint16_t pendTag, pendCount, pendSlot, pendIndex, pendCursor;
+static int pendDiv;
 static const int16_t objAnimX[6][15][9] = {
     { /* length 3 */
         { -2,-1,0,0,0,0,0,0,-1 },
@@ -281,6 +286,8 @@ void object_init(void)
     objStreamCount = 0u;             /* [0x6DEC]                          */
     objStreamPtr = objAnimStream;    /* [0x6DEE] = 0x6DF2                 */
     objAnimDiv = 0;                  /* [0x66B1]                          */
+    pendTag = pendCount = pendSlot = pendIndex = pendCursor = 0u;
+    pendDiv = 0;
     objStackMask[0] = objStackMask[1] = 0u;
     objFault = 0u;
     memset(objRegister, 0xFF, sizeof objRegister);   /* 0x6F22, all free  */
@@ -4953,6 +4960,52 @@ void object_loadSpans(const uint8_t *src)
 }
 
 
+/* 0x67FF: the pending-move (offset, divider) table; the word after each
+ * entry is the next offset, so 0xFFFF ends the run and resets the cursor. */
+static const uint16_t pendOff[17] = {
+    1, 2, 3, 5, 2, 3, 5, 6, 2, 1, 2, 3, 2, 3, 4, 5, 0xFFFF,
+};
+static const uint16_t pendWait[16] = {
+    0x28, 0x14, 0x0F, 0x05, 0x0A, 0x14, 0x1E, 0x19,
+    0x08, 0x0C, 0x0F, 0x12, 0x32, 0x17, 0x3C, 0x0A,
+};
+
+/* 1000:D6B2 phases 1/2: walk the pending-move table, raising a record's
+ * +4 tag 0x21 -> 0x22 for 0x28 ticks, then putting it back. */
+static void objPendingMovesTick(void)
+{
+    unsigned placed = object_placedHumans();
+
+    if (pendTag == 0u) {
+        if (pendDiv-- > 0) return;
+        if (pendCursor / 4u < 16u && placed != 0u) {
+            unsigned idx = pendIndex + pendOff[pendCursor / 4u];
+
+            while (idx >= placed) idx -= placed;
+            pendDiv = pendWait[pendCursor / 4u];
+            pendIndex = (uint16_t)idx;
+            pendCursor = (uint16_t)(pendCursor + 4u);
+            if (pendOff[pendCursor / 4u] == 0xFFFFu) pendCursor = 0u;
+            {
+                uint8_t *r = object_slot(idx);
+
+                if (r && rd16(r, 4u) == 0x21u) {
+                    wr16(r, 4u, 0x22u);
+                    pendTag = 1u;
+                    pendCount = 0x28u;
+                    pendSlot = (uint16_t)idx;
+                }
+            }
+        }
+    } else if (pendCount-- == 0u) {
+        uint8_t *r = object_slot(pendSlot);
+
+        if (r && rd16(r, 4u) == 0x22u) wr16(r, 4u, 0x21u);
+        pendTag = 0u;
+        pendCount = 0u;
+    }
+}
+
 /* --- 1000:D6B2 phase 3: the group-member animator ---------------------- */
 /* 0x6F22 entry: word0 = base x (bit 15 free), +4 = direction<<4 | count,
  * +5.. = member list (bit-7 terminated).  Every 6th call the count steps
@@ -4960,6 +5013,8 @@ void object_loadSpans(const uint8_t *src)
  * x = group.word0 + objAnimX[length-3][count][member]. */
 void object_animatorTick(void)
 {
+    objPendingMovesTick();
+
     if (objAnimDiv-- <= 0) objAnimDiv = 6;
 
     for (unsigned gi = 0; gi < 8u; gi++) {
@@ -5001,4 +5056,9 @@ uint8_t *object_groupAt(unsigned i)
 {
     return i < 8u ? (uint8_t *)objRegister[i] : NULL;
 }
-void object_animatorReset(void) { objAnimDiv = 0; }
+void object_animatorReset(void)
+{
+    objAnimDiv = 0;
+    pendTag = pendCount = pendSlot = pendIndex = pendCursor = 0u;
+    pendDiv = 0;
+}

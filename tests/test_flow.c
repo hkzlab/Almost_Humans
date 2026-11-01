@@ -1144,6 +1144,25 @@ int main(int argc, char **argv)
                           "1000:EBCA: type 15 command 8 clears the hold");
                     check(object_commandRun(a1, 0x00u) != OBJ_CMD_UNPORTED,
                           "1000:EBCA is wired into the command table");
+                    /* 1000:D6B2 phases 1/2: the pending-move table raises a
+                     * record's +4 tag 0x21 -> 0x22 for 0x28 ticks and puts it
+                     * back. */
+                    {
+                        uint8_t *p = object_slot(1);
+
+                        if (p && object_placedHumans() > 1u) {
+                            p[4] = 0x21; p[5] = 0;
+                            object_animatorReset();
+                            object_animatorTick();
+                            check((p[4] | (p[5] << 8)) == 0x22u,
+                                  "1000:D6B2 phase 1 raises 0x21 -> 0x22");
+                            for (unsigned i = 0; i < 0x29u; i++)
+                                object_animatorTick();
+                            check((p[4] | (p[5] << 8)) == 0x21u,
+                                  "1000:D6B2 phase 2 restores 0x22 -> 0x21");
+                        }
+                    }
+
                     /* 1000:D6B2 phase 3: three members on a group animate
                      * their x by the length-3 count-0 offsets -2/-1/0. */
                     {
