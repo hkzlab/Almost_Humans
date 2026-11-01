@@ -172,7 +172,8 @@ static void lz_match(LzState *s, unsigned n, unsigned distbits)
 
 /* shortcut: a corrupt stream can read up to 4095 bytes past the written
  * region of `out` here (the asm wraps inside its always-mapped 64K scratch
- * segment; the port has no such floor).  Every shipped asset passes the
+ * segment; the port has no such floor).  port_deviations.md D-23.  Every
+ * shipped asset passes the
  * checksum gate, so only corrupt data reaches this — bound the read when
  * handling untrusted RSCs. */
 

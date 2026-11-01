@@ -137,9 +137,8 @@ static unsigned viewX, viewY;
  * runs.  Zero until the level's own chain reaches that store. */
 static int worldUpdates;
 /* [0x2D8E]: the follower's +-1 px offset walk enabler.  Its two writers are
- * 1000:DAC7 (the entity/collision path) and 0xF8CE (the fall machine); the walk
- * itself over 0x2D92..0x2DA2 is not modelled, so the follower still runs with
- * the pair at {0,0} - but the word the fall machine writes is kept. */
+ * 1000:DAC7 (the entity/collision path) and 0xF8CE (the fall machine), both
+ * ported; the walk itself over 0x2D92..0x2DA2 is level_offsetWalk below. */
 static uint16_t levelOffsetWord = 0xFFFFu;   /* [0x2D8E]: bit 15 idles the walk */
 /* DS:0x2D92..0x2DA4 - the follower's five offset pairs, read through the
  * pointer at [0x2D90] (0x2D92 at rest).  [0x2DA2]'s pair is (1, 1). */
@@ -911,7 +910,7 @@ void level_setView(unsigned x, unsigned y)
 /* The pair the follower adds to the record's position ([0x2D90] indexes
  * DS:0x2D92..0x2DA4).  Outside that range the original would read whatever
  * follows in DS; the pointer cannot leave it (see the walk below), so the port
- * returns zero there. */
+ * returns zero there (port_deviations.md D-25). */
 static void level_offsetPair(int *dx, int *dy)
 {
     unsigned i = (unsigned)(levelOffsetPtr - 0x2D92u) / 2u;
@@ -952,12 +951,10 @@ static void level_offsetWalk(void)
  *   play area; the bar owns the last 40 rows), then each axis moves at most
  *   `[0x2DA6]` = 4 px per frame (0x5D09 / 0x5D21), stored at 0x5D2F/0x5D33.
  *
- * The offset pair is **{0,0} at rest** and that is the only state the port
- * needs: `[0x2D90]` = 0x2D92 (the first pair of the 0x2D92..0x2DA2 table) and
- * `[0x2D8E]` = 0xFFFF, whose bit 15 idles the 4-entry +-1 px walk at 0x5D37.
- * The walk has exactly two enablers, both `MOV [0x2D8E], ...`: `0xDAC7` (the
- * entity/collision path) and `0xF8CE` (the fall machine's slow descent, also
- * unported) - so the pair stays {0,0} here too.
+ * The offset pair is **{0,0} at rest**: `[0x2D90]` = 0x2D92 (the first pair of
+ * the 0x2D92..0x2DA2 table) and `[0x2D8E]` = 0xFFFF, whose bit 15 idles the
+ * 4-entry +-1 px walk at 0x5D37.  Both enablers (`0xDAC7` the entity path and
+ * `0xF8CE` the fall machine) are ported; level_offsetWalk advances the pair.
  * `update_view` (1000:80F1) then scrolls the page by the difference; the flat
  * compose reads the window directly, which is the same visible result. */
 void level_followView(void)

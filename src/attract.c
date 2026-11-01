@@ -22,7 +22,8 @@
  * exactly as in the listing — they skip the current hold, they do NOT exit
  * the attract.
  *
- * The one port-only escape point is the ASSET-LOAD-FAILURE skip: the
+ * The one port-only escape point is the ASSET-LOAD-FAILURE skip
+ * (port_deviations.md D-19): the
  * original has no such path (a failed INT 63h prompts for the disc), and
  * the port's headless tests run without data — so the skip consumes the
  * escape to stay drivable.  With data present that path never runs and the

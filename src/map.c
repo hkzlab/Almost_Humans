@@ -16,10 +16,12 @@
  *    `1000:0518`) and `draw_score_block` (`1000:0651`) lists the ten;
  *  - the table is saved on the way out (`1000:062B` `decrypt_region_38a`).
  *
- * RENDERING GAP (stated): the original draws the screen with `blit_text_tile` /
- * `blit_rect_x3` on its planar page; this port draws the same strings and the
- * same grid with `textpage_drawLine` on the flat card page.  The MAP screen's
- * own art is the next objective; what is complete here is the high-score half.
+ * RENDERING: the frame/band and the name wheel are the listing's art.  The
+ * list still draws with `font_drawText` rather than `draw_score_block`'s
+ * columns + `blit_text_tile` (port_deviations.md D-08), the name screen adds a
+ * `NAME:` line the original does not draw (D-09) and omits the qualifying
+ * congratulation page (D-10), the six panel contents are not drawn (D-11), and
+ * the band's destination is the port's page origin (D-12).
  *
  * Entry state: entry 0x151A sets [0xF7E]=0 and calls draw_status_indicator
  * (the disc-0 probe) before menu_loop, so the asset loads from disc 0.

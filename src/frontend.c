@@ -56,7 +56,8 @@
  *            "\humans\cdrom\save" and loads that save slot.
  * frontend_option() is the read side's one accessor.
  *
- * DEVIATIONS (all port-only, each waiting on its named step):
+ * DEVIATIONS (all port-only, each waiting on its named step; the
+ * authoritative list is port_deviations.md — D-01/D-19/D-20/D-21 here):
  *  - the INT 60h calls (music_resume/stop 83F7/8389, the cmd-0xA pump) are
  *    not made: the audio backend is an M5 stub.  audio_musicGate ports the
  *    gate and the [0x40BB] latch; only the tune handle is missing (M6).

@@ -14,8 +14,8 @@
  * The loop structure copies the original's split (re_map.md, "Timer / INT 8"):
  * the tick callback is the ISR body — flip apply, palette step, then the
  * music/keyed events — and the foreground advances the flow exactly once per
- * tick boundary.  Stub state: modules are initialised and the flow shell
- * runs; nothing renders yet (M4 starts here).
+ * tick boundary.  The modules are real; the open deviations are listed in
+ * port_deviations.md.
  */
 #include "game.h"
 #include <stdio.h>
@@ -36,8 +36,8 @@ int resources_init(const OSystem *osys) {
 }
 
 /* The ISR body: the fixed per-tick work, in the original's order (the flip
- * apply happens inside video/palette's charge once they are real; the
- * content modules are stubs today).  The entity update is NOT here: the
+ * apply happens inside video/palette's charge; the content modules are
+ * real).  The entity update is NOT here: the
  * original runs it from the level's per-frame body (update_world
  * 1000:80E1, called once per display period from level_run), so it lives
  * in level_tick(). */
@@ -177,8 +177,8 @@ int gameflow_tribeTooSmall(unsigned need, unsigned members)
  * While the window has levels left the PLAY arm runs again — the next level
  * of the 160.  When they run out, COMPLETE: cd_file_op([0x1E]) (the ending
  * scene), draw_status_indicator, menu_loop (the MAP screen), then the
- * attract.  Neither the ending nor the MAP screen is ported: STUBS — the
- * port goes straight to the attract, where game_loop's prologue restarts. */
+ * attract.  The ending/MAP arm is game_main's FLOW_ENDING (scene 6/7, the
+ * disc-0 probe, map_begin/map_tick).  Known deviations: port_deviations.md. */
 GameFlow gameflow_afterLevel(unsigned *levelCurrent)
 {
     if (*levelCurrent + 1u < 160u) {
@@ -342,9 +342,9 @@ int game_main(const OSystem *osys)
                     entity_spawnFromMap(level_map(), ld->style,
                                         ld->entityLife);
                     /* level_run 3060/3062: a tribe smaller than the level
-                     * needs — the briefing's GAME OVER variant (not ported;
-                     * the normal briefing stands in) and the level is
-                     * skipped by the entry state machine's next-level arm. */
+                     * needs — party_intro_setGameOver plays the briefing's
+                     * GAME OVER variant — and the level is skipped by the
+                     * entry state machine's next-level arm. */
                     levelSkipped = gameflow_tribeTooSmall(level_required(),
                                                          level_members());
                 }
@@ -424,9 +424,10 @@ int game_main(const OSystem *osys)
                 /* draw_level_text (1000:33A3): [0x138E] selects "WELL DONE!
                  * YOU FINISHED LEVEL nnn" or "YOUR TRIBE IS EXTINCT!!"; the
                  * box waits for a key or ACTION.  check_highscore's score /
-                 * record screen (1000:41AE) is NOT ported — STUB: after the
-                 * page the flow runs entry's post-level step (the finished
-                 * level's newspaper, the ending, or the next level). */
+                 * record screen (1000:41AE) then runs (score_begin/score_tick),
+                 * followed by entry's post-level step (the finished level's
+                 * newspaper, the ending, or the next level).  The score
+                 * screen's remaining deviation is port_deviations.md D-07. */
                 char text[40];
                 level_tick();
                 if (level_outcome())

@@ -18,7 +18,8 @@
  *
  * The high-score file, the top-10 insert and the name entry live in hiscore.c
  * (HISCORES.HUM) and map.c (the insert screen).  Not modelled: the scratch
- * copies at 0x4697 / 0x46A3 (see score_stampDraw's deviation).
+ * copies at 0x4697 / 0x46A3 (score_stampDraw's deviation, port_deviations.md
+ * D-07).
  */
 #include "game.h"
 #include <stdio.h>
@@ -251,8 +252,9 @@ unsigned score_levelScore(void)
  * the group's colour is the last plane pass's value, as the planes are written
  * in order 1, 2, 4, 8.
  *
- * deviation: the original's two shared copies (`0x4697` `DS:0x3CA0 + [0x4106] ->
- * page 0`, `0x46A3` `DS:0000 -> page 0x3CA0 + [0x4106]`) read the *data*
+ * deviation (port_deviations.md D-07): the original's two shared copies
+ * (`0x4697` `DS:0x3CA0 + [0x4106] -> page 0`, `0x46A3` `DS:0000 -> page
+ * 0x3CA0 + [0x4106]`) read the *data*
  * segment, which the port has no image of - the live page shows the phase-0 copy
  * putting DS:0000's bytes (the PSP, 0x3E/0x3F) at 0x4ED0.  The port models the
  * phase-0 half as **clearing the stamp's cell**, and does not draw the `0x4697`

@@ -36,15 +36,15 @@
  * the selector (`1000:F17C`) with its two wrappers, and the dissolve
  * (`1000:FA13`) with the `0xF453` scan that calls it.
  *
- * Not ported, each its own sub-machine:
- *  - the command handler **bodies** the other record types' rows select (types
- *    18/20/23/24/31/32 name `0xED4F`..`0xF0C8` and the `0x6E5C` value table) —
- *    `objCmdCall` returns 0 for them and the tick reports OBJ_CMD_UNPORTED;
- *  - the class/behaviour overlays of `1000:653C` (`DS:0x3566`/`0x368A`/
- *    `0x3766`, reached only when a record's `+7 != 0`) and the `[0x1996]` half
- *    of `1000:3600`;
- *  - the animator (`1000:D76F` + `0x66B3`) that drives a dissolved group's
+ * Not ported (port_deviations.md D-16):
+ *  - the handler bodies `1000:E7C0` (type 2, command 8) and `1000:EBCA`
+ *    (type 15, command 8) - `objCmdCall` returns 0 for them and the tick
+ *    reports OBJ_CMD_UNPORTED;
+ *  - the animator (`1000:D76F` + `1000:66B2`) that drives a dissolved group's
  *    members.
+ * The class/behaviour overlays of `1000:653C` and all six `1000:35D6`
+ * goal-test handlers are ported.  The bare-RET slot `1000:EA0E` is absent from
+ * the table (type 16 command 8 reports UNPORTED; the caller ignores it).
  */
 #include "game.h"
 #include <string.h>
@@ -208,9 +208,9 @@ void object_setPlayer(int slot)
 /* --- object_test_dispatch's predicates (1000:35D6) ---------------------
  *
  * The six handlers are reachable from the level's goal-test word at
- * [0x17F2] through the CS word table at 0x35F4.  Five are ported here; only
- * 0x3600 is left (it needs the 140-tick counter at [0x1976] and the [0x1996]
- * byte its second test reads).
+ * [0x17F2] through the CS word table at 0x35F4.  All six are ported here
+ * (0x3600 is object_lowPhaseMatch below); the earlier "[0x1996] byte" reading
+ * was wrong (re_history.md).
  *
  * 0xF761 is NOT a random generator (the earlier docs called it that): it adds
  * the record's x/y to its arguments and turns them into a **map address** —
@@ -394,9 +394,9 @@ int object_lowPhaseMatch(void)
  * vsync, `0x54CA`/`0x9BF8` = a presented frame):
  *
  *   red     entries 1..0x7F -> (0x3F,0,0), div 5, then -> the level div 0x1E
- *   white   1..0x7F -> (0x3F,0x3F,0x3F), div 5, then `1000:3D04`'s two-frame pan
- *           (**not ported**: the port's view is unscrolled), then -> the
- *           level div 0x19
+ *   white   1..0x7F -> (0x3F,0x3F,0x3F), div 5, then `1000:3D04`'s two-frame
+ *           page-strip save (not a view pan; the port keeps the view still),
+ *           then -> the level div 0x19
  *   frame   one `0x9F56`
  *   blinks  10x: the 0x80 bank -> white div n, -> the level div n, n = 10..1
  *           (2 * (10+...+1) = 110 frames)
@@ -408,8 +408,8 @@ int object_lowPhaseMatch(void)
  *   reveal  `init_dirty_cell_list` (`1000:3C70`) then `flush_dirty_cell_list`
  *           (0x534A) looping `queue_dirty_cell_packed` (0x53B3) until
  *           `[0x1B02]`: 0x100 dirty cells queued from the 0x1B76 coordinate
- *           table over the 0x48BC list, shaded from 0x19EA — **not ported**
- *           (the port redraws the page flat)
+ *           table over the 0x48BC list, shaded from 0x19EA — ported as
+ *           `level_sparkBegin`/`sparkStep`/`sparkDraw`
  *   hold    41 frames, then 1..0xBF -> white div 5, one frame, the neighbour's
  *           `+6 = 0xFFFF`, `[0xC] = [0x5B12] = 0xFF`, two page frames, then
  *           1..0xBF -> the level div 0x28
@@ -1036,8 +1036,8 @@ unsigned object_loadTerrainObjects(uint8_t *map)
     memset(objSlotClass, 0, 20u);                /* 1000:5175: 0x14 bytes */
     for (unsigned t = 0; t < 25u; t++) {
         uint8_t tile = objTiles[t];
-        /* 0xAA/0xAB and the 0xF0..0xF2 decorations are ported; the rest of the
-         * 25 are not (re_map.md has each one's body summary). */
+        /* all 25 tiles' bodies are ported (re_map.md has each one's
+         * summary); the guard is the table walk's tile list. */
         if (tile != 0xA9u && tile != 0xAAu && tile != 0xABu &&
             tile != 0xACu && tile != 0xADu && tile != 0xAEu &&
             tile != 0xAFu && tile != 0xB0u && tile != 0xB1u && tile != 0xB2u &&
@@ -2928,6 +2928,7 @@ static void objCmdEnter(uint8_t *actor)
      * test: for a class byte of 0 the factor is 0xFFFF, `MUL DL` uses only
      * 0xFF, and the writes land at 0x3F17 + 0x11EE = 0x5105 (+8), i.e. on
      * 0x510D..0x5114 - DS data the port has no image of.  The bound below is
+ * port_deviations.md D-24:
      * the one unavoidable deviation in this routine: it keeps the port from
      * writing through a pointer it cannot resolve, and the branch only runs for
      * a record whose class byte is 0 or above the table. */
@@ -3944,8 +3945,8 @@ static void objCmdTurn(uint8_t *actor)
     }
     wr16(actor, 0xEu, (uint16_t)((rd16(actor, 0xEu) + 4u) & 0x1FFu));
     if (objDebounce != 4u) objOutState = 4;               /* 1000:EE30 */
-    /* 1000:EE35 writes [0x1987], which only the unported 0x382D dispatch
-     * reads; nothing in the port observes it. */
+    /* 1000:EE35 writes [0x1987], which only the pending-event dispatch
+     * (object_pendingRun, 1000:382D) reads; nothing observes it today. */
 }
 
 static void objCmdFall(uint8_t *actor, int x, int y, unsigned frame);

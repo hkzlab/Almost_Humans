@@ -63,7 +63,8 @@
  * 28d0 blues into that grey snapshot (the fade-in), and 2bda re-runs 28d0
  * and fades back (the text then equals the background and vanishes).
  *
- * Port-only caveats: with no disc the loads fail and the screen is
+ * Port-only caveats (port_deviations.md D-01/D-19): with no disc the loads
+ * fail and the screen is
  * skipped — the load-failure path the scene player established; the
  * music/marker calls (play_tune 8437, music_resume 83f7, timing_loop 84a5,
  * music_stop 8389, INT 60 service 0xA inside present_frames_75) ride the

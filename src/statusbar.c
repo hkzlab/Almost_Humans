@@ -37,11 +37,10 @@
  * (1000:95B5), exposed as statusbar_elapsedWord() in the packing
  * check_highscore uses for the per-level best-time compare (1000:42CE).
  *
- * Not ported, with the original's references: the line-compare reveal ([0x5B0A] 200→152 over 48 ticks, driven by the
- * pre-level party screens — the port has no party phase yet, so the bar
- * starts fully revealed); the time-up dialog ([0x5E44] → the
- * input_dispatch_loop pause branch — the frontend's; the bar itself just
- * stops, as the original's does).
+ * Not ported: the line-compare reveal ([0x5B0A] 200→152 over 48 ticks, driven
+ * by the pre-level party screens — the port draws the bar already at
+ * 152..191; port_deviations.md D-13).  The time-up dialog ([0x5E44] → the
+ * input_dispatch_loop pause branch) IS ported: menu_openTimeUp / menu_tick.
  */
 #include "game.h"
 #include <stdlib.h>

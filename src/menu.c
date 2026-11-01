@@ -23,7 +23,8 @@
  * `blit_sprite_planar` box from APL\BOX.SPR) plus `blit_text_tile`'s glyph
  * pass with its `GC3 = 0x1003` OR and mask 0x10 shading.  (An earlier revision
  * drew it with the TEXT.SPR font on the flat page and carried a DEVIATION note
- * here; that renderer landed in pass 10/12 and the note was stale.)
+ * here; that renderer landed in pass 10/12 and the note was stale.)  The
+ * pause trigger is still missing — port_deviations.md D-15.
  */
 #include "game.h"
 #include <string.h>

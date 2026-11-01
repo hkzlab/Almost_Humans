@@ -118,7 +118,8 @@ const char *attract_hiscoreName(unsigned i);
  * by one display period, composes the visible planar window into page 0
  * (game_main's videoPresent shows it) and returns 1 while the attract
  * plays, 0 once the escape's fade completed.  The details and the one
- * documented latency deviation are in attract.c's header and next_step.md.
+ * documented latency deviation are in attract.c's header and
+ * port_deviations.md.
  */
 int attract_init(const OSystem *osys);
 
@@ -471,10 +472,10 @@ int  object_testDispatch(uint16_t mode); /* 1000:35D6: 1 = goal met       */
  * live record, drawn at (x - scrollX, y - scrollY). */
 void object_publishBank(const uint8_t *bank, uint32_t size);
 /* load_terrain_b's per-tile object walk (1000:5168): [0x3E73] = 8, the 20
- * behaviour bytes cleared, then each map cell of tiles 0xAA (the human, into
- * the first free static slot, frame 0x10, type 2) and 0xAB (the spear,
- * appended, frame 0x60, +8 = 0xFFFF, behaviour 5) in table order.  The other
- * 23 tiles are not ported; returns [0x3E73]. */
+ * behaviour bytes cleared, then every map cell of the 25 table tiles in
+ * table order (0xAA the human into the first free static slot, frame 0x10,
+ * type 2; 0xAB the spear, appended, frame 0x60, +8 = 0xFFFF, behaviour 5;
+ * the rest per re_map.md); returns [0x3E73]. */
 unsigned object_loadTerrainObjects(uint8_t *map);
 unsigned object_placedHumans(void);      /* [0x3E20]                       */
 /* the map cell under a static record (0xF761 with AX = 8, BX = 0xC); the
@@ -490,7 +491,8 @@ void object_render(uint8_t *page, int scrollX, int scrollY);
  * (`[0x5ACE]`).  `handler` is the in-segment address the original calls
  * (0 = none, so the row's `tail` applies); `command` is the 0..7 number the
  * type row was indexed by.  Index 2 is 1000:E609, whose tail holds the human
- * stack's push.  The handlers themselves are not ported yet. */
+ * stack's push.  The handler bodies are ported except 0xE7C0 and 0xEBCA
+ * (port_deviations.md D-16). */
 typedef struct {
     unsigned handler;
     unsigned tail;
@@ -503,7 +505,7 @@ ObjCommand object_commandSelect(uint8_t *rec, uint8_t input);
 #define OBJ_CMD_NONE      0   /* neither a handler nor a tail ran          */
 #define OBJ_CMD_HANDLER   1   /* the type row's handler ran                */
 #define OBJ_CMD_TAIL      2   /* the row's tail handler ran                */
-#define OBJ_CMD_UNPORTED (-1) /* the selected handler/hook/tail has no port */
+#define OBJ_CMD_UNPORTED (-1) /* no port - port_deviations.md D-16 */
 /* 1000:E4B0..E4F7: select and run one command for the acting record.  Only the
  * ported handlers are dispatched (the two movement states, the leaves, the snap,
  * the selector wrappers and the bare-RET tail). */
@@ -718,8 +720,8 @@ void textpage_drawLineMask(uint8_t *page, const char *line, unsigned row,
  * The 5-option pause menu (202F:0x5BBC, A167) and the SAVE GAME number grid
  * (202F:0x5CD8, render_frame_loop's cursor): the behaviour is the original's
  * (0-based rows, wrap, ACTION/Enter selects; the countdown is suspended).
- * The dialog's exact renderer (draw_map_object 1000:9EA3) is not ported yet;
- * the port draws the block with TEXT.SPR on the flat page (see menu.c).
+ * The dialog draws through draw_map_object (1000:9EA3); known deviations are
+ * in port_deviations.md (the pause trigger is D-15).
  */
 void     menu_init(const OSystem *osys);
 void     menu_openPause(void);          /* [0x5B12] := 0, cursor 0         */
@@ -754,7 +756,8 @@ const uint8_t *save_blob(void);
  * "restart this level" takes the LEVEL board's time again. */
 void save_consume(void);
 /* SAVE GAME (save_progress 1FE7:0000): the header from the live state, the
- * 0x1800 file.  The object/entity ranges are written ZERO (unported) — the
+ * 0x1800 file.  The object/entity ranges are written ZERO (unported;
+ * port_deviations.md D-14) — the
  * port's saves are header-complete, NOT blob-compatible. */
 int  save_writeSlot(unsigned slot, unsigned level, uint16_t timeWord,
                     unsigned members);

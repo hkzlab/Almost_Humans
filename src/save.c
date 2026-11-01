@@ -73,7 +73,8 @@ const uint8_t *save_blob(void)  { return save_buf; }
 /* SAVE GAME (save_progress 1FE7:0000, re_formats.md §10.0): the 13-byte
  * header from the port's live state + the 0x1800 file.  The five state
  * ranges (+0x0D..) are the object/entity tables the port does not model:
- * they are written ZERO, deliberately — the port's saves are complete for
+ * they are written ZERO, deliberately (port_deviations.md D-14) — the port's
+ * saves are complete for
  * the header (level/time/members) and NOT byte-compatible with the
  * original's blob.  The score/counter digits are likewise 0 (the score and
  * collect systems are unported); the state id is the level's [0x5B56] = 1. */
