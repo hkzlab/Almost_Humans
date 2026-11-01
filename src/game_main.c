@@ -69,6 +69,13 @@ static unsigned postSceneIdx;
 /* check_highscore's score screen between the end page and the post-level
  * step; postPending carries the step until the screen exits */
 static int scoreUp, postPending;
+/* draw_level_text (0x33A3)'s level-end transition: caption -> grey fade ->
+ * 0x23 hold -> black fade -> bar park + world redraw.  check_highscore's card
+ * (won) or 0x438A's exit (lost) follows. */
+enum { END_CAPTION, END_GREY_FADE, END_HOLD, END_BLACK_FADE };
+static int endPhase = END_CAPTION;
+static unsigned endHold;
+static const uint8_t endBlack[768];     /* the 0x48BC ramp: zeroed = black */
 /* the ending machine: 0 idle, 1 the 6/7 scene, 2 the disc probe, 3 the MAP */
 static int endPhase, endDiskUp;
 static unsigned endSceneIndex;
@@ -439,35 +446,67 @@ int game_main(const OSystem *osys)
                  * reaches it — level_run 3065 returns first) */
                 level_loadingTick();
             } else if (endPageUp) {
-                /* draw_level_text (1000:33A3): [0x138E] selects "WELL DONE!
-                 * YOU FINISHED LEVEL nnn" or "YOUR TRIBE IS EXTINCT!!"; the
-                 * box waits for a key or ACTION.  check_highscore's score /
-                 * record screen (1000:41AE) then runs (score_begin/score_tick),
-                 * followed by entry's post-level step (the finished level's
-                 * newspaper, the ending, or the next level). */
-                char text[40];
-                level_tick();
-                if (level_outcome())
-                    snprintf(text, sizeof text,
-                             "WELL DONE! YOU FINISHED LEVEL %03u",
-                             level_current + 1u);
-                else
-                    snprintf(text, sizeof text, "YOUR TRIBE IS EXTINCT!!");
-                textpage_draw(osys->videoPage(0), text, -1, 0u, 0);
-                if (input.lastKey || (input.joyBits & 0x80u)) {
-                    endPageUp = 0;
-                    postPending = 1;
-                    /* draw_level_text 0x33E2 seals 0x14D3 (the LEVEL
-                     * palette), not the image working palette 0x4BBC; then
-                     * 0x344C/0x3450 re-render the world page, erasing the
-                     * caption.  check_highscore's 0x4333 fade targets 0x14D3
-                     * plus the card's bank. */
+                /* draw_level_text (1000:33A3).  [0x138E] selects "WELL DONE!
+                 * YOU FINISHED LEVEL nnn" or "YOUR TRIBE IS EXTINCT!!" and the
+                 * box waits for a key or ACTION; then the palette chain runs
+                 * (0x33E2 seal + gradient, 0x33FD fade 0..0xBF div 0x1E with
+                 * a wait, 0x340F 0x23-frame hold, 0x3419 fade 0x100 to black
+                 * div 0x28), the bar is parked (0x342B) and the world is
+                 * re-rendered (0x344C).  check_highscore (0x41AE) then draws
+                 * the card, but only when [0x138E] != 0; a lost level jumps to
+                 * 0x438A and never opens it.  entry's post-level step (the
+                 * newspaper, the ending, or the next level) follows. */
+                if (endPhase == END_CAPTION) {
+                    char text[40];
+
+                    level_tick();
+                    if (level_outcome())
+                        snprintf(text, sizeof text,
+                                 "WELL DONE! YOU FINISHED LEVEL %03u",
+                                 level_current + 1u);
+                    else
+                        snprintf(text, sizeof text, "YOUR TRIBE IS EXTINCT!!");
+                    textpage_draw(osys->videoPage(0), text, -1, 0u, 0);
+                    if (input.lastKey || (input.joyBits & 0x80u)) {
+                        /* 0x33E2/0x33F2: seal the level palette to grey and
+                         * load the shipped gradient into 0x80..0xBF. */
+                        level_endPalette();
+                        /* 0x33FD: fade the DAC's 0..0xBF to that palette. */
+                        palette_buildFade(0u, 0xC0u, 0x1Eu, level_palette());
+                        endPhase = END_GREY_FADE;
+                    }
+                } else if (endPhase == END_GREY_FADE) {
+                    if (!palette_fadeActive()) {     /* 0x340C wait */
+                        endHold = 0x23u;             /* 0x340F */
+                        endPhase = END_HOLD;
+                    }
+                } else if (endPhase == END_HOLD) {
+                    if (endHold > 0u) {
+                        endHold--;
+                    } else {
+                        /* 0x3419: every entry to the zeroed 0x48BC ramp. */
+                        palette_buildFade(0u, 0x100u, 0x28u, endBlack);
+                        endPhase = END_BLACK_FADE;
+                    }
+                } else if (!palette_fadeActive()) {  /* END_BLACK_FADE */
+                    /* 0x342B/0x344C: park the split, re-render the world. */
+                    statusbar_hide();
                     level_redrawPage();
-                    level_greyscalePalette(0x80u);
-                    scoreUp = score_begin(score_levelScore());
-                    if (!scoreUp) {
+                    endPhase = END_CAPTION;
+                    endPageUp = 0;
+                    if (!level_outcome()) {
+                        /* 0x41AE: [0x138E] == 0 -> 0x438A; no card.  entry
+                         * 0x00E6 then skips the newspaper and goes to the
+                         * ending scene. */
                         postPending = 0;
                         state = postLevelStep(state);
+                    } else {
+                        postPending = 1;
+                        scoreUp = score_begin(score_levelScore());
+                        if (!scoreUp) {
+                            postPending = 0;
+                            state = postLevelStep(state);
+                        }
                     }
                 }
             } else if (level_starting()) {
@@ -514,12 +553,8 @@ int game_main(const OSystem *osys)
                     /* object_test_dispatch returned negative (1000:35D6):
                      * the play loop is over; [0x138E] keeps its outcome */
                     endPageUp = 1;
-                    statusbar_setActive(0);
-                    /* draw_level_text 0x342B: [0x5B0A] = 0xC9 + crtc_set_scroll,
-                     * so the bar's split is off-screen and the page shows the
-                     * world behind it; check_highscore then draws the card
-                     * over that page without the bar's 0xC0 bank showing. */
-                    statusbar_hide();
+                    endPhase = END_CAPTION;   /* draw_level_text's chain */
+                    statusbar_setActive(0);   /* [0x5B12] = 0: the clock stops */
                 }
                 /* scan_id_list (1000:386E) runs after update_world and before
                  * the pending-event table; ESC opens the pause menu there. */

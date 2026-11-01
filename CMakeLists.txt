@@ -110,6 +110,16 @@ target_link_libraries(test_smoke PRIVATE core fs_posix)
 humansre_warnings(test_smoke)
 add_test(NAME smoke COMMAND test_smoke ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 
+# The level-end transition: draw_level_text's grey/gradient/black fades (D-27,
+# D-29) and check_highscore's outcome gate (D-28), driven through game_main.
+add_executable(test_endflow tests/test_endflow.c
+    src/arch/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_endflow PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(test_endflow PRIVATE core fs_posix)
+humansre_warnings(test_endflow)
+add_test(NAME endflow_won COMMAND test_endflow ${HUMANS_DATA_DIR} 1)
+add_test(NAME endflow_lost COMMAND test_endflow ${HUMANS_DATA_DIR} 0)
+
 # The boot-intro test: load_intro_scene's display-list player over the
 # scrolled bac.bit background; the final page must match the reference.
 add_executable(test_boot tests/test_boot.c

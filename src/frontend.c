@@ -57,7 +57,7 @@
  * frontend_option() is the read side's one accessor.
  *
  * DEVIATIONS (all port-only, each waiting on its named step; the
- * authoritative list is port_deviations.md — D-01/D-19/D-20/D-21 here):
+ * authoritative list is port_deviations.md — D-01/D-19/D-20 here):
  *  - the INT 60h calls (music_resume/stop 83F7/8389, the cmd-0xA pump) are
  *    not made: the audio backend is an M5 stub.  audio_musicGate ports the
  *    gate and the [0x40BB] latch; only the tune handle is missing (M6).
@@ -74,8 +74,9 @@
  *    image — its palette tail, then the heap pool.  The room's field is
  *    `reset_display_mode`'s 320x192 (`1000:82C6`, called at `1000:A544`),
  *    so those 8 rows are written but never presented, exactly as in the
- *    original; past the loaded chunk the port writes zeros (the original's
- *    pool tail is uninitialised memory).
+ *    original.  Past the loaded chunk the port writes zeros where the
+ *    original reads an allocator-dependent pool tail; the difference has no
+ *    observable output (the field ends on row 191).
  *  - with no data (the headless tests) a failed load skips the palette and
  *    the fade phases, and the code match answers index 1 (DARWIN) so the
  *    flow completes — the attract's asset-failure pattern.

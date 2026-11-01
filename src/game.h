@@ -255,9 +255,9 @@ unsigned level_style(void);                  /* [0x17EE]: the record's style */
 /* the working palette 202F:0x14D3 (the fade target of the claim, the level's
  * own fades and the rotate hook) */
 const uint8_t *level_palette(void);
-/* draw_level_text 0x33E2: seal the level palette's first `entries` triples to
- * grey (the 0x14D3 buffer itself). */
-void level_greyscalePalette(unsigned entries);
+/* draw_level_text 0x33E2/0x33F2: seal the level palette's 0..0x7F to grey
+ * and copy the shipped gradient into 0x80..0xBF (the 0x14D3 buffer). */
+void level_endPalette(void);
 /* draw_level_text 0x344C/0x3450: re-render the world page (blit_bitmap_planes
  * + render_objects), erasing the caption before check_highscore's card. */
 void level_redrawPage(void);
