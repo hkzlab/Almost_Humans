@@ -17,12 +17,13 @@
  *  - the table is saved on the way out (`1000:062B` `decrypt_region_38a`).
  *
  * RENDERING: the frame/band and the name wheel are the listing's art.  The
- * list still draws with `font_drawText` rather than `draw_score_block`'s
- * columns + `blit_text_tile` (port_deviations.md D-08), the name screen adds a
- * `NAME:` line the original does not draw (D-09), omits the qualifying
- * congratulation page (D-10), and the band's destination is the port's page
- * origin (D-12).  The six `[0x8A2]` positions are not content panels: they
- * are 0x14-frame scroll steps of the same band, now drawn one unit per tick.
+ * list is `draw_score_block`'s layout (rank/name/score centred at
+ * 0x20/0x82/0x102, pitch 0x14 from base 0; header at 0xA0/0x14), the
+ * qualifying total sees the seven-line congratulation page before the ring,
+ * and the name screen has no `NAME:` line.  The band's destination is still
+ * the port's page origin (port_deviations.md D-12), and the transition's
+ * fades/rectangles are D-26.  The six `[0x8A2]` positions are not content
+ * panels: they are 0x14-frame scroll steps of the same band.
  *
  * Entry state: entry 0x151A sets [0xF7E]=0 and calls draw_status_indicator
  * (the disc-0 probe) before menu_loop, so the asset loads from disc 0.
@@ -36,7 +37,20 @@
 #define NAME_MAX 13u
 #define GRID_CELLS 30u
 
-enum { MAP_LIST, MAP_NAME };
+enum { MAP_CONGRATS, MAP_NAME, MAP_LIST, MAP_EXIT };
+
+/* 1000:024B..1000:0266: the qualifying page`s seven lines at DS:0x7BB..0x85C
+ * (verbatim, from the image), drawn at x=0xA0, y=0x19 + 0x10*line with
+ * blit_text_tile`s 0x20 mask. */
+static const char *const mapCongrats[7] = {
+    "WELL DONE!",
+    "YOUR TRIBE HAS EVOLVED TO BECOME",
+    "ONE OF THE TEN MOST ADVANCED IN",
+    "THE ENTIRE WORLD!",
+    "THE NAME OF YOUR TRIBE WILL NOW",
+    "BE CARVED INTO THE ROCK THAT MARKS",
+    "THE TEN MOST CIVILISED TRIBES!",
+};
 
 static uint8_t *mapHigh;
 static uint32_t mapHighSize;
@@ -349,39 +363,50 @@ void map_drawBoxEdges(uint8_t *page, unsigned row)
     }
 }
 
-/* draw_score_block (1000:0651): rank x=0x20, name x=0x82, score x=0x102,
- * row height [0x36] (0x14 on this screen), base Y [0x38]. */
-static void map_drawList(uint8_t *page, const char *header)
+/* draw_score_block (1000:0651): the rank is centred at x=0x20, the name at
+ * x=0x82, the 32-bit score at x=0x102, row pitch [0x36]=0x14 from base
+ * [0x38]=0; the header is blit_text_tile at x=0xA0, y=0x14. */
+void map_drawList(uint8_t *page)
 {
-    unsigned row = 0x18u;
+    unsigned row = 0u;
 
-    font_drawText(page, header, 0xA0u, 0x08u);
+    textpage_drawLineMaskAt(page, "THE TOP TEN TRIBES", 0xA0u, 0x14u, 0x20u);
     for (unsigned i = 0; i < hiscore_count(); i++) {
-        char line[40];
+        char buf[24];
 
-        snprintf(line, sizeof line, "%02u %-14.14s %07lu", i + 1u,
-                 hiscore_name(i), (unsigned long)hiscore_score(i));
-        font_drawText(page, line, 0xA0u, row);
-        row += 0x0Cu;
+        snprintf(buf, sizeof buf, "%u", i + 1u);
+        textpage_drawLineMaskAt(page, buf, 0x20u, row, 0x0Fu);
+        textpage_drawLineMaskAt(page, hiscore_name(i), 0x82u, row, 0x0Fu);
+        snprintf(buf, sizeof buf, "%lu", (unsigned long)hiscore_score(i));
+        textpage_drawLineMaskAt(page, buf, 0x102u, row, 0x0Fu);
+        row += 0x14u;
     }
 }
 
-static void map_drawName(uint8_t *page)
+/* 1000:021E..1000:0266: the seven-line congratulation page. */
+void map_drawCongrats(uint8_t *page)
 {
-    char line[40];
+    for (unsigned i = 0; i < 7u; i++)
+        textpage_drawLineMaskAt(page, mapCongrats[i], 0xA0u,
+                                0x19u + 0x10u * i, 0x20u);
+}
 
-    map_drawList(page, "THE TOP TEN TRIBES");      /* DS:0x87B, 1000:0518 */
+void map_drawName(uint8_t *page)
+{
     /* 1000:0CBE: the 30-cell ring from apl\alpha.spr, then the typed name in
-     * the same glyph cells (row 0x45, 9 px apart). */
-    /* the cursor spins the ring: [0x48] = 0x10E - column*0x0C, so the selected
-     * cell is the one at the top of the ring (angle 270, the smallest row). */
+     * the same glyph cells (row 0x45, 9 px apart).  The original draws no
+     * `NAME:` label and no top-ten list on this screen. */
     alpha_drawWheel(page, (unsigned)(0x10Eu - mapCol * 0x0Cu) % 0x168u);
     alpha_drawName(page, mapName);
-    snprintf(line, sizeof line, "NAME: %s_", mapName);
-    font_drawText(page, line, 0xA0u, 0xA8u);
-    /* the wheel above IS the 30-cell grid (its letters, space, '.' and the
-     * delete/enter cells); the original draws no separate key strip. */
+}
 
+/* 1000:02C5 / 1000:0B85: the page is reset to HIGH.BIT whenever the screen
+ * changes (the congratulations page is not left under the name ring). */
+static void map_pageReset(uint8_t *page)
+{
+    memset(page, 0, MAP_PAGE);
+    if (mapHigh)
+        memcpy(page, mapHigh, mapHighSize < MAP_PAGE ? mapHighSize : MAP_PAGE);
 }
 
 /* the whole screen: the band layer (1000:12D3), the card, then the state's
@@ -391,9 +416,10 @@ static void map_redraw(void)
     uint8_t *page = video_page(0);
 
     if (!page) return;
-    if (mapPhase == MAP_NAME) map_drawName(page);
-    else map_drawList(page, "THE TOP TEN TRIBES");
-    map_drawBoxEdges(page, map_boxBottom);
+    if (mapPhase == MAP_CONGRATS) map_drawCongrats(page);
+    else if (mapPhase == MAP_NAME) map_drawName(page);
+    else if (mapPhase == MAP_LIST) map_drawList(page);
+    if (mapPhase == MAP_LIST) map_drawBoxEdges(page, map_boxBottom);
 }
 
 
@@ -404,13 +430,9 @@ int map_begin(void)
     res_setDisc(0u);                            /* entry 0x151A [0xF7E]=0 */
     mapHigh = res_loadChunk("LBM\\HIGH.BIT", &mapHighSize, NULL);
     uint8_t *page = video_page(0);
-    memset(page, 0, MAP_PAGE);
-    if (mapHigh) {
-        memcpy(page, mapHigh,
-               mapHighSize < MAP_PAGE ? mapHighSize : MAP_PAGE);
-        if (mapHighSize >= MAP_PAGE + 768u)
-            palette_setDac(mapHigh + MAP_PAGE, 0, 256);
-    }
+    map_pageReset(page);
+    if (mapHigh && mapHighSize >= MAP_PAGE + 768u)
+        palette_setDac(mapHigh + MAP_PAGE, 0, 256);
 
     mapFont = res_loadChunk("APL\\TEXT.SPR", NULL, NULL);
     font_publish(mapFont);
@@ -436,7 +458,9 @@ int map_begin(void)
     map_panel = 0u;                             /* 0 = the entry animation */
     mapStep = 0;
     mapStepDir = 0;
-    mapPhase = hiscore_qualifies(mapScore()) ? MAP_NAME : MAP_LIST;
+    /* 1000:01CD: a total that beats none leaves via 0x062B without the list;
+     * a qualifying one gets the congratulation page, then the name entry. */
+    mapPhase = hiscore_qualifies(mapScore()) ? MAP_CONGRATS : MAP_EXIT;
     map_bandFill(page);                         /* 1000:12D3 */
     map_redraw();
 
@@ -457,16 +481,37 @@ static void map_apply(unsigned column)
     }
     page = video_page(0);
     if (!page) return;
-    memset(page, 0, MAP_PAGE);
-    if (mapHigh) memcpy(page, mapHigh, mapHighSize < MAP_PAGE ? mapHighSize : MAP_PAGE);
+    map_pageReset(page);
     if (mapPhase == MAP_NAME) map_drawName(page);
-    else map_drawList(page, "THE TOP TEN TRIBES");
+    else if (mapPhase == MAP_LIST) map_drawList(page);
 }
 
 int map_tick(const InputState *in)
 {
     if (!mapUp) return 0;
     if (!mapArmed) { mapArmed = 1; return 1; }
+
+    if (mapPhase == MAP_EXIT) {
+        mapUp = 0;                 /* 1000:062B: fade/save, no list */
+        hiscore_write();
+        free(mapHigh); mapHigh = NULL;
+        free(mapFont); mapFont = NULL;
+        free(alphaPacked); alphaPacked = NULL;
+        free(alphaSheet); alphaSheet = NULL;
+        free(bandSheet); bandSheet = NULL;
+        font_publish(NULL);
+        return 0;
+    }
+    if (mapPhase == MAP_CONGRATS) {
+        if (in->lastKey || (in->joyBits & 0x80u)) {
+            uint8_t *page = video_page(0);
+
+            mapPhase = MAP_NAME;   /* 1000:0285: the key wait, then the ring */
+            if (page) map_pageReset(page);   /* 1000:02C5: HIGH.BIT again */
+            map_redraw();
+        }
+        return 1;
+    }
 
     if (mapPhase == MAP_NAME) {
         unsigned column = 0xFFu;

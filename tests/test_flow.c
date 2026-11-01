@@ -2146,6 +2146,27 @@ int main(int argc, char **argv)
 
             check(hiscore_qualifies(total),
                   "1000:01CD: the running total qualifies for the table");
+            /* 1000:024B: a qualifying total sees the seven-line page first;
+             * the key that dismisses it is not typed into the name. */
+            {
+                static uint8_t page[320 * 200];
+                unsigned lit = 0;
+
+                memset(page, 0, sizeof page);
+                map_drawCongrats(page);
+                for (unsigned i = 0; i < 7u; i++) {
+                    unsigned y = 0x19u + 0x10u * i;
+                    unsigned n = 0;
+                    for (unsigned r = 4u; r < 14u; r++)
+                        for (unsigned x = 0; x < 320u; x++)
+                            if (page[(y + r) * 320u + x]) n++;
+                    check(n != 0u, "1000:024B: a congratulation line is drawn");
+                }
+                for (unsigned i = 0; i < sizeof page; i++) if (page[i]) lit++;
+                check(lit != 0u, "the congratulation page draws text");
+            }
+            k.lastKey = 'Q'; map_tick(&k);   /* dismiss the page */
+            k.lastKey = 0; map_tick(&k);     /* now the name screen waits */
             k.lastKey = 'Q'; map_tick(&k);
             k.lastKey = 'X'; map_tick(&k);
             k.lastKey = 8u;  map_tick(&k);      /* delete */
@@ -2155,6 +2176,56 @@ int main(int argc, char **argv)
                 if (hiscore_score(i) == total && strcmp(hiscore_name(i), "QZ") == 0)
                     found = 1;
             check(found, "the typed name and the total reach the table");
+
+            /* draw_score_block (1000:0651): rank/name/score are centred at
+             * 0x20/0x82/0x102, pitch 0x14 from base 0; the header is at
+             * 0xA0/0x14 with blit_text_tile's 0x20 mask. */
+            {
+                static uint8_t page[320 * 200];
+                static const unsigned cx[3] = { 0x20u, 0x82u, 0x102u };
+
+                memset(page, 0, sizeof page);
+                map_drawList(page);
+                for (unsigned k = 0; k < 10u; k++) {
+                    unsigned y = k * 0x14u;
+                    for (unsigned c = 0; c < 3u; c++) {
+                        unsigned n = 0;
+
+                        for (unsigned r = 4u; r < 14u; r++)
+                            for (unsigned x = cx[c] - 16u; x <= cx[c] + 16u; x++)
+                                if (page[(y + r) * 320u + x]) n++;
+                        check(n != 0u,
+                              "1000:0651: rank/name/score ink at the column");
+                    }
+                }
+                {
+                    unsigned n = 0;
+
+                    for (unsigned r = 4u; r < 14u; r++)
+                        for (unsigned x = 0x80u; x <= 0xC0u; x++)
+                            if (page[(0x14u + r) * 320u + x]) n++;
+                    check(n != 0u, "1000:0518: the header is at (0xA0,0x14)");
+                }
+                /* 1000:0CBE: the name screen has the wheel and the typed
+                 * name only - no list columns, no port-only NAME: line. */
+                memset(page, 0, sizeof page);
+                map_drawName(page);
+                {
+                    unsigned low = 0, wide = 0, nameInk = 0;
+
+                    for (unsigned y = 160u; y < 200u; y++)
+                        for (unsigned x = 0; x < 320u; x++)
+                            if (page[y * 320u + x]) low++;
+                    for (unsigned y = 0; y < 160u; y++)
+                        for (unsigned x = 240u; x < 320u; x++)
+                            if (page[y * 320u + x]) wide++;
+                    for (unsigned y = 69u; y < 86u; y++)
+                        for (unsigned x = 0; x < 320u; x++)
+                            if (page[y * 320u + x]) nameInk++;
+                    check(low == 0u && wide == 0u && nameInk != 0u,
+                          "1000:0CBE: the name screen has no list and no NAME line");
+                }
+            }
         }
         /* 1000:0705 expand_nibbles_4plane: the 4bpp transpose.  ALPHA.SPR's
          * first non-zero word is 0xE007 at offset 16; the expander turns it

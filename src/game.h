@@ -319,6 +319,9 @@ extern unsigned map_boxBottom;               /* [0x8AE]                    */
 extern unsigned map_panel;                   /* [0x8A2]: 1..6              */
 void     map_bandFill(uint8_t *page);        /* 1000:12D3                  */
 void     map_drawBoxEdges(uint8_t *page, unsigned row);   /* 1000:07E6    */
+void     map_drawList(uint8_t *page);        /* draw_score_block 1000:0651 */
+void     map_drawCongrats(uint8_t *page);    /* 1000:021E..0258            */
+void     map_drawName(uint8_t *page);        /* 1000:0CBE (ring + typed)   */
 
 /* --- check_highscore's data (1000:41B8..4352) ------------------------- */
 unsigned score_members(void);                /* [0x11FC]'s recompute      */
@@ -709,11 +712,16 @@ void textpage_draw(uint8_t *page, const char *text, int cursorRow,
  * the score screen and the MAP's list use this. */
 void textpage_drawLine(uint8_t *page, const char *line, unsigned row,
                        uint8_t colour);
+/* draw_text's AX: the line centred on an arbitrary x. */
+void textpage_drawLineAt(uint8_t *page, const char *line, unsigned centreX,
+                         unsigned row, uint8_t colour);
 /* blit_text_tile (1000:47D5) proper: `mask` OR'd into the page (the OR ALU at
  * 1000:9F76 + write mode 2).  The box text and the cutscene headline use it,
  * so their shading is the box fill tile's own EB..E4..EB ramp. */
 void textpage_drawLineMask(uint8_t *page, const char *line, unsigned row,
                            uint8_t mask);
+void textpage_drawLineMaskAt(uint8_t *page, const char *line, unsigned centreX,
+                             unsigned row, uint8_t mask);
 
 /* --- src/menu.c — the in-level dialogs (pause menu + SAVE GAME) -------
  *

@@ -122,11 +122,11 @@ static void scroll_text_measure(const char *text, unsigned *tiles,
  * `destination | mask`, never a solid colour: the shading comes from
  * whatever the box tile already put there.  `mask` != 0 selects that path;
  * `mask` == 0 writes the solid `colour` for the pages drawn outside a box. */
-static void draw_line(uint8_t *page, const char *line, unsigned cell,
-                      unsigned colour, int mask)
+static void draw_line(uint8_t *page, const char *line, unsigned centreX,
+                      unsigned cell, unsigned colour, int mask)
 {
     memset(tp_arena, 0, sizeof tp_arena);
-    font_drawText(tp_arena, line, 0xA0u, 0);
+    font_drawText(tp_arena, line, centreX, 0);
     for (unsigned r = 4u; r < 14u; r++) {
         unsigned y = cell + r;
         if (y >= 200u) break;
@@ -151,7 +151,14 @@ static void draw_line(uint8_t *page, const char *line, unsigned cell,
 void textpage_drawLine(uint8_t *page, const char *line, unsigned row,
                        uint8_t colour)
 {
-    draw_line(page, line, row, colour, 0);
+    draw_line(page, line, 0xA0u, row, colour, 0);
+}
+
+/* The same line centred on an arbitrary x (draw_text's AX). */
+void textpage_drawLineAt(uint8_t *page, const char *line, unsigned centreX,
+                         unsigned row, uint8_t colour)
+{
+    draw_line(page, line, centreX, row, colour, 0);
 }
 
 /* One centred line blitted the original way: `mask` OR'd into the page.
@@ -161,7 +168,14 @@ void textpage_drawLine(uint8_t *page, const char *line, unsigned row,
 void textpage_drawLineMask(uint8_t *page, const char *line, unsigned row,
                            uint8_t mask)
 {
-    draw_line(page, line, row, mask, 1);
+    draw_line(page, line, 0xA0u, row, mask, 1);
+}
+
+/* The same masked line centred on an arbitrary x. */
+void textpage_drawLineMaskAt(uint8_t *page, const char *line, unsigned centreX,
+                             unsigned row, uint8_t mask)
+{
+    draw_line(page, line, centreX, row, mask, 1);
 }
 
 /* One 16x16 box tile (blit_sprite_planar A10E's layout). */
@@ -268,7 +282,7 @@ void textpage_draw(uint8_t *page, const char *text, int cursorRow,
             while (*p && *p != '\r' && n + 1 < sizeof buf) buf[n++] = *p++;
             buf[n] = 0;
             if (*p == '\r') p++;
-            draw_line(page, buf, top + 15u + i * 16u, 0x10u, 1);
+            draw_line(page, buf, 0xA0u, top + 15u + i * 16u, 0x10u, 1);
         }
     }
 
