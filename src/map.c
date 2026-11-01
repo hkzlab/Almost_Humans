@@ -19,9 +19,10 @@
  * RENDERING: the frame/band and the name wheel are the listing's art.  The
  * list still draws with `font_drawText` rather than `draw_score_block`'s
  * columns + `blit_text_tile` (port_deviations.md D-08), the name screen adds a
- * `NAME:` line the original does not draw (D-09) and omits the qualifying
- * congratulation page (D-10), the six panel contents are not drawn (D-11), and
- * the band's destination is the port's page origin (D-12).
+ * `NAME:` line the original does not draw (D-09), omits the qualifying
+ * congratulation page (D-10), and the band's destination is the port's page
+ * origin (D-12).  The six `[0x8A2]` positions are not content panels: they
+ * are 0x14-frame scroll steps of the same band, now drawn one unit per tick.
  *
  * Entry state: entry 0x151A sets [0xF7E]=0 and calls draw_status_indicator
  * (the disc-0 probe) before menu_loop, so the asset loads from disc 0.
@@ -49,6 +50,9 @@ static int mapPhase;
 static char mapName[NAME_MAX + 1u];
 static unsigned mapNameLen;
 static unsigned mapCol;
+/* 1000:05F4/0613: a panel step is 0x14 frames, one [0x8AE] unit per frame. */
+static int mapStep;          /* frames left in the current step */
+static int mapStepDir;       /* +1 = up (0x060C), -1 = down (0x05ED) */
 
 static uint32_t mapScore(void)
 {
@@ -270,8 +274,9 @@ void alpha_drawName(uint8_t *page, const char *name)
  * each of the five rows writes only part of each byte's pixels and the five
  * together build the frame.
  *
- * The five boxes are the six-panel selector: `[0x8A2]` (1..6) moves `[0x8AE]`
- * by 0x14 per step (`1000:05B9`/`060C`), so the frame steps one box at a time.
+ * The five frame blocks and `[0x8A2]` (1..6): each step is 0x14 frames of
+ * `[0x8AE]` moving one unit per frame (`1000:05F4`/`0613`), so the band
+ * scrolls through the fixed frame windows rather than changing contents.
  *
  * deviation: the original's destination is `A000:0xC000` in a four-plane page
  * the port does not model; the band is drawn as the same 76-row, 320-px layer
@@ -429,6 +434,8 @@ int map_begin(void)
     mapCol = 0u;
     map_boxBottom = 0x130u;                     /* 1000:0518's [0x8AE] */
     map_panel = 0u;                             /* 0 = the entry animation */
+    mapStep = 0;
+    mapStepDir = 0;
     mapPhase = hiscore_qualifies(mapScore()) ? MAP_NAME : MAP_LIST;
     map_bandFill(page);                         /* 1000:12D3 */
     map_redraw();
@@ -491,20 +498,28 @@ int map_tick(const InputState *in)
      * per frame, so the five frame rows unroll; [0x8A2] becomes 1 when it ends
      * and the panel loop (0x05B9) takes over. */
     if (map_panel == 0u) {
+        map_redraw();                 /* 1000:05A5: draw, wait, then SUB */
         if (map_boxBottom > 2u) map_boxBottom--;
         else map_panel = 1u;
-        map_redraw();
         return 1;
     }
-    /* 1000:05B9 / 060C: [0x8A2] selects one of six panels; a step moves the
-     * frame by 0x14 and stops at 1 / 6. */
+    /* 1000:05F4/0613: a panel step is 0x14 frames long, not instant.  Each
+     * frame draws the frame and moves [0x8AE] by one; [0x8A2] changes only
+     * after the 0x14th.  Up (bit 0x01) adds 1, down (bit 0x02) subtracts 1. */
+    if (mapStep > 0) {
+        map_redraw();                 /* 1000:05F8: draw, wait, then ADD/SUB */
+        map_boxBottom = (unsigned)((int)map_boxBottom + mapStepDir);
+        if (--mapStep == 0)
+            map_panel = (unsigned)((int)map_panel + mapStepDir);
+        return 1;
+    }
     if (in->joyBits & 0x01u) {
-        if (map_panel < 6u) { map_panel++; map_boxBottom += 0x14u; }
+        if (map_panel < 6u) { mapStep = 0x14; mapStepDir = 1; }
         map_redraw();
         return 1;
     }
     if (in->joyBits & 0x02u) {
-        if (map_panel > 1u) { map_panel--; map_boxBottom -= 0x14u; }
+        if (map_panel > 1u) { mapStep = 0x14; mapStepDir = -1; }
         map_redraw();
         return 1;
     }

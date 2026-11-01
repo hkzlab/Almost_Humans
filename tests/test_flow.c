@@ -2245,19 +2245,39 @@ int main(int argc, char **argv)
             check(guard >= 0x12Eu && map_boxBottom == 2u && map_panel == 1u,
                   "1000:0518: the frame unrolls from row 0x130 to row 2");
         }
-        /* 1000:060C: a panel step moves the frame by 0x14 and stops at 6 */
+        /* 1000:05F4/0613: a panel step is 0x14 frames of one [0x8AE] unit
+         * each; [0x8A2] changes only after the 0x14th. */
         {
             unsigned before = map_boxBottom;
 
             k.joyBits = 0x01u;
             map_tick(&k);
-            check(map_boxBottom == before + 0x14u && map_panel == 2u,
-                  "1000:060C: an up step moves the frame 0x14 and the panel to 2");
+            check(map_boxBottom == before && map_panel == 1u,
+                  "1000:060C: the step tick only arms the 0x14-frame walk");
             k.joyBits = 0;
-            for (unsigned i = 0; i < 10u; i++) { k.joyBits = 0x01u; map_tick(&k); }
+            for (unsigned i = 0; i < 0x14u; i++) {
+                map_tick(&k);
+                if (i + 1u < 0x14u)
+                    check(map_boxBottom == before + i + 1u && map_panel == 1u,
+                          "1000:0613: the frame moves one unit per tick");
+            }
+            check(map_boxBottom == before + 0x14u && map_panel == 2u,
+                  "1000:060C: after 0x14 frames the panel is 2");
+            for (unsigned p = 2u; p < 6u; p++) {
+                k.joyBits = 0x01u;
+                map_tick(&k);
+                k.joyBits = 0;
+                for (unsigned i = 0; i < 0x14u; i++) map_tick(&k);
+            }
             check(map_panel == 6u && map_boxBottom == 2u + 5u * 0x14u,
                   "the panel stops at 6 with the frame at 2 + 5*0x14");
+            /* down reverses the same 0x14-frame walk */
+            k.joyBits = 0x02u;
+            map_tick(&k);
             k.joyBits = 0;
+            for (unsigned i = 0; i < 0x14u; i++) map_tick(&k);
+            check(map_panel == 5u && map_boxBottom == 2u + 4u * 0x14u,
+                  "1000:05ED: a down step walks the frame back over 0x14 frames");
         }
         /* 1000:07E6: the five frame rows, at rows 46/66/86/106/126 (the
          * 0xE66/0x14A6/0x1AE6/0x2126/0x2766 offsets on an 80-byte stride),
