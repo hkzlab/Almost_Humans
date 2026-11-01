@@ -447,8 +447,12 @@ static int visuals_load(unsigned style)
             animCount = animN;
         }
     }
-    /* the page tables (load_terrain_pages, 1000:505C): field P is the base
-     * mask, the O list marks whole-tile empties, the N entries override. */
+    /* The terrain page table (draw_terrain2 1000:505C) is BUILT at level
+     * load, not loaded: 0xFF for ids >= 0xA9 and the field-O ids, else one
+     * byte per column = the first solid pixel row (via the 0x1FA4
+     * transparency table), then the field-N overrides.  Field P is a
+     * separate, unreachable page block.  The port still copies field P
+     * here - port_deviations.md D-31. */
     if (page.masks && page.items && page.itemsSize <= bdSize) {
         memcpy(pageMask, page.masks, sizeof pageMask);
         for (unsigned k = 0; k < page.oCount; k++) {
