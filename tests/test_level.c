@@ -334,7 +334,10 @@ int main(int argc, char **argv)
              * settles (sum 1153797, nz 26444, was 1149474 / 26396 with the tail
              * unported).  `test_flow` pins D9E8's crash and platform branches
              * directly. */
-            if (sum != 1153797u || nz != 26444u) {
+            /* The BG fill is the 0x80..0xBF bank (load_level_assets' 0x4BE2
+             * transform) and draw_terrain leaves the BG through a zero tile
+             * byte, so every page byte is now part of the composite. */
+            if (sum != 6361499u || nz != 64000u) {
                 fprintf(stderr, "FAIL level 0 page: sum %u nz %u\n",
                         sum, nz);
                 bad = 1;

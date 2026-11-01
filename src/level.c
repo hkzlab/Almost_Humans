@@ -319,6 +319,9 @@ static uint8_t *world;      /* the 512x320 composite (BG + terrain)       */
  * 16-word item records field B offsets into.  Built by the same loader that
  * `load_terrain_pages` (1000:505C) implements. */
 static uint8_t pageMask[256][16];
+/* BD field I, copied by copy_level_row (0x4EE9) into the level palette's
+ * 0x80..0xBF bank: the level background's 64-colour gradient. */
+static uint8_t bdRowBlock[0xC0];
 static uint8_t *pageItems;            /* field B + its record area          */
 static uint32_t pageItemsSize;
 static int pageValid;
@@ -348,6 +351,7 @@ typedef struct BdPage {
     const uint8_t *items;       /* field B: 256 word offsets             */
     uint32_t itemsSize;         /* maxB + 0x20: the record area          */
     const uint8_t *masks;       /* field P: 256 x 16 bytes               */
+    const uint8_t *rowBlock;    /* field I: 0xC0 B (the 0x80..0xBF bank) */
     const uint8_t *nList;       /* field N: count + 17-byte {id, 16}     */
     unsigned nCount;
     const uint8_t *oList;       /* field O: count + 16 id bytes          */
@@ -381,6 +385,8 @@ static uint32_t bd_walk(const uint8_t *b, uint32_t size, unsigned *bgIndex,
     if (si + 2u > size) return 0;
     unsigned n = rd_le16(b + si);
     si += 2u + 3u * n * 0x100u;            /* F + G                        */
+    if (si + 0x200u + 0xC0u > size) return 0;
+    page->rowBlock = b + si + 0x200u;      /* I: copy_level_row's source   */
     si += 0x200u + 0xC0u;                  /* H + I                        */
     if (si + 2u > size) return 0;
     si += rd_le16(b + si) + 8u;            /* J                            */
@@ -431,6 +437,9 @@ static int visuals_load(unsigned style)
     BdPage page;
     memset(&page, 0, sizeof page);
     uint32_t end = bd_walk(bd, bdSize, &bgIdx, &anim, &animN, &page);
+    memset(bdRowBlock, 0, sizeof bdRowBlock);
+    if (end == bdSize && page.rowBlock)
+        memcpy(bdRowBlock, page.rowBlock, sizeof bdRowBlock);   /* 0x4EE9 */
     if (end == bdSize && animN) {
         animTable = malloc(4u * animN);
         if (animTable) {
@@ -475,13 +484,19 @@ static int visuals_load(unsigned style)
             visuals_free();
             return -1;
         }
-        /* the working palette's 64..127 = this file's own palette (the
-         * caller copies its first 64 entries, draw_map_digit 1000:4F3C ->
-         * 202F:0x1593), so the image's pixel values are 0..63 + 0xFF (the
-         * empty fill): bias them into that bank and send 0xFF to black. */
+        /* draw_map_digit 0x4F3C -> 0x1593 puts this file's palette at the
+         * level palette's 0x40..0x7F (the art), and load_level_assets'
+         * 0x4BE2 transform rewrites the image: v (0..0x3F) becomes 0x40+v,
+         * and the 0xFF empty fill becomes 0x80 + (byteOffset / 0x280) mod 64
+         * - the BD row block's 64-colour gradient (the background sky).  The
+         * 0x280 step is the live image's measured boundary (fills of value
+         * 0x80 at 0..0x23F, 0x81 at 0x280..0x4FF ... on DS:0x13A7). */
         for (unsigned i = 0; i < WORLD_W * WORLD_H; i++) {
             uint8_t v = bgImage[i];
-            bgImage[i] = (v == 0xFFu) ? 0u : (uint8_t)(v < 0x40u ? 0x40u + v : v);
+            if (v == 0xFFu)
+                bgImage[i] = (uint8_t)(0x80u + (i / 0x280u) % 64u);
+            else
+                bgImage[i] = (uint8_t)(v < 0x40u ? 0x40u + v : v);
         }
     }
 
@@ -700,6 +715,8 @@ int level_load(unsigned levelId)
         if (atlas) memcpy(levelPal + 32u * 3u, atlas + 0x18, 0x60u);
         if (bgImage)
             memcpy(levelPal + 64u * 3u, bgImage + WORLD_W * WORLD_H, 0xC0u);
+        /* copy_level_row 0x4EE9: the BD row block fills 0x80..0xBF. */
+        memcpy(levelPal + 0x80u * 3u, bdRowBlock, sizeof bdRowBlock);
         {
             const uint8_t *bank = statusbar_palette();
             if (bank) {
@@ -1202,7 +1219,8 @@ unsigned level_tribeMembers(void) { return tribeMembers; }
 /* The in-level per-tick render (draw_map_digit 1000:4F22 + draw_terrain
  * 1000:4FEF): the BG fills the 512x320 screen buffer, draw_terrain blits the
  * map's tiles over it (tile ids >= 0xA9 are empty and let the BG through;
- * every non-zero tile byte gains the +0x20 bank bias, zero stays 0), and the
+ * every non-zero tile byte gains the +0x20 bank bias and a zero byte is not
+ * stored, so the BG shows through the tile's transparent pixels), and the
  * visible 320x200 window reads the buffer's left edge (the CRTC start at
  * scroll 0,0), the status bar, and the working palette 202F:0x14D3 built at
  * load.  The entity / logic systems land with entity.c.  Returns 1 while
@@ -1239,7 +1257,9 @@ static void renderWorld(void)
             for (unsigned y = 0; y < 16u; y++) {
                 for (unsigned x = 0; x < 16u; x++) {
                     uint8_t v = src[y * 16u + x];
-                    dst[y * WORLD_W + x] = v ? (uint8_t)(v + 0x20u) : 0u;
+                    /* draw_terrain 0x502d: a zero tile byte is NOT stored -
+                     * the background (BG art / 0x80 sky) stays. */
+                    if (v) dst[y * WORLD_W + x] = (uint8_t)(v + 0x20u);
                 }
             }
         }

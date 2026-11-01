@@ -323,6 +323,21 @@ int main(int argc, char **argv)
         }
     }
 
+    /* attract_exit 1000:13E9 -> entry LAB_002B: after the attract (also the
+     * one after the ending) the room's setup runs again.  frontend_restart
+     * is that re-entry; without it the stale exit phase hands straight back
+     * to the level.  The room must accept a tick again. */
+    frontend_restart();
+    {
+        InputState rin = idle();
+
+        if (!frontend_tick(&rin) || !frontend_tick(&rin)) {
+            fprintf(stderr, "FAIL the room did not re-enter after the attract "
+                    "exit (frontend_restart)\n");
+            bad = 1;
+        }
+    }
+
     if (frontend_option(FRONTEND_OPT_LEVEL) != 1u ||
         frontend_option(FRONTEND_OPT_GAME) != 1u ||
         frontend_option(FRONTEND_OPT_ANIM) != 1u) {

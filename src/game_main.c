@@ -225,6 +225,11 @@ GameFlow gameflow_step(GameFlow state, const InputState *input)
          * hand-off to the front-end room (the original's entry LAB_002B).
          */
         if (attract_tick(input)) return FLOW_ATTRACT;
+        /* attract_exit 1000:13E9 -> the 13B2 escape -> RET to entry LAB_002B:
+         * the room's setup runs again.  Without this the front-end keeps the
+         * previous exit phase and hands straight back to the party/level
+         * (the ending -> attract -> exit path showed exactly that). */
+        frontend_restart();
         return FLOW_MENU;
 
     case FLOW_MENU:
@@ -468,6 +473,11 @@ int game_main(const OSystem *osys)
                         snprintf(text, sizeof text, "YOUR TRIBE IS EXTINCT!!");
                     textpage_draw(osys->videoPage(0), text, -1, 0u, 0);
                     if (input.lastKey || (input.joyBits & 0x80u)) {
+                        /* scroll_map's exit 0xA0E1 re-renders the page twice:
+                         * the caption box and its text are gone before the
+                         * fades start (the original's grey/gradient frames
+                         * show only the world). */
+                        level_redrawPage();
                         /* 0x33E2/0x33F2: seal the level palette to grey and
                          * load the shipped gradient into 0x80..0xBF. */
                         level_endPalette();

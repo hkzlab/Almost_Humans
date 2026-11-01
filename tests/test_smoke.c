@@ -174,11 +174,11 @@ int main(int argc, char **argv)
         const uint8_t *page = osys_null_page(0);
         unsigned nz = 0;
         for (unsigned i = 0; i < 58880u; i++) if (page[i]) nz++;
-        /* 27129, not 27058: the type-3 rows' tail (1000:D9E8) is ported now,
-         * so the level's type-3 placed record settles during the start chain
-         * (`test_level`'s pin carries the same note). */
-        if (nz != 27129u) {
-            fprintf(stderr, "FAIL page: the level render nz %u, want 27129\n", nz);
+        /* the BG now shows through the tiles' zero bytes (draw_terrain
+         * 0x502d skips them) and its 0xFF fill is the 0x80..0xBF bank, so the
+         * whole 184-row window is populated. */
+        if (nz != 58880u) {
+            fprintf(stderr, "FAIL page: the level render nz %u, want 58880\n", nz);
             bad = 1;
         }
     }
