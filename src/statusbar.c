@@ -40,7 +40,9 @@
  * The line-compare reveal ([0x5B0A] 0xC9→0x98, one per tick) is ported:
  * `barSplit` offsets the band, marks and action row; the time-up dialog
  * ([0x5E44] → the input_dispatch_loop pause branch) is menu_openTimeUp /
- * menu_tick.
+ * menu_tick.  draw_level_text (0x342B) parks [0x5B0A] at 0xC9 for the level
+ * end, which the port models as `statusbar_hide` (no composition at all,
+ * since the bar is a display overlay there and the page shows the world).
  */
 #include "game.h"
 #include <stdlib.h>
@@ -62,6 +64,11 @@ static uint8_t *panel4;       /* LBM\PANEL4.BIT (the art + the palette)   */
 static uint8_t *icons3;       /* APL\ICONS3.SPR: 12 x 16x24 (0x180 each)  */
 
 static int active;            /* [0x5B12]: the bar's ticking gate         */
+/* The bar is a display overlay in the original (CRTC line compare); the
+ * port composes it into the page, so [0x5B0A] beyond the screen has to mean
+ * "do not compose".  draw_level_text (0x342B) parks it at 0xC9 for the level
+ * end, and blit_bitmap_planes re-renders the world over those rows. */
+static int barHidden;
 static int timeUp;            /* [0x5E44]: the countdown reached zero     */
 
 /* the countdown: values [0x5B19..1B], phases [0x5B1C/1E/20], slides
@@ -399,6 +406,7 @@ void statusbar_tick(void)
     uint8_t *page;
 
     if (!sb_osys) return;
+    if (barHidden) return;             /* 1000:342B: [0x5B0A] = 0xC9, no split */
     if (barSplit > 152u) barSplit--;   /* 1000:331E, one per display period */
     page = sb_osys->videoPage(0);
     if (!strip || !panel4 || !page) return;
@@ -479,6 +487,7 @@ void statusbar_start(uint16_t packedTimeBcd, unsigned tribeMembers,
     }
 
     barSplit = 0xC9u;                  /* 1000:3040: hidden at level start */
+    barHidden = 0;
     cd[0] = m;
     cd[1] = (uint8_t)(s >> 4);
     cd[2] = (uint8_t)(s & 0xFu);
@@ -522,7 +531,15 @@ int statusbar_timeUp(void) { return timeUp; }
 /* [0x5B12]: the ticking gate.  The in-level dialogs clear it (A167's head)
  * and restore it on return; the band keeps drawing while it is clear. */
 void statusbar_setActive(int on) { active = on ? 1 : 0; }
-void statusbar_setSplit(unsigned row) { barSplit = row > 200u ? 200u : row; }
+void statusbar_setSplit(unsigned row)
+{
+    barSplit = row > 200u ? 200u : row;
+    barHidden = 0;                     /* an explicit split re-composes it */
+}
+/* draw_level_text 0x342B: park the split at 0xC9 (off-screen) so the bar is
+ * not composed; the level's ISR hook (0x331E) is already uninstalled, so it
+ * stays hidden. */
+void statusbar_hide(void) { barHidden = 1; barSplit = 0xC9u; }
 unsigned statusbar_split(void) { return barSplit; }
 
 /* The countdown word the save writes at +0x07: minutes << 8 | BCD seconds

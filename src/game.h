@@ -187,7 +187,9 @@ void statusbar_loadParams(const uint8_t *in);
 unsigned statusbar_tribeValue(void);     /* [0x5B25]*10 + [0x5B26] */
 /* [0x5B12]: the ticking gate (the in-level dialogs clear it). */
 void statusbar_setActive(int on);
-void statusbar_setSplit(unsigned row);   /* [0x5B0A], 201..152 reveal */
+void statusbar_setSplit(unsigned row);
+/* the level end's [0x5B0A] = 0xC9 (1000:342B): stop composing the bar */
+void statusbar_hide(void);   /* [0x5B0A], 201..152 reveal */
 unsigned statusbar_split(void);
 /* [0x5B56] (1..6): the current ACTION program — draws both the program and
  * the action row's group.  object.c owns it; the bar follows. */

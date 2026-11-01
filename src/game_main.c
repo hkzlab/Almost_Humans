@@ -515,6 +515,11 @@ int game_main(const OSystem *osys)
                      * the play loop is over; [0x138E] keeps its outcome */
                     endPageUp = 1;
                     statusbar_setActive(0);
+                    /* draw_level_text 0x342B: [0x5B0A] = 0xC9 + crtc_set_scroll,
+                     * so the bar's split is off-screen and the page shows the
+                     * world behind it; check_highscore then draws the card
+                     * over that page without the bar's 0xC0 bank showing. */
+                    statusbar_hide();
                 }
                 /* scan_id_list (1000:386E) runs after update_world and before
                  * the pending-event table; ESC opens the pause menu there. */

@@ -286,6 +286,30 @@ int main(int argc, char **argv)
             bad = 1;
         }
     }
+    /* 1000:342B draw_level_text: [0x5B0A] = 0xC9 and crtc_set_scroll park the
+     * split off-screen, so the bar is not composed over the world the end
+     * page re-renders (its 0xC0 bank would otherwise show through the score
+     * card's palette). */
+    {
+        uint8_t *pg2 = (uint8_t *)osys_null_page(0);
+        unsigned nz = 0;
+
+        memset(pg2, 0x5A, 320u * 200u);
+        statusbar_hide();
+        if (statusbar_split() != 0xC9u) {
+            fprintf(stderr, "FAIL 1000:342B: split %u, want 0xC9\n",
+                    statusbar_split());
+            bad = 1;
+        }
+        statusbar_tick();
+        for (unsigned i = 0; i < 320u * 200u; i++)
+            if (pg2[i] != 0x5A) nz++;
+        if (nz != 0u) {
+            fprintf(stderr, "FAIL 1000:342B: the hidden bar wrote %u bytes\n", nz);
+            bad = 1;
+        }
+    }
+
     /* the band follows the split: at [0x5B0A]=160 the bar starts at row 159
      * (the tick decrements first), and row 158 is still the world. */
     {
