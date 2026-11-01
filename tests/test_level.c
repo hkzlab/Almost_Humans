@@ -336,13 +336,33 @@ int main(int argc, char **argv)
              * directly. */
             /* The BG fill is the 0x80..0xBF bank (load_level_assets' 0x4BE2
              * transform) and draw_terrain leaves the BG through a zero tile
-             * byte, so every page byte is now part of the composite. */
-            if (sum != 6004378u || nz != 64000u) {
+             * byte, so every page byte is now part of the composite.  The
+             * sum moved when the 0x92A0 page table was built correctly
+             * (draw_terrain2 1000:505C): the placed records now settle and
+             * walk on the real heights. */
+            if (sum != 6002975u || nz != 64000u) {
                 fprintf(stderr, "FAIL level 0 page: sum %u nz %u\n",
                         sum, nz);
                 bad = 1;
             }
 
+            /* The terrain page table (draw_terrain2 1000:505C) is built
+             * from the atlas and the J block's second opacity mask.  This
+             * FNV-1a is the live original's 0x92A0 for level 0's style 3
+             * (read from DOSBox, DS:0x92A0, 2026-11-01) - byte-exact. */
+            {
+                uint32_t h = 2166136261u;
+
+                for (unsigned id = 0; id < 256u; id++)
+                    for (unsigned c = 0; c < 16u; c++) {
+                        h ^= level_pageByte(id, c);
+                        h *= 16777619u;
+                    }
+                if (h != 0x26a3598fu) {
+                    fprintf(stderr, "FAIL the 0x92A0 page table: %08x\n", h);
+                    bad = 1;
+                }
+            }
             for (unsigned i = 0; i < 200u && palette_fadeActive(); i++)
                 palette_tick();                 /* level_fade_in */
             const uint8_t *pal = osys_null_palette();
@@ -372,6 +392,37 @@ int main(int argc, char **argv)
                     }
             }
             free(sp); free(bs); free(bg); free(p4);
+
+            /* ... and the acting record actually walks: with the old field-P
+             * table the settle judged it unsupported (type 3, y looping
+             * 8..26) and no direction moved it (D-31).  The level palette is
+             * checked above first: the walk's ticks advance BD3's palette
+             * rotation (entries 0x71..0x74, every 4th tick). */
+            {
+                InputState in;
+                uint8_t *m = object_slot(object_actionEntity());
+                int x0 = (int)(int16_t)(m[0] | (m[1] << 8));
+
+                memset(&in, 0, sizeof in);
+                in.joyBits = 0x08u;                 /* right */
+                for (unsigned t = 0; t < 6u; t++) {
+                    level_noteInput(&in);
+                    level_tick();
+                    palette_tick();
+                }
+                {
+                    int x1 = (int)(int16_t)(m[0] | (m[1] << 8));
+                    unsigned ty = (unsigned)(m[8] | (m[9] << 8));
+
+                    if (x1 < x0 + 4 || ty > 2u) {
+                        fprintf(stderr, "FAIL the record did not walk: "
+                                "x %d -> %d, type %u\n", x0, x1, ty);
+                        bad = 1;
+                    }
+                }
+                memset(&in, 0, sizeof in);
+                level_noteInput(&in);
+            }
 
             /* 1000:3DC0's view origin: the compose reads the world at
              * [0x1AEA]/[0x1AEC], so a scrolled frame is the previous one

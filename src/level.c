@@ -319,6 +319,7 @@ static uint8_t *world;      /* the 512x320 composite (BG + terrain)       */
  * 16-word item records field B offsets into.  Built by the same loader that
  * `load_terrain_pages` (1000:505C) implements. */
 static uint8_t pageMask[256][16];
+static uint8_t pageOpacity[32];    /* 0x1FA4: the 32-colour opacity flags */
 /* BD field I, copied by copy_level_row (0x4EE9) into the level palette's
  * 0x80..0xBF bank: the level background's 64-colour gradient. */
 static uint8_t bdRowBlock[0xC0];
@@ -350,7 +351,7 @@ static void visuals_free(void)
 typedef struct BdPage {
     const uint8_t *items;       /* field B: 256 word offsets             */
     uint32_t itemsSize;         /* maxB + 0x20: the record area          */
-    const uint8_t *masks;       /* field P: 256 x 16 bytes               */
+    const uint8_t *jBytes;      /* field J: the 8 bytes at 0x1E98        */
     const uint8_t *rowBlock;    /* field I: 0xC0 B (the 0x80..0xBF bank) */
     const uint8_t *nList;       /* field N: count + 17-byte {id, 16}     */
     unsigned nCount;
@@ -389,7 +390,12 @@ static uint32_t bd_walk(const uint8_t *b, uint32_t size, unsigned *bgIndex,
     page->rowBlock = b + si + 0x200u;      /* I: copy_level_row's source   */
     si += 0x200u + 0xC0u;                  /* H + I                        */
     if (si + 2u > size) return 0;
-    si += rd_le16(b + si) + 8u;            /* J                            */
+    {
+        uint32_t skip = rd_le16(b + si);
+        if (si + skip + 8u > size) return 0;
+        page->jBytes = b + si + skip;      /* J: the 8 bytes at 0x1E98     */
+        si += skip + 8u;
+    }
     if (si + 4u > size) return 0;
     kBytes[0] = b[si]; kBytes[1] = b[si + 1];  /* K: [0x6F20] = two tile ids */
     kBytes[2] = b[si + 2]; kBytes[3] = b[si + 3]; /* K2: [0x6F0B]            */
@@ -414,10 +420,54 @@ static uint32_t bd_walk(const uint8_t *b, uint32_t size, unsigned *bgIndex,
     page->oCount = n;
     si += 1u + n;                          /* O                            */
     if (si + 0x1000u > size) return 0;
-    page->masks = b + si;                  /* P: 256 x 16                  */
-    si += 0x1000u;                         /* P                            */
+    si += 0x1000u;                         /* P (unreachable page block)   */
     if (si + 2u > size) return 0;
     return si + 2u;                        /* Q                            */
+}
+
+/* 1000:5137: expand four mask bytes into 32 opacity flags, bit 0 first. */
+static void page_mask_build(const uint8_t *four)
+{
+    unsigned bit = 0;
+
+    memset(pageOpacity, 0, sizeof pageOpacity);
+    for (unsigned b = 0; b < 4u; b++)
+        for (unsigned k = 0; k < 8u; k++)
+            pageOpacity[bit++] = (uint8_t)((four[b] >> k) & 1u ? 0xFFu : 0u);
+}
+
+/* draw_terrain2 (1000:505C): build the 256x16 table at 0x92A0 from the tile
+ * atlas.  `page->jBytes + 4` is the second four-byte opacity mask (the first
+ * four drive draw_objects' item records, 1000:558B).  ids > 0xA8 and the
+ * field-O ids are wholly solid; every other column holds the row of its
+ * first opaque pixel (0xFF when the column is empty); the field-N records
+ * then overwrite the 16 bytes. */
+static void page_table_build(const BdPage *page)
+{
+    memset(pageMask, 0xFF, sizeof pageMask);
+    if (!atlas || !page->jBytes) return;
+    page_mask_build(page->jBytes + 4u);
+    for (unsigned id = 0; id <= 0xA8u; id++) {
+        int blocked = 0;
+
+        for (unsigned k = 0; k < page->oCount; k++)
+            if (page->oList[1u + k] == id) { blocked = 1; break; }
+        if (blocked) continue;
+        for (unsigned col = 0; col < 16u; col++) {
+            const uint8_t *tile = atlas + 0x400u + id * 0x100u;
+
+            for (unsigned row = 0; row < 16u; row++) {
+                if (pageOpacity[tile[row * 16u + col]]) {
+                    pageMask[id][col] = (uint8_t)row;
+                    break;
+                }
+            }
+        }
+    }
+    for (unsigned k = 0; k < page->nCount; k++) {
+        const uint8_t *e = page->nList + 1u + 17u * k;
+        memcpy(pageMask[e[0]], e + 1u, 16u);
+    }
 }
 
 /* draw_map_digit (1000:4F22) + the BD walk: the style's defs, atlas and
@@ -447,22 +497,9 @@ static int visuals_load(unsigned style)
             animCount = animN;
         }
     }
-    /* The terrain page table (draw_terrain2 1000:505C) is BUILT at level
-     * load, not loaded: 0xFF for ids >= 0xA9 and the field-O ids, else one
-     * byte per column = the first solid pixel row (via the 0x1FA4
-     * transparency table), then the field-N overrides.  Field P is a
-     * separate, unreachable page block.  The port still copies field P
-     * here - port_deviations.md D-31. */
-    if (page.masks && page.items && page.itemsSize <= bdSize) {
-        memcpy(pageMask, page.masks, sizeof pageMask);
-        for (unsigned k = 0; k < page.oCount; k++) {
-            unsigned id = page.oList[1u + k];
-            memset(pageMask[id], 0xFF, 16u);
-        }
-        for (unsigned k = 0; k < page.nCount; k++) {
-            const uint8_t *e = page.nList + 1u + 17u * k;
-            memcpy(pageMask[e[0]], e + 1u, 16u);
-        }
+    /* The terrain page table (draw_terrain2 1000:505C) is built from the
+     * tile atlas once that has loaded - page_table_build below. */
+    if (page.items && page.itemsSize <= bdSize) {
         free(pageItems);
         pageItems = malloc(page.itemsSize);
         if (pageItems) {
@@ -471,15 +508,19 @@ static int visuals_load(unsigned style)
             pageValid = 1;
         }
     }
-    free(bd);
-    if (end != bdSize) return -1;
+    if (end != bdSize) { free(bd); return -1; }
 
     snprintf(name, sizeof name, "LEVELS\\BS%u.BLK", style);
     atlas = res_loadChunk(name, &bdSize, &chk);
     if (!atlas || bdSize != 0x400u + ATLAS_TILES * 0x100u) {
+        free(bd);
         visuals_free();
         return -1;
     }
+    /* the page table is built from the atlas while the BD image (J/O/N)
+     * is still alive; the pointers in `page` point into it. */
+    page_table_build(&page);
+    free(bd);
 
     if (bgIdx != 0u) {
         snprintf(name, sizeof name, "BACKS\\BG%u.RAW", bgIdx);
@@ -492,16 +533,14 @@ static int visuals_load(unsigned style)
          * level palette's 0x40..0x7F (the art), and load_level_assets'
          * 0x4BE2 transform rewrites the image: v (0..0x3F) becomes 0x40+v,
          * and the 0xFF empty fill becomes the BD row block's 64-colour
-         * gradient.  The level-end fade frames put the gradient's entry
-         * 0x80..0xBF once over the world's height: row 30 shows entry 7,
-         * row 60 entry 12, row 120 entry 25 (the 0x1413 ramp, sampled from
-         * the live fade), i.e. 0x80 + row * 64 / WORLD_H - one gradient over
-         * the screen, no repeat and no mid-row seam. */
+         * gradient: load_level_assets' 0x4BE2 loop walks the image in 64
+         * chunks of 0xA00 bytes and uses 0x80 + the chunk as the fill index,
+         * so the entry steps every 5 rows of the 512-wide image - exactly
+         * one ramp over the 320-row world (0x80 + i / 0xA00). */
         for (unsigned i = 0; i < WORLD_W * WORLD_H; i++) {
             uint8_t v = bgImage[i];
             if (v == 0xFFu)
-                bgImage[i] = (uint8_t)(0x80u +
-                    ((i / WORLD_W) * 64u / WORLD_H) % 64u);
+                bgImage[i] = (uint8_t)(0x80u + (i / 0xA00u) % 64u);
             else
                 bgImage[i] = (uint8_t)(v < 0x40u ? 0x40u + v : v);
         }

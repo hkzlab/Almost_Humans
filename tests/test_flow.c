@@ -576,10 +576,13 @@ int main(int argc, char **argv)
         }
 
         /* op 3 (0xECFE) with its page gate: level 1's cells (22,1) and (23,1)
-         * hold ids 0x1E/0x1F (free) while (24,1) is a wall (0x00), so a carrier
-         * on the first two enters the open state and one on the third does not */
+         * hold ids 0x1E/0x1F (free) while (18,3) is free and its right
+         * neighbour (19,3) is a wall (0x07), so a carrier on the first two
+         * enters the open state and one before the wall does not.  "free" is
+         * the 0x92A0 row's 16 negative bytes (`1000:F123`), built from the
+         * atlas (1000:505C) - not the old field-P table. */
         check(level_pageFree(0x1Eu) == 1 && level_pageFree(0x1Fu) == 1 &&
-              level_pageFree(0x00u) == 0 && level_pageFree(0xB8u) == 0,
+              level_pageFree(0x07u) == 0 && level_pageFree(0xB8u) == 0,
               "the page gate: free tiles vs walls (and 0xB8, an item tile)");
         {
             uint8_t *mv;
@@ -595,13 +598,13 @@ int main(int argc, char **argv)
             check((mv[4] | (mv[5] << 8)) == 0x008Cu &&
                   (mv[8] | (mv[9] << 8)) == 0x0012u,
                   "op 3 moves a carrier on open ground (0x8C/0x12)");
-            /* one cell right: (23,1) is free but its neighbour (24,1) is not */
+            /* (18,3) is free but its right neighbour (19,3) is a wall */
             object_init();
             object_actionSetProgram(1u);
             object_actionSetCursor(5u);
             mv = object_slot(0);
-            mv[0] = (uint8_t)(23u * 16u); mv[1] = (uint8_t)((23u * 16u) >> 8);
-            mv[2] = (uint8_t)(1u * 16u); mv[3] = (uint8_t)((1u * 16u) >> 8);
+            mv[0] = (uint8_t)(18u * 16u); mv[1] = (uint8_t)((18u * 16u) >> 8);
+            mv[2] = (uint8_t)(3u * 16u); mv[3] = (uint8_t)((3u * 16u) >> 8);
             mv[4] = 0x10; mv[6] = 0; mv[7] = 1u;
             mv[8] = 0; mv[9] = 0;
             object_actionRun();
