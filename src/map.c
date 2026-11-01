@@ -21,9 +21,10 @@
  * 0x20/0x82/0x102, pitch 0x14 from base 0; header at 0xA0/0x14), the
  * qualifying total sees the seven-line congratulation page before the ring,
  * and the name screen has no `NAME:` line.  The band's destination is still
- * the port's page origin (port_deviations.md D-12), and the transition's
- * fades/rectangles are D-26.  The six `[0x8A2]` positions are not content
- * panels: they are 0x14-frame scroll steps of the same band.
+ * the port's page origin (port_deviations.md D-12).  The name-entry
+ * transition follows 1000:028C..030A: five palette fades, the HIGH.BIT
+ * re-copy and the two 1000:1251 outlines.  The six `[0x8A2]` positions are
+ * not content panels: they are 0x14-frame scroll steps of the same band.
  *
  * Entry state: entry 0x151A sets [0xF7E]=0 and calls draw_status_indicator
  * (the disc-0 probe) before menu_loop, so the asset loads from disc 0.
@@ -37,7 +38,7 @@
 #define NAME_MAX 13u
 #define GRID_CELLS 30u
 
-enum { MAP_CONGRATS, MAP_NAME, MAP_LIST, MAP_EXIT };
+enum { MAP_CONGRATS, MAP_NAME_FADE, MAP_NAME, MAP_LIST, MAP_EXIT };
 
 /* 1000:024B..1000:0266: the qualifying page`s seven lines at DS:0x7BB..0x85C
  * (verbatim, from the image), drawn at x=0xA0, y=0x19 + 0x10*line with
@@ -71,6 +72,11 @@ static int mapStepDir;       /* +1 = up (0x060C), -1 = down (0x05ED) */
  * flip_page_swap (1000:87C7) between.  The port presents once per tick, so
  * the main loop's present after each map_tick is the flip equivalent. */
 static unsigned mapCongratsDraws;
+/* 1000:028C..030A: the name-entry transition's fade/rectangle steps. */
+static unsigned mapTrans;        /* 0..6; 6 = the ring is up */
+static unsigned mapFadeStarts;   /* the palette_build_fade calls made */
+struct MapFade { unsigned first, entries, div, target; };
+static struct MapFade mapFadeLog[8];
 
 static uint32_t mapScore(void)
 {
@@ -398,6 +404,49 @@ void map_drawCongrats(uint8_t *page)
 /* Test/probe seam: 1 after the first draw, 2 after the flip's redraw. */
 unsigned map_congratsDraws(void) { return mapCongratsDraws; }
 
+/* 1000:1251: a rectangle outline in the flat page.  The top edge ORs 0x40,
+ * the left and bottom 0x50, the right 0x40 (1000:1263..1298). */
+void map_drawRect(uint8_t *page, unsigned x, unsigned y, unsigned w, unsigned h)
+{
+    if (!page) return;
+    for (unsigned i = 0; i < w; i++) {
+        if (y < 200u && x + i < 320u) page[y * 320u + x + i] |= 0x40u;
+        if (y + h < 200u && x + i < 320u) page[(y + h) * 320u + x + i] |= 0x50u;
+    }
+    for (unsigned i = 0; i < h; i++) {
+        if (y + i < 200u && x < 320u) page[(y + i) * 320u + x] |= 0x50u;
+        if (y + i < 200u && x + w < 320u) page[(y + i) * 320u + x + w] |= 0x40u;
+    }
+}
+
+unsigned map_transitionStep(void) { return mapTrans; }
+unsigned map_fadeStarts(void) { return mapFadeStarts; }
+int map_fadeAt(unsigned i, unsigned *first, unsigned *entries, unsigned *div,
+               unsigned *target)
+{
+    if (i >= mapFadeStarts || i >= 8u) return 0;
+    if (first) *first = mapFadeLog[i].first;
+    if (entries) *entries = mapFadeLog[i].entries;
+    if (div) *div = mapFadeLog[i].div;
+    if (target) *target = mapFadeLog[i].target;
+    return 1;
+}
+
+/* 1000:0273/028C/029B/02AD/02BF/02F5/0307: palette_build_fade with the
+ * working palette's offset as the target (0x4BBC + N). */
+static void map_buildFade(unsigned first, unsigned entries, unsigned div,
+                          unsigned targetOff)
+{
+    palette_buildFade(first, entries, div, palette_working() + targetOff);
+    if (mapFadeStarts < 8u) {
+        mapFadeLog[mapFadeStarts].first = first;
+        mapFadeLog[mapFadeStarts].entries = entries;
+        mapFadeLog[mapFadeStarts].div = div;
+        mapFadeLog[mapFadeStarts].target = targetOff;
+    }
+    mapFadeStarts++;
+}
+
 void map_drawName(uint8_t *page)
 {
     /* 1000:0CBE: the 30-cell ring from apl\alpha.spr, then the typed name in
@@ -438,8 +487,10 @@ int map_begin(void)
     mapHigh = res_loadChunk("LBM\\HIGH.BIT", &mapHighSize, NULL);
     uint8_t *page = video_page(0);
     map_pageReset(page);
-    if (mapHigh && mapHighSize >= MAP_PAGE + 768u)
+    if (mapHigh && mapHighSize >= MAP_PAGE + 768u) {
+        palette_loadWorking(mapHigh + MAP_PAGE);   /* 1000:01C3/8D24 */
         palette_setDac(mapHigh + MAP_PAGE, 0, 256);
+    }
 
     mapFont = res_loadChunk("APL\\TEXT.SPR", NULL, NULL);
     font_publish(mapFont);
@@ -516,16 +567,61 @@ int map_tick(const InputState *in)
              * tick is flip_page_swap's equivalent in the one-page tick model. */
             mapCongratsDraws++;
             map_redraw();
+            if (mapCongratsDraws == 2u)
+                map_buildFade(0u, 0x40u, 0x28u, 0u);   /* 1000:0273 */
             return 1;
         }
         if (in->lastKey || (in->joyBits & 0x80u)) {
-            uint8_t *page = video_page(0);
-
-            mapPhase = MAP_NAME;   /* 1000:0285: the key wait, then the ring */
-            if (page) map_pageReset(page);   /* 1000:02C5: HIGH.BIT again */
-            map_redraw();
+            mapPhase = MAP_NAME_FADE;   /* 1000:0285: the key wait */
+            mapTrans = 0;
         }
         return 1;
+    }
+    if (mapPhase == MAP_NAME_FADE) {
+        /* The order is 1000:028C..030A: wait the congrats fade, then three
+         * fades, the HIGH.BIT re-copy + two rectangles, then two more fades. */
+        switch (mapTrans) {
+        case 0:
+            if (palette_fadeActive()) return 1;
+            map_buildFade(0x80u, 0x80u, 2u, 0x180u);          /* 1000:028F */
+            mapTrans = 1;
+            return 1;
+        case 1:
+            if (palette_fadeActive()) return 1;
+            map_buildFade(0x20u, 0x20u, 0x1Eu, 0x120u);       /* 1000:02A1 */
+            mapTrans = 2;
+            return 1;
+        case 2:
+            if (palette_fadeActive()) return 1;
+            map_buildFade(0x40u, 0x20u, 2u, 0x120u);          /* 1000:02B3 */
+            mapTrans = 3;
+            return 1;
+        case 3: {
+            uint8_t *page = video_page(0);
+
+            if (palette_fadeActive()) return 1;
+            if (page) {
+                map_pageReset(page);                          /* 1000:02C5 */
+                map_drawRect(page, 0x95u, 9u, 0xFu, 0xFu);    /* 1000:02C8 */
+                map_drawRect(page, 0x60u, 0x45u, 0x77u, 0xFu);/* 1000:02D7 */
+            }
+            map_buildFade(0x40u, 0x20u, 0x1Eu, 0xC0u);        /* 1000:02E9 */
+            mapTrans = 4;
+            return 1;
+        }
+        case 4:
+            if (palette_fadeActive()) return 1;
+            /* 1000:02FB/0307: the last fade starts and the ring goes up
+             * without waiting for it (1000:030A clears [0x5AC8] and falls in). */
+            map_buildFade(0x20u, 0x20u, 0x46u, 0x60u);
+            mapTrans = 6;
+            mapPhase = MAP_NAME;
+            map_redraw();
+            return 1;
+        default:
+            mapPhase = MAP_NAME;
+            return 1;
+        }
     }
 
     if (mapPhase == MAP_NAME) {

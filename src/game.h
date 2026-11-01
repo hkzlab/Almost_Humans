@@ -322,6 +322,12 @@ void     map_drawBoxEdges(uint8_t *page, unsigned row);   /* 1000:07E6    */
 void     map_drawList(uint8_t *page);        /* draw_score_block 1000:0651 */
 void     map_drawCongrats(uint8_t *page);    /* 1000:021E..0266            */
 unsigned map_congratsDraws(void);            /* 1000:0251's two passes     */
+void     map_drawRect(uint8_t *page, unsigned x, unsigned y, unsigned w,
+                      unsigned h);          /* 1000:1251 outline          */
+unsigned map_transitionStep(void);           /* 0..6, 1000:028C..030A      */
+unsigned map_fadeStarts(void);               /* palette_build_fade calls   */
+int      map_fadeAt(unsigned i, unsigned *first, unsigned *entries,
+                    unsigned *div, unsigned *target);
 void     map_drawName(uint8_t *page);        /* 1000:0CBE (ring + typed)   */
 
 /* --- check_highscore's data (1000:41B8..4352) ------------------------- */

@@ -2184,8 +2184,42 @@ int main(int argc, char **argv)
                 check(lit != 0u,
                       "the second pass redraws the page after the flip");
             }
-            k.lastKey = 'Q'; map_tick(&k);   /* dismiss the page */
-            k.lastKey = 0; map_tick(&k);     /* now the name screen waits */
+            /* 1000:028C..030A: the key starts five palette fades, the
+             * HIGH.BIT re-copy and the two rectangles; the ring comes up
+             * after the fifth.  Drive map_tick + palette_tick together. */
+            {
+                unsigned f0 = map_fadeStarts();
+                unsigned guard = 0;
+
+                k.lastKey = 'Q'; map_tick(&k);   /* dismiss the page */
+                k.lastKey = 0;
+                while (map_transitionStep() < 6u && guard++ < 2000u) {
+                    map_tick(&k);
+                    palette_tick();
+                }
+                check(guard < 2000u && map_transitionStep() == 6u,
+                      "1000:028C..030A: the name transition completes");
+                check(map_fadeStarts() - f0 == 5u,
+                      "1000:028C..0307: five palette fades run in order");
+                {
+                    static const unsigned want[5][4] = {
+                        { 0x80u, 0x80u, 0x02u, 0x180u },
+                        { 0x20u, 0x20u, 0x1Eu, 0x120u },
+                        { 0x40u, 0x20u, 0x02u, 0x120u },
+                        { 0x40u, 0x20u, 0x1Eu, 0x0C0u },
+                        { 0x20u, 0x20u, 0x46u, 0x060u },
+                    };
+
+                    for (unsigned i = 0; i < 5u; i++) {
+                        unsigned f = 0, e = 0, d = 0, t = 0;
+
+                        check(map_fadeAt(f0 + i, &f, &e, &d, &t) &&
+                              f == want[i][0] && e == want[i][1] &&
+                              d == want[i][2] && t == want[i][3],
+                              "1000:028C..0307: the fade parameters are the listing's");
+                    }
+                }
+            }
             k.lastKey = 'Q'; map_tick(&k);
             k.lastKey = 'X'; map_tick(&k);
             k.lastKey = 8u;  map_tick(&k);      /* delete */
@@ -2325,6 +2359,25 @@ int main(int argc, char **argv)
             }
         }
 
+        /* 1000:1251: the two rectangle outlines (top 0x40, left/bottom 0x50,
+         * right 0x40) land at the listing's coordinates. */
+        {
+            static uint8_t page[320 * 200];
+
+            memset(page, 0, sizeof page);
+            map_drawRect(page, 0x95u, 9u, 0xFu, 0xFu);
+            map_drawRect(page, 0x60u, 0x45u, 0x77u, 0xFu);
+            check((page[9u * 320u + 0x95u] & 0x40u) != 0u &&
+                  (page[(9u + 0xFu) * 320u + 0x95u] & 0x50u) != 0u &&
+                  (page[9u * 320u + 0x95u + 0xFu] & 0x40u) != 0u &&
+                  (page[20u * 320u + 0x95u] & 0x50u) != 0u,
+                  "1000:1251: the first outline is at (0x95,9) 0xF x 0xF");
+            check((page[0x45u * 320u + 0x60u] & 0x40u) != 0u &&
+                  (page[(0x45u + 0xFu) * 320u + 0x60u] & 0x50u) != 0u &&
+                  (page[0x45u * 320u + 0x60u + 0x77u] & 0x40u) != 0u &&
+                  (page[0x45u * 320u + 0x60u + 0xFu] & 0x50u) != 0u,
+                  "1000:1251: the name outline is at (0x60,0x45) 0x77 x 0xF");
+        }
         /* 1000:0518: the entry animation runs [0x8AE] from 0x130 to 2 - about
          * 0x12E frames - and the panel loop only starts after it. */
         {
