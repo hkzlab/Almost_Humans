@@ -67,6 +67,10 @@ static unsigned mapCol;
 /* 1000:05F4/0613: a panel step is 0x14 frames, one [0x8AE] unit per frame. */
 static int mapStep;          /* frames left in the current step */
 static int mapStepDir;       /* +1 = up (0x060C), -1 = down (0x05ED) */
+/* 1000:0251's MOV CX,2 loop: the congratulation page is drawn twice, with
+ * flip_page_swap (1000:87C7) between.  The port presents once per tick, so
+ * the main loop's present after each map_tick is the flip equivalent. */
+static unsigned mapCongratsDraws;
 
 static uint32_t mapScore(void)
 {
@@ -391,6 +395,9 @@ void map_drawCongrats(uint8_t *page)
                                 0x19u + 0x10u * i, 0x20u);
 }
 
+/* Test/probe seam: 1 after the first draw, 2 after the flip's redraw. */
+unsigned map_congratsDraws(void) { return mapCongratsDraws; }
+
 void map_drawName(uint8_t *page)
 {
     /* 1000:0CBE: the 30-cell ring from apl\alpha.spr, then the typed name in
@@ -462,7 +469,8 @@ int map_begin(void)
      * a qualifying one gets the congratulation page, then the name entry. */
     mapPhase = hiscore_qualifies(mapScore()) ? MAP_CONGRATS : MAP_EXIT;
     map_bandFill(page);                         /* 1000:12D3 */
-    map_redraw();
+    if (mapPhase == MAP_CONGRATS) mapCongratsDraws = 1;
+    map_redraw();                               /* 1000:024B: first pass */
 
     mapUp = 1;
     mapArmed = 0;
@@ -503,6 +511,13 @@ int map_tick(const InputState *in)
         return 0;
     }
     if (mapPhase == MAP_CONGRATS) {
+        if (mapCongratsDraws < 2u) {
+            /* 1000:0251's second iteration; the present at the end of this
+             * tick is flip_page_swap's equivalent in the one-page tick model. */
+            mapCongratsDraws++;
+            map_redraw();
+            return 1;
+        }
         if (in->lastKey || (in->joyBits & 0x80u)) {
             uint8_t *page = video_page(0);
 

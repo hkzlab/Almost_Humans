@@ -320,7 +320,8 @@ extern unsigned map_panel;                   /* [0x8A2]: 1..6              */
 void     map_bandFill(uint8_t *page);        /* 1000:12D3                  */
 void     map_drawBoxEdges(uint8_t *page, unsigned row);   /* 1000:07E6    */
 void     map_drawList(uint8_t *page);        /* draw_score_block 1000:0651 */
-void     map_drawCongrats(uint8_t *page);    /* 1000:021E..0258            */
+void     map_drawCongrats(uint8_t *page);    /* 1000:021E..0266            */
+unsigned map_congratsDraws(void);            /* 1000:0251's two passes     */
 void     map_drawName(uint8_t *page);        /* 1000:0CBE (ring + typed)   */
 
 /* --- check_highscore's data (1000:41B8..4352) ------------------------- */

@@ -2165,6 +2165,25 @@ int main(int argc, char **argv)
                 for (unsigned i = 0; i < sizeof page; i++) if (page[i]) lit++;
                 check(lit != 0u, "the congratulation page draws text");
             }
+            /* 1000:0251 MOV CX,2: the page is drawn twice with a flip between.
+             * In the one-present-per-tick model the flip is the present at the
+             * end of the tick; wipe the page and require the second pass to
+             * restore it before the key wait. */
+            check(map_congratsDraws() == 1u,
+                  "1000:024B: the first congratulation pass is drawn");
+            {
+                uint8_t *pg = (uint8_t *)osys_null_page(0);
+                unsigned lit = 0;
+
+                memset(pg, 0, 320u * 200u);
+                k.lastKey = 0;
+                check(map_tick(&k) == 1, "the flip tick keeps the page up");
+                check(map_congratsDraws() == 2u,
+                      "1000:0251: the second congratulation pass is drawn");
+                for (unsigned i = 0; i < 320u * 200u; i++) if (pg[i]) lit++;
+                check(lit != 0u,
+                      "the second pass redraws the page after the flip");
+            }
             k.lastKey = 'Q'; map_tick(&k);   /* dismiss the page */
             k.lastKey = 0; map_tick(&k);     /* now the name screen waits */
             k.lastKey = 'Q'; map_tick(&k);
