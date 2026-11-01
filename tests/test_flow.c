@@ -1624,26 +1624,59 @@ int main(int argc, char **argv)
               page[185u * 320u + 60u] == 0xE2u,
               "1000:4403: the card is SCORE.BIT read 1 byte per pixel");
     }
+    /* 1000:33E2 draw_level_text's seal: the working palette's first 0x80
+     * entries become grey (77R+151G+28B)>>9 (hash_three_bytes' CH after
+     * SHR CH,1); entries 0x80.. keep their colour.  check_highscore's fade
+     * target is that palette plus the card's 0xC0 bank. */
+    {
+        static uint8_t pal[768];
+        unsigned bad = 0, kept = 0;
+
+        for (unsigned i = 0; i < 256u; i++) {
+            pal[i * 3u + 0] = (uint8_t)(i & 0x3Fu);
+            pal[i * 3u + 1] = (uint8_t)((i * 3u) & 0x3Fu);
+            pal[i * 3u + 2] = (uint8_t)((i * 5u) & 0x3Fu);
+        }
+        palette_loadWorking(pal);
+        palette_greyscale(0u, 0x80u);
+        {
+            const uint8_t *w = palette_working();
+
+            for (unsigned i = 0; i < 0x80u; i++) {
+                unsigned want = (77u * pal[i * 3u] + 151u * pal[i * 3u + 1u] +
+                                 28u * pal[i * 3u + 2u]) >> 9;
+
+                if (w[i * 3u] != want || w[i * 3u + 1u] != want ||
+                    w[i * 3u + 2u] != want) bad++;
+            }
+            for (unsigned i = 0x80u; i < 256u; i++)
+                if (w[i * 3u] == pal[i * 3u] &&
+                    w[i * 3u + 1u] == pal[i * 3u + 1u] &&
+                    w[i * 3u + 2u] == pal[i * 3u + 2u]) kept++;
+        }
+        check(bad == 0u && kept == 0x80u,
+              "1000:33E2: the first 0x80 palette entries seal to grey");
+        palette_loadWorking(pal);
+    }
     {
         InputState k;
         memset(&k, 0, sizeof k);
         k.lastKey = 1;
     /* 8a-digit. 1000:462D's digit law: block `digit*256` of SCORE.SPR, 16 rows
-     * x 4 bytes; the four plane passes reread the same bytes (no INC SI), so
-     * one byte is a 4-px block drawn as 0xC0 | v.  Digit 3's row 0 is
-     * 02 02 02 02 -> four 0xC2 blocks; row 2 is 02 29 2d 0c. */
+     * x 4 bytes per plane pass.  The pass restores DI but NOT SI, so pass p
+     * reads the slot's quarter p and the glyph is a 16x16 chunky image stored
+     * plane-major: pixel 4k+p = src[p*64 + r*4 + k], drawn 0xC0 | v. */
     {
         static uint8_t page[320 * 200];
         static uint8_t page2[320 * 200];
 
         memset(page, 0, sizeof page);
         score_column(page, 3u, 0, 0, 1u);
-        check(page[0 * 320u + 0] == 0xC2u && page[0 * 320u + 3] == 0xC2u &&
-              page[0 * 320u + 4] == 0xC2u,
-              "1000:462D: digit 3's row 0 is four 0xC2 blocks");
-        check(page[2 * 320u + 0] == 0xC2u && page[2 * 320u + 5] == 0xE9u &&
-              page[2 * 320u + 9] == 0xEDu && page[2 * 320u + 12] == 0xCCu,
-              "one byte is a 4-px block (row 2: 02 29 2d 0c)");
+        check(page[0 * 320u + 0] == 0xC2u && page[0 * 320u + 15] == 0xC2u,
+              "1000:462D: digit 3's row 0 is all 0xC2");
+        check(page[2 * 320u + 0] == 0xC2u && page[2 * 320u + 4] == 0xE9u &&
+              page[2 * 320u + 12] == 0xCCu && page[2 * 320u + 3] == 0xC9u,
+              "the glyph is plane-major (row 2: 02 0a 0a 09 ...)");
         /* 1234 in 5 digits is "01234", right to left in 16-px steps */
         memset(page, 0, sizeof page);
         memset(page2, 0, sizeof page2);

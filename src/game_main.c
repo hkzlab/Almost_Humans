@@ -457,6 +457,13 @@ int game_main(const OSystem *osys)
                 if (input.lastKey || (input.joyBits & 0x80u)) {
                     endPageUp = 0;
                     postPending = 1;
+                    /* draw_level_text 0x33E2: scroll_map has returned (the
+                     * key), so seal the working palette's first 0x80 entries
+                     * to grey (hash_three_bytes >> 9).  check_highscore's
+                     * 0x4333 fade targets that palette plus the card's bank,
+                     * so the caption behind the card's transparent zeros is
+                     * the greyscale level background. */
+                    palette_greyscale(0u, 0x80u);
                     scoreUp = score_begin(score_levelScore());
                     if (!scoreUp) {
                         postPending = 0;

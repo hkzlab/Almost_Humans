@@ -399,7 +399,8 @@ static int e2_load(void)
         const uint8_t *pal = palette_working();
         for (unsigned i = 0; i < 64000u; i++) {
             const uint8_t *p = pal + imgBuf[i] * 3u;
-            imgBuf[i] = (uint8_t)((77u * p[0] + 151u * p[1] + 28u * p[2]) >> 8);
+            /* hash_three_bytes' CH = (77R+151G+28B)>>8, then SHR CH,1 */
+            imgBuf[i] = (uint8_t)((77u * p[0] + 151u * p[1] + 28u * p[2]) >> 9);
         }
     }
     blit_planar(imgBuf, pageDraw);  flip_page();

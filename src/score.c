@@ -325,11 +325,12 @@ void score_stampDraw(uint8_t *page, int on)
 /* --- 1000:462D / 1000:4578: the score screen's digit columns ------------
  *
  * `blit_score_block` (0x462D): `SI = digit*256` into SCORE.SPR (ten 0x100-byte
- * slots).  The page address is a 4-pixel group (plane p = pixel 4j+p) and the
- * four Map-Mask passes (`AH = 1,2,4,8`) reread the SAME 16 rows x 4 bytes with
- * no source advance, so one source byte becomes a 4-px block.  `or_region_c0`
- * (0x4278) has already ORed 0xC0 into the sheet, so a block's colour is
- * 0xC0 | v and the glyph is 16 x 16.  `statusbar_segment` (0x4578): a 32-bit
+ * slots).  The page address is a 4-pixel group (plane p = pixel 4j+p).  Each
+ * plane pass reads 16 rows x 4 bytes and pushes/pops only DI (and CX), NOT SI,
+ * so pass p starts 64 bytes on and reads the slot's quarter p: the glyph is a
+ * 16 x 16 chunky image stored plane-major, pixel 4k+p = src[p*64 + r*4 + k],
+ * drawn as 0xC0 | v (`or_region_c0` 0x4278 biases the sheet).
+ * `statusbar_segment` (0x4578): a 32-bit
  * value from [0x4228]/[0x422A] drawn as DX digits at (AX, BX), right to left
  * in 4-address (16 px) steps; the value is divided by 10000 first, then by 10,
  * and an exhausted value keeps drawing block 0 (zero-padded).
@@ -340,20 +341,19 @@ static void score_digitBlock(uint8_t *page, unsigned digit, int x, int y)
 
     if (!scoreDigits || digit > 9u) return;   /* ten 0x100-byte slots */
     src = scoreDigits + digit * 256u;         /* SI = AX = digit*0x100 */
-    /* 1000:462D: 16 rows x 4 bytes; the four plane passes reread the same
-     * bytes (no INC SI), so one byte is a 4-px block.  The runtime OR of
-     * 0xC0 into the sheet (0x4278) makes the colour 0xC0 | v, opaque. */
+    /* 1000:462D: 16 rows x 4 bytes per plane pass.  The pass pushes/restores
+     * only DI, NOT SI, so pass p starts 64 bytes on and reads the slot's
+     * quarter p: the glyph is a 16x16 chunky image stored plane-major,
+     * pixel 4k+p = src[p*64 + r*4 + k].  The runtime OR of 0xC0 into the
+     * sheet (0x4278) biases the colour, and every byte is stored (opaque). */
     for (unsigned r = 0; r < 16u; r++)
-        for (unsigned j = 0; j < 4u; j++) {
-            uint8_t v = (uint8_t)(src[r * 4u + j] | 0xC0u);
+        for (unsigned px = 0; px < 16u; px++) {
+            uint8_t v = (uint8_t)(src[(px & 3u) * 64u + r * 4u + (px >> 2)] | 0xC0u);
+            int dx = x + (int)px;
+            int dy = y + (int)r;
 
-            for (unsigned k = 0; k < 4u; k++) {
-                int px = x + (int)(j * 4u + k);
-                int py = y + (int)r;
-
-                if (px >= 0 && px < 320 && py >= 0 && py < 200)
-                    page[(unsigned)py * 320u + (unsigned)px] = v;
-            }
+            if (dx >= 0 && dx < 320 && dy >= 0 && dy < 200)
+                page[(unsigned)dy * 320u + (unsigned)dx] = v;
         }
 }
 

@@ -71,6 +71,9 @@ void palette_tick(void);   /* palette_fade_step 1000:8bfd, once per tick  */
  * palette_setDac. */
 void palette_loadWorking(const uint8_t *p6);
 const uint8_t *palette_working(void);   /* the 0x4BBC buffer              */
+/* seal_triples/hash_three_bytes (1000:43C2/43D5): grey the given working
+ * palette entries in place, value (77R+151G+28B) >> 9. */
+void palette_greyscale(unsigned first, unsigned entries);
 /* set_palette_dac (1000:8CEE): an immediate DAC write (the DAC shadow is
  * kept for the next fade's current-colour read). */
 void palette_setDac(const uint8_t *p6, unsigned first, unsigned n);

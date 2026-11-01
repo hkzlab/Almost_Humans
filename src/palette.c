@@ -31,6 +31,23 @@ void palette_loadWorking(const uint8_t *p6)
 
 const uint8_t *palette_working(void) { return working; }
 
+/* seal_triples (1000:43C2) + hash_three_bytes (1000:43D5): turn `entries`
+ * working-palette triples into grey.  The hash is
+ * (77R + 151G + 28B) >> 8 and the tail's SHR CH,1 halves it, so the grey
+ * value is (77R + 151G + 28B) >> 9 (0..31 on 6-bit components); all three
+ * components become it.  draw_level_text (0x33E2) seals 0x80 entries, the
+ * attract's decode_page_in_place (0x15F5) uses the same value per pixel. */
+void palette_greyscale(unsigned first, unsigned entries)
+{
+    for (unsigned i = 0; i < entries; i++) {
+        unsigned at = (first + i) * 3u;
+        unsigned r = working[at], g = working[at + 1u], b = working[at + 2u];
+        unsigned v = (77u * r + 151u * g + 28u * b) >> 9;
+
+        working[at] = working[at + 1u] = working[at + 2u] = (uint8_t)v;
+    }
+}
+
 /* set_palette_dac (1000:8CEE) route: an immediate DAC write that keeps the
  * shadow honest for the next fade's current-colour read. */
 void palette_setDac(const uint8_t *p6, unsigned first, unsigned n)
