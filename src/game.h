@@ -710,6 +710,7 @@ unsigned frontend_cellForProbe(void);   /* [0x4220]: the walk's rail node  */
  * (the same art; GAME OVER / YOUR TRIBE IS TOO SMALL / IN THE RACE / PRESS
  * FIRE, one key/fire exit). */
 void party_intro_setGameOver(int on);
+unsigned party_intro_score(void);            /* g_score [0x592] */
 void party_intro_setValues(unsigned level, unsigned need, unsigned members,
                            unsigned score, const char *tribe);
 void party_intro_seedScripts(const uint8_t *bytes, unsigned len);
@@ -838,6 +839,7 @@ unsigned gameflow_levelForProbe(void);
 /* The pause menu's five 0-based results (dispatch_by_result_a167 1000:38EA);
  * returns the flow the action leaves, sets *quit for QUIT THIS GAME. */
 GameFlow gameflow_pauseAction(int choice, int *quit);
+unsigned gameflow_partyScore(void);          /* the briefing's [0x592] low word */
 /* scan_id_list 1000:386E event 4: ESC opens the 0x5BBC pause block. */
 int      gameflow_pauseTrigger(const InputState *in);
 /* The time-up dialog's 3 results (1000:34F9's inline dispatch): 0 restart

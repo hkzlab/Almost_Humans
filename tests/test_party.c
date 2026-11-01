@@ -101,6 +101,25 @@ int main(int argc, char **argv)
     if (vgapage)
         printf("PARTY: video_page(0) path diffs: %ld\n", bankdiffs);
 
+    /* D-18: the briefing's score is the live [0x592] low word, not 0. */
+    score_setTotal(0x1234u, 1u);
+    party_intro_setValues(1u, 4u, 12u, gameflow_partyScore(), "DARWIN");
+    if (party_intro_score() != 0x1234u) {
+        printf("PARTY: FAIL the briefing score is %u, want 0x1234\n",
+               party_intro_score());
+        free(bit); free(page);
+        return 1;
+    }
+    {
+        char out[8];
+        party_intro_formatScore(party_intro_score(), out);
+        if (strcmp(out, "1234") != 0) {
+            printf("PARTY: FAIL the score digits are '%s'\n", out);
+            free(bit); free(page);
+            return 1;
+        }
+    }
+
     free(bit); free(page);
     printf("PARTY: PASS\n");
     return 0;

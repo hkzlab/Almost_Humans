@@ -149,6 +149,19 @@ int main(int argc, char **argv)
         }
     }
 
+    /* D-18: the briefing's score is the live [0x592] low word. */
+    {
+        char out[8];
+
+        score_setTotal(1234u, 1u);
+        party_intro_setValues(1u, 4u, 12u, gameflow_partyScore(), "DARWIN");
+        party_intro_formatScore(party_intro_score(), out);
+        if (party_intro_score() != 1234u || strcmp(out, "1234") != 0) {
+            fprintf(stderr, "FAIL D-18: briefing score/digits ('%s')\n", out);
+            bad = 1;
+        }
+    }
+
     /* D-15: scan_id_list (1000:386E) binds ESC (scancode 0x01) to event 4,
      * whose handler (1000:38EA) opens the 202F:0x5BBC block.  The port's
      * lastKey is ASCII 0x1B for ESC. */

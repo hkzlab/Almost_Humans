@@ -546,6 +546,7 @@ void party_intro_setValues(unsigned level, unsigned need, unsigned members,
 }
 
 void party_intro_setGameOver(int on) { gameOverMode = on ? 1 : 0; }
+unsigned party_intro_score(void) { return g_score; }
 
 static uint8_t *load(const char *name)
 {

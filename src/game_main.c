@@ -106,6 +106,10 @@ static void level_restart(void)
     partyPlaying = 0;
 }
 
+/* The briefing's YOUR SCORE IS value: the low word of [0x592]/[0x594],
+ * which score_prepare maintains across levels. */
+unsigned gameflow_partyScore(void) { return score_totalLo(); }
+
 /* dispatch_by_result_a167 (1000:38EA): the pause menu's five 0-based
  * results.  Returns the flow the action leaves (FLOW_MENU for RESTART THIS
  * GAME) and sets *quit for QUIT THIS GAME. */
@@ -389,7 +393,8 @@ int game_main(const OSystem *osys)
                     party_intro_setGameOver(levelSkipped);
                     party_intro_setValues(level_current + 1u,
                                           level_required(),
-                                          level_tribeMembers(), 0u, "DARWIN");
+                                          level_tribeMembers(),
+                                          gameflow_partyScore(), "DARWIN");
                     partyPlaying = party_intro_start();
                 }
             }
