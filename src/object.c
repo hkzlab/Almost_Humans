@@ -2007,6 +2007,75 @@ static void objWalkTorch(uint8_t *r)
     wr16(r, 4u, (uint16_t)f);
 }
 
+/* DS:0x6EC3, 16 bytes: object_find_overlap's "this type does not take part"
+ * flag.  Types 0..2 and 8 are 0 (they *do*), the rest 1.  Types >= 0x10 read
+ * past the table in the original; the port treats them as "no". */
+static const uint8_t objTypeOverlaps[16] = {
+    0, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1
+};
+/* 0x6847: the per-record settled position (4 bytes per record). */
+static uint16_t objSettled[OBJ_SLOTS][2];
+
+/* 0x6531: cmd 9's mode flag (zero in the image; the port keeps it too). */
+static uint8_t objMarkerMode;
+
+/* 0xC444 (behaviour 9): the marker use.  0xC541 first animates the map cell
+ * the record points at (+8) every 4th frame; then the tile-aligned record
+ * position is matched against the eight fixed slots, and a free slot hands
+ * the record over (x -= 8, frame 0x28, +8 = 0x16, +0xA = 5, effect 4). */
+static void objWalkMarker(uint8_t *r)
+{
+    const uint8_t *map = level_map();
+    unsigned i;
+
+    if ((objFrame & 3u) == 0u) {                 /* 1000:C541 */
+        unsigned f = rd16(r, 4u);
+
+        if (objMarkerMode) {
+            if (f == 0x26u) { wr16(r, 4u, f + 1u); return; }
+            r[6] |= 0x80u;
+            if (map && rd16(r, 8u) < 640u) ((uint8_t *)map)[rd16(r, 8u)] = 0u;
+            return;
+        }
+        if (r[6] & 0x80u) { r[6] = 0u; return; }
+        if (f == 0x26u) return;
+        wr16(r, 4u, f - 1u);
+        if (map && rd16(r, 8u) < 640u) ((uint8_t *)map)[rd16(r, 8u)] = 0xBBu;
+        return;
+    }
+    if (r[6] & 0x80u) return;
+    {
+        unsigned mx = (unsigned)(rd16(r, 0u) + 8u) & ~0xFu;
+        unsigned my = (unsigned)(rd16(r, 2u) + 8u) & ~0xFu;
+
+        for (i = 0; i < OBJ_STATIC; i++) {
+            uint8_t *slot = objArray + i * OBJ_STRIDE;
+            unsigned sx, sy, type;
+
+            sx = (unsigned)(rd16(slot, 0u) + 8u) & ~0xFu;
+            if (rd16(slot, 8u) == 0x0Fu) sx = (unsigned)(rd16(slot, 0u) + 0x10u) & ~0xFu;
+            sy = (unsigned)(rd16(slot, 2u) + 0x0Cu) & ~0xFu;
+            if (sx != mx || sy != my) continue;
+            if (slot[6] & 0x80u) continue;
+            type = rd16(slot, 8u);
+            if (type < 16u && objTypeOverlaps[type]) continue;
+            object_stackScanDissolve(i);          /* 1000:F453, DX = 5 */
+            wr16(r, 0u, (uint16_t)(rd16(r, 0u) - 8u));
+            wr16(r, 4u, 0x0028u);
+            wr16(r, 8u, 0x0016u);
+            wr16(r, 0xAu, 5u);
+            objDriverCall(4);                     /* 1000:83B7, AX = 4 */
+            {
+                unsigned gx = (unsigned)(objSettled[i][0] + 8u) & ~0xFu;
+                unsigned gy = (unsigned)(objSettled[i][1] + 0x0Cu) & ~0xFu;
+
+                if (gx == mx && gy == my) objSettled[i][0] += 0x10u;
+            }
+            return;
+        }
+    }
+}
+
 void object_updateList(void)
 {
     for (unsigned i = OBJ_LIVE0 + 1u; i <= objLiveCount; i++) {
@@ -2018,6 +2087,7 @@ void object_updateList(void)
         case 2u: objWalkWander(r); break;
         case 3u: objWalkSeq(r); break;
         case 6u: objWalkTorch(r); break;
+        case 9u: objWalkMarker(r); break;
         default: break;
         }
     }
@@ -2102,12 +2172,6 @@ static const uint8_t objBehCollideProg[8] = { 0xFF, 0xFF, 0xFF, 0xFF, 6, 2, 4, 3
 static const uint8_t objBehClassIdx[8] = { 0xFF, 0xFF, 0xFF, 0xFF, 0, 1, 1, 1 };
 static const int8_t  objThrowDx[8] = { 8, -8, 0, 0, 0, 0, 0, 0 };
 static const uint8_t objDropFrame[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0x9C, 0x96 };
-/* DS:0x6EC3, 16 bytes: object_find_overlap's "this type does not take part"
- * flag.  Types 0..2 and 8 are 0 (they *do*), the rest 1.  Types >= 0x10 read
- * past the table in the original; the port treats them as "no". */
-static const uint8_t objTypeOverlaps[16] = {
-    0, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1
-};
 
 unsigned object_actionEntity(void) { return objEntity; }
 
@@ -3179,8 +3243,6 @@ static const uint8_t objFootB[32] = {
     0x50, 0x50, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
-/* 0x6847: the per-record settled position (4 bytes per record). */
-static uint16_t objSettled[OBJ_SLOTS][2];
 /* [0x4220] / [0x4222]: the settle's footing, read by 1000:DF2C. */
 static uint16_t objFootX, objFootY;
 
