@@ -714,13 +714,13 @@ int game_main(const OSystem *osys)
                  * command dispatch still sees the fire half of the row. */
                 int pressed = rawFire && !actionLatched;
 
+                /* the original's order (1000:34B5 -> 0x34BD): update_world
+                 * runs first - the record command dispatch inside it sees the
+                 * press (the type row's fire half selects the turn) - and
+                 * pause_toggle runs after it. */
+                level_tick();          /* 1000:34B5 update_world */
                 if (!menu_active() && pressed && !(input.joyBits & 0x0Fu))
-                    object_actionRun();
-                level_tick();          /* the party done: the level runs */
-                /* 1000:3538 (pause_toggle, after update_world at 0x34B5):
-                 * this press is consumed - [0x13A4] stays set until the
-                 * fire key is released (poll_input 0x85A9). */
-                if (pressed) object_setActionLatched(1);
+                    object_actionRun();   /* 1000:34BD pause_toggle */
                 actionLatched = rawFire;
                 /* level_tick ends with the [0x1979] dispatch (1000:382D and
                  * the event-4 charge loop), so it runs once per frame */

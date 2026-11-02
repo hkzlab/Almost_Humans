@@ -5162,6 +5162,13 @@ void object_actionRun(void)
         objPending = 0u;
         return;
     }
+    /* 1000:3523/0x3530: pause_toggle returns while a sequence owns the
+     * record ([0x6F1D] != 0), so the held frames keep reaching the type row's
+     * fire half (the turn); it sets [0x13A4] for the one action per press
+     * (0x3538), which poll_input releases on the following frame. */
+    if (objLat) return;
+    object_setActionLatched(1);
+
     uint8_t *actor = objArray + objEntity * OBJ_STRIDE;
     unsigned op = p[p[1] + 1u];
 

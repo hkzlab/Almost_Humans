@@ -2091,9 +2091,11 @@ int main(int argc, char **argv)
             object_actionRun();                  /* op 4: the pose */
             check((unsigned)(actor[4] | (actor[5] << 8)) == 0x00BEu,
                   "the throw pose is up before the release");
-            /* the press frame: the fire half selects the turn */
+            /* the press frame: the fire half selects the turn; pause_toggle
+             * is gated on [0x6F1D], so a posed record keeps [0x13A4] clear
+             * (live trace: act 00, joy 80 while Z is held) */
+            object_setActionLatched(0);
             object_commandRun(actor, 0x80u);
-            object_setActionLatched(1);          /* 1000:3538 pause_toggle */
             check((unsigned)(actor[0xEu] | (actor[0xFu] << 8)) == 4u,
                   "the fire press starts the aim (+0xE = 4)");
             /* the next frame: the fire is masked, the idle form releases */
@@ -2168,6 +2170,7 @@ int main(int argc, char **argv)
             object_actionRun();
             for (i = 0; i < 60u; i++) statusbar_tick();   /* split -> 152 */
             split = statusbar_split();
+            object_setActionLatched(0);          /* poll_input 0x85A9 */
             object_commandRun(actor, 0x02u);     /* DOWN: the turn */
             check((unsigned)(actor[0xEu] | (actor[0xFu] << 8)) == 4u,
                   "the turn starts the charge (+0xE = 4)");
