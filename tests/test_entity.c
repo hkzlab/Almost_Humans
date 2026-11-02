@@ -93,6 +93,7 @@ int main(int argc, char **argv)
 
     entity_init(&osys_null);
     video_init(&osys_null);
+    palette_init(&osys_null);
     level_init(&osys_null);
 
     /* 1+2. lb#1: the exact spawn fields and the 0xB4 join. */
@@ -303,6 +304,43 @@ int main(int argc, char **argv)
             failf("D-59: the loss arms the odometer", 10u, params[0], 0xFF);
         if ((cr[4] | (cr[5] << 8)) != 0x2Du)
             failf("D-59: the lost marker's frame", 10u, cr[4], 0x2D);
+    }
+
+    /* 3d. D-60: the play loop's exit stops update_world (1000:34E6), so the
+     * world behind the end caption is frozen even though level_tick is still
+     * called for the redraw. */
+    {
+        unsigned x0, x1;
+
+        (void)level_load(10u);
+        entity_spawnFromMap(level_map(), level_data()->style,
+                            level_data()->entityLife);
+        level_begin();
+        for (unsigned t = 0; t < 3000u && level_starting(); t++) {
+            if (level_loadingScreen()) level_loadingTick();
+            else level_tick();
+            palette_tick();
+        }
+        if (level_starting()) {
+            fprintf(stderr, "FAIL the level never reached play\n");
+            bad = 1;
+        } else {
+            x0 = entity_at(0u)->x;
+            level_tick();
+            palette_tick();
+            x1 = entity_at(0u)->x;
+            if (x1 == x0) failf("the playing world moves", 10u, x1, x0 + 1);
+
+            level_setEnd(0);               /* the pause's RESTART THIS GAME */
+            x0 = entity_at(0u)->x;
+            for (unsigned t = 0; t < 10u; t++) {
+                level_tick();              /* the caption's per-tick call */
+                palette_tick();
+            }
+            x1 = entity_at(0u)->x;
+            if (x1 != x0)
+                failf("the end caption freezes the world", 10u, x1, x0);
+        }
     }
 
     /* 4. the whole corpus: count == #B3, the spawn fields (the prologue

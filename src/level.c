@@ -1436,11 +1436,6 @@ int level_tick(void)
         return 1;
     }
 
-    /* update_world (1000:80E1): the entity dispatch runs once per frame,
-     * before the draw pass (the original's 5cb6..d860 update chain, then
-     * the page flip).  The entity state is what the dino draw will read. */
-    entity_tick();
-
     /* input_dispatch_loop 1000:34B8's object_test_dispatch call, after the
      * world tick: a negative return ends the play loop */
     if (startPhase == LVSTART_PLAYING) {
@@ -1459,7 +1454,10 @@ int level_tick(void)
      * 256-entry fade to 0x14D3 (div 0x32), then the hook is installed (the
      * bar's ticking gate [0x5B12] := 0xFF).  The world is kept drawn behind
      * each phase. */
-    int doUpdate = (startPhase == LVSTART_PLAYING) ? 1 : 0;
+    /* The play loop leaves at 1000:34E6 and never calls update_world
+     * (1000:80AD) again; the end caption (draw_level_text 0x33A3) only
+     * renders the frozen world.  `endRequested` is that exit. */
+    int doUpdate = (startPhase == LVSTART_PLAYING && !endRequested) ? 1 : 0;
 
     switch (startPhase) {
     case LVSTART_IDLE:
@@ -1564,6 +1562,7 @@ int level_tick(void)
         if (worldUpdates) {
             level_followView();           /* 1000:5CB6, first in update_world */
             if (actor) (void)object_commandRun(actor, levelJoy);
+            entity_tick();                /* 1000:C93C, inside the [0xC] gate */
             object_markerTick();          /* 1000:D64F, after the dispatch */
         }
         object_tick(level_palette());     /* the claim's phase machine: blocking
