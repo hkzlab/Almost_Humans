@@ -747,6 +747,95 @@ int main(int argc, char **argv)
                         }
                     check(bad3 == 0u, "frame 0x2B (mode 2) draws 32 px wide");
                 }
+                /* 1000:6421 -> 1000:C23C: the placed records render in the
+                 * partitioned order.  The acting record is last in its class
+                 * (the climber over the member it climbs), and the type 6..8
+                 * (stack) class is drawn after the live records. */
+                {
+                    static uint8_t soloA[320u * 200u], soloB[320u * 200u];
+                    unsigned contested = 0, won = 0;
+
+                    object_init();
+                    object_publishBank(bank, bankSize);
+                    rec = object_slot(0);
+                    rec[0] = 100; rec[1] = 0; rec[2] = 100; rec[3] = 0;
+                    rec[4] = 0x10; rec[5] = 0; rec[6] = 0; rec[7] = 0;
+                    rec[8] = 7; rec[9] = 0;
+                    memset(soloA, 0, sizeof soloA);
+                    object_render(soloA, 0, 0);
+
+                    object_init();
+                    object_publishBank(bank, bankSize);
+                    rec = object_slot(1);
+                    rec[0] = 100; rec[1] = 0; rec[2] = 100; rec[3] = 0;
+                    rec[4] = 0x2B; rec[5] = 0; rec[6] = 0; rec[7] = 0;
+                    rec[8] = 7; rec[9] = 0;
+                    memset(soloB, 0, sizeof soloB);
+                    object_render(soloB, 0, 0);
+
+                    object_init();
+                    object_publishBank(bank, bankSize);
+                    rec = object_slot(0);
+                    rec[0] = 100; rec[1] = 0; rec[2] = 100; rec[3] = 0;
+                    rec[4] = 0x10; rec[5] = 0; rec[6] = 0; rec[7] = 0;
+                    rec[8] = 7; rec[9] = 0;
+                    rec = object_slot(1);
+                    rec[0] = 100; rec[1] = 0; rec[2] = 100; rec[3] = 0;
+                    rec[4] = 0x2B; rec[5] = 0; rec[6] = 0; rec[7] = 0;
+                    rec[8] = 7; rec[9] = 0;
+                    object_setActionEntity(0u);      /* the climber */
+                    memset(page, 0, sizeof page);
+                    object_render(page, 0, 0);
+                    for (unsigned k = 0; k < 320u * 200u; k++) {
+                        if (!soloA[k] || !soloB[k] || soloA[k] == soloB[k])
+                            continue;
+                        contested++;
+                        if (page[k] == soloA[k]) won++;
+                    }
+                    check(contested > 20u && won == contested,
+                          "the acting record draws last in its class");
+                }
+                {
+                    static uint8_t soloA[320u * 200u], soloB[320u * 200u];
+                    unsigned contaminated = 0, bad2 = 0;
+
+                    /* a type-7 member (front list) over a live record 8 */
+                    object_init();
+                    object_publishBank(bank, bankSize);
+                    rec = object_slot(1);
+                    rec[0] = 100; rec[1] = 0; rec[2] = 100; rec[3] = 0;
+                    rec[4] = 0x10; rec[5] = 0; rec[6] = 0; rec[7] = 0;
+                    rec[8] = 7; rec[9] = 0;
+                    memset(soloA, 0, sizeof soloA);
+                    object_render(soloA, 0, 0);
+
+                    object_init();
+                    object_publishBank(bank, bankSize);
+                    rec = object_slot(8);
+                    rec[0] = 100; rec[1] = 0; rec[2] = 100; rec[3] = 0;
+                    rec[4] = 0x2B; rec[5] = 0; rec[6] = 0; rec[7] = 0;
+                    memset(soloB, 0, sizeof soloB);
+                    object_render(soloB, 0, 0);
+
+                    object_init();
+                    object_publishBank(bank, bankSize);
+                    rec = object_slot(1);
+                    rec[0] = 100; rec[1] = 0; rec[2] = 100; rec[3] = 0;
+                    rec[4] = 0x10; rec[5] = 0; rec[6] = 0; rec[7] = 0;
+                    rec[8] = 7; rec[9] = 0;
+                    rec = object_slot(8);
+                    rec[0] = 100; rec[1] = 0; rec[2] = 100; rec[3] = 0;
+                    rec[4] = 0x2B; rec[5] = 0; rec[6] = 0; rec[7] = 0;
+                    memset(page, 0, sizeof page);
+                    object_render(page, 0, 0);
+                    for (unsigned k = 0; k < 320u * 200u; k++)
+                        if (soloA[k] && soloB[k] && soloA[k] != soloB[k]) {
+                            contaminated++;
+                            if (page[k] != soloA[k]) bad2++;
+                        }
+                    check(contaminated > 20u && bad2 == 0u,
+                          "the stack class draws after the live records");
+                }
                 /* 1000:E3F6, the command dispatch: the type row (DS:0x698A)
                  * picks the handler index, the table at DS:0x6918 the address.
                  * Type 2 is a human, type 8 one of the walkers, type 15 has its
@@ -1902,6 +1991,16 @@ int main(int argc, char **argv)
               "level 2's header intro is 0xFF (no newspaper)");
     if (level_load(5) == 0)
         check(level_data()->introIndex == 4u, "level 6's header intro is 4");
+
+    /* 7b2. D-55: the briefing's "THE CODE FOR THIS LEVEL IS....." value is
+     * the level record's author (load_level 1000:30BC copies it to 0x1189),
+     * not a fixed string. */
+    if (level_load(1) == 0)
+        check(strcmp(gameflow_partyTribe(), "ANDIE PANDY") == 0,
+              "level 2's briefing code is its author");
+    if (level_load(3) == 0)
+        check(strcmp(gameflow_partyTribe(), "CARLOS") == 0,
+              "level 4's briefing code follows the level");
 
     /* 7c. the corpus: every level's header intro byte gates its post-level
      * newspaper; 14 of the 160 carry one (the corpus census) */

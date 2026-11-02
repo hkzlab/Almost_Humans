@@ -873,6 +873,7 @@ unsigned gameflow_levelForProbe(void);
  * returns the flow the action leaves, sets *quit for QUIT THIS GAME. */
 GameFlow gameflow_pauseAction(int choice, int *quit);
 unsigned gameflow_partyScore(void);          /* the briefing's [0x592] low word */
+const char *gameflow_partyTribe(void);       /* 0x1189: the level's author   */
 /* scan_id_list 1000:386E event 4: ESC opens the 0x5BBC pause block. */
 /* scan_id_list 1000:386E: the DS:0x1989 key list.  Handles ESC (the 0x5BBC
  * pause block), F1..F8 (select the record by scancode), ','/'.' (previous /

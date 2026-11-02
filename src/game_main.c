@@ -157,6 +157,15 @@ static void level_restart(void)
  * which score_prepare maintains across levels. */
 unsigned gameflow_partyScore(void) { return score_totalLo(); }
 
+/* The briefing's code line (0x1189): load_level (1000:30BC) copies the level
+ * record's author there (1000:312C), and level_intro_screen draws it. */
+const char *gameflow_partyTribe(void)
+{
+    const LevelData *d = level_data();
+
+    return d ? d->author : "";
+}
+
 /* entry 1000:002B's opening: [0xF7E] := 0, then draw_status_indicator
  * (1000:1FEF) probes volume 0; only a missing volume draws its page.  Every
  * room entry (the attract exit, the pause's restart-game, the time-up
@@ -513,9 +522,9 @@ int game_main(const OSystem *osys)
                 /* level_run's values: the level letter (the [0x1f41]
                  * 1-based), the need ([0x17fb]), the tribe members
                  * ([0x11fc] = 12/10/8 by the LEVEL board, or the save's
-                 * +0x0B), the score ([0x592], fresh load = 0) and the tribe
-                 * name (load_level's 0x1189).  A no-data run skips (start
-                 * returns 0). */
+                 * +0x0B), the score ([0x592], fresh load = 0) and the
+                 * briefing's code line ([0x1189], load_level's author
+                 * string).  A no-data run skips (start returns 0). */
                 partyTried = 1;
                 /* level_run 3073: [0x34] != 0 takes the JNZ 307D path and
                  * skips the fresh-load party screen entirely. */
@@ -529,7 +538,8 @@ int game_main(const OSystem *osys)
                     party_intro_setValues(level_current + 1u,
                                           level_required(),
                                           level_tribeMembers(),
-                                          gameflow_partyScore(), "DARWIN");
+                                          gameflow_partyScore(),
+                                          gameflow_partyTribe());
                     partyPlaying = party_intro_start();
                 }
             }

@@ -1527,36 +1527,91 @@ void object_blitSprite(uint8_t *page, const uint8_t *src, unsigned rows,
     blitSprite(page, src, rows, cols, x, y);
 }
 
-/* render_objects' object pass: every live placed record.  A record with no
- * class slot `+7` draws its base tile; one with a class goes through
- * `1000:653C` - the base gated on `0x3570`'s bit 7, the class's carried sprite,
- * then the base again when that bit is set. */
+/* One placed/live record through the object drawer.  `scan` selects the
+ * scan_object_rows path (slots 8+): its class slot 0x3E5E + i-8 can mark the
+ * record taken, and a +7 == 0 record is drawn straight through
+ * select_object_tile (1000:6625) with no 0x3570 gate.  The list passes
+ * (1000:6495 -> 1000:653C) gate the base on 0x3570 instead. */
+static void objDrawRecord(uint8_t *page, int scrollX, int scrollY,
+                          unsigned i, int scan)
+{
+    uint8_t *r = objArray + i * OBJ_STRIDE;
+    int x = (int)(int16_t)rd16(r, 0u) - scrollX;
+    int y = (int)(int16_t)rd16(r, 2u) - scrollY;
+    unsigned frame = rd16(r, 4u);
+
+    if (r[6] & 0x80u) return;                       /* 1000:794C / 1000:6458 */
+    /* 1000:6450/1000:6467: the record's class slot (0x3E5E + record-8)
+     * skips it when bit 7 is set - the pickup's taken mark (1000:9D47).
+     * The carried record is drawn by its carrier's class overlay only. */
+    if (scan && (objSlotClass[i - 8u] & 0x80u)) return;
+    if (!r[7]) {
+        if (scan || !(objOverlayRow(frame) & 0x80u))
+            objBlitFrame(page, frame, x, y);
+        return;
+    }
+    if (!(objOverlayRow(frame) & 0x80u)) objBlitFrame(page, frame, x, y);
+    objDrawClassOverlay(page, scrollX, scrollY, r);
+    if (objOverlayRow(frame) & 0x80u) objBlitFrame(page, frame, x, y);
+}
+
+/* 1000:C23C partition_entities_by_type: the eight placed slots split by their
+ * type word `+8`; 6..8 (the human-stack states - grab 6, push/stand 7,
+ * step-off/register 8) go to the 0x651E list drawn **after** the live
+ * records, everything else to the 0x650C list drawn **before** them.  The
+ * acting record is skipped in the slot walk and appended last in its own
+ * class, so it is the last drawn there. */
+static void objPartition(uint8_t *back, unsigned *nb,
+                         uint8_t *front, unsigned *nf)
+{
+    unsigned b = 0, f = 0;
+
+    for (unsigned i = 0; i < 8u; i++) {
+        uint8_t *r = objArray + i * OBJ_STRIDE;
+        unsigned t;
+
+        if (r[6] & 0x80u) continue;
+        if (i == objEntity) continue;
+        t = rd16(r, 8u);
+        if (t >= 6u && t <= 8u) front[f++] = (uint8_t)i;
+        else back[b++] = (uint8_t)i;
+    }
+    {
+        unsigned t;
+
+        if (objEntity >= OBJ_SLOTS) { *nb = b; *nf = f; return; }
+        t = rd16(objArray + objEntity * OBJ_STRIDE, 8u);
+        if (t >= 6u && t <= 8u) front[f++] = (uint8_t)objEntity;
+        else back[b++] = (uint8_t)objEntity;
+    }
+    *nb = b;
+    *nf = f;
+}
+
+/* render_objects' object pass (1000:5D56 -> draw_object_group 1000:6421):
+ * the 0x650C list, then scan_object_rows (slots 8..[0x3E73]), then the
+ * 0x651E list. */
 void object_render(uint8_t *page, int scrollX, int scrollY)
 {
+    uint8_t back[9], front[9];
+    unsigned nb = 0, nf = 0;
+
     if (!page || !objBank) return;
 
-    /* scan_object_rows (1000:6433): AX = [0x3E73] - 8, then `DEC AX / JNS`, so the
-     * walk covers 0x3F05 .. the record at [0x3E73] INCLUSIVE - `[0x3E73]` counts the
-     * top live index, not the number of records (level 1: 9 draws slots 8 and 9). */
-    for (unsigned i = 0; i <= objLiveCount && i < OBJ_SLOTS; i++) {
-        uint8_t *r = objArray + i * OBJ_STRIDE;
-        int x = (int)(int16_t)rd16(r, 0u) - scrollX;
-        int y = (int)(int16_t)rd16(r, 2u) - scrollY;
-        unsigned frame = rd16(r, 4u);
+    objPartition(back, &nb, front, &nf);            /* 1000:C23C */
 
-        if (r[6] & 0x80u) continue;                 /* 1000:794C */
-        /* 1000:6450/1000:6467: the record's class slot (0x3E5E + record-8)
-         * skips it when bit 7 is set - the pickup's taken mark (1000:9D47).
-         * The carried record is drawn by its carrier's class overlay only. */
-        if (i >= 8u && (objSlotClass[i - 8u] & 0x80u)) continue;
-        if (!r[7]) {
-            objBlitFrame(page, frame, x, y);
-            continue;
-        }
-        if (!(objOverlayRow(frame) & 0x80u)) objBlitFrame(page, frame, x, y);
-        objDrawClassOverlay(page, scrollX, scrollY, r);
-        if (objOverlayRow(frame) & 0x80u) objBlitFrame(page, frame, x, y);
-    }
+    for (unsigned k = 0; k < nb; k++)               /* 1000:6429 */
+        objDrawRecord(page, scrollX, scrollY, back[k], 0);
+
+    /* scan_object_rows (1000:6433): AX = [0x3E73] - 8, then `DEC AX / JNS`,
+     * so the walk covers 0x3F05 .. the record at [0x3E73] INCLUSIVE -
+     * `[0x3E73]` counts the top live index, not the number of records
+     * (level 1: 9 draws slots 8 and 9). */
+    for (unsigned i = 8u; i <= objLiveCount && i < OBJ_SLOTS; i++)
+        objDrawRecord(page, scrollX, scrollY, i, 1);
+
+    for (unsigned k = 0; k < nf; k++)               /* 1000:642E */
+        objDrawRecord(page, scrollX, scrollY, front[k], 0);
 }
 
 
