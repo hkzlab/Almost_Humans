@@ -418,6 +418,7 @@ void level_goalReached(void);
 void level_memberLost(void);
 int  level_endTest(void);
 int  level_ended(void);
+int  level_endHolding(void);
 void level_setEnd(int won);             /* 1000:F66D: [0x138E] = 0 */
 int  level_outcome(void);            /* [0x138E]: 1 won, 0 extinct */
 
@@ -886,6 +887,7 @@ int      gameflow_keyWaitActive(void);
 /* The time-up dialog's 3 results (1000:34F9's inline dispatch): 0 restart
  * this level (level_restore), 1 restart this game (the room), 2 quit. */
 GameFlow gameflow_timeUpAction(int choice, int *quit);
+int      gameflow_restartPending(void);   /* [0x1809] = 0xFF: restart game */
 /* entry LAB_00CD's post-level step: [0x22]++ / [0x26]-- -> the next level of
  * the 160; when they run out this returns FLOW_ATTRACT (the caller starts
  * FLOW_ENDING: scene 7 -> the disc probe -> the MAP -> the attract). */

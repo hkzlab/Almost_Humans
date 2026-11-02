@@ -35,7 +35,16 @@ static void hook(unsigned poll)
 {
     const uint8_t *pal = osys_null_palette();
 
-    if (poll == FORCE_POLL) level_requestEnd(outcome);
+    if (poll == FORCE_POLL) {
+        /* mode 2 = the pause menu's RESTART THIS GAME (1000:390F), which must
+         * run the lost-level caption and fades before the restart */
+        if (outcome == 2) {
+            int q = 0;
+            (void)gameflow_pauseAction(2, &q);
+        } else {
+            level_requestEnd(outcome);
+        }
+    }
     if (poll < FORCE_POLL) return;
 
     {
@@ -110,7 +119,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "FAIL 1000:3419: the black fade was not seen\n");
         bad = 1;
     }
-    if (outcome) {
+    if (outcome == 1) {
         if (!cardSeen || !seenCardAfterBlack) {
             fprintf(stderr, "FAIL a won level did not open the score card\n");
             bad = 1;
@@ -120,6 +129,8 @@ int main(int argc, char **argv)
         bad = 1;
     }
 
-    if (!bad) printf("endflow(%s): OK\n", outcome ? "won" : "lost");
+    if (!bad)
+        printf("endflow(%s): OK\n",
+               outcome == 2 ? "restart" : (outcome ? "won" : "lost"));
     return bad;
 }

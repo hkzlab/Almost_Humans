@@ -1491,7 +1491,10 @@ static void objDrawClassOverlay(uint8_t *page, int scrollX, int scrollY, uint8_t
     /* The original indexes 0x3E5F + (cls-1) with no range test, so a class id
      * above the table reads whatever follows it in DS; the port bounds it. */
     if (cls > sizeof objSlotClass) return;
-    col = objClsCol[objSlotClass[cls - 1u] & 0x3Fu];         /* 1000:657F */
+    /* 1000:6570: CX = rec[+7]; SUB CX,1; SI = 0x3E5F + CX, i.e. the slot at
+     * 0x3E5E + class - objSlotClass is based at 0x3E5E (the predicate
+     * 1000:3659 reads 0x3E5E + AX and the port reads objSlotClass[b]). */
+    col = objClsCol[objSlotClass[cls] & 0x3Fu];              /* 1000:657F */
     if (!col) return;
     frame = rd16(rec, 4u);
     row = objOverlayRow(frame) & 0x7Fu;                      /* 1000:65A7 */

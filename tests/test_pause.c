@@ -572,7 +572,11 @@ int main(int argc, char **argv)
             }
         }
         /* RESTART THIS GAME -> the room, [0x34] cleared */
-        if (gameflow_pauseAction(2, &quit) != FLOW_MENU || save_present()) {
+        /* 1000:390F: [0x138E] = 0 (extinct) and [0x1809] = 0xFF - the
+         * level's caption + fades run and postLevelStep takes the room. */
+        if (gameflow_pauseAction(2, &quit) != FLOW_LEVEL ||
+            !level_ended() || level_outcome() != 0 ||
+            !gameflow_restartPending()) {
             fprintf(stderr, "FAIL RESTART THIS GAME\n");
             bad = 1;
         }
@@ -606,7 +610,10 @@ int main(int argc, char **argv)
             fprintf(stderr, "FAIL the time-up RESTART THIS LEVEL\n");
             bad = 1;
         }
-        if (gameflow_timeUpAction(1, &quit) != FLOW_MENU || save_present()) {
+        /* 1000:3510: the same lost-level arm as the pause menu's result 2 */
+        if (gameflow_timeUpAction(1, &quit) != FLOW_LEVEL ||
+            !level_ended() || level_outcome() != 0 ||
+            !gameflow_restartPending()) {
             fprintf(stderr, "FAIL the time-up RESTART THIS GAME\n");
             bad = 1;
         }

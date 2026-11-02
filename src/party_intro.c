@@ -566,6 +566,17 @@ int party_intro_start(void)
 
     video_setMode(VIDEO_MODE_X);       /* level_intro_screen 1000:2508 calls
                                         * reset_display_mode (1000:82c6)  */
+    /* level_intro_screen is a self-contained blocking routine in the
+     * original: every level re-enters it at 1000:2508.  The port's split
+     * start/tick keeps the machine's statics, so a second briefing would
+     * inherit the first one's final PH_DONE and exit on its first tick. */
+    phase = PH_FADEWAIT;
+    step = 0u;
+    waitLeft = 0u;
+    keyCaught = 0;
+    swapNext = 0u;
+    presentLeft = 0u;
+    swPhase = SW_FADEWAIT;
     pageDraw = 0x1200u; pageDisp = 0x8100u;    /* 2519/2523               */
     /* 2a3a's counters are static DS data: [0xf9c]=0, [0xf9e]=0, [0xfa6]=1
      * (the MZ image; a 0 hold DEC-wraps and freezes the flap on run 1) */

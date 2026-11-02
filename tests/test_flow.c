@@ -412,6 +412,25 @@ int main(int argc, char **argv)
             /* the animation's six 4FE9 increments over its 6 x 9 frames */
             check((r[4] | (r[5] << 8)) == 0x0109u,
                   "the neighbour animates 0x103 -> 0x109");
+            /* D-48: 1000:34E6 — the play loop's exit.  The tick that detects
+             * the end plays sound 0xC (1000:83B7) and freezes the world for
+             * the 15 x 1000:8B56 waits before draw_level_text's chain. */
+            if (!level_starting()) {
+                unsigned h;
+
+                level_requestEnd(1);
+                level_tick();
+                check(level_endHolding() && !level_ended(),
+                      "1000:34E6: the exit holds the frozen world");
+                check(object_lastSfx() == 0x0Cu,
+                      "1000:34E6: the exit plays sound 0xC");
+                for (h = 0; h < 15u; h++) {
+                    check(level_endHolding(), "1000:34E6: 15 waits");
+                    level_tick();
+                }
+                check(!level_endHolding() && level_ended(),
+                      "1000:34E6: the caption follows the 15 waits");
+            }
             object_init();
         }
     }
@@ -551,6 +570,8 @@ int main(int argc, char **argv)
             if (level_loadingScreen()) level_loadingTick();
         }
         level_tick();
+        /* D-48: 1000:34E6 freezes the world for 15 frames before the caption */
+        for (unsigned h = 0; h < 15u && level_endHolding(); h++) level_tick();
         check(level_ended() && level_outcome(),
               "the pickup ends level 1 as won");
 
@@ -1774,7 +1795,8 @@ int main(int argc, char **argv)
                     }
                 check(wrong == 0u, "the second placed record is drawn too");
             }
-            /* the class overlay (1000:653C): record 0 carries class id 5, whose
+            /* the class overlay (1000:653C/1000:6570): record 0 carries class id
+             * 5, whose slot is [0x3E5E + 5] (the listing's 0x3E5F + class-1);
              * behaviour class 5 maps to column 1 (0x3566[5]); frame 1's row is
              * 2 (0x3570[1]), so the entry is 0x368A[3*2+1] = 2 = the
              * {4, 8, 0x5A, 0x69} record: the class's placed record (slot 8+5)
@@ -1786,7 +1808,7 @@ int main(int argc, char **argv)
                 rec = host;
                 rec[4] = 0x01; rec[5] = 0x00;          /* frame 1 */
                 rec[7] = 5u;                            /* the class slot id */
-                object_setSlotClass(4u, 5u);            /* behaviour class 5 */
+                object_setSlotClass(5u, 5u);            /* behaviour class 5 */
                 memset(carried, 0, 0x12u);
                 memset(page, 0, sizeof page);
                 object_render(page, 0, 0);
@@ -1795,7 +1817,7 @@ int main(int argc, char **argv)
                       (carried[4] | (carried[5] << 8)) == 0x5Au,
                       "the class overlay moves and frames the carried record");
                 rec[7] = 0u;
-                object_setSlotClass(4u, 5u);
+                object_setSlotClass(5u, 0u);
             }
             object_publishBank(NULL, 0u);
             free(bank);

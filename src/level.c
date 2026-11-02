@@ -149,6 +149,8 @@ static uint16_t levelOffsetPtr = 0x2D92u;   /* [0x2D90] */
 static unsigned levelRequired;    /* [0x17FB]: the map's 0xAA count        */
 static unsigned membersAtStart;   /* [0x1970]: the members at level start  */
 static int      endRequested;     /* the play loop's exit (35D6's -1)      */
+static int      endSoundSent;     /* 1000:34E6's 0x83B7 call, once          */
+static unsigned playExitHold;     /* 1000:34E6: the 15 x 1000:8B56 waits    */
 static int      goalHit;          /* the discovery/claim win hook          */
 static int      endWon;           /* [0x138E]: 1 won, 0 extinct            */
 
@@ -841,6 +843,8 @@ int level_load(unsigned levelId)
     loadPhase = 0;                             /* the LOADING screen repeats */
 
     endRequested = 0;                          /* [0x138E] = 0xFF in play */
+    endSoundSent = 0;
+    playExitHold = 0;
     endWon = 1;
     goalHit = 0;
     level_loaded = 1;
@@ -1205,7 +1209,11 @@ int level_endTest(void)
 }
 
 void level_requestEnd(int won) { endRequested = 1; endWon = won ? 1 : 0; }
-int  level_ended(void)   { return endRequested; }
+int  level_ended(void)   { return endRequested && playExitHold == 0u; }
+/* 1000:34E6: the play loop's exit - after the end test's negative return the
+ * loop plays sound 0xC (1000:83B7) and waits 15 vsyncs (1000:8B56) on the
+ * frozen world before returning to draw_level_text. */
+int  level_endHolding(void) { return playExitHold > 0u; }
 /* 1000:F66D: the goal-record tail's "no survivor" exit sets [0x138E] = 0 and
  * ends the play loop (the same state object_test_dispatch's negative return
  * produces, reached from the object machine instead). */
@@ -1421,6 +1429,13 @@ int level_tick(void)
 {
     if (!level_loaded) return 0;
 
+    /* 1000:34E6: the exit hold - the world is frozen and the last page is
+     * presented until the 15 waits expire. */
+    if (playExitHold > 0u) {
+        playExitHold--;
+        return 1;
+    }
+
     /* update_world (1000:80E1): the entity dispatch runs once per frame,
      * before the draw pass (the original's 5cb6..d860 update chain, then
      * the page flip).  The entity state is what the dino draw will read. */
@@ -1428,7 +1443,14 @@ int level_tick(void)
 
     /* input_dispatch_loop 1000:34B8's object_test_dispatch call, after the
      * world tick: a negative return ends the play loop */
-    if (startPhase == LVSTART_PLAYING) (void)level_endTest();
+    if (startPhase == LVSTART_PLAYING) {
+        (void)level_endTest();
+        if (endRequested && !endSoundSent) {   /* 1000:34E6 */
+            object_driverCall(0x0Cu);          /* 1000:83B7 with AX = 0xC */
+            endSoundSent = 1;
+            playExitHold = 0x0Fu;              /* MOV CX,0xF / LOOP 8B56 */
+        }
+    }
 
     if (!world || !level_osys) return 1;
 

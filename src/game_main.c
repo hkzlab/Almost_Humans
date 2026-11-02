@@ -69,6 +69,10 @@ static unsigned postSceneIdx;
 /* check_highscore's score screen between the end page and the post-level
  * step; postPending carries the step until the screen exits */
 static int scoreUp, postPending;
+/* [0x1809] = 0xFF: the pause/time-up "restart this game" arm (1000:390F /
+ * 1000:3510), consumed by entry 1000:00C9 -> 1000:002B after the level's
+ * lost-level caption and fades. */
+static int restartGame;
 /* draw_level_text (0x33A3)'s level-end transition: caption -> grey fade ->
  * 0x23 hold -> black fade -> bar park + world redraw.  check_highscore's card
  * (won) or 0x438A's exit (lost) follows. */
@@ -129,6 +133,9 @@ static int keyWaitStep(const InputState *in)
 /* [0x5E44]: the time-up dialog has been shown for this countdown. */
 static int timeoutShown;
 
+/* test seam: the pause/time-up RESTART THIS GAME arm set [0x1809] = 0xFF. */
+int gameflow_restartPending(void) { return restartGame; }
+
 /* level_restore (1000:35AF): [0x11FC] := [0x1970] — the members the level
  * started with — then JMP level_start (1000:3032), which re-picks the time
  * and re-enters the level WITHOUT the party path.  The port reloads the
@@ -175,8 +182,14 @@ GameFlow gameflow_pauseAction(int choice, int *quit)
         level_restart();
         break;
     case 2:                                     /* restart this game   */
-        save_loadSlot(0u);                      /* entry 002B: [0x34]=0 */
-        return roomEnter();
+        /* 1000:390F..1000:3923: [0x138E] = 0 (lost), [0x1809] = 0xFF and
+         * [0x1979] = 2.  State 2 of the pending table (0x197B) is
+         * 1000:36D7 (returns 0), so the play loop exits through the
+         * "YOUR TRIBE IS EXTINCT!!" caption and its fades; the entry
+         * machine's [0x1809] arm (1000:00C9 -> 1000:002B) then restarts. */
+        level_setEnd(0);
+        restartGame = 1;
+        break;
     case 3:                                     /* save game           */
         (void)save_writeSlot(menu_slot(), level_current + 1u,
                              statusbar_timeWord(), level_tribeMembers());
@@ -249,8 +262,12 @@ GameFlow gameflow_timeUpAction(int choice, int *quit)
         level_restart();
         break;
     case 1:
-        save_loadSlot(0u);
-        return roomEnter();
+        /* 1000:3510/1000:3515: [0x138E] = 0, [0x1809] = 0xFF (DEC AX keeps
+         * the restart arm) - the same lost-level caption + fades as the
+         * pause menu's result 2. */
+        level_setEnd(0);
+        restartGame = 1;
+        break;
     case 2:
         *quit = 1;
         break;
@@ -368,6 +385,15 @@ GameFlow gameflow_step(GameFlow state, const InputState *input)
 static GameFlow postLevelStep(GameFlow state)
 {
     const LevelData *lv = level_data();
+
+    /* entry 1000:00C9: [0x1809] != 0 takes the restart-game path
+     * (1000:002B: [0xF7E] = 0, [0x34] = 0, the front-end room) instead of
+     * the next level / the ending. */
+    if (restartGame) {
+        restartGame = 0;
+        save_loadSlot(0u);
+        return roomEnter();
+    }
     unsigned cut = lv ? gameflow_postLevelScene(level_outcome(),
                                                 lv->introIndex) : 0xFFFFu;
     if (cut != 0xFFFFu) {
@@ -437,6 +463,7 @@ int game_main(const OSystem *osys)
                 levelReload = 0;
                 levelEnterPending = 1;
                 endPageUp = 0;
+                restartGame = 0;
                 levelSkipped = 0;
                 partyTried = 0; partyPlaying = 0;
                 postScene = 0;
@@ -670,6 +697,13 @@ int game_main(const OSystem *osys)
                 actionLatched = (input.joyBits & 0x80u) != 0;
                 level_tick();          /* the party done: the level runs */
                 object_pendingRun();   /* the [0x1979] dispatch (1000:382D) */
+                if (level_endHolding()) {
+                    /* 1000:34E6: the play loop's exit hold - the end sound
+                     * (0x83B7, AX = 0xC) and 15 vsyncs (0x8B56) on the frozen
+                     * world, then draw_level_text's chain. */
+                    statusbar_setActive(0);   /* [0x5B12] = 0: the clock stops */
+                    goto present;
+                }
                 if (level_ended()) {
                     /* object_test_dispatch returned negative (1000:35D6):
                      * the play loop is over; [0x138E] keeps its outcome */

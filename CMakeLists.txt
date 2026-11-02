@@ -81,6 +81,12 @@ target_include_directories(test_party PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${
 target_link_libraries(test_party PRIVATE core fs_posix)
 humansre_warnings(test_party)
 add_test(NAME party COMMAND test_party ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
+add_executable(test_party_reset tests/test_party_reset.c
+    src/arch/null/OSystem.c)
+target_include_directories(test_party_reset PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(test_party_reset PRIVATE core fs_posix)
+humansre_warnings(test_party_reset)
+add_test(NAME party_reset COMMAND test_party_reset ${HUMANS_DATA_DIR})
 
 # The fade-ladder harness: the port's own DAC progression per tick against
 # the original's recorded hardware reads (the offline palette instrument).
@@ -119,6 +125,7 @@ target_link_libraries(test_endflow PRIVATE core fs_posix)
 humansre_warnings(test_endflow)
 add_test(NAME endflow_won COMMAND test_endflow ${HUMANS_DATA_DIR} 1)
 add_test(NAME endflow_lost COMMAND test_endflow ${HUMANS_DATA_DIR} 0)
+add_test(NAME endflow_restart COMMAND test_endflow ${HUMANS_DATA_DIR} 2)
 
 # The boot-intro test: load_intro_scene's display-list player over the
 # scrolled bac.bit background; the final page must match the reference.
