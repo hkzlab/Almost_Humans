@@ -493,6 +493,8 @@ int entity_spawnFromMap(const uint8_t *map, unsigned style,
                         unsigned lifeSeed);
 
 const Entity *entity_at(unsigned i);   /* NULL past the count */
+Entity *entity_atMut(unsigned i);      /* the 0x58D1 collision pass writes */
+int entity_spritePixel(unsigned src, unsigned rows, unsigned x, unsigned y);
 unsigned entity_count(void);
 /* save +0x1656+0x28: [0x64C2] and the first seven 0x10-byte records. */
 void entity_saveFixed(uint8_t *dst);

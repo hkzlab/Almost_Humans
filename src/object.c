@@ -2076,6 +2076,49 @@ static void objMoverPassRecords(uint8_t *r, int ax, int bx)
     }
 }
 
+/* 0x58D1: the record-vs-entity pass.  Walks the entity array, keeps the
+ * entities whose handler is < 2, and tests the entity's REX sprite pixel at
+ * the record's projected offset (the 0xE0/0x150/0x2+4a tables via
+ * entity_frameInfo). */
+static void objMoverPassEntity(uint8_t *r, int ax, int bx)
+{
+    unsigned n = entity_count();
+
+    if (rd16(r, 0xCu) == 0u && rd16(r, 0xEu) == 0u) return;
+    for (unsigned i = 0; i < n; i++) {
+        Entity *e = entity_atMut(i);
+        int ex, anim;
+
+        if (!e || e->handler >= 2u) continue;
+        ex = (int16_t)e->x - ax;
+        if (ex >= 0 || -ex >= 0x40) continue;
+        if (ex < 0) ex = -ex;
+        anim = (int16_t)e->waypoint;
+        if (anim < 0) continue;
+        anim <<= 1;
+        if (ex > 0x1F) { ex -= 0x20; anim++; }
+        {
+            unsigned src = 0, rows = 0, yoff = 0;
+            int dy;
+
+            if (!entity_frameInfo((unsigned)anim, &src, &rows, &yoff)) continue;
+            dy = (int16_t)e->y + yoff - bx;
+            if (dy >= 0) continue;
+            if (dy < 0) dy = -dy;
+            if ((unsigned)dy >= rows) continue;
+            if (!entity_spritePixel(src, rows, (unsigned)ex, (unsigned)dy))
+                continue;
+            objSlotClass[(unsigned)((r - objArray) / OBJ_STRIDE) - 8u] = 0u;
+            r[0] = 0xFFu;
+            e->hold = 5u;
+            e->waypoint = (e->handler != 0u && e->handler != 3u) ? 0x1Au : 0x0Cu;
+            if (e->life > 0u) e->life--;
+            if (e->life == 0u) e->handler = 4u;
+            return;
+        }
+    }
+}
+
 static void objMoverPassPlaced(uint8_t *r, int ax, int bx)
 {
     unsigned i;
@@ -2194,6 +2237,7 @@ static void objWalkMover(uint8_t *r)
         int ax = (int16_t)rd16(r, 0u) + dx;
         int bx = (int16_t)rd16(r, 2u) + dy;
 
+        objMoverPassEntity(r, ax, bx);
         objMoverPassRecords(r, ax, bx);
         objMoverPassPlaced(r, ax, bx);
     }

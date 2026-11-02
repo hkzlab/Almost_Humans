@@ -419,6 +419,22 @@ int entity_frameInfo(unsigned a, unsigned *src, unsigned *rows, unsigned *yoff)
     return (*src <= entBankSize) ? 1 : 0;
 }
 
+/* 1000:58D1's sprite-pixel test: the REX bank pixel at the (x,y) offset in
+ * the sprite whose descriptor entity_frameInfo(a) returned. */
+int entity_spritePixel(unsigned src, unsigned rows, unsigned x, unsigned y)
+{
+    unsigned idx = src + y * 4u + (x >> 2) + (rows & 0x1Fu) * 8u * (x & 3u);
+
+    if (!entBank || idx >= entBankSize) return 0;
+    return entBank[idx] != 0u;
+}
+
+/* the mutable entity record (the collision pass writes it). */
+Entity *entity_atMut(unsigned i)
+{
+    return i < ent_count ? (Entity *)ents[i] : NULL;
+}
+
 void entity_publishBank(const uint8_t *bank, uint32_t size)
 {
     entBank = bank;
