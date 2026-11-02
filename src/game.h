@@ -427,6 +427,10 @@ int  level_outcome(void);            /* [0x138E]: 1 won, 0 extinct */
  * render_level_frame 1000:9589). */
 uint16_t level_timeLimit(void);
 unsigned level_tribeMembers(void);
+/* the stamped background image and the BD P block, for the exit/igloo test */
+const uint8_t *level_bgForProbe(void);
+const uint8_t *level_pBlockForProbe(void);
+unsigned level_bgIndexForProbe(void);
 
 /* --- src/entity.c — entity table/bytecode (subsystem 10, §12) -----------
  *

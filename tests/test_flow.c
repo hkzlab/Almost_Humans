@@ -2018,6 +2018,55 @@ int main(int argc, char **argv)
         check(strcmp(gameflow_partyTribe(), "CARLOS") == 0,
               "level 4's briefing code follows the level");
 
+    /* 7b3. D-61: the 0xB9 exit/igloo pass.  Level 133 has one at col 11 row 9;
+     * the BD P block is stamped into the background at (176, 96), 64x64,
+     * zero transparent, with level_setup_screen's add_delta_nonzero(0x1000,
+     * 0x20) palette move. */
+    if (level_load(132) == 0) {
+        const uint8_t *bg = level_bgForProbe();
+        const uint8_t *pb = level_pBlockForProbe();
+        unsigned ink = 0, bad = 0;
+
+        check(bg && pb, "level 133 has the exit/igloo art");
+        if (bg && pb) {
+            for (unsigned r = 0; r < 64u; r++)
+                for (unsigned c = 0; c < 64u; c++) {
+                    uint8_t v = pb[r * 64u + c];
+
+                    if (!v) continue;
+                    ink++;
+                    if (bg[(96u + r) * 512u + 176u + c] !=
+                        (uint8_t)(v + 0x20u)) bad++;
+                }
+            check(ink > 500u && bad == 0u,
+                  "the 0xB9 igloo is stamped at (176,96)");
+        }
+    }
+    /* a level with no 0xB9 must not get a stamp: load its bg and check it is
+     * the plain transformed BG file */
+    if (level_load(42) == 0) {
+        char name[32];
+        uint32_t sz = 0;
+        uint8_t *raw;
+        unsigned bad = 0;
+
+        snprintf(name, sizeof name, "BACKS\\BG%u.RAW", level_bgIndexForProbe());
+        raw = res_loadChunk(name, &sz, NULL);
+        if (raw && sz == 512u * 320u + 768u) {
+            const uint8_t *bg = level_bgForProbe();
+            for (unsigned i = 0; i < 512u * 320u; i++) {
+                uint8_t v = raw[i];
+                uint8_t want = (v == 0xFFu)
+                    ? (uint8_t)(0x80u + (i / 0xA00u) % 64u)
+                    : (uint8_t)(v < 0x40u ? 0x40u + v : v);
+
+                if (!bg || bg[i] != want) bad++;
+            }
+            check(bad == 0u, "a level with no 0xB9 keeps its background");
+        }
+        free(raw);
+    }
+
     /* 7c. the corpus: every level's header intro byte gates its post-level
      * newspaper; 14 of the 160 carry one (the corpus census) */
     {

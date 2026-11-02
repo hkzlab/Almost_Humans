@@ -325,6 +325,9 @@ static uint8_t pageOpacity[32];    /* 0x1FA4: the 32-colour opacity flags */
 /* BD field I, copied by copy_level_row (0x4EE9) into the level palette's
  * 0x80..0xBF bank: the level background's 64-colour gradient. */
 static uint8_t bdRowBlock[0xC0];
+static uint8_t bdPBlock[0x1000];    /* field P: the exit/igloo art (0xB9) */
+static int     bdPHave;
+static unsigned levelBgIndex;       /* the BD page's field L (test probe) */
 static uint8_t *pageItems;            /* field B + its record area          */
 static uint32_t pageItemsSize;
 static int pageValid;
@@ -359,6 +362,8 @@ typedef struct BdPage {
     unsigned nCount;
     const uint8_t *oList;       /* field O: count + 16 id bytes          */
     unsigned oCount;
+    const uint8_t *pBlock;      /* field P: the 0x1000-byte exit art     */
+    uint32_t pSize;
 } BdPage;
 
 static uint32_t bd_walk(const uint8_t *b, uint32_t size, unsigned *bgIndex,
@@ -422,7 +427,9 @@ static uint32_t bd_walk(const uint8_t *b, uint32_t size, unsigned *bgIndex,
     page->oCount = n;
     si += 1u + n;                          /* O                            */
     if (si + 0x1000u > size) return 0;
-    si += 0x1000u;                         /* P (unreachable page block)   */
+    page->pBlock = b + si;                 /* P: the 0xB9 exit/igloo art   */
+    page->pSize = 0x1000u;
+    si += 0x1000u;
     if (si + 2u > size) return 0;
     return si + 2u;                        /* Q                            */
 }
@@ -543,6 +550,12 @@ static int visuals_load(unsigned style)
     memset(bdRowBlock, 0, sizeof bdRowBlock);
     if (end == bdSize && page.rowBlock)
         memcpy(bdRowBlock, page.rowBlock, sizeof bdRowBlock);   /* 0x4EE9 */
+    memset(bdPBlock, 0, sizeof bdPBlock);
+    bdPHave = 0;
+    if (end == bdSize && page.pBlock && page.pSize >= sizeof bdPBlock) {
+        memcpy(bdPBlock, page.pBlock, sizeof bdPBlock);         /* 0x54A9 */
+        bdPHave = 1;
+    }
     if (end == bdSize && animN) {
         animTable = malloc(4u * animN);
         if (animTable) {
@@ -578,6 +591,7 @@ static int visuals_load(unsigned style)
     item_masks_build(&page);
     free(bd);
 
+    levelBgIndex = bgIdx;
     if (bgIdx != 0u) {
         snprintf(name, sizeof name, "BACKS\\BG%u.RAW", bgIdx);
         bgImage = res_loadChunk(name, &bdSize, &chk);
@@ -609,6 +623,38 @@ static int visuals_load(unsigned style)
     }
     return 0;
 }
+
+/* 1000:5159 load_terrain_a + 1000:54A9: every map cell 0xB9 stamps the BD
+ * page's P block (64 x 64, zero transparent) into the background image at
+ * (col*16, row*16 - 0x30) — the level's exit/igloo art. */
+static void level_stampExits(void)
+{
+    if (!bgImage || !bdPHave) return;
+    for (unsigned row = 0; row < MAP_ROWS; row++)
+        for (unsigned col = 0; col < MAP_COLS; col++) {
+            int x, y;
+
+            if (level_data_cur.map[row * MAP_COLS + col] != 0xB9u) continue;
+            x = (int)(col * 16u);
+            y = (int)(row * 16u) - 0x30;
+            for (unsigned r = 0; r < 64u; r++)
+                for (unsigned c = 0; c < 64u; c++) {
+                    uint8_t v = bdPBlock[r * 64u + c];
+                    int px = x + (int)c, py = y + (int)r;
+
+                    if (!v || px < 0 || py < 0 ||
+                        px >= (int)WORLD_W || py >= (int)WORLD_H) continue;
+                    /* level_setup_screen's add_delta_nonzero(0x1000, 0x20) pass
+                     * moves the P block into the 0x20..0x3F art palette. */
+                    bgImage[py * (int)WORLD_W + px] = (uint8_t)(v + 0x20u);
+                }
+        }
+}
+
+/* the stamped background and the P block, for the exit/igloo test */
+const uint8_t *level_bgForProbe(void) { return bgImage; }
+const uint8_t *level_pBlockForProbe(void) { return bdPHave ? bdPBlock : NULL; }
+unsigned level_bgIndexForProbe(void) { return levelBgIndex; }
 
 int level_init(const OSystem *osys)
 {
@@ -740,6 +786,7 @@ int level_load(unsigned levelId)
      * levels doubles as the BD-walk byte-exactness check (every style 1..6
      * walks to EOF or the load fails) */
     if (visuals_load(d->style) != 0) return -1;
+    level_stampExits();                    /* 1000:4F73 load_terrain_a */
 
     /* load_level_assets (1000:3468): the in-level dialog's box tiles
      * (apl\box.spr, 9 x 16x16 at [0x13B1]) load with the level's assets. */
