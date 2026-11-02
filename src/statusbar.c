@@ -249,6 +249,15 @@ void statusbar_cycleAction(void)
     if (g[1] > g[0]) g[1] = 1u;
 }
 
+/* [0x5B56] itself, for the tests: the group the bar's next draw uses. */
+unsigned statusbar_actionGroup(void) { return actionSel; }
+
+/* the group's icon count (its header's first byte), for the tests. */
+unsigned statusbar_actionCount(unsigned group)
+{
+    return (group >= 1u && group <= 6u) ? actionGroup[group - 1u][0] : 0u;
+}
+
 /* the group's selected-cell byte, for the tests (0 past the table). */
 unsigned statusbar_actionCell(unsigned group)
 {

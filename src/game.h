@@ -198,6 +198,8 @@ void statusbar_setActionGroup(unsigned sel);
  * 0x5B2B header's second byte) with the wrap to 1 past the count. */
 void statusbar_cycleAction(void);
 /* the group's selected-cell byte (1-based), for tests; 0 past the table. */
+unsigned statusbar_actionGroup(void);   /* [0x5B56]: the bar's current group */
+unsigned statusbar_actionCount(unsigned group);
 unsigned statusbar_actionCell(unsigned group);
 /* The countdown word for the save's +0x07: minutes<<8 | BCD seconds. */
 uint16_t statusbar_timeWord(void);

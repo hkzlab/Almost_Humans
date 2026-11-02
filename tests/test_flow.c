@@ -530,9 +530,11 @@ int main(int argc, char **argv)
         check(object_testDispatch(0x0502u) == 1,
               "level 1's goal (class match, arg 5) is met after the pickup");
         /* op 4 (0xEFA1): the record's state byte must be 1 (behaviour 5, the
-         * spear, whose slot 5 maps to state 1 in 0x6EB6); program 2 with the
-         * cursor at 5 runs op 4, which sets the fixed frame/type */
-        object_actionSetCursor(6u);          /* program 1: prog[7] = op 4  */
+         * spear, whose slot 5 maps to state 1 in 0x6EB6); the pickup left
+         * [0x5B56] = 2 (0x5B8A[5]), and program 2's prog[6] is op 4, so the
+         * cursor at 5 selects it */
+        check(object_actionProgram() == 2u, "the pickup left program 2");
+        object_actionSetCursor(5u);          /* program 2: prog[6] = op 4  */
         actor[8] = 0x00; actor[9] = 0x00;    /* type <= 2 gates the op      */
         object_actionRun();
         check((actor[4] | (actor[5] << 8)) == 0x00BBu &&
@@ -2017,6 +2019,86 @@ int main(int argc, char **argv)
     if (level_load(3) == 0)
         check(strcmp(gameflow_partyTribe(), "CARLOS") == 0,
               "level 4's briefing code follows the level");
+
+    /* 6c3. D-64/D-65: a successful pickup sets [0x5B56] = [0x5B8A + class]
+     * (class 5 -> 2, the bar's 4-icon spear group), and op 6 with the class
+     * set runs the class path 1000:9D5D: the carried record is thrown at the
+     * acting record's feet and the bar returns to group 1. */
+    object_init();                       /* fresh array: 6c2 marked the spear */
+    if (level_load(0) == 0) {
+        uint8_t *actor = object_slot(0), *spear = object_slot(9);
+
+        /* a level start leaves [0x1988] = 1, so prog[1] = 1 and the press
+         * reads prog[2] = op 2; earlier blocks may have left a stale cursor */
+        object_actionSetCursor(1u);
+        check(actor != NULL && spear != NULL &&
+              (spear[4] | (spear[5] << 8)) == 0x0060u,
+              "the spear is live at index 9");
+        object_setActionEntity(0u);
+        actor[0] = (uint8_t)(448u - 8u); actor[1] = (uint8_t)((448u - 8u) >> 8);
+        actor[2] = 32u; actor[3] = 0;
+        actor[4] = 0x10; actor[6] = 0; actor[8] = 2; actor[9] = 0;
+        check(object_actionProgram() == 1u && statusbar_actionGroup() == 1u,
+              "the bar starts on group 1");
+        object_actionRun();
+        check(actor[7] == 1u && object_slotClass(1u) == 0x85u,
+              "the pickup takes the spear");
+        check(object_actionProgram() == 2u && statusbar_actionGroup() == 2u,
+              "the pickup moves the bar to the spear's group 2");
+        check(statusbar_actionCount(1u) == 2u && statusbar_actionCount(2u) == 4u,
+              "group 2 shows four icons where group 1 shows two");
+        /* program 2's opcode walk is prog[2..5] = 3,4,5,6 - cursor 4 is op 6 */
+        object_actionSetCursor(4u);
+        object_actionRun();
+        check(object_actionProgram() == 1u && statusbar_actionGroup() == 1u,
+              "dropping it puts the bar back on group 1");
+        check(actor[7] == 0u && object_slotClass(1u) == 0x05u,
+              "the class and the taken mark are cleared");
+        check((spear[0] | (spear[1] << 8)) == 440u &&
+              (spear[2] | (spear[3] << 8)) == 41u &&
+              (spear[4] | (spear[5] << 8)) == 0x0060u &&
+              (spear[8] | (spear[9] << 8)) == 0xFFFFu,
+              "the spear is thrown to the actor's feet, frame 0x60");
+        object_actionSetCursor(1u);
+    }
+
+    /* 6c4. D-65's behaviour-4 half (1000:9D94): level 13's 0xAE tile at
+     * (48,16) is a behaviour-4 record whose +0xE is 0xFFFF (1000:52EB), the
+     * gate the give/hold handler 0x9CF0 tests with bit 15.  A give attaches
+     * it (the actor turns type 0x0F, program 6 = 0x5B8A[4]), and op 6 then
+     * takes the class path: 0x9D94 puts the actor back at the record's place. */
+    if (level_load(12) == 0) {
+        unsigned o, ordinal = 0;
+
+        for (o = 1; o <= object_liveCount() - 8u; o++)
+            if (object_slotClass(o) == 4u) { ordinal = o; break; }
+        check(ordinal != 0u, "level 13's 0xAE record takes behaviour 4");
+        if (ordinal) {
+            uint8_t *it = object_slot(8u + ordinal), *actor = object_slot(0);
+            unsigned ix = it[0] | (it[1] << 8), iy = it[2] | (it[3] << 8);
+
+            check((it[0xEu] | (it[0xFu] << 8)) == 0xFFFFu,
+                  "the 0xAE record carries +0xE = 0xFFFF (1000:52EB)");
+            object_setActionEntity(0u);
+            object_actionSetCursor(1u);
+            actor[0] = (uint8_t)(ix - 8u); actor[1] = (uint8_t)((ix - 8u) >> 8);
+            actor[2] = it[2]; actor[3] = it[3];
+            actor[4] = 0x10; actor[6] = 0; actor[8] = 2; actor[9] = 0;
+            object_actionRun();                  /* the give / hold */
+            check(actor[7] == ordinal && object_slotClass(ordinal) == 0x84u &&
+                  (actor[8] | (actor[9] << 8)) == 0x000Fu,
+                  "the give attaches the record and makes the actor type 0x0F");
+            check(object_actionProgram() == 6u && statusbar_actionGroup() == 6u,
+                  "the give moves the bar to behaviour 4's group 6");
+            object_actionRun();                  /* program 6: op 6 */
+            check(actor[7] == 0u && object_slotClass(ordinal) == 0x04u,
+                  "the class path clears the class and the mark");
+            check((unsigned)(actor[2] | (actor[3] << 8)) == iy - 8u,
+                  "the class path puts the actor at the record's place");
+            check(object_actionProgram() == 1u && statusbar_actionGroup() == 1u,
+                  "the drop puts the bar back on group 1");
+        }
+    }
 
     /* 7b5. D-62: render_objects' tail (1000:5F54) blits the BD C block - two
      * 32x24 mode-2 sprites at (x, y) and (x+0x20, y) - for each 0x32B9 entry.

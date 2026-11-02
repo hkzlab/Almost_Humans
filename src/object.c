@@ -1050,7 +1050,8 @@ static void objSpawnB8(unsigned col, unsigned row)
  * 1000:5662 (called first) nudges y by 3 on a style-6 level when the cell
  * diagonally below-left is marked in the static 0x1F20 table. */
 static void objAppendStyle(const uint8_t *map, unsigned col, unsigned row,
-                           unsigned frame, unsigned behaviour, unsigned f8, unsigned fc)
+                           unsigned frame, unsigned behaviour, unsigned f8,
+                           unsigned fc, unsigned fe)
 {
     /* 0x1F20: the per-tile bit table 1000:5662 tests (static in the image). */
     static const uint8_t nudgeBits[19] = {
@@ -1082,6 +1083,7 @@ static void objAppendStyle(const uint8_t *map, unsigned col, unsigned row,
     wr16(r, 8u, f8);
     wr16(r, 0xAu, 0u);
     wr16(r, 0xCu, fc);
+    wr16(r, 0xEu, fe);
     objSlotClass[objLiveCount - 7u] = (uint8_t)behaviour;
     objLiveCount++;
     bx = objStepProbeAt(r, 8, 0x10, &probeCell);        /* 1000:5639 */
@@ -1206,11 +1208,15 @@ unsigned object_loadTerrainObjects(uint8_t *map)
                 else if (tile == 0xABu)
                     objAppendSpear(col * 16u, row * 16u);
                 else if (tile == 0xACu)
-                    objAppendStyle(map, col, row, 0x96u, 7u, 0xFFFFu, 0u);
+                    objAppendStyle(map, col, row, 0x96u, 7u, 0xFFFFu, 0u, 0u);
                 else if (tile == 0xADu)
-                    objAppendStyle(map, col, row, 0x9Cu, 6u, 0xFFFFu, 0u);
+                    objAppendStyle(map, col, row, 0x9Cu, 6u, 0xFFFFu, 0u, 0u);
                 else if (tile == 0xAEu)
-                    objAppendStyle(map, col, row, 0x38u, 4u, 0x0000u, 0xFFFFu);
+                    /* 1000:52EB differs from 0x52A2/0x52C7: +8 and +0xA are
+                     * 0 and BOTH +0xC and +0xE are 0xFFFF (+0xE is the
+                     * give/hold gate 0x9CF6 tests with bit 15). */
+                    objAppendStyle(map, col, row, 0x38u, 4u, 0x0000u, 0xFFFFu,
+                                   0xFFFFu);
                 else
                     objAppendDecoration(col * 16u, row * 16u, tile);
             }
@@ -1790,11 +1796,21 @@ static uint8_t objPrograms[6][12] = {
 };
 
 /* DS:0x1C76 (behaviour -> program - 1) and DS:0x5B81 (behaviour -> the
- * direction the collision pass dispatches on).  DS:0x5B8A, the collision
- * pass's program id ([0x423C]), is only consumed by 0x990A, which is not
- * ported. */
+ * direction the collision pass dispatches on).  DS:0x5B8A is the collision
+ * pass's own program id: on success it becomes `[0x5B56]` at 1000:9CEB
+ * (`CL = [0x423C]`), which is both the ACTION program index and the status
+ * bar's action-row group header.  Only 4..7 are reachable - 0x5B81 marks
+ * 0..3 with bit 7 and 1000:9C9C skips them. */
 static const uint8_t objBehProgram[8] = { 0, 0, 0, 0, 5, 1, 3, 2 };
 static const uint8_t objBehDir[8] = { 0xFF, 0xFF, 0xFF, 0xFF, 0, 1, 1, 1 };
+static const uint8_t objBehCollideProg[8] = { 0xFF, 0xFF, 0xFF, 0xFF, 6, 2, 4, 3 };
+/* DS:0x5B97 (behaviour -> the class path's handler index) and its target
+ * table at 0x5BA0: {0x9D94, 0x9DD7}.  DS:0x5BA4 is the throw's x offset by
+ * the actor's type (0 -> +8, 1 -> -8, everything else 0) and DS:0x5BAA the
+ * frame by behaviour (5 -> 0x60, 6 -> 0x9C, 7 -> 0x96). */
+static const uint8_t objBehClassIdx[8] = { 0xFF, 0xFF, 0xFF, 0xFF, 0, 1, 1, 1 };
+static const int8_t  objThrowDx[8] = { 8, -8, 0, 0, 0, 0, 0, 0 };
+static const uint8_t objDropFrame[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0x9C, 0x96 };
 /* DS:0x6EC3, 16 bytes: object_find_overlap's "this type does not take part"
  * flag.  Types 0..2 and 8 are 0 (they *do*), the rest 1.  Types >= 0x10 read
  * past the table in the original; the port treats them as "no". */
@@ -1948,6 +1964,82 @@ static int objGiveFound(uint8_t *actor, uint8_t *found, uint8_t *slot, unsigned 
     return 1;
 }
 
+/* 1000:9D94 (the class path's behaviour-4 handler): the carried record is put
+ * down and the acting record becomes a normal record again at its position. */
+static void objClassDrop(uint8_t *actor, uint8_t *found, uint8_t *slot)
+{
+    unsigned ax = 0, bx = 0;
+
+    actor[7] = 0u;                               /* 1000:9D94 */
+    *slot &= 0x7Fu;
+    wr16(found, 0xEu, 0xFFFFu);
+    found[6] &= 0x7Fu;
+    if (rd16(found, 8u) & 0x8000u) {             /* 1000:9DAA */
+        ax = 1u;
+        bx = 8u;
+    }
+    wr16(actor, 0u, rd16(found, 0u));            /* 1000:9DB7 */
+    wr16(actor, 2u, (uint16_t)(rd16(found, 2u) - 8u));
+    wr16(actor, 4u, (uint16_t)bx);
+    wr16(actor, 6u, 0u);
+    wr16(actor, 8u, (uint16_t)ax);
+}
+
+/* 1000:9DD7 (behaviours 5..7): the carried record is thrown / placed at the
+ * acting record's feet and snapped to the terrain.  The two scratch stores the
+ * original makes first ([0x4238] = -6 / 0x16, [0x423C] = 0x10) are dead: every
+ * reader of those words writes them itself (1000:650B, 1000:A783). */
+static void objClassThrow(uint8_t *actor, uint8_t *found, uint8_t *slot)
+{
+    unsigned type = rd16(actor, 8u);
+    unsigned beh = (unsigned)(*slot & 0x3Fu);
+    int landed;
+    unsigned cell;
+
+    actor[7] = 0u;                               /* 1000:9DF1 */
+    *slot &= 0x7Fu;
+    wr16(found, 0u, (uint16_t)(rd16(actor, 0u) +
+                               (type < 8u ? objThrowDx[type] : 0)));
+    wr16(found, 2u, (uint16_t)(rd16(actor, 2u) + 8u));
+    wr16(found, 4u, beh < 8u ? objDropFrame[beh] : 0u);
+    wr16(found, 6u, 0u);
+    wr16(found, 8u, 0xFFFFu);
+    wr16(found, 0xAu, 0u);
+    wr16(found, 0xCu, 0u);
+    wr16(found, 0xEu, 0u);
+    landed = objStepProbeAt(found, 8, 0x10, &cell);  /* 1000:9E43 -> E389 */
+    if (landed >= 0) wr16(found, 2u, (uint16_t)(landed - 0xF));
+}
+
+/* 1000:9D5D (the class path): the acting record's `+7` is set, so it carries
+ * the record whose ordinal that byte holds - `DI = 0x3F17 + 0x12*(class-1)`
+ * (the first live record is 0x3F17) and `BP = 0x3E5F + class - 1`.  The
+ * carried record's class slot picks the handler through 0x5B97/0x5BA0; the
+ * tail then always writes [0x1979] = 5, [0x1988] = 1 and [0x5B56] = 1, i.e.
+ * the bar returns to the walk group. */
+static void objOpClassPath(uint8_t *actor)
+{
+    unsigned cls = actor[7];
+    unsigned live = objLiveCount > OBJ_LIVE0 ? objLiveCount - OBJ_LIVE0 : 0u;
+    uint8_t *found, *slot;
+    unsigned beh, idx;
+
+    /* the original indexes with the byte unguarded; past the live records it
+     * would read the image, which cannot happen - only the take / give paths
+     * write it, always with a valid ordinal. */
+    if (cls < 1u || cls > live) return;
+    found = objArray + (OBJ_LIVE0 + cls) * OBJ_STRIDE;   /* 1000:9D5D */
+    slot = objSlotClass + cls;                           /* 1000:9D60 */
+    beh = (unsigned)(*slot & 0x3Fu);
+    idx = beh < 8u ? objBehClassIdx[beh] : 0xFFu;        /* 1000:9D76 */
+    if (idx & 0x80u) return;                             /* 1000:9D7C */
+    if (idx == 0u) objClassDrop(actor, found, slot);
+    else           objClassThrow(actor, found, slot);
+    objPending = 5u;                                     /* 1000:9D84 */
+    objCursor = 1u;                                      /* 1000:9D89 */
+    objSetProgramIndex(1u);                              /* 1000:9D8E */
+}
+
 /* 0x9C1B (ops 2/6): the collision pass over the live records. */
 static void objOpCollide(uint8_t *actor)
 {
@@ -1956,7 +2048,10 @@ static void objOpCollide(uint8_t *actor)
     unsigned live;
 
     if (!(type == 0x0Fu || type <= 2u)) return;
-    if (actor[7]) return;                        /* the class path (0x9D5D): not decoded */
+    if (actor[7]) {                              /* 1000:9C37 -> the class path */
+        objOpClassPath(actor);
+        return;
+    }
     ax = (int16_t)rd16(actor, 0u);
     bx = (int16_t)rd16(actor, 2u);
     live = objLiveCount > OBJ_LIVE0 ? objLiveCount - OBJ_LIVE0 : 0u;
@@ -1968,7 +2063,7 @@ static void objOpCollide(uint8_t *actor)
         uint8_t *found = objArray + (OBJ_LIVE0 + 1u + k) * OBJ_STRIDE;
         uint8_t *slot = objSlotClass + ordinal;  /* BP = 0x3E5F + k */
         int dx, dy;
-        unsigned beh, dir;
+        unsigned beh, dir, prog;
 
         if (*slot & 0x80u) continue;
         if (found[6] & 0x80u) continue;
@@ -1982,9 +2077,14 @@ static void objOpCollide(uint8_t *actor)
         if (dy < 0 || dy >= 0x18) continue;
         if (dir == 0u) { if (!objGiveFound(actor, found, slot, ordinal)) continue; }
         else if (!objTakeFound(actor, found, slot, ordinal)) continue;
+        /* the tail at 1000:9CD9: [0x5B56] = [0x423C] = 0x5B8A[behaviour],
+         * which is the ACTION program and the bar's action-row group; a
+         * negative id leaves all three writes undone (1000:9CDF). */
+        prog = objBehCollideProg[beh];
+        if (prog & 0x80u) return;
         objPending = 5u;                         /* [0x1979] = 5 */
         objCursor = 1u;                          /* [0x1988] = 1 */
-        objSetProgramIndex(1u);                  /* [0x5B56] = 1 */
+        objSetProgramIndex(prog);                /* [0x5B56] */
         return;
     }
 }
