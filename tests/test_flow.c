@@ -1819,6 +1819,45 @@ int main(int argc, char **argv)
                 rec[7] = 0u;
                 object_setSlotClass(5u, 0u);
             }
+            /* D-51: the pickup's taken mark (the slot byte's bit 7) makes the
+             * record walk skip the record (1000:6450 no-class / 1000:6467
+             * class path); only a carrier's overlay draws it.  The 0xAB spear
+             * is live index 9 -> class slot 1. */
+            {
+                static uint8_t m5[640];
+                uint8_t *sp;
+                unsigned ink;
+
+                memset(m5, 0, sizeof m5);
+                m5[2u * 32u + 2u] = 0xABu;              /* the spear tile */
+                object_init();
+                check(object_loadTerrainObjects(m5) == 9u,
+                      "the 0xAB spear for the taken-record walk");
+                sp = object_slot(9);
+                sp[0] = 10; sp[1] = 0; sp[2] = 10; sp[3] = 0;
+                check((sp[4] | (sp[5] << 8)) == 0x0060u &&
+                      object_slotClass(1u) == 5u,
+                      "the spear sits in live slot 1");
+                object_setSlotClass(1u, 0x85u);         /* the pickup's mark */
+                memset(page, 0, sizeof page);
+                object_render(page, 0, 0);
+                ink = 0;
+                for (unsigned y = 10; y < 26; y++)
+                    for (unsigned x = 10; x < 26; x++)
+                        if (page[y * 320u + x]) ink++;
+                check(ink == 0u,
+                      "1000:6450: a taken record is not drawn by the walk");
+                /* control: with the mark clear the same record draws */
+                object_setSlotClass(1u, 5u);
+                memset(page, 0, sizeof page);
+                object_render(page, 0, 0);
+                ink = 0;
+                for (unsigned y = 10; y < 26; y++)
+                    for (unsigned x = 10; x < 26; x++)
+                        if (page[y * 320u + x]) ink++;
+                check(ink != 0u,
+                      "the same record draws while it is not taken");
+            }
             object_publishBank(NULL, 0u);
             free(bank);
         }
@@ -2279,6 +2318,46 @@ int main(int argc, char **argv)
 
             while (score_tick(&k) && guard++ < 5000u) palette_tick();
             check(guard < 5000u, "the score screen exits after the hold");
+        }
+        /* D-52: 1000:4692/1000:4694 - the expiry runs the NEW phase's handler,
+         * so the stamp is drawn on the on toggle and its cell restored on the
+         * off one.  A fresh screen with a NEW RECORD must show both states. */
+        {
+            static uint8_t cellOn[24u * 64u], cellOff[24u * 64u];
+            InputState tk;
+            uint8_t *pg = video_page(0);
+            unsigned t, diff;
+
+            memset(&tk, 0, sizeof tk);
+            hiscore_reset();                        /* the 0x0999 sentinels */
+            statusbar_start(0x0600u, 12u, 4u);
+            level_requestEnd(1);
+            check(score_begin(0u) == 1, "the blink screen starts");
+            for (t = 0; t < 400u && palette_fadeActive(); t++) {
+                (void)score_tick(&tk);
+                palette_tick();
+            }
+            (void)score_tick(&tk);                  /* the arm tick */
+            for (t = 0; t < 400u && scoreBlinkOn() == 0; t++) {
+                (void)score_tick(&tk);
+                palette_tick();
+            }
+            for (unsigned r = 0; r < 24u; r++)
+                for (unsigned x = 0; x < 64u; x++)
+                    cellOn[r * 64u + x] = pg[(176u + r) * 320u + 128u + x];
+            for (t = 0; t < 400u && scoreBlinkOn() == 1; t++) {
+                (void)score_tick(&tk);
+                palette_tick();
+            }
+            for (unsigned r = 0; r < 24u; r++)
+                for (unsigned x = 0; x < 64u; x++)
+                    cellOff[r * 64u + x] = pg[(176u + r) * 320u + 128u + x];
+            diff = 0;
+            for (unsigned i = 0; i < 24u * 64u; i++)
+                if (cellOn[i] != cellOff[i]) diff++;
+            check(diff != 0u,
+                  "1000:4692: the off phase erases the NEW RECORD stamp");
+            for (t = 0; t < 6000u && score_tick(&tk); t++) palette_tick();
         }
     }
 

@@ -543,8 +543,16 @@ int score_tick(const InputState *in)
             /* tick_score_counters (1000:475D): draw_score_columns, blink_tick,
              * then one 10-point step.  The drawing happens every frame. */
             if (page) score_drawColumns(page);
-            if (score_blinkTick() && page)        /* 1000:467A */
-                score_stampDraw(page, scoreBlinkOn());
+            /* 1000:467A: the expiry toggles [0x1DC4] and runs the *new*
+             * phase's handler - 1000:46A3 restores the cell (off), 1000:46FC
+             * saves it and draws the sprite (on).  Both halves run. */
+            {
+                int was = scoreBlinkOn();
+
+                (void)score_blinkTick();
+                if (page && scoreBlinkOn() != was)
+                    score_stampDraw(page, scoreBlinkOn());
+            }
             alive = score_countersRun();
 
             /* check_highscore's loop: while ([0x1DC8] & 0x8000) == 0, and it

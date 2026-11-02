@@ -1545,6 +1545,10 @@ void object_render(uint8_t *page, int scrollX, int scrollY)
         unsigned frame = rd16(r, 4u);
 
         if (r[6] & 0x80u) continue;                 /* 1000:794C */
+        /* 1000:6450/1000:6467: the record's class slot (0x3E5E + record-8)
+         * skips it when bit 7 is set - the pickup's taken mark (1000:9D47).
+         * The carried record is drawn by its carrier's class overlay only. */
+        if (i >= 8u && (objSlotClass[i - 8u] & 0x80u)) continue;
         if (!r[7]) {
             objBlitFrame(page, frame, x, y);
             continue;
