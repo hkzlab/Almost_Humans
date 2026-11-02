@@ -708,20 +708,20 @@ int game_main(const OSystem *osys)
                  * 1000:3979); a dialog blocks it through [0x6F1D].  The
                  * pause block (202F:0x5BBC) is scan_id_list's ESC event (id
                  * 4 -> 1000:38EA), not ACTION. */
-                /* [0x42F0] + 1000:E3F9: a fresh fire press home-states the
-                 * acting record (0x392D), before the ACTION op (0x34B5
-                 * precedes pause_toggle at 0x34BD). */
-                if (rawFire && !actionLatched) {
-                    object_noteFireEdge();
-                    object_runFireEdge();
-                }
-                if (!menu_active() && !actionLatched && rawFire &&
-                    !(input.joyBits & 0x0Fu))
+                /* pause_toggle (0x3523): a fresh fire press with no direction
+                 * runs the ACTION program.  [0x42F0] is never set in the image,
+                 * so the 0xE3F9 ACTION edge is dead and the same frame's
+                 * command dispatch still sees the fire half of the row. */
+                int pressed = rawFire && !actionLatched;
+
+                if (!menu_active() && pressed && !(input.joyBits & 0x0Fu))
                     object_actionRun();
-                /* [0x13A4] (poll_input 1000:9998): one action per press —
-                 * the ACTION bit is masked while the key is held. */
-                actionLatched = rawFire;
                 level_tick();          /* the party done: the level runs */
+                /* 1000:3538 (pause_toggle, after update_world at 0x34B5):
+                 * this press is consumed - [0x13A4] stays set until the
+                 * fire key is released (poll_input 0x85A9). */
+                if (pressed) object_setActionLatched(1);
+                actionLatched = rawFire;
                 /* level_tick ends with the [0x1979] dispatch (1000:382D and
                  * the event-4 charge loop), so it runs once per frame */
                 if (level_endHolding()) {

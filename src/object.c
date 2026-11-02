@@ -106,25 +106,11 @@ static unsigned objFault;                /* op 7 was dispatched (see below)     
  * (1000:EE35) and the pending-event 4 charge loop consumes it (1000:370C). */
 static uint8_t objChargeArm;
 static int     objCharging;
-/* [0x42F0]: "the fire key produced a fresh press" (set outside segment 1000,
- * cleared by the dispatch's ACTION edge at 0xE407). */
-static int     objFireEdge;
-
-/* the backend's fire-key edge: one call per press (game_main's input loop). */
-void object_noteFireEdge(void) { objFireEdge = 1; }
-
-/* 1000:E3F9-0xE40C: a fresh press runs the home-state conversion (0x392D ->
- * 0xEDB7) once, before the ACTION program's op for the same frame (the
- * original's update_world at 0x34B5 precedes pause_toggle at 0x34BD). */
-void object_runFireEdge(void)
-{
-    uint8_t *actor;
-
-    if (!objFireEdge) return;
-    objFireEdge = 0;
-    actor = object_slot(object_actionEntity());
-    if (actor) (void)objCmdHomeState(actor);
-}
+/* [0x42F0], the ACTION edge's guard, is **never set** in this image: the only
+ * two references in the whole file are the test and the clear at 0xE3F9-0xE407,
+ * so the edge (0xE40C's `CALL 0x392D`) is dead in the shipped build and the port
+ * does not run it.  That is what lets a fire press reach the type row's fire
+ * half (D-68). */
 static const OSystem *objOsys;           /* the fatal halt's route (osystem.h)   */
 static uint16_t objRegister[8][7];       /* 0x6F22: 8 x 0xE (clear is 0x70 bytes at
                                           * 0x60F4; op 1 walks AX = 7..0), bit15 = free */

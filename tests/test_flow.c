@@ -2063,6 +2063,50 @@ int main(int argc, char **argv)
         object_actionSetCursor(1u);
     }
 
+    /* 6c9. D-68: the Z-only release.  [0x42F0] is never set in the image, so
+     * the 0xE3F9 ACTION edge is dead and a fresh press reaches the type row's
+     * fire half (row[0x19] = 0x30 = 0xEFD4, the turn), which latches [0x6F1D];
+     * the next (masked) frame's idle form (0xEFD7) then runs 0xEFE4 and the
+     * record leaves the pose (type += 2, frame += 1). */
+    object_init();
+    if (level_load(1) == 0) {                /* level 2: positional goal */
+        unsigned ord = 0, i;
+        uint8_t *actor = object_slot(0), *it = NULL;
+
+        for (i = 1; i <= object_liveCount() - 8u; i++)
+            if (object_slotClass(i) == 5u) { ord = i; break; }
+        check(ord != 0u, "level 2 has a spear for the release test");
+        if (ord) {
+            it = object_slot(8u + ord);
+            object_setActionEntity(0u);
+            object_actionSetCursor(1u);
+            object_setActionLatched(0);
+            actor[0] = (uint8_t)((it[0] | (it[1] << 8)) - 8u);
+            actor[1] = (uint8_t)(((it[0] | (it[1] << 8)) - 8u) >> 8);
+            actor[2] = it[2]; actor[3] = it[3];
+            actor[4] = 0x10; actor[6] = 0; actor[8] = 2; actor[9] = 0;
+            object_actionRun();                  /* the pickup */
+            object_actionSetCursor(2u);
+            actor[8] = 2; actor[9] = 0; actor[4] = 0x10;
+            object_actionRun();                  /* op 4: the pose */
+            check((unsigned)(actor[4] | (actor[5] << 8)) == 0x00BEu,
+                  "the throw pose is up before the release");
+            /* the press frame: the fire half selects the turn */
+            object_commandRun(actor, 0x80u);
+            object_setActionLatched(1);          /* 1000:3538 pause_toggle */
+            check((unsigned)(actor[0xEu] | (actor[0xFu] << 8)) == 4u,
+                  "the fire press starts the aim (+0xE = 4)");
+            /* the next frame: the fire is masked, the idle form releases */
+            object_commandRun(actor, 0x00u);
+            /* 0xEFE4 bumps type +2 / frame +1 and then runs the fall machine,
+             * so the immediate result is the landing state (type 0/1), never
+             * the pose again. */
+            check(!((unsigned)(actor[4] | (actor[5] << 8)) == 0x00BEu &&
+                    (unsigned)(actor[8] | (actor[9] << 8)) == 0x0018u),
+                  "the release leaves the pose (0xEFE4)");
+        }
+    }
+
     /* 6c8. D-70: the record command index is `row[1 + cmd]` with no upper
      * bound (1000:E4A7), and DS:0x6908[0] = 0x48 makes "no direction" cmd 8.
      * A type-0x18 (throw pose) record therefore selects row[9] = 0x31
@@ -2083,12 +2127,6 @@ int main(int argc, char **argv)
         c = object_commandSelect(actor, 0x80u);
         check(c.handler == 0xEFD4u,
               "the fire-only command selects the fire half's row[0x19] (0xEFD4)");
-        /* the ACTION edge (1000:E3F9 -> 0x392D) home-states the pose */
-        object_noteFireEdge();
-        object_runFireEdge();
-        check((unsigned)(actor[4] | (actor[5] << 8)) == 8u &&
-              (unsigned)(actor[8] | (actor[9] << 8)) == 1u,
-              "the fire edge stands the posed record up (frame 8, type 1)");
     }
 
     /* 6c7. D-68: the pending-event 4 charge loop.  With the throw pose up,

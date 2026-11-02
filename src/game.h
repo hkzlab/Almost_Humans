@@ -662,9 +662,7 @@ void     object_driverCall(unsigned n);   /* 1000:83B7 from another module */
 /* [0x13A4]: the ACTION press's latch as the command handlers see it. */
 int  object_actionLatched(void);
 void object_setActionLatched(int on);              /* 7 = op 7 was dispatched */
-/* [0x42F0]: the backend's fire-key edge (1000:E3F9's ACTION edge) */
-void object_noteFireEdge(void);
-void object_runFireEdge(void);      /* 1000:E3F9 -> 0x392D, before the op */
+
 /* The arch's fatal route for the op-7 halt (NULL detaches it, the tests do
  * that on purpose); level_init attaches the game's OSystem. */
 void object_attachOsys(const OSystem *osys);
