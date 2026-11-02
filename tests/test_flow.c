@@ -2559,6 +2559,54 @@ int main(int argc, char **argv)
         }
     }
 
+    /* 7b9. D-74: the placed-record behaviour walk (1000:C295).  Level 16's
+     * torch (behaviour 6) steps its frame every 4th frame; the decorations
+     * (behaviour 1) reload their +0xA countdown on the 8-tick cadence. */
+    if (level_load(15) == 0) {
+        uint8_t *torch = NULL, *deco = NULL;
+        unsigned i, f0, seen = 0;
+
+        for (i = 8u; i <= object_liveCount(); i++) {
+            uint8_t *r = object_slot(i);
+
+            if ((r[4] | (r[5] << 8)) == 0x9Cu) torch = r;
+            if ((r[4] | (r[5] << 8)) == 0xC1u) deco = r;
+        }
+        check(torch != NULL && deco != NULL,
+              "level 16 carries the torch and a behaviour-1 decoration");
+        if (torch && deco) {
+            unsigned idx = (unsigned)((torch - object_slot(0)) / 0x12u);
+
+            check((unsigned)(object_slotClass(idx - 8u) & 0x3Fu) == 6u,
+                  "level 16's torch is behaviour 6");
+            f0 = torch[4] | (torch[5] << 8);
+            for (i = 0; i < 9u; i++) {
+                object_updateList();
+                object_tick(NULL);
+                seen |= 1u << (unsigned)((torch[4] | (torch[5] << 8)) - f0);
+            }
+            check(seen == 0x7u, "the torch walks 0x9C..0x9E (behaviour 6)");
+            {
+                uint8_t *b1 = NULL;
+                unsigned j;
+
+                for (j = 8u; j <= object_liveCount(); j++) {
+                    uint8_t *q = object_slot(j);
+
+                    if ((unsigned)(object_slotClass(j - 8u) & 0x3Fu) == 1u) {
+                        b1 = q;
+                        break;
+                    }
+                }
+                if (b1) {
+                    object_updateList();
+                    check((b1[10] | (b1[11] << 8)) != 0u,
+                          "the behaviour-1 stepper ticks its +0xA countdown");
+                }
+            }
+        }
+    }
+
     /* 7b4. D-63: the sprite table runs to the 0x3E20 bound - 0x11E slots.
      * apply_relocations builds it from 0x39A8 to 0x3E20; the 0xB7 bush and
      * the type-31/32 tails use frames 0x116/0x11A, which a 0x110 table drops. */

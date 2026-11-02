@@ -329,6 +329,7 @@ static uint8_t bdCBlock[0x600];     /* field C: the 0xA9 background art */
 static uint8_t bdGBlock[3u * 4u * 0x100u]; /* field G: 3 layers x 4 max    */
 static uint8_t bdEBlock[0x80];             /* field E: the A9 log sprite   */
 static uint8_t bdHBlock[0x200];            /* field H: frames 0x26/0x27    */
+static unsigned bdAnimFrames;              /* field F -> [0x6532]          */
 static int     bdCHave;
 static uint8_t bdPBlock[0x1000];    /* field P: the exit/igloo art (0xB9) */
 static int     bdPHave;
@@ -586,6 +587,7 @@ static int visuals_load(unsigned style)
         }
         object_publishGSprites(bdGBlock, blocks, page.gCount);
     }
+    bdAnimFrames = (end == bdSize) ? page.gCount : 0u;
     memset(bdCBlock, 0, sizeof bdCBlock);
     bdCHave = 0;
     if (end == bdSize && page.cBlock) {
@@ -722,6 +724,7 @@ void level_drawBgSprites(uint8_t *page, int scrollX, int scrollY)
 
 /* the stamped background and the P block, for the exit/igloo test */
 const uint8_t *level_bgForProbe(void) { return bgImage; }
+unsigned level_animFrames(void) { return bdAnimFrames; }
 const uint8_t *level_pBlockForProbe(void) { return bdPHave ? bdPBlock : NULL; }
 const uint8_t *level_cBlockForProbe(void) { return bdCHave ? bdCBlock : NULL; }
 unsigned level_bgIndexForProbe(void) { return levelBgIndex; }
@@ -1682,6 +1685,7 @@ int level_tick(void)
         if (worldUpdates) {
             level_followView();           /* 1000:5CB6, first in update_world */
             if (actor) (void)object_commandRun(actor, levelJoy);
+            object_updateList();          /* 1000:C295, 1000:80BD            */
             entity_tick();                /* 1000:C93C, inside the [0xC] gate */
             object_markerTick();          /* 1000:D64F, after the dispatch */
         }

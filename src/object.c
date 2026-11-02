@@ -1876,6 +1876,153 @@ static void objBgTick(void)
     }
 }
 
+/* --- 1000:C295 update_list: the placed records' behaviour walk ---------
+ *
+ * `update_world` (1000:80AD at 1000:80BD) walks the live records from 0x3F17
+ * with the parallel behaviour bytes at 0x3E5F and dispatches through the
+ * ten-word table at 202f:0x6535 (`byte & 0x3F`).  The handlers below are the
+ * animation/movement ones; the drawing handlers (7's 0xE039 and 4's record A)
+ * are not called - the port's render pass already draws every record.
+ */
+static const uint8_t objSeq6568[0x64] = {
+    0xAF, 0xB0, 0xB1, 0xB2, 0xB3, 0xB1, 0xB2, 0xB3, 0xB1, 0xB2, 0xB3, 0xB1,
+    0xB2, 0xB3, 0xB1, 0xB2, 0xB3, 0xB1, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6, 0x00,
+    0xC0, 0xCC, 0xE3, 0xCC, 0x06, 0xCD, 0x4A, 0xCD, 0x4A, 0xCD, 0x4A, 0xCD,
+    0x08, 0x0F, 0xFF, 0xFF, 0x08, 0x0B, 0xFF, 0xFF, 0x01, 0x00, 0x00, 0x00,
+    0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+    0x08, 0x0F, 0xFF, 0xFF, 0x08, 0x0F, 0xFF, 0xFF, 0x08, 0x0F, 0xFF, 0xFF,
+    0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+    0x08, 0x0C, 0xFF, 0xFF, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+    0x08, 0x0C, 0xFF, 0xFF,
+};
+
+/* 0xC77B (behaviour 1): an 8-tick frame stepper between +8 and +8 + [0x6532]. */
+static void objWalkStep1(uint8_t *r)
+{
+    unsigned a = rd16(r, 0xAu);
+
+    if (a != 0u) { wr16(r, 0xAu, a - 1u); return; }
+    wr16(r, 0xAu, 8u);
+    {
+        unsigned base = rd16(r, 8u);
+        unsigned f = (unsigned)(rd16(r, 4u) + 1u);
+
+        if (f >= base + level_animFrames()) f = base;
+        wr16(r, 4u, (uint16_t)f);
+    }
+}
+
+/* 0xCBFE (behaviour 3): a 4-tick sequence player over 0x6568, +0xC the cursor;
+ * the end of a run sets +8 = 2 and clears the map cell at +0xE. */
+static void objWalkSeq(uint8_t *r)
+{
+    unsigned a, cur, i;
+
+    if (rd16(r, 8u) != 1u) return;
+    a = rd16(r, 0xAu);
+    if (a != 0u) { wr16(r, 0xAu, a - 1u); return; }
+    wr16(r, 0xAu, 4u);
+    cur = rd16(r, 0xCu);
+    wr16(r, 0xCu, cur + 1u);
+    i = cur;
+    wr16(r, 4u, i < sizeof objSeq6568 ? objSeq6568[i] : 0u);
+    if (i + 1u < sizeof objSeq6568 && objSeq6568[i + 1u] == 0u) {
+        uint8_t *map = (uint8_t *)level_map();   /* the writable [0x1FA0] copy */
+
+        wr16(r, 8u, 2u);
+        if (map && rd16(r, 0xEu) < 640u) map[rd16(r, 0xEu)] = 0u;
+    }
+}
+
+/* 0xCC39 (behaviour 2): the wanderer, on even frames.  The state lives in +8
+ * (0 = walking right, 1 = left, 2 = arrived); +0x10 is a 4-tick divider. */
+static void objWalkWander(uint8_t *r)
+{
+    unsigned ax, bx, cx, dx;
+
+    if (objFrame & 1u) return;
+    ax = rd16(r, 0u); bx = rd16(r, 4u); cx = rd16(r, 8u); dx = rd16(r, 0x10u);
+    switch (cx) {
+    case 0:                                          /* 0xCCC0 */
+        ax++;
+        if (dx == 0u) {
+            dx = 3u; bx++;
+            if (bx > 0x85u) bx = 0x82u;
+            if (ax >= rd16(r, 0xCu)) { bx = 0x86u; cx = 1u; }
+        } else dx--;
+        break;
+    case 1:                                          /* 0xCCE3 */
+        ax--;
+        if (dx == 0u) {
+            dx = 3u; bx++;
+            if (bx > 0x89u) bx = 0x86u;
+            if (ax > rd16(r, 0xAu)) { bx = 0x82u; cx = 0u; }
+        } else dx--;
+        break;
+    default:                                         /* 0xCD06 */
+        bx = 0x8Au;
+        break;
+    }
+    wr16(r, 0u, (uint16_t)ax);
+    wr16(r, 4u, (uint16_t)bx);
+    wr16(r, 0x10u, (uint16_t)dx);
+    wr16(r, 8u, (uint16_t)cx);
+    if (cx != 0u) return;
+    /* 1000:CC65: the (x-3, y-8) match against the eight fixed slots. */
+    for (unsigned i = 0; i < OBJ_STATIC; i++) {
+        uint8_t *slot = objArray + i * OBJ_STRIDE;
+        unsigned type;
+
+        if ((unsigned)(int16_t)(ax - 3) != rd16(slot, 0u)) continue;
+        if ((unsigned)(int16_t)(bx - 8) != rd16(slot, 2u)) continue;
+        type = rd16(slot, 8u);
+        if (type > 2u) return;
+        if (rd16(r, 0xEu) == 0u) {
+            wr16(r, 0xEu, 5u);
+            wr16(r, 8u, 2u);
+            wr16(slot, 0xAu, 0u);
+            wr16(slot, 0xCu, 0u);
+            wr16(slot, 0xEu, rd16(slot, 4u));
+            wr16(slot, 0x10u, type);
+            wr16(slot, 8u, 0x11u);
+        } else {
+            wr16(r, 0xEu, (uint16_t)(rd16(r, 0xEu) - 1u));
+        }
+        return;
+    }
+}
+
+/* 0xCD0A (behaviour 6, the torch): every 4th frame bump the frame 0x9C..0x9E.
+ * Its fall-through is 0xCD2E (behaviour 7, the campfire's draw) whose only
+ * body is a sprite blit the port's render pass already performs. */
+static void objWalkTorch(uint8_t *r)
+{
+    unsigned f;
+
+    if ((objFrame & 3u) != 0u) return;
+    if (rd16(r, 8u) != 0xFFFFu) return;
+    if (rd16(r, 0xAu) != 0u) return;
+    f = (unsigned)(rd16(r, 4u) + 1u);
+    if (f >= 0x9Fu) f = 0x9Cu;
+    wr16(r, 4u, (uint16_t)f);
+}
+
+void object_updateList(void)
+{
+    for (unsigned i = OBJ_LIVE0 + 1u; i <= objLiveCount; i++) {
+        uint8_t *r = objArray + i * OBJ_STRIDE;
+        unsigned beh = (unsigned)(objSlotClass[i - 8u] & 0x3Fu);
+
+        switch (beh) {
+        case 1u: objWalkStep1(r); break;
+        case 2u: objWalkWander(r); break;
+        case 3u: objWalkSeq(r); break;
+        case 6u: objWalkTorch(r); break;
+        default: break;
+        }
+    }
+}
+
 /* --- object_tick: one level frame for the object machine -------------- */
 void object_tick(const uint8_t *levelPal)
 {

@@ -462,6 +462,11 @@ void object_publishGSprites(const uint8_t *data, unsigned blocks, unsigned n);
 /* DEFS fields E and H: the 0xA9 log sprite (frames 0x33..0x37) and the two
  * sprites the frame slots 0x26/0x27 point at. */
 void object_publishDEHSprites(const uint8_t *e, const uint8_t *h);
+/* 1000:C295 update_list: the placed records' behaviour walk (torch, stepper,
+ * sequence, wanderer). */
+void object_updateList(void);
+/* the level's [0x6532] (BD field F, 0 when absent). */
+unsigned level_animFrames(void);
 void entity_render(uint8_t *page, int scrollX, int scrollY);
 int  entity_frameInfo(unsigned a, unsigned *src, unsigned *rows, unsigned *yoff);
 
