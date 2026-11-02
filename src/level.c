@@ -329,6 +329,8 @@ static uint8_t bdCBlock[0x600];     /* field C: the 0xA9 background art */
 static uint8_t bdGBlock[3u * 4u * 0x100u]; /* field G: 3 layers x 4 max    */
 static uint8_t bdEBlock[0x80];             /* field E: the A9 log sprite   */
 static uint8_t bdHBlock[0x200];            /* field H: frames 0x26/0x27    */
+static uint8_t slopeProfiles[0x400];       /* field A: the slope profiles  */
+static uint32_t slopeSize;
 static unsigned bdAnimFrames;              /* field F -> [0x6532]          */
 static int     bdCHave;
 static uint8_t bdPBlock[0x1000];    /* field P: the exit/igloo art (0xB9) */
@@ -360,6 +362,8 @@ static void visuals_free(void)
  * 8 bytes; field M (a u16 count + 4-byte entries) is the palette-rotation
  * table, handed back to the caller.  Byte-exact over BD1..BD6 (2026-10-23). */
 typedef struct BdPage {
+    const uint8_t *aTable;      /* field A: the per-tile slope profiles  */
+    uint32_t aSize;
     const uint8_t *items;       /* field B: 256 word offsets             */
     uint32_t itemsSize;         /* maxB + 0x20: the record area          */
     const uint8_t *jBytes;      /* field J: the 8 bytes at 0x1E98        */
@@ -391,6 +395,10 @@ static uint32_t bd_walk(const uint8_t *b, uint32_t size, unsigned *bgIndex,
         for (unsigned i = 0; i < 256u; i++) {
             uint32_t v = rd_le16(b + si + i * 2u);
             if (v > m) m = v;
+        }
+        if (pass == 0u) {                   /* A: the per-tile slope profiles */
+            page->aTable = b + si;
+            page->aSize = m;
         }
         if (pass == 1u) {                   /* B: the item offset table */
             page->items = b + si;
@@ -588,6 +596,15 @@ static int visuals_load(unsigned style)
         object_publishGSprites(bdGBlock, blocks, page.gCount);
     }
     bdAnimFrames = (end == bdSize) ? page.gCount : 0u;
+    /* field A (the per-tile slope profiles) is read by behaviour 4's
+     * projectile; copy it before `bd` is freed. */
+    memset(slopeProfiles, 0, sizeof slopeProfiles);
+    slopeSize = 0;
+    if (end == bdSize && page.aTable && page.aSize &&
+        page.aSize <= sizeof slopeProfiles) {
+        memcpy(slopeProfiles, page.aTable, page.aSize);
+        slopeSize = page.aSize;
+    }
     memset(bdCBlock, 0, sizeof bdCBlock);
     bdCHave = 0;
     if (end == bdSize && page.cBlock) {
@@ -725,6 +742,17 @@ void level_drawBgSprites(uint8_t *page, int scrollX, int scrollY)
 /* the stamped background and the P block, for the exit/igloo test */
 const uint8_t *level_bgForProbe(void) { return bgImage; }
 unsigned level_animFrames(void) { return bdAnimFrames; }
+
+/* 1000:1FD4's per-tile slope profile at `sub` (signed -4..+4). */
+int level_slopeByte(unsigned id, unsigned sub)
+{
+    unsigned off;
+
+    if (!slopeSize || id > 0xFFu || sub > 0xFu) return 0;
+    off = rd_le16(slopeProfiles + 2u * id);
+    if (off + sub >= slopeSize) return 0;
+    return (int8_t)slopeProfiles[off + sub];
+}
 const uint8_t *level_pBlockForProbe(void) { return bdPHave ? bdPBlock : NULL; }
 const uint8_t *level_cBlockForProbe(void) { return bdCHave ? bdCBlock : NULL; }
 unsigned level_bgIndexForProbe(void) { return levelBgIndex; }

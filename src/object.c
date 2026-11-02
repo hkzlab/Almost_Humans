@@ -2411,6 +2411,204 @@ static void objWalkStack(uint8_t *r, unsigned idx)
     }
 }
 
+/* --- 0xCEC3 (behaviour 4): record A's projectile ----------------------
+ *
+ * Two phases.  Phase 1 (vy == 0) flies horizontally: the tile under
+ * (x+8, y+0x10) gives a signed slope through the field-A table ([0x1FD4]),
+ * which is added to vx together with the +-1 step at 0x6695; the fuse at
+ * +0xC is recomputed as 8 - (|vx|>>2) when it expires and the frame cycles
+ * 0x38..0x3B.  Phase 2 (vy != 0) is the fall: the signed byte curve at
+ * 0x6652 (indexed by vy) is added to y, and the landing test resolves the
+ * target record through the +0xE index (0x3E24), writing its 0x28/0/0x16/5
+ * state.  The draw dispatcher (0x666B) and the explosion (0xD34E) are not
+ * called - the render pass draws the record and the effect is cosmetic.
+ */
+static const int8_t objProjCurve[25] = {
+    0, -4, -3, -3, -2, -2, -2, -1, -1, -1, -1, 0, 0,
+    0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 3, 3,
+};
+
+static int objProjCull(int vx, int x)
+{
+    int off;
+
+    if (vx < 0) {
+        off = (-vx) >> 3;
+        if (x - off < 0) return 0;
+    } else {
+        off = vx >> 3;
+        if (x + off > 0x1EF) return 0;
+    }
+    return vx;
+}
+
+/* 1000:D5D5: the terrain snap/landing for the projectile.  Returns the new
+ * y, or -1 when it is off the page (the slot splash is not modelled). */
+static int objProjSnap(uint8_t *r, int bx, int cx)
+{
+    const uint8_t *map = level_map();
+
+    (void)r;
+    int sy = cx + 0x10;
+    int sx = bx + 8;
+    int sub;
+    unsigned tile, page;
+
+    if (sy >= 0x140) return -1;
+    sy &= ~0xF;
+    {
+        unsigned ci = ((unsigned)sy >> 4) * 32u + ((unsigned)sx >> 4);
+
+        if (!map || ci >= 640u) return -1;
+        tile = map[ci];
+    }
+    sub = sx & 0xF;
+    page = (unsigned)(int8_t)level_pageByte(tile, (unsigned)sub);
+    if ((int8_t)page < 0) {                       /* 1000:D5F0 */
+        if (sy > 0x12F) return -1;
+        {
+            unsigned ci2 = ((unsigned)sy >> 4) * 32u + ((unsigned)sx >> 4);
+            unsigned below = (ci2 + 0x20 < 640u) ? map[ci2 + 0x20] : 0xFFu;
+            int b2 = (int8_t)level_pageByte(below, (unsigned)sub);
+
+            if (b2 < 0) return -1;
+            sy += b2;
+        }
+        return sy;
+    }
+    if ((int8_t)page == 0) {                      /* the row above decides */
+        unsigned ci2 = ((unsigned)sy >> 4) * 32u + ((unsigned)sx >> 4);
+        unsigned above = (ci2 >= 0x20u) ? map[ci2 - 0x20] : 0xFFu;
+        int b2 = (int8_t)level_pageByte(above, (unsigned)sub);
+
+        if (b2 >= 0) sy -= 0x10;
+        else sy += (int8_t)level_pageByte(tile, (unsigned)sub);
+    } else {
+        sy -= 0x10;
+    }
+    sy += (int8_t)page;
+    return sy;
+}
+
+/* 0xCEC3, the behaviour-4 handler. */
+static void objWalkProjectile(uint8_t *r, unsigned idx)
+{
+    int x = (int16_t)rd16(r, 0u), y = (int16_t)rd16(r, 2u);
+    unsigned frame = rd16(r, 4u);
+    int vx, vy;
+
+    if (r[6] & 0x40u) return;
+    vx = (int16_t)rd16(r, 8u);
+    vy = (int16_t)rd16(r, 0xAu);
+    if (vy == 0) {                                /* phase 1: horizontal    */
+        const uint8_t *map = level_map();
+        int sx = x + 8, sy = y + 0x10;
+        int sub, slope, step = 1;
+        unsigned tile;
+
+        sy &= ~0xF;
+        {
+            unsigned ci = ((unsigned)sy >> 4) * 32u + ((unsigned)sx >> 4);
+
+            if (!map || ci >= 640u) return;
+            tile = map[ci];
+        }
+        sub = sx & 0xF;
+        slope = level_slopeByte(tile, (unsigned)sub);
+        vx += slope;
+        if (vx != 0) {
+            if (vx >= 0) step = -step;
+            vx += step;
+            if (vx != 0) {
+                int fuse = (int16_t)rd16(r, 0xCu) - 1;
+
+                wr16(r, 0xCu, (uint16_t)fuse);
+                if (fuse < 0) {
+                    int t = (vx < 0) ? -1 : 1;
+                    int a = (vx < 0) ? -vx : vx;
+
+                    a = -(a >> 2) + 8;
+                    wr16(r, 0xCu, (uint16_t)a);
+                    {
+                        unsigned nf = (unsigned)((int)frame + t);
+
+                        if (nf >= 0x37u && nf < 0x3Cu) frame = nf;
+                    }
+                }
+            }
+        }
+        vx = objProjCull(vx, x);
+        {
+            int ny = objProjSnap(r, x, y);
+
+            if (ny >= 0) {
+                x += vx;
+                y = ny;
+            } else {
+                vy = 0x10;
+                wr16(r, 0x10u, (uint16_t)y);
+            }
+        }
+        wr16(r, 0u, (uint16_t)x);
+        wr16(r, 2u, (uint16_t)y);
+        wr16(r, 8u, (uint16_t)vx);
+        wr16(r, 0xAu, (uint16_t)vy);
+        wr16(r, 4u, (uint16_t)frame);
+        return;
+    }
+    /* phase 2: the fall */
+    {
+        int curve = ((unsigned)vy < 0x19u) ? objProjCurve[(unsigned)vy] : 0;
+
+        y += curve;
+        if (curve >= 0) {
+            int ny = objProjSnap(r, x, y);
+
+            if (ny >= 0 && ny <= y) {
+                int prev = (int16_t)rd16(r, 0x10u);
+                int d = prev - ny;
+
+                if (!(prev >= 0 && d >= 0 && d > 0x10)) {
+                    int m = -d;
+                    int tgt = (int16_t)rd16(r, 0xEu);
+                    int sfx;
+
+                    if (m < 0 || m < 0x40 || tgt < 0) {
+                        wr16(r, 0xAu, 0xFFFFu);
+                        sfx = 5;
+                    } else {
+                        uint8_t *t = objArray + (unsigned)tgt * OBJ_STRIDE;
+
+                        wr16(r, 0xEu, 0xFFFFu);
+                        objSlotClass[idx - 8u] &= 0x7Fu;
+                        r[6] &= 0x7Fu;
+                        wr16(t, 0u, (uint16_t)(x > 8 ? x - 8 : 0));
+                        wr16(t, 2u, (uint16_t)(ny > 8 ? ny - 8 : 0));
+                        wr16(t, 4u, 0x0028u);
+                        wr16(t, 6u, 0u);
+                        wr16(t, 8u, 0x0016u);
+                        wr16(t, 0xAu, 5u);
+                        wr16(r, 0xAu, 0u);
+                        wr16(r, 0x10u, (uint16_t)y);
+                        sfx = 4;
+                    }
+                    y = ny;
+                    r[7] = 0x99u;
+                    objDriverCall((unsigned)sfx);
+                }
+            }
+            vy += 1;
+        } else {
+            vy += 1;
+        }
+    }
+    wr16(r, 0u, (uint16_t)x);
+    wr16(r, 2u, (uint16_t)y);
+    wr16(r, 8u, (uint16_t)vx);
+    wr16(r, 0xAu, (uint16_t)vy);
+    wr16(r, 4u, (uint16_t)frame);
+}
+
 /* 0x6531: cmd 9's mode flag (zero in the image; the port keeps it too). */
 static uint8_t objMarkerMode;
 
@@ -2482,6 +2680,7 @@ void object_updateList(void)
         case 2u: objWalkWander(r); break;
         case 3u: objWalkSeq(r); break;
         case 5u: objWalkMover(r); break;
+        case 4u: objWalkProjectile(r, i); break;
         case 6u: objWalkTorch(r); break;
         case 8u: objWalkStack(r, i); break;
         case 9u: objWalkMarker(r); break;

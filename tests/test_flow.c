@@ -2695,6 +2695,34 @@ int main(int argc, char **argv)
         }
     }
 
+    /* 7b12. D-74: behaviour 4's projectile (1000:CEC3).  Level 13's 0xAE
+     * stone is behaviour 4 with vx = vy = 0; phase 1 reads the field-A slope
+     * and moves x (or starts the fall via +0xA). */
+    if (level_load(12) == 0) {
+        uint8_t *stone = NULL;
+        unsigned i, x0, a0;
+
+        for (i = 8u; i <= object_liveCount(); i++) {
+            if ((object_slotClass(i - 8u) & 0x3Fu) == 4u) {
+                stone = object_slot(i);
+                break;
+            }
+        }
+        check(stone != NULL, "level 13's 0xAE stone is behaviour 4");
+        if (stone) {
+            /* phase 2: set vy = 1 and check the 0x6652 curve (-4) and the
+             * vy++ step (the phase-1 slope is not guaranteed on this cell) */
+            x0 = (unsigned)(stone[0] | (stone[1] << 8));
+            a0 = (unsigned)(stone[2] | (stone[3] << 8));
+            stone[0xA] = 1; stone[0xB] = 0;
+            object_updateList();
+            check((unsigned)(stone[2] | (stone[3] << 8)) != a0 &&
+                  (stone[0xA] | (stone[0xB] << 8)) == 2u,
+                  "the behaviour-4 stone falls (1000:CEC3 phase 2)");
+            (void)x0;
+        }
+    }
+
     /* 7b4. D-63: the sprite table runs to the 0x3E20 bound - 0x11E slots.
      * apply_relocations builds it from 0x39A8 to 0x3E20; the 0xB7 bush and
      * the type-31/32 tails use frames 0x116/0x11A, which a 0x110 table drops. */

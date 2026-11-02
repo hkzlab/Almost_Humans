@@ -467,6 +467,8 @@ void object_publishDEHSprites(const uint8_t *e, const uint8_t *h);
 void object_updateList(void);
 /* the level's [0x6532] (BD field F, 0 when absent). */
 unsigned level_animFrames(void);
+/* 1000:1FD4 field A: the per-tile signed slope profile (behaviour 4). */
+int level_slopeByte(unsigned id, unsigned sub);
 void entity_render(uint8_t *page, int scrollX, int scrollY);
 int  entity_frameInfo(unsigned a, unsigned *src, unsigned *rows, unsigned *yoff);
 
