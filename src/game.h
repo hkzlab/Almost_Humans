@@ -540,6 +540,7 @@ int  object_mapCellEquals(unsigned cell); /* 1000:36AB (the map cell)     */
 unsigned object_staticSlots(void);       /* the 8 the predicates scan     */
 unsigned object_liveCount(void);         /* [0x3E73]; 9 at the level start */
 uint8_t  object_slotClass(unsigned slot);/* [0x3E5E + slot]               */
+void     object_setSlotClassForProbe(unsigned slot, uint8_t cls);
 void     object_setSlotClass(unsigned slot, unsigned cls);
 int  object_testDispatch(uint16_t mode); /* 1000:35D6: 1 = goal met       */
 /* render_objects' object pass (1000:5D56 -> 0x653C): the base sprite of every

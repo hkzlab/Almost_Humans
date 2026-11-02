@@ -2607,6 +2607,67 @@ int main(int argc, char **argv)
         }
     }
 
+    /* 7b10. D-74: behaviour 5's collision passes (1000:5A2F record, 0x5B3E
+     * placed).  A mover at frame 0x58 projects by (7,0) from the 0x6612
+     * table; a target in that box is rewritten and the mover is consumed. */
+    {
+        static uint8_t m[640];
+        uint8_t *mover = NULL, *slot = NULL, *rec = NULL;
+        unsigned i;
+
+        memset(m, 0, sizeof m);
+        m[10 * 32 + 10] = 0xAAu;             /* a placed human  */
+        m[10 * 32 + 20] = 0xABu;             /* a spear: class 5 */
+        m[10 * 32 + 22] = 0xB7u;             /* a behaviour-8 record */
+        object_init();
+        (void)object_loadTerrainObjects(m);
+        for (i = 8u; i <= object_liveCount(); i++) {
+            uint8_t *r = object_slot(i);
+            unsigned cls = object_slotClass(i - 8u) & 0x3Fu;
+
+            if (cls == 5u && !mover) mover = r;
+            if (cls == 8u && !rec) rec = r;
+        }
+        slot = object_slot(0);
+        check(mover && slot && rec, "the mover/slot/record fixtures spawn");
+        if (mover && slot) {
+            unsigned keep = (unsigned)((mover - object_slot(0)) / 0x12u);
+            uint8_t *save = mover;
+
+            mover[0] = 100; mover[1] = 0; mover[2] = 100; mover[3] = 0;
+            mover[4] = 0x58; mover[5] = 0;
+            mover[8] = 0xFF; mover[9] = 0xFF;
+            mover[0xA] = 0; mover[0xB] = 0; mover[0xC] = 1; mover[0xD] = 0;
+            mover[0xE] = 0; mover[0xF] = 0;
+            slot[0] = 100; slot[1] = 0; slot[2] = 100; slot[3] = 0;
+            slot[4] = 0x10; slot[6] = 0; slot[8] = 2; slot[9] = 0;
+            if (rec) { rec[0] = 0xFF; rec[1] = 0xFF; }  /* keep the record pass out */
+            object_updateList();
+            check((slot[4] | (slot[5] << 8)) == 0x0028u &&
+                  (slot[8] | (slot[9] << 8)) == 0x0016u &&
+                  (slot[0xAu] | (slot[0xBu] << 8)) == 5u &&
+                  (slot[0] | (slot[1] << 8)) == 92u &&
+                  save[6] == 0xFFu,
+                  "a mover in reach rewrites the placed slot (1000:5B3E)");
+            (void)keep;
+        }
+        if (mover && rec) {
+            object_setSlotClassForProbe((unsigned)((mover - object_slot(0)) / 0x12u) - 8u, 5u);
+            mover[6] = 0; mover[7] = 0;
+            mover[8] = 0xFF; mover[9] = 0xFF;
+            mover[0xA] = 0; mover[0xB] = 0; mover[0xC] = 1; mover[0xD] = 0;
+            mover[0xE] = 0; mover[0xF] = 0;
+            rec[0] = 100; rec[1] = 0; rec[2] = 90; rec[3] = 0;   /* dy -10 */
+            rec[4] = 0x16; rec[5] = 0x01; rec[6] = 0; rec[7] = 0;
+            object_updateList();
+            check((rec[4] | (rec[5] << 8)) == 0x0028u &&
+                  (rec[8] | (rec[9] << 8)) == 3u &&
+                  (rec[0xAu] | (rec[0xBu] << 8)) == 6u &&
+                  mover[6] == 0xFFu,
+                  "a mover in reach rewrites a behaviour-8 record (1000:5A2F)");
+        }
+    }
+
     /* 7b4. D-63: the sprite table runs to the 0x3E20 bound - 0x11E slots.
      * apply_relocations builds it from 0x39A8 to 0x3E20; the 0xB7 bush and
      * the type-31/32 tails use frames 0x116/0x11A, which a 0x110 table drops. */

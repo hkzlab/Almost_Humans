@@ -325,6 +325,12 @@ uint8_t object_slotClass(unsigned slot)
 {
     return slot < sizeof objSlotClass ? objSlotClass[slot] : 0u;
 }
+/* the tests' setter for [0x3E5E + slot] (the behaviour bytes). */
+void object_setSlotClassForProbe(unsigned slot, uint8_t cls)
+{
+    if (slot < sizeof objSlotClass) objSlotClass[slot] = cls;
+}
+
 
 void object_setSlotClass(unsigned slot, unsigned cls)
 {
@@ -2016,6 +2022,183 @@ static const uint8_t objTypeOverlaps[16] = {
 /* 0x6847: the per-record settled position (4 bytes per record). */
 static uint16_t objSettled[OBJ_SLOTS][2];
 
+/* --- 1000:CD71 (behaviour 5): the mover's collision passes --------------
+ *
+ * The handler projects the record by the 0x6612 (dx,dy) table and hands the
+ * projected AX/BX to three passes; the record's own x/y are NOT stored (only a
+ * pass that hits writes, and it writes the target), which is why the placed
+ * movers are static in the live game.  0x58D1 (record-vs-entity) tests the
+ * entity's REX sprite pixels and is still to port; 0x5A2F and 0x5B3E are here.
+ */
+static void objMoverPassRecords(uint8_t *r, int ax, int bx)
+{
+    for (unsigned i = 0; i <= objLiveCount; i++) {
+        uint8_t *t = objArray + i * OBJ_STRIDE;
+        uint8_t *beh = objSlotClass + (i - 8u);
+        int dx, dy;
+
+        if (i < OBJ_LIVE0 + 1u) continue;
+        if ((*beh & 0x3Fu) != 8u) continue;
+        dx = (int16_t)rd16(t, 0u) - ax;
+        if (!(dx < 0 && dx + 0x10 > 0)) continue;
+        dy = (int16_t)rd16(t, 2u) - bx;
+        if (!(dy < 0 && dy + 0x1Au > 0)) continue;
+        if (rd16(r, 0xCu) != 0u || (rd16(r, 0xEu) & 0x8000u) ||
+            rd16(r, 0xEu) > 1u) {
+            uint8_t cls;
+
+            wr16(t, 0u, (uint16_t)(rd16(t, 0u) - 8u));
+            wr16(t, 4u, 0x0028u);
+            wr16(t, 8u, 0x0003u);
+            wr16(t, 0xAu, 6u);
+            cls = t[7];
+            if (cls) {
+                objSlotClass[cls] = 0u;
+                if (cls >= 1u && OBJ_LIVE0 + cls <= objLiveCount)
+                    objArray[(OBJ_LIVE0 + cls) * OBJ_STRIDE + 6] = 0xFFu;
+            }
+            *beh = 0u;
+            r[6] = 0xFFu;
+            objDriverCall(0x0Cu);
+            return;
+        }
+        if (t[7] == 0u) {
+            unsigned mover = (unsigned)((r - objArray) / OBJ_STRIDE);
+
+            wr16(r, 8u, 0u);
+            wr16(r, 0xAu, 0u);
+            wr16(r, 0xCu, 0u);
+            wr16(r, 0xEu, 0u);
+            *beh |= 0x80u;
+            t[7] = (uint8_t)(mover + 1u);
+        }
+        return;
+    }
+}
+
+static void objMoverPassPlaced(uint8_t *r, int ax, int bx)
+{
+    unsigned i;
+
+    /* 1000:5B3E's gate is on the record's +0xA/+0xC/+0xE (arg_SI = r+6). */
+    if (rd16(r, 0xAu) != 0u) return;
+    if (!(rd16(r, 0xCu) != 0u || (rd16(r, 0xEu) & 0x8000u) || rd16(r, 0xEu) > 1u))
+        return;
+    for (i = 0; i < OBJ_STATIC; i++) {
+        uint8_t *slot = objArray + i * OBJ_STRIDE;
+        int dx, dy;
+        unsigned type, cls;
+
+        if (slot[6] & 0x80u) continue;
+        dx = (int16_t)rd16(slot, 0u) - ax;
+        if (!(dx < 0 && dx + 0x10 > 0)) continue;
+        dy = (int16_t)rd16(slot, 2u) - bx;
+        if (!(dy - 2 < 0 && dy + 0x0C > 0)) continue;
+        type = rd16(slot, 8u);
+        if (type < 16u && objTypeOverlaps[type]) continue;
+        (void)object_stackScanDissolve(i);        /* 1000:F453, AX = 5 */
+        objSlotClass[(unsigned)((r - objArray) / OBJ_STRIDE) - 8u] = 0u;
+        r[6] = 0xFFu;
+        cls = slot[7];
+        if (cls) {
+            objSlotClass[cls] = 0u;
+            if (cls >= 1u && OBJ_LIVE0 + cls <= objLiveCount)
+                objArray[(OBJ_LIVE0 + cls) * OBJ_STRIDE + 6] = 0xFFu;
+        }
+        wr16(slot, 0u, (uint16_t)(rd16(slot, 0u) - 8u));
+        wr16(slot, 4u, 0x0028u);
+        wr16(slot, 8u, 0x0016u);
+        wr16(slot, 0xAu, 5u);
+        objDriverCall(4);
+        return;
+    }
+}
+
+/* the 0x6612 (dx,dy) pairs, frames 0x58..0x67, 4 bytes each. */
+static const uint8_t objMoverTab[0x40] = {
+    0x07, 0x00, 0x07, 0x0F, 0x0C, 0x00, 0x02, 0x0F,
+    0x0F, 0x00, 0x00, 0x0D, 0x0F, 0x03, 0x00, 0x0A,
+    0x0F, 0x07, 0x00, 0x07, 0x0F, 0x0C, 0x00, 0x02,
+    0x0F, 0x0F, 0x02, 0x00, 0x0A, 0x0F, 0x05, 0x00,
+    0x08, 0x0F, 0x08, 0x00, 0x03, 0x0F, 0x0D, 0x00,
+    0x00, 0x0F, 0x0F, 0x02, 0x00, 0x0B, 0x0F, 0x05,
+    0x00, 0x08, 0x0F, 0x08, 0x00, 0x03, 0x0F, 0x0D,
+    0x00, 0x00, 0x0D, 0x0F, 0x04, 0x00, 0x00, 0x00,
+};
+
+/* 0x65D2: the direction -> frame table (16 rows of 4?). */
+static const uint8_t objMoverDir[0x40] = {
+    0x67, 0x66, 0x66, 0x67, 0x59, 0x5A, 0x5A, 0x59,
+    0x66, 0x65, 0x66, 0x66, 0x5A, 0x5B, 0x5A, 0x5A,
+    0x65, 0x65, 0x65, 0x65, 0x5B, 0x5B, 0x5B, 0x5B,
+    0x64, 0x64, 0x64, 0x64, 0x5C, 0x5C, 0x5C, 0x5C,
+    0x64, 0x64, 0x64, 0x64, 0x5C, 0x5C, 0x5C, 0x5C,
+    0x63, 0x63, 0x63, 0x63, 0x5D, 0x5D, 0x5D, 0x5D,
+    0x62, 0x63, 0x62, 0x62, 0x5E, 0x5D, 0x5E, 0x5E,
+    0x61, 0x62, 0x62, 0x61, 0x5F, 0x5E, 0x5E, 0x5F,
+};
+
+/* 0xCDC7 / 0xCE38 / 0xCE3D: the frame/direction stepper (odd frames only). */
+static void objMoverStepper(uint8_t *r, unsigned mode)
+{
+    unsigned f;
+
+    if (!(objFrame & 1u)) return;
+    f = rd16(r, 4u);
+    if (mode != 0u) {                             /* 0xCE40 */
+        int b = (mode == 1u) ? 1 : -1;
+
+        b += (int)f;
+        if (b >= 0x68) b = 0x58;
+        if (b <= 0x57) b = 0x67;
+        wr16(r, 4u, (uint16_t)b);
+        {
+            int c = (int16_t)rd16(r, 0xCu);
+
+            if (c != 0) c += (c < 0) ? 1 : -1;
+            wr16(r, 0xCu, (uint16_t)c);
+        }
+        return;
+    }
+    {
+        int bx = (int16_t)rd16(r, 0xCu), cx = (int16_t)rd16(r, 0xEu);
+
+        if (bx == 0) {
+            if (cx == 0) return;
+            wr16(r, 4u, (uint16_t)(cx > 0 ? 0x60 : 0x58));
+        } else if (cx == 0) {
+            wr16(r, 4u, (uint16_t)(bx > 0 ? 0x5C : 0x64));
+        } else {
+            unsigned idx = (unsigned)(((bx + 0x10) >> 2) * 8 + ((cx + 0x10) >> 2));
+
+            if (idx < sizeof objMoverDir)
+                wr16(r, 4u, objMoverDir[idx]);
+        }
+    }
+}
+
+/* 1000:CD71: the behaviour-5 handler. */
+static void objWalkMover(uint8_t *r)
+{
+    unsigned f, mode;
+
+    if (!(rd16(r, 8u) & 0x8000u)) return;
+    mode = rd16(r, 0xAu);
+    if (mode <= 2u) objMoverStepper(r, mode);
+    f = rd16(r, 4u);
+    if (f < 0x58u || f > 0x67u) return;
+    {
+        unsigned ix = (f - 0x58u) * 4u;
+        int dx = (int8_t)objMoverTab[ix];
+        int dy = (int8_t)objMoverTab[ix + 1u];
+        int ax = (int16_t)rd16(r, 0u) + dx;
+        int bx = (int16_t)rd16(r, 2u) + dy;
+
+        objMoverPassRecords(r, ax, bx);
+        objMoverPassPlaced(r, ax, bx);
+    }
+}
+
 /* 0x6531: cmd 9's mode flag (zero in the image; the port keeps it too). */
 static uint8_t objMarkerMode;
 
@@ -2086,6 +2269,7 @@ void object_updateList(void)
         case 1u: objWalkStep1(r); break;
         case 2u: objWalkWander(r); break;
         case 3u: objWalkSeq(r); break;
+        case 5u: objWalkMover(r); break;
         case 6u: objWalkTorch(r); break;
         case 9u: objWalkMarker(r); break;
         default: break;
