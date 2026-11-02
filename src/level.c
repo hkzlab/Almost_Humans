@@ -325,6 +325,8 @@ static uint8_t pageOpacity[32];    /* 0x1FA4: the 32-colour opacity flags */
 /* BD field I, copied by copy_level_row (0x4EE9) into the level palette's
  * 0x80..0xBF bank: the level background's 64-colour gradient. */
 static uint8_t bdRowBlock[0xC0];
+static uint8_t bdCBlock[0x600];     /* field C: the 0xA9 background art */
+static int     bdCHave;
 static uint8_t bdPBlock[0x1000];    /* field P: the exit/igloo art (0xB9) */
 static int     bdPHave;
 static unsigned levelBgIndex;       /* the BD page's field L (test probe) */
@@ -362,6 +364,7 @@ typedef struct BdPage {
     unsigned nCount;
     const uint8_t *oList;       /* field O: count + 16 id bytes          */
     unsigned oCount;
+    const uint8_t *cBlock;      /* field C: the 0xA9 background sprites  */
     const uint8_t *pBlock;      /* field P: the 0x1000-byte exit art     */
     uint32_t pSize;
 } BdPage;
@@ -388,7 +391,8 @@ static uint32_t bd_walk(const uint8_t *b, uint32_t size, unsigned *bgIndex,
         si += m + (pass ? 0x20u : 0x10u);
     }
 
-    si += 0x600u;                          /* C                            */
+    page->cBlock = b + si;                 /* C: the 0xA9 background art   */
+    si += 0x600u;
     si += 0x80u;                           /* E (D = 0 file bytes)         */
     if (si + 2u > size) return 0;
     unsigned n = rd_le16(b + si);
@@ -550,6 +554,17 @@ static int visuals_load(unsigned style)
     memset(bdRowBlock, 0, sizeof bdRowBlock);
     if (end == bdSize && page.rowBlock)
         memcpy(bdRowBlock, page.rowBlock, sizeof bdRowBlock);   /* 0x4EE9 */
+    memset(bdCBlock, 0, sizeof bdCBlock);
+    bdCHave = 0;
+    if (end == bdSize && page.cBlock) {
+        /* 1000:4D58-0x4D68: level_setup_screen's add_delta_nonzero(0x600,
+         * 0x20) moves the C block into the 0x20..0x3F art palette. */
+        for (unsigned i = 0; i < sizeof bdCBlock; i++) {
+            uint8_t v = page.cBlock[i];
+            bdCBlock[i] = v ? (uint8_t)(v + 0x20u) : 0u;
+        }
+        bdCHave = 1;
+    }
     memset(bdPBlock, 0, sizeof bdPBlock);
     bdPHave = 0;
     if (end == bdSize && page.pBlock && page.pSize >= sizeof bdPBlock) {
@@ -651,9 +666,32 @@ static void level_stampExits(void)
         }
 }
 
+/* 1000:5F54 — render_objects' tail: for each 0x32B9 entry it blits the two
+ * 32 x 24 mode-2 C-block sprites at (x, y) and (x + 0x20, y) (0x5FBE ADDs
+ * 0x300 to the source and 0x20 to x for the second).  The queue holds one
+ * entry per 0xA9 cell, and all 14 shipped levels with a 0xA9 have exactly
+ * one.  The original's drawer steps DI by 8 (not the record's 12) at
+ * 1000:5FD2, so with more than one entry it reads the first record's +8/+A
+ * as x/y; nothing shipped reaches that.  The page here is the flat-compose
+ * window, so the view is subtracted exactly as the object passes do. */
+void level_drawBgSprites(uint8_t *page, int scrollX, int scrollY)
+{
+    if (!bdCHave) return;
+    for (unsigned i = 0; i < object_bgCount(); i++) {
+        unsigned x, y;
+
+        object_bgAt(i, &x, &y);
+        object_blitSprite(page, bdCBlock, 24u, 32u,
+                          (int)x - scrollX, (int)y - scrollY);
+        object_blitSprite(page, bdCBlock + 0x300u, 24u, 32u,
+                          (int)x + 0x20 - scrollX, (int)y - scrollY);
+    }
+}
+
 /* the stamped background and the P block, for the exit/igloo test */
 const uint8_t *level_bgForProbe(void) { return bgImage; }
 const uint8_t *level_pBlockForProbe(void) { return bdPHave ? bdPBlock : NULL; }
+const uint8_t *level_cBlockForProbe(void) { return bdCHave ? bdCBlock : NULL; }
 unsigned level_bgIndexForProbe(void) { return levelBgIndex; }
 
 int level_init(const OSystem *osys)
@@ -1456,6 +1494,9 @@ static void renderWorld(void)
     /* update_object_list's tail: the two TER.DAT slots (1000:5C2F), off on
      * shipped data because 1000:4CAB disables them */
     object_renderTer(page, (int)viewX, (int)viewY);
+
+    /* render_objects' tail (1000:5F54): the 0xA9 background sprites */
+    level_drawBgSprites(page, (int)viewX, (int)viewY);
 
     /* the bar over the world rows (the original's band lives below the
      * 192-row visible window via the line compare; the flat page redraws

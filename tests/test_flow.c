@@ -2018,6 +2018,104 @@ int main(int argc, char **argv)
         check(strcmp(gameflow_partyTribe(), "CARLOS") == 0,
               "level 4's briefing code follows the level");
 
+    /* 7b5. D-62: render_objects' tail (1000:5F54) blits the BD C block - two
+     * 32x24 mode-2 sprites at (x, y) and (x+0x20, y) - for each 0x32B9 entry.
+     * Level 5's single 0xA9 is at (352, 257), so with the view at (192,128)
+     * the halves land at (160,129) and (192,129). */
+    if (level_load(4) == 0) {
+        const uint8_t *cb = level_cBlockForProbe();
+        static uint8_t flat[320u * 200u];
+
+        check(cb != NULL, "level 5 has the 0xA9 background art");
+        if (cb) {
+            unsigned ink = 0, bad = 0, s, row, col, i;
+
+            for (i = 0; i < 0x600u; i++) if (cb[i]) ink++;
+            check(ink > 300u, "the C block carries the branch art");
+            /* level_setup_screen's add_delta_nonzero(0x600, 0x20): every
+             * non-zero C byte moves into the 0x20..0x3F art bank (BD2's raw
+             * block is 0x18..0x1E). */
+            {
+                unsigned out = 0;
+                for (i = 0; i < 0x600u; i++)
+                    if (cb[i] && (cb[i] < 0x20u || cb[i] > 0x3Fu)) out++;
+                check(out == 0u, "the C block carries the +0x20 art bias");
+            }
+            /* the draw law, on a blank page at the marker */
+            memset(flat, 0, sizeof flat);
+            level_drawBgSprites(flat, 352, 257);
+            for (s = 0; s < 2u; s++)
+                for (row = 0; row < 24u; row++)
+                    for (col = 0; col < 32u; col++) {
+                        uint8_t want = cb[s * 0x300u + (col & 3u) * 0xC0u +
+                                          row * 8u + (col >> 2)];
+
+                        if (flat[row * 320u + s * 0x20u + col] != want) bad++;
+                    }
+            check(bad == 0u, "the C block blits as two 32x24 halves");
+            /* and the pass is wired into the frame */
+            level_setView(192u, 128u);
+            level_redrawPage();
+            {
+                const uint8_t *page = video_page(0);
+                unsigned seen = 0, hit = 0;
+
+                for (s = 0; s < 2u; s++)
+                    for (row = 0; row < 24u; row++)
+                        for (col = 0; col < 32u; col++) {
+                            uint8_t v = cb[s * 0x300u + (col & 3u) * 0xC0u +
+                                              row * 8u + (col >> 2)];
+
+                            if (!v) continue;
+                            seen++;
+                            if (page[(129u + row) * 320u + 160u + s * 0x20u + col] == v)
+                                hit++;
+                        }
+                check(seen == ink && hit == seen,
+                      "the 0xA9 branch art is on the level 5 page");
+            }
+            level_setView(0u, 0u);
+        }
+    }
+
+    /* 7b4. D-63: the sprite table runs to the 0x3E20 bound - 0x11E slots.
+     * apply_relocations builds it from 0x39A8 to 0x3E20; the 0xB7 bush and
+     * the type-31/32 tails use frames 0x116/0x11A, which a 0x110 table drops. */
+    check(object_frameSlots() == 0x11Eu, "the sprite table holds 0x11E slots");
+    {
+        uint32_t sz = 0;
+        uint8_t *bank = res_loadChunk("APL\\SPRITES.DAT", &sz, NULL);
+        static uint8_t page[320u * 200u];
+
+        check(bank != NULL, "SPRITES.DAT loads for the frame test");
+        if (bank) {
+            unsigned k;
+            static const unsigned frames[3] = { 0x116u, 0x11Au, 0x11Du };
+            static const char *whats[3] = {
+                "frame 0x116 (the 0xB7 bush) draws",
+                "frame 0x11A (the 0xB7 bush, near a 0xB6) draws",
+                "frame 0x11D (a blank slot) draws nothing",
+            };
+
+            for (k = 0; k < 3u; k++) {
+                uint8_t *r;
+                unsigned ink = 0, i;
+
+                object_init();
+                object_publishBank(bank, sz);
+                memset(page, 0, sizeof page);
+                r = object_slot(0);
+                r[0] = 10; r[1] = 0; r[2] = 10; r[3] = 0;
+                r[4] = (uint8_t)frames[k]; r[5] = (uint8_t)(frames[k] >> 8);
+                r[6] = 0; r[7] = 0;
+                object_render(page, 0, 0);
+                for (i = 0; i < 320u * 200u; i++) if (page[i]) ink++;
+                check(k < 2u ? ink > 100u : ink == 0u, whats[k]);
+            }
+        }
+        free(bank);
+    }
+
     /* 7b3. D-61: the 0xB9 exit/igloo pass.  Level 133 has one at col 11 row 9;
      * the BD P block is stamped into the background at (176, 96), 64x64,
      * zero transparent, with level_setup_screen's add_delta_nonzero(0x1000,

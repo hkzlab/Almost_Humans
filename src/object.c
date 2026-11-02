@@ -282,6 +282,7 @@ void object_init(void)
     objLiveCount = OBJ_LIVE0;
     objPlacedHumans = 0u;
     objEntity = 0u;                  /* [0x3E22] cleared (1000:4CB7)      */
+    objBgCount = 0u;                 /* [0x32B9] cleared (1000:4CBA)      */
     objPending = 0u;                 /* [0x1979]                          */
     objCursor = 1u;                  /* [0x1988]                          */
     objSetProgramIndex(1u);          /* [0x5B56]                          */
@@ -1255,7 +1256,7 @@ unsigned object_loadTerrainObjects(uint8_t *map)
  * blit) is ported, and every frame the port draws so far is mode 1.
  */
 typedef struct { uint32_t off; uint8_t rows, ybias, mode; } ObjSprite;
-#define OBJ_FRAME_SLOTS 0x110u
+#define OBJ_FRAME_SLOTS 0x11Eu              /* apply_relocations: 0x39A8..0x3E20 */
 
 static const ObjSprite objSprites[OBJ_FRAME_SLOTS] = {
     /* 000 */ {12416,24, 0,1}, {12800,24, 0,1}, {13184,23, 1,1}, {13552,23, 1,1},
@@ -1323,8 +1324,23 @@ static const ObjSprite objSprites[OBJ_FRAME_SLOTS] = {
     /* 104 */ {46512,24, 0,1}, {46896,24, 0,1}, {47280,24, 0,1}, {47664,24, 0,1},
     /* 108 */ {48048,24, 0,1}, {48432,24, 0,1}, {48816,19, 5,1}, {49120,11,13,1},
     /* 10C */ {49296,14,10,1}, {49520,14,10,1}, {49744,24, 0,1}, {50128,24, 0,1},
-
+    /* 110 */ {50512,24, 0,1}, {0,0,0,0}, {50896,24, 0,1}, {51280,24, 0,1},
+    /* 114 */ {51664,24, 0,1}, {0,0,0,0}, {52048,23, 1,1}, {52416,23, 1,1},
+    /* 118 */ {52784,23, 1,1}, {0,0,0,0}, {53152,23, 1,1}, {53520,23, 1,1},
+    /* 11C */ {53888,23, 1,1}, {0,0,0,0},
 };
+
+unsigned object_frameSlots(void) { return OBJ_FRAME_SLOTS; }
+
+/* 0x32B9's queue for the drawer at 1000:5F54 (level.c's level_drawBgSprites). */
+unsigned object_bgCount(void) { return objBgCount; }
+
+void object_bgAt(unsigned i, unsigned *x, unsigned *y)
+{
+    if (i >= objBgCount) { *x = 0; *y = 0; return; }
+    *x = objBg[i].x;
+    *y = objBg[i].y;
+}
 
 static const uint8_t *objBank;            /* APL\\SPRITES.DAT, the sprite image */
 static uint32_t objBankSize;

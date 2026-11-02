@@ -431,6 +431,9 @@ unsigned level_tribeMembers(void);
 const uint8_t *level_bgForProbe(void);
 const uint8_t *level_pBlockForProbe(void);
 unsigned level_bgIndexForProbe(void);
+const uint8_t *level_cBlockForProbe(void);
+/* render_objects' tail (1000:5F54): the 0xA9 background sprites */
+void level_drawBgSprites(uint8_t *page, int scrollX, int scrollY);
 
 /* --- src/entity.c — entity table/bytecode (subsystem 10, §12) -----------
  *
@@ -494,6 +497,10 @@ void     object_publishTer(const uint8_t *bank, uint32_t size);
 void     object_renderTer(uint8_t *page, int scrollX, int scrollY);
 uint8_t *object_slot(unsigned i);        /* NULL past object_slots()      */
 unsigned object_slots(void);
+unsigned object_frameSlots(void);       /* the sprite table bound (0x11E) */
+/* the 0x32B9 background-sprite queue (1000:5F54's input) */
+unsigned object_bgCount(void);
+void     object_bgAt(unsigned i, unsigned *x, unsigned *y);
 /* the SAVE GAME state ranges (re_formats.md §10/§12.3): object table
  * (0x3E20, 0x25F), pools (0x6F20, 0x13CA), programs (0x5B37, 0x20),
  * TER slots (0x649A, 0x28) and the 0x6F92 copy (0x54). */
