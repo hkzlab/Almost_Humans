@@ -803,6 +803,68 @@ int main(int argc, char **argv)
                     check((base[4] | (base[5] << 8)) == 0x0020u,
                           "the base is untouched by an n = 1 dissolve");
                 }
+                /* 1000:D76F with three humans - the animator's first active
+                 * case (m = 2).  Only records whose frame is 0x20..0x22 are
+                 * moved (1000:D838), and the offsets belong to the *backward*
+                 * walk order: the base (list byte 0) takes run[len] = 0, so a
+                 * plain 3-stack (base 0x20, members 0x25) must not shear. */
+                {
+                    uint8_t *b3, *p1, *p2, *g;
+                    uint8_t pal3[768];
+                    int bMin = 999, bMax = -999, mMin = 999, mMax = -999;
+                    int tMin = 999, tMax = -999;
+
+                    memset(pal3, 0, sizeof pal3);
+                    object_init();
+                    b3 = object_slot(0);
+                    memset(b3, 0, 0x12u);
+                    tf_wr16(b3, 0u, 100); tf_wr16(b3, 2u, 100);
+                    tf_wr16(b3, 4u, 0x10u); tf_wr16(b3, 8u, 2u);
+                    object_setActionEntity(0u);
+                    object_actionSetProgram(1u);
+                    object_actionSetCursor(2u);
+                    object_actionRun();                       /* op 1 */
+                    p1 = object_slot(1);
+                    memset(p1, 0, 0x12u);
+                    tf_wr16(p1, 0u, 100); tf_wr16(p1, 2u, 70);
+                    tf_wr16(p1, 4u, 0x10u); tf_wr16(p1, 8u, 2u);
+                    object_setActionEntity(1u);
+                    check(object_stackPush(p1) == 1, "the 3-stack: member 1");
+                    p2 = object_slot(2);
+                    memset(p2, 0, 0x12u);
+                    tf_wr16(p2, 0u, 100); tf_wr16(p2, 2u, 52);
+                    tf_wr16(p2, 4u, 0x10u); tf_wr16(p2, 8u, 2u);
+                    object_setActionEntity(2u);
+                    check(object_stackPush(p2) == 1, "the 3-stack: member 2");
+                    g = object_groupAt(0u);
+                    check(g != NULL && (g[4] & 0x80u) != 0u,
+                          "the group entry starts from the 0xFF clear");
+                    object_animatorReset();
+                    for (unsigned k = 0; k < 60u; k++) {
+                        int x;
+
+                        object_tick(pal3);
+                        x = (int)(int16_t)tf_rd16(b3, 0u);
+                        if (x < bMin) bMin = x;
+                        if (x > bMax) bMax = x;
+                        x = (int)(int16_t)tf_rd16(p1, 0u);
+                        if (x < mMin) mMin = x;
+                        if (x > mMax) mMax = x;
+                        x = (int)(int16_t)tf_rd16(p2, 0u);
+                        if (x < tMin) tMin = x;
+                        if (x > tMax) tMax = x;
+                    }
+                    check(bMin == 100 && bMax == 100,
+                          "the stack's base stays at the entry x");
+                    check(mMin == 100 && mMax == 100 &&
+                          tMin == 100 && tMax == 100,
+                          "the 3-stack does not shear while it animates");
+                    check((g[4] & 0x80u) != 0u,
+                          "the state byte keeps the 0xF0 mask");
+                    check((g[4] & 0x0Fu) != 0u,
+                          "the animator advanced the entry's frame index");
+                }
+
                 /* The other four verbs: grab (1000:E58B, with its free-slot
                  * registration), step off (1000:E860), leave (1000:E8DD),
                  * snap (1000:E963) and the selector (1000:F17C).  The 0x64AD /
@@ -1210,6 +1272,59 @@ int main(int argc, char **argv)
                     }
                     check(tileUp != 0 && tileDown != 0,
                           "level 1 has a special tile for both states");
+                    /* 1000:E828/E857: the climb steppers' bounds are 0x23/0x25
+                     * (the 0x52/0x54 pair belongs to 1000:EAAC's carry
+                     * stepper).  Drive both states' tails with the feet
+                     * re-pinned on the special cell so the probe keeps
+                     * matching; the frame must stay inside the climb pair. */
+                    if (found) {
+                        uint8_t *a;
+                        unsigned seen = 0;
+                        int outside = 0;
+
+                        object_init();
+                        a = object_slot(0);
+                        a[0] = (uint8_t)(16 * col - 8); a[1] = 0;
+                        a[4] = 0x23; a[6] = 0; a[8] = 4; a[9] = 0;
+                        a[0xA] = 0; a[0xB] = 0; a[0xC] = 0;
+                        object_setActionEntity(0u);
+                        for (unsigned t = 0; t < 30u; t++) {
+                            unsigned f;
+
+                            a[2] = (uint8_t)(16 * row - 0xE); a[3] = 0;
+                            (void)object_commandRun(a, 0x01u);
+                            f = (unsigned)(a[4] | (a[5] << 8));
+                            if (f < 0x23u || f > 0x25u) outside = 1;
+                            seen |= 1u << (f & 0x1Fu);
+                        }
+                        check(!outside && (seen & (1u << (0x23u & 0x1Fu))) != 0u &&
+                              (seen & (1u << (0x24u & 0x1Fu))) != 0u &&
+                              (seen & (1u << (0x25u & 0x1Fu))) != 0u,
+                              "1000:E828: the climb cycles 0x23..0x25");
+                        check(tf_rd16(a, 2u) == (unsigned)(16 * row - 0xE - 1),
+                              "1000:FD91 still moves y one px per step");
+                        object_init();
+                        a = object_slot(0);
+                        a[0] = (uint8_t)(16 * col - 8); a[1] = 0;
+                        a[4] = 0x25; a[6] = 0; a[8] = 5; a[9] = 0;
+                        a[0xA] = 0; a[0xB] = 0; a[0xC] = 0;
+                        object_setActionEntity(0u);
+                        outside = 0;
+                        seen = 0;
+                        for (unsigned t = 0; t < 30u; t++) {
+                            unsigned f;
+
+                            a[2] = (uint8_t)(16 * row - 0x10); a[3] = 0;
+                            (void)object_commandRun(a, 0x01u);
+                            f = (unsigned)(a[4] | (a[5] << 8));
+                            if (f < 0x23u || f > 0x25u) outside = 1;
+                            seen |= 1u << (f & 0x1Fu);
+                        }
+                        check(!outside && (seen & (1u << (0x23u & 0x1Fu))) != 0u &&
+                              (seen & (1u << (0x24u & 0x1Fu))) != 0u &&
+                              (seen & (1u << (0x25u & 0x1Fu))) != 0u,
+                              "1000:E857: the descend cycles 0x23..0x25");
+                    }
                     /* with no group and no span: up does nothing, down
                      * registers the base (the grab's free-slot path), and the
                      * next walk-up pushes onto it */
@@ -1335,7 +1450,11 @@ int main(int argc, char **argv)
                     }
 
                     /* 1000:D6B2 phase 3: three members on a group animate
-                     * their x by the length-3 count-0 offsets -2/-1/0. */
+                     * their x with the length-3 count-0 offsets.  The list is
+                     * walked backwards from the terminator while the run is
+                     * read forwards (1000:D81D/D820), so the top member (27)
+                     * takes run[1] = -2, 26 takes run[2] = -1 and the owner
+                     * (25) takes run[3] = 0. */
                     {
                         uint8_t *g = object_groupAt(7);
                         uint8_t *m0 = object_slot(25);
@@ -1345,7 +1464,8 @@ int main(int argc, char **argv)
                         if (g && m0 && m1 && m2) {
                             memset(g, 0, 14u);
                             g[0] = 100; g[1] = 0;       /* group base x */
-                            g[4] = 0;                    /* dir 0, count 0 */
+                            g[4] = 0x80;                 /* the 0xFF clear's
+                                                          * sentinel, dir 0 */
                             g[5] = 25; g[6] = 26; g[7] = 27; g[8] = 0x80;
                             m0[4] = m1[4] = m2[4] = 0x20;
                             m0[5] = m1[5] = m2[5] = 0;
@@ -1354,11 +1474,17 @@ int main(int argc, char **argv)
                             object_animatorReset();
                             for (unsigned i = 0; i < 7u; i++)
                                 object_animatorTick();
-                            check((m0[0] | (m0[1] << 8)) == 98u &&
+                            check((m0[0] | (m0[1] << 8)) == 100u &&
                                   (m1[0] | (m1[1] << 8)) == 99u &&
-                                  (m2[0] | (m2[1] << 8)) == 100u &&
+                                  (m2[0] | (m2[1] << 8)) == 98u &&
                                   (g[4] & 0x10u) != 0u,
-                                  "1000:D6B2: the group members take -2/-1/0");
+                                  "1000:D6B2: the top member takes -2, the "
+                                  "owner 0");
+                            /* 1000:D813: the state byte keeps the 0xF0 mask -
+                             * the 0x80 the 0xFF clear leaves is the sentinel
+                             * the original's backward walk stops on */
+                            check((g[4] & 0x80u) != 0u,
+                                  "1000:D813: the state byte keeps the 0x80");
                             g[0] = 0xFF; g[1] = 0xFF;    /* free again */
                         }
                     }

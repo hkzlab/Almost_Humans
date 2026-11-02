@@ -3673,8 +3673,10 @@ static void objTailWalkCountdown(uint8_t *actor, int left)
 }
 
 /* 1000:E802 / 1000:E831 (types 4 and 5): on a type match, probe the cell under
- * the feet; a field-K special tile is the "walk off" stepper (lo 0x52, hi 0x54,
- * 0xFD91 or 0xFDBF), anything else drops the record to frame 0x10 / type 2. */
+ * the feet; a field-K special tile is the climb stepper (`1000:E828`/`E857`:
+ * lo 0x23, hi 0x25 into 0xFD91/0xFDBF), anything else drops the record to
+ * frame 0x10 / type 2.  (The 0x52/0x54 pair belongs to 1000:EAAC's type-11
+ * carry stepper, not here.) */
 static void objTailSpecialTile(uint8_t *actor, unsigned type, int yoff, int down)
 {
     unsigned cell, sub;
@@ -3682,8 +3684,8 @@ static void objTailSpecialTile(uint8_t *actor, unsigned type, int yoff, int down
     if (rd16(actor, 8u) != type) return;             /* 1000:E802 */
     cell = objMapAtAbs((int)(int16_t)rd16(actor, 0u) + 8, (int)(int16_t)rd16(actor, 2u) + yoff, &sub);
     if (cell == level_specialTile(0u) || cell == level_specialTile(1u)) {
-        if (down) objFrameStepDown(actor, 0x52u, 0x54u);      /* 0xFDBF */
-        else      objFrameStep(actor, 0x52u, 0x54u);          /* 0xFD91 */
+        if (down) objFrameStepDown(actor, 0x23u, 0x25u);      /* 1000:E857 */
+        else      objFrameStep(actor, 0x23u, 0x25u);          /* 1000:E828 */
         return;
     }
     wr16(actor, 4u, 0x0010u);                        /* 1000:E81D */
@@ -5115,24 +5117,31 @@ void object_animatorTick(void)
     for (unsigned gi = 0; gi < 8u; gi++) {
         uint8_t *g = (uint8_t *)objRegister[gi];
         unsigned len = 0, limit, c;
-        uint8_t dir;
+        uint8_t dl;
 
         if (rd16(g, 0u) & 0x8000u) continue;
         while ((g[5u + len] & 0x80u) == 0) len++;
         if (len < 3u || len > 8u) continue;
         limit = 2u * (len - 1u);
         c = g[4] & 0x0Fu;
-        dir = g[4] & 0x10u;
+        /* 1000:D795: the state byte's high nibble is carried in DL (bits 4..7,
+         * the 0x80 sentinel included) and only bit 4 is the direction. */
+        dl = (uint8_t)(g[4] & 0xF0u);
         if (objAnimDiv == 0) {
-            if (dir == 0u) {
-                if (c == 0u) dir = 0x10u;
+            if (!(dl & 0x10u)) {
+                if (c == 0u) dl ^= 0x10u;
                 else c--;
             } else {
-                if (c >= limit) dir = 0u;
+                if (c >= limit) { c = limit; dl ^= 0x10u; }
                 else c++;
             }
         }
         if (c > limit) c = limit;
+        /* 1000:D81D..D850: the member list is walked BACKWARDS from the
+         * terminator while the offset run is read forwards, so the last (top)
+         * member takes the run's first offset and the owner takes the last -
+         * which is 0 in every shipped run.  `objAnimX[..][c][j]` is the run's
+         * word j+1, so the list index m takes column `len - 1 - m`. */
         for (unsigned m = 0; m < len; m++) {
             uint8_t *r = object_slot(g[5u + m]);
             unsigned frame;
@@ -5141,9 +5150,9 @@ void object_animatorTick(void)
             frame = rd16(r, 4u);
             if (frame < 0x20u || frame > 0x22u) continue;
             wr16(r, 0u, (uint16_t)(rd16(g, 0u) +
-                                   (uint16_t)objAnimX[len - 3u][c][m]));
+                                   (uint16_t)objAnimX[len - 3u][c][len - 1u - m]));
         }
-        g[4] = (uint8_t)(dir | c);
+        g[4] = (uint8_t)(dl | (c & 0x0Fu));   /* 1000:D813 OR DL,CL */
     }
 }
 
