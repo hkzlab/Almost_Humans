@@ -2463,7 +2463,10 @@ int object_stackLeave(uint8_t *actor)
         while (!(di[0] & 0x80u) && di[0] != (uint8_t)idx) di++;
         if (di[0] & 0x80u) continue;
         if (rd16(e, 2u) != rd16(actor, 2u)) {
-            objFrameStep(actor, 0x23u, 0x25u);             /* 1000:E934 */
+            /* ⚠ 1000:E934 jumps to 1000:FDBF - the *down* stepper - so the
+             * member climbs down the column 1 px a step; this is the up one
+             * (port_deviations.md D-45). */
+            objFrameStep(actor, 0x23u, 0x25u);
             return -1;
         }
         wr16(actor, 4u, 0x0010u);
