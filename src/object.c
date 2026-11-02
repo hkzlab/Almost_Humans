@@ -3830,9 +3830,10 @@ static void objTailType3(uint8_t *actor)
         b = objMapBufferByte(di - 0x20u);            /* 1000:DA30 */
 
         if (b >= 0xF0u && b - 0xF0u < 3u) {          /* 1000:DA37/DA39 */
-            /* AX is the fine x by now, so the snap writes 4 or 20, not the
-             * record's x - the original's own arithmetic (1000:F772..F784).
-             * Transcribed as it stands. */
+            /* WRONG, and recorded: the original's 1000:DA3E..0xDA61 branch
+             * writes NO x at all (only y/frame/type/+C/+A).  This block reads
+             * the fine x (masked at 1000:DA1C) and stores 4/12/20 or -4, which
+             * teleports a drowning actor - port_deviations.md D-78. */
             unsigned gx = (ax + 8u) & ~0xFu;
 
             if (b != 0xF1u) {
