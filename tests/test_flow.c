@@ -61,6 +61,7 @@ int main(int argc, char **argv)
     video_init(&osys_null);
     palette_init(&osys_null);
     level_init(&osys_null);
+    statusbar_init(&osys_null);       /* the charge bar draws into the band */
     if (compat_chdir(vol_dir)) { perror(vol_dir); return 1; }
     {
         char path[512];
@@ -2060,6 +2061,86 @@ int main(int argc, char **argv)
               (spear[8] | (spear[9] << 8)) == 0xFFFFu,
               "the spear is thrown to the actor's feet, frame 0x60");
         object_actionSetCursor(1u);
+    }
+
+    /* 6c7. D-68: the pending-event 4 charge loop.  With the throw pose up,
+     * holding a direction walks +0xE (0xEE07) and draws the charge bar
+     * (0x3747) in the bar band; the ACTION press ends the charge (0x373B) and
+     * the release (0xEFD7 -> 0xEFE4) performs the jump/throw. */
+    object_init();
+    if (level_load(1) == 0) {                /* level 2: positional goal */
+        unsigned ord = 0, split = 0, i;
+        uint8_t *actor = object_slot(0);
+        uint8_t *it = NULL;
+
+        for (i = 1; i <= object_liveCount() - 8u; i++)
+            if (object_slotClass(i) == 5u) { ord = i; break; }
+        check(ord != 0u, "level 2 has a spear");
+        if (ord) {
+            it = object_slot(8u + ord);
+            object_setActionEntity(0u);
+            object_actionSetCursor(1u);
+            actor[0] = (uint8_t)((it[0] | (it[1] << 8)) - 8u);
+            actor[1] = (uint8_t)(((it[0] | (it[1] << 8)) - 8u) >> 8);
+            actor[2] = it[2]; actor[3] = it[3];
+            actor[4] = 0x10; actor[6] = 0; actor[8] = 2; actor[9] = 0;
+            object_actionRun();                  /* pickup */
+            object_actionSetCursor(2u);
+            actor[8] = 2; actor[9] = 0; actor[4] = 0x10;
+            object_actionRun();                  /* op 4: the pose */
+            check((unsigned)(actor[4] | (actor[5] << 8)) == 0x00BEu &&
+                  (unsigned)(actor[8] | (actor[9] << 8)) == 0x0018u,
+                  "the throw pose is up (frame 0xBE, type 0x18)");
+            /* earlier blocks may have left the ACTION latch or the [0x6F1D]
+             * sequence latch set: SPACE home-states the pose (clearing both)
+             * and the op re-poses, so the turn starts from a known state */
+            object_setActionLatched(0);
+            object_spaceAction();
+            object_setActionLatched(0);   /* 0xEE01 sets it; a release clears it */
+            object_actionSetCursor(2u);
+            actor[8] = 2; actor[9] = 0; actor[4] = 0x10;
+            object_actionRun();
+            for (i = 0; i < 60u; i++) statusbar_tick();   /* split -> 152 */
+            split = statusbar_split();
+            object_commandRun(actor, 0x02u);     /* DOWN: the turn */
+            check((unsigned)(actor[0xEu] | (actor[0xFu] << 8)) == 4u,
+                  "the turn starts the charge (+0xE = 4)");
+            object_pendingRun();                 /* event 4: enter the loop */
+            check(object_chargeTick() == 1, "the charge loop runs");
+            {
+                static const uint8_t shade[10] = {
+                    0xDF, 0xE0, 0xE1, 0xE2, 0xE3, 0xE3, 0xE2, 0xE1, 0xE0, 0xDF
+                };
+                unsigned v = 4u, ax = 0x60u + (v >> 1u);
+                unsigned x = 4u * (ax >> 2) + (ax & 3u), bad = 0, r;
+
+                for (r = 0; r < 10u; r++)
+                    if (video_page(0)[(split + 15u + r) * 320u + x] != shade[r])
+                        bad++;
+                check(bad == 0u, "the charge bar is drawn at +0xE = 4");
+            }
+            object_commandRun(actor, 0x02u);     /* another turn frame */
+            object_pendingRun();
+            check(object_chargeTick() == 1, "the loop keeps running");
+            {
+                unsigned v = 8u, ax = 0x60u + (v >> 1u);
+                unsigned x = 4u * (ax >> 2) + (ax & 3u);
+
+                check(video_page(0)[(split + 15u) * 320u + x] == 0xDFu,
+                      "the bar follows +0xE");
+            }
+            object_actionRun();                  /* the release press */
+            check(object_chargeTick() == 0, "the press ends the charge");
+            {
+                unsigned f0 = actor[4] | (actor[5] << 8);
+                unsigned t0 = actor[8] | (actor[9] << 8);
+
+                object_commandRun(actor, 0x01u); /* UP: 0xEFD7 */
+                check((unsigned)(actor[4] | (actor[5] << 8)) != f0 ||
+                      (unsigned)(actor[8] | (actor[9] << 8)) != t0,
+                      "the release performs the jump/throw (0xEFE4)");
+            }
+        }
     }
 
     /* 6c5. D-66: the selected cell IS the program cursor (1000:3947 writes it,

@@ -1677,6 +1677,12 @@ int level_tick(void)
 
     renderWorld();
 
+    /* the pending-event dispatch ([0x1979] -> CS:0x197B) and, when event 4 is
+     * running, its per-frame share (1000:3702): the world frame has run, so
+     * redraw the jump/throw bar at the record's new +0xE */
+    object_pendingRun();
+    (void)object_chargeTick();
+
     /* the colours are the working palette 202F:0x14D3, built in level_load
      * and faded in by the first tick above (re_map.md "The level's working
      * palette"). */

@@ -706,7 +706,8 @@ int game_main(const OSystem *osys)
                  * the ACTION bit is masked while the key is held. */
                 actionLatched = (input.joyBits & 0x80u) != 0;
                 level_tick();          /* the party done: the level runs */
-                object_pendingRun();   /* the [0x1979] dispatch (1000:382D) */
+                /* level_tick ends with the [0x1979] dispatch (1000:382D and
+                 * the event-4 charge loop), so it runs once per frame */
                 if (level_endHolding()) {
                     /* 1000:34E6: the play loop's exit hold - the end sound
                      * (0x83B7, AX = 0xC) and 15 vsyncs (0x8B56) on the frozen

@@ -61,6 +61,7 @@ static unsigned barSplit = 152u;
 static const OSystem *sb_osys;
 static uint8_t *strip;        /* the four-plane panel strip                */
 static uint8_t *panel4;       /* LBM\PANEL4.BIT (the art + the palette)   */
+static uint32_t p4Size;       /* its length: the charge bar reads 0x3EE0+  */
 static uint8_t *icons3;       /* APL\ICONS3.SPR: 12 x 16x24 (0x180 each)  */
 
 static int active;            /* [0x5B12]: the bar's ticking gate         */
@@ -219,6 +220,67 @@ static const uint8_t actionGold[40] = {   /* 202F:0x5B57 */
     0xE3,0xE2,0xE1,0xE0,0xDF,0xDE,0xDD,0xDC,0xDB,0xDA,
     0xD9,0xD8,0xD7,0xD6,0xD5,0xD4,0xD3,0xD2,0xD1,0xD0,
 };
+/* 1000:3747: the jump/throw charge bar, drawn into the bar band from the
+ * acting record's `+0xE`.  Two halves, differing in both art and position:
+ *
+ *  - `+0xE` < 0x100 (0x374B): a generated 2-px-wide, 10-row stroke at band row
+ *    15, byte column `(0x60 + (+0xE >> 1)) >> 2`, plane `(0x60 + v>>1) & 3`,
+ *    colours `DF E0 E1 E2 E3 E3 E2 E1 E0 DF`; the plane bit walks one further
+ *    (wrapping into the next byte column) for the second of the two passes
+ *    (`0x376D: CX = 2`).
+ *  - `+0xE` >= 0x100 (0x37C3): the folded length `len = (0x1FF - v) >> 1`
+ *    selects a 2-px-wide, 15-row slice of **panel4's own art** at
+ *    `0x3EE0 + len` (source rows 0x140 apart, the two pixels 4 apart), placed
+ *    at band row 10, column `24 + (len >> 2)`, plane `len & 3`.
+ *
+ * The port is per-pixel, so a planar byte becomes the pixel `4*col + plane`. */
+void statusbar_chargeBar(unsigned v)
+{
+    static const uint8_t shade[10] = {
+        0xDF, 0xE0, 0xE1, 0xE2, 0xE3, 0xE3, 0xE2, 0xE1, 0xE0, 0xDF
+    };
+    uint8_t *page = sb_osys ? sb_osys->videoPage(0) : NULL;
+    unsigned i, r;
+
+    if (!page || !panel4) return;              /* no bar art: nothing to draw */
+    if (v < 0x100u) {
+        unsigned ax = 0x60u + (v >> 1);        /* 0x372E's `SHR AX,1`        */
+        unsigned col = ax >> 2, p = ax & 3u;
+
+        for (i = 0; i < 2u; i++) {             /* 0x376D: CX = 2 passes      */
+            unsigned x = 4u * col + p;
+
+            for (r = 0; r < 10u; r++) {
+                unsigned y = barSplit + 15u + r;
+
+                if (x < 320u && y < 200u) page[y * 320u + x] = shade[r];
+            }
+            if (++p == 4u) { p = 0; col++; }
+        }
+        return;
+    }
+    {
+        unsigned len = (0x1FFu - v) >> 1;      /* 0x3726-0x372E              */
+        unsigned col = 24u + (len >> 2), p = len & 3u;
+        unsigned src = 0x3EE0u + len;
+
+        if (src + 0x140u * 15u + 4u > p4Size) return;   /* past the art     */
+        for (i = 0; i < 2u; i++) {
+            unsigned x = 4u * col + p;
+
+            for (r = 0; r < 15u; r++) {
+                unsigned y = barSplit + 10u + r;
+                uint8_t a = panel4[src + r * 0x140u + i];
+                uint8_t b = panel4[src + r * 0x140u + i + 4u];
+
+                if (x < 320u && y < 200u) page[y * 320u + x] = a;
+                if (x + 4u < 320u && y < 200u) page[y * 320u + x + 4u] = b;
+            }
+            if (++p == 4u) { p = 0; col++; }
+        }
+    }
+}
+
 /* 1000:3933's tail: step the selected cell - the program's cursor byte - with
  * the wrap to 1 past the count.  The bar is redrawn every tick, so the store is
  * the whole effect. */
@@ -462,7 +524,7 @@ void statusbar_tick(void)
 void statusbar_start(uint16_t packedTimeBcd, unsigned tribeMembers,
                      unsigned tribeRequired)
 {
-    uint32_t n1Size = 0, n2Size = 0, p4Size = 0, i3Size = 0;
+    uint32_t n1Size = 0, n2Size = 0, i3Size = 0;
     uint16_t chk = 0;
     uint8_t *n1, *n2;
     uint8_t m = (uint8_t)(packedTimeBcd >> 8);
@@ -486,6 +548,7 @@ void statusbar_start(uint16_t packedTimeBcd, unsigned tribeMembers,
     /* level_video_init's load (1000:32AD): the +0xC0 paragraph stride puts
      * PANELN2 right after PANELN1 — one 1280-byte strip (§12.7a)         */
     free(panel4);
+    p4Size = 0;
     panel4 = res_loadChunk("LBM\\PANEL4.BIT", &p4Size, &chk);
     if (!panel4 || p4Size < 0xFA00u + 768u) {
         free(panel4);

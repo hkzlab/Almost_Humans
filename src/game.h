@@ -196,6 +196,8 @@ unsigned statusbar_split(void);
 /* 1000:3933's tail: advance the current action row's selected cell (the
  * 0x5B2B header's second byte) with the wrap to 1 past the count. */
 void statusbar_cycleAction(void);
+/* 1000:3747: the jump/throw charge bar, v = the acting record's +0xE. */
+void statusbar_chargeBar(unsigned v);
 /* the group's selected-cell byte (1-based), for tests; 0 past the table. */
 unsigned statusbar_actionGroup(void);   /* [0x5B56]: the bar's current group */
 /* the program/group header ([0x5B2B] -> 0x5B37): {count, cursor, icon...} */
@@ -629,7 +631,9 @@ int  object_rowWindowMatches(unsigned type, unsigned half, int x, int y);
  * [0x3E22]; object_actionRun() performs one press, object_cycleEntity(±1) is
  * the object selector (1000:410A/4147). */
 void object_actionRun(void);
-void object_pendingRun(void);      /* the [0x1979] dispatch, per frame */
+void object_pendingRun(void);
+/* one frame of the event-4 charge loop (1000:3702); call after the frame */
+int  object_chargeTick(void);      /* the [0x1979] dispatch, per frame */
 int  object_cycleEntity(int step);
 /* 1000:38C3: select record `index` (F1..F8 = scancode-0x3B), skipping a
  * disabled slot or type 0x1D.  Returns 1 when selected. */

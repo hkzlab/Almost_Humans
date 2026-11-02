@@ -102,6 +102,10 @@ static void objSetProgramIndex(unsigned index)
 static unsigned objPending;              /* [0x1979]                             */
 static unsigned objCursor = 1;           /* [0x1988]                             */
 static unsigned objFault;                /* op 7 was dispatched (see below)      */
+/* [0x1987] / the port's "inside 0x36DB" state: the turn arms the flag
+ * (1000:EE35) and the pending-event 4 charge loop consumes it (1000:370C). */
+static uint8_t objChargeArm;
+static int     objCharging;
 static const OSystem *objOsys;           /* the fatal halt's route (osystem.h)   */
 static uint16_t objRegister[8][7];       /* 0x6F22: 8 x 0xE (clear is 0x70 bytes at
                                           * 0x60F4; op 1 walks AX = 7..0), bit15 = free */
@@ -4401,10 +4405,7 @@ static void objCmdTurn(uint8_t *actor)
     }
     wr16(actor, 0xEu, (uint16_t)((rd16(actor, 0xEu) + 4u) & 0x1FFu));
     if (objDebounce != 4u) objOutState = 4;               /* 1000:EE30 */
-    /* 1000:EE35 arms [0x1987]; the original's pending-event 4 (0x36DB, the
-     * jump/throw charge loop) reads it at 0x370C and draws the charge bar.
-     * The port has no event-4 handler yet (port_deviations.md D-68), so the
-     * flag is currently written and dropped. */
+    objChargeArm = 0xFF;                                  /* 1000:EE35 */
 }
 
 static void objCmdFall(uint8_t *actor, int x, int y, unsigned frame);
@@ -5078,19 +5079,72 @@ static void objOpResetSpan(void)
  * (count, gold flag) — the same bytes as the 0x5B2B group header.  That
  * drawing is already ported in statusbar.c as draw_actions() and runs every
  * tick via statusbar_tick(), so the press needs no extra call here. */
+/* 1000:3747 with the acting record's +0xE (the bar drawing lives in
+ * statusbar.c, which owns the band and panel4). */
+static void objChargeDraw(void)
+{
+    uint8_t *actor = object_slot(object_actionEntity());
+
+    if (actor) statusbar_chargeBar((unsigned)(rd16(actor, 0xEu) & 0x1FFu));
+}
+
+/* The pending-event dispatch (`[0x1979]` -> the table at CS:0x197B).  The port
+ * only needs the two gameplay codes: 4 is the jump/throw charge loop and 5 is
+ * the program-cursor rewind; 1/2/3/6 are the screen-level dispatch control
+ * (lock, "return 0", a bare RET, spin-wait), none of which the port's tick
+ * drives. */
 void object_pendingRun(void)
 {
-    if (objPending == 5u) {
-        uint8_t *p = objPrograms[(objProgramIndex - 1u) % 6u];
-        p[1] = (uint8_t)objCursor;
-    }
+    unsigned code = objPending;
+
     objPending = 0u;
+    /* 1000:3705: any pending code ends the running charge loop (the loop
+     * swallows it at 0x373B); its own event-4 request does not. */
+    if (objCharging && code != 4u) objCharging = 0;
+    switch (code) {
+    case 4u:                                     /* 1000:36DB: enter 0x36DB */
+        objCharging = 1;
+        break;
+    case 5u: {                                   /* 1000:382D */
+        uint8_t *p = objPrograms[(objProgramIndex - 1u) % 6u];
+
+        p[1] = (uint8_t)objCursor;
+        break;
+    }
+    default:                                     /* 1000:36C7/36D7/36DA/3843 */
+        break;
+    }
+}
+
+/* One frame of the charge loop (0x3702): the world frame has already run, so
+ * this redraws the bar at the record's new +0xE, or leaves when the turn did
+ * not advance (0x370C) - the loop's other exit, a pending code, is the ACTION
+ * press and is consumed by object_actionRun. */
+int object_chargeTick(void)
+{
+    if (!objCharging) return 0;
+    if (!objChargeArm) {                         /* 1000:370C */
+        objCharging = 0;                         /* the loop leaves; 0x373B */
+        return 0;
+    }
+    objChargeArm = 0u;                           /* 1000:3713 */
+    objChargeDraw();                             /* 1000:3718-0x3730 */
+    return 1;
 }
 
 /* script_op_dispatch: one ACTION press. */
 void object_actionRun(void)
 {
     const uint8_t *p = objPrograms[(objProgramIndex - 1u) % 6u];
+
+    /* 1000:3705/0x373B: a press while the charge loop runs ends it and is
+     * swallowed; the release itself follows on the next idle frame (0xEFD7
+     * with [0x6F1D] set -> 0xEFE4). */
+    if (objCharging) {
+        objCharging = 0;
+        objPending = 0u;
+        return;
+    }
     uint8_t *actor = objArray + objEntity * OBJ_STRIDE;
     unsigned op = p[p[1] + 1u];
 
