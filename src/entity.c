@@ -245,6 +245,13 @@ static void entWr(uint8_t *r, unsigned o, uint16_t v)
     r[o + 1] = (uint8_t)(v >> 8);
 }
 
+/* The entity's index, for the +0xA carry link (the port's stand-in for the
+ * original's DS pointer 0x64C4 + 0x10*n). */
+static unsigned entIndex(const Entity *ep)
+{
+    return (unsigned)(ep - (const Entity *)ents[0]);
+}
+
 /* 1000:CA43..CB77 - the tail's interaction pass, run on every walk-branch tick
  * that does not reach the endpoint.  It walks the eight static placed records
  * and takes the first one that
@@ -284,7 +291,10 @@ static void entity_tailInteract(Entity *ep, unsigned slot, unsigned off)
         if (type < sizeof entNoPick && entNoPick[type]) continue;  /* 1000:CAE1 */
         (void)object_stackScanDissolve(i);        /* 1000:CAFE: 0xF453, DX = 5 */
         entWr(rec, 8u, 0x0022u);                  /* 1000:CB15 */
-        entWr(rec, 0xAu, (uint16_t)(i + 1u));     /* 1000:CB19: the link */
+        /* 1000:CB19 stores the entity record pointer (0x64C4 + 0x10*n); the
+         * port tags the index so it cannot collide with the object links
+         * (4 + idx*0x12) the same +0xA field serves elsewhere. */
+        entWr(rec, 0xAu, (uint16_t)(0x8000u | entIndex(ep)));
         entWr(rec, 0xEu, (uint16_t)w5);           /* 1000:CB23 */
         {                                          /* 1000:CB35..CB4C */
             unsigned idx = w6 / 2u;                /* the entity's word offset */

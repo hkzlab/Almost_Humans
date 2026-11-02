@@ -836,6 +836,22 @@ int main(int argc, char **argv)
                     check(contaminated > 20u && bad2 == 0u,
                           "the stack class draws after the live records");
                 }
+                /* D-58: a climb frame (0x23..0x25) has 0x3570 bit 7 set;
+                 * 1000:653C moves the base draw to 1000:6610/661C, so the
+                 * placed record still draws (the climbing human is visible). */
+                {
+                    unsigned ink = 0;
+
+                    memset(page, 0, sizeof page);
+                    object_init();
+                    rec = object_slot(0);
+                    rec[0] = 100; rec[1] = 0; rec[2] = 100; rec[3] = 0;
+                    rec[4] = 0x23; rec[6] = 0; rec[7] = 0; rec[8] = 0x02;
+                    object_render(page, 0, 0);
+                    for (unsigned k = 0; k < 320u * 200u; k++)
+                        if (page[k]) ink++;
+                    check(ink > 50u, "a climb frame (0x23) still draws ink");
+                }
                 /* 1000:E3F6, the command dispatch: the type row (DS:0x698A)
                  * picks the handler index, the table at DS:0x6918 the address.
                  * Type 2 is a human, type 8 one of the walkers, type 15 has its
@@ -3218,8 +3234,8 @@ int main(int argc, char **argv)
     {
         #define R16(r, o) ((unsigned)((r)[o] | ((r)[(o) + 1] << 8)))
         #define W16(r, o, v) ((r)[o] = (uint8_t)(v), (r)[(o) + 1] = (uint8_t)((v) >> 8))
-        uint8_t *t = object_slot(1u);
         uint8_t *spare = object_slot(5u);
+        uint8_t ent[2u + 7u * 16u];        /* D-59: the +0xA entity records */
 
         /* the odometer is armed from the level start (12 members, 4 required),
          * so the probes below would take the goal form; empty it first to
@@ -3277,39 +3293,41 @@ int main(int argc, char **argv)
               R16(spare, 4u) == 0x20u,
               "0xDE7E: entry {-1, 0x32, 1} walks the frame down");
 
-        /* --- 1000:DED1 (type 34): both +6-bit-7 states and the +0xC match --- */
+        /* --- 1000:DED1 (type 34): +0xA is the ENTITY link (0x8000|index),
+         * not an object link; [DI+4]/[DI+C]/[DI+8] are the entity fields. --- */
+        memset(ent, 0, sizeof ent);
+        ent[0] = 1u; ent[1] = 0u;           /* one entity */
+        W16(ent + 2u, 4u, 2u);              /* the entity's handler = 2   */
+        W16(ent + 2u, 0xCu, 0x77u);         /* its waypoint; +0xE matches */
+        entity_loadFixed(ent);
         memset(spare, 0, 0x12u);
         W16(spare, 8u, 34u);
-        W16(spare, 0xAu, 1u * 0x12u + 4u);  /* the link to slot 1 */
+        W16(spare, 0xAu, 0x8000u);          /* the entity 0 link */
         W16(spare, 0xEu, 0x77u);
-        memset(t, 0, 0x12u);
-        W16(t, 4u, 2u);                    /* the target's +4 = 2 */
-        W16(t, 0xCu, 0x77u);
         (void)object_commandRun(spare, 0x01u);
         check(spare[6] == 0x80u,
-              "0xDED1: a +0xC == +0xE match on a 2/3 target sets bit 7");
+              "0xDED1: a +0xC == +0xE match on a 2/3 entity sets bit 7");
         spare[6] = 0x80u;
-        t[4] = 2u;
         (void)object_commandRun(spare, 0x01u);
         check(spare[6] == 0x80u && R16(spare, 4u) == 0u,
-              "0xDED1: with bit 7 set a 2/3 target holds");
-        /* bit 7 set and a target outside 2..3 → the probe (taken branch) */
-        W16(t, 4u, 5u);
+              "0xDED1: with bit 7 set a 2/3 entity holds");
+        /* bit 7 set and the entity outside 2..3 → the probe (taken branch) */
+        W16(ent + 2u, 4u, 5u);
+        entity_loadFixed(ent);
         W16(spare, 0x10u, 0x40u);
         (void)object_commandRun(spare, 0x01u);
         check(R16(spare, 0u) == 0xFFFFu && spare[6] == 0xFFu,
-              "0xDED1: bit 7 + a non-2/3 target runs the probe");
-        /* bit 7 clear and a target outside 2..3 → the home form */
+              "0xDED1: bit 7 + a non-2/3 entity runs the probe");
+        /* bit 7 clear and the entity outside 2..3 → the home form */
         memset(spare, 0, 0x12u);
         W16(spare, 8u, 34u);
-        W16(spare, 0xAu, 1u * 0x12u + 4u);
+        W16(spare, 0xAu, 0x8000u);
         W16(spare, 4u, 0x21u);
         W16(spare, 0xCu, 0x55u);
-        W16(t, 8u, 0u);
         (void)object_commandRun(spare, 0x01u);
         check(R16(spare, 4u) == 0x10u && R16(spare, 8u) == 2u &&
               R16(spare, 0xAu) == 0u && R16(spare, 0xCu) == 0u,
-              "0xDED1: bit 7 clear + a non-2/3 target is the home form");
+              "0xDED1: bit 7 clear + a non-2/3 entity is the home form");
 
         /* --- 1000:EF66 (type 22): the 5-frame step to frame 0x2E, then the
          * probe.  With the odometer empty the record is taken. --- */
@@ -3326,14 +3344,15 @@ int main(int argc, char **argv)
          * the record takes the goal form instead (frame 0x2D / type 0x21). --- */
         statusbar_setTribeDigits(0u, 4u);   /* the digits show "04" */
         check(statusbar_tribeActive(), "the odometer is armed for the goal form");
+        W16(ent + 2u, 4u, 5u);
+        W16(ent + 2u, 8u, 50u);             /* -> [0x4222] = 50 + 0x28 */
+        entity_loadFixed(ent);
         memset(spare, 0, 0x12u);
         W16(spare, 8u, 34u);
-        W16(spare, 0xAu, 1u * 0x12u + 4u);
+        W16(spare, 0xAu, 0x8000u);
         W16(spare, 0x10u, 100u);            /* -> [0x4220] */
         W16(spare, 0xEu, 0u);
         spare[6] = 0x80u;                   /* bit 7: the probe path */
-        W16(t, 4u, 5u);
-        W16(t, 8u, 50u);                    /* -> [0x4222] = 50 + 0x28 */
         (void)object_commandRun(spare, 0x01u);
         check(R16(spare, 4u) == 0x2Du && R16(spare, 8u) == 0x21u &&
               R16(spare, 0xAu) == 5u && R16(spare, 0u) == 92u,

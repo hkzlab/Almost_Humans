@@ -1546,8 +1546,11 @@ static void objDrawRecord(uint8_t *page, int scrollX, int scrollY,
      * The carried record is drawn by its carrier's class overlay only. */
     if (scan && (objSlotClass[i - 8u] & 0x80u)) return;
     if (!r[7]) {
-        if (scan || !(objOverlayRow(frame) & 0x80u))
-            objBlitFrame(page, frame, x, y);
+        /* 1000:653C skips only the EARLY base draw when 0x3570[frame] bit 7
+         * is set; its tail (1000:6610) draws the base at 1000:661C instead.
+         * With no class overlay the record is always drawn exactly once, so
+         * the climb frames 0x23..0x25 (0x3570 = 0xC3/0xC4/0xC5) must draw. */
+        objBlitFrame(page, frame, x, y);
         return;
     }
     if (!(objOverlayRow(frame) & 0x80u)) objBlitFrame(page, frame, x, y);
@@ -3449,20 +3452,24 @@ static void objTailType30(uint8_t *actor)
  * else takes the home form (frame 0x10 / type 2, `+0xA`/`+0xC` cleared). */
 static void objTailType34(uint8_t *actor)
 {
-    uint8_t *t = objLinkRecord(rd16(actor, 0xAu));
+    /* 1000:DED1: +0xA is the ENTITY record pointer, not an object link.  The
+     * entity interaction tags the index (0x8000|n); an untagged link is not
+     * a carry and leaves the record alone. */
+    unsigned link = rd16(actor, 0xAu);
+    const Entity *e = (link & 0x8000u) ? entity_at(link & 0x7FFFu) : NULL;
     unsigned v;
 
-    if (!t) return;
-    v = rd16(t, 4u);
+    if (!e) return;
+    v = e->handler;
     if (v == 2u || v == 3u) {                        /* 1000:DEDA / 0xDF0A */
         if (!(actor[6] & 0x80u)) {
-            if (rd16(t, 0xCu) == rd16(actor, 0xEu)) actor[6] |= 0x80u;
+            if (e->waypoint == rd16(actor, 0xEu)) actor[6] |= 0x80u;
         }
         return;
     }
     if (actor[6] & 0x80u) {                          /* 1000:DEE8 */
         objSide = rd16(actor, 0x10u);                /* [0x4220] */
-        objSelXoff = (uint16_t)(rd16(t, 8u) + 0x28u);/* [0x4222] */
+        objSelXoff = (uint16_t)(e->y + 0x28u);       /* [0x4222] */
         objLevelEndProbe(actor, -1);
         return;
     }

@@ -723,6 +723,8 @@ enum {
 };
 unsigned frontend_option(unsigned idx);
 unsigned frontend_cellForProbe(void);   /* [0x4220]: the walk's rail node  */
+int      frontend_nameScreenForProbe(void); /* the name screen's phase      */
+const char *frontend_nameForProbe(void);    /* the typed name (0x61E0)      */
 
 /* --- src/party_intro.c — the level-intro party screen (subsystem 14) --
  *

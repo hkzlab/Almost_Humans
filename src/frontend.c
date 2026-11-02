@@ -153,7 +153,7 @@ static uint16_t walkState;       /* [0x4222]: bit15 = at rest, 0..3 walk */
 static uint16_t charX, charY;    /* [0x4224]/[0x4226]: the world x/y     */
 static uint16_t frame, frameCnt; /* [0x4228]/[0x422A]                    */
 static uint16_t pubX, pubY;      /* [0x5F05]/[0x5F07]: the walk origin   */
-static char     nameBuf[14];     /* 0x61E0: 13 chars + NUL               */
+static char     nameBuf[15];     /* 0x61E0: 14 chars + the 0x61EE NUL   */
 static unsigned codeIndex;       /* [0x5F09]: the matched code's index   */
 static uint8_t  optCounter[4];   /* the structs' +7 byte (0x5E5B..0x5E79)
                                   * = FRONTEND_OPT_*; persists for the run */
@@ -193,6 +193,10 @@ unsigned frontend_option(unsigned idx)
 /* [0x4220] — the rail node, exposed for the option read-side test's walk
  * legs (the same role as attract_phaseForProbe). */
 unsigned frontend_cellForProbe(void) { return cell; }
+
+/* the name screen's phase and typed buffer, for the input-law tests */
+int frontend_nameScreenForProbe(void) { return phase == FE_NAME; }
+const char *frontend_nameForProbe(void) { return nameBuf; }
 
 /* --- the VRAM primitives ---------------------------------------------- */
 
@@ -403,19 +407,31 @@ static void draw_name_line(void)
         }
 }
 
-/* name_entry_init (1000:AAC9): the "DARWIN" seed. */
+/* name_entry_init (1000:AAC9): the "DARWIN" seed AND four zero words at
+ * 0x61E6..0x61ED - the whole 14-byte buffer, not just the terminator. */
 static void name_reset(void)
 {
-    strcpy(nameBuf, "DARWIN");
+    memset(nameBuf, 0, sizeof nameBuf);
+    memcpy(nameBuf, "DARWIN", 6u);
     draw_name_line();
 }
 
-/* name_entry_addchar (1000:AB1E): append at the NUL, 13-char bound. */
+/* name_entry_addchar (1000:AB1E): append at the first NUL.  The BX = 13 walk
+ * writes the 14th character at index 13; a full buffer overwrites index 13.
+ * (The original's buffer is 0x61E0..0x61ED, terminated by the fixed zero at
+ * 0x61EE; nameBuf[14] is that zero.) */
 static void name_addchar(uint8_t c)
 {
     unsigned i = 0;
-    while (i < 13u && nameBuf[i]) i++;
-    if (i < 13u) { nameBuf[i] = (char)c; draw_name_line(); }
+    int bx = 13;
+
+    while (nameBuf[i]) {
+        bx--;
+        if (bx < 0) break;
+        i++;
+    }
+    nameBuf[i] = (char)c;
+    draw_name_line();
 }
 
 /* menu_action_backspace (1000:AB00): erase the last char. */

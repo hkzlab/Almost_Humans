@@ -338,6 +338,72 @@ int main(int argc, char **argv)
         }
     }
 
+    /* --- the name screen's input law (D-56/D-57) ---------------------- */
+    {
+        InputState in = idle();
+        unsigned t;
+        static const char wrong[] = "WRONG CODE";
+        static const char code14[] = "FATEANDFORTUNE";
+
+        /* hold left: the rail takes the character to x=0x108, then the pan
+         * runs the scroll to 0 and the name screen opens */
+        in.joyBits = 0x04u;
+        for (t = 0; t < 800u && !frontend_nameScreenForProbe(); t++) tick(&in);
+        in = idle(); tick(&in);           /* release the walk */
+        if (!frontend_nameScreenForProbe()) {
+            fprintf(stderr, "FAIL the name screen did not open\n");
+            bad = 1;
+        } else {
+            /* ESC clears the seeded DARWIN */
+            in = idle(); in.lastKey = 0x1Bu; tick(&in);
+            if (strcmp(frontend_nameForProbe(), "") != 0) {
+                fprintf(stderr, "FAIL ESC did not clear the name\n");
+                bad = 1;
+            }
+            /* type a wrong code and Enter: the miss resets DARWIN */
+            for (unsigned i = 0; wrong[i]; i++) {
+                in = idle(); in.lastKey = (uint8_t)wrong[i]; tick(&in);
+            }
+            in = idle(); in.lastKey = 0x0Du; tick(&in);
+            if (strcmp(frontend_nameForProbe(), "DARWIN") != 0) {
+                fprintf(stderr, "FAIL the miss reset is '%s'\n",
+                        frontend_nameForProbe());
+                bad = 1;
+            }
+            /* D-56: the tail is zeroed; one Backspace erases the visible N */
+            in = idle(); in.lastKey = 0x0Eu; tick(&in);
+            if (strcmp(frontend_nameForProbe(), "DARWI") != 0) {
+                fprintf(stderr, "FAIL the first Backspace left '%s'\n",
+                        frontend_nameForProbe());
+                bad = 1;
+            }
+            /* D-56: typing after a miss must not expose a stale tail */
+            in = idle(); in.lastKey = 0x0Du; tick(&in);   /* DARWI -> miss */
+            in = idle(); in.lastKey = 'X'; tick(&in);
+            if (strcmp(frontend_nameForProbe(), "DARWINX") != 0) {
+                fprintf(stderr, "FAIL post-miss typing gave '%s'\n",
+                        frontend_nameForProbe());
+                bad = 1;
+            }
+            /* D-57: a 14-character code is accepted and matches level 155 */
+            in = idle(); in.lastKey = 0x1Bu; tick(&in);
+            for (unsigned i = 0; code14[i]; i++) {
+                in = idle(); in.lastKey = (uint8_t)code14[i]; tick(&in);
+            }
+            if (strcmp(frontend_nameForProbe(), code14) != 0) {
+                fprintf(stderr, "FAIL the 14-char code reads '%s'\n",
+                        frontend_nameForProbe());
+                bad = 1;
+            }
+            in = idle(); in.lastKey = 0x0Du; tick(&in);
+            if (frontend_selectedLevel() != 155u) {
+                fprintf(stderr, "FAIL FATEANDFORTUNE matched level %u\n",
+                        frontend_selectedLevel());
+                bad = 1;
+            }
+        }
+    }
+
     if (frontend_option(FRONTEND_OPT_LEVEL) != 1u ||
         frontend_option(FRONTEND_OPT_GAME) != 1u ||
         frontend_option(FRONTEND_OPT_ANIM) != 1u) {

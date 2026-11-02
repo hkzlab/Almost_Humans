@@ -233,8 +233,9 @@ int main(int argc, char **argv)
             entity_tick();
             if ((rec[8] | (rec[9] << 8)) != 0x22u)
                 failf("the pick-up's type", 10u, rec[8], 0x22);
-            if ((rec[10] | (rec[11] << 8)) != 1u)
-                failf("the entity link at +0xA", 10u, rec[10], 1);
+            /* D-59: the +0xA link is the entity, tagged (0x8000 | index) */
+            if ((rec[10] | (rec[11] << 8)) != 0x8000u)
+                failf("the entity link at +0xA", 10u, rec[10], 0x8000);
             if (entity_at(0)->handler != 3u)
                 failf("the carry handler", 10u, entity_at(0)->handler, 3);
             if (entity_at(0)->hold != 0xA032u)
@@ -256,6 +257,52 @@ int main(int argc, char **argv)
                           entity_at(0)->hold, 0);
             }
         }
+    }
+
+    /* 3c. D-59: the full eaten chain.  The carry link points at the entity,
+     * so the type-34 tail marks the human consumed while the entity is on
+     * handlers 2/3 and runs 0xF5BC when the carry ends; the probe's F682 arm
+     * turns the record into the type-0x21 lost marker and rolls the bar
+     * odometer down. */
+    {
+        uint8_t *cr;
+        uint8_t params[8];
+        unsigned t, type;
+
+        (void)level_load(10u);
+        entity_spawnFromMap(level_map(), level_data()->style,
+                            level_data()->entityLife);
+        object_init();
+        cr = object_slot(0u);
+        {
+            const Entity *p = entity_at(0u);
+            unsigned px = p ? p->x : 320u, py = p ? p->y : 193u;
+
+            memset(cr, 0, 0x12u);
+            cr[0] = (uint8_t)(px + 36u); cr[1] = (uint8_t)((px + 36u) >> 8);
+            cr[2] = (uint8_t)(py + 30u); cr[3] = (uint8_t)((py + 30u) >> 8);
+            cr[4] = 0x10u;
+            cr[8] = 0x01u;
+        }
+        object_setActionEntity(0u);
+        entity_tick();
+        if ((cr[8] | (cr[9] << 8)) != 0x22u)
+            failf("D-59: the pick-up", 10u, cr[8], 0x22);
+        statusbar_setTribeDigits(1u, 2u);      /* the bar shows 12 */
+        for (t = 0; t < 4000u; t++) {
+            type = (unsigned)(cr[8] | (cr[9] << 8));
+            if (type == 0x21u) break;
+            entity_tick();                     /* the game's order: world first */
+            (void)object_commandRun(cr, 0u);
+        }
+        type = (unsigned)(cr[8] | (cr[9] << 8));
+        if (type != 0x21u)
+            failf("D-59: the carried human is consumed", 10u, type, 0x21);
+        statusbar_saveParams(params);
+        if (params[0] != 0xFFu)
+            failf("D-59: the loss arms the odometer", 10u, params[0], 0xFF);
+        if ((cr[4] | (cr[5] << 8)) != 0x2Du)
+            failf("D-59: the lost marker's frame", 10u, cr[4], 0x2D);
     }
 
     /* 4. the whole corpus: count == #B3, the spawn fields (the prologue
