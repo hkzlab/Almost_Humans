@@ -2801,6 +2801,12 @@ int main(int argc, char **argv)
                 fprintf(stderr, "  (release: type %04x +E %04x)\n", t, e);
             check(t != 0x0018u,
                   "the release leaves the wind-up (1000:EFD7 -> 0xEFE4)");
+            /* D-84: the landing pair is 1000:F8D2/F8D8 - frame <- [0x4230]
+             * (objSide), type <- [0x4234] (objSelXoff) - so the throw path
+             * (0xF078: 8/1) must not land as frame 1/type 0. */
+            check((t == 0x0000u || t == 0x0001u) &&
+                  ((a[4] | (a[5] << 8)) == 8u || (a[4] | (a[5] << 8)) == 0u),
+                  "the landing pair is frame <- [0x4230], type <- [0x4234]");
         }
     }
 

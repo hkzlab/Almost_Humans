@@ -5391,8 +5391,8 @@ static void objCmdLeave(uint8_t *actor)
         if (rd16(actor, 0x10u) == 0u) {              /* 1000:F04A */
             wr16(actor, 0u, sx);                     /* 1000:F051: restore */
             wr16(actor, 2u, sy);
-            wr16(actor, 4u, objSelXoff);
-            wr16(actor, 8u, objSelFrame);
+            wr16(actor, 4u, (uint16_t)objSide);      /* 1000:F056: frame  */
+            wr16(actor, 8u, objSelXoff);             /* 1000:F05C: type   */
         }
     }
 }
@@ -5469,11 +5469,15 @@ static void objFallMachine(uint8_t *actor)
     int ax, bx, cx, d;
     unsigned rowY, fine, page, item, mask, lo, hi;
     unsigned probeY, above, below;
-    unsigned anim, vy;
+    unsigned anim;
+    int vy;
 
     if (!objSettleGate(actor)) {                     /* 1000:F6F6 */
-        wr16(actor, 4u, objSelXoff);
-        wr16(actor, 8u, objSelFrame);
+        /* 1000:F6FB/F701: frame <- [0x4230] (objSide), type <- [0x4234]
+         * (objSelXoff).  The third word [0x4238] is the item probe's x
+         * offset, not the type. */
+        wr16(actor, 4u, (uint16_t)objSide);
+        wr16(actor, 8u, objSelXoff);
         wr16(actor, 0xAu, 0u);
         return;
     }
@@ -5483,16 +5487,18 @@ static void objFallMachine(uint8_t *actor)
 
     anim = rd16(actor, 0xCu);                        /* 1000:F715 */
     if (anim >= 0x18u) {
-        vy = 3u;
+        vy = 3;                                      /* 1000:F71B */
     } else {
-        vy = (unsigned)(uint8_t)objFallStep[anim];   /* sign-extended below */
+        /* 1000:F720-0xF727: `CBW` sign-extends the table byte, so the
+         * first steps of a full charge are NEGATIVE (the leap rises). */
+        vy = objFallStep[anim];
         anim++;
     }
     wr16(actor, 0xCu, (uint16_t)anim);               /* 1000:F728 */
-    wr16(actor, 0xEu, (uint16_t)(rd16(actor, 0xEu) + (uint16_t)vy));
+    wr16(actor, 0xEu, (uint16_t)(rd16(actor, 0xEu) + (uint16_t)(int16_t)vy));
 
     ax = (int)(int16_t)rd16(actor, 0u) + (int)(int16_t)rd16(actor, 0x10u);
-    bx = (int)(int16_t)rd16(actor, 2u) + (int)(int16_t)(uint16_t)vy;
+    bx = (int)(int16_t)rd16(actor, 2u) + vy;
     cx = ax + 8;                                     /* 1000:F736: the probe x */
     probeY = (unsigned)(bx + 0x18);                  /* 1000:F739 */
     fine = (unsigned)cx & 0xFu;                      /* 1000:F753 */
@@ -5569,8 +5575,8 @@ snap:                                                /* 1000:F87F */
         level_set_offsetWord((uint16_t)((unsigned)speed >> 3));  /* 1000:F8CE */
     }
 land_pair:                                           /* 1000:F8D2 */
-    wr16(actor, 4u, objSelXoff);
-    wr16(actor, 8u, objSelFrame);
+    wr16(actor, 4u, (uint16_t)objSide);              /* frame <- [0x4230] */
+    wr16(actor, 8u, objSelXoff);                     /* type  <- [0x4234] */
     wr16(actor, 0xAu, 0u);
     objDriverCall(5);
     return;
