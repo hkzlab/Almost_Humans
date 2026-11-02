@@ -73,6 +73,7 @@ static uint8_t objStackMask[2];         /* 0x64AD / 0x64C1: in-a-stack bits */
 static unsigned objRowOfs;
 static int16_t objSide;                 /* [0x4230]: which side the settle stepped from */
 static int objStepProbeAt(const uint8_t *actor, int dx, int dy, unsigned *cellOut);
+static int objLandY(int x, int y, unsigned *cellOut);
 static unsigned objStyleNudge(const uint8_t *map, unsigned col, unsigned row);
 static int objCmdHomeState(uint8_t *actor);     /* 1000:EDB7               */
 static void objDriverCall(unsigned n);          /* 1000:83B7               */
@@ -2243,6 +2244,173 @@ static void objWalkMover(uint8_t *r)
     }
 }
 
+/* --- 0xC57E (behaviour 8): the 7-state stack machine -------------------
+ *
+ * The record's +0xA selects one of seven states through 0x654E.  States 0/1
+ * walk (vx +-1) with a 0xC62C terrain/0x1FD6 probe and stop on a blocked
+ * probe or item word (0xC6AD toggles the direction and restores the frame
+ * 0xE0/0xD4); 2/3 play the 0xC615 animation (frames 0x116..0x11A); after
+ * either, 0xC6B8 checks the eight fixed slots (frame 0xDC/0xE8, +8 = 2,
+ * +0xA = 4/5); 4/5 land through 0xC71E; 6 is the exit (frame 0x2E ends it).
+ */
+static void objStack8Fail(uint8_t *r, unsigned frame)
+{
+    r[0xAu] ^= 1u;
+    wr16(r, 4u, (uint16_t)frame);
+}
+
+static void objStack8Slots(uint8_t *r)
+{
+    unsigned i;
+
+    if (r[7] == 0u) return;
+    for (i = 0; i < OBJ_STATIC; i++) {
+        uint8_t *slot = objArray + i * OBJ_STRIDE;
+        int dx = (int)(int16_t)rd16(r, 0u) - (int)(int16_t)rd16(slot, 0u);
+        int dy;
+
+        if (dx >= 0) {
+            if (dx > 0x40) continue;
+            dy = (int)(int16_t)rd16(r, 2u) - (int)(int16_t)rd16(slot, 2u);
+            if (dy < 0) dy = -dy;
+            dy -= 8;
+            if (dy >= 0) continue;
+            wr16(r, 4u, 0x00E8u);
+            wr16(r, 8u, 2u);
+            wr16(r, 0xAu, 5u);
+            return;
+        }
+        if (-dx > 0x40) continue;
+        dy = (int)(int16_t)rd16(r, 2u) - (int)(int16_t)rd16(slot, 2u);
+        if (dy < 0) dy = -dy;
+        dy -= 8;
+        if (dy >= 0) continue;
+        wr16(r, 4u, 0x00DCu);
+        wr16(r, 8u, 2u);
+        wr16(r, 0xAu, 4u);
+        return;
+    }
+}
+
+static void objStack8Move(uint8_t *r, int vx, int vy, unsigned stopFrame,
+                          unsigned endFrame)
+{
+    const uint8_t *map = level_map();
+    int land, bx, ax, recY;
+    unsigned tile, word, rowFine;
+
+    {
+        unsigned probeCell;
+
+        land = objLandY((int)(int16_t)rd16(r, 0u) + vy + 8, 0x18, &probeCell);
+        (void)probeCell;
+    }
+    if (land < 0) { objStack8Fail(r, stopFrame); return; }
+    bx = land - 0x18;
+    ax = (int)(int16_t)rd16(r, 0u) + vx;
+    rowFine = (unsigned)(bx + 0xC) & 0xFu;
+    {
+        unsigned ci = ((unsigned)(bx + 0xC) >> 4) * 32u + ((unsigned)ax >> 4);
+
+        tile = (map && ci < 640u) ? map[ci] : 0xFFu;
+    }
+    word = level_itemWord(tile, rowFine);
+    if (word != 0u) { objStack8Fail(r, stopFrame); return; }
+    recY = (int)(int16_t)rd16(r, 2u) - bx;
+    if (recY < 0 && bx + 8 < 0) { objStack8Fail(r, stopFrame); return; }
+    wr16(r, 0u, (uint16_t)(rd16(r, 0u) + (uint16_t)vy));
+    wr16(r, 2u, (uint16_t)bx);
+    {
+        unsigned s = rd16(r, 8u);
+
+        if (s == 0u) {
+            unsigned f;
+
+            wr16(r, 8u, 3u);
+            f = (unsigned)(rd16(r, 4u) + 1u);
+            if (f == endFrame) f -= 8u;
+            wr16(r, 4u, (uint16_t)f);
+        } else {
+            wr16(r, 8u, (uint16_t)(s - 1u));
+        }
+    }
+}
+
+static void objStack8Anim(uint8_t *r, unsigned endFrame)
+{
+    unsigned s = rd16(r, 8u);
+
+    if (s != 0u) { wr16(r, 8u, s - 1u); return; }
+    wr16(r, 8u, 6u);
+    {
+        unsigned f = (unsigned)(rd16(r, 4u) + 1u);
+
+        wr16(r, 4u, (uint16_t)f);
+        if (f == endFrame) wr16(r, 4u, (uint16_t)(f - 4u));
+    }
+}
+
+static void objStack8Land(uint8_t *r, unsigned bx, int ax, int bx2, unsigned idx)
+{
+    unsigned s = rd16(r, 8u);
+
+    s = (unsigned)(s - 1u);
+    wr16(r, 8u, (uint16_t)s);
+    if ((int16_t)s >= 0) return;
+    wr16(r, 8u, 2u);
+    wr16(r, 4u, (uint16_t)(rd16(r, 4u) + 1u));
+    if (bx == rd16(r, 4u)) {
+        unsigned cls = r[7];
+
+        r[7] = 0u;
+        if (cls) objSlotClass[cls] &= 0x3Fu;
+        if (cls >= 1u && OBJ_LIVE0 + cls <= objLiveCount) {
+            uint8_t *t = objArray + (OBJ_LIVE0 + cls) * OBJ_STRIDE;
+
+            wr16(t, 8u, 0xFFFFu);
+            wr16(t, 0xAu, 0u);
+            wr16(t, 0xCu, (uint16_t)ax);
+            wr16(t, 0xEu, (uint16_t)bx2);
+        }
+        objDriverCall(3);
+    }
+    if (bx + 3u == rd16(r, 4u)) {
+        wr16(r, 4u, (uint16_t)(rd16(r, 4u) - 0xCu));
+        wr16(r, 0xAu, (uint16_t)(rd16(r, 0xAu) - 4u));
+    }
+    (void)idx;
+}
+
+static void objWalkStack(uint8_t *r, unsigned idx)
+{
+    switch (rd16(r, 0xAu)) {
+    case 0u: objStack8Move(r, 0x11, 1, 0xE0u, 0xDCu); objStack8Slots(r); break;
+    case 1u: objStack8Move(r, -1, -1, 0xD4u, 0xE8u); objStack8Slots(r); break;
+    case 2u: objStack8Anim(r, 0x11Au); objStack8Slots(r); break;
+    case 3u: objStack8Anim(r, 0x11Eu); objStack8Slots(r); break;
+    case 4u: objStack8Land(r, 0xDDu, 0xA, -3, idx); break;
+    case 5u: objStack8Land(r, 0xE9u, -0xA, -3, idx); break;
+    default: {                                   /* state 6, the exit */
+        unsigned s = rd16(r, 8u);
+
+        s = (unsigned)(s - 1u);
+        wr16(r, 8u, (uint16_t)s);
+        if ((int16_t)s >= 0) break;
+        wr16(r, 8u, 3u);
+        {
+            unsigned f = (unsigned)(rd16(r, 4u) + 1u);
+
+            wr16(r, 4u, (uint16_t)f);
+            if (f == 0x2Eu) {
+                objSlotClass[idx - 8u] = 0u;
+                r[6] = 0xFFu;
+            }
+        }
+        break;
+    }
+    }
+}
+
 /* 0x6531: cmd 9's mode flag (zero in the image; the port keeps it too). */
 static uint8_t objMarkerMode;
 
@@ -2315,6 +2483,7 @@ void object_updateList(void)
         case 3u: objWalkSeq(r); break;
         case 5u: objWalkMover(r); break;
         case 6u: objWalkTorch(r); break;
+        case 8u: objWalkStack(r, i); break;
         case 9u: objWalkMarker(r); break;
         default: break;
         }

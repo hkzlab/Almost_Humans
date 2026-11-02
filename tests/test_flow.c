@@ -2668,6 +2668,33 @@ int main(int argc, char **argv)
         }
     }
 
+    /* 7b11. D-74: behaviour 8's state machine (1000:C57E).  A 0xB7 spawns
+     * the frame 0x116/0x11A record with +0xA = 2/3; the 0xC615 animation
+     * counts +8 down, reloads it and advances the frame. */
+    {
+        static uint8_t m[640];
+        uint8_t *rec = NULL;
+        unsigned i, f0;
+
+        memset(m, 0, sizeof m);
+        m[10 * 32 + 10] = 0xB7u;
+        object_init();
+        (void)object_loadTerrainObjects(m);
+        for (i = 8u; i <= object_liveCount(); i++) {
+            uint8_t *r = object_slot(i);
+
+            if ((object_slotClass(i - 8u) & 0x3Fu) == 8u) { rec = r; break; }
+        }
+        check(rec != NULL, "the 0xB7 behaviour-8 record spawns");
+        if (rec) {
+            f0 = rec[4] | (rec[5] << 8);
+            object_updateList();
+            check((unsigned)(rec[4] | (rec[5] << 8)) == f0 + 1u &&
+                  (rec[8] | (rec[9] << 8)) == 6u,
+                  "the state-2 animation advances the frame (1000:C615)");
+        }
+    }
+
     /* 7b4. D-63: the sprite table runs to the 0x3E20 bound - 0x11E slots.
      * apply_relocations builds it from 0x39A8 to 0x3E20; the 0xB7 bush and
      * the type-31/32 tails use frames 0x116/0x11A, which a 0x110 table drops. */
