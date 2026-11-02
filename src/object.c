@@ -76,6 +76,7 @@ static int objStepProbeAt(const uint8_t *actor, int dx, int dy, unsigned *cellOu
 static int objLandY(int x, int y, unsigned *cellOut);
 static unsigned objStyleNudge(const uint8_t *map, unsigned col, unsigned row);
 static int objCmdHomeState(uint8_t *actor);     /* 1000:EDB7               */
+static int objLat;                              /* [0x6F1D]: sequence owns input */
 static void objDriverCall(unsigned n);          /* 1000:83B7               */
 static void objFrameStepDown(uint8_t *actor, unsigned lo, unsigned hi); /* 1000:FDBF */
 static uint8_t *objLinkRecord(unsigned off);   /* the +0xE record link */
@@ -3174,13 +3175,13 @@ static void objOpSetState(uint8_t *actor, unsigned type)
 {
     if (!objStateIs(actor, 1u)) return;
     if (type == 0u) {
-        wr16(actor, 4u, 0x00BBu);
+        wr16(actor, 4u, 0x00BBu);                     /* 1000:EFA9 */
         wr16(actor, 8u, 0x0017u);
     } else {
-        wr16(actor, 4u, 0x00BEu);
+        wr16(actor, 4u, 0x00BEu);                     /* 1000:EFC1 */
         wr16(actor, 8u, 0x0018u);
     }
-    /* [0x6F1D] = 0 (the dialog flag) — the port has no separate flag */
+    objLat = 0;                                       /* 1000:EFB3 */
 }
 
 /* 0xF2E0 (object_find_overlap): the static record within |dx|,|dy| <= 0x10 of
@@ -4097,17 +4098,17 @@ static uint8_t objOutState, objOutStateHi;
  * argument.
  */
 
-/* [0x13A4]: the ACTION press's latch, as the *sequences* see it.  It is raised
- * by the home-state transition (`1000:EE01`) and cleared by the frame scan
- * (`1000:FC81`); `1000:EE07` refuses to turn while it is set.  game_main keeps
- * the other half of the same byte - the per-press gate that runs the ACTION
- * program once (its `actionLatched`) - because there the press is a backend
- * event; the original has one byte for both. */
+/* [0x13A4]: the ACTION press's latch - the ONLY one.  pause_toggle raises it
+ * (`1000:3538`), poll_input clears it on the release (`1000:85A9`) and masks
+ * the ACTION bit while it is set (`1000:859F`); the home-state transition
+ * raises it again (`1000:EE01`) and the frame scan clears it (`1000:FC81`).
+ * `1000:EE07` refuses to turn while it is set.  It is deliberately NOT set by
+ * a charge: during one pause_toggle is blocked by `[0x6F1D]` (`1000:3530`),
+ * so the fire column keeps reaching `1000:EE07` (D-80). */
 static uint8_t objActionLatch;
 int  object_actionLatched(void) { return objActionLatch != 0; }
 void object_setActionLatched(int on) { objActionLatch = on ? 0xFFu : 0u; }
 
-static int objLat;                  /* [0x6F1D]: a sequence owns the input     */
 static unsigned objSfx;             /* the last `1000:83B7` driver argument     */
 static uint16_t objPtX, objPtY;     /* [0x4224] / [0x4226]                      */
 static uint16_t objAux;             /* [0x4228]                                */
@@ -6075,18 +6076,12 @@ void object_actionRun(void)
 {
     const uint8_t *p = objPrograms[(objProgramIndex - 1u) % 6u];
 
-    /* 1000:3705/0x373B: a press while the charge loop runs ends it and is
-     * swallowed; the release itself follows on the next idle frame (0xEFD7
-     * with [0x6F1D] set -> 0xEFE4). */
-    if (objCharging) {
-        objCharging = 0;
-        objPending = 0u;
-        return;
-    }
     /* 1000:3523/0x3530: pause_toggle returns while a sequence owns the
      * record ([0x6F1D] != 0), so the held frames keep reaching the type row's
-     * fire half (the turn); it sets [0x13A4] for the one action per press
-     * (0x3538), which poll_input releases on the following frame. */
+     * fire half (the turn) and the charge keeps advancing.  During a charge
+     * [0x6F1D] is exactly what blocks this call, so there is no separate
+     * "press ends the charge" rule: the release ends it, when the fire
+     * column stops arming [0x1987]. */
     if (objLat) return;
     object_setActionLatched(1);
 

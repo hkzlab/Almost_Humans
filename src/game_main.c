@@ -90,9 +90,12 @@ static unsigned endSceneIndex;
  * with its own +0x00 (entry:004C's POP AX). */
 static unsigned level_current = 0u;
 
-/* [0x13A4]: the ACTION press's latch — poll_input masks the ACTION bit while
- * the key is held (1000:9998), so one press runs the ACTION program once. */
-static int actionLatched;
+/* [0x13A4] lives in object.c (`object_actionLatched`): it is the *only*
+ * ACTION latch.  poll_input's tail (1000:8598..0x85AE) masks the ACTION bit
+ * while it is set and clears it on the release (1000:85A9); pause_toggle
+ * (1000:3538) is the only setter.  A charge never sets it, because
+ * pause_toggle is blocked by [0x6F1D] (1000:3530) - that is what lets the
+ * type-row fire column keep reaching 1000:EE07 while ACTION is held (D-80). */
 
 /* [0x5BBA] != 0: the level's goal page (scroll_map 1000:9E51) is up. */
 static int goalPage;
@@ -450,12 +453,12 @@ int game_main(const OSystem *osys)
 
         osys->eventsPoll(&input);
         rawFire = (input.joyBits & 0x80u) != 0;
-        /* 1000:8598-0x85AE (poll_input's tail): while the one-action-per-press
-         * latch is set the fire bit is masked out of [0x5ACE]; the release
-         * clears the latch. */
-        if (actionLatched) {
+        /* 1000:8598-0x85AE (poll_input's tail): while [0x13A4] is set the
+         * fire bit is masked out of [0x5ACE]; the release clears the latch
+         * (1000:85A9).  One flag, owned by object.c. */
+        if (object_actionLatched()) {
             if (rawFire) input.joyBits &= 0x0Fu;
-            else actionLatched = 0;
+            else object_setActionLatched(0);
         }
         scene_noteInput(&input);   /* the waits read this tick's state */
         level_noteInput(&input);   /* 1000:8526: the play loop's [0x5ACE] */
@@ -712,7 +715,7 @@ int game_main(const OSystem *osys)
                  * runs the ACTION program.  [0x42F0] is never set in the image,
                  * so the 0xE3F9 ACTION edge is dead and the same frame's
                  * command dispatch still sees the fire half of the row. */
-                int pressed = rawFire && !actionLatched;
+                int pressed = rawFire && !object_actionLatched();
 
                 /* the original's order (1000:34B5 -> 0x34BD): update_world
                  * runs first - the record command dispatch inside it sees the
@@ -721,7 +724,8 @@ int game_main(const OSystem *osys)
                 level_tick();          /* 1000:34B5 update_world */
                 if (!menu_active() && pressed && !(input.joyBits & 0x0Fu))
                     object_actionRun();   /* 1000:34BD pause_toggle */
-                actionLatched = rawFire;
+                /* the latch is not assigned here: object_actionRun sets it
+                 * (1000:3538) and the release above clears it (1000:85A9). */
                 /* level_tick ends with the [0x1979] dispatch (1000:382D and
                  * the event-4 charge loop), so it runs once per frame */
                 if (level_endHolding()) {

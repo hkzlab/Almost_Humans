@@ -2744,6 +2744,66 @@ int main(int argc, char **argv)
         }
     }
 
+    /* 7b13. D-80: one ACTION latch.  pause_toggle sets it (1000:3538) and the
+     * release clears it (1000:85A9); the type-row fire column (1000:EE07) then
+     * walks +0xE and arms the charge loop, and the release throws (0xEFD7 ->
+     * 0xEFE4).  Holds a behaviour-5 object, which is what 0xF2CF's state 1
+     * test needs for op 4 to wind the human up. */
+    {
+        uint8_t *a;
+
+        object_init();
+        a = object_slot(0);
+        object_setActionEntity(0u);
+        object_actionSetProgram(2u);
+        object_actionSetCursor(2u);          /* program 2, cell 2 = icon 4 */
+        object_setActionLatched(0);
+        object_setSlotClass(1u, 5u);
+        a[7] = 1u;
+        a[0] = 100; a[1] = 0; a[2] = 100; a[3] = 0;
+        a[4] = 0x10; a[5] = 0; a[6] = 0; a[8] = 2; a[9] = 0;
+        a[0xA] = 0; a[0xB] = 0; a[0xC] = 0; a[0xD] = 0;
+        a[0xE] = 0; a[0xF] = 0;
+
+        object_actionRun();                  /* the tap */
+        check((a[8] | (a[9] << 8)) == 0x0018u &&
+              (a[4] | (a[5] << 8)) == 0x00BEu && object_actionLatched(),
+              "op 4 winds the human up and pause_toggle latches (1000:EFA1/0x3538)");
+
+        object_setActionLatched(0);          /* the tap's release */
+        check(!object_actionLatched(), "the release clears the latch (1000:85A9)");
+
+        (void)object_commandRun(a, 0x80u);   /* a held frame: the fire column */
+        check(!object_actionLatched() &&
+              (unsigned)(a[0xE] | (a[0xF] << 8)) == 4u &&
+              object_actionPending() == 4u,
+              "the fire column charges without latching (1000:EE07)");
+        object_pendingRun();
+        check(object_chargeTick() == 1, "the charge loop draws the bar (1000:3702)");
+
+        (void)object_commandRun(a, 0x80u);   /* the next held frame */
+        check((unsigned)(a[0xE] | (a[0xF] << 8)) == 8u,
+              "the charge keeps walking +0xE while ACTION is held");
+        object_actionRun();                  /* 1000:3530: blocked by [0x6F1D] */
+        check((a[8] | (a[9] << 8)) == 0x0018u,
+              "pause_toggle is blocked while the charge owns the record");
+
+        (void)object_commandRun(a, 0x00u);   /* the release */
+        {
+            unsigned t = a[8] | (a[9] << 8);
+            unsigned e = a[0xE] | (a[0xF] << 8);
+
+            /* 0xEFE4 bumps the type by 2 (0x18 -> 0x1A) and runs the fall
+             * machine, which may land straight into another state; the one
+             * thing the release must do is leave the wind-up - nothing else
+             * in the type-0x18 no-fire column changes the type. */
+            if (t == 0x0018u)
+                fprintf(stderr, "  (release: type %04x +E %04x)\n", t, e);
+            check(t != 0x0018u,
+                  "the release leaves the wind-up (1000:EFD7 -> 0xEFE4)");
+        }
+    }
+
     /* 7b4. D-63: the sprite table runs to the 0x3E20 bound - 0x11E slots.
      * apply_relocations builds it from 0x39A8 to 0x3E20; the 0xB7 bush and
      * the type-31/32 tails use frames 0x116/0x11A, which a 0x110 table drops. */
