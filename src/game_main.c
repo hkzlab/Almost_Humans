@@ -139,6 +139,9 @@ static int timeoutShown;
 /* test seam: the pause/time-up RESTART THIS GAME arm set [0x1809] = 0xFF. */
 int gameflow_restartPending(void) { return restartGame; }
 
+/* test seam: the restart left the party screen pending (1000:3073). */
+int gameflow_partyPending(void) { return !partyTried; }
+
 /* level_restore (1000:35AF): [0x11FC] := [0x1970] — the members the level
  * started with — then JMP level_start (1000:3032), which re-picks the time
  * and re-enters the level WITHOUT the party path.  The port reloads the
@@ -152,7 +155,10 @@ static void level_restart(void)
         entity_spawnFromMap(level_map(), ld->style, ld->entityLife);
         level_restoreMembers();
     }
-    partyTried = 1;
+    /* 1000:3073: level_start tests [0x34] and plays the party screen when it
+     * is zero.  A restart is not the RESTORE GAME path (the only writer of
+     * 0xFF, 1000:008A), so the party runs again (port_deviations.md D-82). */
+    partyTried = 0;
     partyPlaying = 0;
 }
 

@@ -475,6 +475,53 @@ int main(int argc, char **argv)
         }
     }
 
+    /* D-81: the charge loop accumulates (1000:3702 draws one stroke per
+     * frame; 0x36DB pre-draws +0xE = 0 and 2).  The port recomposes the page
+     * each tick, so objChargeDraw redraws the whole run; the count must grow
+     * with +0xE instead of showing a single stroke. */
+    {
+        const uint8_t *pg = osys_null_page(0);
+        uint8_t *a;
+        unsigned c1 = 0, c2 = 0;
+
+        object_init();
+        a = object_slot(0);
+        object_setActionEntity(0u);
+        object_actionSetProgram(2u);
+        object_actionSetCursor(2u);          /* program 2, cell 2 = op 4 */
+        object_setActionLatched(0);
+        object_setSlotClass(1u, 5u);
+        a[7] = 1u;
+        a[8] = 2; a[9] = 0;
+        object_actionRun();                  /* the wind-up */
+        object_setActionLatched(0);          /* its release */
+
+#define BAR_SHADE() ({ unsigned _n = 0; \
+        for (unsigned _y = 160u; _y < 180u; _y++) \
+            for (unsigned _x = 0; _x < 320u; _x++) { \
+                uint8_t _v = pg[_y * 320u + _x]; \
+                if (_v >= 0xDFu && _v <= 0xE3u) _n++; } _n; })
+        (void)object_commandRun(a, 0x80u);   /* a held frame */
+        object_pendingRun();
+        if (!object_chargeActive() || object_chargeTick() != 1) {
+            fprintf(stderr, "FAIL D-81: the charge loop did not start\n");
+            bad = 1;
+        }
+        c1 = BAR_SHADE();
+        for (unsigned k = 0; k < 2u; k++) {  /* +0xE -> 8, 0xC */
+            (void)object_commandRun(a, 0x80u);
+            object_pendingRun();
+            (void)object_chargeTick();
+        }
+        c2 = BAR_SHADE();
+        if (c2 <= c1 + 10u) {
+            fprintf(stderr, "FAIL D-81: the bar does not accumulate (%u -> %u)\n",
+                    c1, c2);
+            bad = 1;
+        }
+#undef BAR_SHADE
+    }
+
     if (bad) {
         fprintf(stderr, "statusbar: FAIL\n");
         return 1;

@@ -651,6 +651,9 @@ void object_actionRun(void);
 void object_pendingRun(void);
 /* one frame of the event-4 charge loop (1000:3702); call after the frame */
 int  object_chargeTick(void);      /* the [0x1979] dispatch, per frame */
+/* the charge loop is running (1000:3702): the status bar must not repaint
+ * the band/action row while it is (D-81). */
+int  object_chargeActive(void);
 int  object_cycleEntity(int step);
 /* 1000:38C3: select record `index` (F1..F8 = scancode-0x3B), skipping a
  * disabled slot or type 0x1D.  Returns 1 when selected. */
@@ -913,6 +916,7 @@ unsigned gameflow_levelForProbe(void);
  * returns the flow the action leaves, sets *quit for QUIT THIS GAME. */
 GameFlow gameflow_pauseAction(int choice, int *quit);
 unsigned gameflow_partyScore(void);          /* the briefing's [0x592] low word */
+int  gameflow_partyPending(void);            /* a restart leaves the party to run */
 const char *gameflow_partyTribe(void);       /* 0x1189: the level's author   */
 /* scan_id_list 1000:386E event 4: ESC opens the 0x5BBC pause block. */
 /* scan_id_list 1000:386E: the DS:0x1989 key list.  Handles ESC (the 0x5BBC

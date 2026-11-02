@@ -542,6 +542,12 @@ int main(int argc, char **argv)
             fprintf(stderr, "FAIL the restart is not the board's pick\n");
             bad = 1;
         }
+        /* D-82: 1000:3073 plays the party screen after a restart (only the
+         * RESTORE GAME path sets [0x34]); the port must leave it pending. */
+        if (!gameflow_partyPending()) {
+            fprintf(stderr, "FAIL RESTART THIS LEVEL skipped the party screen\n");
+            bad = 1;
+        }
         /* SAVE GAME through the action: the menu's slot + the live state */
         menu_openPause();
         (void)press(0x02u); (void)press(0x02u); (void)press(0x02u);

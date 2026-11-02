@@ -1626,8 +1626,11 @@ static void objDrawClassOverlay(uint8_t *page, int scrollX, int scrollY, uint8_t
     col = objClsCol[objSlotClass[cls] & 0x3Fu];              /* 1000:657F */
     if (!col) return;
     frame = rd16(rec, 4u);
-    row = objOverlayRow(frame) & 0x7Fu;                      /* 1000:65A7 */
-    if (!row) return;
+    /* 1000:65A7: `draw_object_cell` enters the class branch whenever the
+     * frame's 0x3570 byte is NON-ZERO and only then masks it to 0x7F - a
+     * 0x80 byte means row 0, whose 0x368A entry can still be live. */
+    if (objOverlayRow(frame) == 0u) return;
+    row = objOverlayRow(frame) & 0x7Fu;
     idx = objOverlayIdx[3u * row + col];                     /* 1000:65C2 */
     if (!idx) return;
     e = objOverlayEnt + 4u * idx;                            /* 1000:65D5 */
@@ -6023,8 +6026,17 @@ static void objOpResetSpan(void)
 static void objChargeDraw(void)
 {
     uint8_t *actor = object_slot(object_actionEntity());
+    unsigned v;
 
-    if (actor) statusbar_chargeBar((unsigned)(rd16(actor, 0xEu) & 0x1FFu));
+    if (!actor) return;
+    /* The original's charge loop accumulates one stroke per frame (1000:3702
+     * -> 0x3747, +0xE stepping by 4); its page is never rebuilt, so the
+     * strokes stay.  The port recomposes the page every tick, so it redraws
+     * the whole run - the same pixels the original accumulated (D-81). */
+    v = (unsigned)(rd16(actor, 0xEu) & 0x1FFu);
+    statusbar_chargeBar(0u);                 /* 1000:36F7 */
+    statusbar_chargeBar(2u);                 /* 1000:36FF */
+    for (unsigned x = 4u; x <= v; x += 4u) statusbar_chargeBar(x);
 }
 
 /* The pending-event dispatch (`[0x1979]` -> the table at CS:0x197B).  The port
@@ -6059,6 +6071,8 @@ void object_pendingRun(void)
  * this redraws the bar at the record's new +0xE, or leaves when the turn did
  * not advance (0x370C) - the loop's other exit, a pending code, is the ACTION
  * press and is consumed by object_actionRun. */
+int object_chargeActive(void) { return objCharging; }
+
 int object_chargeTick(void)
 {
     if (!objCharging) return 0;
