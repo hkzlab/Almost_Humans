@@ -4401,8 +4401,10 @@ static void objCmdTurn(uint8_t *actor)
     }
     wr16(actor, 0xEu, (uint16_t)((rd16(actor, 0xEu) + 4u) & 0x1FFu));
     if (objDebounce != 4u) objOutState = 4;               /* 1000:EE30 */
-    /* 1000:EE35 writes [0x1987], which only the pending-event dispatch
-     * (object_pendingRun, 1000:382D) reads; nothing observes it today. */
+    /* 1000:EE35 arms [0x1987]; the original's pending-event 4 (0x36DB, the
+     * jump/throw charge loop) reads it at 0x370C and draws the charge bar.
+     * The port has no event-4 handler yet (port_deviations.md D-68), so the
+     * flag is currently written and dropped. */
 }
 
 static void objCmdFall(uint8_t *actor, int x, int y, unsigned frame);
