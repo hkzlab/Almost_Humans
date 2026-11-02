@@ -3348,12 +3348,21 @@ ObjCommand object_commandSelect(uint8_t *rec, uint8_t input)
     out.tail = rd16(row, 0xCu);
     out.hook = row[0xAu];
     if (cmd & 0x80u) return out;             /* bit 7: this input has no command */
-    if (cmd & 0x40u) {                       /* bit 6: the 0x6DEA one-shot */
-        uint16_t n = objCmdTimer ? objCmdTimer : 0x4B0u;
+    {
+        /* 1000:E47C..0xE49F: AX starts as 0x4B0 (the arm for a non-one-shot
+         * command); a bit-6 command replaces it with the [0x6DEA] timer and,
+         * when the row's first byte is non-zero, decrements it - reaching 0
+         * turns the record into a human (type 2).  A zero timer is *stored as
+         * zero*: that is what lets the type-2 idle stream (0xE7C0, gated on
+         * [0x6DEA] == 0) finally run. */
+        uint16_t n = 0x4B0u;
 
-        if (objCmdTimer && row[0]) {
-            n--;
-            if (!n) wr16(rec, 8u, 0x0002u);  /* expired: the record is a human */
+        if (cmd & 0x40u) {
+            n = objCmdTimer;
+            if (objCmdTimer && row[0]) {
+                n--;
+                if (!n) wr16(rec, 8u, 0x0002u);
+            }
         }
         objCmdTimer = n;
     }

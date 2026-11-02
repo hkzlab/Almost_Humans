@@ -882,10 +882,31 @@ int main(int argc, char **argv)
                     object_init();
                     rec = object_slot(0);
                     rec[8] = 0x00; rec[9] = 0x00;
-                    for (unsigned i = 0; i < 1201u; i++)
+                    object_setCommandTimer(0x3E8u);   /* 1000:41A7's arm */
+                    for (unsigned i = 0; i < 1000u; i++)
                         (void)object_commandSelect(rec, 0x00);
                     check(rec[8] == 0x02u && rec[9] == 0x00u,
                           "the 0x6DEA one-shot expires to type 2");
+                    /* D-75: with the timer at 0 the type-2 idle stream runs
+                     * (0xE7C0); its first hold is 200 ticks, then frame 0x12 */
+                    rec[4] = 0x10; rec[5] = 0;
+                    for (unsigned i = 0; i < 2u; i++)
+                        (void)object_commandRun(rec, 0x00u);
+                    check(object_actionPending() == 0u,
+                          "the type-2 stream is reached with [0x6DEA] = 0");
+                    {
+                        unsigned seen = 0, i;
+
+                        for (i = 0; i < 700u; i++) {
+                            unsigned f;
+
+                            (void)object_commandRun(rec, 0x00u);
+                            f = rec[4] | (rec[5] << 8);
+                            if (f >= 0x12u && f <= 0x16u) seen |= 1u << f;
+                        }
+                        check(seen != 0u,
+                              "the idle stream reaches the 0x12..0x16 yawn frames");
+                    }
                 }
                 /* The human stack, end to end (re_map.md: 0x6F22).  Op 1
                  * registers the base (frame 0x20, type 8), 1000:E697 pushes a
