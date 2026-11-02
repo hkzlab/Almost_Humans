@@ -1338,13 +1338,21 @@ static const ObjSprite objSprites[OBJ_FRAME_SLOTS] = {
     /* 104 */ {46512,24, 0,1}, {46896,24, 0,1}, {47280,24, 0,1}, {47664,24, 0,1},
     /* 108 */ {48048,24, 0,1}, {48432,24, 0,1}, {48816,19, 5,1}, {49120,11,13,1},
     /* 10C */ {49296,14,10,1}, {49520,14,10,1}, {49744,24, 0,1}, {50128,24, 0,1},
-    /* 110 */ {50512,24, 0,1}, {0,0,0,0}, {50896,24, 0,1}, {51280,24, 0,1},
-    /* 114 */ {51664,24, 0,1}, {0,0,0,0}, {52048,23, 1,1}, {52416,23, 1,1},
-    /* 118 */ {52784,23, 1,1}, {0,0,0,0}, {53152,23, 1,1}, {53520,23, 1,1},
-    /* 11C */ {53888,23, 1,1}, {0,0,0,0},
+    /* 110 */ {50512,24, 0,1}, {50128,24, 0,1}, {50896,24, 0,1}, {51280,24, 0,1},
+    /* 114 */ {51664,24, 0,1}, {51280,24, 0,1}, {52048,23, 1,1}, {52416,23, 1,1},
+    /* 118 */ {52784,23, 1,1}, {52416,23, 1,1}, {53152,23, 1,1}, {53520,23, 1,1},
+    /* 11C */ {53888,23, 1,1}, {53520,23, 1,1},
 };
 
 unsigned object_frameSlots(void) { return OBJ_FRAME_SLOTS; }
+
+/* one sprite-table entry, for the tests (the D-69 tail copies). */
+void object_frameForProbe(unsigned frame, unsigned *off, unsigned *rows)
+{
+    if (frame >= OBJ_FRAME_SLOTS) { *off = 0; *rows = 0; return; }
+    *off = objSprites[frame].off;
+    *rows = objSprites[frame].rows;
+}
 
 /* 0x32B9's queue for the drawer at 1000:5F54 (level.c's level_drawBgSprites). */
 unsigned object_bgCount(void) { return objBgCount; }

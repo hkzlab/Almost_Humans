@@ -2424,11 +2424,33 @@ int main(int argc, char **argv)
         check(bank != NULL, "SPRITES.DAT loads for the frame test");
         if (bank) {
             unsigned k;
-            static const unsigned frames[3] = { 0x116u, 0x11Au, 0x11Du };
+            /* D-69: the four tail copies of apply_relocations (0x57EF-0x580F)
+             * make 0x111/0x115/0x119/0x11D carry their source slot's
+             * descriptor - verified live against DS:0x39A8 on 2026-11-02. */
+            {
+                static const unsigned pairs[4][2] = {
+                    { 0x10Fu, 0x111u }, { 0x113u, 0x115u },
+                    { 0x117u, 0x119u }, { 0x11Bu, 0x11Du },
+                };
+                unsigned k, bad = 0;
+
+                for (k = 0; k < 4u; k++) {
+                    unsigned so = 0, sr = 0, dof = 0, dr = 0;
+
+                    object_frameForProbe(pairs[k][0], &so, &sr);
+                    object_frameForProbe(pairs[k][1], &dof, &dr);
+                    if (sr == 0u || dof != so || dr != sr) bad++;
+                }
+                check(bad == 0u,
+                      "the four tail-copied frames carry their source sprite");
+            }
+            /* 0x11D is NOT blank: apply_relocations copies 0x11B's descriptor
+             * into it (0x57EF-0x580F); 0xB8 is a genuinely empty slot. */
+            static const unsigned frames[3] = { 0x116u, 0x11Au, 0xB8u };
             static const char *whats[3] = {
                 "frame 0x116 (the 0xB7 bush) draws",
                 "frame 0x11A (the 0xB7 bush, near a 0xB6) draws",
-                "frame 0x11D (a blank slot) draws nothing",
+                "frame 0xB8 (an empty slot) draws nothing",
             };
 
             for (k = 0; k < 3u; k++) {
