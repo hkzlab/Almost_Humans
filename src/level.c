@@ -327,6 +327,8 @@ static uint8_t pageOpacity[32];    /* 0x1FA4: the 32-colour opacity flags */
 static uint8_t bdRowBlock[0xC0];
 static uint8_t bdCBlock[0x600];     /* field C: the 0xA9 background art */
 static uint8_t bdGBlock[3u * 4u * 0x100u]; /* field G: 3 layers x 4 max    */
+static uint8_t bdEBlock[0x80];             /* field E: the A9 log sprite   */
+static uint8_t bdHBlock[0x200];            /* field H: frames 0x26/0x27    */
 static int     bdCHave;
 static uint8_t bdPBlock[0x1000];    /* field P: the exit/igloo art (0xB9) */
 static int     bdPHave;
@@ -366,6 +368,8 @@ typedef struct BdPage {
     const uint8_t *oList;       /* field O: count + 16 id bytes          */
     unsigned oCount;
     const uint8_t *cBlock;      /* field C: the 0xA9 background sprites  */
+    const uint8_t *eBlock;      /* field E: the 0x80-byte A9 log sprite    */
+    const uint8_t *hBlock;      /* field H: the two 0x100-byte sprites     */
     const uint8_t *gBlock;      /* field G: 3 layers x n x 0x100 sprites */
     unsigned gCount;            /* n (blocks per layer)                  */
     const uint8_t *pBlock;      /* field P: the 0x1000-byte exit art     */
@@ -396,13 +400,15 @@ static uint32_t bd_walk(const uint8_t *b, uint32_t size, unsigned *bgIndex,
 
     page->cBlock = b + si;                 /* C: the 0xA9 background art   */
     si += 0x600u;
-    si += 0x80u;                           /* E (D = 0 file bytes)         */
+    page->eBlock = b + si;                 /* E: the A9 log sprite (D points here) */
+    si += 0x80u;
     if (si + 2u > size) return 0;
     unsigned n = rd_le16(b + si);
     page->gBlock = b + si + 2u;
     page->gCount = n;                      /* F: n; G: 3 layers x n blocks */
     si += 2u + 3u * n * 0x100u;
     if (si + 0x200u + 0xC0u > size) return 0;
+    page->hBlock = b + si;                 /* H: two 0x100 sprites (frames 0x26/0x27) */
     page->rowBlock = b + si + 0x200u;      /* I: copy_level_row's source   */
     si += 0x200u + 0xC0u;                  /* H + I                        */
     if (si + 2u > size) return 0;
@@ -559,6 +565,16 @@ static int visuals_load(unsigned style)
     memset(bdRowBlock, 0, sizeof bdRowBlock);
     if (end == bdSize && page.rowBlock)
         memcpy(bdRowBlock, page.rowBlock, sizeof bdRowBlock);   /* 0x4EE9 */
+    /* 1000:4D58's add_delta_nonzero(0x20) applies to E and H too. */
+    memset(bdEBlock, 0, sizeof bdEBlock);
+    memset(bdHBlock, 0, sizeof bdHBlock);
+    if (end == bdSize && page.eBlock && page.hBlock) {
+        for (unsigned i = 0; i < sizeof bdEBlock; i++)
+            bdEBlock[i] = page.eBlock[i] ? (uint8_t)(page.eBlock[i] + 0x20u) : 0u;
+        for (unsigned i = 0; i < sizeof bdHBlock; i++)
+            bdHBlock[i] = page.hBlock[i] ? (uint8_t)(page.hBlock[i] + 0x20u) : 0u;
+        object_publishDEHSprites(bdEBlock, bdHBlock);
+    }
     memset(bdGBlock, 0, sizeof bdGBlock);
     if (end == bdSize && page.gBlock && page.gCount && page.gCount <= 4u) {
         unsigned blocks = 3u * page.gCount;

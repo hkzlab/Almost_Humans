@@ -459,6 +459,9 @@ void entity_publishBank(const uint8_t *bank, uint32_t size);
 /* DEFS field G: the per-level 3-layer 0x100 sprites the frame slots 0xC1+4L+i
  * point at (level_setup_screen writes their far pointers into DS:0x3CAC). */
 void object_publishGSprites(const uint8_t *data, unsigned blocks, unsigned n);
+/* DEFS fields E and H: the 0xA9 log sprite (frames 0x33..0x37) and the two
+ * sprites the frame slots 0x26/0x27 point at. */
+void object_publishDEHSprites(const uint8_t *e, const uint8_t *h);
 void entity_render(uint8_t *page, int scrollX, int scrollY);
 int  entity_frameInfo(unsigned a, unsigned *src, unsigned *rows, unsigned *yoff);
 

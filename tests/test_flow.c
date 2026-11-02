@@ -1224,8 +1224,11 @@ int main(int argc, char **argv)
                     check(object_selector(top, 200u, 8u, 1u) == 0 &&
                           (top[8] | (top[9] << 8)) == 1u,
                           "the selector's removal sets the wrapper's type");
-                    check((top[0] | (top[1] << 8)) == 100u,
-                          "1000:F223 puts the actor on the entry's x");
+                    /* 1000:E361 aligns the probe row (AND BX,0xFFF0), so the
+                     * distance test is 1 px and F1D7 returns before F223's x
+                     * write; the old 100 was the unaligned reading. */
+                    check((top[0] | (top[1] << 8)) == 140u,
+                          "1000:F1D7 rejects the 1-px step before F223's x write");
                     check((base[2] | (base[3] << 8)) == 92u &&
                           (base[4] | (base[5] << 8)) == 0x0020u,
                           "the record below moves up 8 and takes frame 0x20");
@@ -2059,8 +2062,10 @@ int main(int argc, char **argv)
               "dropping it puts the bar back on group 1");
         check(actor[7] == 0u && object_slotClass(1u) == 0x05u,
               "the class and the taken mark are cleared");
+        /* 1000:E361 aligns the probe row: row 48 + the 0xAB page byte's bit 7
+         * leaves BX = 48, so y = 48 - 0xF = 33 (the old 41 was unaligned). */
         check((spear[0] | (spear[1] << 8)) == 440u &&
-              (spear[2] | (spear[3] << 8)) == 41u &&
+              (spear[2] | (spear[3] << 8)) == 33u &&
               (spear[4] | (spear[5] << 8)) == 0x0060u &&
               (spear[8] | (spear[9] << 8)) == 0xFFFFu,
               "the spear is thrown to the actor's feet, frame 0x60");
@@ -2523,6 +2528,34 @@ int main(int argc, char **argv)
             check((unsigned)(logs[4][2] | (logs[4][3] << 8)) == 0x13Au &&
                   (logs[4][6] & 0x80u) != 0u,
                   "past y 0x138 the log hides itself (1000:D5E4)");
+        }
+    }
+
+    /* 7b8. D-77: the DEFS field-D/E and H sprites.  The A9 records' frames
+     * 0x33..0x37 are blank in the image table (apply_relocations skips them)
+     * but the level loader points them at field E; 0x26/0x27 at field H.
+     * Live: E byte-identical at 0x1A388, H at 0x1A70A/0x1A80A. */
+    if (level_load(15) == 0) {
+        static uint8_t flat[320u * 200u];
+        static const unsigned frames[3] = { 0x33u, 0x26u, 0x27u };
+
+        for (unsigned k = 0; k < 3u; k++) {
+            uint8_t *r;
+            unsigned ink = 0, i;
+
+            object_init();
+            memset(flat, 0, sizeof flat);
+            r = object_slot(0);
+            r[0] = 10; r[1] = 0; r[2] = 10; r[3] = 0;
+            r[4] = (uint8_t)frames[k]; r[5] = (uint8_t)(frames[k] >> 8);
+            r[6] = 0; r[7] = 0;
+            object_render(flat, 0, 0);
+            for (i = 0; i < 320u * 200u; i++) if (flat[i]) ink++;
+            if (k == 0u)
+                check(ink > 10u, "the A9 log sprite draws (field E, frame 0x33)");
+            else
+                check(ink > 10u, k == 1u ? "field H draws frame 0x26"
+                                         : "field H draws frame 0x27");
         }
     }
 
@@ -3227,9 +3260,9 @@ int main(int argc, char **argv)
             wr16t(a, 0xAu, 0u);
             if (m) m[198] = 0xF0u;         /* 2*0x60 + (108 >> 4) */
             (void)object_commandRun(a, 0x01u);
-            /* 1000:DA1C left AX = the FINE x (108 & 0xF = 12), so the snap is
-             * ((12 + 8) & ~0xF) - 4 + 8 = 20, not the absolute x */
-            check(rd16t(a, 0u) == 20u && rd16t(a, 2u) == 84u &&
+            /* 1000:DA3E..0xDA61 writes only y (rowY - 0x1C); the x is left
+             * alone - live level 16 drowns at (344,292), stable (D-78). */
+            check(rd16t(a, 0u) == 100u && rd16t(a, 2u) == 84u &&
                   rd16t(a, 4u) == 0xCDu && rd16t(a, 8u) == 0x1Cu &&
                   rd16t(a, 0xAu) == 9u && object_lastSfx() == 6u,
                   "a 0xF0 cell one row above is the platform snap (1000:DA3E)");

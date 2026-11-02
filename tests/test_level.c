@@ -532,13 +532,13 @@ int main(int argc, char **argv)
         }
     }
 
-    /* The placed decorations' spawn snap (1000:5639 -> map_get).  Level 15
-     * ("BAD TASTE", style 6) has the torch (0xAD, frame 0x9C) at col 17/row
-     * 11; the cell below (0x26) has page byte 1 and the style-6 nudge adds
-     * 3, so the record must land at y = 176 + 3 + 1 = 180.  Before the level
-     * was published before the spawn pass the map lookup returned NULL and
-     * the snap was skipped: y stayed 176 and the torch floated 4 px above
-     * the ground. */
+    /* The placed decorations' spawn snap (1000:5639 -> map_get 1000:E389).
+     * Level 15 ("BAD TASTE", style 6) has the torch (0xAD, frame 0x9C) at
+     * col 17/row 11.  The nudge (0x5662) only feeds the probe's y, which
+     * 1000:E361 aligns with AND BX,0xFFF0, so it does not survive: the snap
+     * lands at row*16 + page(0x26, sub 8) = 176 + 1 = 177.  Before the level
+     * was published ahead of the spawn pass the map lookup returned NULL and
+     * the snap was skipped (y stayed 176). */
     if (level_load(15) != 0) {
         fprintf(stderr, "FAIL level 15 reload for the torch\n");
         bad = 1;
@@ -555,8 +555,8 @@ int main(int argc, char **argv)
             if (!r) continue;
             if ((r[4] | (r[5] << 8)) != 0x9Cu) continue;
             found = 1;
-            if ((r[0] | (r[1] << 8)) != 272u || (r[2] | (r[3] << 8)) != 180u) {
-                fprintf(stderr, "FAIL the torch is at x=%u y=%u, want 272/180\n",
+            if ((r[0] | (r[1] << 8)) != 272u || (r[2] | (r[3] << 8)) != 177u) {
+                fprintf(stderr, "FAIL the torch is at x=%u y=%u, want 272/177\n",
                         r[0] | (r[1] << 8), r[2] | (r[3] << 8));
                 bad = 1;
             }

@@ -73,6 +73,7 @@ static uint8_t objStackMask[2];         /* 0x64AD / 0x64C1: in-a-stack bits */
 static unsigned objRowOfs;
 static int16_t objSide;                 /* [0x4230]: which side the settle stepped from */
 static int objStepProbeAt(const uint8_t *actor, int dx, int dy, unsigned *cellOut);
+static unsigned objStyleNudge(const uint8_t *map, unsigned col, unsigned row);
 static int objCmdHomeState(uint8_t *actor);     /* 1000:EDB7               */
 static void objDriverCall(unsigned n);          /* 1000:83B7               */
 static void objFrameStepDown(uint8_t *actor, unsigned lo, unsigned hi); /* 1000:FDBF */
@@ -845,13 +846,15 @@ static const uint8_t objTiles[25] = {
 };
 
 /* 1000:524B (tile 0xAA): the human, into the first free static slot. */
-static int objPlaceHuman(unsigned x, unsigned y)
+static int objPlaceHuman(unsigned col, unsigned row)
 {
+    unsigned y = row * 16u + objStyleNudge(NULL, col, row) - 7u;
+
     for (unsigned i = 0; i < OBJ_STATIC; i++) {
         uint8_t *r = objArray + i * OBJ_STRIDE;
         if (!(r[6] & 0x80u)) continue;
-        wr16(r, 0u, (uint16_t)x);
-        wr16(r, 2u, (uint16_t)y);        /* 0x524B: y = row*16 - 7 */
+        wr16(r, 0u, (uint16_t)(col * 16u));
+        wr16(r, 2u, (uint16_t)y);        /* 0x524B: nudge, then y = row*16 - 7 */
         wr16(r, 4u, 0x0010u);
         wr16(r, 6u, 0u);
         wr16(r, 8u, 0x0002u);
@@ -862,20 +865,25 @@ static int objPlaceHuman(unsigned x, unsigned y)
 }
 
 /* 1000:527D (tile 0xAB): the spear, appended at the live end. */
-static void objAppendSpear(unsigned x, unsigned y)
+static void objAppendSpear(unsigned col, unsigned row)
 {
     uint8_t *r;
+    unsigned probe;
+    int bx;
 
     if (objLiveCount + 1u >= OBJ_SLOTS) return;
     r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
-    wr16(r, 0u, (uint16_t)x);
-    wr16(r, 2u, (uint16_t)y);
+    wr16(r, 0u, (uint16_t)(col * 16u));
+    wr16(r, 2u, (uint16_t)(row * 16u + objStyleNudge(NULL, col, row)));
     wr16(r, 4u, 0x0060u);
     wr16(r, 6u, 0u);
     wr16(r, 8u, 0xFFFFu);
     wr16(r, 0xAu, 0u);
     objSlotClass[objLiveCount - 7u] = 5u;        /* [0x3E5F + count-8] = 0x05 */
     objLiveCount++;
+    /* 1000:527D ends JMP 0x5639: the shared ground snap. */
+    bx = objStepProbeAt(r, 8, 0x10, &probe);
+    if (bx >= 0) wr16(r, 2u, (uint16_t)(bx - 0x10));
 }
 
 /* 0xBE / 0xBF's hand-off: 0xBE keeps the record it appended (`0x1F1C`) and the
@@ -891,7 +899,7 @@ static void objSpawnBB(unsigned col, unsigned row)
     if (objLiveCount + 1u >= OBJ_SLOTS) return;
     r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
     wr16(r, 0u, (uint16_t)(col * 16u));
-    wr16(r, 2u, (uint16_t)(row * 16u));
+    wr16(r, 2u, (uint16_t)(row * 16u + objStyleNudge(NULL, col, row)));
     wr16(r, 4u, 0x0026u);
     wr16(r, 6u, 0x0000u);
     wr16(r, 8u, (uint16_t)(row * OBJ_COLS + col - 1u));
@@ -908,7 +916,7 @@ static void objSpawnBE(unsigned col, unsigned row)
     if (objLiveCount + 1u >= OBJ_SLOTS) return;
     r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
     wr16(r, 0u, (uint16_t)(col * 16u));
-    wr16(r, 2u, (uint16_t)(row * 16u));
+    wr16(r, 2u, (uint16_t)(row * 16u + objStyleNudge(NULL, col, row)));
     wr16(r, 4u, 0x0082u);
     wr16(r, 6u, 0x0000u);
     wr16(r, 8u, 0x0000u);
@@ -931,7 +939,7 @@ static void objJoinBF(unsigned col)
  * +4 = 0x100}, behaviour 0. */
 static void objSpawnC0(unsigned col, unsigned row)
 {
-    int slot = objPlaceHuman(col * 16u, row * 16u - 7u);
+    int slot = objPlaceHuman(col, row);
 
     if (slot >= 0) objPlayer = slot;
 }
@@ -943,7 +951,7 @@ static void objSpawnC1(unsigned col, unsigned row)
     if (objLiveCount + 1u >= OBJ_SLOTS) return;
     r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
     wr16(r, 0u, (uint16_t)(col * 16u));
-    wr16(r, 2u, (uint16_t)(row * 16u - 0x10u));
+    wr16(r, 2u, (uint16_t)(row * 16u + objStyleNudge(NULL, col, row) - 0x10u));
     wr16(r, 4u, 0x0100u);
     wr16(r, 6u, 0x0000u);
     objSlotClass[objLiveCount - 7u] = 0u;
@@ -983,7 +991,7 @@ static void objSpawnB6(unsigned col, unsigned row)
 
         if (!(r[6] & 0x80u)) continue;
         wr16(r, 0u, (uint16_t)(col * 16u));
-        wr16(r, 2u, (uint16_t)(row * 16u - 0x10u));
+        wr16(r, 2u, (uint16_t)(row * 16u + objStyleNudge(NULL, col, row) - 0x10u));
         wr16(r, 4u, 0x00FEu);
         wr16(r, 6u, 0x0000u);
         wr16(r, 8u, 0x001Du);
@@ -1018,7 +1026,7 @@ static void objSpawnB7(const uint8_t *map, unsigned col, unsigned row)
         }
     }
     wr16(r, 0u, (uint16_t)(col * 16u));
-    wr16(r, 2u, (uint16_t)(row * 16u - 8u));
+    wr16(r, 2u, (uint16_t)(row * 16u + objStyleNudge(NULL, col, row) - 8u));
     wr16(r, 4u, nearB6 ? 0x011Au : 0x0116u);
     wr16(r, 6u, (uint16_t)(((objLiveCount - 6u) << 8) & 0xFF00u));
     wr16(r, 8u, 0x0000u);
@@ -1040,7 +1048,7 @@ static void objSpawnB8(unsigned col, unsigned row)
     if (objLiveCount + 1u >= OBJ_SLOTS) return;
     r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
     wr16(r, 0u, (uint16_t)(col * 16u));
-    wr16(r, 2u, (uint16_t)(row * 16u - 8u));
+    wr16(r, 2u, (uint16_t)(row * 16u + objStyleNudge(NULL, col, row) - 8u));
     wr16(r, 4u, 0x00AFu);
     wr16(r, 6u, 0x0000u);
     wr16(r, 8u, 0x0000u);
@@ -1058,32 +1066,36 @@ static void objSpawnB8(unsigned col, unsigned row)
  * summary row in re_map.md had those two swapped until this read.
  * 1000:5662 (called first) nudges y by 3 on a style-6 level when the cell
  * diagonally below-left is marked in the static 0x1F20 table. */
-static void objAppendStyle(const uint8_t *map, unsigned col, unsigned row,
-                           unsigned frame, unsigned behaviour, unsigned f8,
-                           unsigned fc, unsigned fe)
+/* 1000:5662: on a style-6 level the tile at the handler's `SI + 0x1F` (the
+ * walk's SI is one past the matched cell, so this is the cell directly below)
+ * selects a +3 row nudge through the static 0x1F20 bit table.  Every spawn
+ * handler calls it before storing its y. */
+static unsigned objStyleNudge(const uint8_t *map, unsigned col, unsigned row)
 {
-    /* 0x1F20: the per-tile bit table 1000:5662 tests (static in the image). */
     static const uint8_t nudgeBits[19] = {
         0x00, 0x00, 0x00, 0x00, 0x07, 0xFE, 0x00, 0x07, 0xE0, 0x00,
         0x02, 0x02, 0x00, 0x03, 0xC3, 0x81, 0x80, 0x01, 0x80,
     };
+    unsigned cell = row * OBJ_COLS + col;
+    unsigned tile;
+
+    if (!map) map = level_map();
+    if (level_style() != 6u || !map || cell + OBJ_COLS >= 640u) return 0u;
+    tile = map[cell + OBJ_COLS];
+    if (tile > 0x90u) return 0u;
+    return (nudgeBits[tile >> 3] & (uint8_t)(1u << (7u - (tile & 7u)))) ? 3u : 0u;
+}
+
+static void objAppendStyle(const uint8_t *map, unsigned col, unsigned row,
+                           unsigned frame, unsigned behaviour, unsigned f8,
+                           unsigned fc, unsigned fe)
+{
     uint8_t *r;
-    unsigned y3 = 0u, probeCell;
+    unsigned y3, probeCell;
     int bx;
 
     if (objLiveCount + 1u >= OBJ_SLOTS) return;
-    /* 1000:5662: on a style-6 level, the cell diagonally below-left decides
-     * whether the decoration sits 3 px lower (`[0x17EE] == 6`, the 0x1F20 bit). */
-    {
-        unsigned cell = row * OBJ_COLS + col;
-        unsigned tile2 = (map && cell + 0x1Fu < 640u) ? map[cell + 0x1Fu] : 0xFFu;
-
-        if (level_style() == 6u && tile2 <= 0x90u) {
-            uint8_t bit = (uint8_t)(1u << (7u - (tile2 & 7u)));
-
-            if (nudgeBits[tile2 >> 3] & bit) y3 = 3u;
-        }
-    }
+    y3 = objStyleNudge(map, col, row);
     r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
     wr16(r, 0u, (uint16_t)(col * 16u));
     wr16(r, 2u, (uint16_t)(row * 16u + y3));
@@ -1217,9 +1229,9 @@ unsigned object_loadTerrainObjects(uint8_t *map)
                 else if (tile == 0xA9u)
                     objAppendRow9(map, col, row);
                 else if (tile == 0xAAu)
-                    objPlaceHuman(col * 16u, row * 16u - 7u);
+                    objPlaceHuman(col, row);
                 else if (tile == 0xABu)
-                    objAppendSpear(col * 16u, row * 16u);
+                    objAppendSpear(col, row);
                 else if (tile == 0xACu)
                     objAppendStyle(map, col, row, 0x96u, 7u, 0xFFFFu, 0u, 0u);
                 else if (tile == 0xADu)
@@ -1529,12 +1541,19 @@ static unsigned objOverlayRow(unsigned frame)
  * the generator leaves them blank; the live table holds the G pointers. */
 static const uint8_t *objGSprites;
 static unsigned objGBlocks, objGN;
+static const uint8_t *objESprite, *objHSprites;
 
 void object_publishGSprites(const uint8_t *data, unsigned blocks, unsigned n)
 {
     objGSprites = data;
     objGBlocks = blocks;
     objGN = n;
+}
+
+void object_publishDEHSprites(const uint8_t *e, const uint8_t *h)
+{
+    objESprite = e;
+    objHSprites = h;
 }
 
 static int objBlitGFrame(uint8_t *page, unsigned frame, int x, int y)
@@ -1559,6 +1578,16 @@ static void objBlitFrame(uint8_t *page, unsigned frame, int x, int y)
     unsigned cols;
 
     if (objBlitGFrame(page, frame, x, y)) return;
+    /* The DEFS field-D/H pointers land in these slots: 0x33..0x37 (the five
+     * A9 logs, all the same 8x16 field-E sprite) and 0x26/0x27 (field H). */
+    if (objESprite && frame >= 0x33u && frame <= 0x37u) {
+        blitSprite(page, objESprite, 8u, 16u, x, y);
+        return;
+    }
+    if (objHSprites && (frame == 0x26u || frame == 0x27u)) {
+        blitSprite(page, objHSprites + (frame - 0x26u) * 0x100u, 16u, 16u, x, y);
+        return;
+    }
     if (frame >= OBJ_FRAME_SLOTS) return;
     sp = &objSprites[frame];
     if (!sp->rows || sp->mode > 2u) return;          /* blank / mode 0 or 3 */
@@ -2908,21 +2937,24 @@ static unsigned objMapAtAbs(int x, int y, unsigned *sub)
  * BP", for what the dispatcher leaves in BP). */
 static int objLandY(int x, int y, unsigned *cellOut)
 {
-    unsigned sub, id = objMapAtAbs(x, y, &sub);
+    /* 1000:E361 does AND BX,0xFFF0 on the probe y, so every return below is
+     * relative to the row start, not the raw probe line. */
+    int row = y & ~0xF;
+    unsigned sub, id = objMapAtAbs(x, row, &sub);
     unsigned b = level_pageByte(id, sub);
 
     *cellOut = id;
     if (!(b & 0x80u)) {
-        if (b != 0u) return y + (int)(int8_t)b;
-        *cellOut = objMapAtAbs(x, y - 0x10, &sub);    /* 1000:E3BA: the row above */
+        if (b != 0u) return row + (int)(int8_t)b;
+        *cellOut = objMapAtAbs(x, row - 0x10, &sub);  /* 1000:E3BA: the row above */
         b = level_pageByte(*cellOut, sub);
-        if (b & 0x80u) return y;                      /* 1000:E3CA, AX = 0 */
-        return y - 0x10 + (int)b;
+        if (b & 0x80u) return row;                    /* 1000:E3CA, AX = 0 */
+        return row - 0x10 + (int)(int8_t)b;
     }
-    *cellOut = objMapAtAbs(x, y + 0x10, &sub);        /* 1000:E3E7: the row below */
+    *cellOut = objMapAtAbs(x, row + 0x10, &sub);      /* 1000:E3E7: the row below */
     b = level_pageByte(*cellOut, sub);
     if (b & 0x80u) return -1;                         /* 1000:E3F1 */
-    return y + 0x10 + (int)b;
+    return row + 0x10 + (int)(int8_t)b;
 }
 
 /* 1000:E389 from the actor: the cell ahead (x + 8, y + 0x18). */
@@ -3830,17 +3862,9 @@ static void objTailType3(uint8_t *actor)
         b = objMapBufferByte(di - 0x20u);            /* 1000:DA30 */
 
         if (b >= 0xF0u && b - 0xF0u < 3u) {          /* 1000:DA37/DA39 */
-            /* WRONG, and recorded: the original's 1000:DA3E..0xDA61 branch
-             * writes NO x at all (only y/frame/type/+C/+A).  This block reads
-             * the fine x (masked at 1000:DA1C) and stores 4/12/20 or -4, which
-             * teleports a drowning actor - port_deviations.md D-78. */
-            unsigned gx = (ax + 8u) & ~0xFu;
-
-            if (b != 0xF1u) {
-                gx -= 4u;                            /* 1000:F778 */
-                if (b != 0xF2u) gx += 8u;
-                wr16(actor, 0u, (uint16_t)gx);       /* 1000:F784 */
-            }
+            /* 1000:DA3E..0xDA61 writes only y/frame/type/+C/+A - no x store
+             * (the x snap belongs to 0xF6F6's branch, not this one).  Writing
+             * it teleported a drowning actor to x -4 (D-78). */
             wr16(actor, 2u, (uint16_t)(bx - 0x1Cu));
             wr16(actor, 4u, 0x00CDu);
             wr16(actor, 8u, 0x001Cu);
