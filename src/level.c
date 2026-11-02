@@ -326,6 +326,7 @@ static uint8_t pageOpacity[32];    /* 0x1FA4: the 32-colour opacity flags */
  * 0x80..0xBF bank: the level background's 64-colour gradient. */
 static uint8_t bdRowBlock[0xC0];
 static uint8_t bdCBlock[0x600];     /* field C: the 0xA9 background art */
+static uint8_t bdGBlock[3u * 4u * 0x100u]; /* field G: 3 layers x 4 max    */
 static int     bdCHave;
 static uint8_t bdPBlock[0x1000];    /* field P: the exit/igloo art (0xB9) */
 static int     bdPHave;
@@ -365,6 +366,8 @@ typedef struct BdPage {
     const uint8_t *oList;       /* field O: count + 16 id bytes          */
     unsigned oCount;
     const uint8_t *cBlock;      /* field C: the 0xA9 background sprites  */
+    const uint8_t *gBlock;      /* field G: 3 layers x n x 0x100 sprites */
+    unsigned gCount;            /* n (blocks per layer)                  */
     const uint8_t *pBlock;      /* field P: the 0x1000-byte exit art     */
     uint32_t pSize;
 } BdPage;
@@ -396,7 +399,9 @@ static uint32_t bd_walk(const uint8_t *b, uint32_t size, unsigned *bgIndex,
     si += 0x80u;                           /* E (D = 0 file bytes)         */
     if (si + 2u > size) return 0;
     unsigned n = rd_le16(b + si);
-    si += 2u + 3u * n * 0x100u;            /* F + G                        */
+    page->gBlock = b + si + 2u;
+    page->gCount = n;                      /* F: n; G: 3 layers x n blocks */
+    si += 2u + 3u * n * 0x100u;
     if (si + 0x200u + 0xC0u > size) return 0;
     page->rowBlock = b + si + 0x200u;      /* I: copy_level_row's source   */
     si += 0x200u + 0xC0u;                  /* H + I                        */
@@ -554,6 +559,17 @@ static int visuals_load(unsigned style)
     memset(bdRowBlock, 0, sizeof bdRowBlock);
     if (end == bdSize && page.rowBlock)
         memcpy(bdRowBlock, page.rowBlock, sizeof bdRowBlock);   /* 0x4EE9 */
+    memset(bdGBlock, 0, sizeof bdGBlock);
+    if (end == bdSize && page.gBlock && page.gCount && page.gCount <= 4u) {
+        unsigned blocks = 3u * page.gCount;
+
+        /* 1000:4D58's add_delta_nonzero(0x20) applies to every G block. */
+        for (unsigned i = 0; i < blocks * 0x100u; i++) {
+            uint8_t v = page.gBlock[i];
+            bdGBlock[i] = v ? (uint8_t)(v + 0x20u) : 0u;
+        }
+        object_publishGSprites(bdGBlock, blocks, page.gCount);
+    }
     memset(bdCBlock, 0, sizeof bdCBlock);
     bdCHave = 0;
     if (end == bdSize && page.cBlock) {

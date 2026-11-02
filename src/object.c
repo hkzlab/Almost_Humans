@@ -1517,11 +1517,43 @@ static unsigned objOverlayRow(unsigned frame)
 /* The base tile of one frame at a world position (select_object_tile
  * 1000:6625's draw): the sprite table entry decides the mode, the row count and
  * the pixel bias. */
+/* The DEFS field-G sprites: level_setup_screen stores each G block's far
+ * pointer into the frame table at 0x3CAC (slots 0xC1 + 4*layer + i), so the
+ * F0/F1/F2 decoration records (frames 0xC1/0xC5/0xC9) draw the level's G art -
+ * the water-hole sprites.  The image's own slots are zero there, which is why
+ * the generator leaves them blank; the live table holds the G pointers. */
+static const uint8_t *objGSprites;
+static unsigned objGBlocks, objGN;
+
+void object_publishGSprites(const uint8_t *data, unsigned blocks, unsigned n)
+{
+    objGSprites = data;
+    objGBlocks = blocks;
+    objGN = n;
+}
+
+static int objBlitGFrame(uint8_t *page, unsigned frame, int x, int y)
+{
+    unsigned slot, layer, i, block;
+
+    if (!objGSprites || !objGN || frame < 0xC1u || frame >= 0xC1u + 12u)
+        return 0;
+    slot = frame - 0xC1u;
+    layer = slot / 4u;
+    i = slot % 4u;
+    if (i >= objGN) return 0;
+    block = layer * objGN + i;
+    if (block >= objGBlocks) return 0;
+    blitSprite(page, objGSprites + block * 0x100u, 16u, 16u, x, y);
+    return 1;
+}
+
 static void objBlitFrame(uint8_t *page, unsigned frame, int x, int y)
 {
     const ObjSprite *sp;
     unsigned cols;
 
+    if (objBlitGFrame(page, frame, x, y)) return;
     if (frame >= OBJ_FRAME_SLOTS) return;
     sp = &objSprites[frame];
     if (!sp->rows || sp->mode > 2u) return;          /* blank / mode 0 or 3 */

@@ -456,6 +456,9 @@ void entity_tick(void);
  * 0x20-px cells per entity), and the three big-endian frame-table reads it
  * uses (1000:58A5).  Returns 1 when the index is inside the bank. */
 void entity_publishBank(const uint8_t *bank, uint32_t size);
+/* DEFS field G: the per-level 3-layer 0x100 sprites the frame slots 0xC1+4L+i
+ * point at (level_setup_screen writes their far pointers into DS:0x3CAC). */
+void object_publishGSprites(const uint8_t *data, unsigned blocks, unsigned n);
 void entity_render(uint8_t *page, int scrollX, int scrollY);
 int  entity_frameInfo(unsigned a, unsigned *src, unsigned *rows, unsigned *yoff);
 

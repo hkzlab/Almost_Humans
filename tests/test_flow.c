@@ -2415,6 +2415,52 @@ int main(int argc, char **argv)
         }
     }
 
+    /* 7b6. D-72/D-73: the DEFS field-G sprites.  Level 16's F0/F1/F2 tiles
+     * at (320,304), (336,304), (352,304) append records with frames
+     * 0xC1/0xC5/0xC9; those frame slots are written by the level loader from
+     * the DEFS G blocks (3 layers x n x 0x100, live DS:0x3CAC), not by
+     * apply_relocations - the image's slots are zero.  The live read proves
+     * BD6's biased G block 0 is exactly the sprite at the water hole
+     * (2026-11-02: linear 0x1A40A). */
+    if (level_load(15) == 0) {
+        static uint8_t flat[320u * 200u];
+        unsigned frames[3] = { 0xC1u, 0xC5u, 0xC9u };
+        unsigned k, found = 0, water = 0;
+
+        for (k = 0; k < 3u; k++) {
+            unsigned off = 0, rows = 0, i;
+
+            /* the image's own table leaves these slots blank */
+            object_frameForProbe(frames[k], &off, &rows);
+            if (rows != 0u) continue;
+            for (i = 8u; i <= object_liveCount(); i++) {
+                uint8_t *r = object_slot(i);
+                if ((unsigned)(r[4] | (r[5] << 8)) == frames[k]) {
+                    found++;
+                    break;
+                }
+            }
+        }
+        check(found == 3u,
+              "level 16 keeps the three decoration records (frames C1/C5/C9)");
+        /* the G pass draws them: the pool cells must carry the G bank
+         * (0x21..0x3F), where the BG alone is 0x40..0x47 */
+        level_setView(192u, 168u);
+        level_redrawPage();
+        {
+            const uint8_t *page = video_page(0);
+            unsigned x, y;
+
+            for (y = 136u; y < 152u; y++)
+                for (x = 128u; x < 176u; x++) {
+                    uint8_t v = page[y * 320u + x];
+                    if (v >= 0x21u && v <= 0x3Fu) water++;
+                }
+        }
+        memset(flat, 0, sizeof flat);
+        check(water > 100u, "the DEFS G sprites draw the level 16 water hole");
+    }
+
     /* 7b4. D-63: the sprite table runs to the 0x3E20 bound - 0x11E slots.
      * apply_relocations builds it from 0x39A8 to 0x3E20; the 0xB7 bush and
      * the type-31/32 tails use frames 0x116/0x11A, which a 0x110 table drops. */
