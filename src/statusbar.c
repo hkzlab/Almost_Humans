@@ -208,60 +208,42 @@ static void draw_band(uint8_t *page)
  * icon (1000:9993) is the 16x24 cell at +4,+4: byte != 0 stored
  * +0xC0, 0 transparent.
  *
- * [0x5B56] is the port's `actionSel`; the action/claim pass will drive it
- * (the selection routine at 1000:5547 writes it), so today it keeps the
- * level-start group. */
-static uint8_t actionGroup[6][6] = {
-    { 2u, 1u, 2u, 1u },
-    { 4u, 1u, 3u, 4u, 5u, 6u },
-    { 4u, 1u, 3u, 7u, 8u, 6u },
-    { 4u, 1u, 3u, 5u, 9u, 6u },
-    { 4u, 1u, 9u, 10u, 11u, 12u },
-    { 1u, 1u, 6u },
-};
+ * The group itself is the ACTION program at `0x5B37` (`[0x5B56]` selects it
+ * through `202F:0x5B2B`): its first two bytes are `count, cursor`, and the
+ * cursor is the byte SPACE steps and the script dispatcher reads.  The port
+ * keeps one copy of those bytes (`object_programHeader`), so the highlighted
+ * cell and the executed op cannot drift apart. */
 static const uint8_t actionGold[40] = {   /* 202F:0x5B57 */
     0xD0,0xD1,0xD2,0xD3,0xD4,0xD5,0xD6,0xD7,0xD8,0xD9,
     0xDA,0xDB,0xDC,0xDD,0xDE,0xDF,0xE0,0xE1,0xE2,0xE3,
     0xE3,0xE2,0xE1,0xE0,0xDF,0xDE,0xDD,0xDC,0xDB,0xDA,
     0xD9,0xD8,0xD7,0xD6,0xD5,0xD4,0xD3,0xD2,0xD1,0xD0,
 };
-static unsigned actionSel = 1u;           /* [0x5B56] */
-
-/* [0x5B56] is one global: the ACTION machine's program index selects both the
- * program and the action row's group (its first two bytes are the group
- * header).  object.c drives it through this setter. */
-void statusbar_setActionGroup(unsigned sel)
-{
-    if (sel >= 1u && sel <= 6u) actionSel = sel;
-}
-
-/* 1000:3933's tail: advance the current group's selected cell (the 0x5B2B
- * header's second byte) with the wrap to 1 past the cell count; the bar is
- * redrawn every tick, so the store is the whole effect. */
+/* 1000:3933's tail: step the selected cell - the program's cursor byte - with
+ * the wrap to 1 past the count.  The bar is redrawn every tick, so the store is
+ * the whole effect. */
 void statusbar_cycleAction(void)
 {
-    uint8_t *g;
-
-    if (actionSel < 1u || actionSel > 6u) return;
-    g = actionGroup[actionSel - 1u];
-    if (g[0] == 0u) return;
-    g[1] = (uint8_t)(g[1] + 1u);
-    if (g[1] > g[0]) g[1] = 1u;
+    object_stepActionCell();               /* 1000:3941 */
 }
 
 /* [0x5B56] itself, for the tests: the group the bar's next draw uses. */
-unsigned statusbar_actionGroup(void) { return actionSel; }
+unsigned statusbar_actionGroup(void) { return object_actionProgram(); }
 
 /* the group's icon count (its header's first byte), for the tests. */
 unsigned statusbar_actionCount(unsigned group)
 {
-    return (group >= 1u && group <= 6u) ? actionGroup[group - 1u][0] : 0u;
+    const uint8_t *h = object_programHeader(group);
+
+    return h ? (unsigned)h[0] : 0u;
 }
 
 /* the group's selected-cell byte, for the tests (0 past the table). */
 unsigned statusbar_actionCell(unsigned group)
 {
-    return (group >= 1u && group <= 6u) ? actionGroup[group - 1u][1] : 0u;
+    const uint8_t *h = object_programHeader(group);
+
+    return h ? (unsigned)h[1] : 0u;
 }
 
 /* 0xAFFE: one frame pixel — the mask byte when it is non-zero, else the
@@ -317,13 +299,10 @@ static void draw_actionIcon(uint8_t *page, unsigned x, unsigned y,
 
 static void draw_actions(uint8_t *page)
 {
-    const uint8_t *g;
+    const uint8_t *g = object_actionHeader();
     unsigned count;
 
-    /* [0x5B56] is 1..6 (level_video_init sets 1 at 1000:32DC); the original
-     * indexes 202F:0x5B2B with it unguarded, the port must not run off. */
-    if (actionSel < 1u || actionSel > 6u) return;
-    g = actionGroup[actionSel - 1u];
+    if (!g) return;                        /* [0x5B56] is 1..6, see 1000:32DC */
     count = g[0];
     unsigned span = count * 23u + (count - 1u) * 12u;
     unsigned x = (0x140u - span) / 2u;

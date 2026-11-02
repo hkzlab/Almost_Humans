@@ -1412,7 +1412,7 @@ int main(int argc, char **argv)
                           "a disabled record is not selected (1000:38CE)");
                     r1[6] = 0u;
                     /* SPACE: a convertible pose is stood up, the cell stays */
-                    statusbar_setActionGroup(1u);
+                    object_actionSetProgram(1u);
                     cell = statusbar_actionCell(1u);
                     tf_wr16(r0, 8u, 0x12u);
                     tf_wr16(r0, 4u, 0x2Bu);
@@ -2060,6 +2060,111 @@ int main(int argc, char **argv)
               (spear[8] | (spear[9] << 8)) == 0xFFFFu,
               "the spear is thrown to the actor's feet, frame 0x60");
         object_actionSetCursor(1u);
+    }
+
+    /* 6c5. D-66: the selected cell IS the program cursor (1000:3947 writes it,
+     * 1000:3987 reads prog[cursor+1]), so the spear's four icons run four
+     * different ops: 3 (pose), 4 (frame 0xBB/0xBE + type 0x17/0x18), 5 (the
+     * frame step), 6 (the collision pass). */
+    object_init();
+    if (level_load(0) == 0) {
+        uint8_t *actor = object_slot(0);
+
+        object_setActionEntity(0u);
+        object_actionSetCursor(1u);
+        actor[0] = (uint8_t)(448u - 8u); actor[1] = (uint8_t)((448u - 8u) >> 8);
+        actor[2] = 32u; actor[3] = 0;
+        actor[4] = 0x10; actor[6] = 0; actor[8] = 2; actor[9] = 0;
+        object_actionRun();                      /* the pickup: op 2 */
+        /* the six groups' cell bytes persist across levels (they are the DS
+         * image's), so pin this one before the sequence */
+        object_actionSetCursor(1u);
+        check(actor[7] == 1u && statusbar_actionCell(2u) == 1u,
+              "the pickup leaves the spear group on cell 1");
+        check(object_programHeader(2u) != NULL &&
+              object_programHeader(2u)[2] == 3u &&
+              object_programHeader(2u)[3] == 4u &&
+              object_programHeader(2u)[4] == 5u &&
+              object_programHeader(2u)[5] == 6u,
+              "group 2's icons are ops 3,4,5,6");
+        object_spaceAction();                    /* SPACE: cell 2 */
+        check(statusbar_actionCell(2u) == 2u,
+              "SPACE steps the cell to 2 (1000:3947)");
+        object_actionRun();
+        check((actor[4] | (actor[5] << 8)) == 0x00BEu &&
+              (actor[8] | (actor[9] << 8)) == 0x0018u,
+              "cell 2 runs op 4 (frame 0xBE, type 0x18)");
+        /* the posed type must be stood up before the next press (1000:392D),
+         * then SPACE steps to cell 3 */
+        object_spaceAction();
+        object_spaceAction();
+        check(statusbar_actionCell(2u) == 3u, "SPACE reaches cell 3");
+        object_actionRun();
+        check((actor[4] | (actor[5] << 8)) == 0x0112u &&
+              (actor[8] | (actor[9] << 8)) == 0x0020u,
+              "cell 3 runs op 5 (frame 0x112, type 0x20)");
+        object_actionSetCursor(1u);
+    }
+
+    /* 6c6. D-67: the overlay frame table runs past 0x7F, so the carried record
+     * is drawn in the pose frames.  A class record at frame 0xBB (row 0x1F)
+     * with class slot 5 (col 1) resolves entry 0x52 = {06,09,60,00}: the
+     * carried spear's frame 0x60 at (x+6, y+9); frame 0x8C (row 0x17) resolves
+     * entry 0x16 = {FE,FB,5B,79}: frame 0x5B at (x-2, y-5), ybias 4. */
+    object_init();
+    if (level_load(0) == 0) {
+        uint32_t bankSize = 0;
+        uint8_t *bank = res_loadChunk("APL\\SPRITES.DAT", &bankSize, NULL);
+        uint8_t *actor = object_slot(0);
+        static uint8_t page[320u * 200u];
+
+        object_setActionEntity(0u);
+        object_actionSetCursor(1u);
+        actor[0] = (uint8_t)(448u - 8u); actor[1] = (uint8_t)((448u - 8u) >> 8);
+        actor[2] = 32u; actor[3] = 0;
+        actor[4] = 0x10; actor[6] = 0; actor[8] = 2; actor[9] = 0;
+        object_actionRun();                      /* the pickup: class 1, slot 0x85 */
+        check(bank != NULL && bankSize > 0x10A0u + 0x40u,
+              "SPRITES.DAT loads for the overlay test");
+        if (bank) {
+            unsigned ink = 0, wrong = 0, row, col;
+
+            object_publishBank(bank, bankSize);
+            /* the marker is at 440, off the 320-wide page: move the carrier and
+             * the carried record somewhere visible (the overlay re-derives the
+             * carried x/y from the carrier anyway) */
+            actor[0] = 100u; actor[1] = 0; actor[2] = 25u; actor[3] = 0;
+            object_slot(9)[0] = 108u; object_slot(9)[1] = 0;
+            actor[4] = 0xBBu; actor[5] = 0;      /* the throw pose */
+            actor[8] = 1; actor[9] = 0;
+            memset(page, 0, sizeof page);
+            object_render(page, 0, 0);
+            /* frame 0x60 = {4256, 16, 0, 1}: the mode-1 law, block h*4 = 0x40 */
+            for (row = 0; row < 16u; row++)
+                for (col = 0; col < 16u; col++) {
+                    uint8_t v = bank[0x10A0u + (col & 3u) * 0x40u +
+                                     row * 4u + (col >> 2)];
+
+                    if (!v) continue;
+                    ink++;
+                    if (page[(34u + row) * 320u + 106u + col] != v) wrong++;
+                }
+            check(ink > 40u && wrong == 0u,
+                  "the carried spear is drawn at (x+6,y+9) in the throw pose");
+            /* frame 0x8C (row 0x17) resolves entry 0x16 = {FE,FB,5B,79}: the
+             * carried record is moved to (x-2, y-5) with frame 0x5B (the
+             * entry's trailing 0x79 sprite is drawn over part of it, so the
+             * pixel law is only checked on the throw pose above) */
+            actor[4] = 0x8Cu; actor[5] = 0;
+            memset(page, 0, sizeof page);
+            object_render(page, 0, 0);
+            check((object_slot(9)[0] | (object_slot(9)[1] << 8)) == 98u &&
+                  (object_slot(9)[2] | (object_slot(9)[3] << 8)) == 20u &&
+                  (object_slot(9)[4] | (object_slot(9)[5] << 8)) == 0x005Bu,
+                  "the aim pose carries the spear at (x-2,y-5), frame 0x5B");
+            object_publishBank(NULL, 0u);
+        }
+        free(bank);
     }
 
     /* 6c4. D-65's behaviour-4 half (1000:9D94): level 13's 0xAE tile at

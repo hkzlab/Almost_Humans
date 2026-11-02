@@ -193,12 +193,15 @@ void statusbar_hide(void);   /* [0x5B0A], 201..152 reveal */
 unsigned statusbar_split(void);
 /* [0x5B56] (1..6): the current ACTION program — draws both the program and
  * the action row's group.  object.c owns it; the bar follows. */
-void statusbar_setActionGroup(unsigned sel);
 /* 1000:3933's tail: advance the current action row's selected cell (the
  * 0x5B2B header's second byte) with the wrap to 1 past the count. */
 void statusbar_cycleAction(void);
 /* the group's selected-cell byte (1-based), for tests; 0 past the table. */
 unsigned statusbar_actionGroup(void);   /* [0x5B56]: the bar's current group */
+/* the program/group header ([0x5B2B] -> 0x5B37): {count, cursor, icon...} */
+const uint8_t *object_programHeader(unsigned group);
+const uint8_t *object_actionHeader(void);
+void object_stepActionCell(void);       /* 1000:3941: SPACE steps the cursor */
 unsigned statusbar_actionCount(unsigned group);
 unsigned statusbar_actionCell(unsigned group);
 /* The countdown word for the save's +0x07: minutes<<8 | BCD seconds. */
