@@ -1767,8 +1767,12 @@ int main(int argc, char **argv)
                           "the first record is (col*16+0x10, row*16+0x14) frame 0x33");
                     check((object_slot(13)[4] | (object_slot(13)[5] << 8)) == 0x37u,
                           "the fifth record is frame 0x37");
-                    check(m[4u * 32u + 2u] == 0xC2u && m[4u * 32u + 3u] == 0xC9u,
-                          "0xA9 marks the two cells a row below as 0xC2/0xC9");
+                    /* the handler's SI is one past the cell: live level 16 has
+                     * 0x33 C2 C9 at cols 14..16 (2026-11-02) */
+                    check(m[4u * 32u + 2u] == 0x00u &&
+                          m[4u * 32u + 3u] == 0xC2u &&
+                          m[4u * 32u + 4u] == 0xC9u,
+                          "0xA9 marks the next two cells a row below as 0xC2/0xC9");
                     /* 0xB7: two appended records, the only computed class
                      * (+6 = (count-6)<<8) and frame 0x116 / 0x11A */
                     {
@@ -2459,6 +2463,67 @@ int main(int argc, char **argv)
         }
         memset(flat, 0, sizeof flat);
         check(water > 100u, "the DEFS G sprites draw the level 16 water hole");
+    }
+
+    /* 7b7. D-72: the A9 log drop.  The settle's 0xDF2C writes 0xFF at
+     * firstRecord + 8 + 0x12*k (the tables 0x689E/0x68BE), and 1000:D5E4 then
+     * falls that record +2 y per tick and hides it past y 0x138.  Live-
+     * verified 2026-11-02 (log 9's +8 = 1 -> (240,276) to (240,314), +6 = 0xFF). */
+    if (level_load(15) == 0) {
+        uint8_t *log = NULL;
+        unsigned i, col, row;
+
+        for (i = 8u; i <= object_liveCount(); i++) {
+            uint8_t *r = object_slot(i);
+
+            if ((unsigned)(r[4] | (r[5] << 8)) == 0x33u) { log = r; break; }
+        }
+        check(log != NULL, "level 16's first A9 log record exists");
+        /* the marker pair lands one cell right of the 0xA9 */
+        for (row = 0; row < 20u; row++)
+            for (col = 0; col < 32u; col++)
+                if (level_map()[row * 32u + col] == 0xA9u) goto found;
+    found:
+        check(row < 20u &&
+              level_map()[(row + 1u) * 32u + col] == 0x33u &&
+              level_map()[(row + 1u) * 32u + col + 1u] == 0xC2u &&
+              level_map()[(row + 1u) * 32u + col + 2u] == 0xC9u,
+              "the 0xA9 markers sit one cell right of the tile (live)");
+        if (log) {
+            uint8_t *logs[5];
+            unsigned k;
+
+            for (k = 0; k < 5u; k++) logs[k] = log + k * 0x12u;
+            /* the marker pair, as 1000:DF2C leaves it */
+            check(level_map()[(row + 1u) * 32u + col + 1u] == 0xC2u &&
+                  level_map()[(row + 1u) * 32u + col + 2u] == 0xC9u,
+                  "the A9 marker pair is C2/C9 before a mark");
+            /* the settle pokes the log the foot is on: the table offset is
+             * 8 + 0x12*k, i.e. that record's +8 */
+            logs[4][8] = 0xFFu;              /* log 13, the rightmost */
+            logs[4][9] = 0xFFu;
+            object_tick(NULL);
+            check((unsigned)(logs[4][2] | (logs[4][3] << 8)) == 0x116u &&
+                  !(logs[4][6] & 0x80u),
+                  "a marked log falls 2 px on the next tick");
+            /* live: after log 13 the pair reads C2/CA (DS:0x6697's table) */
+            check(level_map()[(row + 1u) * 32u + col + 1u] == 0xC2u &&
+                  level_map()[(row + 1u) * 32u + col + 2u] == 0xCAu,
+                  "the marker pair encodes the marked log (C2/CA)");
+            /* live: logs 11..13 marked -> C3/00 */
+            logs[2][8] = logs[2][9] = 0xFFu;
+            logs[3][8] = logs[3][9] = 0xFFu;
+            object_tick(NULL);
+            check(level_map()[(row + 1u) * 32u + col + 1u] == 0xC3u &&
+                  level_map()[(row + 1u) * 32u + col + 2u] == 0x00u,
+                  "the marker pair follows the marked set (C3/00)");
+            /* past 0x138 the record hides itself */
+            logs[4][2] = 0x38u; logs[4][3] = 0x01u;  /* y = 0x138 */
+            object_tick(NULL);
+            check((unsigned)(logs[4][2] | (logs[4][3] << 8)) == 0x13Au &&
+                  (logs[4][6] & 0x80u) != 0u,
+                  "past y 0x138 the log hides itself (1000:D5E4)");
+        }
     }
 
     /* 7b4. D-63: the sprite table runs to the 0x3E20 bound - 0x11E slots.

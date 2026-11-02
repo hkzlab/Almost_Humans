@@ -88,7 +88,8 @@ static uint16_t objPairA[8], objPairB[2], objPairC[8], objPairD[2];
  * tile handler (1000:5206); the settle's 1000:DF2C reads them. */
 static struct {
     uint16_t x, y;
-    uint8_t *dst;
+    uint8_t *dst;        /* +4: the first of the five A9 log records   */
+    uint8_t *mark;       /* +8: the map cell pair 1000:D5E4 rewrites     */
 } objBg[32];
 static unsigned objBgCount;
 
@@ -1127,22 +1128,26 @@ static void objAppendRow9(uint8_t *map, unsigned col, unsigned row)
         objSlotClass[objLiveCount - 7u] = 0u;     /* behaviour 0 */
         objLiveCount++;
     }
-    /* 1000:51F9's first two instructions: mark the two cells one row below as
-     * the ids 1000:DF2C looks for.  The original's buffer carries a duplicated
+    /* 1000:51F9: mark the two cells one row below as the ids 1000:DF2C looks
+     * for.  The handler's SI is one past the matched cell, so the pair lands at
+     * (col+1, row+1) and (col+2, row+1) - live level 16 row 17 reads
+     * 0x33 0xC2 0xC9 at cols 14..16 with the 0xA9 at col 14 (the 0x33 is the
+     * level's own tile, untouched).  The original's buffer carries a duplicated
      * first row at +0x20, so its write always lands; the port's map is exactly
      * 640 bytes, so the pair is bounds-checked instead. */
     {
         unsigned cell = row * OBJ_COLS + col;
 
-        if (cell + OBJ_COLS + 1u < 640u) {
-            map[cell + OBJ_COLS] = 0xC2u;
-            map[cell + OBJ_COLS + 1u] = 0xC9u;
+        if (cell + OBJ_COLS + 2u < 640u) {
+            map[cell + OBJ_COLS + 1u] = 0xC2u;
+            map[cell + OBJ_COLS + 2u] = 0xC9u;
         }
     }
     if (objBgCount < sizeof objBg / sizeof objBg[0]) {
         objBg[objBgCount].x = (uint16_t)(col * 16u);
         objBg[objBgCount].y = (uint16_t)(row * 16u + 1u);
         objBg[objBgCount].dst = firstRec;
+        objBg[objBgCount].mark = &map[(row + 1u) * OBJ_COLS + col + 1u];
         objBgCount++;                            /* [0x32B9] */
     }
 }
@@ -1798,12 +1803,57 @@ int object_testDispatch(uint16_t mode)
     }
 }
 
+/* 1000:D5E4: the per-frame 0x32B9 pass over the 0xA9 log records.  A record
+ * whose +8 the settle's 0xDF2C poked (the tables 0x689E/0x68BE write 0xFF at
+ * firstRecord + 8 + 0x12*k) falls: +2 per tick, and past y 0x138 it sets +6 bit
+ * 7, which hides it.  The same pass rewrites the two map marker cells from the
+ * table at 0x6697, encoding which records are marked.
+ *
+ * Live-verified 2026-11-02 (walking left onto level 16's logs, ~30 ms samples):
+ * the five records fell in turn (y 276 -> 314, +6 = 0xFF) and the markers went
+ * C2/C9 -> C2/CA (log 13) -> C3/00 (logs 11-13) -> 00/00, exactly the table
+ * arithmetic below. */
+static void objBgTick(void)
+{
+    /* DS:0x6697: five 2-byte record entries, then the two marker runs. */
+    static const uint8_t tbl[26] = {
+        0x04, 0x00, 0x02, 0x00, 0x01, 0x04, 0x00, 0x02, 0x00, 0x01,
+        0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7, 0xC8, 0x00, 0xC9, 0xCA,
+        0xCB, 0xCC, 0xCD, 0xCE, 0xCF, 0x00,
+    };
+    unsigned i;
+
+    for (i = 0; i < objBgCount; i++) {
+        uint8_t *r = objBg[i].dst;
+        unsigned cx = 0, dx = 0, t = 0, k;
+
+        if (!r) continue;
+        for (k = 0; k < 5u; k++, r += OBJ_STRIDE, t += 2u) {
+            if (!(r[6] & 0x80u)) {
+                unsigned y;
+
+                if (rd16(r, 8u) == 0u) continue;     /* 1000:D614: no OR  */
+                y = (unsigned)rd16(r, 2u) + 2u;
+                wr16(r, 2u, (uint16_t)y);
+                if (y > 0x138u) r[6] = 0xFFu;        /* 1000:D61F         */
+            }
+            cx |= tbl[t];
+            dx |= tbl[t + 1u];
+        }
+        if (objBg[i].mark) {
+            objBg[i].mark[0] = tbl[0x0Au + cx];      /* 1000:D638         */
+            objBg[i].mark[1] = tbl[0x12u + dx];      /* 1000:D641         */
+        }
+    }
+}
+
 /* --- object_tick: one level frame for the object machine -------------- */
 void object_tick(const uint8_t *levelPal)
 {
     objFrame++;
     object_animatorTick();
     object_claimTick(levelPal);
+    objBgTick();
 }
 
 /* --- the ACTION program machine (script_op_dispatch, 1000:3979) --------
