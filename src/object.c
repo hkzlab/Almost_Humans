@@ -2421,10 +2421,14 @@ int object_stackStepOff(uint8_t *actor)
 
         if (rd16(e, 0u) != ax) continue;
         ey = rd16(e, 2u);
-        di = e + 6;
-        while (!(di[0] & 0x80u) && di[0] != (uint8_t)idx) di++;
+        di = e + 6;                               /* the first member */
+        while (!(di[0] & 0x80u) && di[0] != (uint8_t)idx) {
+            ey -= 0x10u;                          /* 1000:E896: one level up */
+            di++;
+        }
         if (di[0] & 0x80u) continue;
-        if ((uint16_t)(ey - 0x18u) != rd16(actor, 2u)) {
+        ey -= 0x18u;                              /* 1000:E89B */
+        if (ey != rd16(actor, 2u)) {
             objFrameStep(actor, 0x23u, 0x25u);             /* 1000:E8D4 */
             return -1;
         }

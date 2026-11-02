@@ -1011,6 +1011,48 @@ int main(int argc, char **argv)
                           (base[4] | (base[5] << 8)) == 0x0020u,
                           "1000:E99D moves the record below up 8");
                 }
+                /* 1000:E896/E89B: the step off's walk starts at DX = entry.y and
+                 * subtracts 0x10 for every member it passes before the match,
+                 * then 0x18 at the match - so the second member's target is
+                 * entry.y - 0x28, one level above the owner's 0x18. */
+                {
+                    uint8_t *base, *m1, *m2;
+
+                    object_init();
+                    base = object_slot(0);
+                    base[0] = 100; base[1] = 0; base[2] = 100; base[3] = 0;
+                    base[4] = 0x10; base[6] = 0; base[8] = 2; base[9] = 0;
+                    object_setActionEntity(0u);
+                    object_actionSetProgram(1u);
+                    object_actionSetCursor(2u);
+                    object_actionRun();
+                    m1 = object_slot(1);
+                    m1[0] = 100; m1[1] = 0; m1[2] = 70; m1[3] = 0;
+                    m1[4] = 0x10; m1[6] = 0; m1[8] = 2; m1[9] = 0;
+                    object_setActionEntity(1u);
+                    check(object_stackPush(m1) == 1,
+                          "the first member for the slot walk");
+                    m2 = object_slot(2);
+                    m2[0] = 100; m2[1] = 0; m2[2] = 52; m2[3] = 0;
+                    m2[4] = 0x10; m2[6] = 0; m2[8] = 2; m2[9] = 0;
+                    object_setActionEntity(2u);
+                    check(object_stackPush(m2) == 1,
+                          "the second member for the slot walk");
+                    /* negative control: the owner's y is not this slot's */
+                    m2[2] = 76; m2[3] = 0;
+                    check(object_stackStepOff(m2) == -1 &&
+                          (m1[4] | (m1[5] << 8)) == 0x0025u,
+                          "1000:E896: the second member refuses the owner's y");
+                    m2[2] = 60; m2[3] = 0;
+                    check(object_stackStepOff(m2) == 1 &&
+                          (m2[2] | (m2[3] << 8)) == 68u &&
+                          (m2[4] | (m2[5] << 8)) == 0x0020u &&
+                          (m2[8] | (m2[9] << 8)) == 8u,
+                          "1000:E896: the second member steps off at entry.y - 0x28");
+                    check((m1[2] | (m1[3] << 8)) == 79u &&
+                          (m1[4] | (m1[5] << 8)) == 0x0021u,
+                          "1000:E896: the record below the second member crouches");
+                }
                 /* the selector (1000:F17C): its stack path removes the member,
                  * and its two terrain-dependent branches report -2 */
                 {
