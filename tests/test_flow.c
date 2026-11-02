@@ -2274,8 +2274,10 @@ int main(int argc, char **argv)
                 check(kept == 64u * 24u && other == 0u,
                       "the off phase restores the cell");
             }
-            /* the copy runs with Map Mask 0x0F / read map 0, so a group's
-             * four pixels collapse to its plane-0 pixel on the way back. */
+            /* The cell is saved and restored PER PIXEL: the live capture
+             * (2026-11-02) puts the card back byte-identically after the
+             * blink, 1-px detail included, so a group's four pixels must
+             * survive the round-trip. */
             memset(page, 0, sizeof page);
             for (unsigned y = 176u; y < 200u; y++)
                 for (unsigned x = 128u; x < 192u; x++)
@@ -2287,11 +2289,12 @@ int main(int argc, char **argv)
 
                 for (unsigned y = 176u; y < 200u; y++)
                     for (unsigned x = 128u; x < 192u; x++) {
-                        if (page[y * 320u + x] == 0x10u) kept++;
+                        if (page[y * 320u + x] == (uint8_t)(0x10u + (x & 3u)))
+                            kept++;
                         else bad++;
                     }
                 check(kept == 64u * 24u && bad == 0u,
-                      "the restore collapses each 4-px group to plane 0");
+                      "the restore keeps the cell's 1-px detail");
             }
         }
 

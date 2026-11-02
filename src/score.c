@@ -275,8 +275,16 @@ unsigned score_levelScore(void)
  * The scratch itself is A000:0000, while the screen's page base ([0x4106])
  * is elsewhere (the live screen had 0x1230), so the scratch is NOT part of
  * the visible page.  The port keeps it in a private buffer of the same shape
- * instead of the flat page's top-left. */
-static uint8_t stampUnder[24u * 16u];
+ * instead of the flat page's top-left.
+ *
+ * The cell is saved and restored PER PIXEL.  A live DOSBox capture
+ * (2026-11-02, level 1 with a NEW RECORD) shows the off phase putting the
+ * card back exactly: the cell before the first stamp draw and after the
+ * erase are byte-identical (0 of 1536 pixels differ) and keep the card's
+ * 1-px detail (142 of its 384 4-px groups still vary).  The earlier model -
+ * one byte per 4-px page address, i.e. the address's plane-0 pixel written
+ * back to all four - left the card behind the stamp as 4-px blocks. */
+static uint8_t stampUnder[24u * 64u];
 
 void score_stampDraw(uint8_t *page, int on)
 {
@@ -286,26 +294,22 @@ void score_stampDraw(uint8_t *page, int on)
     if (!on) {
         /* 1000:46A3: A000:0000 -> the cell. */
         for (r = 0; r < 24u; r++)
-            for (j = 0; j < 16u; j++) {
-                unsigned v = stampUnder[r * 16u + j];
+            for (j = 0; j < 64u; j++) {
                 unsigned py = STAMP_ROW + r;
-                unsigned px = (STAMP_COL + j) * 4u;
+                unsigned px = STAMP_COL * 4u + j;
 
-                if (py >= 200u || px + 3u >= 320u) continue;
-                page[py * 320u + px + 0u] = (uint8_t)v;
-                page[py * 320u + px + 1u] = (uint8_t)v;
-                page[py * 320u + px + 2u] = (uint8_t)v;
-                page[py * 320u + px + 3u] = (uint8_t)v;
+                if (py >= 200u || px >= 320u) continue;
+                page[py * 320u + px] = stampUnder[r * 64u + j];
             }
         return;
     }
     /* 1000:4697: the cell -> A000:0000, then draw the sprite. */
     for (r = 0; r < 24u; r++)
-        for (j = 0; j < 16u; j++) {
+        for (j = 0; j < 64u; j++) {
             unsigned py = STAMP_ROW + r;
-            unsigned px = (STAMP_COL + j) * 4u;
+            unsigned px = STAMP_COL * 4u + j;
 
-            stampUnder[r * 16u + j] =
+            stampUnder[r * 64u + j] =
                 (py < 200u && px < 320u) ? page[py * 320u + px] : 0u;
         }
     /* 1000:46FC: apl\RECORD.SPR is chunky 64x24; the four passes read
