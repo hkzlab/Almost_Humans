@@ -2063,6 +2063,34 @@ int main(int argc, char **argv)
         object_actionSetCursor(1u);
     }
 
+    /* 6c8. D-70: the record command index is `row[1 + cmd]` with no upper
+     * bound (1000:E4A7), and DS:0x6908[0] = 0x48 makes "no direction" cmd 8.
+     * A type-0x18 (throw pose) record therefore selects row[9] = 0x31
+     * (0xEFD7, the idle form) with no input and the fire half's row[0x19] =
+     * 0x30 (0xEFD4, the turn) with the fire bit. */
+    object_init();
+    if (level_load(0) == 0) {
+        uint8_t *actor = object_slot(0);
+        ObjCommand c;
+
+        object_setActionEntity(0u);
+        actor[6] = 0; actor[7] = 0;
+        actor[8] = 0x18; actor[9] = 0;       /* the throw pose's type */
+        actor[4] = 0xBE; actor[5] = 0;
+        c = object_commandSelect(actor, 0x00u);
+        check(c.handler == 0xEFD7u,
+              "the no-input command selects the pose row's row[9] (0xEFD7)");
+        c = object_commandSelect(actor, 0x80u);
+        check(c.handler == 0xEFD4u,
+              "the fire-only command selects the fire half's row[0x19] (0xEFD4)");
+        /* the ACTION edge (1000:E3F9 -> 0x392D) home-states the pose */
+        object_noteFireEdge();
+        object_runFireEdge();
+        check((unsigned)(actor[4] | (actor[5] << 8)) == 8u &&
+              (unsigned)(actor[8] | (actor[9] << 8)) == 1u,
+              "the fire edge stands the posed record up (frame 8, type 1)");
+    }
+
     /* 6c7. D-68: the pending-event 4 charge loop.  With the throw pose up,
      * holding a direction walks +0xE (0xEE07) and draws the charge bar
      * (0x3747) in the bar band; the ACTION press ends the charge (0x373B) and

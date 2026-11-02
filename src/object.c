@@ -106,6 +106,25 @@ static unsigned objFault;                /* op 7 was dispatched (see below)     
  * (1000:EE35) and the pending-event 4 charge loop consumes it (1000:370C). */
 static uint8_t objChargeArm;
 static int     objCharging;
+/* [0x42F0]: "the fire key produced a fresh press" (set outside segment 1000,
+ * cleared by the dispatch's ACTION edge at 0xE407). */
+static int     objFireEdge;
+
+/* the backend's fire-key edge: one call per press (game_main's input loop). */
+void object_noteFireEdge(void) { objFireEdge = 1; }
+
+/* 1000:E3F9-0xE40C: a fresh press runs the home-state conversion (0x392D ->
+ * 0xEDB7) once, before the ACTION program's op for the same frame (the
+ * original's update_world at 0x34B5 precedes pause_toggle at 0x34BD). */
+void object_runFireEdge(void)
+{
+    uint8_t *actor;
+
+    if (!objFireEdge) return;
+    objFireEdge = 0;
+    actor = object_slot(object_actionEntity());
+    if (actor) (void)objCmdHomeState(actor);
+}
 static const OSystem *objOsys;           /* the fatal halt's route (osystem.h)   */
 static uint16_t objRegister[8][7];       /* 0x6F22: 8 x 0xE (clear is 0x70 bytes at
                                           * 0x60F4; op 1 walks AX = 7..0), bit15 = free */
@@ -2428,7 +2447,11 @@ ObjCommand object_commandSelect(uint8_t *rec, uint8_t input)
     }
     cmd &= 0x3Fu;
     out.command = cmd;
-    idx = cmd <= 7u ? row[1u + cmd] : 0u;
+    /* 1000:E4A7 `MOV BL,[BX+DI+1]` with CL = CL & 0xBF: row[1 + cmd], with no
+     * upper bound.  The reachable commands are 0..8 (DS:0x6908 gives 0x48 for
+     * "no direction", i.e. 8 after the 0x40 clear; the rest carry bit 7), and
+     * 1 + 8 = 9 stays inside the row's 16-byte half. */
+    idx = cmd <= 8u ? row[1u + cmd] : 0u;
     if (idx >= 1u && idx <= 57u) out.handler = objCmdHandlers[idx - 1u];
     return out;
 }

@@ -446,8 +446,17 @@ int game_main(const OSystem *osys)
         osys->tickSync(&last_tick);
 
         InputState input;
+        int rawFire;
 
         osys->eventsPoll(&input);
+        rawFire = (input.joyBits & 0x80u) != 0;
+        /* 1000:8598-0x85AE (poll_input's tail): while the one-action-per-press
+         * latch is set the fire bit is masked out of [0x5ACE]; the release
+         * clears the latch. */
+        if (actionLatched) {
+            if (rawFire) input.joyBits &= 0x0Fu;
+            else actionLatched = 0;
+        }
         scene_noteInput(&input);   /* the waits read this tick's state */
         level_noteInput(&input);   /* 1000:8526: the play loop's [0x5ACE] */
         if (input.quit) break;
@@ -699,12 +708,19 @@ int game_main(const OSystem *osys)
                  * 1000:3979); a dialog blocks it through [0x6F1D].  The
                  * pause block (202F:0x5BBC) is scan_id_list's ESC event (id
                  * 4 -> 1000:38EA), not ACTION. */
-                if (!menu_active() && !actionLatched &&
-                    (input.joyBits & 0x80u) && !(input.joyBits & 0x0Fu))
+                /* [0x42F0] + 1000:E3F9: a fresh fire press home-states the
+                 * acting record (0x392D), before the ACTION op (0x34B5
+                 * precedes pause_toggle at 0x34BD). */
+                if (rawFire && !actionLatched) {
+                    object_noteFireEdge();
+                    object_runFireEdge();
+                }
+                if (!menu_active() && !actionLatched && rawFire &&
+                    !(input.joyBits & 0x0Fu))
                     object_actionRun();
                 /* [0x13A4] (poll_input 1000:9998): one action per press —
                  * the ACTION bit is masked while the key is held. */
-                actionLatched = (input.joyBits & 0x80u) != 0;
+                actionLatched = rawFire;
                 level_tick();          /* the party done: the level runs */
                 /* level_tick ends with the [0x1979] dispatch (1000:382D and
                  * the event-4 charge loop), so it runs once per frame */
