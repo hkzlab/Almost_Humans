@@ -865,6 +865,60 @@ int main(int argc, char **argv)
                           "the animator advanced the entry's frame index");
                 }
 
+                /* 1000:E8DD's y mismatch descends the member: 1000:E934 jumps
+                 * to the *down* stepper (y += 1, frames 0x23..0x25) - the
+                 * step-off's 1000:E8D4 is the one that uses the up stepper.  A
+                 * held key walks the member down the column until it reaches
+                 * the entry's y, where it steps off. */
+                {
+                    uint8_t *b4, *m1, *top;
+                    unsigned seen = 0;
+                    int outside = 0;
+
+                    object_init();
+                    b4 = object_slot(0);
+                    memset(b4, 0, 0x12u);
+                    tf_wr16(b4, 0u, 100); tf_wr16(b4, 2u, 100);
+                    tf_wr16(b4, 4u, 0x10u); tf_wr16(b4, 8u, 2u);
+                    object_setActionEntity(0u);
+                    object_actionSetProgram(1u);
+                    object_actionSetCursor(2u);
+                    object_actionRun();
+                    m1 = object_slot(1);
+                    memset(m1, 0, 0x12u);
+                    tf_wr16(m1, 0u, 100); tf_wr16(m1, 2u, 70);
+                    tf_wr16(m1, 4u, 0x10u); tf_wr16(m1, 8u, 2u);
+                    object_setActionEntity(1u);
+                    check(object_stackPush(m1) == 1, "the column for the leave");
+                    top = object_slot(2);
+                    memset(top, 0, 0x12u);
+                    tf_wr16(top, 0u, 100); tf_wr16(top, 2u, 52);
+                    tf_wr16(top, 4u, 0x10u); tf_wr16(top, 8u, 2u);
+                    object_setActionEntity(2u);
+                    check(object_stackPush(top) == 1, "the third joins the column");
+                    for (unsigned k = 0; k < 20u; k++) {
+                        unsigned f;
+
+                        (void)object_commandRun(top, 0x01u);
+                        f = (unsigned)(top[4] | (top[5] << 8));
+                        if (f < 0x23u || f > 0x25u) outside = 1;
+                        seen |= 1u << (f & 0x1Fu);
+                    }
+                    check(!outside && (seen & (1u << 3)) != 0u &&
+                          (seen & (1u << 4)) != 0u &&
+                          (seen & (1u << 5)) != 0u,
+                          "1000:E934: a member climbs down 0x23..0x25");
+                    /* the push lifted it from 52 to 53 (1000:E6DA), then one
+                     * pixel per press */
+                    check(tf_rd16(top, 2u) == 52u + 1u + 20u,
+                          "1000:E934: the down stepper moves y +1 a press");
+                    tf_wr16(top, 2u, 100u);
+                    check(object_stackLeave(top) == 1 &&
+                          tf_rd16(top, 8u) == 2u &&
+                          (top[4] | (top[5] << 8)) == 0x10u,
+                          "the leave at the entry's y restores the human");
+                }
+
                 /* The other four verbs: grab (1000:E58B, with its free-slot
                  * registration), step off (1000:E860), leave (1000:E8DD),
                  * snap (1000:E963) and the selector (1000:F17C).  The 0x64AD /

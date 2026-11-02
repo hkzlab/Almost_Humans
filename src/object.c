@@ -75,6 +75,7 @@ static int16_t objSide;                 /* [0x4230]: which side the settle stepp
 static int objStepProbeAt(const uint8_t *actor, int dx, int dy, unsigned *cellOut);
 static int objCmdHomeState(uint8_t *actor);     /* 1000:EDB7               */
 static void objDriverCall(unsigned n);          /* 1000:83B7               */
+static void objFrameStepDown(uint8_t *actor, unsigned lo, unsigned hi); /* 1000:FDBF */
 static uint8_t *objLinkRecord(unsigned off);   /* the +0xE record link */
 void object_terSlotInit(void);                 /* 1000:4CC3/4CC6 */
 static void objBuildShade(unsigned frame, uint8_t *out);
@@ -2463,10 +2464,10 @@ int object_stackLeave(uint8_t *actor)
         while (!(di[0] & 0x80u) && di[0] != (uint8_t)idx) di++;
         if (di[0] & 0x80u) continue;
         if (rd16(e, 2u) != rd16(actor, 2u)) {
-            /* ⚠ 1000:E934 jumps to 1000:FDBF - the *down* stepper - so the
-             * member climbs down the column 1 px a step; this is the up one
-             * (port_deviations.md D-45). */
-            objFrameStep(actor, 0x23u, 0x25u);
+            /* 1000:E934: the *down* stepper (y += 1, frames 0x23..0x25) - the
+             * member climbs down the column 1 px a step.  (The step-off's
+             * 1000:E8D4 is the one that uses the up stepper.) */
+            objFrameStepDown(actor, 0x23u, 0x25u);
             return -1;
         }
         wr16(actor, 4u, 0x0010u);
