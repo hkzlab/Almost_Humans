@@ -1812,7 +1812,9 @@ int32_t level_tick(void)
             object_markerTick(); /* 1000:D64F, after the dispatch */
         }
         object_tick(level_palette()); /* the claim's phase machine: blocking
-                                           * in the original, so not gated here */
+                                           * in the original, so not gated here;
+                                           * its animator/bg half should be —
+                                           * port_deviations.md D-163 */
     }
 
     /* The world is not drawn during level_video_init's two component fades
