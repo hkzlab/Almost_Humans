@@ -6825,7 +6825,8 @@ void object_actionRun(void)
             if (!level_pageFree(map[next])) break;
             wr_le_u16(actor + 8u, (uint16_t)((t == 0u) ? 0x12u : 0x14u));
             wr_le_u16(actor + 4u, (uint16_t)frame);
-            /* [0x6F1D] = 0 at 0xED49 (the dialog flag) — no port equivalent */
+            /* 1000:ED49 clears [0x6F1D] (objLat) on every exit; the port does
+             * not — port_deviations.md D-167. */
         }
         break;
     case OP_TYPE_B: /* 0x39CF -> 0xEA0F / 0xEA4D          */
