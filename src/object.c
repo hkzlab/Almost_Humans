@@ -72,9 +72,8 @@
  * `0x1ECC`).  Every match is handed to its handler with
  * `CX = col*16`, `DX = row*16` (`1000:51BF`'s four shifts each).
  *
- * Two of the 25 handlers are ported (they are what the shipped levels use for
- * the placed objects); the rest (`0xA9`'s five-record table at `0x1EFE`, the
- * `0x32B9` background list, the movers) are the next pass:
+ * All 25 tile handlers are ported (each one's body is summarised below or at
+ * its function); the two that explain the shipped levels' records are:
  *
  *   0xAA  `1000:524B`  the human: the **first free static slot** (the scan
  *                    tests `+6` bit 7), `x = col*16`, `y = row*16 - 7`,
@@ -2638,6 +2637,9 @@ void object_render(uint8_t *page, int32_t scrollX, int32_t scrollY)
     uint32_t nb = 0, nf = 0;
 
     if (!page || !objBank) return;
+    /* render_objects (1000:5D56) also calls 1000:5D65, which draws and
+     * animates the two [0x6F92] handled-object entries; the port draws only
+     * the array records - port_deviations.md D-90. */
 
     objPartition(back, &nb, front, &nf); /* 1000:C23C */
 
@@ -6397,7 +6399,12 @@ static int32_t objCmdCall(uint8_t *actor, uint32_t addr)
 /* 1000:E4B0..E4F7: run one command for the acting record.  The type row's
  * handler runs first, and when it changes the record's type the tail is skipped
  * (1000:E4CC); otherwise the row's +0xA hook (1000:D8BD, the terrain settle)
- * and then the tail handler run. */
+ * and then the tail handler run.
+ *
+ * This is the ACTING record's path only.  The original also runs every static
+ * record's hook+tail each frame from `collision_scan` (`1000:D860`, the last
+ * call of `update_world`); the port does not, and that is port_deviations.md
+ * D-89. */
 int32_t object_commandRun(uint8_t *actor, uint8_t input)
 {
     ObjCommand c = object_commandSelect(actor, input);
@@ -6604,7 +6611,12 @@ static void objGroupRestoreMember(uint8_t *rec)
  * member-list length - 1, exactly `(run length from +5) - 2` as the code
  * computes it; the `n >= 2` handler's second `XCHG CX,BX` at FA78 leaves
  * BX = n, so its loop runs `n - 1` times after the first member: n calls in
- * all, one per member. */
+ * all, one per member.
+ *
+ * The original's n >= 1 paths then fall into `1000:FAA4`, which stores
+ * `y -= 8`, frame 0x10, type 2 on the last member (it becomes a standing
+ * human).  The port does not, so the member keeps the type-3 faller state -
+ * port_deviations.md D-93. */
 void object_groupDissolveAt(uint32_t slot)
 {
     if (slot < 8u) objGroupDissolve((uint8_t *)objRegister[slot]);
@@ -6803,34 +6815,25 @@ void object_actionRun(void)
         }
         break;
     case OP_TYPE_B: /* 0x39CF -> 0xEA0F / 0xEA4D          */
-        /* Dispatched, and recorded — but its two targets are not callable, so
-         * there is nothing to emulate beyond the dispatch itself:
-         *  - type != 0 -> 0xEA4D is the operand byte 0xA2 of the JNS at
-         *    0xEA4C: the store `MOV [0xE8C3], AL` followed by the CALL's own
-         *    bytes as instructions;
-         *  - type == 0 -> 0xEA0F is six bytes inside the 0xE9F0 loop, and that
-         *    loop is never called anywhere (no caller in the image).  Reached
-         *    from here its prologue reads the *acting record* as the argument
-         *    list: DI = the record's frame (e.g. 0x0010), BP = its type
-         *    (0..2) — then it writes `[BP] = AL`, i.e. into the interrupt
-         *    vector table at linear 0-2, and walks 12 records from DI.
-         * A faithful port of that is a guaranteed wild write, so the port
-         * records the event instead of corrupting memory.  The shipped data
-         * never produces it (cursor 1 -> prog[2]); reaching it means a cursor
-         * > 1, which only the undecoded overlay 0FE7:0188 (level_run's
-         * save-restore call at 0x4498) could supply.  Inert arms live in
-         * re_plan.md, "op 7 (0x39CF) — revisit condition". */
+        /* Op 7 is the **ride** command: `1000:39CF` loads BP = 0xEA0F for
+         * type 0 and 0xEA4D otherwise and calls it - `cmd_ride_ab` /
+         * `cmd_ride_ad`, the same two bodies the type rows reach as command 8
+         * (`objCmdRide` above).  The port still stops here instead of calling
+         * them: port_deviations.md D-92.  The earlier reading (that these
+         * targets are address fragments inside 0xD5F0) named the wrong page;
+         * re_map.md's op-7 section and re_history.md carry the correction.
+         * The op is reachable only through a program cursor above 1, which the
+         * shipped data never produces: every readable path pins the cursor at
+         * 1, and the only unread producer is the 0FE7:0188 save-restore
+         * overlay. */
         objFault = OP_TYPE_B;
         if (objOsys && objOsys->fatalError) {
-            /* Reaching this means a cursor above 1 (the shipped data never
-             * produces one).  The original's targets are wild writes, so the
-             * port stops here, through the arch's own fatal route. */
             objOsys->fatalError(
-                "HUMANS: ACTION op 7 (1000:39CF) dispatched — it needs a "
+                "HUMANS: ACTION op 7 (1000:39CF) dispatched - it needs a "
                 "program cursor above 1, which the shipped data never "
-                "produces.  Its targets are not callable (0xEA4D is the "
-                "operand byte of a JNS; 0xEA0F writes [type] = AL into the "
-                "interrupt vector table).  See re_map.md, 'op 7'.");
+                "produces.  The op's targets are the ride commands "
+                "(1000:EA0F/1000:EA4D); the port does not call them yet "
+                "(port_deviations.md D-92).");
         }
         break;
     default: break;

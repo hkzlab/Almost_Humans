@@ -20,8 +20,11 @@
  * list is `draw_score_block`'s layout (rank/name/score centred at
  * 0x20/0x82/0x102, pitch 0x14 from base 0; header at 0xA0/0x14), the
  * qualifying total sees the seven-line congratulation page before the ring,
- * and the name screen has no `NAME:` line.  The band's destination is still
- * the port's page origin (port_deviations.md D-12).  The name-entry
+ * and the name screen has no `NAME:` line.  The band's destination is the
+ * port's page origin: the live MAP capture showed the original composes the
+ * same page at the origin (`re_map.md` "The frame: `apl\band.spr`"), so the
+ * open difference is only the band's *pixel decode* - port_deviations.md
+ * D-34.  The name-entry
  * transition follows 1000:028C..030A: five palette fades, the HIGH.BIT
  * re-copy and the two 1000:1251 outlines.  The six `[0x8A2]` positions are
  * not content panels: they are 0x14-frame scroll steps of the same band.

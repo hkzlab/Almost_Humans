@@ -611,7 +611,7 @@ int main(int argc, char **argv)
             check(object_actionFault() == 7u,
                   "op 7 is recorded when dispatched");
             check(memcmp(before, actor, sizeof before) == 0,
-                  "op 7 touches no state (its targets are wild writes)");
+                  "op 7 touches no state yet (the ride calls are D-92)");
             object_actionSetProgram(1u);
             object_actionSetCursor(1u);
             object_attachOsys(&osys_null); /* the game's halt route back   */

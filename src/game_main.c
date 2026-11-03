@@ -214,7 +214,8 @@ static void level_restart(void)
     }
     /* 1000:3073: level_start tests [0x34] and plays the party screen when it
      * is zero.  A restart is not the RESTORE GAME path (the only writer of
-     * 0xFF, 1000:008A), so the party runs again (port_deviations.md D-82). */
+     * 0xFF, 1000:008A), so the party runs again - live-confirmed in the
+     * original (re_history.md, 2026-11-02). */
     partyTried = 0;
     partyPlaying = 0;
 }
