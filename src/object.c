@@ -2909,8 +2909,9 @@ static void objWalkTorch(uint8_t *r)
  * The handler projects the record by the 0x6612 (dx,dy) table and hands the
  * projected AX/BX to three passes; the record's own x/y are NOT stored (only a
  * pass that hits writes, and it writes the target), which is why the placed
- * movers are static in the live game.  0x58D1 (record-vs-entity) tests the
- * entity's REX sprite pixels and is still to port; 0x5A2F and 0x5B3E are here.
+ * movers are static in the live game.  0x58D1 (record-vs-entity, testing the
+ * entity's REX sprite pixels) is `objMoverPassEntity` below; 0x5A2F and 0x5B3E
+ * are `objMoverPassRecords` / `objMoverPassPlaced`.
  */
 static void objMoverPassRecords(uint8_t *r, int32_t ax, int32_t bx)
 {
