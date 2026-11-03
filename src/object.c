@@ -1058,8 +1058,9 @@ static const int8_t objThrowDx[8] = { 8, -8, 0, 0, 0, 0, 0, 0 };
 static const uint8_t objDropFrame[8] = { 0x00, 0x00, 0x00, 0x00,
                                          0x00, 0x60, 0x9C, 0x96 };
 
-/* DS:0x6EB6 — the per-behaviour *state* byte nop_handler_3 (0xF2CF) gates on:
- * behaviours 5/6/7 -> 1/3/2, everything else 0xFF (never matches a code). */
+/* DS:0x6EB6 — the per-behaviour *state* byte `test_class_against_6eb6`
+ * (0xF2CF) gates on: behaviours 5/6/7 -> 1/3/2, everything else 0xFF (never
+ * matches a code). */
 static const uint8_t objBehState[8] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 1, 3, 2 };
 
 /* DS:0x6908, DS:0x698A, DS:0x6918 — the command dispatch's three tables
@@ -3949,8 +3950,8 @@ int32_t object_cycleEntity(int32_t step)
     return -1;
 }
 
-/* nop_handler_3 (0xF2CF): ZF set when the acting record's behaviour has this
- * state.  The callers are `CALL`/`JNZ`. */
+/* test_class_against_6eb6 (0xF2CF): ZF set when the acting record's behaviour
+ * has this state.  The callers are `CALL`/`JNZ`. */
 static int32_t objStateIs(uint8_t *actor, uint32_t state)
 {
     uint32_t b = actor[7u];
