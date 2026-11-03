@@ -2886,9 +2886,12 @@ static void objWalkWander(uint8_t *r)
     }
 }
 
-/* 0xCD0A (behaviour 6, the torch): every 4th frame bump the frame 0x9C..0x9E.
- * Its fall-through is 0xCD2E (behaviour 7, the campfire's draw) whose only
- * body is a sprite blit the port's render pass already performs. */
+/* 0xCD0A (behaviour 6, the torch): every 4th frame bump the frame 0x9C..0x9E,
+ * then fall through to behaviour 7's dispatch 0xCD2E.  That is NOT a draw:
+ * 0xCD2E calls 0xCD4A (via `[0x6586 + 2*[+0xA]]`), which calls the
+ * move/collision scan `1000:E039` at 0xCD6D - the routine the port does not
+ * have.  The whole behaviour-7 fall-through is therefore absent, which is
+ * part of port_deviations.md D-88. */
 static void objWalkTorch(uint8_t *r)
 {
     uint32_t f;
