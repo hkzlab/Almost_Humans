@@ -55,9 +55,11 @@
  * Its segment setup is `B8 00 A0 / 8E C0 / 8E D8`: ES and DS are both A000,
  * so the scratch is **A000:0000**, not DS:0.  The on phase (`0x46FC`) copies
  * the 16 x 24 cell to page 0 and then draws the sprite; the off phase
- * (`0x46A3`) copies page 0 back.  The copy runs with Map Mask 0x0F and read
- * map 0, so it carries one page byte per 4-px group (plane 0's pixel) and
- * writes it to all four; the port keeps that shape (`stampCopy`).
+ * (`0x46A3`) copies page 0 back.  The copy runs with Seq Map Mask 0x0F and GC
+ * Bit Mask 0x00; in write mode 0 a zero mask bit selects the **latch** instead
+ * of the CPU byte, and the latches hold all four planes of the address just
+ * read - so the copy carries the whole 4-plane cell, not one plane's byte.
+ * That is why the port saves and restores every pixel (`stampUnder`).
  */
 #define STAMP_ROW 176u
 #define STAMP_COL 32u
@@ -502,10 +504,10 @@ int32_t score_begin(uint32_t value)
      * shows exactly that: bytes 1..0xBF (level-palette indices) inside the card
      * where the sprite is transparent.  An earlier revision memset the page,
      * which made those spots black instead - corrected. */
-    /* 1000:4278..4284 or_region_c0(10, 0x100, 0) runs with ES = [0x1DDA] =
-     * APL\SCORE.SPR, i.e. it ORs 0xC0 into the DIGIT SHEET's first 4096 bytes,
-     * not into the page.  The bias only sets bits 4..7, which this page's 4-px
-     * groups never read, so score_digitBlock's 0x0F ink is the same result. */
+    /* 1000:4278..4284 or_region_c0 runs with ES = [0x1DDA] = APL\SCORE.SPR,
+     * BP = 0, BX = 0x100 and CX = 0xA, i.e. it ORs 0xC0 over BX*CX = 0xA00
+     * bytes = the sheet's ten 0x100-byte digit slots, not into the page.
+     * score_digitBlock applies the same bias itself, so the result matches. */
     if (scoreBit) {
         score_drawCard(page);
         if (scoreSize >= SCORE_PAGE + 768u) {

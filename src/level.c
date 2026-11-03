@@ -430,8 +430,11 @@ static void sparkStep(void)
     if (sparkSpawned >= 0x100u && !live) sparkOn = 0;
 }
 
-/* 0x4073's store, in the flat model: the cell writes one byte of four pixels on
- * one plane, so each of the four columns gets its bit replaced. */
+/* `1000:3F4A`'s per-frame particle draw, in the flat model: `DI = y*0x58 +
+ * (x>>2) + [0x5AC4]`, plane `x & 3`, one `STOSB` per cell.  The original
+ * writes into its 512x320 page with no clip; the flat page is 320x200, so this
+ * clips to the window.  `0x4073` (the expired cell's paint into the 0x12-wide
+ * scratch strip) is a separate routine - see D-132 in port_deviations.md. */
 static void sparkDraw(void)
 {
     for (uint32_t i = 0; i < 0x58u; i++) {

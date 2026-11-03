@@ -136,8 +136,8 @@ static struct {
  *   append  (1000:3BF9..1000:3C64) x from the neighbour, y = neighbour + 9, the stashed
  *           recipe fields, `[0x3E73]++`, the behaviour id into the source
  *           slots
- *   reveal  `init_dirty_cell_list` (`1000:3C70`) then `flush_dirty_cell_list`
- *           (0x534A) looping `queue_dirty_cell_packed` (0x53B3) until
+ *   reveal  `init_dirty_cell_list` (`1000:3E73`) then `flush_dirty_cell_list`
+ *           (`1000:3F4A`) looping `queue_dirty_cell_packed` (`1000:3FB3`) until
  *           `[0x1B02]`: 0x100 dirty cells queued from the 0x1B76 coordinate
  *           table over the 0x48BC list, shaded from 0x19EA — ported as
  *           `level_sparkBegin`/`sparkStep`/`sparkDraw`
