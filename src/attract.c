@@ -51,6 +51,7 @@
  * else the tail ([0x1E7C]:=0x0A, fade to black div 0x1E).
  */
 #include "game.h"
+#include "byteorder.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -78,8 +79,7 @@ static void fastest_time(unsigned levelMinus1, uint8_t rec[2])
 {
     uint16_t v = hiscore_best(levelMinus1 + 1u);
 
-    rec[0] = (uint8_t)(v & 0xFFu);       /* the seconds byte */
-    rec[1] = (uint8_t)(v >> 8);          /* the minutes byte */
+    wr_le_u16(rec, v);                   /* [seconds][minutes] */
 }
 
 /* the strings at 202F:0xC38/0xC4D/0xC73/0xC79 (re_formats.md §9.4) */

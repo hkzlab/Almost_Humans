@@ -544,8 +544,7 @@ static void item_masks_build(const BdPage *page)
                 si++;
                 if (px < 32u && pageOpacity[px]) word |= 0x8000u >> col;
             }
-            pageItems[o] = (uint8_t)word;
-            pageItems[o + 1u] = (uint8_t)(word >> 8);
+            wr_le_u16(pageItems + o, (uint16_t)word);
         }
     }
 }

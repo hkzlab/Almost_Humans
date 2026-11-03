@@ -952,8 +952,7 @@ int scene_playBootIntro(void)
          * 0x704A) and idx array (0x72EA) are all offsets into this buffer */
         {
             uint16_t chk = 0;
-            uint32_t off0;
-            memcpy(&off0, bootGt, 4);
+            uint32_t off0 = rd_le_u32(bootGt);
             int sz = res_decode_lzw_mem(bootGt, bootGtSize, off0,
                                         bootGtList, OBJ_SEG_SIZE, &chk);
             if (sz < 0 || chk != 0) {
