@@ -27,11 +27,12 @@ static InputState make_input(void)
     return in;              /* joyBits 0 = fire released, lastKey 0 = none */
 }
 
-static int32_t expect_state(GameFlow got, GameFlow want, uint32_t tick, const char *what)
+static int32_t expect_state(GameFlow got, GameFlow want, uint32_t tick,
+                            const char *what)
 {
     if (got == want) return 0;
-    fprintf(stderr, "FAIL at tick %u (%s): state %d, want %d\n",
-            tick, what, (int32_t)got, (int32_t)want);
+    fprintf(stderr, "FAIL at tick %u (%s): state %d, want %d\n", tick, what,
+            (int32_t)got, (int32_t)want);
     return 1;
 }
 
@@ -57,7 +58,10 @@ int main(void)
      * test into an empty scratch cwd. */
     static const char nodata[] = "humans_flow_nodata";
     (void)compat_mkdir(nodata);            /* already present is fine */
-    if (compat_chdir(nodata)) { perror(nodata); return 1; }
+    if (compat_chdir(nodata)) {
+        perror(nodata);
+        return 1;
+    }
     /* entry 1000:002B probes volume 0 before the room (draw_status_indicator
      * 1000:1FEF).  A missing volume would (correctly) park the flow on the
      * "PUT THE DISK INTO DRIVE 0" page forever, so the scratch tree needs an
@@ -88,8 +92,10 @@ int main(void)
             s = gameflow_step(s, &in);
             palette_tick();               /* the ISR body's fade step */
             if (s != FLOW_ATTRACT) {
-                fprintf(stderr, "FAIL at tick %u: idle attract left the "
-                        "state (%d)\n", tick, (int32_t)s);
+                fprintf(stderr,
+                        "FAIL at tick %u: idle attract left the "
+                        "state (%d)\n",
+                        tick, (int32_t)s);
                 bad = 1;
                 break;
             }
@@ -127,8 +133,10 @@ int main(void)
         }
         for (uint32_t i = 0; i + 1 < 8u; i++) {
             if (seq[i] < 1u || seq[i] > 4u || after[seq[i]] != seq[i + 1]) {
-                fprintf(stderr, "FAIL: effect order[%u] = %u -> %u, want "
-                        "the 1->3->2->4 cycle\n", i, seq[i], seq[i + 1]);
+                fprintf(stderr,
+                        "FAIL: effect order[%u] = %u -> %u, want "
+                        "the 1->3->2->4 cycle\n",
+                        i, seq[i], seq[i + 1]);
                 bad = 1;
                 break;
             }
@@ -151,8 +159,10 @@ int main(void)
             palette_tick();
         }
         if (s != FLOW_MENU) {
-            fprintf(stderr, "FAIL: the escape never reached MENU "
-                    "(state %d after %u ticks)\n", (int32_t)s, guard);
+            fprintf(stderr,
+                    "FAIL: the escape never reached MENU "
+                    "(state %d after %u ticks)\n",
+                    (int32_t)s, guard);
             bad = 1;
         }
     }
@@ -165,12 +175,16 @@ int main(void)
         GameFlow s = FLOW_MENU;
         s = gameflow_step(s, &idle);
         bad |= expect_state(s, FLOW_MENU, 0, "menu holds");
-        InputState esc = make_input(); esc.lastKey = 0x1Bu;
+        InputState esc = make_input();
+        esc.lastKey = 0x1Bu;
         s = gameflow_step(s, &esc);
-        bad |= expect_state(s, FLOW_MENU, 0, "menu ESC stays (clears the name)");
-        InputState act = make_input(); act.joyBits = 0x80u;
+        bad |=
+            expect_state(s, FLOW_MENU, 0, "menu ESC stays (clears the name)");
+        InputState act = make_input();
+        act.joyBits = 0x80u;
         s = gameflow_step(s, &act);
-        bad |= expect_state(s, FLOW_MENU, 0, "menu action stays (option cycle)");
+        bad |=
+            expect_state(s, FLOW_MENU, 0, "menu action stays (option cycle)");
     }
 
     /* 5. the re-entry: the attract re-arms (game_loop's prologue runs
@@ -183,10 +197,12 @@ int main(void)
         bad |= expect_state(s, FLOW_ATTRACT, 0, "re-entry plays");
         uint32_t ph = attract_phaseForProbe();
         if (ph == ATTRACT_DONE || ph == ATTRACT_IDLE) {
-            fprintf(stderr, "FAIL: the re-entry did not re-arm (phase %u)\n", ph);
+            fprintf(stderr, "FAIL: the re-entry did not re-arm (phase %u)\n",
+                    ph);
             bad = 1;
         }
-        InputState fire = make_input(); fire.joyBits = 0x80u;
+        InputState fire = make_input();
+        fire.joyBits = 0x80u;
         s = gameflow_step(s, &fire);      /* escape again */
         palette_tick();
         uint32_t guard = 0;
@@ -202,7 +218,8 @@ int main(void)
      *    (cell 6) -> 0x280, the right-edge exit runs the codes.bin match
      *    and the fade, and the flow lands in LEVEL. */
     {
-        InputState right = make_input(); right.joyBits = 0x08u;
+        InputState right = make_input();
+        right.joyBits = 0x08u;
         GameFlow s = FLOW_MENU;
         uint32_t guard = 0;
         do {
@@ -210,8 +227,10 @@ int main(void)
             palette_tick();
         } while (s == FLOW_MENU && guard++ < 400u);
         if (s != FLOW_LEVEL) {
-            fprintf(stderr, "FAIL: the right-edge walk never reached LEVEL "
-                    "(state %d after %u ticks)\n", (int32_t)s, guard);
+            fprintf(stderr,
+                    "FAIL: the right-edge walk never reached LEVEL "
+                    "(state %d after %u ticks)\n",
+                    (int32_t)s, guard);
             bad = 1;
         }
         s = gameflow_step(s, &right);        /* level holds */

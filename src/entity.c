@@ -87,20 +87,19 @@ static uint32_t cur_style;      /* [0x17EE]: the level header's style    */
  * the finder); the other 23 handlers spawn placed objects / write the
  * 0x64A2..0x64BA globals and land with object.c. */
 static const uint8_t tile_ids[25] = {
-    0xA9, 0xAA, 0xAB, 0xAC, 0xAD, 0xAE, 0xAF, 0xB0, 0xB1, 0xB2,
-    0xB3, 0xB4, 0xB5, 0xC0, 0xB6, 0xB7, 0xB8, 0xBA, 0xBB, 0xBE,
-    0xBF, 0xC1, 0xF0, 0xF1, 0xF2,
+    0xA9, 0xAA, 0xAB, 0xAC, 0xAD, 0xAE, 0xAF, 0xB0, 0xB1,
+    0xB2, 0xB3, 0xB4, 0xB5, 0xC0, 0xB6, 0xB7, 0xB8, 0xBA,
+    0xBB, 0xBE, 0xBF, 0xC1, 0xF0, 0xF1, 0xF2,
 };
-#define TILE_HANDLER_APPEND  10u   /* 0xB3 -> entity_append_to_array 5360 */
-#define TILE_HANDLER_FIND    11u   /* 0xB4 -> entity_find_by_id 5399      */
+#define TILE_HANDLER_APPEND 10u   /* 0xB3 -> entity_append_to_array 5360 */
+#define TILE_HANDLER_FIND   11u   /* 0xB4 -> entity_find_by_id 5399      */
 
 /* The 0x1F20 byte flag table (image 0x1F20..0x1F3F), the style-6 spawn
  * test's bit source (1000:567d). */
 static const uint8_t style6_flags[32] = {
-    0x00, 0x00, 0x00, 0x00, 0x07, 0xFE, 0x00, 0x07,
-    0xE0, 0x00, 0x02, 0x02, 0x00, 0x03, 0xC3, 0x81,
-    0x80, 0x01, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x07, 0xFE, 0x00, 0x07, 0xE0, 0x00, 0x02,
+    0x02, 0x00, 0x03, 0xC3, 0x81, 0x80, 0x01, 0x80, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
 /* --- the appender (1000:5360) and the prologue (1000:5662) -------------- */
@@ -115,7 +114,7 @@ static const uint8_t style6_flags[32] = {
  * corpus has no B3/B4 on row 19, so the port yields 0 there (the guard
  * keeps the read in bounds). */
 static int32_t style6_y_bonus(const uint8_t *map, uint32_t mapLen,
-                          uint32_t matchIdx)
+                              uint32_t matchIdx)
 {
     if (cur_style != 6u) return 0;
     if (matchIdx + 0x20u >= mapLen) return 0;
@@ -156,8 +155,8 @@ static void entity_append(const uint8_t *map, uint32_t mapLen,
 
 /* entity_find_by_id (1000:5399..53b8).  Summoned per 0xB4 cell: rewrites
  * the FIRST entity whose spawn row (+8) matches this row's x1 endpoint. */
-static void entity_find(const uint8_t *map, uint32_t mapLen,
-                        uint32_t matchIdx, uint32_t cx, uint32_t dx)
+static void entity_find(const uint8_t *map, uint32_t mapLen, uint32_t matchIdx,
+                        uint32_t cx, uint32_t dx)
 {
     if (style6_y_bonus(map, mapLen, matchIdx)) dx += 3;   /* 1000:5698 */
     uint32_t match = dx + 1u - 0x30u;                     /* 53a5/53a8 */
@@ -175,7 +174,8 @@ static void entity_find(const uint8_t *map, uint32_t mapLen,
  * handler invoked at each matching cell with CX = col*16, DX = row*16
  * (the SHL 4s at 51bf-51cd).  The scan is column-inner, row-outer
  * ([0x4234] = cols 0x1F..0, [0x4230] = rows 0x13..0). */
-int32_t entity_spawnFromMap(const uint8_t *map, uint32_t style, uint32_t lifeSeed)
+int32_t entity_spawnFromMap(const uint8_t *map, uint32_t style,
+                            uint32_t lifeSeed)
 {
     if (!map) return -1;
 
@@ -233,18 +233,16 @@ static uint16_t entWord(uint32_t slot, uint32_t off, uint32_t k)
 /* DS:0x6EC3 - the 44-byte table the interaction gate tests: a record whose type
  * has a non-zero byte here is not picked up. */
 static const uint8_t entNoPick[0x2C] = {
-    0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x01, 0x01, 0x01,
-    0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00,
-    0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x01, 0x01,
+    0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x01, 0x00, 0x00,
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
 /* The entity's index, for the +0xA carry link (the port's stand-in for the
  * original's DS pointer 0x64C4 + 0x10*n). */
 static uint32_t entIndex(const Entity *ep)
-{
-    return (uint32_t)(ep - (const Entity *)ents[0]);
-}
+{ return (uint32_t)(ep - (const Entity *)ents[0]); }
 
 /* 1000:CA43..CB77 - the tail's interaction pass, run on every walk-branch tick
  * that does not reach the endpoint.  It walks the eight static placed records
@@ -268,38 +266,40 @@ static void entity_tailInteract(Entity *ep, uint32_t slot, uint32_t off)
     uint32_t w7 = entWord(slot, off, 7), w8 = entWord(slot, off, 8);
     uint32_t w9 = entWord(slot, off, 9);
 
-    for (uint32_t i = 0; i < 8u; i++) {           /* DX = 7: the static eight */
+    for (uint32_t i = 0; i < 8u; i++) { /* DX = 7: the static eight */
         uint8_t *rec = object_slot(i);
         int32_t dx, dy;
         uint32_t type;
 
         if (!rec) return;
-        if (rec[6] & 0x80u) continue;             /* 1000:CA6B */
-        dx = (int32_t)(int16_t)(uint16_t)(rd_le_u16(rec + 0u) - ep->x) + (int32_t)(int16_t)w3;
-        if (dx < 0 || dx > 2) continue;           /* 1000:CA8A */
+        if (rec[6] & 0x80u) continue; /* 1000:CA6B */
+        dx = (int32_t)(int16_t)(uint16_t)(rd_le_u16(rec + 0u) - ep->x) +
+             (int32_t)(int16_t)w3;
+        if (dx < 0 || dx > 2) continue; /* 1000:CA8A */
         dy = (int32_t)(int16_t)(uint16_t)(rd_le_u16(rec + 2u) - ep->y) - 0x14;
-        if (dy < 0 || dy > 0x2C) continue;        /* 1000:CAA4 */
+        if (dy < 0 || dy > 0x2C) continue; /* 1000:CAA4 */
         type = rd_le_u16(rec + 8u);
-        if (type == w4) continue;                 /* 1000:CABC */
-        if (type == 4u || type == 5u) continue;   /* 1000:CAC5 */
-        if (type < sizeof entNoPick && entNoPick[type]) continue;  /* 1000:CAE1 */
-        (void)object_stackScanDissolve(i);        /* 1000:CAFE: 0xF453, DX = 5 */
-        wr_le_u16(rec + 8u, 0x0022u);                  /* 1000:CB15 */
+        if (type == w4) continue; /* 1000:CABC */
+        if (type == 4u || type == 5u) continue; /* 1000:CAC5 */
+        if (type < sizeof entNoPick && entNoPick[type])
+            continue; /* 1000:CAE1 */
+        (void)object_stackScanDissolve(i); /* 1000:CAFE: 0xF453, DX = 5 */
+        wr_le_u16(rec + 8u, 0x0022u); /* 1000:CB15 */
         /* 1000:CB19 stores the entity record pointer (0x64C4 + 0x10*n); the
          * port tags the index so it cannot collide with the object links
          * (4 + idx*0x12) the same +0xA field serves elsewhere. */
         wr_le_u16(rec + 0xAu, (uint16_t)(0x8000u | entIndex(ep)));
-        wr_le_u16(rec + 0xEu, (uint16_t)w5);           /* 1000:CB23 */
-        {                                          /* 1000:CB35..CB4C */
-            uint32_t idx = w6 / 2u;                /* the entity's word offset */
+        wr_le_u16(rec + 0xEu, (uint16_t)w5); /* 1000:CB23 */
+        { /* 1000:CB35..CB4C */
+            uint32_t idx = w6 / 2u; /* the entity's word offset */
             uint16_t base = 0;
 
             if (w6 <= 0xEu && !(w6 & 1u)) base = ((const uint16_t *)ep)[idx];
             wr_le_u16(rec + 0x10u, (uint16_t)(w7 + base));
         }
-        ep->handler = (uint16_t)w8;               /* 1000:CB56 */
-        ep->waypoint = (uint16_t)w9;              /* 1000:CB65 */
-        ep->hold = 0xA032u;                       /* 1000:CB6A */
+        ep->handler = (uint16_t)w8; /* 1000:CB56 */
+        ep->waypoint = (uint16_t)w9; /* 1000:CB65 */
+        ep->hold = 0xA032u; /* 1000:CB6A */
         return;
     }
 }
@@ -307,30 +307,30 @@ static void entity_tailInteract(Entity *ep, uint32_t slot, uint32_t off)
 static void entity_tail(Entity *ep, uint32_t slot, uint32_t off, uint16_t endX)
 {
     uint16_t w0 = entWord(slot, off, 0);
-    sel_primary = w0;                          /* c9c1/c9c5 */
+    sel_primary = w0; /* c9c1/c9c5 */
     /* c9c8: ADD BP,2 — the walk branch reads the NEXT words          */
 
-    if (w0 != ep->waypoint) {                  /* c9cb/c9ce: the walk branch */
-        sel_primary = entWord(slot, off, 1);   /* c9dd */
+    if (w0 != ep->waypoint) { /* c9cb/c9ce: the walk branch */
+        sel_primary = entWord(slot, off, 1); /* c9dd */
         sel_secondary = entWord(slot, off, 2); /* c9e4/c9e8 */
-        ep->x += sel_secondary;                /* c9ee/c9f1: ADD [DI],AX */
-        if (endX == ep->x) {                   /* c9f3: the endpoint hit   */
-            sel_primary ^= 0x000Eu;            /* c9f7 */
-            ep->waypoint = sel_primary;        /* c9fc/c9ff */
-            ep->handler ^= 1u;                 /* ca02/ca05: the ping-pong */
+        ep->x += sel_secondary; /* c9ee/c9f1: ADD [DI],AX */
+        if (endX == ep->x) { /* c9f3: the endpoint hit   */
+            sel_primary ^= 0x000Eu; /* c9f7 */
+            ep->waypoint = sel_primary; /* c9fc/c9ff */
+            ep->handler ^= 1u; /* ca02/ca05: the ping-pong */
             return;
         }
         /* ca09..ca3b: the beat (the hold countdown, then the waypoint step and
          * its 8-snap), and then CA43's interaction pass, which runs on BOTH
          * beat exits - ca18's JNS and the ca1a path both land on ca3f. */
-        if ((int16_t)--ep->hold < 0) {         /* ca0f/ca13/ca17/ca18 */
-            ep->hold = 4;                      /* ca1a */
-            ep->waypoint += 1u;                /* ca20 */
-            sel_secondary = (uint16_t)(sel_primary + 8u);   /* ca24/ca27/ca2a */
+        if ((int16_t)--ep->hold < 0) { /* ca0f/ca13/ca17/ca18 */
+            ep->hold = 4; /* ca1a */
+            ep->waypoint += 1u; /* ca20 */
+            sel_secondary = (uint16_t)(sel_primary + 8u); /* ca24/ca27/ca2a */
             if (sel_secondary == ep->waypoint) /* ca2f/ca32/ca36 */
-                ep->waypoint = sel_primary;    /* ca38/ca3b: the 8-snap */
+                ep->waypoint = sel_primary; /* ca38/ca3b: the 8-snap */
         }
-        entity_tailInteract(ep, slot, off);    /* ca3f -> ca43..cb77 */
+        entity_tailInteract(ep, slot, off); /* ca3f -> ca43..cb77 */
         return;
     }
 
@@ -338,7 +338,7 @@ static void entity_tail(Entity *ep, uint32_t slot, uint32_t off, uint16_t endX)
      * waypoint takes the primary... the pair's +2 word (c9d5 uses [BP] at
      * the +2 position = wp[1]). */
     if ((int16_t)--ep->hold < 0)
-        ep->waypoint = entWord(slot, off, 1);  /* c9d5/c9d9 */
+        ep->waypoint = entWord(slot, off, 1); /* c9d5/c9d9 */
 }
 
 /* 1000:CB99: the carry animation stepper handlers 2 and 3 jump into.  The
@@ -353,27 +353,27 @@ static void entity_carry_anim(Entity *ep)
     uint8_t *b = (uint8_t *)ep;
     uint32_t frame;
 
-    if ((int8_t)--b[0xAu] >= 0) return;          /* cb9e/cba2 */
-    b[0xAu] = 4;                                 /* cba4 */
+    if ((int8_t)--b[0xAu] >= 0) return; /* cb9e/cba2 */
+    b[0xAu] = 4; /* cba4 */
     {
-        uint32_t sub = b[0xBu];                  /* cbaa */
+        uint32_t sub = b[0xBu]; /* cbaa */
 
         frame = (uint32_t)(rd_le_u16(b + 0xCu) + 1u); /* cbb3: INC word [BP] */
         wr_le_u16(b + 0xCu, (uint16_t)frame);
-        if (frame != sel_primary) return;        /* cbba */
+        if (frame != sel_primary) return; /* cbba */
         wr_le_u16(b + 0xCu, (uint16_t)(frame - 2u)); /* cbc0 */
-        if (sub & 0xF0u) {                       /* cbc8 */
-            sub -= 0x10u;                        /* cbe8 */
+        if (sub & 0xF0u) { /* cbc8 */
+            sub -= 0x10u; /* cbe8 */
             b[0xBu] = (uint8_t)sub;
-            if (sub & 0x10u) object_driverCall(0xBu);       /* cbf0..cbf9 */
+            if (sub & 0x10u) object_driverCall(0xBu); /* cbf0..cbf9 */
             return;
         }
     }
-    sel_primary = (uint16_t)(sel_primary - 0xCu);  /* cbca */
-    wr_le_u16(b + 0xCu, sel_primary);                 /* cbd2 */
-    b[0xAu] = 0;                                 /* cbd9 */
-    b[0xBu] = 0;                                 /* the word store at BP-2 clears both bytes */
-    ep->handler = sel_secondary;                 /* cbe2/cbe5: [0x4238] */
+    sel_primary = (uint16_t)(sel_primary - 0xCu); /* cbca */
+    wr_le_u16(b + 0xCu, sel_primary); /* cbd2 */
+    b[0xAu] = 0; /* cbd9 */
+    b[0xBu] = 0; /* the word store at BP-2 clears both bytes */
+    ep->handler = sel_secondary; /* cbe2/cbe5: [0x4238] */
 }
 
 /* --- the REX.DAT frame tables (1000:58A5) ------------------------------
@@ -398,13 +398,14 @@ static uint32_t entBankSize;
 
 /* The three table reads for one cell index; 0 = the indices are outside the
  * bank (the original would read whatever follows it in memory). */
-int32_t entity_frameInfo(uint32_t a, uint32_t *src, uint32_t *rows, uint32_t *yoff)
+int32_t entity_frameInfo(uint32_t a, uint32_t *src, uint32_t *rows,
+                         uint32_t *yoff)
 {
     if (!entBank || 4u * a + 4u > entBankSize || 2u * a + 0x152u > entBankSize)
         return 0;
     *yoff = rd_be_u16(entBank + 2u * a + 0xE0u);
     *rows = rd_be_u16(entBank + 2u * a + 0x150u);
-    *src  = rd_be_u16(entBank + 4u * a + 2u) + 0x1C0u;
+    *src = rd_be_u16(entBank + 4u * a + 2u) + 0x1C0u;
     return (*src <= entBankSize) ? 1 : 0;
 }
 
@@ -420,9 +421,7 @@ int32_t entity_spritePixel(uint32_t src, uint32_t rows, uint32_t x, uint32_t y)
 
 /* the mutable entity record (the collision pass writes it). */
 Entity *entity_atMut(uint32_t i)
-{
-    return i < ent_count ? (Entity *)ents[i] : NULL;
-}
+{ return i < ent_count ? (Entity *)ents[i] : NULL; }
 
 void entity_publishBank(const uint8_t *bank, uint32_t size)
 {
@@ -440,16 +439,16 @@ void entity_render(uint8_t *page, int32_t scrollX, int32_t scrollY)
         int32_t x = (int32_t)(int16_t)e->x - 0xC;
         int32_t y = (int32_t)(int16_t)e->y;
 
-        if ((int16_t)e->waypoint < 0) continue;      /* 1000:583D OR CX,CX */
-        for (uint32_t k = 0; k < 2u; k++) {          /* 1000:589A + 0x58A4 */
+        if ((int16_t)e->waypoint < 0) continue; /* 1000:583D OR CX,CX */
+        for (uint32_t k = 0; k < 2u; k++) { /* 1000:589A + 0x58A4 */
             uint32_t a = (uint32_t)(2u * e->waypoint) + k;
             uint32_t src, rows, yoff;
 
             if (!entity_frameInfo(a, &src, &rows, &yoff)) break;
             if ((uint32_t)src + rows * 8u > entBankSize) break;
-            object_blitSprite(page, entBank + src, rows, 32u,
-                              x - scrollX, y + (int32_t)yoff - scrollY);
-            x += 0x20;                               /* 1000:58A1 ADD AX,0x20 */
+            object_blitSprite(page, entBank + src, rows, 32u, x - scrollX,
+                              y + (int32_t)yoff - scrollY);
+            x += 0x20; /* 1000:58A1 ADD AX,0x20 */
         }
     }
 }
@@ -466,18 +465,18 @@ void entity_tick(void)
          * compare/primary/step triple: handler 0 steps +1 px toward x1,
          * handler 1 steps -1 px toward x0. */
         switch (ep->handler) {
-        case 0u:                               /* 1000:C96C: DX = CX     */
+        case 0u: /* 1000:C96C: DX = CX     */
             entity_tail(ep, 2u, 0u, ep->x1);
             break;
-        case 1u:                               /* 1000:C973: DX = BX     */
+        case 1u: /* 1000:C973: DX = BX     */
             entity_tail(ep, 3u, 2u, ep->x0);
             break;
-        case 2u:                               /* 1000:C97A: base 1, target 0x1A */
+        case 2u: /* 1000:C97A: base 1, target 0x1A */
             sel_secondary = 1u;
             sel_primary = 0x1Au;
             entity_carry_anim(ep);
             break;
-        case 3u:                               /* 1000:C989: base 0, target 0xC */
+        case 3u: /* 1000:C989: base 0, target 0xC */
             sel_secondary = 0u;
             sel_primary = 0x0Cu;
             entity_carry_anim(ep);
@@ -494,7 +493,11 @@ void entity_tick(void)
 
 /* --- the interface ------------------------------------------------------ */
 
-int32_t entity_init(const OSystem *osys) { (void)osys; return 0; }
+int32_t entity_init(const OSystem *osys)
+{
+    (void)osys;
+    return 0;
+}
 
 const Entity *entity_at(uint32_t i)
 {
@@ -510,8 +513,7 @@ void entity_saveFixed(uint8_t *dst)
 {
     if (!dst) return;
     wr_le_u16(dst, (uint16_t)ent_count);
-    for (uint32_t i = 0; i < 7u; i++)
-        memcpy(dst + 2u + i * 16u, ents[i], 16u);
+    for (uint32_t i = 0; i < 7u; i++) memcpy(dst + 2u + i * 16u, ents[i], 16u);
 }
 
 void entity_loadFixed(const uint8_t *src)
@@ -519,6 +521,5 @@ void entity_loadFixed(const uint8_t *src)
     if (!src) return;
     ent_count = rd_le_u16(src);
     if (ent_count > ENT_MAX) ent_count = ENT_MAX;
-    for (uint32_t i = 0; i < 7u; i++)
-        memcpy(ents[i], src + 2u + i * 16u, 16u);
+    for (uint32_t i = 0; i < 7u; i++) memcpy(ents[i], src + 2u + i * 16u, 16u);
 }

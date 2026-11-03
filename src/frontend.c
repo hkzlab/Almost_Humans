@@ -96,34 +96,31 @@ static uint32_t scroll;               /* [0x0]: the front-end scroll      */
 /* 202F:0x5ECD — 7 cells x 4 words (L,R,U,D):
  * (target_cell << 12) | target_coord (x for L/R, y for U/D). */
 static const uint16_t rails[7][4] = {
-    {0x0108, 0x6208, 0x1037, 0x0000},
-    {0x2190, 0x0000, 0x4020, 0x00A0},
-    {0x316A, 0x11D2, 0x0000, 0x0000},
-    {0x0000, 0x2190, 0x0000, 0x0000},
-    {0x0000, 0x521B, 0x0000, 0x1037},
-    {0x41D2, 0x0000, 0x0000, 0x0000},
-    {0x01D2, 0x0280, 0x0000, 0x0000},
+    { 0x0108, 0x6208, 0x1037, 0x0000 }, { 0x2190, 0x0000, 0x4020, 0x00A0 },
+    { 0x316A, 0x11D2, 0x0000, 0x0000 }, { 0x0000, 0x2190, 0x0000, 0x0000 },
+    { 0x0000, 0x521B, 0x0000, 0x1037 }, { 0x41D2, 0x0000, 0x0000, 0x0000 },
+    { 0x01D2, 0x0280, 0x0000, 0x0000 },
 };
 
 /* 202F:0x5E46 — per cell (struct-idx, count); count 0 = no option.
  * cell 2 = LEVEL (3 states), cell 3 = MUSIC (2), cell 5 = ANIMATIONS (2),
  * cell 6 = RESTORE GAME (21 = 0x15). */
 static const uint8_t cellOpts[7][2] = {
-    {0, 0}, {0, 0}, {1, 3}, {0, 2}, {0, 0}, {3, 2}, {2, 0x15},
+    { 0, 0 }, { 0, 0 }, { 1, 3 }, { 0, 2 }, { 0, 0 }, { 3, 2 }, { 2, 0x15 },
 };
 
 /* 202F:0x5EC5 — the walk cycle's frame low per dir; the presets' cycle
  * high (the CX at 0x5EBD's entries) alongside. */
-static const uint16_t dirFrameLow[4]  = {0x0B, 0x03, 0x14, 0x16};
-static const uint16_t dirCycleHigh[4] = {0x13, 0x0B, 0x17, 0x13};
+static const uint16_t dirFrameLow[4] = { 0x0B, 0x03, 0x14, 0x16 };
+static const uint16_t dirCycleHigh[4] = { 0x13, 0x0B, 0x17, 0x13 };
 
 /* 202F:0x5E7E — the floor table, indexed (x - 0xFD); y = byte - 0x18. */
 static const uint8_t floorTab[0x3B] = {
-    0xB1,0xB1,0xB0,0xB0,0xAF,0xAF,0xAF,0xAE,0xAE,0xAE,0xAE,0xAE,0xAE,
-    0xAE,0xAE,0xAE,0xAE,0xAE,0xAE,0xAF,0xAF,0xAF,0xB0,0xB0,0xB1,0xB1,
-    0xB2,0xB2,0xB2,0xB3,0xB3,0xB3,0xB4,0xB4,0xB4,0xB4,0xB4,0xB5,0xB5,
-    0xB5,0xB5,0xB5,0xB5,0xB5,0xB6,0xB6,0xB6,0xB6,0xB6,0xB6,0xB6,0xB6,
-    0xB6,0xB7,0xB7,0xB7,0xB7,0xB7,0xB7,
+    0xB1, 0xB1, 0xB0, 0xB0, 0xAF, 0xAF, 0xAF, 0xAE, 0xAE, 0xAE, 0xAE, 0xAE,
+    0xAE, 0xAE, 0xAE, 0xAE, 0xAE, 0xAE, 0xAE, 0xAF, 0xAF, 0xAF, 0xB0, 0xB0,
+    0xB1, 0xB1, 0xB2, 0xB2, 0xB2, 0xB3, 0xB3, 0xB3, 0xB4, 0xB4, 0xB4, 0xB4,
+    0xB4, 0xB5, 0xB5, 0xB5, 0xB5, 0xB5, 0xB5, 0xB5, 0xB6, 0xB6, 0xB6, 0xB6,
+    0xB6, 0xB6, 0xB6, 0xB6, 0xB6, 0xB7, 0xB7, 0xB7, 0xB7, 0xB7, 0xB7,
 };
 
 /* 202F:0x61A3 — the anim slot table: 60 data bytes, then the 0x00 wrap
@@ -133,52 +130,66 @@ static const uint8_t floorTab[0x3B] = {
  * went garbage-derived: the humans vanished behind the range guard and
  * the window scrolled wildly). */
 static const uint8_t slotTab[61] = {
-    0x88,0x88,0x88,0x77,0x77,0x77,0x66,0x66,0x66,0x55,0x55,0x66,
-    0x44,0x55,0x66,0x44,0x55,0x66,0x44,0x55,0x66,0x55,0x55,0x66,
-    0x66,0x66,0x66,0x77,0x77,0x77,0x88,0x88,0x88,0x99,0x99,0x99,
-    0xAA,0xAA,0xAA,0xBB,0xBB,0xAA,0xCC,0xBB,0xAA,0xCC,0xBB,0xAA,
-    0xCC,0xBB,0xAA,0xBB,0xBB,0xAA,0xAA,0xAA,0xAA,0x99,0x99,0x99,
-    0x00,   /* [60] = the wrap terminator, verbatim from the image      */
+    0x88, 0x88, 0x88, 0x77, 0x77, 0x77, 0x66, 0x66, 0x66, 0x55, 0x55,
+    0x66, 0x44, 0x55, 0x66, 0x44, 0x55, 0x66, 0x44, 0x55, 0x66, 0x55,
+    0x55, 0x66, 0x66, 0x66, 0x66, 0x77, 0x77, 0x77, 0x88, 0x88, 0x88,
+    0x99, 0x99, 0x99, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, 0xAA, 0xCC, 0xBB,
+    0xAA, 0xCC, 0xBB, 0xAA, 0xCC, 0xBB, 0xAA, 0xBB, 0xBB, 0xAA, 0xAA,
+    0xAA, 0xAA, 0x99, 0x99, 0x99, 0x00, /* [60] = the wrap terminator, verbatim from the image      */
 };
 
 /* --- the module state (the DS analogs in comments) -------------------- */
 
 typedef enum FePhase {
-    FE_IDLE = 0, FE_LOAD, FE_FADEIN, FE_ROOM, FE_PAN, FE_NAME, FE_EXITFADE
+    FE_IDLE = 0,
+    FE_LOAD,
+    FE_FADEIN,
+    FE_ROOM,
+    FE_PAN,
+    FE_NAME,
+    FE_EXITFADE
 } FePhase;
 
-static FePhase  phase = FE_IDLE;
-static uint16_t cell;            /* [0x4220]: the rail node              */
-static uint16_t walkState;       /* [0x4222]: bit15 = at rest, 0..3 walk */
-static uint16_t charX, charY;    /* [0x4224]/[0x4226]: the world x/y     */
+static FePhase phase = FE_IDLE;
+static uint16_t cell; /* [0x4220]: the rail node              */
+static uint16_t walkState; /* [0x4222]: bit15 = at rest, 0..3 walk */
+static uint16_t charX, charY; /* [0x4224]/[0x4226]: the world x/y     */
 static uint16_t frame, frameCnt; /* [0x4228]/[0x422A]                    */
-static uint16_t pubX, pubY;      /* [0x5F05]/[0x5F07]: the walk origin   */
-static char     nameBuf[15];     /* 0x61E0: 14 chars + the 0x61EE NUL   */
-static uint32_t codeIndex;       /* [0x5F09]: the matched code's index   */
-static uint8_t  optCounter[4];   /* the structs' +7 byte (0x5E5B..0x5E79)
+static uint16_t pubX, pubY; /* [0x5F05]/[0x5F07]: the walk origin   */
+static char nameBuf[15]; /* 0x61E0: 14 chars + the 0x61EE NUL   */
+static uint32_t codeIndex; /* [0x5F09]: the matched code's index   */
+static uint8_t optCounter[4]; /* the structs' +7 byte (0x5E5B..0x5E79)
                                   * = FRONTEND_OPT_*; persists for the run */
-static int32_t  fireLatch;        /* the action key's held-spin           */
-static uint16_t slotCnt;         /* [0x619F]: the anim countdown (5)     */
-static uint32_t slot;            /* [0x61A1]: the anim slot (parked 0x12)*/
-static uint8_t  nameScreen;      /* [0x6267]: the name-screen flag       */
+static int32_t fireLatch; /* the action key's held-spin           */
+static uint16_t slotCnt; /* [0x619F]: the anim countdown (5)     */
+static uint32_t slot; /* [0x61A1]: the anim slot (parked 0x12)*/
+static uint8_t nameScreen; /* [0x6267]: the name-screen flag       */
 
 static uint8_t *code2, *codehum, *codes;
 static uint8_t *codeb1, *codeb2, *restore;
 static uint32_t code2Size, codehumSize, codesSize;
 static uint32_t codeb1Size, codeb2Size, restoreSize;
-static uint8_t  arena[16000];    /* the font arena (the [0x1E20] analog) */
+static uint8_t arena[16000]; /* the font arena (the [0x1E20] analog) */
 static const uint8_t ramp0[768]; /* the 0x48BC ramp: zeroed = black     */
-static uint32_t splitRow = 200;  /* [0x5B0A]: the CRTC split (0x88 on the
+static uint32_t splitRow = 200; /* [0x5B0A]: the CRTC split (0x88 on the
                                    * name screen — the fixed band below) */
 
-int32_t frontend_init(const OSystem *osys) { (void)osys; return 0; }
+int32_t frontend_init(const OSystem *osys)
+{
+    (void)osys;
+    return 0;
+}
 
 uint32_t frontend_selectedLevel(void) { return codeIndex; }
 
 /* entry's JMP LAB_002B: the room's setup runs again from the top (the
  * counters persist — frontend_room_setup seeds none of them).  The next
  * frontend_tick re-loads the assets (FE_LOAD). */
-void frontend_restart(void) { phase = FE_LOAD; fireLatch = 0; }
+void frontend_restart(void)
+{
+    phase = FE_LOAD;
+    fireLatch = 0;
+}
 
 /* The four option counters — the read side's one accessor.  Consumers:
  * level.c (LEVEL: the time-limit pick + the 12/10/8 tribe), audio.c (MUSIC:
@@ -186,9 +197,7 @@ void frontend_restart(void) { phase = FE_LOAD; fireLatch = 0; }
  * RESTORE GAME slot is carried out here and consumed by entry 1000:004C's
  * save load, which the port's save.c does not have yet (M6). */
 uint32_t frontend_option(uint32_t idx)
-{
-    return idx < 4u ? optCounter[idx] : 0u;
-}
+{ return idx < 4u ? optCounter[idx] : 0u; }
 
 /* [0x4220] — the rail node, exposed for the option read-side test's walk
  * legs (the same role as attract_phaseForProbe). */
@@ -201,9 +210,7 @@ const char *frontend_nameForProbe(void) { return nameBuf; }
 /* --- the VRAM primitives ---------------------------------------------- */
 
 static void put_pixel(uint32_t rowBase, uint32_t px, uint8_t v)
-{
-    vram[(rowBase + (px >> 2)) & 0xFFFFu][px & 3u] = v;
-}
+{ vram[(rowBase + (px >> 2)) & 0xFFFFu][px & 3u] = v; }
 
 /* blit_planar_strip (1000:AEAD): planarise chunky 640-px rows into the
  * page at `base` — dest[base + r*160 + c] plane p = src[r*640 + c*4 + p].
@@ -211,8 +218,8 @@ static void put_pixel(uint32_t rowBase, uint32_t px, uint8_t v)
  * rows past the 192-row image out of its palette tail, as `1000:AEDB`'s row
  * loop does; only the bytes past the chunk (the original's uninitialised
  * pool) are written as zeros.  The room's 320x192 field never shows them. */
-static void planarise_rows(const uint8_t *src, uint32_t size,
-                           uint32_t base, uint32_t rows)
+static void planarise_rows(const uint8_t *src, uint32_t size, uint32_t base,
+                           uint32_t rows)
 {
     for (uint32_t r = 0; r < rows; r++)
         for (uint32_t c = 0; c < 160u; c++) {
@@ -247,10 +254,10 @@ static void compose(int32_t swapPages)
             if (y < splitRow) {
                 uint32_t rowBase = pageDraw + y * 160u;
                 for (uint32_t x = 0; x < 320u; x++) {
-                    uint32_t w = scroll + x;   /* the world pixel */
+                    uint32_t w = scroll + x; /* the world pixel */
                     d[x] = vram[(rowBase + (w >> 2)) & 0xFFFFu][w & 3u];
                 }
-            } else {                     /* the fixed band: from vram 0 */
+            } else { /* the fixed band: from vram 0 */
                 uint32_t rowBase = (y - splitRow) * 160u;
                 for (uint32_t x = 0; x < 320u; x++)
                     d[x] = vram[(rowBase + (x >> 2)) & 0xFFFFu][x & 3u];
@@ -258,7 +265,9 @@ static void compose(int32_t swapPages)
         }
     }
     if (swapPages) {
-        uint32_t t = pageDraw; pageDraw = pageDisp; pageDisp = t;
+        uint32_t t = pageDraw;
+        pageDraw = pageDisp;
+        pageDisp = t;
     }
 }
 
@@ -278,15 +287,17 @@ static void compose(int32_t swapPages)
 static void draw_option_sprites(void)
 {
     static const struct {
-        uint16_t dest, srcOff; uint8_t w, h, cellIdx;
+        uint16_t dest, srcOff;
+        uint8_t w, h, cellIdx;
     } e[4] = {
-        {0x1D14, 0x0000, 48, 32, 0},  /* MUSIC        (2, codeb1 cells 0..1) */
-        {0x1C80, 0x0000, 80, 32, 1},  /* LEVEL        (3, codeb2)            */
-        {0x5BBC, 0x0000, 48, 32, 2},  /* RESTORE GAME (21, restore.spr)      */
-        {0x0F88, 0x0C00, 48, 32, 3},  /* ANIMATIONS   (2, codeb1 cells 2..3) */
+        { 0x1D14, 0x0000, 48, 32, 0 }, /* MUSIC        (2, codeb1 cells 0..1) */
+        { 0x1C80, 0x0000, 80, 32, 1 }, /* LEVEL        (3, codeb2)            */
+        { 0x5BBC, 0x0000, 48, 32, 2 }, /* RESTORE GAME (21, restore.spr)      */
+        { 0x0F88, 0x0C00, 48, 32, 3 }, /* ANIMATIONS   (2, codeb1 cells 2..3) */
     };
-    const uint8_t *file[4] = {codeb1, codeb2, restore, codeb1};
-    const uint32_t size[4] = {codeb1Size, codeb2Size, restoreSize, codeb1Size};
+    const uint8_t *file[4] = { codeb1, codeb2, restore, codeb1 };
+    const uint32_t size[4] = { codeb1Size, codeb2Size, restoreSize,
+                               codeb1Size };
     for (uint32_t i = 0; i < 4u; i++) {
         const uint8_t *src = file[i];
         if (!src) continue;
@@ -335,11 +346,11 @@ static void draw_option_sprites(void)
 static void draw_humans(void)
 {
     if (!code2 || code2Size < 0x17C00u + 20u * 640u) return;
-    static const uint32_t bankBase[2] = {0x15400u, 0x17C00u};
-    static const uint32_t destRow[2] = {0u, 16u};
+    static const uint32_t bankBase[2] = { 0x15400u, 0x17C00u };
+    static const uint32_t destRow[2] = { 0u, 16u };
     for (uint32_t h = 0; h < 2u; h++) {
         uint32_t nibble = slotTab[(slot + 1u + h) % 61u] & 0x0Fu;
-        uint32_t cx = 0x9Eu - nibble;             /* 0x9E - nibble */
+        uint32_t cx = 0x9Eu - nibble; /* 0x9E - nibble */
         /* ADB6's flag pick: [0x6267] set -> DI used directly (the fixed
          * band's rows 0..19/16..35); clear -> DI += 0x5500 (page row 136)
          * + [0x5AC4] — the room screen: page rows 136..155/152..171 at the
@@ -351,8 +362,8 @@ static void draw_humans(void)
         for (uint32_t r = 0; r < 20u; r++) {
             uint32_t srcRow = bankBase[h] + r * 640u;
             uint32_t base = nameScreen
-                ? (destRow[h] + r) * 160u
-                : pageDraw + (136u + destRow[h] + r) * 160u;
+                                ? (destRow[h] + r) * 160u
+                                : pageDraw + (136u + destRow[h] + r) * 160u;
             for (uint32_t c = 0; c < 20u; c++) {
                 uint8_t v = code2[srcRow + cx + c];
                 if (v) put_pixel(base, cx + c, v);
@@ -364,8 +375,8 @@ static void draw_humans(void)
                  * anim draws (ada2's room draw leaves it 0) — the sprite
                  * lands at box rows 0..15, cols 2..17 (0x5F65 = base+2) */
                 uint32_t base = nameScreen
-                    ? (destRow[h] + r) * 160u
-                    : pageDraw + (136u + destRow[h] + r) * 160u;
+                                    ? (destRow[h] + r) * 160u
+                                    : pageDraw + (136u + destRow[h] + r) * 160u;
                 for (uint32_t c = 0; c < 16u; c++) {
                     uint8_t v = codehum[r * 16u + c];
                     if (v) put_pixel(base, cx + 2u + c, v);
@@ -402,8 +413,8 @@ static void draw_name_line(void)
             uint8_t v = arena[0x152u + r * 80u + c];
             uint32_t addr = (pageDraw + 0x38F5u + r * 0xA0u + c) & 0xFFFFu;
             for (uint32_t p = 0; p < 4u; p++)
-                vram[addr][p] = (uint8_t)((vram[addr][p] & 0x7F)
-                                          | ((v >> p) & 1u) << 7);
+                vram[addr][p] =
+                    (uint8_t)((vram[addr][p] & 0x7F) | ((v >> p) & 1u) << 7);
         }
 }
 
@@ -451,14 +462,17 @@ static int32_t code_match(void)
 {
     codeIndex = 1;
     if (!codes || codesSize < 2u) {
-        return 1;   /* the no-data path: DARWIN at index 1 */
+        return 1; /* the no-data path: DARWIN at index 1 */
     }
     const char *p = (const char *)codes;
     const char *end = (const char *)codes + codesSize;
-    uint32_t remaining = 160u;   /* [0x6193] = 0xA0 */
+    uint32_t remaining = 160u; /* [0x6193] = 0xA0 */
     while (remaining-- && p < end) {
         const char *c = p, *n = nameBuf;
-        while (*n && *c == *n) { c++; n++; }
+        while (*n && *c == *n) {
+            c++;
+            n++;
+        }
         if (*c == *n) return 1;
         codeIndex++;
         p += strlen(p) + 1;
@@ -488,7 +502,7 @@ static void draw_character(void)
         else ry = 0x96u;
     }
     if (!codehum || codehumSize < 8064u) return;
-    if (!code2  || code2Size < 0x1E000u) return;
+    if (!code2 || code2Size < 0x1E000u) return;
     uint16_t dframe = (rx < 0x10Bu) ? 0x13u : frame;
     if (dframe < 2u || dframe > 22u) return;
     uint16_t dx = (rx < 0x108u) ? 0x108u : rx;
@@ -500,11 +514,10 @@ static void draw_character(void)
          * the call) and is forced to ABSOLUTE 0x820 — page rows 13..39 of
          * the fixed band, i.e. screen rows 149..175 at the char's own x:
          * the human standing on the small hill at the bottom right. */
-        uint32_t base = nameScreen ? 0x820u + r * 160u
-                                   : pageDraw + srcRow * 160u;
+        uint32_t base =
+            nameScreen ? 0x820u + r * 160u : pageDraw + srcRow * 160u;
         for (uint32_t c = 0; c < 20u; c++) {
-            uint8_t v = (srcRow < 192u)
-                       ? code2[srcRow * 640u + dx + c] : 0u;
+            uint8_t v = (srcRow < 192u) ? code2[srcRow * 640u + dx + c] : 0u;
             if (r >= 1u && r < 25u && c >= 2u && c < 18u) {
                 uint8_t s = spr[(r - 1u) * 16u + (c - 2u)];
                 if (s) v = s;
@@ -532,12 +545,12 @@ static void set_scroll(void)
  * cycle and the rail-arrival tests verbatim. */
 static void walk_step(uint32_t dir)
 {
-    int16_t  step = (dir == 1u || dir == 3u) ? 1 : -1;
+    int16_t step = (dir == 1u || dir == 3u) ? 1 : -1;
     uint32_t high = dirCycleHigh[dir];
     uint16_t rail = rails[cell][dir];
     uint16_t target = rail & 0x0FFFu;
 
-    if (dir < 2u) {                                   /* A8D3 */
+    if (dir < 2u) { /* A8D3 */
         if (frame != 0x13u) charX = (uint16_t)(charX + step);
         frameCnt--;
         if (frameCnt & 0x8000u) {
@@ -546,12 +559,16 @@ static void walk_step(uint32_t dir)
             if (frame >= high) frame = (uint16_t)(high - 8u);
         }
         if (charX == target) {
-            cell = rail >> 12; walkState = 0xFFFF;
-            frame = 0x13; frameCnt = 3;
+            cell = rail >> 12;
+            walkState = 0xFFFF;
+            frame = 0x13;
+            frameCnt = 3;
         } else if (charX == pubX) {
-            walkState = 0xFFFF; frame = 0x13; frameCnt = 3;
+            walkState = 0xFFFF;
+            frame = 0x13;
+            frameCnt = 3;
         }
-    } else {                                          /* A963 */
+    } else { /* A963 */
         if (frame != 0x13u) charY = (uint16_t)(charY + step);
         step = (int16_t)-step;
         frameCnt--;
@@ -570,10 +587,14 @@ static void walk_step(uint32_t dir)
             }
         }
         if (charY == target) {
-            cell = rail >> 12; walkState = 0xFFFF;
-            frame = 0x13; frameCnt = 3;
+            cell = rail >> 12;
+            walkState = 0xFFFF;
+            frame = 0x13;
+            frameCnt = 3;
         } else if (charY == pubY) {
-            walkState = 0xFFFF; frame = 0x13; frameCnt = 3;
+            walkState = 0xFFFF;
+            frame = 0x13;
+            frameCnt = 3;
         }
     }
 }
@@ -581,29 +602,34 @@ static void walk_step(uint32_t dir)
 static void room_walk(const InputState *in)
 {
     uint32_t dir = 4;
-    if      (in->joyBits & 0x04u) dir = 0;   /* left  — the cascade's order */
-    else if (in->joyBits & 0x08u) dir = 1;   /* right                        */
-    else if (in->joyBits & 0x01u) dir = 2;   /* up                           */
-    else if (in->joyBits & 0x02u) dir = 3;   /* down                         */
+    if (in->joyBits & 0x04u) dir = 0; /* left  — the cascade's order */
+    else if (in->joyBits & 0x08u) dir = 1; /* right                        */
+    else if (in->joyBits & 0x01u) dir = 2; /* up                           */
+    else if (in->joyBits & 0x02u) dir = 3; /* down                         */
 
     if (dir != 4u) {
-        if (walkState & 0x8000u) {                    /* at rest: the rail */
+        if (walkState & 0x8000u) { /* at rest: the rail */
             uint16_t rail = rails[cell][dir];
-            if (rail) {                               /* A818..A854 */
-                pubX = charX; pubY = charY;
+            if (rail) { /* A818..A854 */
+                pubX = charX;
+                pubY = charY;
                 walkState = (uint16_t)dir;
-                frame = dirFrameLow[dir]; frameCnt = 3;
+                frame = dirFrameLow[dir];
+                frameCnt = 3;
             }
-        } else if ((uint16_t)(((walkState & 1u) ? -1 : 1)
-                             + (int16_t)walkState) == dir) {
+        } else if ((uint16_t)(((walkState & 1u) ? -1 : 1) +
+                              (int16_t)walkState) == dir) {
             /* A7DB..A816: the reverse gate re-aims the walk */
             walkState = (uint16_t)dir;
-            if (dir < 2u) { frame = 0x13; frameCnt = 3; }
+            if (dir < 2u) {
+                frame = 0x13;
+                frameCnt = 3;
+            }
         } else {
-            walk_step(walkState & 3u);                /* A7C6 */
+            walk_step(walkState & 3u); /* A7C6 */
         }
     } else if (!(walkState & 0x8000u)) {
-        walk_step(walkState & 3u);                    /* the stepper runs on */
+        walk_step(walkState & 3u); /* the stepper runs on */
     }
     /* at rest + no key: nothing (A7C3) */
 }
@@ -641,19 +667,18 @@ static void anim_frame(void)
          * way the 0 terminator wraps to slot 0. */
         uint32_t s = slot;
         if (nameScreen) s += 3u;
-        if (s >= 61u || slotTab[s] == 0u) s = 0u;   /* the terminator */
+        if (s >= 61u || slotTab[s] == 0u) s = 0u; /* the terminator */
         slot = s;
     }
-    if (nameScreen)
-        scroll = (uint16_t)((slotTab[slot] & 0x0Fu) - 4u);
+    if (nameScreen) scroll = (uint16_t)((slotTab[slot] & 0x0Fu) - 4u);
 }
 
 static void name_screen_enter(void)
 {
     nameScreen = 1;
-    pageDraw = 0x2800;                 /* [0x5AC4] := 0x2800 (AF92)  */
+    pageDraw = 0x2800; /* [0x5AC4] := 0x2800 (AF92)  */
     pageDisp = 0x7D00;
-    splitRow = 0x88;                   /* [0x5B0A] := 0x88: the split */
+    splitRow = 0x88; /* [0x5B0A] := 0x88: the split */
     /* the transition's two strip blits (AFBD..AFDF): the room's LEFT view
      * (code2 rows 0..135) onto the window base, and the humans' stage
      * (code2+0x15400, 56 rows — the strip bank 0x1540 PARAGRAPHS in) onto
@@ -689,28 +714,34 @@ static void start_exit(void)
 static void do_load(void)
 {
     uint8_t *textSpr = NULL;
-    video_setMode(VIDEO_MODE_X);       /* frontend_room_setup: reset_display_mode
+    video_setMode(VIDEO_MODE_X); /* frontend_room_setup: reset_display_mode
                                         * (1000:82c6) — the 320x192 field   */
-    code2   = res_loadChunk("LBM\\CODE2.RAW",   &code2Size,   NULL);
+    code2 = res_loadChunk("LBM\\CODE2.RAW", &code2Size, NULL);
     codehum = res_loadChunk("APL\\CODEHUM.SPR", &codehumSize, NULL);
-    codes   = res_loadChunk("LEVELS\\CODES.BIN", &codesSize,  NULL);
-    codeb1  = res_loadChunk("APL\\CODEB1.SPR",  &codeb1Size,  NULL);
-    codeb2  = res_loadChunk("APL\\CODEB2.SPR",  &codeb2Size,  NULL);
+    codes = res_loadChunk("LEVELS\\CODES.BIN", &codesSize, NULL);
+    codeb1 = res_loadChunk("APL\\CODEB1.SPR", &codeb1Size, NULL);
+    codeb2 = res_loadChunk("APL\\CODEB2.SPR", &codeb2Size, NULL);
     restore = res_loadChunk("APL\\RESTORE.SPR", &restoreSize, NULL);
-    textSpr = res_loadChunk("APL\\TEXT.SPR",    NULL,         NULL);
+    textSpr = res_loadChunk("APL\\TEXT.SPR", NULL, NULL);
     font_publish(textSpr);
 
     /* the room's opening state (frontend_room_setup's seeds) */
-    pageDraw = 0; pageDisp = 0x7D00;
-    splitRow = 200;                    /* [0x5B0A] := 0xC8 (no split)  */
-    cell = 0; walkState = 0xFFFF;
-    charX = 0x1D2; charY = 0xA0;
-    frame = 0x13; frameCnt = 3;
-    slot = 0x12; slotCnt = 5;
+    pageDraw = 0;
+    pageDisp = 0x7D00;
+    splitRow = 200; /* [0x5B0A] := 0xC8 (no split)  */
+    cell = 0;
+    walkState = 0xFFFF;
+    charX = 0x1D2;
+    charY = 0xA0;
+    frame = 0x13;
+    frameCnt = 3;
+    slot = 0x12;
+    slotCnt = 5;
     /* optCounter is deliberately NOT reseeded: the image ships the four
      * bytes zero and the setup never writes them (0x5E5B..0x5E79), so the
      * settings survive every re-entry into the room for the whole run. */
-    nameScreen = 0; fireLatch = 0;
+    nameScreen = 0;
+    fireLatch = 0;
     name_reset();
     set_scroll();
 
@@ -725,7 +756,7 @@ static void do_load(void)
          * `code2Size` here.  reset_display_mode's 320x192 field (1000:82C6,
          * called at 1000:A544) ends on row 191, so the original never shows
          * them either. */
-        planarise_rows(code2, code2Size, 0,      200u);
+        planarise_rows(code2, code2Size, 0, 200u);
         planarise_rows(code2, code2Size, 0x7D00, 200u);
         /* the setup's 2-frame loop (A5A1..A5DB): the full frame — the
          * badges, the character, the name line — drawn on BOTH pages
@@ -742,7 +773,7 @@ static void do_load(void)
         palette_buildFade(0, 256, 0x23, palette_working());
         phase = FE_FADEIN;
     } else {
-        phase = FE_ROOM;   /* the no-data path: no palette, no backdrop */
+        phase = FE_ROOM; /* the no-data path: no palette, no backdrop */
     }
 }
 
@@ -752,9 +783,7 @@ int32_t frontend_tick(const InputState *in)
     case FE_IDLE:
         phase = FE_LOAD;
         /* fall through: the load takes this first tick */
-    case FE_LOAD:
-        do_load();
-        return 1;
+    case FE_LOAD: do_load(); return 1;
     case FE_FADEIN:
         compose(1);
         if (!palette_fadeActive()) phase = FE_ROOM;
@@ -771,10 +800,10 @@ int32_t frontend_tick(const InputState *in)
         if (!(in->joyBits & 0x80u)) fireLatch = 0;
 
         set_scroll();
-        draw_option_sprites();          /* place_4_sprites_to_vga (A684) */
+        draw_option_sprites(); /* place_4_sprites_to_vga (A684) */
         draw_character();
         draw_name_line();
-        anim_frame();                   /* the walk loop's acb9: keeps the
+        anim_frame(); /* the walk loop's acb9: keeps the
                                          * board-stack's middle pair in vram
                                          * (the event loop's idle) */
         draw_humans();
@@ -783,26 +812,29 @@ int32_t frontend_tick(const InputState *in)
 
         /* the tail's x-dispatch (A890..) */
         if (charX == 0x280u) {
-            (void)code_match();          /* the right-edge exit ignores it */
+            (void)code_match(); /* the right-edge exit ignores it */
             start_exit();
         } else if (charX == 0x108u) {
-            if (scroll != 0u) phase = FE_PAN;   /* the pan-out first */
+            if (scroll != 0u) phase = FE_PAN; /* the pan-out first */
             else name_screen_enter();
         }
         return 1;
     }
     case FE_PAN:
         /* the event loop's head (AA2C..): the scroll runs down to 0 */
-        if (scroll == 0u) { name_screen_enter(); return 1; }
+        if (scroll == 0u) {
+            name_screen_enter();
+            return 1;
+        }
         scroll = (uint16_t)(scroll - 1u);
         draw_character();
         compose(1);
         return 1;
     case FE_NAME:
         anim_frame();
-        draw_humans();                  /* the fixed band's two walkers */
+        draw_humans(); /* the fixed band's two walkers */
         draw_name_line();
-        compose(0);                      /* the name screen is single-buffered */
+        compose(0); /* the name screen is single-buffered */
         if (in->lastKey) {
             uint8_t k = in->lastKey;
             /* AA4E/AA50: the event loop reads AND clears [0x48A3] — one
@@ -812,10 +844,10 @@ int32_t frontend_tick(const InputState *in)
             ((InputState *)in)->lastKey = 0u;
             if ((k >= 'A' && k <= 'Z') || (k >= '0' && k <= '9') || k == ' ') {
                 name_addchar(k);
-            } else if (k == 0x1Bu) {    /* ESC: clear the name, no exit */
+            } else if (k == 0x1Bu) { /* ESC: clear the name, no exit */
                 memset(nameBuf, 0, sizeof nameBuf);
                 draw_name_line();
-            } else if (k == 0x0Du) {     /* Enter: the match gates the exit */
+            } else if (k == 0x0Du) { /* Enter: the match gates the exit */
                 if (code_match()) start_exit();
             } else if (k == 0x0Eu) {
                 name_erase();
@@ -832,7 +864,7 @@ int32_t frontend_tick(const InputState *in)
          * code started the right level, but the old DARWIN showed through the
          * fade-out.  Keep the name screen's page (0x2800). */
         compose(0);
-        if (!palette_fadeActive()) return 0;   /* the room has exited */
+        if (!palette_fadeActive()) return 0; /* the room has exited */
         return 1;
     }
     return 1;

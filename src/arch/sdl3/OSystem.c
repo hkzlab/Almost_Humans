@@ -5,10 +5,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #ifdef _WIN32
-#include <direct.h> /* chdir = _chdir on the Windows CRT */
-#define chdir _chdir
+#    include <direct.h> /* chdir = _chdir on the Windows CRT */
+#    define chdir _chdir
 #else
-#include <unistd.h>
+#    include <unistd.h>
 #endif
 
 void sdl3_videoSetMode(VideoMode mode);
@@ -29,12 +29,17 @@ static void fatal(const char *msg)
     exit(1);
 }
 
-const OSystem osys_sdl3 = {
-    sdl3_videoSetMode, sdl3_videoPage, sdl3_videoPresent, sdl3_videoSetPalette,
-    sdl3_eventsPoll, sdl3_timerStart, sdl3_tickSync,
-    sdl3_audioStart, sdl3_audioPlayTune, sdl3_audioStop,
-    fatal
-};
+const OSystem osys_sdl3 = { sdl3_videoSetMode,
+                            sdl3_videoPage,
+                            sdl3_videoPresent,
+                            sdl3_videoSetPalette,
+                            sdl3_eventsPoll,
+                            sdl3_timerStart,
+                            sdl3_tickSync,
+                            sdl3_audioStart,
+                            sdl3_audioPlayTune,
+                            sdl3_audioStop,
+                            fatal };
 
 /* The arch layer owns main() (port_structure.md §2).
  *

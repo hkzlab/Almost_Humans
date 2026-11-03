@@ -3,7 +3,4 @@
 
 extern const OSystem osys_null;
 
-int main(void)
-{
-    return game_main(&osys_null);
-}
+int main(void) { return game_main(&osys_null); }

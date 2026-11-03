@@ -31,26 +31,30 @@
 #include "fs/fs.h"
 #include <string.h>
 
-#define HIS_LEVELS  161u          /* the table's 1-based level index        */
-#define HIS_TOPN    10u
-#define HIS_ENTRY   18u
-#define HIS_NAME    14u           /* 13 chars + NUL                         */
-#define HIS_TABLE   (2u + HIS_LEVELS * 2u + 18u + HIS_TOPN * HIS_ENTRY)
+#define HIS_LEVELS 161u /* the table's 1-based level index        */
+#define HIS_TOPN   10u
+#define HIS_ENTRY  18u
+#define HIS_NAME   14u /* 13 chars + NUL                         */
+#define HIS_TABLE  (2u + HIS_LEVELS * 2u + 18u + HIS_TOPN * HIS_ENTRY)
 
 static uint8_t hiscoreTable[HIS_TABLE];
 static int32_t hiscoreLoaded;
 
 /* the shipped defaults (the image's DS:0x4DE block): what a fresh boot shows
  * before any HISCORES.HUM exists */
-static const struct { uint32_t score; const char *name; } hiscoreDefault[10] = {
-    {100000u, "STEVE JONES"},   {90000u, "NIKKI"},
-    {80000u,  "NATASHA"},       {70000u, "MARV"},
-    {60000u,  "JAMIE IRVINE"},  {50000u, "STEVE OLDACRE"},
-    {40000u,  "KEV MACINTOSH"}, {30000u, "IAN HOWIE"},
-    {20000u,  "SIMON HIRST"},   {10000u, "CRAIG MASSEY"}
+static const struct {
+    uint32_t score;
+    const char *name;
+} hiscoreDefault[10] = {
+    { 100000u, "STEVE JONES" },  { 90000u, "NIKKI" },
+    { 80000u, "NATASHA" },       { 70000u, "MARV" },
+    { 60000u, "JAMIE IRVINE" },  { 50000u, "STEVE OLDACRE" },
+    { 40000u, "KEV MACINTOSH" }, { 30000u, "IAN HOWIE" },
+    { 20000u, "SIMON HIRST" },   { 10000u, "CRAIG MASSEY" }
 };
 
-static uint8_t *hiscoreEntry(uint32_t i) { return hiscoreTable + 0x154u + i * HIS_ENTRY; }
+static uint8_t *hiscoreEntry(uint32_t i)
+{ return hiscoreTable + 0x154u + i * HIS_ENTRY; }
 
 /* 1000:06DE crypt_table_38a — the involution, same routine for both
  * directions: [di] ^= bl; bl = rol8(bl,1) + 3. */
@@ -70,7 +74,7 @@ static void hiscore_crypt(void) { hiscore_obfuscate(hiscoreTable, HIS_TABLE); }
 static void hiscoreDefaults(void)
 {
     memset(hiscoreTable, 0, sizeof hiscoreTable);
-    wr_le_u16(hiscoreTable, 0x0999u);                  /* [0x38A] = 0x0999 */
+    wr_le_u16(hiscoreTable, 0x0999u); /* [0x38A] = 0x0999 */
     for (uint32_t n = 1; n < HIS_LEVELS; n++)
         wr_le_u16(hiscoreTable + 2u + 2u * n, 0x0999u);
     for (uint32_t i = 0; i < HIS_TOPN; i++) {
@@ -176,9 +180,7 @@ static char hiscore_char(char c)
 /* 1000:01CD: does the score make the table?  The walk only gives up when the
  * candidate is BELOW the last entry, so an equal score still displaces it. */
 int32_t hiscore_qualifies(uint32_t score)
-{
-    return score >= hiscore_score(HIS_TOPN - 1u);
-}
+{ return score >= hiscore_score(HIS_TOPN - 1u); }
 
 /* 1000:01CD..0x0230: insert, shifting 18-byte entries down one slot.  Returns
  * the slot taken, or -1 when the score beats none of the ten. */
@@ -189,9 +191,12 @@ int32_t hiscore_insert(uint32_t score, const char *name)
 
     hiscore_init();
     for (int32_t k = (int32_t)HIS_TOPN - 1; k >= 0; k--) {
-        if (score < hiscore_score((uint32_t)k)) { pos = (uint32_t)k + 1u; break; }
+        if (score < hiscore_score((uint32_t)k)) {
+            pos = (uint32_t)k + 1u;
+            break;
+        }
     }
-    if (pos >= HIS_TOPN) return -1;              /* the last entry still wins */
+    if (pos >= HIS_TOPN) return -1; /* the last entry still wins */
     for (uint32_t j = HIS_TOPN - 1u; j > pos; j--)
         memmove(hiscoreEntry(j), hiscoreEntry(j - 1u), HIS_ENTRY);
     {
@@ -223,7 +228,10 @@ int32_t hiscore_nameApply(char *name, uint32_t column, uint32_t *len)
     if (n > 13u) n = 13u;
     name[n] = '\0';
     if (column < 0x1Au) {
-        if (n < 13u) { name[n++] = (char)('A' + column); name[n] = '\0'; }
+        if (n < 13u) {
+            name[n++] = (char)('A' + column);
+            name[n] = '\0';
+        }
         *len = n;
         return 0;
     }
@@ -235,12 +243,12 @@ int32_t hiscore_nameApply(char *name, uint32_t column, uint32_t *len)
         *len = n;
         return 0;
     }
-    if (column == 0x1Cu) {                       /* delete the last char */
+    if (column == 0x1Cu) { /* delete the last char */
         if (n) n--;
         name[n] = '\0';
         *len = n;
         return 0;
     }
-    if (column == 0x1Du) return 1;               /* Enter: commit */
+    if (column == 0x1Du) return 1; /* Enter: commit */
     return 0;
 }

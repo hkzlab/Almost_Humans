@@ -28,9 +28,9 @@ extern const OSystem osys_null;
 extern const uint8_t *osys_null_page(int32_t which);
 extern const uint8_t *osys_null_palette(void);
 
-#define BAR_Y 152u
-#define MARK_Y 172u
-#define MARK_X(m) ((const uint16_t[5]){ 8, 24, 32, 288, 296 })[m]
+#define BAR_Y        152u
+#define MARK_Y       172u
+#define MARK_X(m)    ((const uint16_t[5]){ 8, 24, 32, 288, 296 })[m]
 #define MARK_BIAS(m) ((const uint16_t[5]){ 0, 0xC0, 0, 0, 0 })[m]
 
 static uint8_t strip[1280];
@@ -47,7 +47,11 @@ static uint8_t *read_file(const char *path, uint32_t *size)
     n = ftell(f);
     fseek(f, 0, SEEK_SET);
     b = malloc((size_t)n);
-    if (fread(b, 1, (size_t)n, f) != (size_t)n) { fclose(f); free(b); return NULL; }
+    if (fread(b, 1, (size_t)n, f) != (size_t)n) {
+        fclose(f);
+        free(b);
+        return NULL;
+    }
     fclose(f);
     *size = (uint32_t)n;
     return b;
@@ -70,14 +74,20 @@ static int32_t load_fixtures(const char *fix_dir)
     if (!n1 || !n2 || !p4 || n1s != 768u || n2s != 512u ||
         p4s < 0xFA00u + 768u || !i3 || i3s != sizeof icons3) {
         fprintf(stderr, "FAIL fixture assets unreadable at %s\n", fix_dir);
-        free(n1); free(n2); free(p4); free(i3);
+        free(n1);
+        free(n2);
+        free(p4);
+        free(i3);
         return -1;
     }
     memcpy(strip, n1, 768u);
     memcpy(strip + 768u, n2, 512u);
     memcpy(panel4, p4, 12800u + 0xFA00u + 768u);
     memcpy(icons3, i3, sizeof icons3);
-    free(n1); free(n2); free(p4); free(i3);
+    free(n1);
+    free(n2);
+    free(p4);
+    free(i3);
     return 0;
 }
 
@@ -95,7 +105,8 @@ static void model_band(uint8_t *page)
 {
     for (uint32_t y = 0; y < 40u; y++)
         for (uint32_t x = 0; x < 320u; x++)
-            page[(BAR_Y + y) * 320u + x] = (uint8_t)(0xC0u | panel4[y * 320u + x]);
+            page[(BAR_Y + y) * 320u + x] =
+                (uint8_t)(0xC0u | panel4[y * 320u + x]);
 }
 
 /* the five phases: M, S-tens (+0xC0 at stamp time), S-ones, tribe tens,
@@ -122,7 +133,8 @@ static void model_page(uint8_t *page, const uint8_t *ph)
 #define ACTION_X0 128u
 #define ACTION_X1 192u
 
-static int32_t diff_rows(const char *what, const uint8_t *page, const uint8_t *model)
+static int32_t diff_rows(const char *what, const uint8_t *page,
+                         const uint8_t *model)
 {
     uint32_t bad = 0;
     for (uint32_t y = BAR_Y; y < BAR_Y + 40u; y++)
@@ -130,8 +142,9 @@ static int32_t diff_rows(const char *what, const uint8_t *page, const uint8_t *m
             if (x >= ACTION_X0 && x < ACTION_X1) continue;
             if (page[y * 320u + x] != model[y * 320u + x]) {
                 if (bad < 4)
-                    fprintf(stderr, "FAIL %s at (%u,%u): page %02x model %02x\n",
-                            what, x, y, page[y * 320u + x], model[y * 320u + x]);
+                    fprintf(stderr,
+                            "FAIL %s at (%u,%u): page %02x model %02x\n", what,
+                            x, y, page[y * 320u + x], model[y * 320u + x]);
                 bad++;
             }
         }
@@ -160,8 +173,10 @@ static int32_t check_actions(const uint8_t *page)
                     matched++;
             }
         if (matched < 200u) {
-            fprintf(stderr, "FAIL action slot %u holds %s (only %u of its "
-                    "pixels)\n", i, i ? "ICONS3 cell 0" : "cell 1", matched);
+            fprintf(stderr,
+                    "FAIL action slot %u holds %s (only %u of its "
+                    "pixels)\n",
+                    i, i ? "ICONS3 cell 0" : "cell 1", matched);
             bad = 1;
         }
     }
@@ -169,19 +184,21 @@ static int32_t check_actions(const uint8_t *page)
      * bottom at +6+29 (0xD4), and the vertical edges ramp between them */
     if (page[(BAR_Y + 6u) * 320u + 132u] != 0xD6u ||
         page[(BAR_Y + 35u) * 320u + 132u] != 0xD4u) {
-        fprintf(stderr, "FAIL the action highlight frame is missing its top/"
+        fprintf(stderr,
+                "FAIL the action highlight frame is missing its top/"
                 "bottom edge (%02x/%02x)\n",
                 page[(BAR_Y + 6u) * 320u + 132u],
                 page[(BAR_Y + 35u) * 320u + 132u]);
         bad = 1;
     }
     for (uint32_t r = 0; r < 29u; r++) {          /* 0x5B57[6+r] */
-        uint8_t want = (r <= 13u) ? (uint8_t)(0xD6u + r)
-                                  : (uint8_t)(0xE3u - (r - 14u));
+        uint8_t want =
+            (r <= 13u) ? (uint8_t)(0xD6u + r) : (uint8_t)(0xE3u - (r - 14u));
         if (page[(BAR_Y + 6u + r) * 320u + 132u] != want) {
-            fprintf(stderr, "FAIL the action highlight frame's left edge at "
-                    "row %u is %02x, want %02x\n", r,
-                    page[(BAR_Y + 6u + r) * 320u + 132u], want);
+            fprintf(stderr,
+                    "FAIL the action highlight frame's left edge at "
+                    "row %u is %02x, want %02x\n",
+                    r, page[(BAR_Y + 6u + r) * 320u + 132u], want);
             bad = 1;
             break;
         }
@@ -241,7 +258,10 @@ int main(int argc, char **argv)
         fprintf(stderr, "FAIL fixture tree %s unreadable\n", fix_dir);
         return 1;
     }
-    if (compat_chdir(vol_dir)) { perror(vol_dir); return 1; }
+    if (compat_chdir(vol_dir)) {
+        perror(vol_dir);
+        return 1;
+    }
 
     if (load_fixtures(fix_abs)) return 1;
 
@@ -275,7 +295,8 @@ int main(int argc, char **argv)
         }
         statusbar_tick();
         if (statusbar_split() != 0x98u) {
-            fprintf(stderr, "FAIL 1000:331E: the 49th tick leaves %u, want 0x98\n",
+            fprintf(stderr,
+                    "FAIL 1000:331E: the 49th tick leaves %u, want 0x98\n",
                     statusbar_split());
             bad = 1;
         }
@@ -305,7 +326,8 @@ int main(int argc, char **argv)
         for (uint32_t i = 0; i < 320u * 200u; i++)
             if (pg2[i] != 0x5A) nz++;
         if (nz != 0u) {
-            fprintf(stderr, "FAIL 1000:342B: the hidden bar wrote %u bytes\n", nz);
+            fprintf(stderr, "FAIL 1000:342B: the hidden bar wrote %u bytes\n",
+                    nz);
             bad = 1;
         }
     }
@@ -339,29 +361,31 @@ int main(int argc, char **argv)
                                                the slide divider (seeded 2,
                                                advancing every 2nd tick)
                                                takes its first step         */
-    ph[0] = 0x6E;                          /* minutes: sliding 0x70 -> 0x60  */
-    ph[1] = 0x6E;                          /* sec-tens: 0x70 -> 0x60        */
-    ph[2] = 0xAE;                          /* sec-ones: 0xB0 -> 0xA0        */
+    ph[0] = 0x6E; /* minutes: sliding 0x70 -> 0x60  */
+    ph[1] = 0x6E; /* sec-tens: 0x70 -> 0x60        */
+    ph[2] = 0xAE; /* sec-ones: 0xB0 -> 0xA0        */
     model_page(model, ph);
     bad |= diff_rows("the roll-start stamp (t=70)", page, model);
     for (uint32_t i = 0; i < 16u; i++) statusbar_tick();
-    ph[0] = 0x60;                          /* 5            */
-    ph[1] = 0x60;                          /* 5            */
-    ph[2] = 0xA0;                          /* 9            */
+    ph[0] = 0x60; /* 5            */
+    ph[1] = 0x60; /* 5            */
+    ph[2] = 0xA0; /* 9            */
     model_page(model, ph);
     bad |= diff_rows("the settled 5:59 (t=86)", page, model);
 
     /* 3. the tribe odometer: the arm rolls the displayed pair down by one
      * (8 -> 7), sliding one glyph cell over 8 frames. */
     statusbar_armOdometer();
-    statusbar_tick();                      /* the value rolls, phase stays  */
-    ph[0] = 0x60; ph[1] = 0x60; ph[2] = 0xA0;
-    ph[3] = 0x10;                          /* tens 0: unchanged            */
-    ph[4] = 0x90;                          /* ones: still the '8' cell     */
+    statusbar_tick(); /* the value rolls, phase stays  */
+    ph[0] = 0x60;
+    ph[1] = 0x60;
+    ph[2] = 0xA0;
+    ph[3] = 0x10; /* tens 0: unchanged            */
+    ph[4] = 0x90; /* ones: still the '8' cell     */
     model_page(model, ph);
     bad |= diff_rows("the odometer roll start", page, model);
     for (uint32_t i = 0; i < 8u; i++) statusbar_tick();
-    ph[4] = 0x80;                          /* 7            */
+    ph[4] = 0x80; /* 7            */
     model_page(model, ph);
     bad |= diff_rows("the odometer settled (7)", page, model);
 
@@ -375,10 +399,11 @@ int main(int argc, char **argv)
         fprintf(stderr, "FAIL the 0:00 seed did not time out\n");
         bad = 1;
     }
-    ph[0] = 0x10;                          /* minutes '0' (the value died)  */
-    ph[1] = 0x70;                          /* the roll-start phases frozen  */
+    ph[0] = 0x10; /* minutes '0' (the value died)  */
+    ph[1] = 0x70; /* the roll-start phases frozen  */
     ph[2] = 0xB0;
-    ph[3] = 0x10; ph[4] = 0x90;            /* the re-seeded pair "08"      */
+    ph[3] = 0x10;
+    ph[4] = 0x90; /* the re-seeded pair "08"      */
     model_page(model, ph);
     bad |= diff_rows("the time-up freeze", page, model);
     for (uint32_t i = 0; i < 10u; i++) statusbar_tick();
@@ -388,19 +413,19 @@ int main(int argc, char **argv)
      * packed minutes<<8 | tens<<4 | ones the way check_highscore repacks it
      * (1000:42CE) for the per-level best-time compare. */
     statusbar_start(0x0600, 12u, 4u);
-    statusbar_setSplit(152u);      /* 6:00 back on the countdown */
+    statusbar_setSplit(152u); /* 6:00 back on the countdown */
     statusbar_setActive(1);
     if (statusbar_elapsedWord() != 0u) {
         fprintf(stderr, "FAIL the elapsed clock does not start at 0:00\n");
         bad = 1;
     }
-    for (uint32_t i = 0; i < 70u * 65u; i++) statusbar_tick();   /* 1:05 */
+    for (uint32_t i = 0; i < 70u * 65u; i++) statusbar_tick(); /* 1:05 */
     if (statusbar_elapsedWord() != 0x0105u) {
         fprintf(stderr, "FAIL 65 s of elapsed clock read %04x, want 0105\n",
                 statusbar_elapsedWord());
         bad = 1;
     }
-    for (uint32_t i = 0; i < 70u * 55u; i++) statusbar_tick();   /* 2:00 */
+    for (uint32_t i = 0; i < 70u * 55u; i++) statusbar_tick(); /* 2:00 */
     if (statusbar_elapsedWord() != 0x0200u) {
         fprintf(stderr, "FAIL 120 s of elapsed clock read %04x, want 0200\n",
                 statusbar_elapsedWord());
@@ -440,11 +465,18 @@ int main(int argc, char **argv)
             /* level_fade_in completes at ~50 palette ticks (div 0x32) */
             for (uint32_t i = 0; i < 60u; i++) palette_tick();
             dump_ppm(dump_dir, "statusbar_port_t0", page, osys_null_palette());
-            for (uint32_t i = 0; i < 90u; i++) { level_tick(); palette_tick(); }
+            for (uint32_t i = 0; i < 90u; i++) {
+                level_tick();
+                palette_tick();
+            }
             dump_ppm(dump_dir, "statusbar_port_t90", page, osys_null_palette());
             /* t90: one second rolled — recompute the settled phases      */
-            for (uint32_t i = 0; i < 16u; i++) { level_tick(); palette_tick(); }
-            dump_ppm(dump_dir, "statusbar_port_t106", page, osys_null_palette());
+            for (uint32_t i = 0; i < 16u; i++) {
+                level_tick();
+                palette_tick();
+            }
+            dump_ppm(dump_dir, "statusbar_port_t106", page,
+                     osys_null_palette());
         }
     }
 
@@ -455,19 +487,20 @@ int main(int argc, char **argv)
      * wraps back to 1. */
     {
         const uint8_t *pg = osys_null_page(0);
-        uint32_t gold0 = (BAR_Y + 6u) * 320u + 132u;          /* slot 0, +1 */
-        uint32_t gold1 = (BAR_Y + 6u) * 320u + 167u;          /* slot 1, +1 */
+        uint32_t gold0 = (BAR_Y + 6u) * 320u + 132u; /* slot 0, +1 */
+        uint32_t gold1 = (BAR_Y + 6u) * 320u + 167u; /* slot 1, +1 */
 
-        statusbar_cycleAction();                              /* 1 -> 2 */
+        statusbar_cycleAction(); /* 1 -> 2 */
         statusbar_tick();
         if (statusbar_actionCell(1u) != 2u || pg[gold1] != 0xD6u ||
             pg[gold0] == 0xD6u) {
-            fprintf(stderr, "FAIL SPACE does not move the gold frame to "
-                    "cell 2 (cell %u, %02x/%02x)\n", statusbar_actionCell(1u),
-                    pg[gold0], pg[gold1]);
+            fprintf(stderr,
+                    "FAIL SPACE does not move the gold frame to "
+                    "cell 2 (cell %u, %02x/%02x)\n",
+                    statusbar_actionCell(1u), pg[gold0], pg[gold1]);
             bad = 1;
         }
-        statusbar_cycleAction();                              /* 2 -> wrap 1 */
+        statusbar_cycleAction(); /* 2 -> wrap 1 */
         statusbar_tick();
         if (statusbar_actionCell(1u) != 1u || pg[gold0] != 0xD6u) {
             fprintf(stderr, "FAIL the action cell does not wrap to 1\n");
@@ -488,35 +521,42 @@ int main(int argc, char **argv)
         a = object_slot(0);
         object_setActionEntity(0u);
         object_actionSetProgram(2u);
-        object_actionSetCursor(2u);          /* program 2, cell 2 = op 4 */
+        object_actionSetCursor(2u); /* program 2, cell 2 = op 4 */
         object_setActionLatched(0);
         object_setSlotClass(1u, 5u);
         a[7] = 1u;
-        a[8] = 2; a[9] = 0;
-        object_actionRun();                  /* the wind-up */
-        object_setActionLatched(0);          /* its release */
+        a[8] = 2;
+        a[9] = 0;
+        object_actionRun(); /* the wind-up */
+        object_setActionLatched(0); /* its release */
 
-#define BAR_SHADE() ({ uint32_t _n = 0; \
-        for (uint32_t _y = 160u; _y < 180u; _y++) \
-            for (uint32_t _x = 0; _x < 320u; _x++) { \
-                uint8_t _v = pg[_y * 320u + _x]; \
-                if (_v >= 0xDFu && _v <= 0xE3u) _n++; } _n; })
-        (void)object_commandRun(a, 0x80u);   /* a held frame */
+#define BAR_SHADE()                                                            \
+    ({                                                                         \
+        uint32_t _n = 0;                                                       \
+        for (uint32_t _y = 160u; _y < 180u; _y++)                              \
+            for (uint32_t _x = 0; _x < 320u; _x++) {                           \
+                uint8_t _v = pg[_y * 320u + _x];                               \
+                if (_v >= 0xDFu && _v <= 0xE3u) _n++;                          \
+            }                                                                  \
+        _n;                                                                    \
+    })
+        (void)object_commandRun(a, 0x80u); /* a held frame */
         object_pendingRun();
         if (!object_chargeActive() || object_chargeTick() != 1) {
             fprintf(stderr, "FAIL D-81: the charge loop did not start\n");
             bad = 1;
         }
         c1 = BAR_SHADE();
-        for (uint32_t k = 0; k < 2u; k++) {  /* +0xE -> 8, 0xC */
+        for (uint32_t k = 0; k < 2u; k++) { /* +0xE -> 8, 0xC */
             (void)object_commandRun(a, 0x80u);
             object_pendingRun();
             (void)object_chargeTick();
         }
         c2 = BAR_SHADE();
         if (c2 <= c1 + 10u) {
-            fprintf(stderr, "FAIL D-81: the bar does not accumulate (%u -> %u)\n",
-                    c1, c2);
+            fprintf(stderr,
+                    "FAIL D-81: the bar does not accumulate (%u -> %u)\n", c1,
+                    c2);
             bad = 1;
         }
 #undef BAR_SHADE

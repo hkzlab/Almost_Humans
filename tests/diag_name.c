@@ -11,7 +11,10 @@ extern const OSystem osys_null;
 static void dump_ppm(const char *path, const uint8_t *page, const uint8_t *pal6)
 {
     FILE *f = fopen(path, "wb");
-    if (!f) { fprintf(stderr, "dump_ppm: cannot open %s\n", path); return; }
+    if (!f) {
+        fprintf(stderr, "dump_ppm: cannot open %s\n", path);
+        return;
+    }
     fprintf(f, "P6\n320 200\n255\n");
     for (uint32_t i = 0; i < 320u * 200u; i++) {
         uint8_t idx = page[i];
@@ -27,11 +30,17 @@ int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";
     const char *out_dir = argc > 2 ? argv[2] : "/tmp/opencode";
-    if (compat_chdir(vol_dir)) { perror(vol_dir); return 1; }
+    if (compat_chdir(vol_dir)) {
+        perror(vol_dir);
+        return 1;
+    }
     char path[512];
     snprintf(path, sizeof path, "%s/HUMANS.000", vol_dir);
     FILE *f = fopen(path, "rb");
-    if (!f) { printf("skip: no volume at %s\n", vol_dir); return 0; }
+    if (!f) {
+        printf("skip: no volume at %s\n", vol_dir);
+        return 0;
+    }
     fclose(f);
 
     video_init(&osys_null);
@@ -39,7 +48,7 @@ int main(int argc, char **argv)
     font_init(&osys_null);
     frontend_init(&osys_null);
 
-    InputState in = {0, 0, 0};
+    InputState in = { 0, 0, 0 };
     uint32_t t;
     /* load + fade-in (~35 ticks, stepped by palette_tick) */
     for (t = 0; t < 2000; t++) {
@@ -54,7 +63,8 @@ int main(int argc, char **argv)
         palette_tick();
         int32_t r = frontend_tick(&in);
         if (!r) zeros++;
-        if (t > 300) in.joyBits = 0x00;      /* stop walking: the pan may still run */
+        if (t > 300)
+            in.joyBits = 0x00;      /* stop walking: the pan may still run */
         if (t % 500 == 0) {
             char ppath[512];
             snprintf(ppath, sizeof ppath, "%s/probe_%04u.ppm", out_dir, t);
@@ -65,12 +75,18 @@ int main(int argc, char **argv)
     const uint8_t *pal = palette_working();
     const uint8_t *pg = video_page(0);
     uint32_t nz = 0;
-    for (uint32_t i = 0; i < 320u*200u; i++) if (pg[i]) nz++;
-    fprintf(stderr, "zeros=%u fadeActive=%d pageNZ=%u pal[0x33]=%02x %02x %02x pal[0xB3]=%02x %02x %02x\n", zeros,
-            palette_fadeActive(), nz, pal[0x33*3], pal[0x33*3+1], pal[0x33*3+2],
-            pal[0xB3*3], pal[0xB3*3+1], pal[0xB3*3+2]);
+    for (uint32_t i = 0; i < 320u * 200u; i++)
+        if (pg[i]) nz++;
+    fprintf(
+        stderr,
+        "zeros=%u fadeActive=%d pageNZ=%u pal[0x33]=%02x %02x %02x pal[0xB3]=%02x %02x %02x\n",
+        zeros, palette_fadeActive(), nz, pal[0x33 * 3], pal[0x33 * 3 + 1],
+        pal[0x33 * 3 + 2], pal[0xB3 * 3], pal[0xB3 * 3 + 1], pal[0xB3 * 3 + 2]);
     in.joyBits = 0;
-    for (t = 0; t < 30; t++) { palette_tick(); frontend_tick(&in); }
+    for (t = 0; t < 30; t++) {
+        palette_tick();
+        frontend_tick(&in);
+    }
 
     snprintf(path, sizeof path, "%s/frame_name.ppm", out_dir);
     dump_ppm(path, video_page(0), pal);

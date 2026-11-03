@@ -29,61 +29,64 @@
 #include "game.h"
 #include <string.h>
 
-#define MENU_ROWS  5u
-#define GRID_ROWS  4u
-#define GRID_COLS  5u
+#define MENU_ROWS 5u
+#define GRID_ROWS 4u
+#define GRID_COLS 5u
 
 /* 202F:0x5BBC+1 — "PLEASE SELECT YOUR OPTION", then the 5 options (the
  * block's leading count byte is [0x5E41], not part of the text). */
-static const char pauseBlock[] =
-    "PLEASE SELECT YOUR OPTION\r"
-    "\r"
-    "CONTINUE THIS LEVEL\r"
-    "RESTART THIS LEVEL\r"
-    "RESTART THIS GAME\r"
-    "SAVE GAME \r"
-    "QUIT THIS GAME";
+static const char pauseBlock[] = "PLEASE SELECT YOUR OPTION\r"
+                                 "\r"
+                                 "CONTINUE THIS LEVEL\r"
+                                 "RESTART THIS LEVEL\r"
+                                 "RESTART THIS GAME\r"
+                                 "SAVE GAME \r"
+                                 "QUIT THIS GAME";
 
 /* 202F:0x5CD8+1 — the 4x5 column-major grid, games 1..20. */
-static const char gridBlock[] =
-    "SAVE GAME NUMBER\r"
-    "\r"
-    " 01 05 09 13 17 \r"
-    " 02 06 10 14 18 \r"
-    " 03 07 11 15 19 \r"
-    " 04 08 12 16 20 ";
+static const char gridBlock[] = "SAVE GAME NUMBER\r"
+                                "\r"
+                                " 01 05 09 13 17 \r"
+                                " 02 06 10 14 18 \r"
+                                " 03 07 11 15 19 \r"
+                                " 04 08 12 16 20 ";
 
 /* 202F:0x5C2B+1 — the time-up block's 3 options (the same renderer). */
-static const char timeUpBlock[] =
-    "YOU RAN OUT OF TIME!!\r"
-    " \r"
-    "RESTART THIS LEVEL\r"
-    "RESTART THIS GAME\r"
-    "QUIT THIS GAME";
+static const char timeUpBlock[] = "YOU RAN OUT OF TIME!!\r"
+                                  " \r"
+                                  "RESTART THIS LEVEL\r"
+                                  "RESTART THIS GAME\r"
+                                  "QUIT THIS GAME";
 
-typedef enum { MENU_NONE = 0, MENU_PAUSE, MENU_GRID, MENU_TIMEOUT,
-               MENU_DONE } MenuPhase;
+typedef enum {
+    MENU_NONE = 0,
+    MENU_PAUSE,
+    MENU_GRID,
+    MENU_TIMEOUT,
+    MENU_DONE
+} MenuPhase;
 
 static const OSystem *menu_osys;
 static MenuPhase phase = MENU_NONE;
-static uint32_t  row, col;        /* [0x5E3B], [0x5E3D]                  */
-static int32_t   result = -1;     /* the 0-based pause choice            */
-static uint32_t  slot;            /* the grid's game number 1..20        */
-static uint32_t  prevBits;        /* the press-edge latch                */
-static int32_t   timeUpKind;      /* the open dialog is the time-up one  */
+static uint32_t row, col;        /* [0x5E3B], [0x5E3D]                  */
+static int32_t result = -1;     /* the 0-based pause choice            */
+static uint32_t slot;            /* the grid's game number 1..20        */
+static uint32_t prevBits;        /* the press-edge latch                */
+static int32_t timeUpKind;      /* the open dialog is the time-up one  */
 
 void menu_init(const OSystem *osys) { menu_osys = osys; }
 
 int32_t menu_active(void)
-{
-    return phase == MENU_PAUSE || phase == MENU_GRID || phase == MENU_TIMEOUT;
-}
+{ return phase == MENU_PAUSE || phase == MENU_GRID || phase == MENU_TIMEOUT; }
 int32_t menu_timeUp(void) { return timeUpKind; }
-int32_t menu_result(void)  { return result; }
+int32_t menu_result(void) { return result; }
 uint32_t menu_slot(void) { return slot; }
 void menu_close(void)
 {
-    phase = MENU_NONE; result = -1; prevBits = 0; timeUpKind = 0;
+    phase = MENU_NONE;
+    result = -1;
+    prevBits = 0;
+    timeUpKind = 0;
 }
 
 void menu_openPause(void)
@@ -142,7 +145,8 @@ int32_t menu_tick(const InputState *in)
                 phase = MENU_DONE;
             } else if (row == 3u) {            /* SAVE GAME -> the grid */
                 phase = MENU_GRID;
-                row = 0; col = 0;
+                row = 0;
+                col = 0;
                 /* the same tick has already drawn the pause over a page the
                  * level did not re-render since; the grid draws next tick */
                 return 1;

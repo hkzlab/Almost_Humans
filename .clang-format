@@ -1,0 +1,59 @@
+# Custom formatting
+---
+Language: Cpp
+BasedOnStyle: LLVM
+Cpp11BracedListStyle: false
+
+IndentWidth: 4
+ContinuationIndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 80
+
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: true
+  AfterControlStatement: Never
+  AfterEnum: false
+  AfterStruct: false
+  AfterUnion: false
+  AfterExternBlock: false
+  BeforeCatch: false
+  BeforeElse: false
+  SplitEmptyFunction: false
+  SplitEmptyRecord: false
+  SplitEmptyNamespace: false
+
+PointerAlignment: Right
+DerivePointerAlignment: false
+
+AllowShortFunctionsOnASingleLine: All
+AllowShortBlocksOnASingleLine: Always
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
+AllowShortLoopsOnASingleLine: true
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortEnumsOnASingleLine: false
+
+AlignTrailingComments:
+  Kind: Leave
+AlignConsecutiveMacros: Consecutive
+AlignConsecutiveDeclarations: None
+AlignConsecutiveAssignments: None
+AlignEscapedNewlines: Right
+ReflowComments: false
+
+IndentCaseLabels: false
+IndentCaseBlocks: false
+IndentPPDirectives: AfterHash
+SpaceAfterCStyleCast: false
+SpaceBeforeParens: ControlStatements
+SpacesInParentheses: false
+InsertBraces: false
+RemoveParentheses: Leave
+
+SortIncludes: Never
+BreakStringLiterals: false
+IncludeBlocks: Preserve
+
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 2

@@ -40,14 +40,18 @@ static uint8_t *read_file(const char *path, uint32_t *size)
     int64_t n = ftell(f);
     fseek(f, 0, SEEK_SET);
     uint8_t *buf = malloc((size_t)n);
-    if (fread(buf, 1, (size_t)n, f) != (size_t)n) { fclose(f); free(buf); return NULL; }
+    if (fread(buf, 1, (size_t)n, f) != (size_t)n) {
+        fclose(f);
+        free(buf);
+        return NULL;
+    }
     fclose(f);
     if (size) *size = (uint32_t)n;
     return buf;
 }
 
-static int32_t check_chunk(const char *name, uint32_t disc, const char *expect_path,
-                       uint16_t want_chk)
+static int32_t check_chunk(const char *name, uint32_t disc,
+                           const char *expect_path, uint16_t want_chk)
 {
     uint32_t expect_size = 0;
     uint8_t *expect = read_file(expect_path, &expect_size);
@@ -63,15 +67,18 @@ static int32_t check_chunk(const char *name, uint32_t disc, const char *expect_p
     if (!got) {
         fprintf(stderr, "FAIL %s: res_loadChunk returned NULL\n", name);
     } else if (got_size != expect_size) {
-        fprintf(stderr, "FAIL %s: size %u, want %u\n", name, got_size, expect_size);
+        fprintf(stderr, "FAIL %s: size %u, want %u\n", name, got_size,
+                expect_size);
     } else if (memcmp(got, expect, expect_size) != 0) {
         size_t at = 0;
         while (at < expect_size && got[at] == expect[at]) at++;
         fprintf(stderr, "FAIL %s: first diff at byte %zu\n", name, at);
     } else if (got_chk != want_chk) {
-        fprintf(stderr, "FAIL %s: checksum %04x, want %04x\n", name, got_chk, want_chk);
+        fprintf(stderr, "FAIL %s: checksum %04x, want %04x\n", name, got_chk,
+                want_chk);
     } else {
-        printf("ok %s (%u bytes, byte-identical, chk %04x)\n", name, got_size, got_chk);
+        printf("ok %s (%u bytes, byte-identical, chk %04x)\n", name, got_size,
+               got_chk);
         bad = 0;
     }
     free(got);
@@ -81,8 +88,8 @@ static int32_t check_chunk(const char *name, uint32_t disc, const char *expect_p
 
 int main(int argc, char **argv)
 {
-    const char *vol_dir = argc > 1 ? argv[1] : ".";       /* HUMANS.00N        */
-    const char *fix_dir = argc > 2 ? argv[2] : vol_dir;   /* the extracted tree */
+    const char *vol_dir = argc > 1 ? argv[1] : "."; /* HUMANS.00N        */
+    const char *fix_dir = argc > 2 ? argv[2] : vol_dir; /* the extracted tree */
     if (data_missing(vol_dir)) {
         printf("skip: no volume files at %s (fixture data absent)\n", vol_dir);
         return 0;
@@ -94,14 +101,18 @@ int main(int argc, char **argv)
         fprintf(stderr, "FAIL fixture tree %s unreadable\n", fix_dir);
         return 1;
     }
-    if (compat_chdir(vol_dir)) { perror(vol_dir); return 1; }
+    if (compat_chdir(vol_dir)) {
+        perror(vol_dir);
+        return 1;
+    }
 
     int32_t bad = 0;
     char path[512];
 
     /* The ANI disc table, corpus-verified 10/10 (see res.c): ANI03 -> 1. */
-    if (res_movieDisc(0) != 2 || res_movieDisc(1) != 0 || res_movieDisc(3) != 1 ||
-        res_movieDisc(9) != 2 || res_movieDisc(10) != 0xFF) {
+    if (res_movieDisc(0) != 2 || res_movieDisc(1) != 0 ||
+        res_movieDisc(3) != 1 || res_movieDisc(9) != 2 ||
+        res_movieDisc(10) != 0xFF) {
         fprintf(stderr, "FAIL res_movieDisc table\n");
         bad = 1;
     }

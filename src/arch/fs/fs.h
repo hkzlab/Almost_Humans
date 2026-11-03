@@ -42,21 +42,21 @@
 #include <stdint.h>
 
 typedef struct FSVolume FSVolume;
-typedef struct FSSave   FSSave;
+typedef struct FSSave FSSave;
 
 typedef struct FSModule {
     FSVolume *(*openVolume)(uint32_t disc);
-    void      (*closeVolume)(FSVolume *v);
-    uint32_t  (*volumeSize)(FSVolume *v);
-    uint32_t  (*read)(FSVolume *v, uint32_t off, uint8_t *dst, uint32_t n);
-    FSSave   *(*openSave)(char letter);
-    uint32_t  (*saveRead)(FSSave *s, uint32_t off, uint8_t *dst, uint32_t n);
-    FSSave   *(*createSave)(char letter);
-    uint32_t  (*saveWrite)(FSSave *s, uint32_t off, const uint8_t *src,
-                           uint32_t n);
-    void      (*closeSave)(FSSave *s);
-    FSSave   *(*openNamed)(const char *name);
-    FSSave   *(*createNamed)(const char *name);
+    void (*closeVolume)(FSVolume *v);
+    uint32_t (*volumeSize)(FSVolume *v);
+    uint32_t (*read)(FSVolume *v, uint32_t off, uint8_t *dst, uint32_t n);
+    FSSave *(*openSave)(char letter);
+    uint32_t (*saveRead)(FSSave *s, uint32_t off, uint8_t *dst, uint32_t n);
+    FSSave *(*createSave)(char letter);
+    uint32_t (*saveWrite)(FSSave *s, uint32_t off, const uint8_t *src,
+                          uint32_t n);
+    void (*closeSave)(FSSave *s);
+    FSSave *(*openNamed)(const char *name);
+    FSSave *(*createNamed)(const char *name);
 } FSModule;
 
 /* The selected module, defined by exactly one fs_*.c that the build links. */

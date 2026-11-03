@@ -21,7 +21,8 @@
 #include <stdio.h>
 #include <stddef.h>
 
-int32_t resources_init(const OSystem *osys) {
+int32_t resources_init(const OSystem *osys)
+{
     menu_init(osys);
     int32_t res_init_state =
         res_init(osys) || video_init(osys) || palette_init(osys) ||
@@ -76,7 +77,12 @@ static int32_t restartGame;
 /* draw_level_text (0x33A3)'s level-end transition: caption -> grey fade ->
  * 0x23 hold -> black fade -> bar park + world redraw.  check_highscore's card
  * (won) or 0x438A's exit (lost) follows. */
-enum { END_CAPTION, END_GREY_FADE, END_HOLD, END_BLACK_FADE };
+enum {
+    END_CAPTION,
+    END_GREY_FADE,
+    END_HOLD,
+    END_BLACK_FADE
+};
 static int32_t endPhase = END_CAPTION;
 static uint32_t endHold;
 static const uint8_t endBlack[768];     /* the 0x48BC ramp: zeroed = black */
@@ -121,8 +127,12 @@ static int32_t keyWaitStep(const InputState *in)
     int32_t down = in->lastKey != 0u || in->keyScan != 0u;
 
     switch (keyWaitStage) {
-    case 1: if (!down) keyWaitStage = 2; break;
-    case 2: if (down) keyWaitStage = 3; break;
+    case 1:
+        if (!down) keyWaitStage = 2;
+        break;
+    case 2:
+        if (down) keyWaitStage = 3;
+        break;
     default:
         if (!down) {
             statusbar_setActive(1);              /* 1000:396E */
@@ -194,11 +204,8 @@ static GameFlow roomEnter(void)
 GameFlow gameflow_pauseAction(int32_t choice, int32_t *quit)
 {
     switch (choice) {
-    case 0:                                     /* continue            */
-        break;
-    case 1:                                     /* restart this level  */
-        level_restart();
-        break;
+    case 0: /* continue            */ break;
+    case 1: /* restart this level  */ level_restart(); break;
     case 2:                                     /* restart this game   */
         /* 1000:390F..1000:3923: [0x138E] = 0 (lost), [0x1809] = 0xFF and
          * [0x1979] = 2.  State 2 of the pending table (0x197B) is
@@ -208,13 +215,11 @@ GameFlow gameflow_pauseAction(int32_t choice, int32_t *quit)
         level_setEnd(0);
         restartGame = 1;
         break;
-    case 3:                                     /* save game           */
+    case 3: /* save game           */
         (void)save_writeSlot(menu_slot(), level_current + 1u,
                              statusbar_timeWord(), level_tribeMembers());
         break;
-    case 4:                                     /* quit this game      */
-        *quit = 1;
-        break;
+    case 4: /* quit this game      */ *quit = 1; break;
     }
     return FLOW_LEVEL;
 }
@@ -243,26 +248,26 @@ static const uint8_t keyList[][2] = {
 int32_t gameflow_keyList(const InputState *in)
 {
     if (!in) return 0;
-    if (keyWaitStage) return keyWaitStep(in);          /* 1000:3954 */
+    if (keyWaitStage) return keyWaitStep(in); /* 1000:3954 */
     if (in->keyScan == 0u) return 0;
     for (uint32_t i = 0; i < sizeof keyList / sizeof keyList[0]; i++) {
         uint32_t id = keyList[i][1];
 
         if (keyList[i][0] != in->keyScan) continue;
-        if (!(id & 0x80u) && !level_updates()) return 0;      /* 1000:38AD */
+        if (!(id & 0x80u) && !level_updates()) return 0; /* 1000:38AD */
         switch (id & 0x7Fu) {
-        case 1:                                              /* F1..F8     */
+        case 1: /* F1..F8     */
             (void)object_selectByIndex((uint32_t)in->keyScan - 0x3Bu);
-            return 1;                                        /* 1000:38C3  */
-        case 2: (void)object_cycleEntity(-1); return 1;      /* ','        */
-        case 3: (void)object_cycleEntity(1); return 1;       /* '.'        */
-        case 4:                                              /* ESC        */
+            return 1; /* 1000:38C3  */
+        case 2: (void)object_cycleEntity(-1); return 1; /* ','        */
+        case 3: (void)object_cycleEntity(1); return 1; /* '.'        */
+        case 4: /* ESC        */
             if (!menu_active() && !level_ended())
-                menu_openPause();                            /* 1000:38EA  */
+                menu_openPause(); /* 1000:38EA  */
             return 1;
-        case 8: (void)object_spaceAction(); return 1;        /* SPACE      */
-        case 9:                                              /* F10        */
-            statusbar_setActive(0);                          /* 1000:3954  */
+        case 8: (void)object_spaceAction(); return 1; /* SPACE      */
+        case 9: /* F10        */
+            statusbar_setActive(0); /* 1000:3954  */
             keyWaitStage = 1;
             return 1;
         default: return 0;
@@ -276,9 +281,7 @@ int32_t gameflow_keyList(const InputState *in)
 GameFlow gameflow_timeUpAction(int32_t choice, int32_t *quit)
 {
     switch (choice) {
-    case 0:
-        level_restart();
-        break;
+    case 0: level_restart(); break;
     case 1:
         /* 1000:3510/1000:3515: [0x138E] = 0, [0x1809] = 0xFF (DEC AX keeps
          * the restart arm) - the same lost-level caption + fades as the
@@ -286,9 +289,7 @@ GameFlow gameflow_timeUpAction(int32_t choice, int32_t *quit)
         level_setEnd(0);
         restartGame = 1;
         break;
-    case 2:
-        *quit = 1;
-        break;
+    case 2: *quit = 1; break;
     }
     return FLOW_LEVEL;
 }
@@ -311,9 +312,7 @@ uint32_t gameflow_endingScene(int32_t won) { return won ? 7u : 6u; }
  * [0x11FC] (the tribe); need > members takes the briefing's GAME OVER
  * variant and the level is NOT started. */
 int32_t gameflow_tribeTooSmall(uint32_t need, uint32_t members)
-{
-    return need > members;
-}
+{ return need > members; }
 
 /* entry LAB_00CD's post-level step: [0x22]++ / [0x26]-- (0xA0 - [0x22]).
  * While the window has levels left the PLAY arm runs again — the next level
@@ -354,7 +353,7 @@ GameFlow gameflow_step(GameFlow state, const InputState *input)
 
     case FLOW_MENU:
         if (roomDiscPending) {
-            res_setDisc(0u);                    /* entry 002B: [0xF7E]=0 */
+            res_setDisc(0u); /* entry 002B: [0xF7E]=0 */
             if (!roomDiscUp) roomDiscUp = level_diskStatusBegin(0u);
             if (roomDiscUp) {
                 if (level_diskStatusTick(input)) return FLOW_MENU;
@@ -412,8 +411,8 @@ static GameFlow postLevelStep(GameFlow state)
         save_loadSlot(0u);
         return roomEnter();
     }
-    uint32_t cut = lv ? gameflow_postLevelScene(level_outcome(),
-                                                lv->introIndex) : 0xFFFFu;
+    uint32_t cut =
+        lv ? gameflow_postLevelScene(level_outcome(), lv->introIndex) : 0xFFFFu;
     if (cut != 0xFFFFu) {
         postSceneIdx = cut;
         scene_resetIntro();
@@ -438,7 +437,7 @@ static GameFlow postLevelStep(GameFlow state)
 int32_t game_main(const OSystem *osys)
 {
     // Initialize the video mode
-    osys->videoSetMode(VIDEO_MODE_13H);   /* bios_set_mode_13h (1000:88fb) */
+    osys->videoSetMode(VIDEO_MODE_13H); /* bios_set_mode_13h (1000:88fb) */
 
     // Initialize resources
     if (resources_init(osys)) return 1;
@@ -466,15 +465,15 @@ int32_t game_main(const OSystem *osys)
             if (rawFire) input.joyBits &= 0x0Fu;
             else object_setActionLatched(0);
         }
-        scene_noteInput(&input);   /* the waits read this tick's state */
-        level_noteInput(&input);   /* 1000:8526: the play loop's [0x5ACE] */
+        scene_noteInput(&input); /* the waits read this tick's state */
+        level_noteInput(&input); /* 1000:8526: the play loop's [0x5ACE] */
         if (input.quit) break;
 
         /* the attract phase plays the boot intro first (the original's
          * boot chain runs once at power-on); then gameflow_step runs the
          * real attract cycle — game_loop's four effects — until the exit */
         if (state == FLOW_ATTRACT && scene_playBootIntro()) {
-            osys->videoPresent(0);      /* the intro's rendered frame */
+            osys->videoPresent(0); /* the intro's rendered frame */
             prev = state;
             continue;
         }
@@ -492,9 +491,11 @@ int32_t game_main(const OSystem *osys)
                 endPageUp = 0;
                 restartGame = 0;
                 levelSkipped = 0;
-                partyTried = 0; partyPlaying = 0;
+                partyTried = 0;
+                partyPlaying = 0;
                 postScene = 0;
-                diskChecked = 0; diskUp = 0;
+                diskChecked = 0;
+                diskUp = 0;
             }
             /* entry 14CD: draw_status_indicator (1000:1FEF) before level_run;
              * only a missing volume draws the prompt. */
@@ -513,8 +514,7 @@ int32_t game_main(const OSystem *osys)
                     /* load_terrain_b (1000:5168): the level's own map
                      * spawns/joins the entities, once per load */
                     const LevelData *ld = level_data();
-                    entity_spawnFromMap(level_map(), ld->style,
-                                        ld->entityLife);
+                    entity_spawnFromMap(level_map(), ld->style, ld->entityLife);
                     /* entry:004C / load_level_record_a+_b: the save's state
                      * ranges replace the level's fresh spawn. */
                     if (save_present()) save_restoreState();
@@ -523,7 +523,7 @@ int32_t game_main(const OSystem *osys)
                      * GAME OVER variant — and the level is skipped by the
                      * entry state machine's next-level arm. */
                     levelSkipped = gameflow_tribeTooSmall(level_required(),
-                                                         level_members());
+                                                          level_members());
                 }
                 /* level_setup (1000:31BD): [0x5BBA] := the record's goal
                  * text; the first play frame shows it (scroll_map). */
@@ -553,8 +553,7 @@ int32_t game_main(const OSystem *osys)
                      * tribe ([0x11FC]) and the score ([0x592]; the port has
                      * no running score yet — 0, documented). */
                     party_intro_setGameOver(levelSkipped);
-                    party_intro_setValues(level_current + 1u,
-                                          level_required(),
+                    party_intro_setValues(level_current + 1u, level_required(),
                                           level_tribeMembers(),
                                           gameflow_partyScore(),
                                           gameflow_partyTribe());
@@ -566,8 +565,8 @@ int32_t game_main(const OSystem *osys)
             if (entered) save_consume();
             if (partyPlaying) {
                 if (party_intro_tick(&input))
-                    goto present;          /* the screen plays      */
-                partyPlaying = 0;          /* its exit finished      */
+                    goto present; /* the screen plays      */
+                partyPlaying = 0; /* its exit finished      */
             } else if (scoreUp) {
                 /* check_highscore's score/record screen (1000:41AE) */
                 if (score_tick(&input)) goto present;
@@ -579,14 +578,14 @@ int32_t game_main(const OSystem *osys)
             } else if (postScene) {
                 /* entry 1000:00FF: cd_file_op([0x17EF]) — the newspaper for
                  * the level just finished, after check_highscore. */
-                if (scene_playLevelIntro(postSceneIdx))
-                    goto present;
+                if (scene_playLevelIntro(postSceneIdx)) goto present;
                 postScene = 0;
                 state = gameflow_afterLevel(&level_current);
                 levelReload = (state == FLOW_LEVEL);
                 if (state != FLOW_LEVEL) {
                     endSceneIndex = gameflow_endingScene(1); /* 150C */
-                    state = FLOW_ENDING; endPhase = 0;
+                    state = FLOW_ENDING;
+                    endPhase = 0;
                 }
             } else if (levelSkipped) {
                 /* level_run 3065 + entry 1000:00DC: [0x1809] takes the
@@ -620,8 +619,7 @@ int32_t game_main(const OSystem *osys)
                         snprintf(text, sizeof text,
                                  "WELL DONE! YOU FINISHED LEVEL %03u",
                                  level_current + 1u);
-                    else
-                        snprintf(text, sizeof text, "YOUR TRIBE IS EXTINCT!!");
+                    else snprintf(text, sizeof text, "YOUR TRIBE IS EXTINCT!!");
                     textpage_draw(osys->videoPage(0), text, -1, 0u, 0);
                     if (input.lastKey || (input.joyBits & 0x80u)) {
                         /* scroll_map's exit 0xA0E1 re-renders the page twice:
@@ -637,8 +635,8 @@ int32_t game_main(const OSystem *osys)
                         endPhase = END_GREY_FADE;
                     }
                 } else if (endPhase == END_GREY_FADE) {
-                    if (!palette_fadeActive()) {     /* 0x340C wait */
-                        endHold = 0x23u;             /* 0x340F */
+                    if (!palette_fadeActive()) { /* 0x340C wait */
+                        endHold = 0x23u; /* 0x340F */
                         endPhase = END_HOLD;
                     }
                 } else if (endPhase == END_HOLD) {
@@ -649,7 +647,7 @@ int32_t game_main(const OSystem *osys)
                         palette_buildFade(0u, 0x100u, 0x28u, endBlack);
                         endPhase = END_BLACK_FADE;
                     }
-                } else if (!palette_fadeActive()) {  /* END_BLACK_FADE */
+                } else if (!palette_fadeActive()) { /* END_BLACK_FADE */
                     /* 0x342B/0x344C: park the split, re-render the world. */
                     statusbar_hide();
                     level_redrawPage();
@@ -696,7 +694,7 @@ int32_t game_main(const OSystem *osys)
                 if (input.lastKey || (input.joyBits & 0x80u)) {
                     goalPage = 0;
                     goalShowing = 0;
-                    if (goalFrozeUpdates) level_setUpdates(1);  /* 1000:9E9D */
+                    if (goalFrozeUpdates) level_setUpdates(1); /* 1000:9E9D */
                     goalFrozeUpdates = 0;
                     statusbar_setActive(1);
                 }
@@ -704,7 +702,7 @@ int32_t game_main(const OSystem *osys)
                 /* input_dispatch_loop (1000:349E): the pause gate (3523)
                  * then the world.  With a dialog up (A167) the world keeps
                  * animating behind it and the countdown is suspended. */
-                if (gameflow_keyWaitActive()) {   /* 1000:3954 blocks the world */
+                if (gameflow_keyWaitActive()) { /* 1000:3954 blocks the world */
                     (void)gameflow_keyList(&input);
                     goto present;
                 }
@@ -727,9 +725,9 @@ int32_t game_main(const OSystem *osys)
                  * runs first - the record command dispatch inside it sees the
                  * press (the type row's fire half selects the turn) - and
                  * pause_toggle runs after it. */
-                level_tick();          /* 1000:34B5 update_world */
+                level_tick(); /* 1000:34B5 update_world */
                 if (!menu_active() && pressed && !(input.joyBits & 0x0Fu))
-                    object_actionRun();   /* 1000:34BD pause_toggle */
+                    object_actionRun(); /* 1000:34BD pause_toggle */
                 /* the latch is not assigned here: object_actionRun sets it
                  * (1000:3538) and the release above clears it (1000:85A9). */
                 /* level_tick ends with the [0x1979] dispatch (1000:382D and
@@ -738,15 +736,15 @@ int32_t game_main(const OSystem *osys)
                     /* 1000:34E6: the play loop's exit hold - the end sound
                      * (0x83B7, AX = 0xC) and 15 vsyncs (0x8B56) on the frozen
                      * world, then draw_level_text's chain. */
-                    statusbar_setActive(0);   /* [0x5B12] = 0: the clock stops */
+                    statusbar_setActive(0); /* [0x5B12] = 0: the clock stops */
                     goto present;
                 }
                 if (level_ended()) {
                     /* object_test_dispatch returned negative (1000:35D6):
                      * the play loop is over; [0x138E] keeps its outcome */
                     endPageUp = 1;
-                    endPhase = END_CAPTION;   /* draw_level_text's chain */
-                    statusbar_setActive(0);   /* [0x5B12] = 0: the clock stops */
+                    endPhase = END_CAPTION; /* draw_level_text's chain */
+                    statusbar_setActive(0); /* [0x5B12] = 0: the clock stops */
                 }
                 /* scan_id_list (1000:386E) runs after update_world and before
                  * the pending-event table. */
@@ -756,10 +754,10 @@ int32_t game_main(const OSystem *osys)
                     if (!menu_tick(&input)) {
                         int32_t wasTimeUp = menu_timeUp();
                         state = wasTimeUp
-                              ? gameflow_timeUpAction(menu_result(),
-                                                      &quitRequested)
-                              : gameflow_pauseAction(menu_result(),
-                                                     &quitRequested);
+                                    ? gameflow_timeUpAction(menu_result(),
+                                                            &quitRequested)
+                                    : gameflow_pauseAction(menu_result(),
+                                                           &quitRequested);
                         menu_close();
                         if (wasTimeUp) timeoutShown = 0;
                         if (!quitRequested) statusbar_setActive(1);
@@ -803,7 +801,7 @@ int32_t game_main(const OSystem *osys)
         /* the intro/level draw into page 0; the CRTC-flip equivalent shows
          * the drawn page (the in-level page flip lands with the level
          * rendering) */
-present:
+    present:
         osys->videoPresent(0);
         prev = state;
     }

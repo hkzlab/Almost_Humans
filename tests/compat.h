@@ -9,33 +9,26 @@
 #define HUMANSRE_TEST_COMPAT_H
 
 #ifdef _WIN32
-#include <direct.h>
-#include <stdlib.h>
-#ifndef PATH_MAX
-#define PATH_MAX 260 /* the Windows MAX_PATH, _fullpath's own limit */
-#endif
+#    include <direct.h>
+#    include <stdlib.h>
+#    ifndef PATH_MAX
+#        define PATH_MAX 260 /* the Windows MAX_PATH, _fullpath's own limit */
+#    endif
 static inline int32_t compat_chdir(const char *dir) { return _chdir(dir); }
 static inline int32_t compat_mkdir(const char *dir) { return _mkdir(dir); }
 static inline int32_t compat_rmdir(const char *dir) { return _rmdir(dir); }
 static inline char *compat_realpath(const char *path, char *resolved)
-{
-    return _fullpath(resolved, path, PATH_MAX);
-}
+{ return _fullpath(resolved, path, PATH_MAX); }
 #else
-#include <limits.h>
-#include <stdlib.h>      /* realpath */
-#include <sys/stat.h>
-#include <unistd.h>
+#    include <limits.h>
+#    include <stdlib.h>      /* realpath */
+#    include <sys/stat.h>
+#    include <unistd.h>
 static inline int32_t compat_chdir(const char *dir) { return chdir(dir); }
-static inline int32_t compat_mkdir(const char *dir)
-{
-    return mkdir(dir, 0777);
-}
+static inline int32_t compat_mkdir(const char *dir) { return mkdir(dir, 0777); }
 static inline int32_t compat_rmdir(const char *dir) { return rmdir(dir); }
 static inline char *compat_realpath(const char *path, char *resolved)
-{
-    return realpath(path, resolved);
-}
+{ return realpath(path, resolved); }
 #endif
 
 #endif /* HUMANSRE_TEST_COMPAT_H */

@@ -15,13 +15,17 @@ static uint8_t working[768];   /* 202F:0x4BBC — the working palette       */
 static uint8_t dac[768];       /* the DAC's 6-bit shadow (8bac's IN 3C9h) */
 
 /* the fade state: 202F:0x48B0/48B2/48B6/48B8 + the 0x4EBC ramp          */
-static uint32_t       fadeFirst;    /* [0x48B8]: the DAC's first entry    */
-static uint32_t       fadeComps;    /* [0x48B0]: components (entries * 3) */
+static uint32_t fadeFirst;    /* [0x48B8]: the DAC's first entry    */
+static uint32_t fadeComps;    /* [0x48B0]: components (entries * 3) */
 static const uint8_t *fadeTarget;   /* [0x48B6]: the target palette bytes */
-static int32_t        fadeActive;   /* [0x48B4]                           */
-static uint16_t       ramp[768][2]; /* [0x4EBC]: {cur<<8, delta<<8}       */
+static int32_t fadeActive;   /* [0x48B4]                           */
+static uint16_t ramp[768][2]; /* [0x4EBC]: {cur<<8, delta<<8}       */
 
-int32_t palette_init(const OSystem *osys) { pal_osys = osys; return 0; }
+int32_t palette_init(const OSystem *osys)
+{
+    pal_osys = osys;
+    return 0;
+}
 
 /* palette_load_6bit (1000:8d24): the working palette := 768 6-bit bytes. */
 void palette_loadWorking(const uint8_t *p6)
@@ -70,7 +74,8 @@ void palette_buildFade(uint32_t first, uint32_t entries, uint32_t div,
         uint32_t cur = dac[first * 3u + c];
         uint32_t tgt = target[c];
         ramp[c][0] = (uint16_t)(cur << 8);
-        ramp[c][1] = (uint16_t)((((int32_t)tgt - (int32_t)cur) * 256) / (int32_t)div);
+        ramp[c][1] =
+            (uint16_t)((((int32_t)tgt - (int32_t)cur) * 256) / (int32_t)div);
     }
     fadeActive = 1;
 }
@@ -95,8 +100,8 @@ void palette_tick(void)
     uint32_t done = 0;
     for (uint32_t c = 0; c < fadeComps; c++) {
         uint16_t cur = ramp[c][0];
-        uint8_t  t   = fadeTarget[c];
-        uint8_t  v   = (uint8_t)(cur >> 8);
+        uint8_t t = fadeTarget[c];
+        uint8_t v = (uint8_t)(cur >> 8);
         if (v != t) {
             cur = (uint16_t)(cur + ramp[c][1]);
             ramp[c][0] = cur;

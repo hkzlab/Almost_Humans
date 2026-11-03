@@ -78,66 +78,69 @@
 
 /* === the A000 vram + the CRTC pair ========================================== */
 
-static uint8_t  vram[65536][4];        /* [address][plane]                   */
-static uint16_t pageDraw = 0x1200;     /* [0x5ac4]: the stamp target         */
-static uint16_t pageDisp = 0x8100;     /* [0x5ac6]: the displayed page       */
-static uint16_t stampDest;             /* [0x1204]                           */
-static uint16_t marqPhase;             /* [0xf9e], 0..0x15F                  */
-static uint16_t marqCell;              /* [0xf9c], 0..0xB                    */
-static uint16_t marqHold;              /* [0xfa6]                            */
+static uint8_t vram[65536][4];        /* [address][plane]                   */
+static uint16_t pageDraw = 0x1200; /* [0x5ac4]: the stamp target         */
+static uint16_t pageDisp = 0x8100; /* [0x5ac6]: the displayed page       */
+static uint16_t stampDest; /* [0x1204]                           */
+static uint16_t marqPhase; /* [0xf9e], 0..0x15F                  */
+static uint16_t marqCell; /* [0xf9c], 0..0xB                    */
+static uint16_t marqHold; /* [0xfa6]                            */
 
 /* === the [0x11fe] heap-segment buffers ====================================== */
 
-static uint8_t  canvas[16000];         /* [0x1e20]: the 200x80 draw arena    */
-static uint8_t  sheet[2784];           /* [0x1202]: the 29x96 party sprites  */
-static uint8_t  strip[15360];         /* [0x1206]: the rescaled birdy       */
-static uint8_t  workpal[768];          /* 202F:0x4bbc                        */
+static uint8_t canvas[16000]; /* [0x1e20]: the 200x80 draw arena    */
+static uint8_t sheet[2784]; /* [0x1202]: the 29x96 party sprites  */
+static uint8_t strip[15360]; /* [0x1206]: the rescaled birdy       */
+static uint8_t workpal[768]; /* 202F:0x4bbc                        */
 /* 0x4d3c is not a buffer of its own: it is 0x4bbc + 0x180, the .PAL working
  * palette's own upper half (28d0 = 4 × 0x60 B from .PAL[0..31]). */
-static uint8_t *const palUpper = workpal + 0x180;   /* 202F:0x4d3c       */
-static uint8_t  prevpal[0x180];        /* 202F:0x1208: the party-write DAC snapshot */
-static uint8_t  rampTbl[150];          /* CS:0x2DFE..0x2E93 (0x96 bytes)      */
-static uint8_t *bitImg;                /* the loaded lbm\party1.bit          */
-static uint8_t *fontBytes;             /* [0x1e1c]: the published text.spr   */
+static uint8_t *const palUpper = workpal + 0x180; /* 202F:0x4d3c       */
+static uint8_t prevpal[0x180]; /* 202F:0x1208: the party-write DAC snapshot */
+static uint8_t rampTbl[150]; /* CS:0x2DFE..0x2E93 (0x96 bytes)      */
+static uint8_t *bitImg; /* the loaded lbm\party1.bit          */
+static uint8_t *fontBytes; /* [0x1e1c]: the published text.spr   */
 
 /* === the DS values the screen reads ========================================= */
 
-static uint16_t g_level;               /* [0x1f41]                           */
-static uint16_t g_need;                /* [0x17fb]                           */
-static uint16_t g_members;             /* [0x11fc]                           */
-static uint16_t g_score;               /* [0x592]                            */
-static char     g_tribe[16];           /* 0x1189                             */
+static uint16_t g_level; /* [0x1f41]                           */
+static uint16_t g_need; /* [0x17fb]                           */
+static uint16_t g_members; /* [0x11fc]                           */
+static uint16_t g_score; /* [0x592]                            */
+static char g_tribe[16]; /* 0x1189                             */
 
 /* === the string table (verbatim templates; the digit slots rewritten) ======= */
 
-static char s_all[28];     /* 0x105F: "COMING UP.... LEVEL 000"  (3 slots)    */
-static char s_need[40];    /* 0x1077: "YOU WILL NEED 0 HUMANS TO COMPLETE"    */
-static char s_this[16];    /* 0x109A: "THIS LEVEL"                            */
-static char s_has[32];     /* 0x10A5: "YOUR TRIBE NOW HAS 00 MEMBERS!" (2)    */
-static char s_code[36];    /* 0x10C6: "THE CODE FOR THIS LEVEL IS......"      */
-static char s_score[20];   /* 0x10E0: "YOUR SCORE IS 0000"    (4 slots)       */
-static char s_fire[32];    /* 0x1108: "PRESS FIRE TO START LEVEL...."         */
+static char s_all[28]; /* 0x105F: "COMING UP.... LEVEL 000"  (3 slots)    */
+static char s_need[40]; /* 0x1077: "YOU WILL NEED 0 HUMANS TO COMPLETE"    */
+static char s_this[16]; /* 0x109A: "THIS LEVEL"                            */
+static char s_has[32]; /* 0x10A5: "YOUR TRIBE NOW HAS 00 MEMBERS!" (2)    */
+static char s_code[36]; /* 0x10C6: "THE CODE FOR THIS LEVEL IS......"      */
+static char s_score[20]; /* 0x10E0: "YOUR SCORE IS 0000"    (4 slots)       */
+static char s_fire[32]; /* 0x1108: "PRESS FIRE TO START LEVEL...."         */
 
-static const uint8_t ramp10[10] =          /* 2e94's ramp -> CS:[0x2DFE+i]  */
+static const uint8_t ramp10[10] = /* 2e94's ramp -> CS:[0x2DFE+i]  */
     { 0x80, 0xA0, 0xC0, 0xE0, 0xE0, 0xE0, 0xE0, 0xC0, 0xA0, 0x80 };
 
 /* === the 8-slot script machine ============================================== */
 
-struct slot {                          /* 16 B at [0x11fe]:0xFA8 + 0x10*i    */
-    uint16_t dst;                      /* +0: the stamp's dest word          */
-    uint8_t  count;                    /* +2: the 8-tick countdown           */
-    uint8_t  script;                   /* +3: the running id (1-indexed)     */
-    uint8_t  fpos;                     /* +4: the frame position             */
-    uint8_t  loopc;                    /* +5: the sub-list counter           */
-    uint8_t  sub[10];                  /* +6..15: the sub-list               */
+struct slot { /* 16 B at [0x11fe]:0xFA8 + 0x10*i    */
+    uint16_t dst; /* +0: the stamp's dest word          */
+    uint8_t count; /* +2: the 8-tick countdown           */
+    uint8_t script; /* +3: the running id (1-indexed)     */
+    uint8_t fpos; /* +4: the frame position             */
+    uint8_t loopc; /* +5: the sub-list counter           */
+    uint8_t sub[10]; /* +6..15: the sub-list               */
 };
 static struct slot slots[8];
 
 #define SCRIPT_COUNT 7
-struct script { uint32_t len; const uint8_t *b; };
+struct script {
+    uint32_t len;
+    const uint8_t *b;
+};
 static struct script scripts[SCRIPT_COUNT];
 
-static uint8_t *scriptStore;           /* the seeded bodies (memcpy'd)       */
+static uint8_t *scriptStore; /* the seeded bodies (memcpy'd)       */
 
 
 void party_intro_seedScripts(const uint8_t *bytes, uint32_t len)
@@ -151,21 +154,24 @@ void party_intro_seedScripts(const uint8_t *bytes, uint32_t len)
     for (uint32_t i = 0; i < SCRIPT_COUNT; i++) {
         uint32_t rel = (offs[i] >= 0x1036u) ? (offs[i] - 0x1036u) : 0u;
         scripts[i].len = (rel < len) ? (len - rel) : 0u;
-        scripts[i].b   = scriptStore ? (scriptStore + rel) : NULL;
+        scripts[i].b = scriptStore ? (scriptStore + rel) : NULL;
     }
 }
 
-void party_intro_seedSlots(const uint8_t *raw)  /* the 128 B at DS:0xFA8 */
+void party_intro_seedSlots(const uint8_t *raw) /* the 128 B at DS:0xFA8 */
 {
-    if (!raw) { memset(slots, 0, sizeof slots); return; }
+    if (!raw) {
+        memset(slots, 0, sizeof slots);
+        return;
+    }
     for (uint32_t i = 0; i < 8u; i++) {
         const uint8_t *r = raw + i * 16u;
         struct slot *s = &slots[i];
-        s->dst    = rd_le_u16(r);
-        s->count  = r[2];
+        s->dst = rd_le_u16(r);
+        s->count = r[2];
         s->script = r[3];
-        s->fpos   = r[4];
-        s->loopc  = r[5];
+        s->fpos = r[4];
+        s->loopc = r[5];
         memcpy(s->sub, r + 6u, 10u);
     }
 }
@@ -177,23 +183,24 @@ void party_intro_seedSlots(const uint8_t *raw)  /* the 128 B at DS:0xFA8 */
  * a count of 0 (slot 5) counts up to 8 on its first tick per 2909
  * DEC-then-test.) */
 static const uint8_t slots_file[128] = {
-    0xf0,0x2f,10,1, 0,0, 1,1,1,3,6,3,6,1,1,1,
-    0xf8,0x31, 8,1, 0,0, 6,6,6,6,4,5,4,5,1,1,
-    0x50,0x30, 6,1, 0,0, 1,2,3,4,5,6,1,2,3,4,
-    0x98,0x31, 4,1, 0,0, 1,6,2,5,3,4,4,3,4,1,
-    0x08,0x31, 5,1, 0,0, 6,6,5,4,4,3,7,4,1,3,
-    0x48,0x33, 0,1, 0,0, 1,3,7,3,7,6,3,3,1,5,
-    0x20,0x33, 7,1, 0,0, 6,3,4,3,5,4,3,4,1,4,
-    0x48,0x34, 9,1, 0,0, 3,7,3,7,3,7,6,4,3,2
+    0xf0, 0x2f, 10, 1, 0, 0, 1, 1, 1, 3, 6, 3, 6, 1, 1, 1,
+    0xf8, 0x31, 8,  1, 0, 0, 6, 6, 6, 6, 4, 5, 4, 5, 1, 1,
+    0x50, 0x30, 6,  1, 0, 0, 1, 2, 3, 4, 5, 6, 1, 2, 3, 4,
+    0x98, 0x31, 4,  1, 0, 0, 1, 6, 2, 5, 3, 4, 4, 3, 4, 1,
+    0x08, 0x31, 5,  1, 0, 0, 6, 6, 5, 4, 4, 3, 7, 4, 1, 3,
+    0x48, 0x33, 0,  1, 0, 0, 1, 3, 7, 3, 7, 6, 3, 3, 1, 5,
+    0x20, 0x33, 7,  1, 0, 0, 6, 3, 4, 3, 5, 4, 3, 4, 1, 4,
+    0x48, 0x34, 9,  1, 0, 0, 3, 7, 3, 7, 3, 7, 6, 4, 3, 2
 };
-static const uint8_t scripts_file[41] = {      /* DS:0x1036..0x105E */
-    0x01,0x02,0x03,0x02,0xFF,                       /* 0x1036 s1 */
-    0x05,0x06,0x07,0x08,0x09,0x06,0x05,0x04,0xFF,   /* 0x103b s2 */
-    0x0a,0x0b,0xFF,                                 /* 0x1044 s3 */
-    0x0a,0x0d,0x0e,0x0f,0x0e,0x0d,0xFF,             /* 0x1047 s4 */
-    0x11,0x12,0x11,0x0d,0xFF,                       /* 0x104e s5 */
-    0x14,0x15,0x16,0x17,0x18,0x19,0x1b,0x1c,0xFF,   /* 0x1053 s6 */
-    0x0a,0x0c,0xFF                                  /* 0x105c s7 */
+static const uint8_t scripts_file[41] = {
+    /* DS:0x1036..0x105E */
+    0x01, 0x02, 0x03, 0x02, 0xFF, /* 0x1036 s1 */
+    0x05, 0x06, 0x07, 0x08, 0x09, 0x06, 0x05, 0x04, 0xFF, /* 0x103b s2 */
+    0x0a, 0x0b, 0xFF, /* 0x1044 s3 */
+    0x0a, 0x0d, 0x0e, 0x0f, 0x0e, 0x0d, 0xFF, /* 0x1047 s4 */
+    0x11, 0x12, 0x11, 0x0d, 0xFF, /* 0x104e s5 */
+    0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1b, 0x1c, 0xFF, /* 0x1053 s6 */
+    0x0a, 0x0c, 0xFF /* 0x105c s7 */
 };
 
 static void seed_slots_live(void)
@@ -206,16 +213,20 @@ static void seed_slots_live(void)
 
 void party_intro_formatScore(uint32_t v, char *out)
 {
-    static const uint32_t divs[8] = { 100000000u, 10000000u, 1000000u,
-                                      100000u, 10000u, 1000u, 100u, 10u };
-    uint32_t sig = 0;                              /* 2b70's DI           */
+    static const uint32_t divs[8] = { 100000000u, 10000000u, 1000000u, 100000u,
+                                      10000u,     1000u,     100u,     10u };
+    uint32_t sig = 0; /* 2b70's DI           */
     for (uint32_t i = 0; i < 8u; i++) {
-        uint32_t q = v / divs[i];                  /* the 2b72 subcount   */
-        if (q != 0) { *out++ = (char)('0' + q); sig = 0x30u; }
-        else if (sig != 0) { *out++ = '0'; }
+        uint32_t q = v / divs[i]; /* the 2b72 subcount   */
+        if (q != 0) {
+            *out++ = (char)('0' + q);
+            sig = 0x30u;
+        } else if (sig != 0) {
+            *out++ = '0';
+        }
         v %= divs[i];
     }
-    *out++ = (char)('0' + (v % 10u));              /* 2b68                */
+    *out++ = (char)('0' + (v % 10u)); /* 2b68                */
     *out = '\0';
 }
 
@@ -228,9 +239,12 @@ static char *put_number(char *dst, uint32_t v)
 {
     char buf[10];
     uint32_t n = 0;
-    do { buf[n++] = (char)('0' + v % 10u); v /= 10u; } while (v && n < 10u);
+    do {
+        buf[n++] = (char)('0' + v % 10u);
+        v /= 10u;
+    } while (v && n < 10u);
     for (uint32_t i = 0; i < n; i++) dst[i] = buf[n - 1u - i];
-    return dst + n;                        /* the formatter's SI          */
+    return dst + n; /* the formatter's SI          */
 }
 
 /* the string appender at 0x2660: the tail replaces whatever the template
@@ -244,12 +258,10 @@ static char *append_str(char *dst, const char *src)
 
 /* === the vram-layer helpers ================================================== */
 
-static void clear_canvas(void)         /* 2af5: rows 20..87 = 0x640..0x1B80 */
-{
-    memset(canvas + 0x640u, 0, 68u * 80u);
-}
+static void clear_canvas(void) /* 2af5: rows 20..87 = 0x640..0x1B80 */
+{ memset(canvas + 0x640u, 0, 68u * 80u); }
 
-static void flip_page(void)            /* 87f8                                */
+static void flip_page(void) /* 87f8                                */
 {
     uint16_t t = pageDraw;
     pageDraw = pageDisp;
@@ -275,16 +287,17 @@ static void bake_page(const uint8_t *bit, uint32_t pagebase)
 static void band_stamp(uint32_t pagebase)
 {
     for (uint32_t row = 0; row < 68u; row++) {
-        uint32_t m = rampTbl[row + 16u];    /* 2c1d's OUT 3CF = CS:0x2E0E+row */
+        uint32_t m = rampTbl[row + 16u]; /* 2c1d's OUT 3CF = CS:0x2E0E+row */
         uint32_t a = pagebase + 0x6E8u + row * 88u;
         const uint8_t *src = canvas + 0x640u + row * 80u;
         for (uint32_t k = 0; k < 80u; k++) {
-            uint8_t c = src[k];                 /* LODSB [BX+0x640+80+k]      */
+            uint8_t c = src[k]; /* LODSB [BX+0x640+80+k]      */
             for (uint32_t p = 0; p < 4u; p++) {
                 uint32_t spread = (((c >> p) & 1u) != 0u) ? m : 0u;
                 uint8_t pre = vram[a + k][p];
                 vram[a + k][p] =
-                   (uint8_t)(((pre & (uint32_t)(~m & 0xFFu)) | spread) & 0xFFu);
+                    (uint8_t)(((pre & (uint32_t)(~m & 0xFFu)) | spread) &
+                              0xFFu);
             }
         }
     }
@@ -296,7 +309,9 @@ static void blit_slot(uint32_t frame)
     if (frame > 0x1Cu) frame = 0x1Cu;
     const uint8_t *s = sheet + frame * 96u;
     uint32_t di = (uint32_t)stampDest + (uint32_t)pageDraw + 8u;
-    enum { MASK = 0x40u };             /* 28e9's 299b(AH=0x40) live pin */
+    enum {
+        MASK = 0x40u
+    }; /* 28e9's 299b(AH=0x40) live pin */
     for (uint32_t r = 0; r < 24u; r++) {
         for (uint32_t w = 0; w < 4u; w++) {
             uint8_t c = s[r * 4u + w];
@@ -307,10 +322,11 @@ static void blit_slot(uint32_t frame)
                 uint32_t spread = (((c >> p) & 1u) != 0u) ? MASK : 0u;
                 uint8_t pre = vram[di + w][p];
                 vram[di + w][p] =
-                   (uint8_t)(((pre & (uint32_t)(~MASK & 0xFFu)) | spread) & 0xFFu);
+                    (uint8_t)(((pre & (uint32_t)(~MASK & 0xFFu)) | spread) &
+                              0xFFu);
             }
         }
-        di += 88u;                     /* 4 written + ADD DI,0x54 = 88      */
+        di += 88u; /* 4 written + ADD DI,0x54 = 88      */
     }
 }
 
@@ -318,26 +334,32 @@ static void blit_slot(uint32_t frame)
 static void marquee(void)
 {
     marqPhase++;
-    if (marqPhase == 0x160u) marqPhase = 0u;   /* INC; CMP 0x160          */
-    marqHold--;                                /* 2a4c: DEC first, then test */
-    if (marqHold == 0u) { marqHold = 5u; marqCell = (marqCell + 1u) % 0xCu; }
+    if (marqPhase == 0x160u) marqPhase = 0u; /* INC; CMP 0x160          */
+    marqHold--; /* 2a4c: DEC first, then test */
+    if (marqHold == 0u) {
+        marqHold = 5u;
+        marqCell = (marqCell + 1u) % 0xCu;
+    }
 
     uint32_t cell = marqCell, ph = marqPhase;
-    uint32_t v = cell * 4u + (ph & 3u);        /* 2a76..2a83 */
-    uint32_t src = v * 320u;                   /* 2a85..2a8d: v*256 + v*64   */
+    uint32_t v = cell * 4u + (ph & 3u); /* 2a76..2a83 */
+    uint32_t src = v * 320u; /* 2a85..2a8d: v*256 + v*64   */
 
-    uint32_t dhi = 0x2260u + ph / 4u;          /* 2a8f..2a95 + the page add  */
+    uint32_t dhi = 0x2260u + ph / 4u; /* 2a8f..2a95 + the page add  */
 
-    enum { MASK = 0x40u };             /* 28e9's 299b(AH=0x40) covers 2a3a  */
+    enum {
+        MASK = 0x40u
+    }; /* 28e9's 299b(AH=0x40) covers 2a3a  */
     for (uint32_t r = 0; r < 32u; r++) {
         uint32_t di = (uint32_t)pageDraw + dhi + r * 88u;
         for (uint32_t k = 0; k < 10u; k++) {
-            uint8_t c = strip[src + r * 10u + k];  /* 5 LODSW = 10 B/row    */
+            uint8_t c = strip[src + r * 10u + k]; /* 5 LODSW = 10 B/row    */
             for (uint32_t p = 0; p < 4u; p++) {
                 uint32_t spread = (((c >> p) & 1u) != 0u) ? MASK : 0u;
                 uint8_t pre = vram[di + k][p];
                 vram[di + k][p] =
-                   (uint8_t)(((pre & (uint32_t)(~MASK & 0xFFu)) | spread) & 0xFFu);
+                    (uint8_t)(((pre & (uint32_t)(~MASK & 0xFFu)) | spread) &
+                              0xFFu);
             }
         }
     }
@@ -350,23 +372,26 @@ static void anim_entities(void)
         struct slot *s = &slots[i];
         uint8_t dl = 0;
         s->count--;
-        if (s->count == 0u) { s->count = 8u; dl = 1u; }    /* 2909..2912 */
-        for (uint32_t pass = 0; pass < 40u; pass++) {      /* the 2914 walk */
+        if (s->count == 0u) {
+            s->count = 8u;
+            dl = 1u;
+        } /* 2909..2912 */
+        for (uint32_t pass = 0; pass < 40u; pass++) { /* the 2914 walk */
             if (s->script == 0u || s->script > SCRIPT_COUNT) break;
             const struct script *sc = &scripts[s->script - 1u];
             if (sc->b == NULL || sc->len == 0u) break;
-            uint8_t bx = s->fpos;                          /* 2920: BX = [SI+4] */
-            s->fpos = (uint8_t)(bx + dl);                  /* 2925: ADD before the read */
-            uint8_t dh = sc->b[bx];                        /* 2928 */
-            if (dh != 0xFFu) {                             /* 292a: the stamp */
+            uint8_t bx = s->fpos; /* 2920: BX = [SI+4] */
+            s->fpos = (uint8_t)(bx + dl); /* 2925: ADD before the read */
+            uint8_t dh = sc->b[bx]; /* 2928 */
+            if (dh != 0xFFu) { /* 292a: the stamp */
                 stampDest = s->dst;
                 blit_slot(dh);
-                break;                                     /* 295f: next slot */
+                break; /* 295f: next slot */
             }
             uint32_t cl = ((uint32_t)s->loopc + 1u) % 10u; /* 292f..293b */
             s->loopc = (uint8_t)cl;
-            s->script = s->sub[cl];                        /* the sub-list ids */
-            s->fpos = 0u;                                  /* 294a, redo 2914 */
+            s->script = s->sub[cl]; /* the sub-list ids */
+            s->fpos = 0u; /* 294a, redo 2914 */
             if (s->script == 0u || s->script > SCRIPT_COUNT) break;
         }
     }
@@ -381,10 +406,10 @@ static void anim_entities(void)
  * original's "all text fades in together at the first band redraw". */
 static void draw_text_ramped(const char *s, uint32_t centreX, uint32_t row)
 {
-    memcpy(rampTbl + row, ramp10, 10u);    /* 2e94: the ramp slides with the
+    memcpy(rampTbl + row, ramp10, 10u); /* 2e94: the ramp slides with the
                                             * row param — CS:0x2DFE + row */
     if (fontBytes) font_drawText(canvas, s, centreX, row);
-    anim_entities();                       /* 28e9: slots + marquee + flip —
+    anim_entities(); /* 28e9: slots + marquee + flip —
                                             * the canvas glyph is NOT rendered */
 }
 
@@ -403,34 +428,43 @@ static void copy_palette(void)
  * file's grey ramp (the fade-in). */
 static void intro_anim(void)
 {
-    band_stamp(pageDraw); anim_entities();
-    band_stamp(pageDraw); anim_entities();
-    memcpy(palUpper, prevpal, 0x180u);        /* 2bbf..2bc8: 0x1208 -> 0x4d3c */
-    palette_buildFade(0x80u, 0x80u, 0x28u, palUpper);   /* 2bca: BX=0x80 */
+    band_stamp(pageDraw);
+    anim_entities();
+    band_stamp(pageDraw);
+    anim_entities();
+    memcpy(palUpper, prevpal, 0x180u); /* 2bbf..2bc8: 0x1208 -> 0x4d3c */
+    palette_buildFade(0x80u, 0x80u, 0x28u, palUpper); /* 2bca: BX=0x80 */
 }
 
 /* the machine state (the ticker's + 2bda's phase-split) */
 enum {
-    PH_FADEWAIT = 0,                           /* 25ec                   */
-    PH_SWAPWAIT,                               /* 2bda's {28e9; 8b9a; JC} */
-    PH_SET1, PH_SET1_WAIT,                     /* 2600..2699             */
-    PH_SET2, PH_SET2_WAIT,                     /* 269b..2703             */
-    PH_GAMEOVER,                               /* 2739: the need>members page */
-    PH_EXITWAIT, PH_PRESENT, PH_DONE           /* 2711..272b             */
+    PH_FADEWAIT = 0, /* 25ec                   */
+    PH_SWAPWAIT, /* 2bda's {28e9; 8b9a; JC} */
+    PH_SET1,
+    PH_SET1_WAIT, /* 2600..2699             */
+    PH_SET2,
+    PH_SET2_WAIT, /* 269b..2703             */
+    PH_GAMEOVER, /* 2739: the need>members page */
+    PH_EXITWAIT,
+    PH_PRESENT,
+    PH_DONE /* 2711..272b             */
 };
 
-static uint32_t phase = PH_FADEWAIT;   /* the machine phase                   */
-static uint32_t step;                  /* the in-phase op counter             */
-static uint32_t waitLeft;              /* 297f's AX                           */
-static int32_t  keyCaught;             /* the JNS's source                    */
-static uint32_t presentLeft;           /* 835a's 0x4B cycles                  */
-static uint32_t swapNext;              /* the 2bda's tail's next phase        */
-static int32_t  gameOverMode;          /* level_intro_screen 2739's variant   */
+static uint32_t phase = PH_FADEWAIT; /* the machine phase                   */
+static uint32_t step; /* the in-phase op counter             */
+static uint32_t waitLeft; /* 297f's AX                           */
+static int32_t keyCaught; /* the JNS's source                    */
+static uint32_t presentLeft; /* 835a's 0x4B cycles                  */
+static uint32_t swapNext; /* the 2bda's tail's next phase        */
+static int32_t gameOverMode; /* level_intro_screen 2739's variant   */
 
 /* 2bda's internal split: its own fade-wait (2bec..2bf2), THEN the 0xE0
  * mask reset (2bf4) + clear + band redraws (2c01..2c1c) — the tail is
  * what wipes the previous text and re-bakes the canvas-empty band. */
-enum { SW_FADEWAIT = 0, SW_TAIL };
+enum {
+    SW_FADEWAIT = 0,
+    SW_TAIL
+};
 static uint32_t swPhase = SW_FADEWAIT;
 
 /* 2bda fade_and_animate — verbatim phase-split: 2bda runs [28d0]; builds
@@ -443,10 +477,10 @@ static uint32_t swPhase = SW_FADEWAIT;
  * MOMENT, and the holds are the built fades' converged end-states. */
 static void swap_begin(uint32_t next)
 {
-    copy_palette();                                 /* 2bda (28d0)          */
+    copy_palette(); /* 2bda (28d0)          */
     palette_buildFade(0x80u, 0x80u, 0x28u, palUpper);
     swapNext = next;
-    swPhase = SW_FADEWAIT;                          /* 2bec: the fade runs  */
+    swPhase = SW_FADEWAIT; /* 2bec: the fade runs  */
     phase = PH_SWAPWAIT;
 }
 
@@ -531,19 +565,21 @@ static void rescale_rows(const uint8_t *src)
 void party_intro_setValues(uint32_t level, uint32_t need, uint32_t members,
                            uint32_t score, const char *tribe)
 {
-    g_level = (uint16_t)level; g_need = (uint16_t)need;
-    g_members = (uint16_t)members; g_score = (uint16_t)score;
+    g_level = (uint16_t)level;
+    g_need = (uint16_t)need;
+    g_members = (uint16_t)members;
+    g_score = (uint16_t)score;
     memset(g_tribe, 0, sizeof g_tribe);
     if (tribe) memcpy(g_tribe, tribe, sizeof g_tribe - 1u);
     /* the image's verbatim strings (202F:0x105F..; the digit fields are
      * fixed-width and the formatter rewrites them in place, 0x3F1B) */
-    memcpy(s_all,   "COMING UP.... LEVEL 000", 23);
-    memcpy(s_need,  "YOU WILL NEED 0 HUMANS TO COMPLETE", 35);
-    memcpy(s_this,  "THIS LEVEL", 11);
-    memcpy(s_has,   "YOUR TRIBE NOW HAS 00 MEMBERS!", 30);
-    memcpy(s_code,  "THE CODE FOR THIS LEVEL IS......", 32);
+    memcpy(s_all, "COMING UP.... LEVEL 000", 23);
+    memcpy(s_need, "YOU WILL NEED 0 HUMANS TO COMPLETE", 35);
+    memcpy(s_this, "THIS LEVEL", 11);
+    memcpy(s_has, "YOUR TRIBE NOW HAS 00 MEMBERS!", 30);
+    memcpy(s_code, "THE CODE FOR THIS LEVEL IS......", 32);
     memcpy(s_score, "YOUR SCORE IS 0000", 18);
-    memcpy(s_fire,  "PRESS FIRE TO START LEVEL....", 30);
+    memcpy(s_fire, "PRESS FIRE TO START LEVEL....", 30);
 }
 
 void party_intro_setGameOver(int32_t on) { gameOverMode = on ? 1 : 0; }
@@ -551,7 +587,8 @@ uint32_t party_intro_score(void) { return g_score; }
 
 static uint8_t *load(const char *name)
 {
-    uint32_t sz = 0; uint16_t ck = 0;
+    uint32_t sz = 0;
+    uint16_t ck = 0;
     return res_loadChunk(name, &sz, &ck);
 }
 
@@ -563,9 +600,10 @@ const uint8_t *party_intro_palUpper(void) { return palUpper; }
 
 int32_t party_intro_start(void)
 {
-    char name[24]; uint8_t *b;
+    char name[24];
+    uint8_t *b;
 
-    video_setMode(VIDEO_MODE_X);       /* level_intro_screen 1000:2508 calls
+    video_setMode(VIDEO_MODE_X); /* level_intro_screen 1000:2508 calls
                                         * reset_display_mode (1000:82c6)  */
     /* level_intro_screen is a self-contained blocking routine in the
      * original: every level re-enters it at 1000:2508.  The port's split
@@ -578,48 +616,63 @@ int32_t party_intro_start(void)
     swapNext = 0u;
     presentLeft = 0u;
     swPhase = SW_FADEWAIT;
-    pageDraw = 0x1200u; pageDisp = 0x8100u;    /* 2519/2523               */
+    pageDraw = 0x1200u;
+    pageDisp = 0x8100u; /* 2519/2523               */
     /* 2a3a's counters are static DS data: [0xf9c]=0, [0xf9e]=0, [0xfa6]=1
      * (the MZ image; a 0 hold DEC-wraps and freezes the flap on run 1) */
-    marqPhase = 0u; marqCell = 0u; marqHold = 1u;
+    marqPhase = 0u;
+    marqCell = 0u;
+    marqHold = 1u;
     memset(vram, 0, sizeof vram);
-    memset(rampTbl, 0xE0u, sizeof rampTbl);    /* the table's clean state */
+    memset(rampTbl, 0xE0u, sizeof rampTbl); /* the table's clean state */
     clear_canvas();
-    seed_slots_live();                         /* the DS:0xFA8's [live]   */
+    seed_slots_live(); /* the DS:0xFA8's [live]   */
 
-    b = load("APL\\PARTY.SPR");                /* 2570                    */
+    b = load("APL\\PARTY.SPR"); /* 2570                    */
     if (!b) return 0;
-    { int32_t ok = expand_nibbles(b, 0x570u, sheet); free(b); if (!ok) return 0; }
+    {
+        int32_t ok = expand_nibbles(b, 0x570u, sheet);
+        free(b);
+        if (!ok) return 0;
+    }
 
-    b = load("APL\\BIRDY.SPR");                /* 257c                    */
+    b = load("APL\\BIRDY.SPR"); /* 257c                    */
     if (!b) return 0;
-    rescale_rows(b); free(b);
+    rescale_rows(b);
+    free(b);
 
-    { uint32_t d = (uint32_t)(g_level & 7u) + 1u;      /* 2519: '1'+(lvl&7) */
-      sprintf(name, "LBM\\PARTY%u.PAL", d); }
-    b = load(name);                            /* 2588                    */
+    {
+        uint32_t d = (uint32_t)(g_level & 7u) + 1u; /* 2519: '1'+(lvl&7) */
+        sprintf(name, "LBM\\PARTY%u.PAL", d);
+    }
+    b = load(name); /* 2588                    */
     if (!b) return 0;
-    palette_loadWorking(b);                    /* 2591 (8d24): -> 0x4bbc  */
+    palette_loadWorking(b); /* 2591 (8d24): -> 0x4bbc  */
     memcpy(workpal, palette_working(), 768u);
     free(b);
 
-    b = load("LBM\\PARTY1.BIT");               /* 259a                    */
+    b = load("LBM\\PARTY1.BIT"); /* 259a                    */
     if (!b) return 0;
     bitImg = b;
 
-    b = load("APL\\TEXT.SPR");                 /* 25af                    */
-    if (b) { fontBytes = b; font_publish(b); }
-    else   { fontBytes = NULL; font_publish(NULL); }
+    b = load("APL\\TEXT.SPR"); /* 25af                    */
+    if (b) {
+        fontBytes = b;
+        font_publish(b);
+    } else {
+        fontBytes = NULL;
+        font_publish(NULL);
+    }
 
     /* 25bc: 0x1208 <- DS:0x4d3c (the .PAL's upper half, verbatim) */
     memcpy(prevpal, palUpper, 0x180u);
 
-    bake_page(bitImg, pageDraw);               /* 25ca..25d8: the bake x2 */
+    bake_page(bitImg, pageDraw); /* 25ca..25d8: the bake x2 */
     anim_entities();
     bake_page(bitImg, pageDraw);
 
-    copy_palette();                            /* 25da (28d0)             */
-    palette_buildFade(0u, 0x100u, 0x23u, workpal);   /* 25dd              */
+    copy_palette(); /* 25da (28d0)             */
+    palette_buildFade(0u, 0x100u, 0x23u, workpal); /* 25dd              */
     return 1;
 }
 
@@ -641,114 +694,136 @@ int32_t party_intro_tick(const InputState *in)
         }
         break;
 
-    case PH_SWAPWAIT:                          /* 2bec..2c1c: the fade wait,
+    case PH_SWAPWAIT: /* 2bec..2c1c: the fade wait,
                                                 * THEN the tail (verbatim the
                                                 * order inside 2bda)         */
-        anim_entities();                       /* 2bec's 28e9                */
+        anim_entities(); /* 2bec's 28e9                */
         if (swPhase == SW_FADEWAIT) {
-            if (!palette_fadeActive()) swPhase = SW_TAIL;   /* 2bf2's JC out  */
-            break;                             /* no tail before the fade ends */
+            if (!palette_fadeActive()) swPhase = SW_TAIL; /* 2bf2's JC out  */
+            break; /* no tail before the fade ends */
         }
         /* the 2bf4 tail: the mask reset + clear + band redraws, once */
-        memset(rampTbl, 0xE0u, sizeof rampTbl);   /* 2bf4: the 0x96 fill     */
-        clear_canvas();                            /* 2c01 (2af5)         */
-        band_stamp(pageDraw); anim_entities();
-        band_stamp(pageDraw); anim_entities();
-        if (swapNext == PH_SET1) { phase = PH_SET1; step = 0u; }
-        else if (swapNext == PH_SET2) {
-            phase = PH_SET2; step = 0u;
-        } else {                           /* the exit: 270e's tail   */
-            clear_canvas();                /* 270e (2af5)            */
+        memset(rampTbl, 0xE0u, sizeof rampTbl); /* 2bf4: the 0x96 fill     */
+        clear_canvas(); /* 2c01 (2af5)         */
+        band_stamp(pageDraw);
+        anim_entities();
+        band_stamp(pageDraw);
+        anim_entities();
+        if (swapNext == PH_SET1) {
+            phase = PH_SET1;
+            step = 0u;
+        } else if (swapNext == PH_SET2) {
+            phase = PH_SET2;
+            step = 0u;
+        } else { /* the exit: 270e's tail   */
+            clear_canvas(); /* 270e (2af5)            */
             {
                 static uint8_t black[768];
-                palette_buildFade(0u, 0x100u, 0x23u, black);  /* 2711 */
+                palette_buildFade(0u, 0x100u, 0x23u, black); /* 2711 */
             }
             phase = PH_EXITWAIT;
         }
-        swPhase = SW_FADEWAIT;             /* the tail ran once          */
+        swPhase = SW_FADEWAIT; /* the tail ran once          */
         break;
 
-    case PH_SET1:                              /* 2600..268d             */
+    case PH_SET1: /* 2600..268d             */
         switch (step) {
-        case 0u:                               /* 2600..2611              */
+        case 0u: /* 2600..2611              */
             clear_canvas();
-            *put_number(s_all + 0x14u, g_level) = '\0';        /* 260e    */
+            *put_number(s_all + 0x14u, g_level) = '\0'; /* 260e    */
             draw_text_ramped(s_all, 0xA0u, 0x14u);
             break;
-        case 1u:                               /* 2623..263a: no NUL — the
+        case 1u: /* 2623..263a: no NUL — the
                                                 * " HUMANS TO COMPLETE" tail
                                                 * survives the patch        */
             (void)put_number(s_need + 0x0Eu, g_need);
             draw_text_ramped(s_need, 0xA0u, 0x28u);
             break;
         case 2u:
-            draw_text_ramped(s_this, 0xA0u, 0x34u);            /* 2640    */
+            draw_text_ramped(s_this, 0xA0u, 0x34u); /* 2640    */
             break;
-        case 3u:                               /* 2652..268a              */
-            {
-                char *q = append_str(put_number(s_has + 0x13u, g_members),
-                                     " MEMBERS!");          /* 2660    */
-                if (g_members == 1u) {         /* 266d..267a              */
-                    q -= 3; *q = '!'; *(q + 1u) = '\0';
-                }
+        case 3u: /* 2652..268a              */
+        {
+            char *q = append_str(put_number(s_has + 0x13u, g_members),
+                                 " MEMBERS!"); /* 2660    */
+            if (g_members == 1u) { /* 266d..267a              */
+                q -= 3;
+                *q = '!';
+                *(q + 1u) = '\0';
             }
+        }
             draw_text_ramped(s_has, 0xA0u, 0x48u);
             break;
         }
         if (step < 3u) step++;
-        else { intro_anim(); phase = PH_SET1_WAIT; waitLeft = 0xC8u; keyCaught = 0; }
+        else {
+            intro_anim();
+            phase = PH_SET1_WAIT;
+            waitLeft = 0xC8u;
+            keyCaught = 0;
+        }
         break;
 
-    case PH_SET1_WAIT:                         /* 2693..2699              */
+    case PH_SET1_WAIT: /* 2693..2699              */
         anim_entities();
-        if (fire || anyk) { keyCaught = 1; waitLeft = 0u; }
-        else if (waitLeft) waitLeft--;
+        if (fire || anyk) {
+            keyCaught = 1;
+            waitLeft = 0u;
+        } else if (waitLeft) waitLeft--;
         if (!waitLeft) {
-            if (keyCaught) swap_begin((uint32_t)-1);   /* 270b          */
+            if (keyCaught) swap_begin((uint32_t)-1); /* 270b          */
             else swap_begin(PH_SET2);
         }
         break;
 
-    case PH_SET2:                              /* 269e..26f7              */
+    case PH_SET2: /* 269e..26f7              */
         switch (step) {
         case 0u:
-            clear_canvas();                    /* 269e (2af5)             */
-            draw_text_ramped(s_code, 0xA0u, 0x14u);            /* 26a1    */
+            clear_canvas(); /* 269e (2af5)             */
+            draw_text_ramped(s_code, 0xA0u, 0x14u); /* 26a1    */
             break;
         case 1u:
-            draw_text_ramped(g_tribe, 0xA0u, 0x20u);           /* 26b3    */
+            draw_text_ramped(g_tribe, 0xA0u, 0x20u); /* 26b3    */
             break;
         case 2u:
-            *put_number(s_score + 0x0Eu, g_score) = '\0';      /* 26d3    */
+            *put_number(s_score + 0x0Eu, g_score) = '\0'; /* 26d3    */
             draw_text_ramped(s_score, 0xA0u, 0x34u);
             break;
         case 3u:
-            draw_text_ramped(s_fire, 0xA0u, 0x48u);            /* 26e8    */
+            draw_text_ramped(s_fire, 0xA0u, 0x48u); /* 26e8    */
             break;
         }
         if (step < 3u) step++;
-        else { intro_anim(); phase = PH_SET2_WAIT; waitLeft = 0xC8u; keyCaught = 0; }
+        else {
+            intro_anim();
+            phase = PH_SET2_WAIT;
+            waitLeft = 0xC8u;
+            keyCaught = 0;
+        }
         break;
 
     case PH_SET2_WAIT:
         anim_entities();
-        if (fire || anyk) { keyCaught = 1; waitLeft = 0u; }
-        else if (waitLeft) waitLeft--;
+        if (fire || anyk) {
+            keyCaught = 1;
+            waitLeft = 0u;
+        } else if (waitLeft) waitLeft--;
         if (!waitLeft) {
-            if (keyCaught) swap_begin((uint32_t)-1);   /* 270b          */
+            if (keyCaught) swap_begin((uint32_t)-1); /* 270b          */
             else swap_begin(PH_SET1);
         }
         break;
 
-    case PH_GAMEOVER:                         /* 2739..27e9: the GAME OVER
+    case PH_GAMEOVER: /* 2739..27e9: the GAME OVER
                                                 * variant of the briefing  */
         if (step == 0u) {
             clear_canvas();
             draw_text_ramped("GAME OVER!", 0xA0u, 0x14u);
-            draw_text_ramped("YOUR TRIBE IS TOO SMALL TOO CONTINUE", 0xA0u, 0x28u);
+            draw_text_ramped("YOUR TRIBE IS TOO SMALL TOO CONTINUE", 0xA0u,
+                             0x28u);
             draw_text_ramped("IN THE RACE FOR EVOLUTION!", 0xA0u, 0x34u);
             draw_text_ramped("PRESS FIRE TO TRY AGAIN!", 0xA0u, 0x48u);
-            intro_anim();                  /* 2b9c: the band redraws carry
+            intro_anim(); /* 2b9c: the band redraws carry
                                             * the canvas text to the display */
             step = 1u;
         }
@@ -756,17 +831,21 @@ int32_t party_intro_tick(const InputState *in)
         if (fire || anyk) swap_begin((uint32_t)-1);
         break;
 
-    case PH_EXITWAIT:                         /* 2720: {28e9; 8b9a; JC}  */
+    case PH_EXITWAIT: /* 2720: {28e9; 8b9a; JC}  */
         anim_entities();
-        if (!palette_fadeActive()) { phase = PH_PRESENT; presentLeft = 0x4Bu; }
+        if (!palette_fadeActive()) {
+            phase = PH_PRESENT;
+            presentLeft = 0x4Bu;
+        }
         break;
 
-    case PH_PRESENT:                           /* 2728 (835a), 272b       */
+    case PH_PRESENT: /* 2728 (835a), 272b       */
         if (presentLeft) presentLeft--;
-        else phase = PH_DONE;                  /* 8389 music_stop        */
+        else phase = PH_DONE; /* 8389 music_stop        */
         break;
 
-    case PH_DONE: default: break;
+    case PH_DONE:
+    default: break;
     }
 
     /* the compose (the attract's contract): the display page into the
@@ -784,7 +863,7 @@ int32_t party_intro_tick(const InputState *in)
         }
     }
 
-    if (phase == PH_DONE) return 0;            /* the screen exited       */
+    if (phase == PH_DONE) return 0; /* the screen exited       */
     return 1;
 }
 

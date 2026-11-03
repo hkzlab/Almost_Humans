@@ -26,7 +26,10 @@ extern void osys_null_inputScript(const InputState *states, uint32_t n);
 extern const uint8_t *osys_null_palette(void);
 extern void osys_null_onPresent(void (*fn)(uint32_t poll));
 
-enum { FORCE_POLL = 7900u, SCRIPT_N = 9000u };
+enum {
+    FORCE_POLL = 7900u,
+    SCRIPT_N = 9000u
+};
 
 static int32_t outcome;
 static int32_t greySeen, blackSeen, cardSeen, seenCardAfterBlack;
@@ -52,16 +55,17 @@ static void hook(uint32_t poll)
 
         for (uint32_t e = 0; e < 0x80u; e++) {
             if (!(pal[e * 3u] == pal[e * 3u + 1u] &&
-                  pal[e * 3u] == pal[e * 3u + 2u])) grey = 0;
+                  pal[e * 3u] == pal[e * 3u + 2u]))
+                grey = 0;
             if (pal[e * 3u]) nz = 1;
         }
-        if (grey && nz &&
-            pal[0x80 * 3u] == 0x3C && pal[0x80 * 3u + 1u] == 0x28 &&
-            pal[0x80 * 3u + 2u] == 0x3C &&
+        if (grey && nz && pal[0x80 * 3u] == 0x3C &&
+            pal[0x80 * 3u + 1u] == 0x28 && pal[0x80 * 3u + 2u] == 0x3C &&
             pal[0x81 * 3u] == 0x3C && pal[0x81 * 3u + 1u] == 0x26)
             greySeen = 1;
 
-        for (uint32_t i = 0; i < 768u; i++) if (pal[i]) black = 0;
+        for (uint32_t i = 0; i < 768u; i++)
+            if (pal[i]) black = 0;
         if (black) blackSeen = 1;
 
         /* the card bank: reblit copies SCORE.BIT+0xFA00 (entry 0 = 00 20 3C) */
@@ -90,7 +94,10 @@ int main(int argc, char **argv)
         return 0;
     }
     fclose(f);
-    if (compat_chdir(vol_dir)) { perror(vol_dir); return 1; }
+    if (compat_chdir(vol_dir)) {
+        perror(vol_dir);
+        return 1;
+    }
 
     /* the test_smoke script: attract escape, the room's right exit, the
      * party's key, the goal page's held key, then force the level's end at
@@ -112,7 +119,8 @@ int main(int argc, char **argv)
     }
 
     if (!greySeen) {
-        fprintf(stderr, "FAIL 1000:33E2: the grey fade + gradient bank was not seen\n");
+        fprintf(stderr,
+                "FAIL 1000:33E2: the grey fade + gradient bank was not seen\n");
         bad = 1;
     }
     if (!blackSeen) {

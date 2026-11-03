@@ -25,21 +25,23 @@
 #include "byteorder.h"
 
 /* 202F:0x1E28 — the charset (44 glyphs + the terminator). */
-static const char charset[45] =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!., '?ae";
+static const char charset[45] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!., '?ae";
 
 /* 202F:0x1E55 — the advances, then the terminator slot's 0x50. */
-static const uint8_t advance[45] = {
-    7,  8,  8,  8,  7,  7,  8,  8,  3,  7,  8,  7,  9,  8,  8,  7,
-    8,  7,  8,  9,  7,  8, 11,  8,  7,  9,  7,  7,  8,  8,  7,  8,
-    7,  7,  8,  7,  3,  3,  3, 10,  3,  7,  7,  7, 0x50
-};
+static const uint8_t advance[45] = { 7, 8, 8, 8,  7, 7, 8, 8, 3,   7, 8,  7,
+                                     9, 8, 8, 7,  8, 7, 8, 9, 7,   8, 11, 8,
+                                     7, 9, 7, 7,  8, 8, 7, 8, 7,   7, 8,  7,
+                                     3, 3, 3, 10, 3, 7, 7, 7, 0x50 };
 
 /* [0x1E1C] — the published apl\text.spr (loaded by the attract's
  * game_loop prologue and the front-end later; blit_glyph's only source). */
 static const uint8_t *glyphs;
 
-int32_t font_init(const OSystem *osys) { (void)osys; return 0; }
+int32_t font_init(const OSystem *osys)
+{
+    (void)osys;
+    return 0;
+}
 
 void font_publish(const uint8_t *textSpr) { glyphs = textSpr; }
 
@@ -58,7 +60,7 @@ static uint8_t rev4(uint32_t v)
 {
     v &= 0xFu;
     return (uint8_t)(((v & 1u) << 3) | ((v >> 1) & 1u) << 2 |
-                    ((v >> 2) & 1u) << 1 | ((v >> 3) & 1u));
+                     ((v >> 2) & 1u) << 1 | ((v >> 3) & 1u));
 }
 
 /* blit_glyph (1000:49FC) — one 16-row glyph into the arena.  `x` is the
@@ -68,21 +70,21 @@ static void blit_glyph(uint8_t *arena, int32_t x, uint32_t row, uint32_t gi)
     if (!glyphs) return;
 
     uint32_t di = row * 80u + (uint32_t)((x >= 0 ? x : 0) >> 2);
-    uint32_t si = gi * 32u;                    /* the glyph stride (SHL CX,1 x5) */
-    uint32_t k  = (uint32_t)(x >= 0 ? x : 0) & 3u;   /* the x%4 pre-shift */
+    uint32_t si = gi * 32u; /* the glyph stride (SHL CX,1 x5) */
+    uint32_t k = (uint32_t)(x >= 0 ? x : 0) & 3u; /* the x%4 pre-shift */
 
     for (uint32_t r = 0; r < 16u; r++) {
         uint16_t ax = rd_le_u16(glyphs + si);
         si += 2;
         uint8_t dh = 0;
-        if (k) {                               /* 4a2e..4a38 */
-            ax = (uint16_t)((ax >> 8) | (ax << 8));        /* XCHG AL,AH */
+        if (k) { /* 4a2e..4a38 */
+            ax = (uint16_t)((ax >> 8) | (ax << 8)); /* XCHG AL,AH */
             for (uint32_t i = 0; i < k; i++) {
                 uint8_t cf = (uint8_t)(ax & 1u);
                 ax = (uint16_t)(ax >> 1);
-                dh = (uint8_t)((dh >> 1) | (cf << 7));     /* RCR DH,1 */
+                dh = (uint8_t)((dh >> 1) | (cf << 7)); /* RCR DH,1 */
             }
-            ax = (uint16_t)((ax >> 8) | (ax << 8));        /* XCHG AL,AH */
+            ax = (uint16_t)((ax >> 8) | (ax << 8)); /* XCHG AL,AH */
         }
         uint8_t al = (uint8_t)(ax & 0xFFu);
         uint8_t ah = (uint8_t)(ax >> 8);
@@ -91,13 +93,13 @@ static void blit_glyph(uint8_t *arena, int32_t x, uint32_t row, uint32_t gi)
          * arena bound: the original writes through ES unbounded, and the
          * credits strip's tiles live far past effect 2's 200-row arena
          * (the callers keep the writes in their buffer's range). */
-        arena[di]     |= rev4(al >> 4);    /* 4a3c..4a54  */
-        arena[di + 1] |= rev4(al);         /* 4a57..4a6b  */
-        arena[di + 2] |= rev4(ah >> 4);    /* 4a72..4a8e  */
-        arena[di + 3] |= rev4(ah);         /* 4a91..4aa5  */
-        arena[di + 4] |= rev4(dh >> 4);    /* 4aac..4ac8  */
-        arena[di + 5] |= rev4(dh);         /* 4acb..4adf  */
-        di += 0x4Au + 6u;                      /* the 80-byte row stride */
+        arena[di] |= rev4(al >> 4); /* 4a3c..4a54  */
+        arena[di + 1] |= rev4(al); /* 4a57..4a6b  */
+        arena[di + 2] |= rev4(ah >> 4); /* 4a72..4a8e  */
+        arena[di + 3] |= rev4(ah); /* 4a91..4aa5  */
+        arena[di + 4] |= rev4(dh >> 4); /* 4aac..4ac8  */
+        arena[di + 5] |= rev4(dh); /* 4acb..4adf  */
+        di += 0x4Au + 6u; /* the 80-byte row stride */
     }
 }
 
@@ -106,8 +108,7 @@ static void blit_glyph(uint8_t *arena, int32_t x, uint32_t row, uint32_t gi)
 uint32_t font_textWidth(const char *s)
 {
     uint32_t w = 0;
-    for (const uint8_t *p = (const uint8_t *)s;
-         *p && *p != 0x0Du; p++)
+    for (const uint8_t *p = (const uint8_t *)s; *p && *p != 0x0Du; p++)
         w += advance[charset_index(*p)];
     return w;
 }
@@ -121,16 +122,14 @@ void font_drawText(uint8_t *arena, const char *s, uint32_t centreX,
     if (!glyphs || !arena) return;
 
     uint32_t width = 0;
-    for (const uint8_t *p = (const uint8_t *)s;
-         *p && *p != 0x0Du; p++)
+    for (const uint8_t *p = (const uint8_t *)s; *p && *p != 0x0Du; p++)
         width += advance[charset_index(*p)];
 
     int32_t x = (int32_t)centreX - (int32_t)(width >> 1);
 
-    for (const uint8_t *p = (const uint8_t *)s;
-         *p && *p != 0x0Du; p++) {
+    for (const uint8_t *p = (const uint8_t *)s; *p && *p != 0x0Du; p++) {
         uint32_t gi = charset_index(*p);
-        if (gi == 44u) continue;               /* no glyph: skip, no advance */
+        if (gi == 44u) continue; /* no glyph: skip, no advance */
         blit_glyph(arena, x, row, gi);
         x += advance[gi];
     }

@@ -48,40 +48,43 @@
 #include "byteorder.h"
 #include <string.h>
 
-#define OBJ_STATIC 8u                    /* the records 0x3640/check_highscore scan */
+#define OBJ_STATIC 8u /* the records 0x3640/check_highscore scan */
 /* 0x3E75..0x407F: the array's initialiser (`1000:4CAB`) clears 29 records. */
 #define OBJ_SLOTS  29u
 #define OBJ_STRIDE 0x12u
 /* `load_terrain_b` (`1000:516F`) sets [0x3E73] to 8; its per-tile walk appends
  * one live record per placed object (`0x3F17 + 0x12*([0x3E73]-8)`), so the
  * count is 8 + the walk's appends (level 1: one 0xAB cell = the spear). */
-#define OBJ_LIVE0  8u
+#define OBJ_LIVE0 8u
 
 static uint8_t objArray[OBJ_SLOTS * OBJ_STRIDE];
-static int32_t objCurrent = -1;           /* [0x1AF2], -1 = none */
-static int32_t objPlayer = -1;            /* [0x180A], -1 = none */
-static uint32_t objLiveCount = OBJ_LIVE0; /* [0x3E73]: the array's used slots     */
-static uint32_t objPlacedHumans;          /* [0x3E20]: the 0xAA handlers' count   */
-static uint32_t objEntity;                /* [0x3E22]: the acting record          */
-static uint32_t objProgramIndex = 1;      /* [0x5B56], 1-based                    */
-static uint16_t objCmdTimer;              /* [0x6DEA]: the command one-shot */
-static uint16_t objStreamCount;           /* [0x6DEC]: stream hold countdown */
-static const uint8_t *objStreamPtr;       /* [0x6DEE]: the script stream    */
-static uint8_t objStackMask[2];           /* 0x64AD / 0x64C1: in-a-stack bits */
+static int32_t objCurrent = -1; /* [0x1AF2], -1 = none */
+static int32_t objPlayer = -1; /* [0x180A], -1 = none */
+static uint32_t objLiveCount =
+    OBJ_LIVE0; /* [0x3E73]: the array's used slots     */
+static uint32_t objPlacedHumans; /* [0x3E20]: the 0xAA handlers' count   */
+static uint32_t objEntity; /* [0x3E22]: the acting record          */
+static uint32_t objProgramIndex = 1; /* [0x5B56], 1-based                    */
+static uint16_t objCmdTimer; /* [0x6DEA]: the command one-shot */
+static uint16_t objStreamCount; /* [0x6DEC]: stream hold countdown */
+static const uint8_t *objStreamPtr; /* [0x6DEE]: the script stream    */
+static uint8_t objStackMask[2]; /* 0x64AD / 0x64C1: in-a-stack bits */
 /* DI at the handler/hook call (1000:E467): the byte offset of the type row's
  * selected half inside objCmdRows.  Set by object_commandSelect, read by the
  * hooks (1000:F3ED/0xF423 and 0xF6F6). */
 static uint32_t objRowOfs;
-static int16_t objSide;                 /* [0x4230]: which side the settle stepped from */
-static int32_t objStepProbeAt(const uint8_t *actor, int32_t dx, int32_t dy, uint32_t *cellOut);
+static int16_t objSide; /* [0x4230]: which side the settle stepped from */
+static int32_t objStepProbeAt(const uint8_t *actor, int32_t dx, int32_t dy,
+                              uint32_t *cellOut);
 static int32_t objLandY(int32_t x, int32_t y, uint32_t *cellOut);
 static uint32_t objStyleNudge(const uint8_t *map, uint32_t col, uint32_t row);
 static int32_t objCmdHomeState(uint8_t *actor); /* 1000:EDB7               */
-static int32_t objLat;                          /* [0x6F1D]: sequence owns input */
-static void objDriverCall(uint32_t n);          /* 1000:83B7               */
-static void objFrameStepDown(uint8_t *actor, uint32_t lo, uint32_t hi); /* 1000:FDBF */
-static uint8_t *objLinkRecord(uint32_t off);   /* the +0xE record link */
-void object_terSlotInit(void);                 /* 1000:4CC3/4CC6 */
+static int32_t objLat; /* [0x6F1D]: sequence owns input */
+static void objDriverCall(uint32_t n); /* 1000:83B7               */
+static void objFrameStepDown(uint8_t *actor, uint32_t lo,
+                             uint32_t hi); /* 1000:FDBF */
+static uint8_t *objLinkRecord(uint32_t off); /* the +0xE record link */
+void object_terSlotInit(void); /* 1000:4CC3/4CC6 */
 static void objBuildShade(uint32_t frame, uint8_t *out);
 /* 0x649A / 0x64A2 / 0x64AE / 0x64B6: the four corner-pair blocks the 0xAF..0xB2
  * tiles write at load ({x, y, x, y} followed by a zeroed 12-byte entry, or just
@@ -92,8 +95,8 @@ static uint16_t objPairA[8], objPairB[2], objPairC[8], objPairD[2];
  * tile handler (1000:5206); the settle's 1000:DF2C reads them. */
 static struct {
     uint16_t x, y;
-    uint8_t *dst;        /* +4: the first of the five A9 log records   */
-    uint8_t *mark;       /* +8: the map cell pair 1000:D5E4 rewrites     */
+    uint8_t *dst; /* +4: the first of the five A9 log records   */
+    uint8_t *mark; /* +8: the map cell pair 1000:D5E4 rewrites     */
 } objBg[32];
 static uint32_t objBgCount;
 
@@ -104,9 +107,9 @@ static void objSetProgramIndex(uint32_t index)
     if (index < 1u || index > 6u) return;
     objProgramIndex = index;
 }
-static uint32_t objPending;              /* [0x1979]                             */
-static uint32_t objCursor = 1;           /* [0x1988]                             */
-static uint32_t objFault;                /* op 7 was dispatched (see below)      */
+static uint32_t objPending; /* [0x1979]                             */
+static uint32_t objCursor = 1; /* [0x1988]                             */
+static uint32_t objFault; /* op 7 was dispatched (see below)      */
 /* [0x1987] / the port's "inside 0x36DB" state: the turn arms the flag
  * (1000:EE35) and the pending-event 4 charge loop consumes it (1000:370C). */
 static uint8_t objChargeArm;
@@ -116,129 +119,135 @@ static int32_t objCharging;
  * so the edge (0xE40C's `CALL 0x392D`) is dead in the shipped build and the port
  * does not run it.  That is what lets a fire press reach the type row's fire
  * half (D-68). */
-static const OSystem *objOsys;           /* the fatal halt's route (osystem.h)   */
-static uint16_t objRegister[8][7];       /* 0x6F22: 8 x 0xE (clear is 0x70 bytes at
+static const OSystem *objOsys; /* the fatal halt's route (osystem.h)   */
+static uint16_t objRegister[8][7]; /* 0x6F22: 8 x 0xE (clear is 0x70 bytes at
                                           * 0x60F4; op 1 walks AX = 7..0), bit15 = free */
-static uint16_t objSpan[2][14];          /* 0x6F92, 2 x 0x1C: {id, .. +6, +8, +0x12} */
-static int32_t objAnimDiv;               /* [0x66B1]: the 6-tick divider */
+static uint16_t objSpan[2][14]; /* 0x6F92, 2 x 0x1C: {id, .. +6, +8, +0x12} */
+static int32_t objAnimDiv; /* [0x66B1]: the 6-tick divider */
 /* 0x67F1's pending-move chain: tag, phase-2 countdown, slot, phase-1
  * divider/index/cursor into the 0x67FF (offset, divider) table. */
 static uint16_t pendTag, pendCount, pendSlot, pendIndex, pendCursor;
 static int32_t pendDiv;
 static const int16_t objAnimX[6][15][9] = {
-    { /* length 3 */
-        { -2,-1,0,0,0,0,0,0,-1 },
-        { -1,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,1 },
-        { 1,0,0,0,0,0,0,0,2 },
-        { 2,1,0,0,0,0,0,0,3 },
-        { 0,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,0 },
+    {
+        /* length 3 */
+        { -2, -1, 0, 0, 0, 0, 0, 0, -1 },
+        { -1, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 1 },
+        { 1, 0, 0, 0, 0, 0, 0, 0, 2 },
+        { 2, 1, 0, 0, 0, 0, 0, 0, 3 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
     },
-    { /* length 4 */
-        { -3,-2,-1,0,0,0,0,0,-2 },
-        { -2,-1,0,0,0,0,0,0,-1 },
-        { -1,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,1 },
-        { 1,0,0,0,0,0,0,0,2 },
-        { 2,1,0,0,0,0,0,0,3 },
-        { 3,2,1,0,0,0,0,0,4 },
-        { 0,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,0 },
+    {
+        /* length 4 */
+        { -3, -2, -1, 0, 0, 0, 0, 0, -2 },
+        { -2, -1, 0, 0, 0, 0, 0, 0, -1 },
+        { -1, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 1 },
+        { 1, 0, 0, 0, 0, 0, 0, 0, 2 },
+        { 2, 1, 0, 0, 0, 0, 0, 0, 3 },
+        { 3, 2, 1, 0, 0, 0, 0, 0, 4 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
     },
-    { /* length 5 */
-        { -4,-3,-2,-1,0,0,0,0,-3 },
-        { -3,-2,-1,0,0,0,0,0,-2 },
-        { -2,-1,0,0,0,0,0,0,-1 },
-        { -1,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,1 },
-        { 1,0,0,0,0,0,0,0,2 },
-        { 2,1,0,0,0,0,0,0,3 },
-        { 3,2,1,0,0,0,0,0,4 },
-        { 4,3,2,1,0,0,0,0,5 },
-        { 0,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,0 },
+    {
+        /* length 5 */
+        { -4, -3, -2, -1, 0, 0, 0, 0, -3 },
+        { -3, -2, -1, 0, 0, 0, 0, 0, -2 },
+        { -2, -1, 0, 0, 0, 0, 0, 0, -1 },
+        { -1, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 1 },
+        { 1, 0, 0, 0, 0, 0, 0, 0, 2 },
+        { 2, 1, 0, 0, 0, 0, 0, 0, 3 },
+        { 3, 2, 1, 0, 0, 0, 0, 0, 4 },
+        { 4, 3, 2, 1, 0, 0, 0, 0, 5 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
     },
-    { /* length 6 */
-        { -5,-4,-3,-2,-1,0,0,0,-4 },
-        { -4,-3,-2,-1,0,0,0,0,-3 },
-        { -3,-2,-1,0,0,0,0,0,-2 },
-        { -2,-1,0,0,0,0,0,0,-1 },
-        { -1,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,1 },
-        { 1,0,0,0,0,0,0,0,2 },
-        { 2,1,0,0,0,0,0,0,3 },
-        { 3,2,1,0,0,0,0,0,4 },
-        { 4,3,2,1,0,0,0,0,5 },
-        { 5,4,3,2,1,0,0,0,6 },
-        { 0,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,0 },
+    {
+        /* length 6 */
+        { -5, -4, -3, -2, -1, 0, 0, 0, -4 },
+        { -4, -3, -2, -1, 0, 0, 0, 0, -3 },
+        { -3, -2, -1, 0, 0, 0, 0, 0, -2 },
+        { -2, -1, 0, 0, 0, 0, 0, 0, -1 },
+        { -1, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 1 },
+        { 1, 0, 0, 0, 0, 0, 0, 0, 2 },
+        { 2, 1, 0, 0, 0, 0, 0, 0, 3 },
+        { 3, 2, 1, 0, 0, 0, 0, 0, 4 },
+        { 4, 3, 2, 1, 0, 0, 0, 0, 5 },
+        { 5, 4, 3, 2, 1, 0, 0, 0, 6 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
     },
-    { /* length 7 */
-        { -6,-5,-4,-3,-2,-1,0,0,-5 },
-        { -5,-4,-3,-2,-1,0,0,0,-4 },
-        { -4,-3,-2,-1,0,0,0,0,-3 },
-        { -3,-2,-1,0,0,0,0,0,-2 },
-        { -2,-1,0,0,0,0,0,0,-1 },
-        { -1,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,1 },
-        { 1,0,0,0,0,0,0,0,2 },
-        { 2,1,0,0,0,0,0,0,3 },
-        { 3,2,1,0,0,0,0,0,4 },
-        { 4,3,2,1,0,0,0,0,5 },
-        { 5,4,3,2,1,0,0,0,6 },
-        { 6,5,4,3,2,1,0,0,7 },
-        { 0,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,0 },
+    {
+        /* length 7 */
+        { -6, -5, -4, -3, -2, -1, 0, 0, -5 },
+        { -5, -4, -3, -2, -1, 0, 0, 0, -4 },
+        { -4, -3, -2, -1, 0, 0, 0, 0, -3 },
+        { -3, -2, -1, 0, 0, 0, 0, 0, -2 },
+        { -2, -1, 0, 0, 0, 0, 0, 0, -1 },
+        { -1, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 1 },
+        { 1, 0, 0, 0, 0, 0, 0, 0, 2 },
+        { 2, 1, 0, 0, 0, 0, 0, 0, 3 },
+        { 3, 2, 1, 0, 0, 0, 0, 0, 4 },
+        { 4, 3, 2, 1, 0, 0, 0, 0, 5 },
+        { 5, 4, 3, 2, 1, 0, 0, 0, 6 },
+        { 6, 5, 4, 3, 2, 1, 0, 0, 7 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
     },
-    { /* length 8 */
-        { -7,-6,-5,-4,-3,-2,-1,0,-6 },
-        { -6,-5,-4,-3,-2,-1,0,0,-5 },
-        { -5,-4,-3,-2,-1,0,0,0,-4 },
-        { -4,-3,-2,-1,0,0,0,0,-3 },
-        { -3,-2,-1,0,0,0,0,0,-2 },
-        { -2,-1,0,0,0,0,0,0,-1 },
-        { -1,0,0,0,0,0,0,0,0 },
-        { 0,0,0,0,0,0,0,0,1 },
-        { 1,0,0,0,0,0,0,0,2 },
-        { 2,1,0,0,0,0,0,0,3 },
-        { 3,2,1,0,0,0,0,0,4 },
-        { 4,3,2,1,0,0,0,0,5 },
-        { 5,4,3,2,1,0,0,0,6 },
-        { 6,5,4,3,2,1,0,0,7 },
-        { 7,6,5,4,3,2,1,0,0 },
+    {
+        /* length 8 */
+        { -7, -6, -5, -4, -3, -2, -1, 0, -6 },
+        { -6, -5, -4, -3, -2, -1, 0, 0, -5 },
+        { -5, -4, -3, -2, -1, 0, 0, 0, -4 },
+        { -4, -3, -2, -1, 0, 0, 0, 0, -3 },
+        { -3, -2, -1, 0, 0, 0, 0, 0, -2 },
+        { -2, -1, 0, 0, 0, 0, 0, 0, -1 },
+        { -1, 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 0, 0, 0, 0, 0, 0, 0, 0, 1 },
+        { 1, 0, 0, 0, 0, 0, 0, 0, 2 },
+        { 2, 1, 0, 0, 0, 0, 0, 0, 3 },
+        { 3, 2, 1, 0, 0, 0, 0, 0, 4 },
+        { 4, 3, 2, 1, 0, 0, 0, 0, 5 },
+        { 5, 4, 3, 2, 1, 0, 0, 0, 6 },
+        { 6, 5, 4, 3, 2, 1, 0, 0, 7 },
+        { 7, 6, 5, 4, 3, 2, 1, 0, 0 },
     },
 };
 
 /* 0x6DF2: the static two-byte (frame, hold) stream the type-2 command-8
  * handler walks; 0xFF 0xFF terminates and wraps. */
 static const uint8_t objAnimStream[] = {
-    0x10,0xC8, 0x10,0xC8, 0x12,0x05, 0x10,0x14, 0x12,0x05, 0x10,0xC8,
-    0x10,0xC8, 0x13,0x06, 0x14,0x06, 0x15,0x06, 0x16,0x28, 0x15,0x06,
-    0x14,0x06, 0x13,0x06, 0x10,0xC8, 0x12,0x05, 0x10,0x0A, 0x12,0x05,
-    0x10,0x32, 0x13,0x06, 0x14,0x06, 0x15,0x06, 0x16,0x23, 0x15,0x06,
-    0x14,0x06, 0x13,0x06, 0x10,0xC8, 0x10,0xC8, 0x12,0x05, 0x10,0x14,
-    0x12,0x05, 0x10,0xC8, 0x10,0xC8, 0xFF,0xFF,
+    0x10, 0xC8, 0x10, 0xC8, 0x12, 0x05, 0x10, 0x14, 0x12, 0x05, 0x10, 0xC8,
+    0x10, 0xC8, 0x13, 0x06, 0x14, 0x06, 0x15, 0x06, 0x16, 0x28, 0x15, 0x06,
+    0x14, 0x06, 0x13, 0x06, 0x10, 0xC8, 0x12, 0x05, 0x10, 0x0A, 0x12, 0x05,
+    0x10, 0x32, 0x13, 0x06, 0x14, 0x06, 0x15, 0x06, 0x16, 0x23, 0x15, 0x06,
+    0x14, 0x06, 0x13, 0x06, 0x10, 0xC8, 0x10, 0xC8, 0x12, 0x05, 0x10, 0x14,
+    0x12, 0x05, 0x10, 0xC8, 0x10, 0xC8, 0xFF, 0xFF,
 };
 
 
@@ -256,12 +265,15 @@ static uint8_t *objActor(void) { return objArray + objEntity * OBJ_STRIDE; }
  * then the sprite word and the four parameter words, re-armed to one use
  * every level start (level_setup 1000:31C3). */
 static const uint8_t objRecipes[4][12] = {
-    { 1, 5, 0x00, 0x60, 0xFF, 0xFF, 0, 0, 0, 0, 0, 0 },  /* op 11 -> behaviour 5 */
-    { 1, 7, 0x00, 0x96, 0xFF, 0xFF, 0, 0, 0, 0, 0, 0 },  /* op 12 -> behaviour 7 */
-    { 1, 6, 0x00, 0x9C, 0xFF, 0xFF, 0, 0, 0, 0, 0, 0 },  /* AX=2, never fired    */
+    { 1, 5, 0x00, 0x60, 0xFF, 0xFF, 0, 0, 0, 0, 0,
+      0 }, /* op 11 -> behaviour 5 */
+    { 1, 7, 0x00, 0x96, 0xFF, 0xFF, 0, 0, 0, 0, 0,
+      0 }, /* op 12 -> behaviour 7 */
+    { 1, 6, 0x00, 0x9C, 0xFF, 0xFF, 0, 0, 0, 0, 0,
+      0 }, /* AX=2, never fired    */
     { 1, 4, 0x00, 0x38, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0 }, /* op 10 */
 };
-static uint8_t objUses[4];               /* the live copy of [DI+0] */
+static uint8_t objUses[4]; /* the live copy of [DI+0] */
 
 uint32_t object_staticSlots(void) { return OBJ_STATIC; }
 
@@ -283,40 +295,36 @@ void object_init(void)
     objPlayer = -1;
     objLiveCount = OBJ_LIVE0;
     objPlacedHumans = 0u;
-    objEntity = 0u;                  /* [0x3E22] cleared (1000:4CB7)      */
-    objBgCount = 0u;                 /* [0x32B9] cleared (1000:4CBA)      */
-    objPending = 0u;                 /* [0x1979]                          */
-    objCursor = 1u;                  /* [0x1988]                          */
-    objSetProgramIndex(1u);          /* [0x5B56]                          */
-    objCmdTimer = 0u;                /* [0x6DEA]                          */
-    objStreamCount = 0u;             /* [0x6DEC]                          */
-    objStreamPtr = objAnimStream;    /* [0x6DEE] = 0x6DF2                 */
-    objAnimDiv = 0;                  /* [0x66B1]                          */
+    objEntity = 0u; /* [0x3E22] cleared (1000:4CB7)      */
+    objBgCount = 0u; /* [0x32B9] cleared (1000:4CBA)      */
+    objPending = 0u; /* [0x1979]                          */
+    objCursor = 1u; /* [0x1988]                          */
+    objSetProgramIndex(1u); /* [0x5B56]                          */
+    objCmdTimer = 0u; /* [0x6DEA]                          */
+    objStreamCount = 0u; /* [0x6DEC]                          */
+    objStreamPtr = objAnimStream; /* [0x6DEE] = 0x6DF2                 */
+    objAnimDiv = 0; /* [0x66B1]                          */
     pendTag = pendCount = pendSlot = pendIndex = pendCursor = 0u;
     pendDiv = 0;
     objStackMask[0] = objStackMask[1] = 0u;
     objFault = 0u;
-    memset(objRegister, 0xFF, sizeof objRegister);   /* 0x6F22, all free  */
-    memset(objSpan, 0xFF, sizeof objSpan);   /* 0x6F92: 0x38 bytes at 0x60FF */
+    memset(objRegister, 0xFF, sizeof objRegister); /* 0x6F22, all free  */
+    memset(objSpan, 0xFF, sizeof objSpan); /* 0x6F92: 0x38 bytes at 0x60FF */
     for (uint32_t i = 0; i < 4u; i++) objUses[i] = objRecipes[i][0];
-    object_terSlotInit();           /* 1000:4CC3/4CC6: both slots off */
+    object_terSlotInit(); /* 1000:4CC3/4CC6: both slots off */
 }
 
 uint32_t object_placedHumans(void) { return objPlacedHumans; }
 
 uint8_t *object_slot(uint32_t i)
-{
-    return i < OBJ_SLOTS ? objArray + i * OBJ_STRIDE : NULL;
-}
+{ return i < OBJ_SLOTS ? objArray + i * OBJ_STRIDE : NULL; }
 
 uint32_t object_slots(void) { return OBJ_SLOTS; }
 
 uint32_t object_liveCount(void) { return objLiveCount; }
 
 uint8_t object_slotClass(uint32_t slot)
-{
-    return slot < sizeof objSlotClass ? objSlotClass[slot] : 0u;
-}
+{ return slot < sizeof objSlotClass ? objSlotClass[slot] : 0u; }
 /* the tests' setter for [0x3E5E + slot] (the behaviour bytes). */
 void object_setSlotClassForProbe(uint32_t slot, uint8_t cls)
 {
@@ -332,16 +340,12 @@ void object_setSlotClass(uint32_t slot, uint32_t cls)
 int32_t object_current(void) { return objCurrent; }
 
 void object_setCurrent(int32_t slot)
-{
-    objCurrent = (slot >= 0 && (uint32_t)slot < OBJ_SLOTS) ? slot : -1;
-}
+{ objCurrent = (slot >= 0 && (uint32_t)slot < OBJ_SLOTS) ? slot : -1; }
 
 int32_t object_player(void) { return objPlayer; }
 
 void object_setPlayer(int32_t slot)
-{
-    objPlayer = (slot >= 0 && (uint32_t)slot < OBJ_SLOTS) ? slot : -1;
-}
+{ objPlayer = (slot >= 0 && (uint32_t)slot < OBJ_SLOTS) ? slot : -1; }
 
 /* --- object_test_dispatch's predicates (1000:35D6) ---------------------
  *
@@ -381,9 +385,7 @@ int32_t object_classMatches(uint32_t want)
 
 /* 1000:3678 — the current record's type equals the test's word. */
 int32_t object_typeEquals(uint32_t type)
-{
-    return rd_le_u16(objActor() + 8u) == type ? -1 : 0;
-}
+{ return rd_le_u16(objActor() + 8u) == type ? -1 : 0; }
 
 /* 0xF761's map addressing for a record: `cell = 32*((y+0xC)&0xFFF0)/16 +
  * ((x+8)>>4)` — the row is the record's y rounded down to the 16-px grid,
@@ -439,8 +441,7 @@ uint32_t object_recordMapCell(uint32_t slot)
 int32_t object_mapCellEquals(uint32_t want)
 {
     if (rd_le_u16(objActor() + 8u) > 2u) return 0;
-    return objMapCell(objActor()) == (uint16_t)want
-           ? -1 : 0;
+    return objMapCell(objActor()) == (uint16_t)want ? -1 : 0;
 }
 
 /* 1000:3688 — the entity table (count 0x64C2, records 0x64C4, stride 0x10):
@@ -459,7 +460,7 @@ int32_t object_entitiesFinished(void)
 
 /* the frame counter the low-phase predicate gates on ([0x4103]) */
 static uint32_t objFrame;
-static uint32_t lowPhaseCount;      /* [0x1976]: 0x8C = 140 */
+static uint32_t lowPhaseCount; /* [0x1976]: 0x8C = 140 */
 
 /* --- pred_type_low_phase_match (1000:3600) ----------------------------
  *
@@ -479,7 +480,7 @@ int32_t object_lowPhaseMatch(void)
     static uint32_t lastFrame = ~0u;
 
     if (rd_le_u16(objActor() + 8u) > 2u) return 0;
-    if (lastFrame == objFrame) return 0;            /* once per frame */
+    if (lastFrame == objFrame) return 0; /* once per frame */
     lastFrame = objFrame;
     {
         /* 1000:361F..3629: the feet cell, then the cell one map row *below* it
@@ -500,7 +501,7 @@ int32_t object_lowPhaseMatch(void)
             if (map[below] == 0xA8u) goal = 1;
         }
         if (!goal) {
-            lowPhaseCount = 0u;                     /* 1000:362C */
+            lowPhaseCount = 0u; /* 1000:362C */
             return 0;
         }
     }
@@ -554,28 +555,28 @@ int32_t object_lowPhaseMatch(void)
  */
 enum {
     CLAIM_OFF,
-    CLAIM_TO_RED,        /* 1000:3B56  1..0x7F -> red, div 5                */
-    CLAIM_RED_BACK,      /* 1000:3B68  -> the level palette, div 0x1E       */
-    CLAIM_TO_WHITE,      /* 1000:3B82  1..0x7F -> white, div 5              */
-    CLAIM_PAN,           /* 1000:3B91  1000:3D04: the two-frame present    */
-    CLAIM_WHITE_BACK,    /* 1000:3B97  -> the level palette, div 0x19       */
-    CLAIM_FRAME,         /* 1000:3BA9  one 0x9F56 frame, then the blinks    */
-    CLAIM_BLINK_WHITE,   /* 1000:3BB3  the 0x80 bank -> white, div n        */
-    CLAIM_BLINK_LEVEL,   /* 1000:3BC3  the 0x80 bank -> the level, div n    */
-    CLAIM_ANIM,          /* 1000:3BD6  6 x 9 frames, `frame++` per pass     */
-    CLAIM_HOLD,          /* 1000:3C7D  41 frames                            */
-    CLAIM_WHITE_OUT,     /* 1000:3C88  1..0xBF -> white, div 5              */
-    CLAIM_FRAME2,        /* 1000:3C9F  one frame, then the remove           */
-    CLAIM_FLIP,          /* 1000:3CB5  the two page frames                  */
-    CLAIM_SETTLE         /* 1000:3CDE  1..0xBF -> the level, div 0x28       */
+    CLAIM_TO_RED, /* 1000:3B56  1..0x7F -> red, div 5                */
+    CLAIM_RED_BACK, /* 1000:3B68  -> the level palette, div 0x1E       */
+    CLAIM_TO_WHITE, /* 1000:3B82  1..0x7F -> white, div 5              */
+    CLAIM_PAN, /* 1000:3B91  1000:3D04: the two-frame present    */
+    CLAIM_WHITE_BACK, /* 1000:3B97  -> the level palette, div 0x19       */
+    CLAIM_FRAME, /* 1000:3BA9  one 0x9F56 frame, then the blinks    */
+    CLAIM_BLINK_WHITE, /* 1000:3BB3  the 0x80 bank -> white, div n        */
+    CLAIM_BLINK_LEVEL, /* 1000:3BC3  the 0x80 bank -> the level, div n    */
+    CLAIM_ANIM, /* 1000:3BD6  6 x 9 frames, `frame++` per pass     */
+    CLAIM_HOLD, /* 1000:3C7D  41 frames                            */
+    CLAIM_WHITE_OUT, /* 1000:3C88  1..0xBF -> white, div 5              */
+    CLAIM_FRAME2, /* 1000:3C9F  one frame, then the remove           */
+    CLAIM_FLIP, /* 1000:3CB5  the two page frames                  */
+    CLAIM_SETTLE /* 1000:3CDE  1..0xBF -> the level, div 0x28       */
 };
 
-static int32_t  claimPhase = CLAIM_OFF;
-static int32_t  claimNeighbour = -1;
+static int32_t claimPhase = CLAIM_OFF;
+static int32_t claimNeighbour = -1;
 static uint32_t claimBehav, claimSprite;
 static uint32_t claimParams[4];
 static uint32_t claimBlinks, claimTimer;
-static uint8_t  claimRed[768], claimWhite[768];
+static uint8_t claimRed[768], claimWhite[768];
 
 /* 0x54F4: the whole 768-byte ramp := one 6-bit colour.  The fill's register
  * order is (BL, AH, AL) = (R, G, B), hence the red call's AX = 0, BL = 0x3F. */
@@ -603,14 +604,14 @@ int32_t object_findNeighbour(int32_t actor)
         const uint8_t *r = objArray + i * OBJ_STRIDE;
         int32_t dx, dy;
 
-        if ((int32_t)i == actor) continue;           /* 1000:3A9C */
-        if (rd_le_u16(r + 8u) > 2u) continue;              /* type <= 2 */
+        if ((int32_t)i == actor) continue; /* 1000:3A9C */
+        if (rd_le_u16(r + 8u) > 2u) continue; /* type <= 2 */
         dx = (int32_t)(int16_t)rd_le_u16(r + 0u) - cx;
         dy = (int32_t)(int16_t)rd_le_u16(r + 2u) - cy;
         if (dx < 0) dx = -dx;
         if (dy < 0) dy = -dy;
         if (dx > 0x20 || dy > 8) continue;
-        if (r[6] & 0x80u) continue;                  /* active    */
+        if (r[6] & 0x80u) continue; /* active    */
         return (int32_t)i;
     }
     return -1;
@@ -625,24 +626,24 @@ int32_t object_claimBegin(uint32_t recipe, int32_t actor)
     if (actor < 0 || (uint32_t)actor >= OBJ_STATIC) return -1;
     if (recipe >= 4u) return -1;
     if (rd_le_u16(objArray + actor * OBJ_STRIDE + 8u) > 2u) return -1;
-    if (!objUses[recipe]) return -1;                 /* 1000:3A89: the use counter */
+    if (!objUses[recipe]) return -1; /* 1000:3A89: the use counter */
 
     n = object_findNeighbour(actor);
     if (n < 0) return -1;
 
     rec = objArray + n * OBJ_STRIDE;
     cls = rec[7u];
-    if (cls) {                                       /* 1000:3AE2..1000:3B00 */
+    if (cls) { /* 1000:3AE2..1000:3B00 */
         uint32_t slot = cls - 1u;
-        objSlotClass[cls] = 0u;                      /* 0x3E5F + slot */
+        objSlotClass[cls] = 0u; /* 0x3E5F + slot */
         live = objArray + (OBJ_LIVE0 + slot) * OBJ_STRIDE;
-        wr_le_u16(live + 6u, 0xFFFFu);                     /* 0x3F17 + 0x12*slot */
+        wr_le_u16(live + 6u, 0xFFFFu); /* 0x3F17 + 0x12*slot */
     }
-    object_setCurrent(n);                            /* 1000:3B03 */
-    wr_le_u16(rec + 4u, 0x0103u);                           /* 1000:3B07 */
-    wr_le_u16(rec + 6u, 0u);                                /* 1000:3B0D */
+    object_setCurrent(n); /* 1000:3B03 */
+    wr_le_u16(rec + 4u, 0x0103u); /* 1000:3B07 */
+    wr_le_u16(rec + 6u, 0u); /* 1000:3B0D */
     wr_le_u16(objArray + actor * OBJ_STRIDE + 4u, 0x0020u); /* 1000:3B13 */
-    statusbar_setActive(0);                          /* 1000:3B23: [0x5B12] = 0 */
+    statusbar_setActive(0); /* 1000:3B23: [0x5B12] = 0 */
     /* 1000:3B19/3B28: the world freezes for the sequence, and the display
      * window is snapped to a 4-pixel boundary (`AND [0x0], 0xFFFC`) because the
      * strip save below works in whole page bytes.  Neither moves the camera. */
@@ -658,10 +659,10 @@ int32_t object_claimBegin(uint32_t recipe, int32_t actor)
         claimParams[k] = rd_le_u16(objRecipes[recipe] + 4u + 2u * k);
 
     claimNeighbour = n;
-    claimBlinks = 10u;                               /* 1000:3BAC */
+    claimBlinks = 10u; /* 1000:3BAC */
     claimTimer = 0u;
-    claimFillRamp(claimRed, 0x3Fu, 0u, 0u);          /* 1000:3B4F: AX=0, BL=0x3F */
-    claimFillRamp(claimWhite, 0x3Fu, 0x3Fu, 0x3Fu);  /* 1000:3B7A: AX=0x3F3F   */
+    claimFillRamp(claimRed, 0x3Fu, 0u, 0u); /* 1000:3B4F: AX=0, BL=0x3F */
+    claimFillRamp(claimWhite, 0x3Fu, 0x3Fu, 0x3Fu); /* 1000:3B7A: AX=0x3F3F   */
     claimPhase = CLAIM_TO_RED;
     palette_buildFade(1u, 0x7Fu, 5u, claimRed + 3u); /* 1000:3B56 */
     return n;
@@ -674,28 +675,27 @@ int32_t object_claimActive(void) { return claimPhase != CLAIM_OFF; }
  * original's `0x9F8B` (spin while the fade runs). */
 void object_claimTick(const uint8_t *levelPal)
 {
-    uint8_t *nrec = claimNeighbour >= 0
-        ? objArray + claimNeighbour * OBJ_STRIDE : NULL;
+    uint8_t *nrec =
+        claimNeighbour >= 0 ? objArray + claimNeighbour * OBJ_STRIDE : NULL;
 
     switch (claimPhase) {
-    case CLAIM_OFF:
-        return;
-    case CLAIM_TO_RED:                               /* 1000:3B56 */
+    case CLAIM_OFF: return;
+    case CLAIM_TO_RED: /* 1000:3B56 */
         if (palette_fadeActive()) return;
         claimPhase = CLAIM_RED_BACK;
-        palette_buildFade(1u, 0x7Fu, 0x1Eu, levelPal + 3u);  /* 1000:3B68 */
+        palette_buildFade(1u, 0x7Fu, 0x1Eu, levelPal + 3u); /* 1000:3B68 */
         break;
-    case CLAIM_RED_BACK:                             /* 1000:3B68 */
+    case CLAIM_RED_BACK: /* 1000:3B68 */
         if (palette_fadeActive()) return;
         claimPhase = CLAIM_TO_WHITE;
-        palette_buildFade(1u, 0x7Fu, 5u, claimWhite + 3u);   /* 1000:3B82 */
+        palette_buildFade(1u, 0x7Fu, 5u, claimWhite + 3u); /* 1000:3B82 */
         break;
-    case CLAIM_TO_WHITE:                             /* 1000:3B91: 1000:3D04 */
+    case CLAIM_TO_WHITE: /* 1000:3B91: 1000:3D04 */
         if (palette_fadeActive()) return;
         claimTimer = 0u;
-        claimPhase = CLAIM_PAN;                      /* two frames */
+        claimPhase = CLAIM_PAN; /* two frames */
         break;
-    case CLAIM_PAN:                                  /* 1000:3D04, two frames */
+    case CLAIM_PAN: /* 1000:3D04, two frames */
         /* 1000:3D04 presents the world twice (5810, 5d56, 3d5e); on the first
          * pass 1000:3D41 hands min(player, claimed) to 1000:3DC0, which SAVES a
          * 64x18-byte page strip at that point to A000:0xF000 — a scratch save
@@ -704,26 +704,27 @@ void object_claimTick(const uint8_t *levelPal)
         if (++claimTimer < 2u) break;
         claimTimer = 0u;
         claimPhase = CLAIM_WHITE_BACK;
-        palette_buildFade(1u, 0x7Fu, 0x19u, levelPal + 3u);  /* 1000:3B97 */
+        palette_buildFade(1u, 0x7Fu, 0x19u, levelPal + 3u); /* 1000:3B97 */
         break;
-    case CLAIM_WHITE_BACK:                           /* 1000:3BA9 */
+    case CLAIM_WHITE_BACK: /* 1000:3BA9 */
         if (palette_fadeActive()) return;
         claimTimer = 0u;
         claimPhase = CLAIM_FRAME;
         break;
     case CLAIM_FRAME:
-        if (++claimTimer <= 1u) break;               /* 1000:3BA9's 0x9F56 */
+        if (++claimTimer <= 1u) break; /* 1000:3BA9's 0x9F56 */
         claimTimer = 0u;
         claimPhase = CLAIM_BLINK_WHITE;
-        palette_buildFade(0x80u, 0x40u, claimBlinks, claimWhite); /* 1000:3BB3 */
+        palette_buildFade(0x80u, 0x40u, claimBlinks,
+                          claimWhite); /* 1000:3BB3 */
         break;
-    case CLAIM_BLINK_WHITE:                          /* 1000:3BB3 */
+    case CLAIM_BLINK_WHITE: /* 1000:3BB3 */
         if (palette_fadeActive()) return;
         claimPhase = CLAIM_BLINK_LEVEL;
         palette_buildFade(0x80u, 0x40u, claimBlinks,
-                          levelPal + 0x80u * 3u);   /* 1000:3BC3 */
+                          levelPal + 0x80u * 3u); /* 1000:3BC3 */
         break;
-    case CLAIM_BLINK_LEVEL:                          /* 1000:3BC3 */
+    case CLAIM_BLINK_LEVEL: /* 1000:3BC3 */
         if (palette_fadeActive()) return;
         if (--claimBlinks == 0u) {
             claimTimer = 0u;
@@ -733,8 +734,8 @@ void object_claimTick(const uint8_t *levelPal)
         claimPhase = CLAIM_BLINK_WHITE;
         palette_buildFade(0x80u, 0x40u, claimBlinks, claimWhite);
         break;
-    case CLAIM_ANIM:                                 /* 1000:3BD6..1000:3BF6 */
-        if (++claimTimer % 9u == 0u)                 /* the 1000:3BE9 frame++ */
+    case CLAIM_ANIM: /* 1000:3BD6..1000:3BF6 */
+        if (++claimTimer % 9u == 0u) /* the 1000:3BE9 frame++ */
             wr_le_u16(nrec + 4u, (uint16_t)(rd_le_u16(nrec + 4u) + 1u));
         if (claimTimer < 56u) break;
         claimTimer = 0u;
@@ -770,39 +771,37 @@ void object_claimTick(const uint8_t *levelPal)
         }
         claimPhase = CLAIM_HOLD;
         break;
-    case CLAIM_HOLD:                                 /* 1000:3C7D: 0x28+1 */
+    case CLAIM_HOLD: /* 1000:3C7D: 0x28+1 */
         if (++claimTimer < 41u) break;
         claimTimer = 0u;
         claimPhase = CLAIM_WHITE_OUT;
-        palette_buildFade(1u, 0xBFu, 5u, claimWhite + 3u);   /* 1000:3C90 */
+        palette_buildFade(1u, 0xBFu, 5u, claimWhite + 3u); /* 1000:3C90 */
         break;
-    case CLAIM_WHITE_OUT:                            /* 1000:3C88 */
+    case CLAIM_WHITE_OUT: /* 1000:3C88 */
         if (palette_fadeActive()) return;
         claimTimer = 0u;
         claimPhase = CLAIM_FRAME2;
         break;
-    case CLAIM_FRAME2:                               /* 1000:3C9F */
-        if (++claimTimer <= 1u) break;               /* one 0x9F56 */
+    case CLAIM_FRAME2: /* 1000:3C9F */
+        if (++claimTimer <= 1u) break; /* one 0x9F56 */
         claimTimer = 0u;
-        wr_le_u16(nrec + 6u, 0xFFFFu);                     /* 50A6: removed */
-        statusbar_setActive(1);                      /* 50B0: [0x5B12] */
+        wr_le_u16(nrec + 6u, 0xFFFFu); /* 50A6: removed */
+        statusbar_setActive(1); /* 50B0: [0x5B12] */
         claimPhase = CLAIM_FLIP;
         break;
-    case CLAIM_FLIP:                                 /* 1000:3CB5: LOOP CX=2 */
-        if (claimTimer == 0u) level_setUpdates(1);   /* 1000:3CAB: [0xC] = 0xFF */
+    case CLAIM_FLIP: /* 1000:3CB5: LOOP CX=2 */
+        if (claimTimer == 0u) level_setUpdates(1); /* 1000:3CAB: [0xC] = 0xFF */
         if (++claimTimer < 2u) break;
         claimTimer = 0u;
         claimPhase = CLAIM_SETTLE;
-        palette_buildFade(1u, 0xBFu, 0x28u, levelPal + 3u);  /* 50DE */
+        palette_buildFade(1u, 0xBFu, 0x28u, levelPal + 3u); /* 50DE */
         break;
-    case CLAIM_SETTLE:                               /* 1000:3CDE */
+    case CLAIM_SETTLE: /* 1000:3CDE */
         if (palette_fadeActive()) return;
         claimPhase = CLAIM_OFF;
         claimNeighbour = -1;
         break;
-    default:
-        claimPhase = CLAIM_OFF;
-        break;
+    default: claimPhase = CLAIM_OFF; break;
     }
 }
 
@@ -838,9 +837,9 @@ void object_claimTick(const uint8_t *levelPal)
 
 /* 202F:0x1EB3, the tile ids the walk matches, in table order. */
 static const uint8_t objTiles[25] = {
-    0xA9, 0xAA, 0xAB, 0xAC, 0xAD, 0xAE, 0xAF, 0xB0, 0xB1, 0xB2,
-    0xB3, 0xB4, 0xB5, 0xC0, 0xB6, 0xB7, 0xB8, 0xBA, 0xBB, 0xBE,
-    0xBF, 0xC1, 0xF0, 0xF1, 0xF2,
+    0xA9, 0xAA, 0xAB, 0xAC, 0xAD, 0xAE, 0xAF, 0xB0, 0xB1,
+    0xB2, 0xB3, 0xB4, 0xB5, 0xC0, 0xB6, 0xB7, 0xB8, 0xBA,
+    0xBB, 0xBE, 0xBF, 0xC1, 0xF0, 0xF1, 0xF2,
 };
 
 /* 1000:524B (tile 0xAA): the human, into the first free static slot. */
@@ -852,7 +851,7 @@ static int32_t objPlaceHuman(uint32_t col, uint32_t row)
         uint8_t *r = objArray + i * OBJ_STRIDE;
         if (!(r[6] & 0x80u)) continue;
         wr_le_u16(r + 0u, (uint16_t)(col * 16u));
-        wr_le_u16(r + 2u, (uint16_t)y);        /* 0x524B: nudge, then y = row*16 - 7 */
+        wr_le_u16(r + 2u, (uint16_t)y); /* 0x524B: nudge, then y = row*16 - 7 */
         wr_le_u16(r + 4u, 0x0010u);
         wr_le_u16(r + 6u, 0u);
         wr_le_u16(r + 8u, 0x0002u);
@@ -877,7 +876,7 @@ static void objAppendSpear(uint32_t col, uint32_t row)
     wr_le_u16(r + 6u, 0u);
     wr_le_u16(r + 8u, 0xFFFFu);
     wr_le_u16(r + 0xAu, 0u);
-    objSlotClass[objLiveCount - 7u] = 5u;        /* [0x3E5F + count-8] = 0x05 */
+    objSlotClass[objLiveCount - 7u] = 5u; /* [0x3E5F + count-8] = 0x05 */
     objLiveCount++;
     /* 1000:527D ends JMP 0x5639: the shared ground snap. */
     bx = objStepProbeAt(r, 8, 0x10, &probe);
@@ -921,7 +920,7 @@ static void objSpawnBE(uint32_t col, uint32_t row)
     wr_le_u16(r + 0xAu, (uint16_t)(col * 16u));
     wr_le_u16(r + 0xEu, 0x0001u);
     objSlotClass[objLiveCount - 7u] = 2u;
-    objJoinSlot = (int32_t)(objLiveCount + 1u);  /* the record, not the count */
+    objJoinSlot = (int32_t)(objLiveCount + 1u); /* the record, not the count */
     objLiveCount++;
 }
 
@@ -929,7 +928,8 @@ static void objSpawnBE(uint32_t col, uint32_t row)
 static void objJoinBF(uint32_t col)
 {
     if (objJoinSlot < 0) return;
-    wr_le_u16(objArray + (uint32_t)objJoinSlot * OBJ_STRIDE + 0xCu, (uint16_t)(col * 16u));
+    wr_le_u16(objArray + (uint32_t)objJoinSlot * OBJ_STRIDE + 0xCu,
+              (uint16_t)(col * 16u));
 }
 
 /* 1000:5535 / 1000:553D (0xC0 / 0xC1): 0xC0 runs the human handler and keeps
@@ -949,7 +949,8 @@ static void objSpawnC1(uint32_t col, uint32_t row)
     if (objLiveCount + 1u >= OBJ_SLOTS) return;
     r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
     wr_le_u16(r + 0u, (uint16_t)(col * 16u));
-    wr_le_u16(r + 2u, (uint16_t)(row * 16u + objStyleNudge(NULL, col, row) - 0x10u));
+    wr_le_u16(r + 2u,
+              (uint16_t)(row * 16u + objStyleNudge(NULL, col, row) - 0x10u));
     wr_le_u16(r + 4u, 0x0100u);
     wr_le_u16(r + 6u, 0x0000u);
     objSlotClass[objLiveCount - 7u] = 0u;
@@ -961,20 +962,26 @@ static void objWritePair(uint32_t tile, uint32_t x, uint32_t y)
 {
     switch (tile) {
     case 0xAFu:
-        objPairA[0] = (uint16_t)x; objPairA[1] = (uint16_t)y;
-        objPairA[2] = (uint16_t)x; objPairA[3] = (uint16_t)y;
+        objPairA[0] = (uint16_t)x;
+        objPairA[1] = (uint16_t)y;
+        objPairA[2] = (uint16_t)x;
+        objPairA[3] = (uint16_t)y;
         objPairA[4] = objPairA[5] = objPairA[6] = objPairA[7] = 0u;
         break;
     case 0xB0u:
-        objPairB[0] = (uint16_t)x; objPairB[1] = (uint16_t)y;
+        objPairB[0] = (uint16_t)x;
+        objPairB[1] = (uint16_t)y;
         break;
     case 0xB1u:
-        objPairC[0] = (uint16_t)x; objPairC[1] = (uint16_t)y;
-        objPairC[2] = (uint16_t)x; objPairC[3] = (uint16_t)y;
+        objPairC[0] = (uint16_t)x;
+        objPairC[1] = (uint16_t)y;
+        objPairC[2] = (uint16_t)x;
+        objPairC[3] = (uint16_t)y;
         objPairC[4] = objPairC[5] = objPairC[6] = objPairC[7] = 0u;
         break;
     default:
-        objPairD[0] = (uint16_t)x; objPairD[1] = (uint16_t)y;
+        objPairD[0] = (uint16_t)x;
+        objPairD[1] = (uint16_t)y;
         break;
     }
 }
@@ -989,12 +996,14 @@ static void objSpawnB6(uint32_t col, uint32_t row)
 
         if (!(r[6] & 0x80u)) continue;
         wr_le_u16(r + 0u, (uint16_t)(col * 16u));
-        wr_le_u16(r + 2u, (uint16_t)(row * 16u + objStyleNudge(NULL, col, row) - 0x10u));
+        wr_le_u16(r + 2u, (uint16_t)(row * 16u + objStyleNudge(NULL, col, row) -
+                                     0x10u));
         wr_le_u16(r + 4u, 0x00FEu);
         wr_le_u16(r + 6u, 0x0000u);
         wr_le_u16(r + 8u, 0x001Du);
         wr_le_u16(r + 0xAu, 0x00FAu);
-        wr_le_u16(r + 0xCu, (uint16_t)(((objLiveCount + 1u) * OBJ_STRIDE) & 0xFFFFu));
+        wr_le_u16(r + 0xCu,
+                  (uint16_t)(((objLiveCount + 1u) * OBJ_STRIDE) & 0xFFFFu));
         objSlotClass[objLiveCount - 7u] = 0u;
         objLiveCount++;
         return;
@@ -1020,11 +1029,15 @@ static void objSpawnB7(const uint8_t *map, uint32_t col, uint32_t row)
         for (uint32_t k = 0; k < 8u; k++) {
             int64_t c = (int64_t)cell + off[k];
 
-            if (c >= 0 && c < 640 && map[c] == 0xB6u) { nearB6 = 1; break; }
+            if (c >= 0 && c < 640 && map[c] == 0xB6u) {
+                nearB6 = 1;
+                break;
+            }
         }
     }
     wr_le_u16(r + 0u, (uint16_t)(col * 16u));
-    wr_le_u16(r + 2u, (uint16_t)(row * 16u + objStyleNudge(NULL, col, row) - 8u));
+    wr_le_u16(r + 2u,
+              (uint16_t)(row * 16u + objStyleNudge(NULL, col, row) - 8u));
     wr_le_u16(r + 4u, nearB6 ? 0x011Au : 0x0116u);
     wr_le_u16(r + 6u, (uint16_t)(((objLiveCount - 6u) << 8) & 0xFF00u));
     wr_le_u16(r + 8u, 0x0000u);
@@ -1046,7 +1059,8 @@ static void objSpawnB8(uint32_t col, uint32_t row)
     if (objLiveCount + 1u >= OBJ_SLOTS) return;
     r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
     wr_le_u16(r + 0u, (uint16_t)(col * 16u));
-    wr_le_u16(r + 2u, (uint16_t)(row * 16u + objStyleNudge(NULL, col, row) - 8u));
+    wr_le_u16(r + 2u,
+              (uint16_t)(row * 16u + objStyleNudge(NULL, col, row) - 8u));
     wr_le_u16(r + 4u, 0x00AFu);
     wr_le_u16(r + 6u, 0x0000u);
     wr_le_u16(r + 8u, 0x0000u);
@@ -1081,7 +1095,8 @@ static uint32_t objStyleNudge(const uint8_t *map, uint32_t col, uint32_t row)
     if (level_style() != 6u || !map || cell + OBJ_COLS >= 640u) return 0u;
     tile = map[cell + OBJ_COLS];
     if (tile > 0x90u) return 0u;
-    return (nudgeBits[tile >> 3] & (uint8_t)(1u << (7u - (tile & 7u)))) ? 3u : 0u;
+    return (nudgeBits[tile >> 3] & (uint8_t)(1u << (7u - (tile & 7u)))) ? 3u
+                                                                        : 0u;
 }
 
 static void objAppendStyle(const uint8_t *map, uint32_t col, uint32_t row,
@@ -1105,7 +1120,7 @@ static void objAppendStyle(const uint8_t *map, uint32_t col, uint32_t row,
     wr_le_u16(r + 0xEu, fe);
     objSlotClass[objLiveCount - 7u] = (uint8_t)behaviour;
     objLiveCount++;
-    bx = objStepProbeAt(r, 8, 0x10, &probeCell);        /* 1000:5639 */
+    bx = objStepProbeAt(r, 8, 0x10, &probeCell); /* 1000:5639 */
     if (bx >= 0) wr_le_u16(r + 2u, (uint16_t)(bx - 0x10));
 }
 
@@ -1118,7 +1133,8 @@ static void objAppendStyle(const uint8_t *map, uint32_t col, uint32_t row,
  * mark reachable. */
 static void objAppendRow9(uint8_t *map, uint32_t col, uint32_t row)
 {
-    static const uint8_t table[5][3] = {         /* 0x1EFE: dx, dy, frame */
+    static const uint8_t table[5][3] = {
+        /* 0x1EFE: dx, dy, frame */
         { 0x10, 0x13, 0x33 }, { 0x16, 0x15, 0x34 }, { 0x1C, 0x16, 0x35 },
         { 0x23, 0x15, 0x36 }, { 0x29, 0x13, 0x37 },
     };
@@ -1135,7 +1151,7 @@ static void objAppendRow9(uint8_t *map, uint32_t col, uint32_t row)
         wr_le_u16(r + 4u, table[i][2]);
         wr_le_u16(r + 6u, 0u);
         wr_le_u16(r + 8u, 0u);
-        objSlotClass[objLiveCount - 7u] = 0u;     /* behaviour 0 */
+        objSlotClass[objLiveCount - 7u] = 0u; /* behaviour 0 */
         objLiveCount++;
     }
     /* 1000:51F9: mark the two cells one row below as the ids 1000:DF2C looks
@@ -1158,7 +1174,7 @@ static void objAppendRow9(uint8_t *map, uint32_t col, uint32_t row)
         objBg[objBgCount].y = (uint16_t)(row * 16u + 1u);
         objBg[objBgCount].dst = firstRec;
         objBg[objBgCount].mark = &map[(row + 1u) * OBJ_COLS + col + 1u];
-        objBgCount++;                            /* [0x32B9] */
+        objBgCount++; /* [0x32B9] */
     }
 }
 
@@ -1180,56 +1196,44 @@ static void objAppendDecoration(uint32_t x, uint32_t y, uint8_t tile)
     wr_le_u16(r + 6u, 0u);
     wr_le_u16(r + 8u, f);
     wr_le_u16(r + 0xAu, 0u);
-    objSlotClass[objLiveCount - 7u] = 1u;        /* [0x3E5F + count-8] = 0x01 */
+    objSlotClass[objLiveCount - 7u] = 1u; /* [0x3E5F + count-8] = 0x01 */
     objLiveCount++;
 }
 
 uint32_t object_loadTerrainObjects(uint8_t *map)
 {
     if (!map) return objLiveCount;
-    objLiveCount = OBJ_LIVE0;                    /* 1000:516F */
-    memset(objSlotClass, 0, 20u);                /* 1000:5175: 0x14 bytes */
+    objLiveCount = OBJ_LIVE0; /* 1000:516F */
+    memset(objSlotClass, 0, 20u); /* 1000:5175: 0x14 bytes */
     for (uint32_t t = 0; t < 25u; t++) {
         uint8_t tile = objTiles[t];
         /* all 25 tiles' bodies are ported (re_map.md has each one's
          * summary); the guard is the table walk's tile list. */
-        if (tile != 0xA9u && tile != 0xAAu && tile != 0xABu &&
-            tile != 0xACu && tile != 0xADu && tile != 0xAEu &&
-            tile != 0xAFu && tile != 0xB0u && tile != 0xB1u && tile != 0xB2u &&
-            tile != 0xB6u && tile != 0xB7u && tile != 0xB8u &&
-            tile != 0xBBu && tile != 0xBEu && tile != 0xBFu &&
-            tile != 0xC0u && tile != 0xC1u &&
-            (tile < 0xF0u || tile > 0xF2u)) continue;
+        if (tile != 0xA9u && tile != 0xAAu && tile != 0xABu && tile != 0xACu &&
+            tile != 0xADu && tile != 0xAEu && tile != 0xAFu && tile != 0xB0u &&
+            tile != 0xB1u && tile != 0xB2u && tile != 0xB6u && tile != 0xB7u &&
+            tile != 0xB8u && tile != 0xBBu && tile != 0xBEu && tile != 0xBFu &&
+            tile != 0xC0u && tile != 0xC1u && (tile < 0xF0u || tile > 0xF2u))
+            continue;
         for (uint32_t row = 0; row < OBJ_ROWS; row++)
             for (uint32_t col = 0; col < OBJ_COLS; col++) {
                 if (map[row * OBJ_COLS + col] != tile) continue;
                 /* live-confirmed (2026-10-30): level 1's records read
                  * (48,25) (208,25) (256,137) (464,265) = row*16 - 7, exactly
                  * what 0x524B writes. */
-                if (tile == 0xBBu)
-                    objSpawnBB(col, row);
-                else if (tile == 0xBEu)
-                    objSpawnBE(col, row);
-                else if (tile == 0xBFu)
-                    objJoinBF(col);
-                else if (tile == 0xC0u)
-                    objSpawnC0(col, row);
-                else if (tile == 0xC1u)
-                    objSpawnC1(col, row);
-                else if (tile == 0xB6u)
-                    objSpawnB6(col, row);
-                else if (tile == 0xB7u)
-                    objSpawnB7(map, col, row);
-                else if (tile == 0xB8u)
-                    objSpawnB8(col, row);
+                if (tile == 0xBBu) objSpawnBB(col, row);
+                else if (tile == 0xBEu) objSpawnBE(col, row);
+                else if (tile == 0xBFu) objJoinBF(col);
+                else if (tile == 0xC0u) objSpawnC0(col, row);
+                else if (tile == 0xC1u) objSpawnC1(col, row);
+                else if (tile == 0xB6u) objSpawnB6(col, row);
+                else if (tile == 0xB7u) objSpawnB7(map, col, row);
+                else if (tile == 0xB8u) objSpawnB8(col, row);
                 else if (tile >= 0xAFu && tile <= 0xB2u)
                     objWritePair(tile, col * 16u, row * 16u);
-                else if (tile == 0xA9u)
-                    objAppendRow9(map, col, row);
-                else if (tile == 0xAAu)
-                    objPlaceHuman(col, row);
-                else if (tile == 0xABu)
-                    objAppendSpear(col, row);
+                else if (tile == 0xA9u) objAppendRow9(map, col, row);
+                else if (tile == 0xAAu) objPlaceHuman(col, row);
+                else if (tile == 0xABu) objAppendSpear(col, row);
                 else if (tile == 0xACu)
                     objAppendStyle(map, col, row, 0x96u, 7u, 0xFFFFu, 0u, 0u);
                 else if (tile == 0xADu)
@@ -1240,8 +1244,7 @@ uint32_t object_loadTerrainObjects(uint8_t *map)
                      * give/hold gate 0x9CF6 tests with bit 15). */
                     objAppendStyle(map, col, row, 0x38u, 4u, 0x0000u, 0xFFFFu,
                                    0xFFFFu);
-                else
-                    objAppendDecoration(col * 16u, row * 16u, tile);
+                else objAppendDecoration(col * 16u, row * 16u, tile);
             }
     }
     return objLiveCount;
@@ -1284,79 +1287,299 @@ uint32_t object_loadTerrainObjects(uint8_t *map)
  * `SHR AL,1 / AND 0x1F`) and dispatches on `mode`; only mode 1 (the unscaled
  * blit) is ported, and every frame the port draws so far is mode 1.
  */
-typedef struct { uint32_t off; uint8_t rows, ybias, mode; } ObjSprite;
-#define OBJ_FRAME_SLOTS 0x11Eu              /* apply_relocations: 0x39A8..0x3E20 */
+typedef struct {
+    uint32_t off;
+    uint8_t rows, ybias, mode;
+} ObjSprite;
+#define OBJ_FRAME_SLOTS 0x11Eu /* apply_relocations: 0x39A8..0x3E20 */
 
 static const ObjSprite objSprites[OBJ_FRAME_SLOTS] = {
-    /* 000 */ {12416,24, 0,1}, {12800,24, 0,1}, {13184,23, 1,1}, {13552,23, 1,1},
-    /* 004 */ {13920,24, 0,1}, {14304,24, 0,1}, {14688,23, 1,1}, {15056,23, 1,1},
-    /* 008 */ {15424,24, 0,1}, {15808,24, 0,1}, {16192,23, 1,1}, {16560,23, 1,1},
-    /* 00C */ {16928,24, 0,1}, {17312,24, 0,1}, {17696,23, 1,1}, {18064,23, 1,1},
-    /* 010 */ {18432,24, 0,1}, {18816, 0,24,1}, {18816,24, 0,1}, {19200,24, 0,1},
-    /* 014 */ {19584,24, 0,1}, {19968,24, 0,1}, {20352,24, 0,1}, {    0,13, 2,1},
-    /* 018 */ {20736, 0,24,1}, {20736, 0,24,1}, {20736, 0,24,1}, {20736, 0,24,1},
-    /* 01C */ {20736, 0,24,1}, {54256, 0, 0,1}, {54256, 0, 0,1}, {54256, 0,16,1},
-    /* 020 */ {20736,24, 0,1}, {  208,16, 0,1}, {  464,16, 0,1}, {21120,24, 0,1},
-    /* 024 */ {21504,23, 0,1}, {21872,24, 0,1}, {0,0,0,0}, {0,0,0,0},
-    /* 028 */ {54256, 9,15,2}, {54544,15, 9,2}, {55024,18, 6,2}, {55600,20, 4,2},
-    /* 02C */ {56240,22, 2,2}, {56944,22, 1,2}, {  720,14, 0,1}, {  944,14, 0,1},
-    /* 030 */ { 1168,14, 0,1}, { 1392,14, 0,1}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0},
-    /* 038 */ { 1616,16, 0,1}, { 1872,16, 0,1}, { 2128,16, 0,1}, { 2384,16, 0,1},
-    /* 03C */ {57648,32, 0,2}, {58672,31, 1,2}, {59664,32, 0,2}, {60688,31, 1,2},
-    /* 040 */ {61680, 0, 0,3}, {61680,32, 0,2}, {62704,31, 1,2}, {63696,32, 0,2},
-    /* 044 */ {64720,31, 1,2}, {65712,32, 0,2}, {66736,31, 1,2}, {67728, 0, 0,3},
-    /* 048 */ {67728,32, 0,2}, {68752,31, 1,2}, {69744,32, 0,2}, {70768,32, 0,2},
-    /* 04C */ {71792,32, 0,2}, {72816,32, 0,2}, {73840,32, 0,2}, {74864,32, 0,2},
-    /* 050 */ {75888,32, 0,2}, {76912,32, 0,2}, {22256,24, 0,1}, {22640,23, 0,1},
-    /* 054 */ {23008,24, 0,1}, {23392,24, 0,1}, {23776,23, 1,1}, {24144,24, 0,1},
-    /* 058 */ { 2640,16, 0,1}, { 2896,16, 0,1}, { 3152,14, 0,1}, { 3376, 7, 4,1},
-    /* 05C */ { 3488, 5, 5,1}, { 3568,11, 2,1}, { 3744,16, 0,1}, { 4000,16, 0,1},
-    /* 060 */ { 4256,16, 0,1}, { 4512,16, 0,1}, { 4768,14, 2,1}, { 4992, 7, 5,1},
-    /* 064 */ { 5104, 5, 6,1}, { 5184,11, 3,1}, { 5360,16, 0,1}, { 5616,16, 0,1},
-    /* 068 */ {24528, 5,13,1}, {24608, 5,13,1}, {24688, 5,12,1}, {24768, 5,14,1},
-    /* 06C */ {24848, 6,13,1}, {24944, 5,14,1}, {25024, 5,15,1}, {25104, 5,15,1},
-    /* 070 */ {25184, 6,13,1}, {25280, 5,13,1}, {25360, 5,12,1}, {25440, 5,14,1},
-    /* 074 */ {25520, 5,14,1}, {25600, 5,14,1}, {25680, 5,14,1}, {25760, 4,15,1},
-    /* 078 */ {25824, 4,15,1}, {25888, 6, 0,1}, {25984, 5, 0,1}, {26064, 5, 1,1},
-    /* 07C */ {26144, 6, 0,1}, {26240, 5, 0,1}, {26320, 5, 1,1}, {26400,24, 0,1},
-    /* 080 */ {26784,24, 0,1}, {27168,24, 0,1}, { 5872,16, 0,1}, { 6128,15, 1,1},
-    /* 084 */ { 6368,16, 0,1}, { 6624,15, 1,1}, { 6864,16, 0,1}, { 7120,15, 1,1},
-    /* 088 */ { 7360,16, 0,1}, { 7616,15, 1,1}, { 7856,16, 0,1}, { 8112,16, 0,1},
-    /* 08C */ {27552,24, 0,1}, {27936,24, 0,1}, {28320,24, 0,1}, {28704, 0,24,1},
-    /* 090 */ {28704, 0,24,1}, {28704,24, 0,1}, {29088,24, 0,1}, {29472,24, 0,1},
-    /* 094 */ {29856, 0,24,1}, {29856, 0,24,1}, { 8368, 6,10,1}, { 8464,13, 1,1},
-    /* 098 */ { 8672,15, 1,1}, { 8912,15, 1,1}, { 9152,14, 1,1}, { 9376,12, 1,1},
-    /* 09C */ { 9568,12, 4,1}, { 9760,13, 3,1}, { 9968,11, 5,1}, {10144, 0,16,1},
-    /* 0A0 */ {10144, 0,16,1}, {10144, 7, 7,1}, {10256,10, 3,1}, {10416,14, 0,1},
-    /* 0A4 */ {10640,14, 0,1}, {10864,10, 3,1}, {11024, 7, 7,1}, {11136, 0,16,1},
-    /* 0A8 */ {11136, 0,16,1}, {11136,10, 4,1}, {11296,13, 1,1}, {29856,24, 0,1},
-    /* 0AC */ {30240,24, 0,1}, {30624,24, 0,1}, {31008,24, 0,1}, {31392,16, 8,1},
-    /* 0B0 */ {31648,16, 8,1}, {31904,23, 1,1}, {32272,22, 2,1}, {32624,23, 1,1},
-    /* 0B4 */ {32992,15, 9,1}, {33232,13,11,1}, {33440,13,11,1}, {0,0,0,0},
-    /* B8.. */ {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {33648,23, 1,1},
-    /* 0BC */ {34016,24, 0,1}, {34400,23, 0,1}, {34768,23, 1,1}, {35136,24, 0,1},
-    /* 0C0 */ {35520,23, 0,1}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0},
-    /* C8.. */ {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {11504,11, 5,1}, {11680,11, 5,1}, {11856, 8, 8,1},
-    /* 0D0 */ {11984, 8, 8,1}, {12112, 5,11,1}, {12192, 5,11,1}, {12272, 9, 7,1},
-    /* 0D4 */ {35888,24, 0,1}, {36272,23, 1,1}, {36640,24, 0,1}, {37024,24, 0,1},
-    /* 0D8 */ {37408,24, 0,1}, {37792,23, 1,1}, {38160,24, 0,1}, {38544,24, 0,1},
-    /* 0DC */ {38928,23, 1,1}, {39296,23, 1,1}, {39664,24, 0,1}, {40048,23, 1,1},
-    /* 0E0 */ {40416,24, 0,1}, {40800,23, 1,1}, {41168,24, 0,1}, {41552,24, 0,1},
-    /* 0E4 */ {41936,24, 0,1}, {42320,23, 1,1}, {42688,24, 0,1}, {43072,24, 0,1},
-    /* 0E8 */ {43456,23, 1,1}, {43824,23, 1,1}, {44192,24, 0,1}, {44576,23, 1,1},
-    /* 0EC */ {44944, 4,14,1}, {45008, 4,15,1}, {45072, 4,13,1}, {45136, 4,12,1},
-    /* 0F0 */ {45200, 5,14,1}, {45280, 4,14,1}, {45344, 4,13,1}, {45408, 4,12,1},
-    /* 0F4 */ {45472, 4, 2,1}, {45536, 4,14,1}, {45600, 4,15,1}, {45664, 4,13,1},
-    /* 0F8 */ {45728, 4,12,1}, {45792, 5,14,1}, {45872, 4,14,1}, {45936, 4,13,1},
-    /* 0FC */ {46000, 4,12,1}, {46064, 4, 2,1}, {77936,24, 8,2}, {78704,24, 8,2},
-    /* 100 */ {79472,22,10,2}, {80176,22,10,2}, {80880,27, 5,2}, {46128,24, 0,1},
-    /* 104 */ {46512,24, 0,1}, {46896,24, 0,1}, {47280,24, 0,1}, {47664,24, 0,1},
-    /* 108 */ {48048,24, 0,1}, {48432,24, 0,1}, {48816,19, 5,1}, {49120,11,13,1},
-    /* 10C */ {49296,14,10,1}, {49520,14,10,1}, {49744,24, 0,1}, {50128,24, 0,1},
-    /* 110 */ {50512,24, 0,1}, {50128,24, 0,1}, {50896,24, 0,1}, {51280,24, 0,1},
-    /* 114 */ {51664,24, 0,1}, {51280,24, 0,1}, {52048,23, 1,1}, {52416,23, 1,1},
-    /* 118 */ {52784,23, 1,1}, {52416,23, 1,1}, {53152,23, 1,1}, {53520,23, 1,1},
-    /* 11C */ {53888,23, 1,1}, {53520,23, 1,1},
+    /* 000 */ { 12416, 24, 0, 1 },
+    { 12800, 24, 0, 1 },
+    { 13184, 23, 1, 1 },
+    { 13552, 23, 1, 1 },
+    /* 004 */ { 13920, 24, 0, 1 },
+    { 14304, 24, 0, 1 },
+    { 14688, 23, 1, 1 },
+    { 15056, 23, 1, 1 },
+    /* 008 */ { 15424, 24, 0, 1 },
+    { 15808, 24, 0, 1 },
+    { 16192, 23, 1, 1 },
+    { 16560, 23, 1, 1 },
+    /* 00C */ { 16928, 24, 0, 1 },
+    { 17312, 24, 0, 1 },
+    { 17696, 23, 1, 1 },
+    { 18064, 23, 1, 1 },
+    /* 010 */ { 18432, 24, 0, 1 },
+    { 18816, 0, 24, 1 },
+    { 18816, 24, 0, 1 },
+    { 19200, 24, 0, 1 },
+    /* 014 */ { 19584, 24, 0, 1 },
+    { 19968, 24, 0, 1 },
+    { 20352, 24, 0, 1 },
+    { 0, 13, 2, 1 },
+    /* 018 */ { 20736, 0, 24, 1 },
+    { 20736, 0, 24, 1 },
+    { 20736, 0, 24, 1 },
+    { 20736, 0, 24, 1 },
+    /* 01C */ { 20736, 0, 24, 1 },
+    { 54256, 0, 0, 1 },
+    { 54256, 0, 0, 1 },
+    { 54256, 0, 16, 1 },
+    /* 020 */ { 20736, 24, 0, 1 },
+    { 208, 16, 0, 1 },
+    { 464, 16, 0, 1 },
+    { 21120, 24, 0, 1 },
+    /* 024 */ { 21504, 23, 0, 1 },
+    { 21872, 24, 0, 1 },
+    { 0, 0, 0, 0 },
+    { 0, 0, 0, 0 },
+    /* 028 */ { 54256, 9, 15, 2 },
+    { 54544, 15, 9, 2 },
+    { 55024, 18, 6, 2 },
+    { 55600, 20, 4, 2 },
+    /* 02C */ { 56240, 22, 2, 2 },
+    { 56944, 22, 1, 2 },
+    { 720, 14, 0, 1 },
+    { 944, 14, 0, 1 },
+    /* 030 */ { 1168, 14, 0, 1 },
+    { 1392, 14, 0, 1 },
+    { 0, 0, 0, 0 },
+    { 0, 0, 0, 0 },
+    { 0, 0, 0, 0 },
+    { 0, 0, 0, 0 },
+    { 0, 0, 0, 0 },
+    { 0, 0, 0, 0 },
+    /* 038 */ { 1616, 16, 0, 1 },
+    { 1872, 16, 0, 1 },
+    { 2128, 16, 0, 1 },
+    { 2384, 16, 0, 1 },
+    /* 03C */ { 57648, 32, 0, 2 },
+    { 58672, 31, 1, 2 },
+    { 59664, 32, 0, 2 },
+    { 60688, 31, 1, 2 },
+    /* 040 */ { 61680, 0, 0, 3 },
+    { 61680, 32, 0, 2 },
+    { 62704, 31, 1, 2 },
+    { 63696, 32, 0, 2 },
+    /* 044 */ { 64720, 31, 1, 2 },
+    { 65712, 32, 0, 2 },
+    { 66736, 31, 1, 2 },
+    { 67728, 0, 0, 3 },
+    /* 048 */ { 67728, 32, 0, 2 },
+    { 68752, 31, 1, 2 },
+    { 69744, 32, 0, 2 },
+    { 70768, 32, 0, 2 },
+    /* 04C */ { 71792, 32, 0, 2 },
+    { 72816, 32, 0, 2 },
+    { 73840, 32, 0, 2 },
+    { 74864, 32, 0, 2 },
+    /* 050 */ { 75888, 32, 0, 2 },
+    { 76912, 32, 0, 2 },
+    { 22256, 24, 0, 1 },
+    { 22640, 23, 0, 1 },
+    /* 054 */ { 23008, 24, 0, 1 },
+    { 23392, 24, 0, 1 },
+    { 23776, 23, 1, 1 },
+    { 24144, 24, 0, 1 },
+    /* 058 */ { 2640, 16, 0, 1 },
+    { 2896, 16, 0, 1 },
+    { 3152, 14, 0, 1 },
+    { 3376, 7, 4, 1 },
+    /* 05C */ { 3488, 5, 5, 1 },
+    { 3568, 11, 2, 1 },
+    { 3744, 16, 0, 1 },
+    { 4000, 16, 0, 1 },
+    /* 060 */ { 4256, 16, 0, 1 },
+    { 4512, 16, 0, 1 },
+    { 4768, 14, 2, 1 },
+    { 4992, 7, 5, 1 },
+    /* 064 */ { 5104, 5, 6, 1 },
+    { 5184, 11, 3, 1 },
+    { 5360, 16, 0, 1 },
+    { 5616, 16, 0, 1 },
+    /* 068 */ { 24528, 5, 13, 1 },
+    { 24608, 5, 13, 1 },
+    { 24688, 5, 12, 1 },
+    { 24768, 5, 14, 1 },
+    /* 06C */ { 24848, 6, 13, 1 },
+    { 24944, 5, 14, 1 },
+    { 25024, 5, 15, 1 },
+    { 25104, 5, 15, 1 },
+    /* 070 */ { 25184, 6, 13, 1 },
+    { 25280, 5, 13, 1 },
+    { 25360, 5, 12, 1 },
+    { 25440, 5, 14, 1 },
+    /* 074 */ { 25520, 5, 14, 1 },
+    { 25600, 5, 14, 1 },
+    { 25680, 5, 14, 1 },
+    { 25760, 4, 15, 1 },
+    /* 078 */ { 25824, 4, 15, 1 },
+    { 25888, 6, 0, 1 },
+    { 25984, 5, 0, 1 },
+    { 26064, 5, 1, 1 },
+    /* 07C */ { 26144, 6, 0, 1 },
+    { 26240, 5, 0, 1 },
+    { 26320, 5, 1, 1 },
+    { 26400, 24, 0, 1 },
+    /* 080 */ { 26784, 24, 0, 1 },
+    { 27168, 24, 0, 1 },
+    { 5872, 16, 0, 1 },
+    { 6128, 15, 1, 1 },
+    /* 084 */ { 6368, 16, 0, 1 },
+    { 6624, 15, 1, 1 },
+    { 6864, 16, 0, 1 },
+    { 7120, 15, 1, 1 },
+    /* 088 */ { 7360, 16, 0, 1 },
+    { 7616, 15, 1, 1 },
+    { 7856, 16, 0, 1 },
+    { 8112, 16, 0, 1 },
+    /* 08C */ { 27552, 24, 0, 1 },
+    { 27936, 24, 0, 1 },
+    { 28320, 24, 0, 1 },
+    { 28704, 0, 24, 1 },
+    /* 090 */ { 28704, 0, 24, 1 },
+    { 28704, 24, 0, 1 },
+    { 29088, 24, 0, 1 },
+    { 29472, 24, 0, 1 },
+    /* 094 */ { 29856, 0, 24, 1 },
+    { 29856, 0, 24, 1 },
+    { 8368, 6, 10, 1 },
+    { 8464, 13, 1, 1 },
+    /* 098 */ { 8672, 15, 1, 1 },
+    { 8912, 15, 1, 1 },
+    { 9152, 14, 1, 1 },
+    { 9376, 12, 1, 1 },
+    /* 09C */ { 9568, 12, 4, 1 },
+    { 9760, 13, 3, 1 },
+    { 9968, 11, 5, 1 },
+    { 10144, 0, 16, 1 },
+    /* 0A0 */ { 10144, 0, 16, 1 },
+    { 10144, 7, 7, 1 },
+    { 10256, 10, 3, 1 },
+    { 10416, 14, 0, 1 },
+    /* 0A4 */ { 10640, 14, 0, 1 },
+    { 10864, 10, 3, 1 },
+    { 11024, 7, 7, 1 },
+    { 11136, 0, 16, 1 },
+    /* 0A8 */ { 11136, 0, 16, 1 },
+    { 11136, 10, 4, 1 },
+    { 11296, 13, 1, 1 },
+    { 29856, 24, 0, 1 },
+    /* 0AC */ { 30240, 24, 0, 1 },
+    { 30624, 24, 0, 1 },
+    { 31008, 24, 0, 1 },
+    { 31392, 16, 8, 1 },
+    /* 0B0 */ { 31648, 16, 8, 1 },
+    { 31904, 23, 1, 1 },
+    { 32272, 22, 2, 1 },
+    { 32624, 23, 1, 1 },
+    /* 0B4 */ { 32992, 15, 9, 1 },
+    { 33232, 13, 11, 1 },
+    { 33440, 13, 11, 1 },
+    { 0, 0, 0, 0 },
+    /* B8.. */ { 0, 0, 0, 0 },
+    { 0, 0, 0, 0 },
+    { 0, 0, 0, 0 },
+    { 33648, 23, 1, 1 },
+    /* 0BC */ { 34016, 24, 0, 1 },
+    { 34400, 23, 0, 1 },
+    { 34768, 23, 1, 1 },
+    { 35136, 24, 0, 1 },
+    /* 0C0 */ { 35520, 23, 0, 1 },
+    { 0, 0, 0, 0 },
+    { 0, 0, 0, 0 },
+    { 0, 0, 0, 0 },
+    { 0, 0, 0, 0 },
+    { 0, 0, 0, 0 },
+    { 0, 0, 0, 0 },
+    { 0, 0, 0, 0 },
+    /* C8.. */ { 0, 0, 0, 0 },
+    { 0, 0, 0, 0 },
+    { 0, 0, 0, 0 },
+    { 0, 0, 0, 0 },
+    { 0, 0, 0, 0 },
+    { 11504, 11, 5, 1 },
+    { 11680, 11, 5, 1 },
+    { 11856, 8, 8, 1 },
+    /* 0D0 */ { 11984, 8, 8, 1 },
+    { 12112, 5, 11, 1 },
+    { 12192, 5, 11, 1 },
+    { 12272, 9, 7, 1 },
+    /* 0D4 */ { 35888, 24, 0, 1 },
+    { 36272, 23, 1, 1 },
+    { 36640, 24, 0, 1 },
+    { 37024, 24, 0, 1 },
+    /* 0D8 */ { 37408, 24, 0, 1 },
+    { 37792, 23, 1, 1 },
+    { 38160, 24, 0, 1 },
+    { 38544, 24, 0, 1 },
+    /* 0DC */ { 38928, 23, 1, 1 },
+    { 39296, 23, 1, 1 },
+    { 39664, 24, 0, 1 },
+    { 40048, 23, 1, 1 },
+    /* 0E0 */ { 40416, 24, 0, 1 },
+    { 40800, 23, 1, 1 },
+    { 41168, 24, 0, 1 },
+    { 41552, 24, 0, 1 },
+    /* 0E4 */ { 41936, 24, 0, 1 },
+    { 42320, 23, 1, 1 },
+    { 42688, 24, 0, 1 },
+    { 43072, 24, 0, 1 },
+    /* 0E8 */ { 43456, 23, 1, 1 },
+    { 43824, 23, 1, 1 },
+    { 44192, 24, 0, 1 },
+    { 44576, 23, 1, 1 },
+    /* 0EC */ { 44944, 4, 14, 1 },
+    { 45008, 4, 15, 1 },
+    { 45072, 4, 13, 1 },
+    { 45136, 4, 12, 1 },
+    /* 0F0 */ { 45200, 5, 14, 1 },
+    { 45280, 4, 14, 1 },
+    { 45344, 4, 13, 1 },
+    { 45408, 4, 12, 1 },
+    /* 0F4 */ { 45472, 4, 2, 1 },
+    { 45536, 4, 14, 1 },
+    { 45600, 4, 15, 1 },
+    { 45664, 4, 13, 1 },
+    /* 0F8 */ { 45728, 4, 12, 1 },
+    { 45792, 5, 14, 1 },
+    { 45872, 4, 14, 1 },
+    { 45936, 4, 13, 1 },
+    /* 0FC */ { 46000, 4, 12, 1 },
+    { 46064, 4, 2, 1 },
+    { 77936, 24, 8, 2 },
+    { 78704, 24, 8, 2 },
+    /* 100 */ { 79472, 22, 10, 2 },
+    { 80176, 22, 10, 2 },
+    { 80880, 27, 5, 2 },
+    { 46128, 24, 0, 1 },
+    /* 104 */ { 46512, 24, 0, 1 },
+    { 46896, 24, 0, 1 },
+    { 47280, 24, 0, 1 },
+    { 47664, 24, 0, 1 },
+    /* 108 */ { 48048, 24, 0, 1 },
+    { 48432, 24, 0, 1 },
+    { 48816, 19, 5, 1 },
+    { 49120, 11, 13, 1 },
+    /* 10C */ { 49296, 14, 10, 1 },
+    { 49520, 14, 10, 1 },
+    { 49744, 24, 0, 1 },
+    { 50128, 24, 0, 1 },
+    /* 110 */ { 50512, 24, 0, 1 },
+    { 50128, 24, 0, 1 },
+    { 50896, 24, 0, 1 },
+    { 51280, 24, 0, 1 },
+    /* 114 */ { 51664, 24, 0, 1 },
+    { 51280, 24, 0, 1 },
+    { 52048, 23, 1, 1 },
+    { 52416, 23, 1, 1 },
+    /* 118 */ { 52784, 23, 1, 1 },
+    { 52416, 23, 1, 1 },
+    { 53152, 23, 1, 1 },
+    { 53520, 23, 1, 1 },
+    /* 11C */ { 53888, 23, 1, 1 },
+    { 53520, 23, 1, 1 },
 };
 
 uint32_t object_frameSlots(void) { return OBJ_FRAME_SLOTS; }
@@ -1364,7 +1587,11 @@ uint32_t object_frameSlots(void) { return OBJ_FRAME_SLOTS; }
 /* one sprite-table entry, for the tests (the D-69 tail copies). */
 void object_frameForProbe(uint32_t frame, uint32_t *off, uint32_t *rows)
 {
-    if (frame >= OBJ_FRAME_SLOTS) { *off = 0; *rows = 0; return; }
+    if (frame >= OBJ_FRAME_SLOTS) {
+        *off = 0;
+        *rows = 0;
+        return;
+    }
     *off = objSprites[frame].off;
     *rows = objSprites[frame].rows;
 }
@@ -1374,12 +1601,16 @@ uint32_t object_bgCount(void) { return objBgCount; }
 
 void object_bgAt(uint32_t i, uint32_t *x, uint32_t *y)
 {
-    if (i >= objBgCount) { *x = 0; *y = 0; return; }
+    if (i >= objBgCount) {
+        *x = 0;
+        *y = 0;
+        return;
+    }
     *x = objBg[i].x;
     *y = objBg[i].y;
 }
 
-static const uint8_t *objBank;            /* APL\\SPRITES.DAT, the sprite image */
+static const uint8_t *objBank; /* APL\\SPRITES.DAT, the sprite image */
 static uint32_t objBankSize;
 
 void object_publishBank(const uint8_t *bank, uint32_t size)
@@ -1440,85 +1671,109 @@ static void blitSprite(uint8_t *page, const uint8_t *src, uint32_t rows,
  * 0x11A..0x11D have no row in the image either).
  */
 static const uint8_t objClsCol[0x40] = {
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x03, 0x02, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
-    0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x00, 0x12, 0x12, 0x12, 0x12,
-    0x12, 0x00, 0x13, 0x13, 0x13, 0x13, 0x13, 0x14, 0x14, 0x15, 0x16, 0x16, 0x16, 0xC3, 0xC4, 0xC5,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x03, 0x02, 0x00, 0x00, 0x01,
+    0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C,
+    0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x00, 0x12, 0x12, 0x12, 0x12, 0x12,
+    0x00, 0x13, 0x13, 0x13, 0x13, 0x13, 0x14, 0x14, 0x15, 0x16, 0x16,
+    0x16, 0xC3, 0xC4, 0xC5, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 static const uint8_t objFrameRow[0x11A] = {
-    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10,
-    0x11, 0x00, 0x12, 0x12, 0x12, 0x12, 0x12, 0x00, 0x13, 0x13, 0x13, 0x13, 0x13, 0x14, 0x14, 0x15,
-    0x16, 0x16, 0x16, 0xC3, 0xC4, 0xC5, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0xC6, 0xC7, 0xC8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x17, 0x18, 0x19, 0x00,
-    0x00, 0x1A, 0x1B, 0x1C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1D, 0x1D, 0x1E, 0x1E, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1F, 0x20, 0x21, 0x22, 0x23,
-    0x24, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x00, 0x00, 0x00,
-    0x2E, 0x2F, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x37, 0x38,
-    0x39, 0x38, 0x3A, 0x3B, 0x3C, 0x3B, 0x3D, 0x3E, 0x3F, 0x3E,
+    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C,
+    0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x00, 0x12, 0x12, 0x12, 0x12, 0x12, 0x00,
+    0x13, 0x13, 0x13, 0x13, 0x13, 0x14, 0x14, 0x15, 0x16, 0x16, 0x16, 0xC3,
+    0xC4, 0xC5, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC6, 0xC7,
+    0xC8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x17, 0x18, 0x19, 0x00,
+    0x00, 0x1A, 0x1B, 0x1C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x1D, 0x1D, 0x1E, 0x1E, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1F, 0x20, 0x21, 0x22, 0x23,
+    0x24, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x25, 0x26, 0x27, 0x28,
+    0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x00, 0x00, 0x00, 0x2E, 0x2F, 0x30, 0x31,
+    0x32, 0x33, 0x34, 0x35, 0x36, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x37, 0x38, 0x39, 0x38, 0x3A, 0x3B,
+    0x3C, 0x3B, 0x3D, 0x3E, 0x3F, 0x3E,
 };
 static const uint8_t objOverlayIdx[0xE1] = {
-    0x40, 0x41, 0x42, 0x41, 0x01, 0x1C, 0x30, 0x02, 0x1D, 0x31, 0x03, 0x1E, 0x32, 0x04, 0x1F, 0x33,
-    0x05, 0x20, 0x34, 0x06, 0x21, 0x35, 0x07, 0x22, 0x36, 0x08, 0x23, 0x37, 0x09, 0x24, 0x38, 0x0A,
-    0x25, 0x39, 0x0B, 0x26, 0x3A, 0x0C, 0x27, 0x3B, 0x0D, 0x28, 0x3C, 0x0E, 0x29, 0x3D, 0x0F, 0x2A,
-    0x3E, 0x10, 0x2B, 0x3F, 0x11, 0x2C, 0x40, 0x11, 0x2C, 0x40, 0x12, 0x2D, 0x41, 0x13, 0x2E, 0x42,
-    0x14, 0x2F, 0x43, 0x15, 0x8E, 0x8F, 0x16, 0x46, 0x4C, 0x17, 0x47, 0x4D, 0x18, 0x48, 0x4E, 0x19,
-    0x49, 0x4F, 0x1A, 0x4A, 0x50, 0x1B, 0x4B, 0x51, 0x00, 0x44, 0x00, 0x00, 0x45, 0x00, 0x52, 0x00,
-    0x00, 0x53, 0x00, 0x00, 0x54, 0x00, 0x00, 0x55, 0x00, 0x00, 0x56, 0x00, 0x00, 0x57, 0x00, 0x00,
-    0x58, 0x00, 0x00, 0x59, 0x00, 0x00, 0x5A, 0x00, 0x00, 0x5B, 0x00, 0x00, 0x5C, 0x00, 0x00, 0x5D,
-    0x00, 0x00, 0x5E, 0x00, 0x00, 0x5F, 0x00, 0x00, 0x60, 0x00, 0x00, 0x61, 0x00, 0x00, 0x62, 0x00,
-    0x00, 0x63, 0x00, 0x00, 0x64, 0x00, 0x00, 0x65, 0x00, 0x00, 0x66, 0x00, 0x00, 0x67, 0x00, 0x00,
-    0x68, 0x00, 0x00, 0x69, 0x00, 0x00, 0x6A, 0x00, 0x70, 0x6B, 0x00, 0x71, 0x6C, 0x00, 0x72, 0x6D,
-    0x00, 0x73, 0x6E, 0x00, 0x74, 0x6F, 0x00, 0x75, 0x76, 0x00, 0x00, 0x77, 0x00, 0x00, 0x78, 0x00,
-    0x00, 0x79, 0x00, 0x00, 0x7A, 0x00, 0x00, 0x7B, 0x00, 0x00, 0x7C, 0x7F, 0x82, 0x7D, 0x80, 0x83,
-    0x7E, 0x81, 0x84, 0x85, 0x88, 0x8B, 0x86, 0x89, 0x8C, 0x87, 0x8A, 0x8D, 0x00, 0x00, 0x00, 0x00,
-    0x02,
+    0x40, 0x41, 0x42, 0x41, 0x01, 0x1C, 0x30, 0x02, 0x1D, 0x31, 0x03, 0x1E,
+    0x32, 0x04, 0x1F, 0x33, 0x05, 0x20, 0x34, 0x06, 0x21, 0x35, 0x07, 0x22,
+    0x36, 0x08, 0x23, 0x37, 0x09, 0x24, 0x38, 0x0A, 0x25, 0x39, 0x0B, 0x26,
+    0x3A, 0x0C, 0x27, 0x3B, 0x0D, 0x28, 0x3C, 0x0E, 0x29, 0x3D, 0x0F, 0x2A,
+    0x3E, 0x10, 0x2B, 0x3F, 0x11, 0x2C, 0x40, 0x11, 0x2C, 0x40, 0x12, 0x2D,
+    0x41, 0x13, 0x2E, 0x42, 0x14, 0x2F, 0x43, 0x15, 0x8E, 0x8F, 0x16, 0x46,
+    0x4C, 0x17, 0x47, 0x4D, 0x18, 0x48, 0x4E, 0x19, 0x49, 0x4F, 0x1A, 0x4A,
+    0x50, 0x1B, 0x4B, 0x51, 0x00, 0x44, 0x00, 0x00, 0x45, 0x00, 0x52, 0x00,
+    0x00, 0x53, 0x00, 0x00, 0x54, 0x00, 0x00, 0x55, 0x00, 0x00, 0x56, 0x00,
+    0x00, 0x57, 0x00, 0x00, 0x58, 0x00, 0x00, 0x59, 0x00, 0x00, 0x5A, 0x00,
+    0x00, 0x5B, 0x00, 0x00, 0x5C, 0x00, 0x00, 0x5D, 0x00, 0x00, 0x5E, 0x00,
+    0x00, 0x5F, 0x00, 0x00, 0x60, 0x00, 0x00, 0x61, 0x00, 0x00, 0x62, 0x00,
+    0x00, 0x63, 0x00, 0x00, 0x64, 0x00, 0x00, 0x65, 0x00, 0x00, 0x66, 0x00,
+    0x00, 0x67, 0x00, 0x00, 0x68, 0x00, 0x00, 0x69, 0x00, 0x00, 0x6A, 0x00,
+    0x70, 0x6B, 0x00, 0x71, 0x6C, 0x00, 0x72, 0x6D, 0x00, 0x73, 0x6E, 0x00,
+    0x74, 0x6F, 0x00, 0x75, 0x76, 0x00, 0x00, 0x77, 0x00, 0x00, 0x78, 0x00,
+    0x00, 0x79, 0x00, 0x00, 0x7A, 0x00, 0x00, 0x7B, 0x00, 0x00, 0x7C, 0x7F,
+    0x82, 0x7D, 0x80, 0x83, 0x7E, 0x81, 0x84, 0x85, 0x88, 0x8B, 0x86, 0x89,
+    0x8C, 0x87, 0x8A, 0x8D, 0x00, 0x00, 0x00, 0x00, 0x02,
 };
 static const uint8_t objOverlayEnt[0x240] = {
-    0x00, 0x00, 0x00, 0x00, 0x02, 0x06, 0x59, 0x68, 0x04, 0x08, 0x5A, 0x69, 0x06, 0x06, 0x5A, 0x6A,
-    0x04, 0x09, 0x5A, 0x6B, 0x01, 0x08, 0x5A, 0x6C, 0x00, 0x09, 0x5A, 0x6D, 0xFC, 0x0A, 0x5B, 0x6E,
-    0xFF, 0x09, 0x5A, 0x6F, 0xFF, 0x07, 0x66, 0x70, 0xFB, 0x05, 0x66, 0x71, 0xFC, 0x06, 0x66, 0x72,
-    0xFC, 0x07, 0x66, 0x73, 0x00, 0x06, 0x66, 0x74, 0x01, 0x07, 0x66, 0x75, 0x03, 0x07, 0x65, 0x76,
-    0x02, 0x08, 0x66, 0x77, 0x06, 0x08, 0x58, 0x78, 0x00, 0x08, 0x66, 0x70, 0x00, 0x10, 0x66, 0x70,
-    0x00, 0x20, 0x66, 0x70, 0x00, 0xFA, 0x5C, 0x00, 0xFE, 0xFB, 0x5B, 0x79, 0xFD, 0xFB, 0x5B, 0x7A,
-    0xFC, 0xFC, 0x5A, 0x7B, 0x01, 0xF9, 0x65, 0x7C, 0x02, 0xF9, 0x65, 0x7D, 0x05, 0xFB, 0x66, 0x7E,
-    0x00, 0x0C, 0x99, 0x68, 0x05, 0x0B, 0x9A, 0x69, 0x07, 0x0A, 0x9B, 0x6A, 0x05, 0x0D, 0x9A, 0x6B,
-    0x01, 0x0C, 0x99, 0x6C, 0xFF, 0x0D, 0x98, 0x6D, 0xFB, 0x0E, 0x97, 0x6E, 0xFE, 0x0D, 0x98, 0x6F,
-    0x00, 0x0D, 0x99, 0x70, 0xFC, 0x0A, 0x98, 0x71, 0xFB, 0x0B, 0x97, 0x72, 0xFC, 0x0D, 0x98, 0x73,
-    0x00, 0x0D, 0x99, 0x74, 0x02, 0x0D, 0x9A, 0x75, 0x06, 0x0D, 0x9B, 0x76, 0x02, 0x0E, 0x9A, 0x77,
-    0x05, 0x0D, 0x99, 0x78, 0x00, 0x0D, 0x99, 0x70, 0x00, 0x15, 0x99, 0x70, 0x00, 0x25, 0x99, 0x70,
-    0x04, 0x05, 0xA2, 0x68, 0x06, 0x04, 0xA2, 0x69, 0x04, 0x03, 0xA3, 0x6A, 0x03, 0x05, 0xA3, 0x6B,
-    0x00, 0x05, 0xA3, 0x6C, 0x03, 0x06, 0xA2, 0x6D, 0xFE, 0x07, 0xA1, 0x6E, 0x02, 0x06, 0xA2, 0x6F,
-    0x00, 0x05, 0xA4, 0x70, 0xFD, 0x03, 0xA4, 0x71, 0xFC, 0x02, 0xA4, 0x72, 0xFE, 0x05, 0xA4, 0x73,
-    0x00, 0x05, 0xA4, 0x74, 0xFE, 0x05, 0xA5, 0x75, 0x02, 0x06, 0xA6, 0x76, 0xFF, 0x06, 0xA5, 0x77,
-    0x06, 0x03, 0xAA, 0x78, 0x00, 0x05, 0xA4, 0x70, 0x00, 0x0D, 0xA4, 0x70, 0x00, 0x1D, 0xA4, 0x70,
-    0xFC, 0x08, 0x96, 0x00, 0x02, 0x08, 0x96, 0x00, 0xFD, 0xF9, 0x97, 0x79, 0xFC, 0xF9, 0x97, 0x7A,
-    0xFB, 0xFA, 0x97, 0x7B, 0x03, 0xF9, 0x97, 0x7C, 0x04, 0xF9, 0x97, 0x7D, 0x05, 0xFA, 0x97, 0x7E,
-    0x00, 0xF8, 0xA2, 0x79, 0xFF, 0xF8, 0xA2, 0x7A, 0xFE, 0xF9, 0xA2, 0x7B, 0xFF, 0xF8, 0xA5, 0x7C,
-    0x00, 0xF8, 0xA5, 0x7D, 0x01, 0xF9, 0xA5, 0x7E, 0x06, 0x09, 0x60, 0x00, 0x01, 0x10, 0x61, 0x00,
-    0xF7, 0x08, 0x64, 0x00, 0xF9, 0x09, 0x60, 0x00, 0xFC, 0x10, 0x5F, 0x00, 0x0A, 0x09, 0x5C, 0x00,
-    0xFD, 0x09, 0x5C, 0xEC, 0xFE, 0x09, 0x5C, 0xED, 0x00, 0x08, 0x5C, 0xEE, 0x00, 0x06, 0x5B, 0xEF,
-    0xFE, 0x08, 0x5B, 0xF0, 0xFF, 0x08, 0x5B, 0xF1, 0x00, 0x07, 0x5B, 0xF2, 0xFF, 0x06, 0x5B, 0xF3,
-    0xFC, 0xFD, 0x5B, 0xF4, 0x02, 0x08, 0x64, 0xF5, 0x01, 0x08, 0x64, 0xF6, 0xFF, 0x07, 0x64, 0xF7,
-    0x00, 0x06, 0x64, 0xF8, 0x03, 0x08, 0x64, 0xF9, 0x01, 0x08, 0x64, 0xFA, 0x00, 0x07, 0x64, 0xFB,
-    0x02, 0x06, 0x64, 0xFC, 0x04, 0xFB, 0x65, 0xFD, 0x04, 0x07, 0x5B, 0x68, 0x08, 0x07, 0x5B, 0x69,
-    0x09, 0x06, 0x5B, 0x6A, 0xFC, 0x07, 0x64, 0x70, 0xF9, 0x07, 0x64, 0x71, 0xF6, 0x03, 0x65, 0x72,
-    0x06, 0x04, 0xA2, 0x68, 0x08, 0x04, 0xA2, 0x69, 0x0A, 0x03, 0xA2, 0x6A, 0xFB, 0x04, 0xA5, 0x70,
-    0xF8, 0x04, 0xA5, 0x71, 0xF6, 0x03, 0xA5, 0x72, 0xFE, 0x09, 0x5C, 0xEC, 0xFF, 0x09, 0x5C, 0xED,
-    0x01, 0x08, 0x5C, 0xEE, 0x02, 0x08, 0x64, 0xF5, 0x01, 0x08, 0x64, 0xF6, 0x00, 0x06, 0x64, 0xF8,
-    0xFB, 0xFA, 0x59, 0x00, 0xFB, 0xFD, 0x58, 0x00, 0xFB, 0x01, 0x58, 0x00, 0xFA, 0xFF, 0x97, 0x00,
-    0xFA, 0x05, 0x97, 0x00, 0xFA, 0x0A, 0x97, 0x00, 0xFC, 0xF9, 0xA4, 0x00, 0xFB, 0xFE, 0xA4, 0x00,
-    0xFC, 0x03, 0xA4, 0x00, 0xFA, 0xFD, 0x66, 0x00, 0xFD, 0xF9, 0x66, 0x00, 0xFF, 0xF8, 0x66, 0x00,
-    0xF8, 0x05, 0x97, 0x00, 0xFB, 0x00, 0x97, 0x00, 0xFD, 0xFE, 0x97, 0x00, 0xFB, 0xFC, 0xA4, 0x00,
-    0xFD, 0xF8, 0xA4, 0x00, 0xFF, 0xF8, 0xA4, 0x00, 0x00, 0xF2, 0x96, 0x00, 0x00, 0xF7, 0xA1, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x02, 0x06, 0x59, 0x68, 0x04, 0x08, 0x5A, 0x69,
+    0x06, 0x06, 0x5A, 0x6A, 0x04, 0x09, 0x5A, 0x6B, 0x01, 0x08, 0x5A, 0x6C,
+    0x00, 0x09, 0x5A, 0x6D, 0xFC, 0x0A, 0x5B, 0x6E, 0xFF, 0x09, 0x5A, 0x6F,
+    0xFF, 0x07, 0x66, 0x70, 0xFB, 0x05, 0x66, 0x71, 0xFC, 0x06, 0x66, 0x72,
+    0xFC, 0x07, 0x66, 0x73, 0x00, 0x06, 0x66, 0x74, 0x01, 0x07, 0x66, 0x75,
+    0x03, 0x07, 0x65, 0x76, 0x02, 0x08, 0x66, 0x77, 0x06, 0x08, 0x58, 0x78,
+    0x00, 0x08, 0x66, 0x70, 0x00, 0x10, 0x66, 0x70, 0x00, 0x20, 0x66, 0x70,
+    0x00, 0xFA, 0x5C, 0x00, 0xFE, 0xFB, 0x5B, 0x79, 0xFD, 0xFB, 0x5B, 0x7A,
+    0xFC, 0xFC, 0x5A, 0x7B, 0x01, 0xF9, 0x65, 0x7C, 0x02, 0xF9, 0x65, 0x7D,
+    0x05, 0xFB, 0x66, 0x7E, 0x00, 0x0C, 0x99, 0x68, 0x05, 0x0B, 0x9A, 0x69,
+    0x07, 0x0A, 0x9B, 0x6A, 0x05, 0x0D, 0x9A, 0x6B, 0x01, 0x0C, 0x99, 0x6C,
+    0xFF, 0x0D, 0x98, 0x6D, 0xFB, 0x0E, 0x97, 0x6E, 0xFE, 0x0D, 0x98, 0x6F,
+    0x00, 0x0D, 0x99, 0x70, 0xFC, 0x0A, 0x98, 0x71, 0xFB, 0x0B, 0x97, 0x72,
+    0xFC, 0x0D, 0x98, 0x73, 0x00, 0x0D, 0x99, 0x74, 0x02, 0x0D, 0x9A, 0x75,
+    0x06, 0x0D, 0x9B, 0x76, 0x02, 0x0E, 0x9A, 0x77, 0x05, 0x0D, 0x99, 0x78,
+    0x00, 0x0D, 0x99, 0x70, 0x00, 0x15, 0x99, 0x70, 0x00, 0x25, 0x99, 0x70,
+    0x04, 0x05, 0xA2, 0x68, 0x06, 0x04, 0xA2, 0x69, 0x04, 0x03, 0xA3, 0x6A,
+    0x03, 0x05, 0xA3, 0x6B, 0x00, 0x05, 0xA3, 0x6C, 0x03, 0x06, 0xA2, 0x6D,
+    0xFE, 0x07, 0xA1, 0x6E, 0x02, 0x06, 0xA2, 0x6F, 0x00, 0x05, 0xA4, 0x70,
+    0xFD, 0x03, 0xA4, 0x71, 0xFC, 0x02, 0xA4, 0x72, 0xFE, 0x05, 0xA4, 0x73,
+    0x00, 0x05, 0xA4, 0x74, 0xFE, 0x05, 0xA5, 0x75, 0x02, 0x06, 0xA6, 0x76,
+    0xFF, 0x06, 0xA5, 0x77, 0x06, 0x03, 0xAA, 0x78, 0x00, 0x05, 0xA4, 0x70,
+    0x00, 0x0D, 0xA4, 0x70, 0x00, 0x1D, 0xA4, 0x70, 0xFC, 0x08, 0x96, 0x00,
+    0x02, 0x08, 0x96, 0x00, 0xFD, 0xF9, 0x97, 0x79, 0xFC, 0xF9, 0x97, 0x7A,
+    0xFB, 0xFA, 0x97, 0x7B, 0x03, 0xF9, 0x97, 0x7C, 0x04, 0xF9, 0x97, 0x7D,
+    0x05, 0xFA, 0x97, 0x7E, 0x00, 0xF8, 0xA2, 0x79, 0xFF, 0xF8, 0xA2, 0x7A,
+    0xFE, 0xF9, 0xA2, 0x7B, 0xFF, 0xF8, 0xA5, 0x7C, 0x00, 0xF8, 0xA5, 0x7D,
+    0x01, 0xF9, 0xA5, 0x7E, 0x06, 0x09, 0x60, 0x00, 0x01, 0x10, 0x61, 0x00,
+    0xF7, 0x08, 0x64, 0x00, 0xF9, 0x09, 0x60, 0x00, 0xFC, 0x10, 0x5F, 0x00,
+    0x0A, 0x09, 0x5C, 0x00, 0xFD, 0x09, 0x5C, 0xEC, 0xFE, 0x09, 0x5C, 0xED,
+    0x00, 0x08, 0x5C, 0xEE, 0x00, 0x06, 0x5B, 0xEF, 0xFE, 0x08, 0x5B, 0xF0,
+    0xFF, 0x08, 0x5B, 0xF1, 0x00, 0x07, 0x5B, 0xF2, 0xFF, 0x06, 0x5B, 0xF3,
+    0xFC, 0xFD, 0x5B, 0xF4, 0x02, 0x08, 0x64, 0xF5, 0x01, 0x08, 0x64, 0xF6,
+    0xFF, 0x07, 0x64, 0xF7, 0x00, 0x06, 0x64, 0xF8, 0x03, 0x08, 0x64, 0xF9,
+    0x01, 0x08, 0x64, 0xFA, 0x00, 0x07, 0x64, 0xFB, 0x02, 0x06, 0x64, 0xFC,
+    0x04, 0xFB, 0x65, 0xFD, 0x04, 0x07, 0x5B, 0x68, 0x08, 0x07, 0x5B, 0x69,
+    0x09, 0x06, 0x5B, 0x6A, 0xFC, 0x07, 0x64, 0x70, 0xF9, 0x07, 0x64, 0x71,
+    0xF6, 0x03, 0x65, 0x72, 0x06, 0x04, 0xA2, 0x68, 0x08, 0x04, 0xA2, 0x69,
+    0x0A, 0x03, 0xA2, 0x6A, 0xFB, 0x04, 0xA5, 0x70, 0xF8, 0x04, 0xA5, 0x71,
+    0xF6, 0x03, 0xA5, 0x72, 0xFE, 0x09, 0x5C, 0xEC, 0xFF, 0x09, 0x5C, 0xED,
+    0x01, 0x08, 0x5C, 0xEE, 0x02, 0x08, 0x64, 0xF5, 0x01, 0x08, 0x64, 0xF6,
+    0x00, 0x06, 0x64, 0xF8, 0xFB, 0xFA, 0x59, 0x00, 0xFB, 0xFD, 0x58, 0x00,
+    0xFB, 0x01, 0x58, 0x00, 0xFA, 0xFF, 0x97, 0x00, 0xFA, 0x05, 0x97, 0x00,
+    0xFA, 0x0A, 0x97, 0x00, 0xFC, 0xF9, 0xA4, 0x00, 0xFB, 0xFE, 0xA4, 0x00,
+    0xFC, 0x03, 0xA4, 0x00, 0xFA, 0xFD, 0x66, 0x00, 0xFD, 0xF9, 0x66, 0x00,
+    0xFF, 0xF8, 0x66, 0x00, 0xF8, 0x05, 0x97, 0x00, 0xFB, 0x00, 0x97, 0x00,
+    0xFD, 0xFE, 0x97, 0x00, 0xFB, 0xFC, 0xA4, 0x00, 0xFD, 0xF8, 0xA4, 0x00,
+    0xFF, 0xF8, 0xA4, 0x00, 0x00, 0xF2, 0x96, 0x00, 0x00, 0xF7, 0xA1, 0x00,
 };
 
 static uint32_t objOverlayRow(uint32_t frame)
@@ -1554,7 +1809,8 @@ void object_publishDEHSprites(const uint8_t *e, const uint8_t *h)
     objHSprites = h;
 }
 
-static int32_t objBlitGFrame(uint8_t *page, uint32_t frame, int32_t x, int32_t y)
+static int32_t objBlitGFrame(uint8_t *page, uint32_t frame, int32_t x,
+                             int32_t y)
 {
     uint32_t slot, layer, i, block;
 
@@ -1583,15 +1839,17 @@ static void objBlitFrame(uint8_t *page, uint32_t frame, int32_t x, int32_t y)
         return;
     }
     if (objHSprites && (frame == 0x26u || frame == 0x27u)) {
-        blitSprite(page, objHSprites + (frame - 0x26u) * 0x100u, 16u, 16u, x, y);
+        blitSprite(page, objHSprites + (frame - 0x26u) * 0x100u, 16u, 16u, x,
+                   y);
         return;
     }
     if (frame >= OBJ_FRAME_SLOTS) return;
     sp = &objSprites[frame];
-    if (!sp->rows || sp->mode > 2u) return;          /* blank / mode 0 or 3 */
-    cols = sp->mode == 2u ? 32u : 16u;               /* 1000:6C74 vs 1000:66EC */
+    if (!sp->rows || sp->mode > 2u) return; /* blank / mode 0 or 3 */
+    cols = sp->mode == 2u ? 32u : 16u; /* 1000:6C74 vs 1000:66EC */
     if ((uint32_t)sp->off + sp->rows * cols > objBankSize) return;
-    blitSprite(page, objBank + sp->off, sp->rows, cols, x, y + (int32_t)sp->ybias);
+    blitSprite(page, objBank + sp->off, sp->rows, cols, x,
+               y + (int32_t)sp->ybias);
 }
 
 /* 1000:653C draw_object_cell's class half: the class id names both the
@@ -1599,7 +1857,8 @@ static void objBlitFrame(uint8_t *page, uint32_t frame, int32_t x, int32_t y)
  * carries the extra sprite.  That record's x/y/frame are overwritten with the
  * carrier-relative position, as the original does - it is a per-frame cache,
  * not a scratch copy. */
-static void objDrawClassOverlay(uint8_t *page, int32_t scrollX, int32_t scrollY, uint8_t *rec)
+static void objDrawClassOverlay(uint8_t *page, int32_t scrollX, int32_t scrollY,
+                                uint8_t *rec)
 {
     uint32_t cls = rec[7];
     uint32_t col, row, idx, x, y, frame;
@@ -1613,7 +1872,7 @@ static void objDrawClassOverlay(uint8_t *page, int32_t scrollX, int32_t scrollY,
     /* 1000:6570: CX = rec[+7]; SUB CX,1; SI = 0x3E5F + CX, i.e. the slot at
      * 0x3E5E + class - objSlotClass is based at 0x3E5E (the predicate
      * 1000:3659 reads 0x3E5E + AX and the port reads objSlotClass[b]). */
-    col = objClsCol[objSlotClass[cls] & 0x3Fu];              /* 1000:657F */
+    col = objClsCol[objSlotClass[cls] & 0x3Fu]; /* 1000:657F */
     if (!col) return;
     frame = rd_le_u16(rec + 4u);
     /* 1000:65A7: `draw_object_cell` enters the class branch whenever the
@@ -1621,22 +1880,25 @@ static void objDrawClassOverlay(uint8_t *page, int32_t scrollX, int32_t scrollY,
      * 0x80 byte means row 0, whose 0x368A entry can still be live. */
     if (objOverlayRow(frame) == 0u) return;
     row = objOverlayRow(frame) & 0x7Fu;
-    idx = objOverlayIdx[3u * row + col];                     /* 1000:65C2 */
+    idx = objOverlayIdx[3u * row + col]; /* 1000:65C2 */
     if (!idx) return;
-    e = objOverlayEnt + 4u * idx;                            /* 1000:65D5 */
+    e = objOverlayEnt + 4u * idx; /* 1000:65D5 */
     x = rd_le_u16(rec + 0u);
     y = rd_le_u16(rec + 2u);
-    if (e[2]) {                                              /* 1000:65E4 */
+    if (e[2]) { /* 1000:65E4 */
         if (8u + cls < OBJ_SLOTS) {
             carried = objArray + (8u + cls) * OBJ_STRIDE;
-            wr_le_u16(carried + 0u, (uint16_t)(x + (uint16_t)(int16_t)(int8_t)e[0]));
-            wr_le_u16(carried + 2u, (uint16_t)(y + (uint16_t)(int16_t)(int8_t)e[1]));
+            wr_le_u16(carried + 0u,
+                      (uint16_t)(x + (uint16_t)(int16_t)(int8_t)e[0]));
+            wr_le_u16(carried + 2u,
+                      (uint16_t)(y + (uint16_t)(int16_t)(int8_t)e[1]));
             wr_le_u16(carried + 4u, e[2]);
-            objBlitFrame(page, e[2], (int32_t)(int16_t)rd_le_u16(carried + 0u) - scrollX,
+            objBlitFrame(page, e[2],
+                         (int32_t)(int16_t)rd_le_u16(carried + 0u) - scrollX,
                          (int32_t)(int16_t)rd_le_u16(carried + 2u) - scrollY);
         }
     }
-    if (e[3])                                                /* 1000:6605 */
+    if (e[3]) /* 1000:6605 */
         objBlitFrame(page, e[3], (int32_t)(int16_t)x - scrollX,
                      (int32_t)(int16_t)y - scrollY);
 }
@@ -1645,9 +1907,7 @@ static void objDrawClassOverlay(uint8_t *page, int32_t scrollX, int32_t scrollY,
  * mode 2's 32-px cells. */
 void object_blitSprite(uint8_t *page, const uint8_t *src, uint32_t rows,
                        uint32_t cols, int32_t x, int32_t y)
-{
-    blitSprite(page, src, rows, cols, x, y);
-}
+{ blitSprite(page, src, rows, cols, x, y); }
 
 /* One placed/live record through the object drawer.  `scan` selects the
  * scan_object_rows path (slots 8+): its class slot 0x3E5E + i-8 can mark the
@@ -1662,7 +1922,7 @@ static void objDrawRecord(uint8_t *page, int32_t scrollX, int32_t scrollY,
     int32_t y = (int32_t)(int16_t)rd_le_u16(r + 2u) - scrollY;
     uint32_t frame = rd_le_u16(r + 4u);
 
-    if (r[6] & 0x80u) return;                       /* 1000:794C / 1000:6458 */
+    if (r[6] & 0x80u) return; /* 1000:794C / 1000:6458 */
     /* 1000:6450/1000:6467: the record's class slot (0x3E5E + record-8)
      * skips it when bit 7 is set - the pickup's taken mark (1000:9D47).
      * The carried record is drawn by its carrier's class overlay only. */
@@ -1686,8 +1946,8 @@ static void objDrawRecord(uint8_t *page, int32_t scrollX, int32_t scrollY,
  * records, everything else to the 0x650C list drawn **before** them.  The
  * acting record is skipped in the slot walk and appended last in its own
  * class, so it is the last drawn there. */
-static void objPartition(uint8_t *back, uint32_t *nb,
-                         uint8_t *front, uint32_t *nf)
+static void objPartition(uint8_t *back, uint32_t *nb, uint8_t *front,
+                         uint32_t *nf)
 {
     uint32_t b = 0, f = 0;
 
@@ -1704,7 +1964,11 @@ static void objPartition(uint8_t *back, uint32_t *nb,
     {
         uint32_t t;
 
-        if (objEntity >= OBJ_SLOTS) { *nb = b; *nf = f; return; }
+        if (objEntity >= OBJ_SLOTS) {
+            *nb = b;
+            *nf = f;
+            return;
+        }
         t = rd_le_u16(objArray + objEntity * OBJ_STRIDE + 8u);
         if (t >= 6u && t <= 8u) front[f++] = (uint8_t)objEntity;
         else back[b++] = (uint8_t)objEntity;
@@ -1723,9 +1987,9 @@ void object_render(uint8_t *page, int32_t scrollX, int32_t scrollY)
 
     if (!page || !objBank) return;
 
-    objPartition(back, &nb, front, &nf);            /* 1000:C23C */
+    objPartition(back, &nb, front, &nf); /* 1000:C23C */
 
-    for (uint32_t k = 0; k < nb; k++)               /* 1000:6429 */
+    for (uint32_t k = 0; k < nb; k++) /* 1000:6429 */
         objDrawRecord(page, scrollX, scrollY, back[k], 0);
 
     /* scan_object_rows (1000:6433): AX = [0x3E73] - 8, then `DEC AX / JNS`,
@@ -1735,7 +1999,7 @@ void object_render(uint8_t *page, int32_t scrollX, int32_t scrollY)
     for (uint32_t i = 8u; i <= objLiveCount && i < OBJ_SLOTS; i++)
         objDrawRecord(page, scrollX, scrollY, i, 1);
 
-    for (uint32_t k = 0; k < nf; k++)               /* 1000:642E */
+    for (uint32_t k = 0; k < nf; k++) /* 1000:642E */
         objDrawRecord(page, scrollX, scrollY, front[k], 0);
 }
 
@@ -1763,9 +2027,9 @@ static uint8_t objTerSlot[2][0x14];
 
 void object_terSlotInit(void)
 {
-    memset(objTerSlot, 0, sizeof objTerSlot);        /* 1000:4CB2.. */
-    wr_le_u16(objTerSlot[0] + 0x10u, 0xFFFFu);             /* 1000:4CC3 [0x64AA] */
-    wr_le_u16(objTerSlot[1] + 0x10u, 0xFFFFu);             /* 1000:4CC6 [0x64BE] */
+    memset(objTerSlot, 0, sizeof objTerSlot); /* 1000:4CB2.. */
+    wr_le_u16(objTerSlot[0] + 0x10u, 0xFFFFu); /* 1000:4CC3 [0x64AA] */
+    wr_le_u16(objTerSlot[1] + 0x10u, 0xFFFFu); /* 1000:4CC6 [0x64BE] */
 }
 
 uint8_t *object_terSlotAt(uint32_t i) { return i < 2u ? objTerSlot[i] : NULL; }
@@ -1792,17 +2056,19 @@ void object_renderTer(uint8_t *page, int32_t scrollX, int32_t scrollY)
         uint8_t *e = objTerSlot[s];
         uint32_t index, idx, src, yoff, rows;
 
-        if (rd_le_u16(e + 0x10u) & 0x8000u) continue;      /* 1000:587F */
+        if (rd_le_u16(e + 0x10u) & 0x8000u) continue; /* 1000:587F */
         index = rd_le_u16(e + 0xCu);
         idx = index < sizeof objTerIndex ? objTerIndex[index] : 0u;
-        if (4u * idx + 4u > objTerSize || 2u * idx + 0x32u > objTerSize) continue;
+        if (4u * idx + 4u > objTerSize || 2u * idx + 0x32u > objTerSize)
+            continue;
         src = (uint32_t)rd_be_u16(objTerBank + 4u * idx + 2u) + 0x40u;
         yoff = rd_be_u16(objTerBank + 2u * idx + 0x20u);
         rows = rd_be_u16(objTerBank + 2u * idx + 0x30u);
         if (src + rows * 8u > objTerSize) continue;
         object_blitSprite(page, objTerBank + src, rows, 32u,
                           (int32_t)(int16_t)rd_le_u16(e + 0u) - 0xCu - scrollX,
-                          (int32_t)(int16_t)rd_le_u16(e + 2u) + (int32_t)yoff - scrollY);
+                          (int32_t)(int16_t)rd_le_u16(e + 2u) + (int32_t)yoff -
+                              scrollY);
     }
 }
 
@@ -1823,12 +2089,12 @@ int32_t object_testDispatch(uint16_t mode)
     uint32_t arg = (mode >> 8) & 0xFFu;
 
     switch (op) {
-    case 0: return object_lowPhaseMatch() == -1;      /* 1000:3600 */
-    case 1: return object_noneType1d() == -1;         /* 1000:3640 */
-    case 2: return object_classMatches(arg) == -1;    /* 1000:3659 */
-    case 3: return object_typeEquals(arg) == -1;      /* 1000:3678 */
-    case 4: return object_entitiesFinished() == -1;   /* 1000:3688 */
-    case 5: return object_mapCellEquals(arg) == -1;   /* 1000:36AB */
+    case 0: return object_lowPhaseMatch() == -1; /* 1000:3600 */
+    case 1: return object_noneType1d() == -1; /* 1000:3640 */
+    case 2: return object_classMatches(arg) == -1; /* 1000:3659 */
+    case 3: return object_typeEquals(arg) == -1; /* 1000:3678 */
+    case 4: return object_entitiesFinished() == -1; /* 1000:3688 */
+    case 5: return object_mapCellEquals(arg) == -1; /* 1000:36AB */
     default: return 0;
     }
 }
@@ -1847,9 +2113,9 @@ static void objBgTick(void)
 {
     /* DS:0x6697: five 2-byte record entries, then the two marker runs. */
     static const uint8_t tbl[26] = {
-        0x04, 0x00, 0x02, 0x00, 0x01, 0x04, 0x00, 0x02, 0x00, 0x01,
-        0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7, 0xC8, 0x00, 0xC9, 0xCA,
-        0xCB, 0xCC, 0xCD, 0xCE, 0xCF, 0x00,
+        0x04, 0x00, 0x02, 0x00, 0x01, 0x04, 0x00, 0x02, 0x00,
+        0x01, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7, 0xC8, 0x00,
+        0xC9, 0xCA, 0xCB, 0xCC, 0xCD, 0xCE, 0xCF, 0x00,
     };
     uint32_t i;
 
@@ -1862,17 +2128,17 @@ static void objBgTick(void)
             if (!(r[6] & 0x80u)) {
                 uint32_t y;
 
-                if (rd_le_u16(r + 8u) == 0u) continue;     /* 1000:D614: no OR  */
+                if (rd_le_u16(r + 8u) == 0u) continue; /* 1000:D614: no OR  */
                 y = (uint32_t)rd_le_u16(r + 2u) + 2u;
                 wr_le_u16(r + 2u, (uint16_t)y);
-                if (y > 0x138u) r[6] = 0xFFu;        /* 1000:D61F         */
+                if (y > 0x138u) r[6] = 0xFFu; /* 1000:D61F         */
             }
             cx |= tbl[t];
             dx |= tbl[t + 1u];
         }
         if (objBg[i].mark) {
-            objBg[i].mark[0] = tbl[0x0Au + cx];      /* 1000:D638         */
-            objBg[i].mark[1] = tbl[0x12u + dx];      /* 1000:D641         */
+            objBg[i].mark[0] = tbl[0x0Au + cx]; /* 1000:D638         */
+            objBg[i].mark[1] = tbl[0x12u + dx]; /* 1000:D641         */
         }
     }
 }
@@ -1902,7 +2168,10 @@ static void objWalkStep1(uint8_t *r)
 {
     uint32_t a = rd_le_u16(r + 0xAu);
 
-    if (a != 0u) { wr_le_u16(r + 0xAu, a - 1u); return; }
+    if (a != 0u) {
+        wr_le_u16(r + 0xAu, a - 1u);
+        return;
+    }
     wr_le_u16(r + 0xAu, 8u);
     {
         uint32_t base = rd_le_u16(r + 8u);
@@ -1921,14 +2190,17 @@ static void objWalkSeq(uint8_t *r)
 
     if (rd_le_u16(r + 8u) != 1u) return;
     a = rd_le_u16(r + 0xAu);
-    if (a != 0u) { wr_le_u16(r + 0xAu, a - 1u); return; }
+    if (a != 0u) {
+        wr_le_u16(r + 0xAu, a - 1u);
+        return;
+    }
     wr_le_u16(r + 0xAu, 4u);
     cur = rd_le_u16(r + 0xCu);
     wr_le_u16(r + 0xCu, cur + 1u);
     i = cur;
     wr_le_u16(r + 4u, i < sizeof objSeq6568 ? objSeq6568[i] : 0u);
     if (i + 1u < sizeof objSeq6568 && objSeq6568[i + 1u] == 0u) {
-        uint8_t *map = (uint8_t *)level_map();   /* the writable [0x1FA0] copy */
+        uint8_t *map = (uint8_t *)level_map(); /* the writable [0x1FA0] copy */
 
         wr_le_u16(r + 8u, 2u);
         if (map && rd_le_u16(r + 0xEu) < 640u) map[rd_le_u16(r + 0xEu)] = 0u;
@@ -1942,27 +2214,36 @@ static void objWalkWander(uint8_t *r)
     uint32_t ax, bx, cx, dx;
 
     if (objFrame & 1u) return;
-    ax = rd_le_u16(r + 0u); bx = rd_le_u16(r + 4u); cx = rd_le_u16(r + 8u); dx = rd_le_u16(r + 0x10u);
+    ax = rd_le_u16(r + 0u);
+    bx = rd_le_u16(r + 4u);
+    cx = rd_le_u16(r + 8u);
+    dx = rd_le_u16(r + 0x10u);
     switch (cx) {
-    case 0:                                          /* 0xCCC0 */
+    case 0: /* 0xCCC0 */
         ax++;
         if (dx == 0u) {
-            dx = 3u; bx++;
+            dx = 3u;
+            bx++;
             if (bx > 0x85u) bx = 0x82u;
-            if (ax >= rd_le_u16(r + 0xCu)) { bx = 0x86u; cx = 1u; }
+            if (ax >= rd_le_u16(r + 0xCu)) {
+                bx = 0x86u;
+                cx = 1u;
+            }
         } else dx--;
         break;
-    case 1:                                          /* 0xCCE3 */
+    case 1: /* 0xCCE3 */
         ax--;
         if (dx == 0u) {
-            dx = 3u; bx++;
+            dx = 3u;
+            bx++;
             if (bx > 0x89u) bx = 0x86u;
-            if (ax > rd_le_u16(r + 0xAu)) { bx = 0x82u; cx = 0u; }
+            if (ax > rd_le_u16(r + 0xAu)) {
+                bx = 0x82u;
+                cx = 0u;
+            }
         } else dx--;
         break;
-    default:                                         /* 0xCD06 */
-        bx = 0x8Au;
-        break;
+    default: /* 0xCD06 */ bx = 0x8Au; break;
     }
     wr_le_u16(r + 0u, (uint16_t)ax);
     wr_le_u16(r + 4u, (uint16_t)bx);
@@ -2011,9 +2292,8 @@ static void objWalkTorch(uint8_t *r)
 /* DS:0x6EC3, 16 bytes: object_find_overlap's "this type does not take part"
  * flag.  Types 0..2 and 8 are 0 (they *do*), the rest 1.  Types >= 0x10 read
  * past the table in the original; the port treats them as "no". */
-static const uint8_t objTypeOverlaps[16] = {
-    0, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1
-};
+static const uint8_t objTypeOverlaps[16] = { 0, 0, 0, 1, 1, 1, 1, 1,
+                                             0, 1, 1, 1, 1, 1, 1, 1 };
 /* 0x6847: the per-record settled position (4 bytes per record). */
 static uint16_t objSettled[OBJ_SLOTS][2];
 
@@ -2091,7 +2371,10 @@ static void objMoverPassEntity(uint8_t *r, int32_t ax, int32_t bx)
         anim = (int16_t)e->waypoint;
         if (anim < 0) continue;
         anim <<= 1;
-        if (ex > 0x1F) { ex -= 0x20; anim++; }
+        if (ex > 0x1F) {
+            ex -= 0x20;
+            anim++;
+        }
         {
             uint32_t src = 0, rows = 0, yoff = 0;
             int32_t dy;
@@ -2106,7 +2389,8 @@ static void objMoverPassEntity(uint8_t *r, int32_t ax, int32_t bx)
             objSlotClass[(uint32_t)((r - objArray) / OBJ_STRIDE) - 8u] = 0u;
             r[0] = 0xFFu;
             e->hold = 5u;
-            e->waypoint = (e->handler != 0u && e->handler != 3u) ? 0x1Au : 0x0Cu;
+            e->waypoint =
+                (e->handler != 0u && e->handler != 3u) ? 0x1Au : 0x0Cu;
             if (e->life > 0u) e->life--;
             if (e->life == 0u) e->handler = 4u;
             return;
@@ -2120,7 +2404,8 @@ static void objMoverPassPlaced(uint8_t *r, int32_t ax, int32_t bx)
 
     /* 1000:5B3E's gate is on the record's +0xA/+0xC/+0xE (arg_SI = r+6). */
     if (rd_le_u16(r + 0xAu) != 0u) return;
-    if (!(rd_le_u16(r + 0xCu) != 0u || (rd_le_u16(r + 0xEu) & 0x8000u) || rd_le_u16(r + 0xEu) > 1u))
+    if (!(rd_le_u16(r + 0xCu) != 0u || (rd_le_u16(r + 0xEu) & 0x8000u) ||
+          rd_le_u16(r + 0xEu) > 1u))
         return;
     for (i = 0; i < OBJ_STATIC; i++) {
         uint8_t *slot = objArray + i * OBJ_STRIDE;
@@ -2134,7 +2419,7 @@ static void objMoverPassPlaced(uint8_t *r, int32_t ax, int32_t bx)
         if (!(dy - 2 < 0 && dy + 0x0C > 0)) continue;
         type = rd_le_u16(slot + 8u);
         if (type < 16u && objTypeOverlaps[type]) continue;
-        (void)object_stackScanDissolve(i);        /* 1000:F453, AX = 5 */
+        (void)object_stackScanDissolve(i); /* 1000:F453, AX = 5 */
         objSlotClass[(uint32_t)((r - objArray) / OBJ_STRIDE) - 8u] = 0u;
         r[6] = 0xFFu;
         cls = slot[7];
@@ -2154,26 +2439,22 @@ static void objMoverPassPlaced(uint8_t *r, int32_t ax, int32_t bx)
 
 /* the 0x6612 (dx,dy) pairs, frames 0x58..0x67, 4 bytes each. */
 static const uint8_t objMoverTab[0x40] = {
-    0x07, 0x00, 0x07, 0x0F, 0x0C, 0x00, 0x02, 0x0F,
-    0x0F, 0x00, 0x00, 0x0D, 0x0F, 0x03, 0x00, 0x0A,
-    0x0F, 0x07, 0x00, 0x07, 0x0F, 0x0C, 0x00, 0x02,
-    0x0F, 0x0F, 0x02, 0x00, 0x0A, 0x0F, 0x05, 0x00,
-    0x08, 0x0F, 0x08, 0x00, 0x03, 0x0F, 0x0D, 0x00,
-    0x00, 0x0F, 0x0F, 0x02, 0x00, 0x0B, 0x0F, 0x05,
-    0x00, 0x08, 0x0F, 0x08, 0x00, 0x03, 0x0F, 0x0D,
-    0x00, 0x00, 0x0D, 0x0F, 0x04, 0x00, 0x00, 0x00,
+    0x07, 0x00, 0x07, 0x0F, 0x0C, 0x00, 0x02, 0x0F, 0x0F, 0x00, 0x00,
+    0x0D, 0x0F, 0x03, 0x00, 0x0A, 0x0F, 0x07, 0x00, 0x07, 0x0F, 0x0C,
+    0x00, 0x02, 0x0F, 0x0F, 0x02, 0x00, 0x0A, 0x0F, 0x05, 0x00, 0x08,
+    0x0F, 0x08, 0x00, 0x03, 0x0F, 0x0D, 0x00, 0x00, 0x0F, 0x0F, 0x02,
+    0x00, 0x0B, 0x0F, 0x05, 0x00, 0x08, 0x0F, 0x08, 0x00, 0x03, 0x0F,
+    0x0D, 0x00, 0x00, 0x0D, 0x0F, 0x04, 0x00, 0x00, 0x00,
 };
 
 /* 0x65D2: the direction -> frame table (16 rows of 4?). */
 static const uint8_t objMoverDir[0x40] = {
-    0x67, 0x66, 0x66, 0x67, 0x59, 0x5A, 0x5A, 0x59,
-    0x66, 0x65, 0x66, 0x66, 0x5A, 0x5B, 0x5A, 0x5A,
-    0x65, 0x65, 0x65, 0x65, 0x5B, 0x5B, 0x5B, 0x5B,
-    0x64, 0x64, 0x64, 0x64, 0x5C, 0x5C, 0x5C, 0x5C,
-    0x64, 0x64, 0x64, 0x64, 0x5C, 0x5C, 0x5C, 0x5C,
-    0x63, 0x63, 0x63, 0x63, 0x5D, 0x5D, 0x5D, 0x5D,
-    0x62, 0x63, 0x62, 0x62, 0x5E, 0x5D, 0x5E, 0x5E,
-    0x61, 0x62, 0x62, 0x61, 0x5F, 0x5E, 0x5E, 0x5F,
+    0x67, 0x66, 0x66, 0x67, 0x59, 0x5A, 0x5A, 0x59, 0x66, 0x65, 0x66,
+    0x66, 0x5A, 0x5B, 0x5A, 0x5A, 0x65, 0x65, 0x65, 0x65, 0x5B, 0x5B,
+    0x5B, 0x5B, 0x64, 0x64, 0x64, 0x64, 0x5C, 0x5C, 0x5C, 0x5C, 0x64,
+    0x64, 0x64, 0x64, 0x5C, 0x5C, 0x5C, 0x5C, 0x63, 0x63, 0x63, 0x63,
+    0x5D, 0x5D, 0x5D, 0x5D, 0x62, 0x63, 0x62, 0x62, 0x5E, 0x5D, 0x5E,
+    0x5E, 0x61, 0x62, 0x62, 0x61, 0x5F, 0x5E, 0x5E, 0x5F,
 };
 
 /* 0xCDC7 / 0xCE38 / 0xCE3D: the frame/direction stepper (odd frames only). */
@@ -2183,7 +2464,7 @@ static void objMoverStepper(uint8_t *r, uint32_t mode)
 
     if (!(objFrame & 1u)) return;
     f = rd_le_u16(r + 4u);
-    if (mode != 0u) {                             /* 0xCE40 */
+    if (mode != 0u) { /* 0xCE40 */
         int32_t b = (mode == 1u) ? 1 : -1;
 
         b += (int32_t)f;
@@ -2199,7 +2480,8 @@ static void objMoverStepper(uint8_t *r, uint32_t mode)
         return;
     }
     {
-        int32_t bx = (int16_t)rd_le_u16(r + 0xCu), cx = (int16_t)rd_le_u16(r + 0xEu);
+        int32_t bx = (int16_t)rd_le_u16(r + 0xCu),
+                cx = (int16_t)rd_le_u16(r + 0xEu);
 
         if (bx == 0) {
             if (cx == 0) return;
@@ -2207,10 +2489,10 @@ static void objMoverStepper(uint8_t *r, uint32_t mode)
         } else if (cx == 0) {
             wr_le_u16(r + 4u, (uint16_t)(bx > 0 ? 0x5C : 0x64));
         } else {
-            uint32_t idx = (uint32_t)(((bx + 0x10) >> 2) * 8 + ((cx + 0x10) >> 2));
+            uint32_t idx =
+                (uint32_t)(((bx + 0x10) >> 2) * 8 + ((cx + 0x10) >> 2));
 
-            if (idx < sizeof objMoverDir)
-                wr_le_u16(r + 4u, objMoverDir[idx]);
+            if (idx < sizeof objMoverDir) wr_le_u16(r + 4u, objMoverDir[idx]);
         }
     }
 }
@@ -2260,12 +2542,14 @@ static void objStack8Slots(uint8_t *r)
     if (r[7] == 0u) return;
     for (i = 0; i < OBJ_STATIC; i++) {
         uint8_t *slot = objArray + i * OBJ_STRIDE;
-        int32_t dx = (int32_t)(int16_t)rd_le_u16(r + 0u) - (int32_t)(int16_t)rd_le_u16(slot + 0u);
+        int32_t dx = (int32_t)(int16_t)rd_le_u16(r + 0u) -
+                     (int32_t)(int16_t)rd_le_u16(slot + 0u);
         int32_t dy;
 
         if (dx >= 0) {
             if (dx > 0x40) continue;
-            dy = (int32_t)(int16_t)rd_le_u16(r + 2u) - (int32_t)(int16_t)rd_le_u16(slot + 2u);
+            dy = (int32_t)(int16_t)rd_le_u16(r + 2u) -
+                 (int32_t)(int16_t)rd_le_u16(slot + 2u);
             if (dy < 0) dy = -dy;
             dy -= 8;
             if (dy >= 0) continue;
@@ -2275,7 +2559,8 @@ static void objStack8Slots(uint8_t *r)
             return;
         }
         if (-dx > 0x40) continue;
-        dy = (int32_t)(int16_t)rd_le_u16(r + 2u) - (int32_t)(int16_t)rd_le_u16(slot + 2u);
+        dy = (int32_t)(int16_t)rd_le_u16(r + 2u) -
+             (int32_t)(int16_t)rd_le_u16(slot + 2u);
         if (dy < 0) dy = -dy;
         dy -= 8;
         if (dy >= 0) continue;
@@ -2286,8 +2571,8 @@ static void objStack8Slots(uint8_t *r)
     }
 }
 
-static void objStack8Move(uint8_t *r, int32_t vx, int32_t vy, uint32_t stopFrame,
-                          uint32_t endFrame)
+static void objStack8Move(uint8_t *r, int32_t vx, int32_t vy,
+                          uint32_t stopFrame, uint32_t endFrame)
 {
     const uint8_t *map = level_map();
     int32_t land, bx, ax, recY;
@@ -2296,10 +2581,14 @@ static void objStack8Move(uint8_t *r, int32_t vx, int32_t vy, uint32_t stopFrame
     {
         uint32_t probeCell;
 
-        land = objLandY((int32_t)(int16_t)rd_le_u16(r + 0u) + vy + 8, 0x18, &probeCell);
+        land = objLandY((int32_t)(int16_t)rd_le_u16(r + 0u) + vy + 8, 0x18,
+                        &probeCell);
         (void)probeCell;
     }
-    if (land < 0) { objStack8Fail(r, stopFrame); return; }
+    if (land < 0) {
+        objStack8Fail(r, stopFrame);
+        return;
+    }
     bx = land - 0x18;
     ax = (int32_t)(int16_t)rd_le_u16(r + 0u) + vx;
     rowFine = (uint32_t)(bx + 0xC) & 0xFu;
@@ -2309,9 +2598,15 @@ static void objStack8Move(uint8_t *r, int32_t vx, int32_t vy, uint32_t stopFrame
         tile = (map && ci < 640u) ? map[ci] : 0xFFu;
     }
     word = level_itemWord(tile, rowFine);
-    if (word != 0u) { objStack8Fail(r, stopFrame); return; }
+    if (word != 0u) {
+        objStack8Fail(r, stopFrame);
+        return;
+    }
     recY = (int32_t)(int16_t)rd_le_u16(r + 2u) - bx;
-    if (recY < 0 && bx + 8 < 0) { objStack8Fail(r, stopFrame); return; }
+    if (recY < 0 && bx + 8 < 0) {
+        objStack8Fail(r, stopFrame);
+        return;
+    }
     wr_le_u16(r + 0u, (uint16_t)(rd_le_u16(r + 0u) + (uint16_t)vy));
     wr_le_u16(r + 2u, (uint16_t)bx);
     {
@@ -2334,7 +2629,10 @@ static void objStack8Anim(uint8_t *r, uint32_t endFrame)
 {
     uint32_t s = rd_le_u16(r + 8u);
 
-    if (s != 0u) { wr_le_u16(r + 8u, s - 1u); return; }
+    if (s != 0u) {
+        wr_le_u16(r + 8u, s - 1u);
+        return;
+    }
     wr_le_u16(r + 8u, 6u);
     {
         uint32_t f = (uint32_t)(rd_le_u16(r + 4u) + 1u);
@@ -2344,7 +2642,8 @@ static void objStack8Anim(uint8_t *r, uint32_t endFrame)
     }
 }
 
-static void objStack8Land(uint8_t *r, uint32_t bx, int32_t ax, int32_t bx2, uint32_t idx)
+static void objStack8Land(uint8_t *r, uint32_t bx, int32_t ax, int32_t bx2,
+                          uint32_t idx)
 {
     uint32_t s = rd_le_u16(r + 8u);
 
@@ -2378,13 +2677,25 @@ static void objStack8Land(uint8_t *r, uint32_t bx, int32_t ax, int32_t bx2, uint
 static void objWalkStack(uint8_t *r, uint32_t idx)
 {
     switch (rd_le_u16(r + 0xAu)) {
-    case 0u: objStack8Move(r, 0x11, 1, 0xE0u, 0xDCu); objStack8Slots(r); break;
-    case 1u: objStack8Move(r, -1, -1, 0xD4u, 0xE8u); objStack8Slots(r); break;
-    case 2u: objStack8Anim(r, 0x11Au); objStack8Slots(r); break;
-    case 3u: objStack8Anim(r, 0x11Eu); objStack8Slots(r); break;
+    case 0u:
+        objStack8Move(r, 0x11, 1, 0xE0u, 0xDCu);
+        objStack8Slots(r);
+        break;
+    case 1u:
+        objStack8Move(r, -1, -1, 0xD4u, 0xE8u);
+        objStack8Slots(r);
+        break;
+    case 2u:
+        objStack8Anim(r, 0x11Au);
+        objStack8Slots(r);
+        break;
+    case 3u:
+        objStack8Anim(r, 0x11Eu);
+        objStack8Slots(r);
+        break;
     case 4u: objStack8Land(r, 0xDDu, 0xA, -3, idx); break;
     case 5u: objStack8Land(r, 0xE9u, -0xA, -3, idx); break;
-    default: {                                   /* state 6, the exit */
+    default: { /* state 6, the exit */
         uint32_t s = rd_le_u16(r + 8u);
 
         s = (uint32_t)(s - 1u);
@@ -2419,7 +2730,7 @@ static void objWalkStack(uint8_t *r, uint32_t idx)
  */
 static const int8_t objProjCurve[25] = {
     0, -4, -3, -3, -2, -2, -2, -1, -1, -1, -1, 0, 0,
-    0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 3, 3,
+    0, 0,  0,  1,  1,  1,  1,  2,  2,  2,  3,  3,
 };
 
 static int32_t objProjCull(int32_t vx, int32_t x)
@@ -2458,7 +2769,7 @@ static int32_t objProjSnap(uint8_t *r, int32_t bx, int32_t cx)
     }
     sub = sx & 0xF;
     page = (uint32_t)(int8_t)level_pageByte(tile, (uint32_t)sub);
-    if ((int8_t)page < 0) {                       /* 1000:D5F0 */
+    if ((int8_t)page < 0) { /* 1000:D5F0 */
         if (sy > 0x12F) return -1;
         {
             uint32_t ci2 = ((uint32_t)sy >> 4) * 32u + ((uint32_t)sx >> 4);
@@ -2470,7 +2781,7 @@ static int32_t objProjSnap(uint8_t *r, int32_t bx, int32_t cx)
         }
         return sy;
     }
-    if ((int8_t)page == 0) {                      /* the row above decides */
+    if ((int8_t)page == 0) { /* the row above decides */
         uint32_t ci2 = ((uint32_t)sy >> 4) * 32u + ((uint32_t)sx >> 4);
         uint32_t above = (ci2 >= 0x20u) ? map[ci2 - 0x20] : 0xFFu;
         int32_t b2 = (int8_t)level_pageByte(above, (uint32_t)sub);
@@ -2494,7 +2805,7 @@ static void objWalkProjectile(uint8_t *r, uint32_t idx)
     if (r[6] & 0x40u) return;
     vx = (int16_t)rd_le_u16(r + 8u);
     vy = (int16_t)rd_le_u16(r + 0xAu);
-    if (vy == 0) {                                /* phase 1: horizontal    */
+    if (vy == 0) { /* phase 1: horizontal    */
         const uint8_t *map = level_map();
         int32_t sx = x + 8, sy = y + 0x10;
         int32_t sub, slope, step = 1;
@@ -2615,19 +2926,27 @@ static void objWalkMarker(uint8_t *r)
     const uint8_t *map = level_map();
     uint32_t i;
 
-    if ((objFrame & 3u) == 0u) {                 /* 1000:C541 */
+    if ((objFrame & 3u) == 0u) { /* 1000:C541 */
         uint32_t f = rd_le_u16(r + 4u);
 
         if (objMarkerMode) {
-            if (f == 0x26u) { wr_le_u16(r + 4u, f + 1u); return; }
+            if (f == 0x26u) {
+                wr_le_u16(r + 4u, f + 1u);
+                return;
+            }
             r[6] |= 0x80u;
-            if (map && rd_le_u16(r + 8u) < 640u) ((uint8_t *)map)[rd_le_u16(r + 8u)] = 0u;
+            if (map && rd_le_u16(r + 8u) < 640u)
+                ((uint8_t *)map)[rd_le_u16(r + 8u)] = 0u;
             return;
         }
-        if (r[6] & 0x80u) { r[6] = 0u; return; }
+        if (r[6] & 0x80u) {
+            r[6] = 0u;
+            return;
+        }
         if (f == 0x26u) return;
         wr_le_u16(r + 4u, f - 1u);
-        if (map && rd_le_u16(r + 8u) < 640u) ((uint8_t *)map)[rd_le_u16(r + 8u)] = 0xBBu;
+        if (map && rd_le_u16(r + 8u) < 640u)
+            ((uint8_t *)map)[rd_le_u16(r + 8u)] = 0xBBu;
         return;
     }
     if (r[6] & 0x80u) return;
@@ -2640,18 +2959,19 @@ static void objWalkMarker(uint8_t *r)
             uint32_t sx, sy, type;
 
             sx = (uint32_t)(rd_le_u16(slot + 0u) + 8u) & ~0xFu;
-            if (rd_le_u16(slot + 8u) == 0x0Fu) sx = (uint32_t)(rd_le_u16(slot + 0u) + 0x10u) & ~0xFu;
+            if (rd_le_u16(slot + 8u) == 0x0Fu)
+                sx = (uint32_t)(rd_le_u16(slot + 0u) + 0x10u) & ~0xFu;
             sy = (uint32_t)(rd_le_u16(slot + 2u) + 0x0Cu) & ~0xFu;
             if (sx != mx || sy != my) continue;
             if (slot[6] & 0x80u) continue;
             type = rd_le_u16(slot + 8u);
             if (type < 16u && objTypeOverlaps[type]) continue;
-            object_stackScanDissolve(i);          /* 1000:F453, DX = 5 */
+            object_stackScanDissolve(i); /* 1000:F453, DX = 5 */
             wr_le_u16(r + 0u, (uint16_t)(rd_le_u16(r + 0u) - 8u));
             wr_le_u16(r + 4u, 0x0028u);
             wr_le_u16(r + 8u, 0x0016u);
             wr_le_u16(r + 0xAu, 5u);
-            objDriverCall(4);                     /* 1000:83B7, AX = 4 */
+            objDriverCall(4); /* 1000:83B7, AX = 4 */
             {
                 uint32_t gx = (uint32_t)(objSettled[i][0] + 8u) & ~0xFu;
                 uint32_t gy = (uint32_t)(objSettled[i][1] + 0x0Cu) & ~0xFu;
@@ -2731,9 +3051,18 @@ void object_tick(const uint8_t *levelPal)
  * so `pred_sprite_class_match(5)` matched (`0x85 & 0x3F = 5`) and the level ended.
  */
 enum {
-    OP_REGISTER = 1, OP_COLLIDE_A = 2, OP_SELECT = 3, OP_TYPE_A = 4, OP_SETFRAME = 5,
-    OP_COLLIDE_B = 6, OP_TYPE_B = 7, OP_RESET = 8, OP_CLAIM_OR_TYPE = 9,
-    OP_CLAIM3 = 10, OP_CLAIM0 = 11, OP_CLAIM1 = 12
+    OP_REGISTER = 1,
+    OP_COLLIDE_A = 2,
+    OP_SELECT = 3,
+    OP_TYPE_A = 4,
+    OP_SETFRAME = 5,
+    OP_COLLIDE_B = 6,
+    OP_TYPE_B = 7,
+    OP_RESET = 8,
+    OP_CLAIM_OR_TYPE = 9,
+    OP_CLAIM3 = 10,
+    OP_CLAIM0 = 11,
+    OP_CLAIM1 = 12
 };
 
 /* the six programs at 0x5B37..0x5B53 (202F image, 12 bytes each). */
@@ -2754,14 +3083,17 @@ static uint8_t objPrograms[6][12] = {
  * 0..3 with bit 7 and 1000:9C9C skips them. */
 static const uint8_t objBehProgram[8] = { 0, 0, 0, 0, 5, 1, 3, 2 };
 static const uint8_t objBehDir[8] = { 0xFF, 0xFF, 0xFF, 0xFF, 0, 1, 1, 1 };
-static const uint8_t objBehCollideProg[8] = { 0xFF, 0xFF, 0xFF, 0xFF, 6, 2, 4, 3 };
+static const uint8_t objBehCollideProg[8] = {
+    0xFF, 0xFF, 0xFF, 0xFF, 6, 2, 4, 3
+};
 /* DS:0x5B97 (behaviour -> the class path's handler index) and its target
  * table at 0x5BA0: {0x9D94, 0x9DD7}.  DS:0x5BA4 is the throw's x offset by
  * the actor's type (0 -> +8, 1 -> -8, everything else 0) and DS:0x5BAA the
  * frame by behaviour (5 -> 0x60, 6 -> 0x9C, 7 -> 0x96). */
 static const uint8_t objBehClassIdx[8] = { 0xFF, 0xFF, 0xFF, 0xFF, 0, 1, 1, 1 };
-static const int8_t  objThrowDx[8] = { 8, -8, 0, 0, 0, 0, 0, 0 };
-static const uint8_t objDropFrame[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0x9C, 0x96 };
+static const int8_t objThrowDx[8] = { 8, -8, 0, 0, 0, 0, 0, 0 };
+static const uint8_t objDropFrame[8] = { 0x00, 0x00, 0x00, 0x00,
+                                         0x00, 0x60, 0x9C, 0x96 };
 
 uint32_t object_actionEntity(void) { return objEntity; }
 
@@ -2815,31 +3147,33 @@ void object_markerTick(void)
     uint32_t type, frame, mode, ax;
 
     if (!m) return;
-    if (m[6] & 0x80u) return;                        /* 1000:D655 */
-    wr_le_u16(m + 0u, rd_le_u16(r + 0u));                        /* 1000:D65B */
+    if (m[6] & 0x80u) return; /* 1000:D655 */
+    wr_le_u16(m + 0u, rd_le_u16(r + 0u)); /* 1000:D65B */
     type = rd_le_u16(m + 8u);
-    wr_le_u16(m + 2u, (uint16_t)(rd_le_u16(r + 2u) - type));     /* 1000:D65F */
+    wr_le_u16(m + 2u, (uint16_t)(rd_le_u16(r + 2u) - type)); /* 1000:D65F */
     frame = rd_le_u16(r + 4u);
     mode = frame < OBJ_FRAME_SLOTS ? objSprites[frame].mode : 0u;
-    wr_le_u16(m + 0u, (uint16_t)(rd_le_u16(m + 0u) + ((int32_t)mode - 1) * 8)); /* 1000:D66B */
-    m[0xAu] = (uint8_t)(m[0xAu] - 1u);               /* 1000:D68F */
-    if (!(m[0xAu] & 0x80u)) {                        /* 1000:D693 JNS */
+    wr_le_u16(m + 0u, (uint16_t)(rd_le_u16(m + 0u) +
+                                 ((int32_t)mode - 1) * 8)); /* 1000:D66B */
+    m[0xAu] = (uint8_t)(m[0xAu] - 1u); /* 1000:D68F */
+    if (!(m[0xAu] & 0x80u)) { /* 1000:D693 JNS */
         wr_le_u16(m + 8u, type);
         return;
     }
-    m[0xAu] = 2u;                                    /* 1000:D695 */
-    ax = type - 2u;                                  /* 1000:D699 */
-    if (ax >= 0x12u) {                               /* 1000:D69F JNC */
+    m[0xAu] = 2u; /* 1000:D695 */
+    ax = type - 2u; /* 1000:D699 */
+    if (ax >= 0x12u) { /* 1000:D69F JNC */
         wr_le_u16(m + 8u, ax);
         return;
     }
-    ax = 0x001Au;                                    /* 1000:D6A1 */
-    m[0xBu] = (uint8_t)(m[0xBu] - 1u);               /* 1000:D6A4 */
-    if (m[0xBu] & 0x80u) m[6] = 0x80u;               /* 1000:D6A8 */
-    wr_le_u16(m + 8u, ax);                                 /* 1000:D6AE */
+    ax = 0x001Au; /* 1000:D6A1 */
+    m[0xBu] = (uint8_t)(m[0xBu] - 1u); /* 1000:D6A4 */
+    if (m[0xBu] & 0x80u) m[6] = 0x80u; /* 1000:D6A8 */
+    wr_le_u16(m + 8u, ax); /* 1000:D6AE */
 }
 
-void object_setActionEntity(uint32_t i) { objEntity = i < OBJ_STATIC ? i : objEntity; }
+void object_setActionEntity(uint32_t i)
+{ objEntity = i < OBJ_STATIC ? i : objEntity; }
 uint32_t object_actionProgram(void) { return objProgramIndex; }
 uint32_t object_actionFault(void) { return objFault; }
 
@@ -2852,11 +3186,10 @@ void object_attachOsys(const OSystem *osys) { objOsys = osys; }
  * (The six runs overlap in the image, but every write lands outside the other
  * groups' visible bytes 0..5 - checked against 0x5B2B/0x5B37.) */
 const uint8_t *object_programHeader(uint32_t group)
-{
-    return (group >= 1u && group <= 6u) ? objPrograms[group - 1u] : NULL;
-}
+{ return (group >= 1u && group <= 6u) ? objPrograms[group - 1u] : NULL; }
 
-const uint8_t *object_actionHeader(void) { return object_programHeader(objProgramIndex); }
+const uint8_t *object_actionHeader(void)
+{ return object_programHeader(objProgramIndex); }
 
 /* 1000:3933's tail (0x3941-0x394D): advance the selected cell with the wrap to
  * 1 past the count.  It is the program's cursor byte, so the next ACTION press
@@ -2888,7 +3221,7 @@ static void objOpRegister(uint8_t *actor)
     if (rd_le_u16(actor + 8u) > 2u) return;
     for (uint32_t i = 0; i < 8u; i++) {
         uint16_t *s = objRegister[i];
-        if (!(s[0] & 0x8000u)) continue;         /* testw $0x8000 -> free  */
+        if (!(s[0] & 0x8000u)) continue; /* testw $0x8000 -> free  */
         s[0] = rd_le_u16(actor + 0u);
         s[1] = rd_le_u16(actor + 2u);
         ((uint8_t *)s)[5] = (uint8_t)objEntity;
@@ -2908,29 +3241,32 @@ static void objOpSetFrame(uint8_t *actor)
 }
 
 /* 0x9D38 (direction 1): the found live record is taken by the actor. */
-static int32_t objTakeFound(uint8_t *actor, uint8_t *found, uint8_t *slot, uint32_t ordinal)
+static int32_t objTakeFound(uint8_t *actor, uint8_t *found, uint8_t *slot,
+                            uint32_t ordinal)
 {
     if (rd_le_u16(found + 8u) != 0xFFFFu) return 0;
     if (rd_le_u16(found + 0xAu) != 0u) return 0;
-    actor[7] = (uint8_t)ordinal;                 /* [SI+3] = DL */
-    *slot |= 0x80u;                              /* ORB $0x80, [BP] */
-    wr_le_u16(found + 8u, (uint16_t)objEntity);        /* [DI+4] = [0x3E22] */
+    actor[7] = (uint8_t)ordinal; /* [SI+3] = DL */
+    *slot |= 0x80u; /* ORB $0x80, [BP] */
+    wr_le_u16(found + 8u, (uint16_t)objEntity); /* [DI+4] = [0x3E22] */
     return 1;
 }
 
 /* 0x9CF0 (direction 0): the "give / hold" variant. */
-static int32_t objGiveFound(uint8_t *actor, uint8_t *found, uint8_t *slot, uint32_t ordinal)
+static int32_t objGiveFound(uint8_t *actor, uint8_t *found, uint8_t *slot,
+                            uint32_t ordinal)
 {
     if (found[6] & 0x40u) return 0;
     if (!(rd_le_u16(found + 0xEu) & 0x8000u)) return 0;
     wr_le_u16(found + 0xEu, (uint16_t)objEntity);
     found[7] = 0u;
     *slot |= 0x80u;
-    wr_le_u16(actor + 4u, 0u);                         /* the actor's own record:  */
+    wr_le_u16(actor + 4u, 0u); /* the actor's own record:  */
     actor[7] = (uint8_t)ordinal;
     wr_le_u16(actor + 8u, 0x000Fu);
     wr_le_u16(actor + 0xAu, 0u);
-    wr_le_u16(actor + 0xEu, (uint16_t)((uintptr_t)found - (uintptr_t)objArray + 4u));
+    wr_le_u16(actor + 0xEu,
+              (uint16_t)((uintptr_t)found - (uintptr_t)objArray + 4u));
     return 1;
 }
 
@@ -2940,15 +3276,15 @@ static void objClassDrop(uint8_t *actor, uint8_t *found, uint8_t *slot)
 {
     uint32_t ax = 0, bx = 0;
 
-    actor[7] = 0u;                               /* 1000:9D94 */
+    actor[7] = 0u; /* 1000:9D94 */
     *slot &= 0x7Fu;
     wr_le_u16(found + 0xEu, 0xFFFFu);
     found[6] &= 0x7Fu;
-    if (rd_le_u16(found + 8u) & 0x8000u) {             /* 1000:9DAA */
+    if (rd_le_u16(found + 8u) & 0x8000u) { /* 1000:9DAA */
         ax = 1u;
         bx = 8u;
     }
-    wr_le_u16(actor + 0u, rd_le_u16(found + 0u));            /* 1000:9DB7 */
+    wr_le_u16(actor + 0u, rd_le_u16(found + 0u)); /* 1000:9DB7 */
     wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(found + 2u) - 8u));
     wr_le_u16(actor + 4u, (uint16_t)bx);
     wr_le_u16(actor + 6u, 0u);
@@ -2966,10 +3302,10 @@ static void objClassThrow(uint8_t *actor, uint8_t *found, uint8_t *slot)
     int32_t landed;
     uint32_t cell;
 
-    actor[7] = 0u;                               /* 1000:9DF1 */
+    actor[7] = 0u; /* 1000:9DF1 */
     *slot &= 0x7Fu;
     wr_le_u16(found + 0u, (uint16_t)(rd_le_u16(actor + 0u) +
-                               (type < 8u ? objThrowDx[type] : 0)));
+                                     (type < 8u ? objThrowDx[type] : 0)));
     wr_le_u16(found + 2u, (uint16_t)(rd_le_u16(actor + 2u) + 8u));
     wr_le_u16(found + 4u, beh < 8u ? objDropFrame[beh] : 0u);
     wr_le_u16(found + 6u, 0u);
@@ -2977,7 +3313,7 @@ static void objClassThrow(uint8_t *actor, uint8_t *found, uint8_t *slot)
     wr_le_u16(found + 0xAu, 0u);
     wr_le_u16(found + 0xCu, 0u);
     wr_le_u16(found + 0xEu, 0u);
-    landed = objStepProbeAt(found, 8, 0x10, &cell);  /* 1000:9E43 -> E389 */
+    landed = objStepProbeAt(found, 8, 0x10, &cell); /* 1000:9E43 -> E389 */
     if (landed >= 0) wr_le_u16(found + 2u, (uint16_t)(landed - 0xF));
 }
 
@@ -2998,16 +3334,16 @@ static void objOpClassPath(uint8_t *actor)
      * would read the image, which cannot happen - only the take / give paths
      * write it, always with a valid ordinal. */
     if (cls < 1u || cls > live) return;
-    found = objArray + (OBJ_LIVE0 + cls) * OBJ_STRIDE;   /* 1000:9D5D */
-    slot = objSlotClass + cls;                           /* 1000:9D60 */
+    found = objArray + (OBJ_LIVE0 + cls) * OBJ_STRIDE; /* 1000:9D5D */
+    slot = objSlotClass + cls; /* 1000:9D60 */
     beh = (uint32_t)(*slot & 0x3Fu);
-    idx = beh < 8u ? objBehClassIdx[beh] : 0xFFu;        /* 1000:9D76 */
-    if (idx & 0x80u) return;                             /* 1000:9D7C */
+    idx = beh < 8u ? objBehClassIdx[beh] : 0xFFu; /* 1000:9D76 */
+    if (idx & 0x80u) return; /* 1000:9D7C */
     if (idx == 0u) objClassDrop(actor, found, slot);
-    else           objClassThrow(actor, found, slot);
-    objPending = 5u;                                     /* 1000:9D84 */
-    objCursor = 1u;                                      /* 1000:9D89 */
-    objSetProgramIndex(1u);                              /* 1000:9D8E */
+    else objClassThrow(actor, found, slot);
+    objPending = 5u; /* 1000:9D84 */
+    objCursor = 1u; /* 1000:9D89 */
+    objSetProgramIndex(1u); /* 1000:9D8E */
 }
 
 /* 0x9C1B (ops 2/6): the collision pass over the live records. */
@@ -3018,7 +3354,7 @@ static void objOpCollide(uint8_t *actor)
     uint32_t live;
 
     if (!(type == 0x0Fu || type <= 2u)) return;
-    if (actor[7]) {                              /* 1000:9C37 -> the class path */
+    if (actor[7]) { /* 1000:9C37 -> the class path */
         objOpClassPath(actor);
         return;
     }
@@ -3027,11 +3363,11 @@ static void objOpCollide(uint8_t *actor)
     live = objLiveCount > OBJ_LIVE0 ? objLiveCount - OBJ_LIVE0 : 0u;
 
     for (uint32_t k = 0; k < live; k++) {
-        uint32_t ordinal = k + 1u;               /* DX */
+        uint32_t ordinal = k + 1u; /* DX */
         /* DI starts at 0x3F17 = index 9 = OBJ_LIVE0 + 1 (OBJ_LIVE0 is the
          * count's base, 8). */
         uint8_t *found = objArray + (OBJ_LIVE0 + 1u + k) * OBJ_STRIDE;
-        uint8_t *slot = objSlotClass + ordinal;  /* BP = 0x3E5F + k */
+        uint8_t *slot = objSlotClass + ordinal; /* BP = 0x3E5F + k */
         int32_t dx, dy;
         uint32_t beh, dir, prog;
 
@@ -3041,20 +3377,21 @@ static void objOpCollide(uint8_t *actor)
         dir = objBehDir[beh];
         if (dir & 0x80u) continue;
         dx = (int16_t)rd_le_u16(found + 0u) - ax;
-        if (dx < 0) dx = -dx;                    /* SUB/NEG, then < 0x10 */
+        if (dx < 0) dx = -dx; /* SUB/NEG, then < 0x10 */
         if (dx >= 0x10) continue;
-        dy = (int16_t)rd_le_u16(found + 2u) - bx;      /* 0 <= dy < 0x18 */
+        dy = (int16_t)rd_le_u16(found + 2u) - bx; /* 0 <= dy < 0x18 */
         if (dy < 0 || dy >= 0x18) continue;
-        if (dir == 0u) { if (!objGiveFound(actor, found, slot, ordinal)) continue; }
-        else if (!objTakeFound(actor, found, slot, ordinal)) continue;
+        if (dir == 0u) {
+            if (!objGiveFound(actor, found, slot, ordinal)) continue;
+        } else if (!objTakeFound(actor, found, slot, ordinal)) continue;
         /* the tail at 1000:9CD9: [0x5B56] = [0x423C] = 0x5B8A[behaviour],
          * which is the ACTION program and the bar's action-row group; a
          * negative id leaves all three writes undone (1000:9CDF). */
         prog = objBehCollideProg[beh];
         if (prog & 0x80u) return;
-        objPending = 5u;                         /* [0x1979] = 5 */
-        objCursor = 1u;                          /* [0x1988] = 1 */
-        objSetProgramIndex(prog);                /* [0x5B56] */
+        objPending = 5u; /* [0x1979] = 5 */
+        objCursor = 1u; /* [0x1988] = 1 */
+        objSetProgramIndex(prog); /* [0x5B56] */
         return;
     }
 }
@@ -3066,13 +3403,14 @@ static void objResolveSprite(uint32_t index)
     uint8_t *r = objArray + index * OBJ_STRIDE;
     uint32_t prog = 0u;
 
-    if (rd_le_u16(cur + 8u) == 2u) wr_le_u16(cur + 4u, 0x0010u);   /* the previous record */
+    if (rd_le_u16(cur + 8u) == 2u)
+        wr_le_u16(cur + 4u, 0x0010u); /* the previous record */
     objEntity = index;
     if (r[7]) prog = objBehProgram[objSlotClass[r[7]] & 0x3Fu];
     if (index == (uint32_t)objPlayer) prog = 4u;
     objSetProgramIndex(prog + 1u);
     objPending = 1u;
-    objMarkerArm();                                  /* 1000:4188 */
+    objMarkerArm(); /* 1000:4188 */
 }
 
 /* 1000:38C3 (resolve_object_sprite_guarded): the key list's F1..F8 handler.
@@ -3085,8 +3423,8 @@ int32_t object_selectByIndex(uint32_t index)
 
     if (index >= OBJ_STATIC) return 0;
     r = objArray + index * OBJ_STRIDE;
-    if ((r[6] & 0x80u) || rd_le_u16(r + 8u) == 0x1Du) return 0;   /* 1000:38CE */
-    objResolveSprite(index);                                /* 1000:38DA */
+    if ((r[6] & 0x80u) || rd_le_u16(r + 8u) == 0x1Du) return 0; /* 1000:38CE */
+    objResolveSprite(index); /* 1000:38DA */
     return 1;
 }
 
@@ -3097,9 +3435,9 @@ int32_t object_selectByIndex(uint32_t index)
  * byte, wrapping to 1 past the cell count) before the bar redraw. */
 int32_t object_spaceAction(void)
 {
-    if (objCmdHomeState(objActor())) return 1;   /* 1000:392D -> 0xEDB7 */
-    objDriverCall(0);                            /* 1000:393A */
-    statusbar_cycleAction();                     /* 1000:3941 */
+    if (objCmdHomeState(objActor())) return 1; /* 1000:392D -> 0xEDB7 */
+    objDriverCall(0); /* 1000:393A */
+    statusbar_cycleAction(); /* 1000:3941 */
     return 1;
 }
 
@@ -3157,7 +3495,7 @@ static int32_t objRecordWalk(uint8_t *actor, uint32_t step)
         if (!(dx < 0 && dx + 0x10 >= 0)) continue;
         dy = (int16_t)rd_le_u16(r + 2u) - cx;
         if (!(dy < 0 && dy + 0x18 >= 0)) continue;
-        return (int32_t)(OBJ_LIVE0 + 1u + k);   /* BP = the record           */
+        return (int32_t)(OBJ_LIVE0 + 1u + k); /* BP = the record           */
     }
     return -1;
 }
@@ -3168,13 +3506,13 @@ static void objOpSetState(uint8_t *actor, uint32_t type)
 {
     if (!objStateIs(actor, 1u)) return;
     if (type == 0u) {
-        wr_le_u16(actor + 4u, 0x00BBu);                     /* 1000:EFA9 */
+        wr_le_u16(actor + 4u, 0x00BBu); /* 1000:EFA9 */
         wr_le_u16(actor + 8u, 0x0017u);
     } else {
-        wr_le_u16(actor + 4u, 0x00BEu);                     /* 1000:EFC1 */
+        wr_le_u16(actor + 4u, 0x00BEu); /* 1000:EFC1 */
         wr_le_u16(actor + 8u, 0x0018u);
     }
-    objLat = 0;                                       /* 1000:EFB3 */
+    objLat = 0; /* 1000:EFB3 */
 }
 
 /* 0xF2E0 (object_find_overlap): the static record within |dx|,|dy| <= 0x10 of
@@ -3253,65 +3591,274 @@ static void objOpMarkWalk(uint8_t *actor, uint32_t step)
  * Index 2 is 1000:E609 (its tail holds the human-stack push), 10/11 the leaves,
  * 14 the snap — re_map.md, "What selects the stack's verbs". */
 static const uint16_t objCmdHandlers[57] = {
-    0xE4F8u, 0xE609u, 0xE6FBu, 0xE72Au, 0xE764u, 0xE790u,
-    0xE7C0u, 0xE802u, 0xE831u, 0xE860u, 0xE8DDu, 0xE93Du,
-    0xE952u, 0xE963u, 0xE99Du, 0xEA0Eu, 0xEA0Fu, 0xEA4Du,
-    0xEA71u, 0xEAACu, 0xEAE6u, 0xEB5Cu, 0xEB6Au, 0xEB78u,
-    0xEBA0u, 0xEBCAu, 0xEBD0u, 0xEC98u, 0xEC99u, 0xECA8u,
-    0xECB7u, 0xECFEu, 0xED4Fu, 0xED69u, 0xED83u, 0xED9Du,
-    0xEDB7u, 0xEE07u, 0xEE3Bu, 0xEF0Au, 0xEF0Bu, 0xEF0Cu,
-    0xEF39u, 0xEF66u, 0xEFA1u, 0xEFB9u, 0xEFD1u, 0xEFD4u,
-    0xEFD7u, 0xF067u, 0xF078u, 0xF08Du, 0xF0A2u, 0xF0B3u,
-    0xF0C3u, 0xF0C6u, 0xF0C9u,
+    0xE4F8u, 0xE609u, 0xE6FBu, 0xE72Au, 0xE764u, 0xE790u, 0xE7C0u, 0xE802u,
+    0xE831u, 0xE860u, 0xE8DDu, 0xE93Du, 0xE952u, 0xE963u, 0xE99Du, 0xEA0Eu,
+    0xEA0Fu, 0xEA4Du, 0xEA71u, 0xEAACu, 0xEAE6u, 0xEB5Cu, 0xEB6Au, 0xEB78u,
+    0xEBA0u, 0xEBCAu, 0xEBD0u, 0xEC98u, 0xEC99u, 0xECA8u, 0xECB7u, 0xECFEu,
+    0xED4Fu, 0xED69u, 0xED83u, 0xED9Du, 0xEDB7u, 0xEE07u, 0xEE3Bu, 0xEF0Au,
+    0xEF0Bu, 0xEF0Cu, 0xEF39u, 0xEF66u, 0xEFA1u, 0xEFB9u, 0xEFD1u, 0xEFD4u,
+    0xEFD7u, 0xF067u, 0xF078u, 0xF08Du, 0xF0A2u, 0xF0B3u, 0xF0C3u, 0xF0C6u,
+    0xF0C9u,
 };
 
 static const uint8_t objCmdKey[16] = {
-    0x48u, 0x00u, 0x04u, 0xFFu, 0x02u, 0x01u, 0x03u, 0xFFu, 0x06u, 0x07u, 0x05u, 0x00u, 0xC7u, 0xD9u, 0x00u, 0x00u,
+    0x48u, 0x00u, 0x04u, 0xFFu, 0x02u, 0x01u, 0x03u, 0xFFu,
+    0x06u, 0x07u, 0x05u, 0x00u, 0xC7u, 0xD9u, 0x00u, 0x00u,
 };
 
 static uint8_t objCmdRows[35][32] = {
-    /* type  0 */ {0xFFu, 0x01u, 0x05u, 0x05u, 0x05u, 0x02u, 0x04u, 0x04u, 0x04u, 0x00u, 0xFFu, 0x01u, 0xC7u, 0xD9u, 0x00u, 0x00u, 0xFFu, 0x00u, 0x00u, 0x1Du, 0x00u, 0x11u, 0x00u, 0x00u, 0x00u, 0x00u, 0xFFu, 0x01u, 0xC7u, 0xD9u, 0x00u, 0x00u,},
-    /* type  1 */ {0xFFu, 0x01u, 0x06u, 0x06u, 0x06u, 0x02u, 0x03u, 0x03u, 0x03u, 0x00u, 0xFFu, 0x01u, 0xC7u, 0xD9u, 0x00u, 0x00u, 0xFFu, 0x00u, 0x00u, 0x00u, 0x00u, 0x12u, 0x00u, 0x1Eu, 0x00u, 0x00u, 0xFFu, 0x01u, 0xC7u, 0xD9u, 0x00u, 0x00u,},
-    /* type  2 */ {0x00u, 0x01u, 0x00u, 0x06u, 0x00u, 0x02u, 0x00u, 0x04u, 0x00u, 0x07u, 0xFFu, 0x01u, 0xC7u, 0xD9u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xFFu, 0x01u, 0xC7u, 0xD9u, 0x00u, 0x00u,},
-    /* type  3 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x01u, 0xE8u, 0xD9u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x01u, 0xE8u, 0xD9u, 0x00u, 0x00u,},
-    /* type  4 */ {0x00u, 0x00u, 0x00u, 0x35u, 0x00u, 0x02u, 0x00u, 0x34u, 0x00u, 0x00u, 0x00u, 0x01u, 0x02u, 0xE8u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x01u, 0xC7u, 0xD9u, 0x00u, 0x00u,},
-    /* type  5 */ {0x00u, 0x01u, 0x00u, 0x35u, 0x00u, 0x00u, 0x00u, 0x34u, 0x00u, 0x00u, 0x00u, 0x01u, 0x31u, 0xE8u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x01u, 0xC7u, 0xD9u, 0x00u, 0x00u,},
-    /* type  6 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x01u, 0x60u, 0xE8u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x01u, 0x60u, 0xE8u, 0x00u, 0x00u,},
-    /* type  7 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x01u, 0xDDu, 0xE8u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x01u, 0xDDu, 0xE8u, 0x00u, 0x00u,},
-    /* type  8 */ {0x00u, 0x0Eu, 0x00u, 0x0Du, 0x00u, 0x0Fu, 0x00u, 0x0Cu, 0x00u, 0x00u, 0x00u, 0x12u, 0xC7u, 0xD9u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x12u, 0xC7u, 0xD9u, 0x00u, 0x00u,},
-    /* type  9 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x48u, 0xDBu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x11u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x48u, 0xDBu, 0x00u, 0x00u,},
-    /* type 10 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x61u, 0xDBu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x12u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x61u, 0xDBu, 0x00u, 0x00u,},
-    /* type 11 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xACu, 0xEAu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xACu, 0xEAu, 0x00u, 0x00u,},
-    /* type 12 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xE6u, 0xEAu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xE6u, 0xEAu, 0x00u, 0x00u,},
-    /* type 13 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x5Cu, 0xEBu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x5Cu, 0xEBu, 0x00u, 0x00u,},
-    /* type 14 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x6Au, 0xEBu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x6Au, 0xEBu, 0x00u, 0x00u,},
-    /* type 15 */ {0x00u, 0x00u, 0x19u, 0x19u, 0x19u, 0x00u, 0x18u, 0x18u, 0x18u, 0x1Au, 0x00u, 0x00u, 0x1Fu, 0xDCu, 0x00u, 0x00u, 0x00u, 0x00u, 0x1Bu, 0x1Bu, 0x1Bu, 0x00u, 0x1Bu, 0x1Bu, 0x1Bu, 0x00u, 0x00u, 0x00u, 0x1Fu, 0xDCu, 0x00u, 0x00u,},
-    /* type 16 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x93u, 0xDDu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x10u, 0x00u, 0x00u, 0x93u, 0xDDu, 0x00u, 0x00u,},
-    /* type 17 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xB7u, 0xECu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xB7u, 0xECu, 0x00u, 0x00u,},
-    /* type 18 */ {0x00u, 0x27u, 0x27u, 0x22u, 0x25u, 0x25u, 0x25u, 0x21u, 0x27u, 0x27u, 0x00u, 0x02u, 0xC7u, 0xD9u, 0x00u, 0x00u, 0x00u, 0x26u, 0x26u, 0x26u, 0x25u, 0x25u, 0x25u, 0x26u, 0x26u, 0x26u, 0x00u, 0x02u, 0xC7u, 0xD9u, 0x00u, 0x00u,},
-    /* type 19 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x01u, 0x0Au, 0xEFu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x01u, 0x0Au, 0xEFu, 0x00u, 0x00u,},
-    /* type 20 */ {0x00u, 0x27u, 0x27u, 0x24u, 0x27u, 0x25u, 0x27u, 0x23u, 0x27u, 0x27u, 0x00u, 0x02u, 0xC7u, 0xD9u, 0x00u, 0x00u, 0x00u, 0x26u, 0x26u, 0x26u, 0x25u, 0x25u, 0x25u, 0x26u, 0x26u, 0x26u, 0x00u, 0x02u, 0xC7u, 0xD9u, 0x00u, 0x00u,},
-    /* type 21 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x01u, 0x0Bu, 0xEFu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x01u, 0x0Bu, 0xEFu, 0x00u, 0x00u,},
-    /* type 22 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x66u, 0xEFu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x66u, 0xEFu, 0x00u, 0x00u,},
-    /* type 23 */ {0x00u, 0x31u, 0x31u, 0x31u, 0x25u, 0x2Fu, 0x25u, 0x31u, 0x31u, 0x31u, 0x00u, 0x03u, 0xC7u, 0xD9u, 0x00u, 0x00u, 0x00u, 0x30u, 0x30u, 0x30u, 0x25u, 0x25u, 0x25u, 0x30u, 0x30u, 0x30u, 0x00u, 0x03u, 0xC7u, 0xD9u, 0x00u, 0x00u,},
-    /* type 24 */ {0x00u, 0x31u, 0x31u, 0x31u, 0x25u, 0x2Fu, 0x25u, 0x31u, 0x31u, 0x31u, 0x00u, 0x03u, 0xC7u, 0xD9u, 0x00u, 0x00u, 0x00u, 0x30u, 0x30u, 0x30u, 0x25u, 0x25u, 0x25u, 0x30u, 0x30u, 0x30u, 0x00u, 0x03u, 0xC7u, 0xD9u, 0x00u, 0x00u,},
-    /* type 25 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x03u, 0x67u, 0xF0u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x03u, 0x67u, 0xF0u, 0x00u, 0x00u,},
-    /* type 26 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x03u, 0x78u, 0xF0u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x03u, 0x78u, 0xF0u, 0x00u, 0x00u,},
-    /* type 27 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xC7u, 0xD9u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xC7u, 0xD9u, 0x00u, 0x00u,},
-    /* type 28 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xCDu, 0xDBu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xCDu, 0xDBu, 0x00u, 0x00u,},
-    /* type 29 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xDAu, 0xDDu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xDAu, 0xDDu, 0x00u, 0x00u,},
-    /* type 30 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x7Eu, 0xDEu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x7Eu, 0xDEu, 0x00u, 0x00u,},
-    /* type 31 */ {0x00u, 0x00u, 0x00u, 0x37u, 0x00u, 0x36u, 0x00u, 0x38u, 0x00u, 0x00u, 0x00u, 0x00u, 0xC8u, 0xD9u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xC8u, 0xD9u, 0x00u, 0x00u,},
-    /* type 32 */ {0x00u, 0x00u, 0x00u, 0x37u, 0x00u, 0x36u, 0x00u, 0x38u, 0x00u, 0x00u, 0x00u, 0x00u, 0xCDu, 0xD9u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xCDu, 0xD9u, 0x00u, 0x00u,},
-    /* type 33 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xC9u, 0xF0u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xC9u, 0xF0u, 0x00u, 0x00u,},
-    /* type 34 */ {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xD1u, 0xDEu, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0xD1u, 0xDEu, 0x00u, 0x00u,},
+    /* type  0 */ {
+        0xFFu, 0x01u, 0x05u, 0x05u, 0x05u, 0x02u, 0x04u, 0x04u,
+        0x04u, 0x00u, 0xFFu, 0x01u, 0xC7u, 0xD9u, 0x00u, 0x00u,
+        0xFFu, 0x00u, 0x00u, 0x1Du, 0x00u, 0x11u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0xFFu, 0x01u, 0xC7u, 0xD9u, 0x00u, 0x00u,
+    },
+    /* type  1 */
+    {
+        0xFFu, 0x01u, 0x06u, 0x06u, 0x06u, 0x02u, 0x03u, 0x03u,
+        0x03u, 0x00u, 0xFFu, 0x01u, 0xC7u, 0xD9u, 0x00u, 0x00u,
+        0xFFu, 0x00u, 0x00u, 0x00u, 0x00u, 0x12u, 0x00u, 0x1Eu,
+        0x00u, 0x00u, 0xFFu, 0x01u, 0xC7u, 0xD9u, 0x00u, 0x00u,
+    },
+    /* type  2 */
+    {
+        0x00u, 0x01u, 0x00u, 0x06u, 0x00u, 0x02u, 0x00u, 0x04u,
+        0x00u, 0x07u, 0xFFu, 0x01u, 0xC7u, 0xD9u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0xFFu, 0x01u, 0xC7u, 0xD9u, 0x00u, 0x00u,
+    },
+    /* type  3 */
+    {
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x01u, 0xE8u, 0xD9u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x01u, 0xE8u, 0xD9u, 0x00u, 0x00u,
+    },
+    /* type  4 */
+    {
+        0x00u, 0x00u, 0x00u, 0x35u, 0x00u, 0x02u, 0x00u, 0x34u,
+        0x00u, 0x00u, 0x00u, 0x01u, 0x02u, 0xE8u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x01u, 0xC7u, 0xD9u, 0x00u, 0x00u,
+    },
+    /* type  5 */
+    {
+        0x00u, 0x01u, 0x00u, 0x35u, 0x00u, 0x00u, 0x00u, 0x34u,
+        0x00u, 0x00u, 0x00u, 0x01u, 0x31u, 0xE8u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x01u, 0xC7u, 0xD9u, 0x00u, 0x00u,
+    },
+    /* type  6 */
+    {
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x01u, 0x60u, 0xE8u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x01u, 0x60u, 0xE8u, 0x00u, 0x00u,
+    },
+    /* type  7 */
+    {
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x01u, 0xDDu, 0xE8u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x01u, 0xDDu, 0xE8u, 0x00u, 0x00u,
+    },
+    /* type  8 */
+    {
+        0x00u, 0x0Eu, 0x00u, 0x0Du, 0x00u, 0x0Fu, 0x00u, 0x0Cu,
+        0x00u, 0x00u, 0x00u, 0x12u, 0xC7u, 0xD9u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x12u, 0xC7u, 0xD9u, 0x00u, 0x00u,
+    },
+    /* type  9 */
+    {
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x48u, 0xDBu, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x11u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x48u, 0xDBu, 0x00u, 0x00u,
+    },
+    /* type 10 */
+    {
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x61u, 0xDBu, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x12u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x61u, 0xDBu, 0x00u, 0x00u,
+    },
+    /* type 11 */
+    {
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0xACu, 0xEAu, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0xACu, 0xEAu, 0x00u, 0x00u,
+    },
+    /* type 12 */
+    {
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0xE6u, 0xEAu, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0xE6u, 0xEAu, 0x00u, 0x00u,
+    },
+    /* type 13 */
+    {
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x5Cu, 0xEBu, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x5Cu, 0xEBu, 0x00u, 0x00u,
+    },
+    /* type 14 */
+    {
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x6Au, 0xEBu, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x6Au, 0xEBu, 0x00u, 0x00u,
+    },
+    /* type 15 */
+    {
+        0x00u, 0x00u, 0x19u, 0x19u, 0x19u, 0x00u, 0x18u, 0x18u,
+        0x18u, 0x1Au, 0x00u, 0x00u, 0x1Fu, 0xDCu, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x1Bu, 0x1Bu, 0x1Bu, 0x00u, 0x1Bu, 0x1Bu,
+        0x1Bu, 0x00u, 0x00u, 0x00u, 0x1Fu, 0xDCu, 0x00u, 0x00u,
+    },
+    /* type 16 */
+    {
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x93u, 0xDDu, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x10u, 0x00u, 0x00u, 0x93u, 0xDDu, 0x00u, 0x00u,
+    },
+    /* type 17 */
+    {
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0xB7u, 0xECu, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0xB7u, 0xECu, 0x00u, 0x00u,
+    },
+    /* type 18 */
+    {
+        0x00u, 0x27u, 0x27u, 0x22u, 0x25u, 0x25u, 0x25u, 0x21u,
+        0x27u, 0x27u, 0x00u, 0x02u, 0xC7u, 0xD9u, 0x00u, 0x00u,
+        0x00u, 0x26u, 0x26u, 0x26u, 0x25u, 0x25u, 0x25u, 0x26u,
+        0x26u, 0x26u, 0x00u, 0x02u, 0xC7u, 0xD9u, 0x00u, 0x00u,
+    },
+    /* type 19 */
+    {
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x01u, 0x0Au, 0xEFu, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x01u, 0x0Au, 0xEFu, 0x00u, 0x00u,
+    },
+    /* type 20 */
+    {
+        0x00u, 0x27u, 0x27u, 0x24u, 0x27u, 0x25u, 0x27u, 0x23u,
+        0x27u, 0x27u, 0x00u, 0x02u, 0xC7u, 0xD9u, 0x00u, 0x00u,
+        0x00u, 0x26u, 0x26u, 0x26u, 0x25u, 0x25u, 0x25u, 0x26u,
+        0x26u, 0x26u, 0x00u, 0x02u, 0xC7u, 0xD9u, 0x00u, 0x00u,
+    },
+    /* type 21 */
+    {
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x01u, 0x0Bu, 0xEFu, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x01u, 0x0Bu, 0xEFu, 0x00u, 0x00u,
+    },
+    /* type 22 */
+    {
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x66u, 0xEFu, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x66u, 0xEFu, 0x00u, 0x00u,
+    },
+    /* type 23 */
+    {
+        0x00u, 0x31u, 0x31u, 0x31u, 0x25u, 0x2Fu, 0x25u, 0x31u,
+        0x31u, 0x31u, 0x00u, 0x03u, 0xC7u, 0xD9u, 0x00u, 0x00u,
+        0x00u, 0x30u, 0x30u, 0x30u, 0x25u, 0x25u, 0x25u, 0x30u,
+        0x30u, 0x30u, 0x00u, 0x03u, 0xC7u, 0xD9u, 0x00u, 0x00u,
+    },
+    /* type 24 */
+    {
+        0x00u, 0x31u, 0x31u, 0x31u, 0x25u, 0x2Fu, 0x25u, 0x31u,
+        0x31u, 0x31u, 0x00u, 0x03u, 0xC7u, 0xD9u, 0x00u, 0x00u,
+        0x00u, 0x30u, 0x30u, 0x30u, 0x25u, 0x25u, 0x25u, 0x30u,
+        0x30u, 0x30u, 0x00u, 0x03u, 0xC7u, 0xD9u, 0x00u, 0x00u,
+    },
+    /* type 25 */
+    {
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x03u, 0x67u, 0xF0u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x03u, 0x67u, 0xF0u, 0x00u, 0x00u,
+    },
+    /* type 26 */
+    {
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x03u, 0x78u, 0xF0u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x03u, 0x78u, 0xF0u, 0x00u, 0x00u,
+    },
+    /* type 27 */
+    {
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0xC7u, 0xD9u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0xC7u, 0xD9u, 0x00u, 0x00u,
+    },
+    /* type 28 */
+    {
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0xCDu, 0xDBu, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0xCDu, 0xDBu, 0x00u, 0x00u,
+    },
+    /* type 29 */
+    {
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0xDAu, 0xDDu, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0xDAu, 0xDDu, 0x00u, 0x00u,
+    },
+    /* type 30 */
+    {
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x7Eu, 0xDEu, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x7Eu, 0xDEu, 0x00u, 0x00u,
+    },
+    /* type 31 */
+    {
+        0x00u, 0x00u, 0x00u, 0x37u, 0x00u, 0x36u, 0x00u, 0x38u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0xC8u, 0xD9u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0xC8u, 0xD9u, 0x00u, 0x00u,
+    },
+    /* type 32 */
+    {
+        0x00u, 0x00u, 0x00u, 0x37u, 0x00u, 0x36u, 0x00u, 0x38u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0xCDu, 0xD9u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0xCDu, 0xD9u, 0x00u, 0x00u,
+    },
+    /* type 33 */
+    {
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0xC9u, 0xF0u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0xC9u, 0xF0u, 0x00u, 0x00u,
+    },
+    /* type 34 */
+    {
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0xD1u, 0xDEu, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+        0x00u, 0x00u, 0x00u, 0x00u, 0xD1u, 0xDEu, 0x00u, 0x00u,
+    },
 };
 
 /* 1000:E3F6's input normalisation: swap bits 2 and 3, drop bits 4..6, then kill
  * each contradictory pair (0x3 / 0xC) the way the original does. */
 static uint8_t objNormaliseInput(uint8_t in)
 {
-    uint8_t v = (uint8_t)((in & 0x83u) | ((in & 0x08u) >> 1) | ((in & 0x04u) << 1));
+    uint8_t v =
+        (uint8_t)((in & 0x83u) | ((in & 0x08u) >> 1) | ((in & 0x04u) << 1));
 
     if ((v & 0x03u) == 0x03u) v &= 0x8Du;
     if ((v & 0x0Cu) == 0x0Cu) v &= 0x8Bu;
@@ -3329,19 +3876,19 @@ ObjCommand object_commandSelect(uint8_t *rec, uint8_t input)
     uint8_t v = objNormaliseInput(input);
     uint8_t cmd = objCmdKey[v & 0x0Fu];
     const uint8_t *row;
-    uint32_t type = rd_le_u16(rec + 8u);           /* [SI+8] */
+    uint32_t type = rd_le_u16(rec + 8u); /* [SI+8] */
     uint32_t idx;
 
     out.handler = 0u;
     out.tail = 0u;
     out.hook = 0u;
     out.command = 0u;
-    if (type >= 35u) return out;             /* no row: the original reads 0x6DEA */
+    if (type >= 35u) return out; /* no row: the original reads 0x6DEA */
     row = objCmdRows[type] + ((v & 0x80u) ? 0x10u : 0u);
-    objRowOfs = (uint32_t)(row - &objCmdRows[0][0]);   /* DI at 1000:E467 */
+    objRowOfs = (uint32_t)(row - &objCmdRows[0][0]); /* DI at 1000:E467 */
     out.tail = rd_le_u16(row + 0xCu);
     out.hook = row[0xAu];
-    if (cmd & 0x80u) return out;             /* bit 7: this input has no command */
+    if (cmd & 0x80u) return out; /* bit 7: this input has no command */
     {
         /* 1000:E47C..0xE49F: AX starts as 0x4B0 (the arm for a non-one-shot
          * command); a bit-6 command replaces it with the [0x6DEA] timer and,
@@ -3375,14 +3922,13 @@ ObjCommand object_commandSelect(uint8_t *rec, uint8_t input)
  * negative, and an 8086 SHL by a count >= 16 shifts every bit out, so the bit is
  * 0.  Records 0..7 therefore own 0x80..0x01 and 8..14 own nothing. */
 static uint32_t objIndexBit(uint32_t idx)
-{
-    return idx <= 7u ? (1u << (7u - idx)) : 0u;
-}
+{ return idx <= 7u ? (1u << (7u - idx)) : 0u; }
 
 /* 1000:F3CA: clear the record's bit from both masks. */
 static void objStackUnmark(uint8_t *actor)
 {
-    uint8_t keep = (uint8_t)~objIndexBit((uint32_t)(actor - objArray) / OBJ_STRIDE);
+    uint8_t keep =
+        (uint8_t)~objIndexBit((uint32_t)(actor - objArray) / OBJ_STRIDE);
 
     objStackMask[0] &= keep;
     objStackMask[1] &= keep;
@@ -3400,7 +3946,8 @@ static void objStackMark(uint8_t *actor, const uint8_t *slot)
 
         for (uint32_t m = 0; m < 2u; m++) {
             if (objStackMask[m] & bit) {
-                objStackMask[m] |= (uint8_t)objIndexBit((uint32_t)(actor - objArray) / OBJ_STRIDE);
+                objStackMask[m] |= (uint8_t)objIndexBit(
+                    (uint32_t)(actor - objArray) / OBJ_STRIDE);
                 return;
             }
         }
@@ -3438,40 +3985,44 @@ int32_t object_stackPush(uint8_t *actor)
     uint16_t ax = rd_le_u16(actor + 0u);
     uint16_t bx = (uint16_t)(rd_le_u16(actor + 2u) + 0x18u);
 
-    for (uint32_t i = 0; i < 8u; i++) {              /* `CX = 7` + `JNS`: 8 */
+    for (uint32_t i = 0; i < 8u; i++) { /* `CX = 7` + `JNS`: 8 */
         uint8_t *e = (uint8_t *)objRegister[i];
         uint16_t ex, ey, dx;
         uint8_t *di;
         int32_t de;
 
         ex = rd_le_u16(e + 0u);
-        if (ex & 0x8000u) continue;               /* free */
+        if (ex & 0x8000u) continue; /* free */
         de = (int32_t)(int16_t)ex - (int32_t)(int16_t)ax;
         if (de < 0) de = -de;
-        if (de >= 8) continue;                    /* |entry.x - actor.x| < 8 */
+        if (de >= 8) continue; /* |entry.x - actor.x| < 8 */
         ey = rd_le_u16(e + 2u);
-        if (bx >= ey) return 0;                   /* `JNC 0xE6FA`: not under it */
+        if (bx >= ey) return 0; /* `JNC 0xE6FA`: not under it */
         dx = ey;
-        di = e + 5;                               /* the owner byte */
+        di = e + 5; /* the owner byte */
         for (;;) {
-            dx -= 0x10u;                          /* 16 px per member */
-            if (di[0] & 0x80u) { di++; break; }    /* the terminator */
+            dx -= 0x10u; /* 16 px per member */
+            if (di[0] & 0x80u) {
+                di++;
+                break;
+            } /* the terminator */
             di++;
         }
         dx += 0x18u;
-        if (bx < dx) return 0;                    /* `JC 0xE6FA` */
-        di--;                                     /* the terminator's slot */
-        *di = (uint8_t)objEntity;                 /* `[0x3E22]` into the list */
+        if (bx < dx) return 0; /* `JC 0xE6FA` */
+        di--; /* the terminator's slot */
+        *di = (uint8_t)objEntity; /* `[0x3E22]` into the list */
         /* the original stores the slot's pointer; the port stores its offset in
          * the register, the same relation the 0x3E24 paths use for records */
-        wr_le_u16(actor + 0xEu, (uint16_t)((uintptr_t)di - (uintptr_t)objRegister));
+        wr_le_u16(actor + 0xEu,
+                  (uint16_t)((uintptr_t)di - (uintptr_t)objRegister));
         wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(actor + 2u) + 1u));
         wr_le_u16(actor + 0u, ex);
         wr_le_u16(actor + 4u, 0x0025u);
         wr_le_u16(actor + 8u, 0x0007u);
         wr_le_u16(actor + 0xAu, 0x0000u);
         wr_le_u16(actor + 0xCu, 0x0000u);
-        objStackMark(actor, di);                  /* 1000:F38F */
+        objStackMark(actor, di); /* 1000:F38F */
         return 1;
     }
     return 0;
@@ -3492,25 +4043,27 @@ int32_t object_stackPop(uint16_t ax, uint8_t **below, uint8_t **entry)
         uint8_t *di = e;
         int32_t bl;
 
-        if (entry) *entry = e;                    /* 1000:FDF7: DX = the entry */
+        if (entry) *entry = e; /* 1000:FDF7: DX = the entry */
 
-        if (rd_le_u16(di + 0u) & 0x8000u) continue;     /* free */
+        if (rd_le_u16(di + 0u) & 0x8000u) continue; /* free */
         di += 5;
         while (!(di[0] & 0x80u) && di[0] != (uint8_t)objEntity) di++;
-        if (di[0] & 0x80u) continue;              /* not in this entry */
-        di++;                                     /* past the match */
-        if (!(di[0] & 0x80u)) return -1;          /* a member above it */
-        bl = (int8_t)di[-2];                      /* the list byte below */
+        if (di[0] & 0x80u) continue; /* not in this entry */
+        di++; /* past the match */
+        if (!(di[0] & 0x80u)) return -1; /* a member above it */
+        bl = (int8_t)di[-2]; /* the list byte below */
         if (bl >= 0) {
             uint8_t *nb = object_slot((uint32_t)bl);
-            int32_t dx = nb ? (int32_t)(int16_t)rd_le_u16(nb + 0u) - (int32_t)(int16_t)ax : 8;
+            int32_t dx =
+                nb ? (int32_t)(int16_t)rd_le_u16(nb + 0u) - (int32_t)(int16_t)ax
+                   : 8;
 
             if (dx < 0) dx = -dx;
-            if (nb && dx < 8) return 0;           /* already aligned: no removal */
+            if (nb && dx < 8) return 0; /* already aligned: no removal */
         }
-        di[-1] = 0xFFu;                           /* terminate at the match */
+        di[-1] = 0xFFu; /* terminate at the match */
         bl = (int8_t)di[-2];
-        if (bl < 0) {                             /* nothing below: free the entry */
+        if (bl < 0) { /* nothing below: free the entry */
             wr_le_u16(di - 6 + 0u, 0xFFFFu);
             wr_le_u16(di - 6 + 2u, 0xFFFFu);
             return 1;
@@ -3539,16 +4092,19 @@ int32_t object_stackGrab(uint8_t *actor)
         uint8_t *di;
         int32_t d;
 
-        if (ex & 0x8000u) { lastFree = e + 2; continue; }   /* `[0x423C] = DI` */
+        if (ex & 0x8000u) {
+            lastFree = e + 2;
+            continue;
+        } /* `[0x423C] = DI` */
         d = (int32_t)(int16_t)ex - (int32_t)(int16_t)ax;
         if (d < 0) d = -d;
-        if (d >= 8) continue;                              /* |entry.x - actor.x| < 8 */
+        if (d >= 8) continue; /* |entry.x - actor.x| < 8 */
         ey = rd_le_u16(e + 2u);
         d = (int32_t)(int16_t)ey - (int32_t)(int16_t)bx;
         if (d < 0) d = -d;
-        if (d >= 4) continue;                              /* |entry.y - actor.y| < 4 */
+        if (d >= 4) continue; /* |entry.y - actor.y| < 4 */
         di = e + 5;
-        while (!(di[0] & 0x80u)) di++;                     /* to the terminator */
+        while (!(di[0] & 0x80u)) di++; /* to the terminator */
         *di = (uint8_t)objEntity;
         wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(actor + 2u) - 1u));
         wr_le_u16(actor + 0u, ex);
@@ -3556,13 +4112,13 @@ int32_t object_stackGrab(uint8_t *actor)
         wr_le_u16(actor + 8u, 0x0006u);
         wr_le_u16(actor + 0xAu, 0x0000u);
         wr_le_u16(actor + 0xCu, 0x0000u);
-        objStackMark(actor, di);                           /* 1000:F38F */
+        objStackMark(actor, di); /* 1000:F38F */
         return 1;
     }
     if (!lastFree) return -1;
-    wr_le_u16(lastFree + 0u, bx);                                /* entry + 2: y */
-    lastFree[3] = (uint8_t)objEntity;                      /* entry + 5: the owner */
-    wr_le_u16(lastFree - 2 + 0u, ax);                            /* entry + 0: x */
+    wr_le_u16(lastFree + 0u, bx); /* entry + 2: y */
+    lastFree[3] = (uint8_t)objEntity; /* entry + 5: the owner */
+    wr_le_u16(lastFree - 2 + 0u, ax); /* entry + 0: x */
     wr_le_u16(actor + 4u, 0x0020u);
     wr_le_u16(actor + 8u, 0x0008u);
     return 0;
@@ -3585,15 +4141,15 @@ int32_t object_stackStepOff(uint8_t *actor)
 
         if (rd_le_u16(e + 0u) != ax) continue;
         ey = rd_le_u16(e + 2u);
-        di = e + 6;                               /* the first member */
+        di = e + 6; /* the first member */
         while (!(di[0] & 0x80u) && di[0] != (uint8_t)idx) {
-            ey -= 0x10u;                          /* 1000:E896: one level up */
+            ey -= 0x10u; /* 1000:E896: one level up */
             di++;
         }
         if (di[0] & 0x80u) continue;
-        ey -= 0x18u;                              /* 1000:E89B */
+        ey -= 0x18u; /* 1000:E89B */
         if (ey != rd_le_u16(actor + 2u)) {
-            objFrameStep(actor, 0x23u, 0x25u);             /* 1000:E8D4 */
+            objFrameStep(actor, 0x23u, 0x25u); /* 1000:E8D4 */
             return -1;
         }
         wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(actor + 2u) + 8u));
@@ -3643,7 +4199,7 @@ int32_t object_stackLeave(uint8_t *actor)
         {
             uint32_t off = rd_le_u16(actor + 0xEu);
 
-            if (off < sizeof objRegister)                  /* 1000:E922 */
+            if (off < sizeof objRegister) /* 1000:E922 */
                 ((uint8_t *)objRegister)[off] = 0xFFu;
         }
         return 1;
@@ -3670,9 +4226,10 @@ int32_t object_stackStand(uint8_t *actor)
         while (!(di[0] & 0x80u) && di[0] != (uint8_t)idx) di++;
         if (di[0] & 0x80u) continue;
         di++;
-        if (!(di[0] & 0x80u)) return 0;                 /* a member above it */
-        di--;                                            /* the match */
-        wr_le_u16(actor + 0xEu, (uint16_t)((uintptr_t)di - (uintptr_t)objRegister));
+        if (!(di[0] & 0x80u)) return 0; /* a member above it */
+        di--; /* the match */
+        wr_le_u16(actor + 0xEu,
+                  (uint16_t)((uintptr_t)di - (uintptr_t)objRegister));
         di--;
         bl = (int8_t)di[0];
         if (bl < 0) return 0;
@@ -3710,7 +4267,7 @@ int32_t object_stackSnap(uint8_t *actor)
         while (!(di[0] & 0x80u) && di[0] != (uint8_t)idx) di++;
         if (di[0] & 0x80u) continue;
         di++;
-        if (!(di[0] & 0x80u)) return 0;                    /* a member above it */
+        if (!(di[0] & 0x80u)) return 0; /* a member above it */
         wr_le_u16(actor + 0u, rd_le_u16(e + 0u));
         wr_le_u16(actor + 4u, 0x0020u);
         return 1;
@@ -3732,7 +4289,8 @@ static uint32_t objMapAtAbs(int32_t x, int32_t y, uint32_t *sub)
     const uint8_t *map = level_map();
     uint32_t cell;
 
-    if (sub) *sub = (uint32_t)x & 0xFu;   /* the fine x, when the caller wants it */
+    if (sub)
+        *sub = (uint32_t)x & 0xFu; /* the fine x, when the caller wants it */
     if (!map) return 0xFFu;
     cell = 32u * (((uint32_t)y & 0xFFF0u) >> 4) + ((uint32_t)x >> 4);
     return cell < 640u ? map[cell] : 0xFFu;
@@ -3756,28 +4314,28 @@ static int32_t objLandY(int32_t x, int32_t y, uint32_t *cellOut)
     *cellOut = id;
     if (!(b & 0x80u)) {
         if (b != 0u) return row + (int32_t)(int8_t)b;
-        *cellOut = objMapAtAbs(x, row - 0x10, &sub);  /* 1000:E3BA: the row above */
+        *cellOut =
+            objMapAtAbs(x, row - 0x10, &sub); /* 1000:E3BA: the row above */
         b = level_pageByte(*cellOut, sub);
-        if (b & 0x80u) return row;                    /* 1000:E3CA, AX = 0 */
+        if (b & 0x80u) return row; /* 1000:E3CA, AX = 0 */
         return row - 0x10 + (int32_t)(int8_t)b;
     }
-    *cellOut = objMapAtAbs(x, row + 0x10, &sub);      /* 1000:E3E7: the row below */
+    *cellOut = objMapAtAbs(x, row + 0x10, &sub); /* 1000:E3E7: the row below */
     b = level_pageByte(*cellOut, sub);
-    if (b & 0x80u) return -1;                         /* 1000:E3F1 */
+    if (b & 0x80u) return -1; /* 1000:E3F1 */
     return row + 0x10 + (int32_t)(int8_t)b;
 }
 
 /* 1000:E389 from the actor: the cell ahead (x + 8, y + 0x18). */
-static int32_t objStepProbeAt(const uint8_t *actor, int32_t dx, int32_t dy, uint32_t *cellOut)
+static int32_t objStepProbeAt(const uint8_t *actor, int32_t dx, int32_t dy,
+                              uint32_t *cellOut)
 {
     return objLandY((int32_t)(int16_t)rd_le_u16(actor + 0u) + dx,
                     (int32_t)(int16_t)rd_le_u16(actor + 2u) + dy, cellOut);
 }
 
 static int32_t objStepProbe(const uint8_t *actor, uint32_t *cellOut)
-{
-    return objStepProbeAt(actor, 8, 0x18, cellOut);
-}
+{ return objStepProbeAt(actor, 8, 0x18, cellOut); }
 
 /* 1000:F25F: whether the walk can land - the step probe's landing must not
  * rise more than 8 px above the feet (a step-up blocks), and the item record's
@@ -3789,7 +4347,8 @@ static uint32_t objWalkTest(const uint8_t *actor)
 {
     uint32_t sub, id, bit, cell;
     int32_t x, y, d;
-    int32_t bx = objStepProbeAt(actor, (int32_t)(int16_t)objSelFrame, 0x18, &cell);
+    int32_t bx =
+        objStepProbeAt(actor, (int32_t)(int16_t)objSelFrame, 0x18, &cell);
 
     if (bx >= 0) {
         d = bx - 0x18 - (int32_t)(int16_t)rd_le_u16(actor + 2u);
@@ -3799,7 +4358,8 @@ static uint32_t objWalkTest(const uint8_t *actor)
     y = (int32_t)(int16_t)rd_le_u16(actor + 2u) + 0x10;
     id = objMapAtAbs(x, y, &sub);
     bit = 1u << (0xFu - ((uint32_t)x & 0xFu));
-    return (level_itemWord(id, (uint32_t)((uint32_t)y & 0xFu)) & bit) ? 0xFFFFu : 0u;
+    return (level_itemWord(id, (uint32_t)((uint32_t)y & 0xFu)) & bit) ? 0xFFFFu
+                                                                      : 0u;
 }
 
 /* 1000:E6FB (left) / 1000:E764 (right): the walk step.  Sets the result
@@ -3811,8 +4371,9 @@ static void objWalk(uint8_t *actor, int32_t left)
 
     objSelFrame = left ? 2u : 0xEu;
     objSelType = 0x10u;
-    if (objWalkTest(actor) != 0u) return;             /* blocked: no step */
-    wr_le_u16(actor + 0u, (uint16_t)(rd_le_u16(actor + 0u) + (left ? 0xFFFFu : 1u)));
+    if (objWalkTest(actor) != 0u) return; /* blocked: no step */
+    wr_le_u16(actor + 0u,
+              (uint16_t)(rd_le_u16(actor + 0u) + (left ? 0xFFFFu : 1u)));
     wr_le_u16(actor + 0xAu, (uint16_t)(rd_le_u16(actor + 0xAu) - 1u));
     if ((int16_t)rd_le_u16(actor + 0xAu) >= 0) return;
     wr_le_u16(actor + 0xAu, 0x0004u);
@@ -3824,22 +4385,19 @@ static void objWalk(uint8_t *actor, int32_t left)
 /* The settle's static data: the per-type gate at 0x6EBE (32 bytes) and the two
  * 32-byte footing offset tables at 0x689E / 0x68BE, copied from the image. */
 static const uint8_t objTypeGate[32] = {
-    0x0F, 0xFF, 0xC2, 0x1D, 0xA0, 0x00, 0x00, 0x00,
-    0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x01, 0x01,
-    0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+    0x0F, 0xFF, 0xC2, 0x1D, 0xA0, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01,
+    0x01, 0x01, 0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
 };
 static const uint8_t objFootA[32] = {
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x08,
-    0x08, 0x08, 0x08, 0x08, 0x1A, 0x1A, 0x1A, 0x1A,
-    0x1A, 0x1A, 0x2C, 0x2C, 0x2C, 0x2C, 0x2C, 0x2C,
-    0x3E, 0x3E, 0x3E, 0x3E, 0x3E, 0x3E, 0x3E, 0x50,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x08, 0x08, 0x08, 0x08,
+    0x08, 0x1A, 0x1A, 0x1A, 0x1A, 0x1A, 0x1A, 0x2C, 0x2C, 0x2C, 0x2C,
+    0x2C, 0x2C, 0x3E, 0x3E, 0x3E, 0x3E, 0x3E, 0x3E, 0x3E, 0x50,
 };
 static const uint8_t objFootB[32] = {
-    0x08, 0x1A, 0x1A, 0x1A, 0x1A, 0x1A, 0x1A, 0x1A,
-    0x2C, 0x2C, 0x2C, 0x2C, 0x2C, 0x2C, 0x3E, 0x3E,
-    0x3E, 0x3E, 0x3E, 0x3E, 0x50, 0x50, 0x50, 0x50,
-    0x50, 0x50, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x08, 0x1A, 0x1A, 0x1A, 0x1A, 0x1A, 0x1A, 0x1A, 0x2C, 0x2C, 0x2C,
+    0x2C, 0x2C, 0x2C, 0x3E, 0x3E, 0x3E, 0x3E, 0x3E, 0x3E, 0x50, 0x50,
+    0x50, 0x50, 0x50, 0x50, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
 /* [0x4220] / [0x4222]: the settle's footing, read by 1000:DF2C. */
@@ -3879,12 +4437,12 @@ static int32_t objRowRectAt(uint32_t off, int32_t bx, int32_t cx, uint8_t bit)
 {
     int32_t d;
 
-    if (objRowWord(off + 0x10u) & 0x8000u) return 0;         /* 1000:F425 */
-    d = (int16_t)objRowWord(off) - 0x10 - bx;                /* 1000:F42C */
+    if (objRowWord(off + 0x10u) & 0x8000u) return 0; /* 1000:F425 */
+    d = (int16_t)objRowWord(off) - 0x10 - bx; /* 1000:F42C */
     if (d >= 0) return 0;
-    d += 0x1A;                                               /* 1000:F433 */
+    d += 0x1A; /* 1000:F433 */
     if (d < 0) return 0;
-    d = (int16_t)objRowWord(off + 2u) - cx;                  /* 1000:F438 */
+    d = (int16_t)objRowWord(off + 2u) - cx; /* 1000:F438 */
     if (d < 0) return 0;
     d -= 5;
     if (d < 0 || d > 4) return 0;
@@ -3897,7 +4455,8 @@ static int32_t objRowRectAt(uint32_t off, int32_t bx, int32_t cx, uint8_t bit)
 }
 
 /* The gate's two windows, for the test that shows they never match. */
-int32_t object_rowWindowMatches(uint32_t type, uint32_t half, int32_t x, int32_t y)
+int32_t object_rowWindowMatches(uint32_t type, uint32_t half, int32_t x,
+                                int32_t y)
 {
     uint32_t save = objRowOfs;
     int32_t r;
@@ -3916,12 +4475,13 @@ static int32_t objSettleGate(uint8_t *actor)
 {
     uint32_t t = rd_le_u16(actor + 8u);
     uint8_t bit = (uint8_t)(1u << (7u - (t & 7u)));
-    int32_t bx = (int16_t)rd_le_u16(actor + 0u), cx = (int16_t)rd_le_u16(actor + 2u);
+    int32_t bx = (int16_t)rd_le_u16(actor + 0u),
+            cx = (int16_t)rd_le_u16(actor + 2u);
 
-    objStackUnmark(actor);                                   /* 1000:F3CA */
-    if (objTypeGate[(t >> 3) & 0x1Fu] & bit) return 1;       /* 1000:F450 */
-    if (objRowRectAt(0u, bx, cx, bit)) return 0;             /* 1000:F417 */
-    if (objRowRectAt(0x14u, bx, cx, bit)) return 0;          /* 1000:F41F */
+    objStackUnmark(actor); /* 1000:F3CA */
+    if (objTypeGate[(t >> 3) & 0x1Fu] & bit) return 1; /* 1000:F450 */
+    if (objRowRectAt(0u, bx, cx, bit)) return 0; /* 1000:F417 */
+    if (objRowRectAt(0x14u, bx, cx, bit)) return 0; /* 1000:F41F */
     return 1;
 }
 
@@ -3929,12 +4489,13 @@ static int32_t objSettleGate(uint8_t *actor)
  * that sprite's own buffer and returns -1 (the settle then skips its cache). */
 static int32_t objBgMark(const uint8_t *actor)
 {
-    uint32_t sub, cell = objMapAtAbs((int32_t)objFootX, (int32_t)objFootY, &sub);
+    uint32_t sub,
+        cell = objMapAtAbs((int32_t)objFootX, (int32_t)objFootY, &sub);
     uint32_t idx = (uint32_t)((actor - objArray) / OBJ_STRIDE);
     const uint8_t *tbl;
     uint32_t bl;
 
-    if (cell < 0xC2u || cell > 0xCFu) return 0;              /* 1000:DF77 */
+    if (cell < 0xC2u || cell > 0xCFu) return 0; /* 1000:DF77 */
     for (uint32_t i = 0; i < objBgCount; i++) {
         uint32_t rx = objBg[i].x, ry = objBg[i].y;
         int32_t d = (int32_t)objFootX - (int32_t)((rx + 0x10u) & 0xFFF0u);
@@ -3942,11 +4503,11 @@ static int32_t objBgMark(const uint8_t *actor)
         if ((objFootY & 0xFFF0u) != ((ry + 0x10u) & 0xFFF0u)) continue;
         if (d < 0 || d >= 0x20) continue;
         if (idx < 8u) {
-            if (rd_le_u16(actor + 8u) > 1u) return -1;             /* 1000:E001 */
+            if (rd_le_u16(actor + 8u) > 1u) return -1; /* 1000:E001 */
             tbl = objFootB;
         } else {
             int32_t side = (int16_t)objSide;
-            if (side == 0) return -1;                        /* 1000:DFF8 */
+            if (side == 0) return -1; /* 1000:DFF8 */
             tbl = side < 0 ? objFootB : objFootA;
         }
         bl = tbl[(uint32_t)(objFootX - rx) & 0x1Fu];
@@ -3974,7 +4535,7 @@ static void objCmdSettle(uint8_t *actor)
     if (cell == level_specialTile(0u) || cell == level_specialTile(1u)) return;
     b = level_pageByte(cell, sub);
     objSide = 0;
-    if (b == 0u) {                                           /* 1000:D91D */
+    if (b == 0u) { /* 1000:D91D */
         b = level_pageByte(objMapAtAbs(ax, line - 0x10, &sub), sub);
         if (!(b & 0x80u)) {
             objSide = 0xFFE0;
@@ -3982,14 +4543,14 @@ static void objCmdSettle(uint8_t *actor)
         } else {
             b = 0u;
         }
-    } else if (b & 0x80u) {                                  /* 1000:D945 */
+    } else if (b & 0x80u) { /* 1000:D945 */
         line += 0x10;
         objSide = 0x20;
         b = level_pageByte(objMapAtAbs(ax, line, &sub), sub);
-        if (b & 0x80u) goto landed;                          /* 1000:D9B2 */
+        if (b & 0x80u) goto landed; /* 1000:D9B2 */
     }
-    bx = line + (int32_t)(int8_t)b;                          /* 1000:D967 */
-    d = feet - bx;                                           /* 1000:D96A: CX */
+    bx = line + (int32_t)(int8_t)b; /* 1000:D967 */
+    d = feet - bx; /* 1000:D96A: CX */
     if (d < 0) {
         d = -d;
         if (d > 8) goto landed;
@@ -3997,12 +4558,14 @@ static void objCmdSettle(uint8_t *actor)
     wr_le_u16(actor + 2u, (uint16_t)(bx - 0x18));
     objFootX = (uint16_t)(rd_le_u16(actor + 0u) + 8u);
     objFootY = (uint16_t)(rd_le_u16(actor + 2u) + 0x18u);
-    if (objBgMark(actor) != 0) return;                       /* 1000:D986 */
-    objSettled[(uint32_t)((actor - objArray) / OBJ_STRIDE)][0] = rd_le_u16(actor + 0u);
-    objSettled[(uint32_t)((actor - objArray) / OBJ_STRIDE)][1] = rd_le_u16(actor + 2u);
+    if (objBgMark(actor) != 0) return; /* 1000:D986 */
+    objSettled[(uint32_t)((actor - objArray) / OBJ_STRIDE)][0] =
+        rd_le_u16(actor + 0u);
+    objSettled[(uint32_t)((actor - objArray) / OBJ_STRIDE)][1] =
+        rd_le_u16(actor + 2u);
     return;
 landed:
-    wr_le_u16(actor + 8u, 0x0003u);                                /* 1000:D9B2 */
+    wr_le_u16(actor + 8u, 0x0003u); /* 1000:D9B2 */
     wr_le_u16(actor + 0xAu, 0x0001u);
     wr_le_u16(actor + 0xCu, 0x0004u);
     wr_le_u16(actor + 0xEu, 0x0000u);
@@ -4038,13 +4601,14 @@ static void objCmdIdleA(uint8_t *actor)
 {
     uint32_t f = rd_le_u16(actor + 4u);
 
-    if (f < 8u || f > 0x10u) {                 /* 1000:E739: stand up */
+    if (f < 8u || f > 0x10u) { /* 1000:E739: stand up */
         wr_le_u16(actor + 4u, 0x0010u);
         wr_le_u16(actor + 8u, 0x0002u);
         wr_le_u16(actor + 0xAu, 0x0004u);
         return;
     }
-    wr_le_u16(actor + 0xAu, (uint16_t)(rd_le_u16(actor + 0xAu) - 1u));   /* 1000:E74F */
+    wr_le_u16(actor + 0xAu,
+              (uint16_t)(rd_le_u16(actor + 0xAu) - 1u)); /* 1000:E74F */
     if ((int16_t)rd_le_u16(actor + 0xAu) >= 0) return;
     wr_le_u16(actor + 4u, 0x0008u);
     wr_le_u16(actor + 8u, 0x0001u);
@@ -4055,13 +4619,14 @@ static void objCmdIdleB(uint8_t *actor)
 {
     uint32_t f = rd_le_u16(actor + 4u);
 
-    if (f >= 8u && f != 0x10u) {               /* 1000:E79D: stand up */
+    if (f >= 8u && f != 0x10u) { /* 1000:E79D: stand up */
         wr_le_u16(actor + 4u, 0x0010u);
         wr_le_u16(actor + 8u, 0x0002u);
         wr_le_u16(actor + 0xAu, 0x0004u);
         return;
     }
-    wr_le_u16(actor + 0xAu, (uint16_t)(rd_le_u16(actor + 0xAu) - 1u));   /* 1000:E7AD */
+    wr_le_u16(actor + 0xAu,
+              (uint16_t)(rd_le_u16(actor + 0xAu) - 1u)); /* 1000:E7AD */
     if ((int16_t)rd_le_u16(actor + 0xAu) >= 0) return;
     wr_le_u16(actor + 4u, 0x0000u);
     wr_le_u16(actor + 8u, 0x0000u);
@@ -4102,10 +4667,10 @@ static uint8_t objActionLatch;
 int32_t object_actionLatched(void) { return objActionLatch != 0; }
 void object_setActionLatched(int32_t on) { objActionLatch = on ? 0xFFu : 0u; }
 
-static uint32_t objSfx;             /* the last `1000:83B7` driver argument     */
-static uint16_t objPtX, objPtY;     /* [0x4224] / [0x4226]                      */
-static uint16_t objAux;             /* [0x4228]                                */
-static uint8_t objDebounce;         /* [0x197A]: the previous dispatch code     */
+static uint32_t objSfx; /* the last `1000:83B7` driver argument     */
+static uint16_t objPtX, objPtY; /* [0x4224] / [0x4226]                      */
+static uint16_t objAux; /* [0x4228]                                */
+static uint8_t objDebounce; /* [0x197A]: the previous dispatch code     */
 
 /* 1000:83B7 driver_call: INT 60h command 5 with CX = n, gated by [0x5E5B]
  * (sound enabled) and [0x5AFE] (a driver installed).  The port's audio surface
@@ -4119,9 +4684,7 @@ uint32_t object_lastSfx(void) { return objSfx; }
 /* 1000:EA33: the acting entity's bit in the two stack masks, 0x64AD and
  * 0x64C1, the same `1 << (7 - entity)` the stack verbs use. */
 static int32_t objStackMasked(void)
-{
-    return ((objStackMask[0] | objStackMask[1]) & objIndexBit(objEntity)) != 0;
-}
+{ return ((objStackMask[0] | objStackMask[1]) & objIndexBit(objEntity)) != 0; }
 
 /* 1000:F9E4 object_advance_frame: the once-per-frame gate.  The first call in a
  * frame stores the frame number at `+0xA` and resets the 0x19-frame countdown
@@ -4132,18 +4695,19 @@ static int32_t objFrameCadence(uint8_t *actor)
 {
     uint32_t ax = objFrame;
 
-    if (ax == rd_le_u16(actor + 0xAu)) {                        /* 1000:F9FD */
-        uint16_t e = (uint16_t)(rd_le_u16(actor + 0xEu) - 1u); /* 1000:FA01 SUB */
+    if (ax == rd_le_u16(actor + 0xAu)) { /* 1000:F9FD */
+        uint16_t e =
+            (uint16_t)(rd_le_u16(actor + 0xEu) - 1u); /* 1000:FA01 SUB */
 
         wr_le_u16(actor + 0xAu, (uint16_t)(ax + 1u));
         wr_le_u16(actor + 0xEu, e);
         if ((int16_t)e < 0) {
-            wr_le_u16(actor + 0xEu, 0x0019u);                  /* 1000:FA0A */
+            wr_le_u16(actor + 0xEu, 0x0019u); /* 1000:FA0A */
             return 0;
         }
         return 1;
     }
-    wr_le_u16(actor + 0xAu, (uint16_t)(ax + 1u));              /* 1000:F9EC */
+    wr_le_u16(actor + 0xAu, (uint16_t)(ax + 1u)); /* 1000:F9EC */
     wr_le_u16(actor + 0xEu, 0x0019u);
     wr_le_u16(actor + 0x10u, 0u);
     return 1;
@@ -4159,11 +4723,11 @@ static void objPlaceAt(uint8_t *actor)
     int32_t bx = objLandY((int32_t)(int16_t)objSide, 0x18, &cell);
     int32_t d;
 
-    if (bx < 0) return;                                  /* 1000:F243 */
+    if (bx < 0) return; /* 1000:F243 */
     d = bx - 0x18 - (int32_t)(int16_t)rd_le_u16(actor + 2u);
-    if (d < 0) return;                                   /* 1000:F24B */
-    if (d - 8 >= 0) return;                              /* 1000:F250 */
-    wr_le_u16(actor + 4u, objSelXoff);                         /* 1000:F255 */
+    if (d < 0) return; /* 1000:F24B */
+    if (d - 8 >= 0) return; /* 1000:F250 */
+    wr_le_u16(actor + 4u, objSelXoff); /* 1000:F255 */
     wr_le_u16(actor + 8u, objSelFrame);
 }
 
@@ -4185,29 +4749,32 @@ static void objScanPoint(uint8_t *actor, uint32_t xoff)
     uint8_t *span = NULL;
     int32_t fallback = -1;
 
-    if (objFrame & 1u) {                     /* 1000:FC81 */
+    if (objFrame & 1u) { /* 1000:FC81 */
         object_setActionLatched(0);
         return;
     }
-    for (;;) {                               /* 1000:FCBA */
+    for (;;) { /* 1000:FCBA */
         uint32_t idx = 2u * ((uint32_t)y & 0xFFF0u) + ((uint32_t)x >> 4);
 
         b = level_pageByte(objMapBufferByte(idx), (uint32_t)x & 0xFu);
-        if (!(b & 0x80u)) {                  /* 1000:FCE0: a surface */
+        if (!(b & 0x80u)) { /* 1000:FCE0: a surface */
             y += (int32_t)(int8_t)b;
             break;
         }
         y += 0x10;
-        if ((uint32_t)y >= 0x140u) { y = 0x140; break; }   /* 1000:FCC8 */
+        if ((uint32_t)y >= 0x140u) {
+            y = 0x140;
+            break;
+        } /* 1000:FCC8 */
     }
-    if (y > 0x140) y = 0x140;                /* 1000:FCE9 */
-    d = y - 1 - top;                         /* 1000:FCF2 */
+    if (y > 0x140) y = 0x140; /* 1000:FCE9 */
+    d = y - 1 - top; /* 1000:FCF2 */
     if (d <= 0) return;
     if (d > 0x5F) d = 0x5F;
-    objSelXoff = 0;                          /* 1000:FD0E */
+    objSelXoff = 0; /* 1000:FD0E */
     objSelFrame = 0;
-    objSide = 1;                             /* [0x4230] = the entry count - 1 */
-    for (uint32_t i = 0; i < 2u; i++) {      /* 1000:FD20 */
+    objSide = 1; /* [0x4230] = the entry count - 1 */
+    for (uint32_t i = 0; i < 2u; i++) { /* 1000:FD20 */
         uint8_t *e = (uint8_t *)objSpan[i];
 
         if (rd_le_u16(e + 0u) & 0x8000u) fallback = (int32_t)i;
@@ -4216,24 +4783,24 @@ static void objScanPoint(uint8_t *actor, uint32_t xoff)
             span = e;
             break;
         }
-        objSide = (uint16_t)(objSide - 1u);  /* 1000:FD3B DEC [0x4230] */
+        objSide = (uint16_t)(objSide - 1u); /* 1000:FD3B DEC [0x4230] */
     }
-    if (!span) {                             /* 1000:FD41 */
+    if (!span) { /* 1000:FD41 */
         if (fallback < 0) return;
         span = (uint8_t *)objSpan[fallback];
     }
-    wr_le_u16(span + 0u, (uint16_t)objEntity);     /* 1000:FD4D */
+    wr_le_u16(span + 0u, (uint16_t)objEntity); /* 1000:FD4D */
     wr_le_u16(span + 2u, (uint16_t)x);
-    wr_le_u16(actor + 8u, objSelType);             /* 1000:FD52 */
+    wr_le_u16(actor + 8u, objSelType); /* 1000:FD52 */
     wr_le_u16(span + 4u, (uint16_t)top);
     wr_le_u16(span + 6u, objSelFrame);
     wr_le_u16(span + 8u, (uint16_t)d);
-    if (objSelFrame == 0u) {                 /* 1000:FD6C */
+    if (objSelFrame == 0u) { /* 1000:FD6C */
         wr_le_u16(span + 6u, 0u);
         wr_le_u16(span + 0xAu, rd_le_u16(span + 2u));
         wr_le_u16(span + 0xCu, (uint16_t)top);
     }
-    wr_le_u16(span + 0x12u, 0xFFFFu);              /* 1000:FD7B */
+    wr_le_u16(span + 0x12u, 0xFFFFu); /* 1000:FD7B */
     wr_le_u16(span + 0x12u, (uint16_t)(d < (int32_t)objSelFrame ? 1 : 0));
 }
 
@@ -4243,39 +4810,42 @@ static void objScanPoint(uint8_t *actor, uint32_t xoff)
  * (x + (delta >= 0 ? 0x10 : 0), y + 8) and, when the fine-x bit is clear, adds
  * the caller's delta to the record's type word.  `delta` is +0xA from 1000:EC99
  * (a step right) and -0xA from 1000:ECA8 (a step left). */
-static void objNeighbourPass(uint8_t *actor, uint32_t offX, uint32_t offY, int32_t delta)
+static void objNeighbourPass(uint8_t *actor, uint32_t offX, uint32_t offY,
+                             int32_t delta)
 {
     int32_t x = (int32_t)(int16_t)(uint16_t)(rd_le_u16(actor + 0u) + offX);
     int32_t y = (int32_t)(int16_t)(uint16_t)(rd_le_u16(actor + 2u) + offY);
     uint32_t n = objLiveCount > OBJ_LIVE0 ? objLiveCount - OBJ_LIVE0 : 0u;
 
-    objAux = (uint16_t)delta;                            /* 1000:FAF9 */
-    objSelFrame = delta >= 0 ? 0x10u : 0u;               /* 1000:FAFD */
-    objSelType = 8u;                                     /* 1000:FB03 */
-    for (uint32_t k = 0; k < n; k++) {                   /* 1000:FB29 */
+    objAux = (uint16_t)delta; /* 1000:FAF9 */
+    objSelFrame = delta >= 0 ? 0x10u : 0u; /* 1000:FAFD */
+    objSelType = 8u; /* 1000:FB03 */
+    for (uint32_t k = 0; k < n; k++) { /* 1000:FB29 */
         uint8_t *r = objArray + (OBJ_LIVE0 + 1u + k) * OBJ_STRIDE;
         int32_t d, ty;
 
         objSide = rd_le_u16(r + 0u);
         objSelXoff = rd_le_u16(r + 2u);
-        if ((objSlotClass[1u + k] & 0x3Fu) != 4u) continue;   /* 1000:FB39 */
-        if (r[6] & 0x40u) continue;                           /* 1000:FB46 */
+        if ((objSlotClass[1u + k] & 0x3Fu) != 4u) continue; /* 1000:FB39 */
+        if (r[6] & 0x40u) continue; /* 1000:FB46 */
         d = (int16_t)(uint16_t)(rd_le_u16(r + 0u) - (uint16_t)x);
-        if (d >= 0 || d + 0x10 < 0) continue;                 /* 1000:FB4F */
+        if (d >= 0 || d + 0x10 < 0) continue; /* 1000:FB4F */
         d = (int16_t)(uint16_t)(rd_le_u16(r + 2u) - (uint16_t)y);
-        if (d >= 0 || d + 0x10 < 0) continue;                 /* 1000:FB62 */
+        if (d >= 0 || d + 0x10 < 0) continue; /* 1000:FB62 */
         ty = (int16_t)rd_le_u16(r + 8u);
         if (ty < 0) ty = -ty;
-        if (ty > 0xA) continue;                               /* 1000:FB7E */
+        if (ty > 0xA) continue; /* 1000:FB7E */
         {
-            int32_t px = (int32_t)(int16_t)rd_le_u16(r + 0u) + (delta >= 0 ? 0x10 : 0);
+            int32_t px =
+                (int32_t)(int16_t)rd_le_u16(r + 0u) + (delta >= 0 ? 0x10 : 0);
             int32_t py = (int32_t)(int16_t)rd_le_u16(r + 2u) + 8;
             uint32_t sub, tile = objMapAtAbs(px, py, &sub);
             uint32_t word = level_itemWord(tile, (uint32_t)(py & 0xF));
             uint32_t bit = 1u << (0xFu - ((uint32_t)px & 0xFu));
 
-            if (!(word & bit))                                /* 1000:FC17 */
-                wr_le_u16(r + 8u, (uint16_t)(rd_le_u16(r + 8u) + objAux));  /* 1000:FC1D */
+            if (!(word & bit)) /* 1000:FC17 */
+                wr_le_u16(r + 8u, (uint16_t)(rd_le_u16(r + 8u) +
+                                             objAux)); /* 1000:FC1D */
         }
     }
 }
@@ -4290,31 +4860,32 @@ static void objNeighbourPass(uint8_t *actor, uint32_t offX, uint32_t offY, int32
  * [0x6916] = 5, [0x6917] = 1) and plays effect 3. */
 static void objCmdEnter(uint8_t *actor)
 {
-    static const int16_t doors[8][4] = {     /* 0x6E76: dx, y, frame, type */
-        {  3,  -5, 0, 0 }, {  2,  -9, 0, 0 }, {  1,  -7, 0, 0 }, { 0,   0, 0, 0 },
-        {  0,   0, 0, 0 }, { -3,  -5, 8, 1 }, { -2,  -7, 8, 1 }, { -1,  -9, 8, 1 },
+    static const int16_t doors[8][4] = {
+        /* 0x6E76: dx, y, frame, type */
+        { 3, -5, 0, 0 }, { 2, -9, 0, 0 },  { 1, -7, 0, 0 },  { 0, 0, 0, 0 },
+        { 0, 0, 0, 0 },  { -3, -5, 8, 1 }, { -2, -7, 8, 1 }, { -1, -9, 8, 1 },
     };
     uint32_t ax, idx, dx;
     uint8_t *rec;
 
-    if (!objLat) {                           /* 1000:EE42 */
+    if (!objLat) { /* 1000:EE42 */
         wr_le_u16(actor + 0xEu, 0u);
         return;
     }
-    objLat = 0;                              /* 1000:EE48 */
+    objLat = 0; /* 1000:EE48 */
     ax = rd_le_u16(actor + 0xEu);
-    if (ax >= 0x100u) ax = 0x1FFu - ax;      /* 1000:EE55 */
+    if (ax >= 0x100u) ax = 0x1FFu - ax; /* 1000:EE55 */
     ax >>= 6;
     dx = (uint32_t)((rd_le_u16(actor + 4u) - 0x8Cu) & 0xFFFFu);
-    if (dx >= 8u) return;                    /* past 0x6E76's eight entries */
+    if (dx >= 8u) return; /* past 0x6E76's eight entries */
     objPtX = (uint16_t)(doors[dx][0] >= 0 ? doors[dx][0] + (int32_t)ax
                                           : doors[dx][0] - (int32_t)ax);
-    objPtY = (uint16_t)doors[dx][1];         /* 1000:EE8B */
+    objPtY = (uint16_t)doors[dx][1]; /* 1000:EE8B */
     wr_le_u16(actor + 4u, (uint16_t)doors[dx][2]); /* 1000:EE94 */
     wr_le_u16(actor + 8u, (uint16_t)doors[dx][3]);
     wr_le_u16(actor + 0xAu, 0u);
 
-    idx = actor[7];                          /* 1000:EEB8 */
+    idx = actor[7]; /* 1000:EEB8 */
     actor[7] = 0u;
     /* The original multiplies the decremented slot byte by 0x12 with no range
      * test: for a class byte of 0 the factor is 0xFFFF, `MUL DL` uses only
@@ -4324,19 +4895,18 @@ static void objCmdEnter(uint8_t *actor)
      * the one unavoidable deviation in this routine: it keeps the port from
      * writing through a pointer it cannot resolve, and the branch only runs for
      * a record whose class byte is 0 or above the table. */
-    if (idx && idx - 1u < sizeof objSlotClass &&
-        8u + idx - 1u < OBJ_SLOTS) {
+    if (idx && idx - 1u < sizeof objSlotClass && 8u + idx - 1u < OBJ_SLOTS) {
         idx--;
-        objSlotClass[idx] &= 0x3Fu;          /* 0x3E5E + idx */
-        rec = objArray + (8u + idx) * OBJ_STRIDE;                /* 0x3F17 + 0x12*idx */
-        wr_le_u16(rec + 8u, 0xFFFFu);              /* 1000:EED5 */
+        objSlotClass[idx] &= 0x3Fu; /* 0x3E5E + idx */
+        rec = objArray + (8u + idx) * OBJ_STRIDE; /* 0x3F17 + 0x12*idx */
+        wr_le_u16(rec + 8u, 0xFFFFu); /* 1000:EED5 */
         wr_le_u16(rec + 0xAu, 0u);
-        wr_le_u16(rec + 0xCu, objPtX);             /* 1000:EEE5 */
+        wr_le_u16(rec + 0xCu, objPtX); /* 1000:EEE5 */
         wr_le_u16(rec + 0xEu, objPtY);
     }
-    objSetProgramIndex(1u);                  /* 1000:EEF2: [0x5B56] = 1 */
-    objOutState = 5;                         /* 1000:EEF7 */
-    objOutStateHi = 1;                       /* 1000:EEFC */
+    objSetProgramIndex(1u); /* 1000:EEF2: [0x5B56] = 1 */
+    objOutState = 5; /* 1000:EEF7 */
+    objOutStateHi = 1; /* 1000:EEFC */
     objDriverCall(3);
 }
 
@@ -4354,7 +4924,8 @@ static void objFrameStepDown(uint8_t *actor, uint32_t lo, uint32_t hi)
 {
     uint32_t f;
 
-    wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(actor + 2u) + 1u));    /* 1000:FDBF */
+    wr_le_u16(actor + 2u,
+              (uint16_t)(rd_le_u16(actor + 2u) + 1u)); /* 1000:FDBF */
     wr_le_u16(actor + 0xAu, (uint16_t)(rd_le_u16(actor + 0xAu) - 1u));
     if ((int16_t)rd_le_u16(actor + 0xAu) >= 0) return;
     wr_le_u16(actor + 0xAu, 4u);
@@ -4370,18 +4941,13 @@ static void objFrameStepDown(uint8_t *actor, uint32_t lo, uint32_t hi)
 /* DS:0x6E5C - the frame list 0xECB7 walks: twelve ramp words and then 3-word
  * vectors from 0x6E74 (re_formats.md §"the value table"). */
 static const uint16_t objAnimList[0x1A] = {
-    0x0010, 0x007F, 0x0080, 0x0081, 0x0080, 0x0081, 0x0080, 0x0081,
-    0x0080, 0x0081, 0x007F, 0x0010, 0xFFFF, 0x0003, 0xFFFB, 0x0000,
-    0x0000, 0x0002, 0xFFF9, 0x0000, 0x0000, 0x0001, 0xFFF7, 0x0000,
-    0x0000, 0x0000,
+    0x0010, 0x007F, 0x0080, 0x0081, 0x0080, 0x0081, 0x0080, 0x0081, 0x0080,
+    0x0081, 0x007F, 0x0010, 0xFFFF, 0x0003, 0xFFFB, 0x0000, 0x0000, 0x0002,
+    0xFFF9, 0x0000, 0x0000, 0x0001, 0xFFF7, 0x0000, 0x0000, 0x0000,
 };
 
 static uint32_t objAnimListWord(uint32_t off)
-{
-    return off + 1u < sizeof objAnimList ? objAnimList[off / 2u] : 0u;
-}
-
-
+{ return off + 1u < sizeof objAnimList ? objAnimList[off / 2u] : 0u; }
 
 
 /* --- 1000:F5BC: the level-end probe the movers' tails call --------------
@@ -4402,7 +4968,7 @@ static void objLevelEndProbe(uint8_t *actor, int32_t bx)
     uint8_t *t;
     uint32_t idx;
 
-    objLat = 0;                                      /* 1000:F5BC */
+    objLat = 0; /* 1000:F5BC */
     if (bx >= 0) {
         t = object_slot((uint32_t)bx);
         idx = (uint32_t)bx;
@@ -4411,12 +4977,12 @@ static void objLevelEndProbe(uint8_t *actor, int32_t bx)
         idx = (uint32_t)((actor - objArray) / OBJ_STRIDE);
     }
     if (!t) return;
-    if (statusbar_tribeActive()) goto goal;          /* 1000:F5E3 */
-    wr_le_u16(t + 0u, 0xFFFFu);                            /* 1000:F5EF: taken */
+    if (statusbar_tribeActive()) goto goal; /* 1000:F5E3 */
+    wr_le_u16(t + 0u, 0xFFFFu); /* 1000:F5EF: taken */
     wr_le_u16(t + 2u, 0xFFFFu);
     t[6] = 0xFFu;
     wr_le_u16(t + 8u, 0x001Bu);
-    if (t[7]) {                                      /* 1000:F603 */
+    if (t[7]) { /* 1000:F603 */
         uint32_t cls = t[7];
 
         if (cls - 1u < sizeof objSlotClass) objSlotClass[cls - 1u] = 0u;
@@ -4424,8 +4990,8 @@ static void objLevelEndProbe(uint8_t *actor, int32_t bx)
             objArray[(8u + cls - 1u) * OBJ_STRIDE + 6] = 0xFFu;
         t[7] = 0u;
     }
-    if (idx != objEntity) return;                    /* 1000:F627 */
-    for (uint32_t i = 0; i < 8u; i++) {              /* 1000:F630 */
+    if (idx != objEntity) return; /* 1000:F627 */
+    for (uint32_t i = 0; i < 8u; i++) { /* 1000:F630 */
         uint8_t *r = object_slot(i);
         uint32_t ty;
 
@@ -4434,36 +5000,38 @@ static void objLevelEndProbe(uint8_t *actor, int32_t bx)
         if (ty == 0x16u) continue;
         if (ty >= 0x1Bu && ty <= 0x1Eu) continue;
         if (ty == 0x21u) continue;
-        objResolveSprite(i);                         /* 1000:F664 -> 0x4147 */
+        objResolveSprite(i); /* 1000:F664 -> 0x4147 */
         return;
     }
-    level_setEnd(0);                                 /* 1000:F66D */
+    level_setEnd(0); /* 1000:F66D */
     return;
 
-goal:                                                /* 1000:F682 */
-    statusbar_armOdometer();                         /* [0x5B22] = 0xFF */
-    wr_le_u16(t + 2u, objSelXoff);                         /* [0x4222] */
-    wr_le_u16(t + 0u, objSide);                            /* [0x4220] */
-    if ((int16_t)objSide < 0) {                      /* 1000:F692 */
+goal: /* 1000:F682 */
+    statusbar_armOdometer(); /* [0x5B22] = 0xFF */
+    wr_le_u16(t + 2u, objSelXoff); /* [0x4222] */
+    wr_le_u16(t + 0u, objSide); /* [0x4220] */
+    if ((int16_t)objSide < 0) { /* 1000:F692 */
         wr_le_u16(t + 0u, (uint16_t)((objSettled[idx][0] + 8u) & 0xFFF0u));
         wr_le_u16(t + 2u, objSettled[idx][1]);
     }
-    wr_le_u16(t + 0u, (uint16_t)(rd_le_u16(t + 0u) - 8u));       /* 1000:F6B1 */
+    wr_le_u16(t + 0u, (uint16_t)(rd_le_u16(t + 0u) - 8u)); /* 1000:F6B1 */
     wr_le_u16(t + 4u, 0x002Du);
     t[6] = 0u;
     wr_le_u16(t + 8u, 0x0021u);
     wr_le_u16(t + 0xAu, 5u);
     if (idx == objEntity && (int32_t)idx != objPlayer && !t[7]) {
-        objSetProgramIndex(1u);                      /* [0x5B56] = 1 */
-        objOutState = 5;                             /* [0x6916] = 0x105 */
+        objSetProgramIndex(1u); /* [0x5B56] = 1 */
+        objOutState = 5; /* [0x6916] = 0x105 */
         objOutStateHi = 1;
     }
     {
         uint32_t cell;
-        int32_t land = objLandY((int32_t)(int16_t)rd_le_u16(t + 0u) + 0x10,
-                            (int32_t)(int16_t)rd_le_u16(t + 2u) + 0x18, &cell);
+        int32_t land =
+            objLandY((int32_t)(int16_t)rd_le_u16(t + 0u) + 0x10,
+                     (int32_t)(int16_t)rd_le_u16(t + 2u) + 0x18, &cell);
 
-        if (land >= 0) wr_le_u16(t + 2u, (uint16_t)(land - 0x18));   /* 1000:F6F2 */
+        if (land >= 0)
+            wr_le_u16(t + 2u, (uint16_t)(land - 0x18)); /* 1000:F6F2 */
     }
 }
 
@@ -4475,16 +5043,13 @@ static const uint8_t objTab6868[0x14] = {
     0xCF, 0xD0, 0xD1, 0xD2, 0xD1, 0xD2, 0xD1, 0xD2, 0xD3, 0x00,
 };
 static const uint8_t objTab687C[0x20] = {
-    0x01, 0x06, 0x01, 0x06, 0x01, 0x06, 0x01, 0x06,
-    0x01, 0x06, 0x01, 0x06, 0xFF, 0x32, 0x01, 0x06,
-    0xFF, 0x32, 0x01, 0x06, 0x01, 0x06, 0x01, 0x06,
-    0x01, 0x06, 0x01, 0x06, 0xFF, 0x07, 0x01, 0x07,
+    0x01, 0x06, 0x01, 0x06, 0x01, 0x06, 0x01, 0x06, 0x01, 0x06, 0x01,
+    0x06, 0xFF, 0x32, 0x01, 0x06, 0xFF, 0x32, 0x01, 0x06, 0x01, 0x06,
+    0x01, 0x06, 0x01, 0x06, 0x01, 0x06, 0xFF, 0x07, 0x01, 0x07,
 };
 
 static uint32_t objTabByte(const uint8_t *t, uint32_t n, uint32_t off)
-{
-    return off < n ? t[off] : 0u;
-}
+{ return off < n ? t[off] : 0u; }
 
 /* 1000:DBCD (type 28): a 9-frame stepper over 0x6868 (the frame is a table
  * byte, +0xC the cursor); at frame 0xD3 the record climbs one pixel per tick
@@ -4494,23 +5059,23 @@ static void objTailType28(uint8_t *actor)
 {
     uint32_t a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
 
-    wr_le_u16(actor + 0xAu, a);                            /* 1000:DBCD */
+    wr_le_u16(actor + 0xAu, a); /* 1000:DBCD */
     if ((int16_t)a >= 0) return;
     wr_le_u16(actor + 0xAu, 9u);
-    if (rd_le_u16(actor + 4u) != 0x00D3u) {                /* 1000:DBD7 */
+    if (rd_le_u16(actor + 4u) != 0x00D3u) { /* 1000:DBD7 */
         uint32_t off = rd_le_u16(actor + 0xCu);
 
         actor[4] = (uint8_t)objTabByte(objTab6868, sizeof objTab6868, off);
         wr_le_u16(actor + 0xCu, (uint16_t)(off + 1u));
         return;
     }
-    if (rd_le_u16(actor + 2u) & 0xFu) {                    /* 1000:DBEC */
+    if (rd_le_u16(actor + 2u) & 0xFu) { /* 1000:DBEC */
         wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(actor + 2u) + 1u));
         return;
     }
-    objSide = 0xFFFFu;                               /* [0x4220] */
-    objSelXoff = 0xFFFFu;                            /* [0x4222] */
-    objLevelEndProbe(actor, -1);                 /* 1000:DC11 */
+    objSide = 0xFFFFu; /* [0x4220] */
+    objSelXoff = 0xFFFFu; /* [0x4222] */
+    objLevelEndProbe(actor, -1); /* 1000:DC11 */
 }
 
 /* 1000:DE7E (type 30): the 0x687C table walk. */
@@ -4518,30 +5083,34 @@ static void objTailType30(uint8_t *actor)
 {
     uint32_t a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
 
-    wr_le_u16(actor + 0xAu, a);                            /* 1000:DE7E */
+    wr_le_u16(actor + 0xAu, a); /* 1000:DE7E */
     if ((int16_t)a >= 0) return;
     {
         uint32_t off = rd_le_u16(actor + 0xCu);
-        int32_t dx = (int32_t)(int8_t)(uint8_t)objTabByte(objTab687C, sizeof objTab687C, off);
-        int32_t dy = (int32_t)(int8_t)(uint8_t)objTabByte(objTab687C, sizeof objTab687C, off + 1u);
+        int32_t dx = (int32_t)(int8_t)(uint8_t)objTabByte(
+            objTab687C, sizeof objTab687C, off);
+        int32_t dy = (int32_t)(int8_t)(uint8_t)objTabByte(
+            objTab687C, sizeof objTab687C, off + 1u);
         uint32_t nxt = off + 2u;
 
-        if (objTabByte(objTab687C, sizeof objTab687C, off + 2u) == 0u) {   /* 1000:DE9F */
+        if (objTabByte(objTab687C, sizeof objTab687C, off + 2u) ==
+            0u) { /* 1000:DE9F */
             uint32_t e;
 
-            nxt = (uint16_t)(nxt - 4u);              /* 1000:DEA5 */
+            nxt = (uint16_t)(nxt - 4u); /* 1000:DEA5 */
             e = (uint16_t)(rd_le_u16(actor + 0xEu) - 1u);
-            wr_le_u16(actor + 0xEu, e);                    /* 1000:DEA8 */
-            if ((int16_t)e < 0 && statusbar_tribeActive()) {   /* 1000:DEB4 */
-                objSide = rd_le_u16(actor + 0u);           /* [0x4220] */
-                objSelXoff = rd_le_u16(actor + 2u);        /* [0x4222] */
-                objLevelEndProbe(actor, -1);     /* 1000:DEC4 */
+            wr_le_u16(actor + 0xEu, e); /* 1000:DEA8 */
+            if ((int16_t)e < 0 && statusbar_tribeActive()) { /* 1000:DEB4 */
+                objSide = rd_le_u16(actor + 0u); /* [0x4220] */
+                objSelXoff = rd_le_u16(actor + 2u); /* [0x4222] */
+                objLevelEndProbe(actor, -1); /* 1000:DEC4 */
                 return;
             }
         }
-        wr_le_u16(actor + 0xCu, nxt);                      /* 1000:DEC7 */
-        wr_le_u16(actor + 0xAu, (uint16_t)(int16_t)dy);    /* [SI+0xA] = CX */
-        wr_le_u16(actor + 4u, (uint16_t)(rd_le_u16(actor + 4u) + (uint16_t)(int16_t)dx));
+        wr_le_u16(actor + 0xCu, nxt); /* 1000:DEC7 */
+        wr_le_u16(actor + 0xAu, (uint16_t)(int16_t)dy); /* [SI+0xA] = CX */
+        wr_le_u16(actor + 4u,
+                  (uint16_t)(rd_le_u16(actor + 4u) + (uint16_t)(int16_t)dx));
     }
 }
 
@@ -4561,19 +5130,19 @@ static void objTailType34(uint8_t *actor)
 
     if (!e) return;
     v = e->handler;
-    if (v == 2u || v == 3u) {                        /* 1000:DEDA / 0xDF0A */
+    if (v == 2u || v == 3u) { /* 1000:DEDA / 0xDF0A */
         if (!(actor[6] & 0x80u)) {
             if (e->waypoint == rd_le_u16(actor + 0xEu)) actor[6] |= 0x80u;
         }
         return;
     }
-    if (actor[6] & 0x80u) {                          /* 1000:DEE8 */
-        objSide = rd_le_u16(actor + 0x10u);                /* [0x4220] */
-        objSelXoff = (uint16_t)(e->y + 0x28u);       /* [0x4222] */
+    if (actor[6] & 0x80u) { /* 1000:DEE8 */
+        objSide = rd_le_u16(actor + 0x10u); /* [0x4220] */
+        objSelXoff = (uint16_t)(e->y + 0x28u); /* [0x4222] */
         objLevelEndProbe(actor, -1);
         return;
     }
-    wr_le_u16(actor + 4u, 0x0010u);                        /* 1000:DF17 */
+    wr_le_u16(actor + 4u, 0x0010u); /* 1000:DF17 */
     wr_le_u16(actor + 8u, 0x0002u);
     wr_le_u16(actor + 0xAu, 0u);
     wr_le_u16(actor + 0xCu, 0u);
@@ -4585,14 +5154,14 @@ static void objTailType22(uint8_t *actor)
 {
     uint32_t a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
 
-    wr_le_u16(actor + 0xAu, a);                            /* 1000:EF66 */
+    wr_le_u16(actor + 0xAu, a); /* 1000:EF66 */
     if ((int16_t)a >= 0) return;
     wr_le_u16(actor + 0xAu, 5u);
     wr_le_u16(actor + 4u, (uint16_t)(rd_le_u16(actor + 4u) + 1u));
-    if (rd_le_u16(actor + 4u) != 0x2Eu) return;            /* 1000:EF73 */
-    objSide = 0xFFFFu;                               /* [0x4220] */
-    objSelXoff = 0xFFFFu;                            /* [0x4222] */
-    objLevelEndProbe(actor, -1);                 /* 1000:EF93 */
+    if (rd_le_u16(actor + 4u) != 0x2Eu) return; /* 1000:EF73 */
+    objSide = 0xFFFFu; /* [0x4220] */
+    objSelXoff = 0xFFFFu; /* [0x4222] */
+    objLevelEndProbe(actor, -1); /* 1000:EF93 */
 }
 
 /* --- the rows' tails (the +0xC word of each DS:0x698A row) --------------
@@ -4608,12 +5177,13 @@ static void objTailFrameBound(uint8_t *actor, uint32_t bound)
 {
     uint32_t a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
 
-    wr_le_u16(actor + 0xAu, a);                            /* 1000:D9D0 */
+    wr_le_u16(actor + 0xAu, a); /* 1000:D9D0 */
     if ((int16_t)a >= 0) return;
-    wr_le_u16(actor + 0xAu, 7u);                           /* 1000:D9D6 */
+    wr_le_u16(actor + 0xAu, 7u); /* 1000:D9D6 */
     wr_le_u16(actor + 4u, (uint16_t)(rd_le_u16(actor + 4u) + 1u));
     if (rd_le_u16(actor + 4u) == bound)
-        wr_le_u16(actor + 4u, (uint16_t)(rd_le_u16(actor + 4u) - 4u));   /* 1000:D9E3 */
+        wr_le_u16(actor + 4u,
+                  (uint16_t)(rd_le_u16(actor + 4u) - 4u)); /* 1000:D9E3 */
 }
 
 /* 0xD9C8 / 0xD9CD: `MOV AX,bound; JMP 0xD9D0`. */
@@ -4623,21 +5193,22 @@ static void objTailFrameToType(uint8_t *actor)
 {
     uint32_t t = 2;
 
-    if (rd_le_u16(actor + 4u) < 0x10u) {                   /* 1000:DB33 */
+    if (rd_le_u16(actor + 4u) < 0x10u) { /* 1000:DB33 */
         t = 1;
         if (rd_le_u16(actor + 4u) < 8u) t = 0;
     }
-    wr_le_u16(actor + 8u, t);                              /* 1000:DB44 */
+    wr_le_u16(actor + 8u, t); /* 1000:DB44 */
 }
 
 /* 1000:DB15: the hard landing. */
 static void objTailCrash(uint8_t *actor)
 {
-    wr_le_u16(actor + 0u, (uint16_t)(rd_le_u16(actor + 0u) - 7u));   /* 1000:DB15 */
+    wr_le_u16(actor + 0u,
+              (uint16_t)(rd_le_u16(actor + 0u) - 7u)); /* 1000:DB15 */
     wr_le_u16(actor + 4u, 0x0028u);
     wr_le_u16(actor + 8u, 0x0016u);
     wr_le_u16(actor + 0xAu, 5u);
-    objDriverCall(4);                                /* 1000:DB28 */
+    objDriverCall(4); /* 1000:DB28 */
 }
 
 
@@ -4654,22 +5225,25 @@ static void objTailType3(uint8_t *actor)
     uint32_t ax, bx, cx, dx, di, b;
     int32_t sc;
 
-    if (!objSettleGate(actor)) {                     /* 1000:D9EB */
+    if (!objSettleGate(actor)) { /* 1000:D9EB */
         objTailFrameToType(actor);
         return;
     }
     ax = (uint32_t)(rd_le_u16(actor + 0u) + 8u);
     bx = (uint32_t)(rd_le_u16(actor + 2u) + 0x18u);
     dx = rd_le_u16(actor + 0xAu);
-    if (bx >= 0x158u) { objTailCrash(actor); return; }   /* 1000:DA02 */
+    if (bx >= 0x158u) {
+        objTailCrash(actor);
+        return;
+    } /* 1000:DA02 */
     cx = bx;
     bx &= 0xFFF0u;
-    di = 2u * bx + (ax >> 4);                        /* 1000:DA0C..DA23 */
-    ax &= 0xFu;                                      /* 1000:DA1C: AX = the FINE x */
+    di = 2u * bx + (ax >> 4); /* 1000:DA0C..DA23 */
+    ax &= 0xFu; /* 1000:DA1C: AX = the FINE x */
     if (map) {
-        b = objMapBufferByte(di - 0x20u);            /* 1000:DA30 */
+        b = objMapBufferByte(di - 0x20u); /* 1000:DA30 */
 
-        if (b >= 0xF0u && b - 0xF0u < 3u) {          /* 1000:DA37/DA39 */
+        if (b >= 0xF0u && b - 0xF0u < 3u) { /* 1000:DA37/DA39 */
             /* 1000:DA3E..0xDA61 writes only y/frame/type/+C/+A - no x store
              * (the x snap belongs to 0xF6F6's branch, not this one).  Writing
              * it teleported a drowning actor to x -4 (D-78). */
@@ -4682,24 +5256,24 @@ static void objTailType3(uint8_t *actor)
             return;
         }
     }
-    if (di >= 0x280u || !map) goto coast;            /* 1000:DA63 */
-    b = level_pageByte(objMapBufferByte(di), ax);     /* 1000:DA71 */
-    if (b & 0x80u) {                                 /* 1000:DA85 */
+    if (di >= 0x280u || !map) goto coast; /* 1000:DA63 */
+    b = level_pageByte(objMapBufferByte(di), ax); /* 1000:DA71 */
+    if (b & 0x80u) { /* 1000:DA85 */
         di += 0x20u;
-        if (di >= 0x280u) goto coast;                /* 1000:DA8C */
+        if (di >= 0x280u) goto coast; /* 1000:DA8C */
         b = level_pageByte(objMapBufferByte(di), ax);
-        if (b & 0x80u) goto coast;                   /* 1000:DAA6 */
-        bx += 0x10u;                                 /* 1000:DAA8 */
+        if (b & 0x80u) goto coast; /* 1000:DAA6 */
+        bx += 0x10u; /* 1000:DAA8 */
         sc = (int32_t)(int8_t)(uint8_t)b;
         bx = (uint32_t)((int32_t)bx + sc);
         cx = (uint32_t)((int32_t)cx - (int32_t)bx);
         if ((int32_t)cx < 0) {
             cx = (uint32_t)-(int32_t)cx;
-            if (cx > dx) goto coast;                 /* 1000:DB01 */
+            if (cx > dx) goto coast; /* 1000:DB01 */
         }
-        goto land;                                   /* 1000:DAB2 */
+        goto land; /* 1000:DAB2 */
     }
-    if (b != 0u) {                                   /* 1000:DAD6 */
+    if (b != 0u) { /* 1000:DAD6 */
         sc = (int32_t)(int8_t)(uint8_t)b;
         bx = (uint32_t)((int32_t)bx + sc);
         cx = (uint32_t)((int32_t)cx - (int32_t)bx);
@@ -4712,7 +5286,7 @@ static void objTailType3(uint8_t *actor)
     /* b == 0: look two rows above (1000:DAD8) */
     if (di >= 0x40u) {
         b = level_pageByte(objMapBufferByte(di - 0x40u), ax);
-        objSide = (uint16_t)(int16_t)(int8_t)(uint8_t)b;   /* [0x4230] */
+        objSide = (uint16_t)(int16_t)(int8_t)(uint8_t)b; /* [0x4230] */
         if (!(b & 0x80u)) {
             bx -= 0x10u;
             sc = (int32_t)(int16_t)objSide;
@@ -4725,28 +5299,32 @@ static void objTailType3(uint8_t *actor)
             goto land;
         }
     }
-    sc = 0;                                          /* 1000:DA87: AX = 0 */
+    sc = 0; /* 1000:DA87: AX = 0 */
     bx = (uint32_t)((int32_t)bx + sc);
     cx = (uint32_t)((int32_t)cx - (int32_t)bx);
     if ((int32_t)cx < 0) {
         cx = (uint32_t)-(int32_t)cx;
         if (cx > dx) goto coast;
     }
-land:                                                /* 1000:DAB2 */
+land: /* 1000:DAB2 */
     wr_le_u16(actor + 2u, (uint16_t)(bx - 0x18u));
     {
         uint32_t sp = rd_le_u16(actor + 0xEu);
 
-        if (sp >= 0x30u) { objTailCrash(actor); return; }    /* 1000:DABF */
-        level_set_offsetWord((uint16_t)(sp >> 3));           /* 1000:DAC7 */
+        if (sp >= 0x30u) {
+            objTailCrash(actor);
+            return;
+        } /* 1000:DABF */
+        level_set_offsetWord((uint16_t)(sp >> 3)); /* 1000:DAC7 */
     }
-    objTailFrameToType(actor);                       /* 1000:DACA */
+    objTailFrameToType(actor); /* 1000:DACA */
     objDriverCall(5);
     return;
-coast:                                               /* 1000:DB05 */
+coast: /* 1000:DB05 */
     wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(actor + 2u) + dx));
     wr_le_u16(actor + 0xEu, (uint16_t)(rd_le_u16(actor + 0xEu) + dx));
-    wr_le_u16(actor + 0xAu, (uint16_t)(dx == rd_le_u16(actor + 0xCu) ? dx : dx + 1u));
+    wr_le_u16(actor + 0xAu,
+              (uint16_t)(dx == rd_le_u16(actor + 0xCu) ? dx : dx + 1u));
 }
 
 /* 1000:DB7A: does the actor's span entry exist, still marked, and un-used?
@@ -4755,12 +5333,13 @@ static int32_t objSpanOwner(uint8_t *actor)
 {
     uint32_t idx = (uint32_t)((actor - objArray) / OBJ_STRIDE);
 
-    for (uint32_t i = 0; i < 2u; i++) {              /* AX = 1: two entries */
+    for (uint32_t i = 0; i < 2u; i++) { /* AX = 1: two entries */
         uint8_t *e = (uint8_t *)objSpan[i];
 
-        if (rd_le_u16(e + 0u) != (uint16_t)(idx & 0x7FFFu)) continue;   /* 1000:DB8D */
-        if (!(rd_le_u16(e + 0x12u) & 0x8000u)) return 0;   /* 1000:DB9D */
-        if (rd_le_u16(e + 8u) != 0u) return 0;             /* 1000:DBA4 */
+        if (rd_le_u16(e + 0u) != (uint16_t)(idx & 0x7FFFu))
+            continue; /* 1000:DB8D */
+        if (!(rd_le_u16(e + 0x12u) & 0x8000u)) return 0; /* 1000:DB9D */
+        if (rd_le_u16(e + 8u) != 0u) return 0; /* 1000:DBA4 */
         return 1;
     }
     return 0;
@@ -4771,27 +5350,30 @@ static void objTailWalkToFrame(uint8_t *actor, uint32_t frame)
 {
     uint32_t a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
 
-    wr_le_u16(actor + 0xAu, a);                            /* 1000:DBB6 */
+    wr_le_u16(actor + 0xAu, a); /* 1000:DBB6 */
     if ((int16_t)a >= 0) return;
-    wr_le_u16(actor + 0xAu, 3u);                           /* 1000:DBBB */
+    wr_le_u16(actor + 0xAu, 3u); /* 1000:DBBB */
     if (rd_le_u16(actor + 4u) == frame)
-        wr_le_u16(actor + 4u, (uint16_t)(rd_le_u16(actor + 4u) + 1u));   /* 1000:DBC9 */
+        wr_le_u16(actor + 4u,
+                  (uint16_t)(rd_le_u16(actor + 4u) + 1u)); /* 1000:DBC9 */
     else
-        wr_le_u16(actor + 4u, (uint16_t)(rd_le_u16(actor + 4u) - 1u));   /* 1000:DBC5 */
+        wr_le_u16(actor + 4u,
+                  (uint16_t)(rd_le_u16(actor + 4u) - 1u)); /* 1000:DBC5 */
 }
 
 /* 1000:DB48 / 1000:DB61 (types 9 and 10): the span's owner test; on "yes" the
  * acting record is reset (frame/type 0/0 or 8/1), otherwise it walks toward
  * 0xAB / 0xAD. */
-static void objTailSpanOwner(uint8_t *actor, uint32_t frame, uint32_t f8, uint32_t bad)
+static void objTailSpanOwner(uint8_t *actor, uint32_t frame, uint32_t f8,
+                             uint32_t bad)
 {
-    if (objSpanOwner(actor)) {                       /* 1000:DB4B */
-        wr_le_u16((uint8_t *)objSpan[0] + 0u, 0xFFFFu);    /* 1000:DB4D: free it */
+    if (objSpanOwner(actor)) { /* 1000:DB4B */
+        wr_le_u16((uint8_t *)objSpan[0] + 0u, 0xFFFFu); /* 1000:DB4D: free it */
         wr_le_u16(actor + 4u, (uint16_t)frame);
         wr_le_u16(actor + 8u, (uint16_t)f8);
         return;
     }
-    objTailWalkToFrame(actor, bad);                  /* 1000:DB5C -> 0xDBAE */
+    objTailWalkToFrame(actor, bad); /* 1000:DB5C -> 0xDBAE */
 }
 
 /* 1000:DD93 (type 16): a 10-frame stepper that walks the frame through
@@ -4802,24 +5384,24 @@ static void objTailType16(uint8_t *actor)
     uint32_t a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
 
     wr_le_u16(actor + 0xAu, a);
-    if ((int16_t)a < 0) {                            /* 1000:DD96 */
+    if ((int16_t)a < 0) { /* 1000:DD96 */
         uint32_t f = rd_le_u16(actor + 4u);
 
-        wr_le_u16(actor + 0xAu, 0x0Au);                    /* 1000:DD98 */
-        if (actor[0xCu] != 0u) {                     /* 1000:DD A0 */
+        wr_le_u16(actor + 0xAu, 0x0Au); /* 1000:DD98 */
+        if (actor[0xCu] != 0u) { /* 1000:DD A0 */
             f--;
-            if (f == 0x55u) {                        /* 1000:DD A7 */
+            if (f == 0x55u) { /* 1000:DD A7 */
                 actor[0xCu] = 0u;
                 objDriverCall(8);
                 f = 0x55u;
             }
         } else {
             f++;
-            if (f == 0x57u) actor[0xCu] = 0xFFu;     /* 1000:DDC3 */
+            if (f == 0x57u) actor[0xCu] = 0xFFu; /* 1000:DDC3 */
         }
-        wr_le_u16(actor + 4u, f);                          /* 1000:DD C7 */
+        wr_le_u16(actor + 4u, f); /* 1000:DD C7 */
     }
-    a = (uint16_t)(rd_le_u16(actor + 0xEu) - 1u);          /* 1000:DDCA */
+    a = (uint16_t)(rd_le_u16(actor + 0xEu) - 1u); /* 1000:DDCA */
     wr_le_u16(actor + 0xEu, a);
     if ((int16_t)a < 0) {
         wr_le_u16(actor + 4u, 0x0010u);
@@ -4831,14 +5413,15 @@ static void objTailType16(uint8_t *actor)
  * countdown that sets the type to 1 (left) or 0 (right). */
 static void objTailWalkCountdown(uint8_t *actor, int32_t left)
 {
-    if (left) objWalk(actor, 1); else objWalk(actor, 0);   /* 1000:EB5C */
+    if (left) objWalk(actor, 1);
+    else objWalk(actor, 0); /* 1000:EB5C */
 
     {
         uint32_t a = (uint16_t)(rd_le_u16(actor + 0xEu) - 1u);
 
-        wr_le_u16(actor + 0xEu, a);                        /* 1000:EB5F */
+        wr_le_u16(actor + 0xEu, a); /* 1000:EB5F */
         if ((int16_t)a < 0)
-            wr_le_u16(actor + 8u, left ? 1u : 0u);         /* 1000:EB64 / 0xEB72 */
+            wr_le_u16(actor + 8u, left ? 1u : 0u); /* 1000:EB64 / 0xEB72 */
     }
 }
 
@@ -4847,18 +5430,20 @@ static void objTailWalkCountdown(uint8_t *actor, int32_t left)
  * lo 0x23, hi 0x25 into 0xFD91/0xFDBF), anything else drops the record to
  * frame 0x10 / type 2.  (The 0x52/0x54 pair belongs to 1000:EAAC's type-11
  * carry stepper, not here.) */
-static void objTailSpecialTile(uint8_t *actor, uint32_t type, int32_t yoff, int32_t down)
+static void objTailSpecialTile(uint8_t *actor, uint32_t type, int32_t yoff,
+                               int32_t down)
 {
     uint32_t cell, sub;
 
-    if (rd_le_u16(actor + 8u) != type) return;             /* 1000:E802 */
-    cell = objMapAtAbs((int32_t)(int16_t)rd_le_u16(actor + 0u) + 8, (int32_t)(int16_t)rd_le_u16(actor + 2u) + yoff, &sub);
+    if (rd_le_u16(actor + 8u) != type) return; /* 1000:E802 */
+    cell = objMapAtAbs((int32_t)(int16_t)rd_le_u16(actor + 0u) + 8,
+                       (int32_t)(int16_t)rd_le_u16(actor + 2u) + yoff, &sub);
     if (cell == level_specialTile(0u) || cell == level_specialTile(1u)) {
-        if (down) objFrameStepDown(actor, 0x23u, 0x25u);      /* 1000:E857 */
-        else      objFrameStep(actor, 0x23u, 0x25u);          /* 1000:E828 */
+        if (down) objFrameStepDown(actor, 0x23u, 0x25u); /* 1000:E857 */
+        else objFrameStep(actor, 0x23u, 0x25u); /* 1000:E828 */
         return;
     }
-    wr_le_u16(actor + 4u, 0x0010u);                        /* 1000:E81D */
+    wr_le_u16(actor + 4u, 0x0010u); /* 1000:E81D */
     wr_le_u16(actor + 8u, 0x0002u);
 }
 
@@ -4871,18 +5456,18 @@ static void objTailType17(uint8_t *actor)
 {
     uint32_t a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
 
-    wr_le_u16(actor + 0xAu, a);                            /* 1000:ECB7 */
+    wr_le_u16(actor + 0xAu, a); /* 1000:ECB7 */
     if ((int16_t)a < 0) {
         uint32_t off = rd_le_u16(actor + 0xCu), di;
 
         wr_le_u16(actor + 0xAu, 9u);
-        di = 0u;                                     /* 0x6E5C + off */
+        di = 0u; /* 0x6E5C + off */
         (void)di;
         if (off < 0x1Au) wr_le_u16(actor + 4u, (uint16_t)objAnimListWord(off));
         if (!(objAnimListWord(off + 2u) & 0x8000u))
             wr_le_u16(actor + 0xCu, (uint16_t)(off + 2u));
     }
-    wr_le_u16(actor + 4u, rd_le_u16(actor + 0xEu));              /* 1000:ECDD */
+    wr_le_u16(actor + 4u, rd_le_u16(actor + 0xEu)); /* 1000:ECDD */
     wr_le_u16(actor + 8u, rd_le_u16(actor + 0x10u));
     wr_le_u16(actor + 0xAu, 0u);
     wr_le_u16(actor + 0xCu, 0u);
@@ -4902,28 +5487,30 @@ static void objTailType29(uint8_t *actor)
     int32_t dx, dy;
     uint32_t a;
 
-    if (e && rd_le_u16(e + 8u) <= 2u) {                    /* 1000:DDE4 */
-        dx = (int32_t)(int16_t)rd_le_u16(actor + 0u) - (int32_t)(int16_t)rd_le_u16(e + 0u);
-        dy = (int32_t)(int16_t)rd_le_u16(actor + 2u) - (int32_t)(int16_t)rd_le_u16(e + 2u);
+    if (e && rd_le_u16(e + 8u) <= 2u) { /* 1000:DDE4 */
+        dx = (int32_t)(int16_t)rd_le_u16(actor + 0u) -
+             (int32_t)(int16_t)rd_le_u16(e + 0u);
+        dy = (int32_t)(int16_t)rd_le_u16(actor + 2u) -
+             (int32_t)(int16_t)rd_le_u16(e + 2u);
         if (dx < 0 && dx + 0x20 >= 0 && dy < 0 && dy + 0x20 >= 0) {
             uint8_t *cls = objLinkRecord(rd_le_u16(actor + 0xCu));
 
-            wr_le_u16(actor + 8u, 2u);                     /* 1000:DDFD */
+            wr_le_u16(actor + 8u, 2u); /* 1000:DDFD */
             wr_le_u16(actor + 0xAu, 0u);
-            if (cls) cls[6] = 0x80u;                 /* 1000:DE0A */
+            if (cls) cls[6] = 0x80u; /* 1000:DE0A */
             wr_le_u16(actor + 4u, 0x0010u);
             wr_le_u16(actor + 0u, (uint16_t)(rd_le_u16(actor + 0u) + 8u));
             wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(actor + 2u) + 8u));
-            objPlacedHumans++;                       /* 1000:DE1B: [0x3E20] */
-            level_addMember();                       /* 1000:DE1F: [0x11FC] */
+            objPlacedHumans++; /* 1000:DE1B: [0x3E20] */
+            level_addMember(); /* 1000:DE1F: [0x11FC] */
             objDriverCall(0xC);
             return;
         }
     }
-    a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);          /* 1000:DE2C */
+    a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u); /* 1000:DE2C */
     wr_le_u16(actor + 0xAu, a);
     if ((int16_t)a >= 0) return;
-    if (rd_le_u16(actor + 4u) == 0x00FEu) {                /* 1000:DE31 */
+    if (rd_le_u16(actor + 4u) == 0x00FEu) { /* 1000:DE31 */
         uint8_t *cls;
 
         wr_le_u16(actor + 4u, (uint16_t)(rd_le_u16(actor + 4u) + 1u));
@@ -4932,7 +5519,8 @@ static void objTailType29(uint8_t *actor)
         if (cls) {
             wr_le_u16(cls + 0u, rd_le_u16(actor + 0u));
             wr_le_u16(cls + 2u, rd_le_u16(actor + 2u));
-            wr_le_u16(cls + 0u, (uint16_t)(rd_le_u16(cls + 0u) + 0x0Fu));   /* 1000:DE60 */
+            wr_le_u16(cls + 0u,
+                      (uint16_t)(rd_le_u16(cls + 0u) + 0x0Fu)); /* 1000:DE60 */
             wr_le_u16(cls + 2u, (uint16_t)(rd_le_u16(cls + 2u) - 0x0Cu));
             wr_le_u16(cls + 4u, 0x0102u);
             cls[6] = 0u;
@@ -4940,7 +5528,8 @@ static void objTailType29(uint8_t *actor)
         objDriverCall(8);
         return;
     }
-    wr_le_u16(actor + 4u, (uint16_t)(rd_le_u16(actor + 4u) - 1u));      /* 1000:DE38 */
+    wr_le_u16(actor + 4u,
+              (uint16_t)(rd_le_u16(actor + 4u) - 1u)); /* 1000:DE38 */
     wr_le_u16(actor + 0xAu, 0xFAu);
     {
         uint8_t *cls = objLinkRecord(rd_le_u16(actor + 0xCu));
@@ -4954,19 +5543,19 @@ static void objTailType29(uint8_t *actor)
  * stepper or the "home" form (frame from the target's +8 + 4, +0xE = 0xA). */
 static void objTailType11(uint8_t *actor)
 {
-    uint8_t *t = object_slot(rd_le_u16(actor + 0xEu));     /* [[SI+0xE]] */
+    uint8_t *t = object_slot(rd_le_u16(actor + 0xEu)); /* [[SI+0xE]] */
 
     if (!t) return;
-    if (rd_le_u16(actor + 2u) > rd_le_u16(t + 2u)) {             /* 1000:EAB8 */
+    if (rd_le_u16(actor + 2u) > rd_le_u16(t + 2u)) { /* 1000:EAB8 */
         objFrameStep(actor, 0x52u, 0x54u);
         return;
     }
     {
         uint32_t f = rd_le_u16(t + 8u);
 
-        wr_le_u16(actor + 8u, (uint16_t)(f + 4u));         /* 1000:EAC9 */
+        wr_le_u16(actor + 8u, (uint16_t)(f + 4u)); /* 1000:EAC9 */
         wr_le_u16(actor + 4u, f == 9u ? 8u : 0u);
-        wr_le_u16(actor + 0xEu, 0x000Au);                  /* 1000:EAE0 */
+        wr_le_u16(actor + 0xEu, 0x000Au); /* 1000:EAE0 */
     }
 }
 
@@ -4980,14 +5569,15 @@ static void objTailType12(uint8_t *actor)
 
     if (!e) return;
     sum = (uint32_t)(rd_le_u16(e + 4u) + rd_le_u16(e + 6u));
-    if (rd_le_u16(actor + 2u) > sum) {                     /* 1000:EAF6 */
+    if (rd_le_u16(actor + 2u) > sum) { /* 1000:EAF6 */
         uint32_t cell, sub;
         int32_t y = (int32_t)(int16_t)rd_le_u16(actor + 2u) + 0x18;
         uint32_t b;
 
-        cell = objMapAtAbs((int32_t)(int16_t)rd_le_u16(actor + 0u) + 8, y, &sub);
+        cell =
+            objMapAtAbs((int32_t)(int16_t)rd_le_u16(actor + 0u) + 8, y, &sub);
         b = level_pageByte(cell, sub);
-        if (!(b & 0x80u)) {                          /* 1000:EB4B */
+        if (!(b & 0x80u)) { /* 1000:EB4B */
             uint32_t line = (uint32_t)(y & ~0xFu) + b;
 
             if (line > (uint32_t)(int32_t)(int16_t)rd_le_u16(actor + 2u)) {
@@ -4996,9 +5586,9 @@ static void objTailType12(uint8_t *actor)
             }
         }
     }
-    wr_le_u16(actor + 4u, 0x0010u);                        /* 1000:EAFB */
+    wr_le_u16(actor + 4u, 0x0010u); /* 1000:EAFB */
     wr_le_u16(actor + 8u, 0x0002u);
-    objFlag6fE6Set();                                   /* 1000:EB05 */
+    objFlag6fE6Set(); /* 1000:EB05 */
 }
 
 /* 1000:F0C9 (type 33): a 5-frame stepper down to frame 0x27, where the record
@@ -5008,18 +5598,19 @@ static void objTailType33(uint8_t *actor)
 {
     uint32_t a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
 
-    wr_le_u16(actor + 0xAu, a);                            /* 1000:F0C9 */
+    wr_le_u16(actor + 0xAu, a); /* 1000:F0C9 */
     if ((int16_t)a >= 0) return;
     wr_le_u16(actor + 0xAu, 5u);
     wr_le_u16(actor + 4u, (uint16_t)(rd_le_u16(actor + 4u) - 1u));
-    if (rd_le_u16(actor + 4u) != 0x27u) return;            /* 1000:F0D6 */
+    if (rd_le_u16(actor + 4u) != 0x27u) return; /* 1000:F0D6 */
     wr_le_u16(actor + 0u, (uint16_t)(rd_le_u16(actor + 0u) + 8u));
     wr_le_u16(actor + 4u, 0x0010u);
     wr_le_u16(actor + 8u, 0x0002u);
     wr_le_u16(actor + 0xAu, 0u);
-    if ((uint32_t)((actor - objArray) / OBJ_STRIDE) != objEntity) return;   /* 1000:F0F7 */
+    if ((uint32_t)((actor - objArray) / OBJ_STRIDE) != objEntity)
+        return; /* 1000:F0F7 */
     {
-        uint8_t *slot8 = object_slot(8u);            /* 0x3F05 */
+        uint8_t *slot8 = object_slot(8u); /* 0x3F05 */
 
         if (!slot8) return;
         wr_le_u16(slot8 + 0u, rd_le_u16(actor + 0u));
@@ -5027,7 +5618,7 @@ static void objTailType33(uint8_t *actor)
         wr_le_u16(slot8 + 6u, 0u);
         wr_le_u16(slot8 + 8u, 0x001Au);
         wr_le_u16(slot8 + 0xAu, 0x0605u);
-        objCmdTimer = 0x03E8u;                       /* 1000:F11C */
+        objCmdTimer = 0x03E8u; /* 1000:F11C */
     }
 }
 
@@ -5060,23 +5651,29 @@ static void objNudge(uint8_t *actor, int32_t step)
     int32_t cx;
 
     if (!node) return;
-    if (rd_le_u16(node + 0xAu) != 0u) return;              /* 1000:FC3C */
+    if (rd_le_u16(node + 0xAu) != 0u) return; /* 1000:FC3C */
     bx = (uint16_t)(rd_le_u16(actor + 0xAu) + (uint16_t)step);
     if ((int16_t)bx < 0) {
-        if (bx == (uint16_t)-9) bx = 0xFFF8u;        /* 1000:FC45 */
+        if (bx == (uint16_t)-9) bx = 0xFFF8u; /* 1000:FC45 */
     } else if (bx == 9u) {
-        bx = 8u;                                     /* 1000:FC4F */
+        bx = 8u; /* 1000:FC4F */
     }
-    wr_le_u16(actor + 0xAu, bx);                           /* 1000:FC57 */
+    wr_le_u16(actor + 0xAu, bx); /* 1000:FC57 */
     cx = (int16_t)rd_le_u16(node + 8u);
     if ((int16_t)bx < 0) {
-        if (cx >= 0) { wr_le_u16(node + 8u, (uint16_t)(cx + (int16_t)bx)); return; }
-        if (-cx >= 0xA) return;                      /* 1000:FC69 */
+        if (cx >= 0) {
+            wr_le_u16(node + 8u, (uint16_t)(cx + (int16_t)bx));
+            return;
+        }
+        if (-cx >= 0xA) return; /* 1000:FC69 */
     } else {
-        if (cx < 0) { wr_le_u16(node + 8u, (uint16_t)(cx + (int16_t)bx)); return; }
-        if (cx >= 0xA) return;                       /* 1000:FC78 */
+        if (cx < 0) {
+            wr_le_u16(node + 8u, (uint16_t)(cx + (int16_t)bx));
+            return;
+        }
+        if (cx >= 0xA) return; /* 1000:FC78 */
     }
-    wr_le_u16(node + 8u, (uint16_t)(cx + (int16_t)bx));    /* 1000:FC7E */
+    wr_le_u16(node + 8u, (uint16_t)(cx + (int16_t)bx)); /* 1000:FC7E */
 }
 
 /* 1000:EBA0 / 1000:EB78: step the node's progress by +1 / -1 until it reaches
@@ -5088,24 +5685,29 @@ static void objCmdPathStep(uint8_t *actor, int32_t forward)
     int32_t v;
 
     if (!node) return;
-    if ((node[7] & 7u) == 4u) return;                /* 1000:EBA6 / 0xEB7E */
+    if ((node[7] & 7u) == 4u) return; /* 1000:EBA6 / 0xEB7E */
     v = (int16_t)rd_le_u16(node + 8u);
     if (forward) {
-        if (v >= 0 || -v < 0xF) { objNudge(actor, 1); return; }
+        if (v >= 0 || -v < 0xF) {
+            objNudge(actor, 1);
+            return;
+        }
     } else {
-        if (v < 0 || v < 0xF) { objNudge(actor, -1); return; }
+        if (v < 0 || v < 0xF) {
+            objNudge(actor, -1);
+            return;
+        }
     }
-    wr_le_u16(actor + 4u, 0x004Au);                        /* 1000:EBBa / 0xEB90 */
+    wr_le_u16(actor + 4u, 0x004Au); /* 1000:EBBa / 0xEB90 */
     node[7] = 0x0Cu;
 }
 
 /* DS:0x6E3C - the byte EBD0 adds to its 1/3 step, indexed by the node's
  * progress >> 3 (the values run 3, 2 x 7, 1 x 12, then 0). */
 static const uint8_t objPathScale[0x20] = {
-    0x03, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
-    0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
-    0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x03, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x01, 0x01, 0x01,
+    0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
 /* 1000:EBD0: advance the node to the map under it.  It probes
@@ -5121,31 +5723,32 @@ static void objPathAdvance(uint8_t *actor)
     int32_t ax;
 
     if (!node) return;
-    if (node[7] != 0u) return;                       /* 1000:EBD3 */
+    if (node[7] != 0u) return; /* 1000:EBD3 */
     x = (uint32_t)(rd_le_u16(node + 0u) + 8u);
     y = rd_le_u16(node + 2u);
     fine = x & 0xFu;
-    tile = objMapAtAbs((int32_t)x, (int32_t)y + 0x10, NULL); /* 1000:EBEF: the map cell */
+    tile = objMapAtAbs((int32_t)x, (int32_t)y + 0x10,
+                       NULL); /* 1000:EBEF: the map cell */
     step = 3;
-    if (level_itemByte(tile, fine) & 0x80u) {                /* 1000:EC27 */
+    if (level_itemByte(tile, fine) & 0x80u) { /* 1000:EC27 */
         if (!(rd_le_u16(node + 8u) & 0x8000u)) step = 1;
     } else if (rd_le_u16(node + 8u) & 0x8000u) {
         step = 1;
     }
-    ax = (int16_t)rd_le_u16(node + 8u);                    /* 1000:EC43 */
+    ax = (int16_t)rd_le_u16(node + 8u); /* 1000:EC43 */
     if (ax < 0) {
         ax = -ax;
-        if (tile == 0x3Bu) ax += 8;                  /* 1000:EC53 */
+        if (tile == 0x3Bu) ax += 8; /* 1000:EC53 */
     } else if (tile == 0x30u) {
-        ax += 8;                                     /* 1000:EC5D */
+        ax += 8; /* 1000:EC5D */
     }
     ax >>= 3;
     step += (uint32_t)(int8_t)objPathScale[(uint32_t)ax & 0x1Fu];
     (void)tile;
-    if (rd_le_u16(node + 0xAu) != 0u) return;              /* 1000:EC72 */
-    wr_le_u16(node + 8u, (uint16_t)step);                  /* 1000:EC78 */
-    wr_le_u16(node + 0x10u, (uint16_t)y);                  /* 1000:EC7A */
-    objDriverCall(2);                                /* 1000:EC7E */
+    if (rd_le_u16(node + 0xAu) != 0u) return; /* 1000:EC72 */
+    wr_le_u16(node + 8u, (uint16_t)step); /* 1000:EC78 */
+    wr_le_u16(node + 0x10u, (uint16_t)y); /* 1000:EC7A */
+    objDriverCall(2); /* 1000:EC7E */
 }
 
 
@@ -5176,7 +5779,7 @@ static void objCarryForm(uint8_t *rec, uint32_t phase, int32_t entry)
 {
     uint16_t v = (uint16_t)(0xF0u + phase);
 
-    wr_le_u16(rec + 4u, 0x0055u);                      /* 1000:DC9A */
+    wr_le_u16(rec + 4u, 0x0055u); /* 1000:DC9A */
     wr_le_u16(rec + 8u, 0x0010u);
     wr_le_u16(rec + 0xAu, 0u);
     wr_le_u16(rec + 0xCu, 0u);
@@ -5190,9 +5793,9 @@ static void objCarryForm(uint8_t *rec, uint32_t phase, int32_t entry)
     } else if (rec + 0xEu + 1 < (uint8_t *)objRegister + sizeof objRegister) {
         wr_le_u16(rec + 0xEu + 0u, v);
     } else {
-        wr_le_u16((uint8_t *)objSpan[0] + 0u, v);      /* 0x6F92 */
+        wr_le_u16((uint8_t *)objSpan[0] + 0u, v); /* 0x6F92 */
     }
-    objDriverCall(8);                            /* 1000:DCBF */
+    objDriverCall(8); /* 1000:DCBF */
 }
 
 static void objCmdType15Tail(uint8_t *actor)
@@ -5201,47 +5804,48 @@ static void objCmdType15Tail(uint8_t *actor)
     int32_t ax, bx;
     uint32_t phase;
 
-    if (!node) return;                           /* 1000:DC1F (DI = the node) */
-    ax = (int32_t)rd_le_u16(node + 0u) + 8;            /* 1000:DC32 */
-    bx = (int32_t)rd_le_u16(node + 2u) + 0x10;         /* 1000:DC34 */
-    phase = objFrame & 0x3Fu;                    /* 1000:DC3D -> [0x4230] */
-    if (rd_le_u16(node + 8u) != 0u) {                  /* 1000:DC22 */
-        for (uint32_t i = 0; i < 8u; i++) {      /* 1000:DC3A: CX = 7 */
+    if (!node) return; /* 1000:DC1F (DI = the node) */
+    ax = (int32_t)rd_le_u16(node + 0u) + 8; /* 1000:DC32 */
+    bx = (int32_t)rd_le_u16(node + 2u) + 0x10; /* 1000:DC34 */
+    phase = objFrame & 0x3Fu; /* 1000:DC3D -> [0x4230] */
+    if (rd_le_u16(node + 8u) != 0u) { /* 1000:DC22 */
+        for (uint32_t i = 0; i < 8u; i++) { /* 1000:DC3A: CX = 7 */
             uint8_t *r = object_slot(i);
             int32_t d;
 
-            if (!r || r == actor) continue;      /* 1000:DC4B */
+            if (!r || r == actor) continue; /* 1000:DC4B */
             d = (int32_t)(int16_t)(uint16_t)(rd_le_u16(r + 2u) + 0x18u) - bx;
             if (d < 0) d = -d;
-            if (d > 8) continue;                 /* 1000:DC72 */
+            if (d > 8) continue; /* 1000:DC72 */
             d = (int32_t)(int16_t)rd_le_u16(r + 0u) - ax;
             if (d < 0) d = -d;
-            if (d > 1) continue;                 /* 1000:DC83 */
-            if (rd_le_u16(r + 8u) > 2u) continue;         /* 1000:DC8A */
+            if (d > 1) continue; /* 1000:DC83 */
+            if (rd_le_u16(r + 8u) > 2u) continue; /* 1000:DC8A */
             if ((int32_t)i == object_player()) goto give; /* 1000:DC91 */
-            objCarryForm(r, phase, 0);           /* 1000:DC9A */
+            objCarryForm(r, phase, 0); /* 1000:DC9A */
             return;
         }
     }
-    for (uint32_t g = 0; g < 8u; g++) {          /* 1000:DCD0 */
+    for (uint32_t g = 0; g < 8u; g++) { /* 1000:DCD0 */
         uint8_t *e = (uint8_t *)objRegister[g];
         int32_t d;
 
-        if (rd_le_u16(e + 0u) & 0x8000u) continue;     /* 1000:DCEC */
+        if (rd_le_u16(e + 0u) & 0x8000u) continue; /* 1000:DCEC */
         d = (int32_t)(int16_t)(uint16_t)(rd_le_u16(e + 2u) + 0x18u) - bx;
         if (d < 0) d = -d;
         if (d > 8) continue;
         d = (int32_t)(int16_t)(uint16_t)(rd_le_u16(e + 0u) + 8u) - ax;
         if (d < 0) d = -d;
-        if (d > 1) continue;                     /* 1000:DD0F */
-        if ((uint32_t)e[5] == (uint32_t)object_player()) goto give;  /* 1000:DD27 */
-        object_groupDissolveAt(g);               /* 1000:DD2E */
-        objCarryForm(e, phase, 1);               /* 1000:DC9A with BP = the entry */
+        if (d > 1) continue; /* 1000:DD0F */
+        if ((uint32_t)e[5] == (uint32_t)object_player())
+            goto give; /* 1000:DD27 */
+        object_groupDissolveAt(g); /* 1000:DD2E */
+        objCarryForm(e, phase, 1); /* 1000:DC9A with BP = the entry */
         return;
     }
     return;
 
-give:                                            /* 1000:DD3C */
+give: /* 1000:DD3C */
     {
         uint32_t cls = actor[7];
         uint32_t slot;
@@ -5250,12 +5854,12 @@ give:                                            /* 1000:DD3C */
         actor[7] = 0u;
         if (!cls) return;
         if (cls < sizeof objSlotClass) objSlotClass[cls] &= 0x7Fu;
-        slot = 8u + cls;                         /* 0x3F17 + 0x12*(cls-1) */
+        slot = 8u + cls; /* 0x3F17 + 0x12*(cls-1) */
         if (slot >= OBJ_SLOTS) return;
         rec = objArray + slot * OBJ_STRIDE;
         wr_le_u16(rec + 0xAu, 1u);
         wr_le_u16(rec + 0xEu, 0xFFFFu);
-        rec[6] &= 0x7Fu;                         /* 1000:DD63 */
+        rec[6] &= 0x7Fu; /* 1000:DD63 */
         wr_le_u16(actor + 0u, rd_le_u16(rec + 0u));
         wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(rec + 2u) - 8u));
         wr_le_u16(actor + 4u, 0x0103u);
@@ -5270,14 +5874,15 @@ give:                                            /* 1000:DD3C */
  * behaviour state to be 2 (1000:F2CF) and the acting entity not to be in a
  * stack (1000:EA33); they then set a frame (0xAB / 0xAD) with a three-frame
  * hold and hand 1000:FC81 the x offset and the bit argument. */
-static void objCmdRide(uint8_t *actor, uint32_t frame, uint32_t xoff, uint32_t bit)
+static void objCmdRide(uint8_t *actor, uint32_t frame, uint32_t xoff,
+                       uint32_t bit)
 {
-    if (!objStateIs(actor, 2u)) return;                   /* 1000:EA15 */
-    if (objStackMasked()) return;                         /* 1000:EA1A */
+    if (!objStateIs(actor, 2u)) return; /* 1000:EA15 */
+    if (objStackMasked()) return; /* 1000:EA1A */
     wr_le_u16(actor + 4u, (uint16_t)frame);
     wr_le_u16(actor + 0xAu, 3u);
-    objSelType = bit;                                     /* 1000:EA29 / 1000:EA67 */
-    objScanPoint(actor, xoff);                            /* 1000:FC81 */
+    objSelType = bit; /* 1000:EA29 / 1000:EA67 */
+    objScanPoint(actor, xoff); /* 1000:FC81 */
 }
 
 /* 1000:ED4F / 1000:ED69 / 1000:ED83 / 1000:ED9D: the four one-step animation
@@ -5288,8 +5893,11 @@ static void objCmdFrameStep(uint8_t *actor, uint32_t bound, int32_t up)
 {
     uint32_t f;
 
-    if (objLat) { objCmdEnter(actor); return; }           /* 1000:ED56 */
-    if (objFrameCadence(actor)) return;                   /* 1000:ED5C */
+    if (objLat) {
+        objCmdEnter(actor);
+        return;
+    } /* 1000:ED56 */
+    if (objFrameCadence(actor)) return; /* 1000:ED5C */
     f = rd_le_u16(actor + 4u);
     if (f == bound) return;
     wr_le_u16(actor + 4u, (uint16_t)(up ? f + 1u : f - 1u));
@@ -5305,21 +5913,21 @@ static int32_t objCmdHomeState(uint8_t *actor)
     uint32_t t = rd_le_u16(actor + 8u);
 
     if (t == 0x12u || t == 0x17u || t == 0x1Fu) {
-        wr_le_u16(actor + 4u, 0u);                              /* 1000:EDD9 */
+        wr_le_u16(actor + 4u, 0u); /* 1000:EDD9 */
         wr_le_u16(actor + 8u, 0u);
     } else if (t == 0x14u || t == 0x18u || t == 0x20u) {
-        wr_le_u16(actor + 4u, 8u);                              /* 1000:EDE5 */
+        wr_le_u16(actor + 4u, 8u); /* 1000:EDE5 */
         wr_le_u16(actor + 8u, 1u);
     } else {
-        return 0;                                         /* 1000:EDD8 */
+        return 0; /* 1000:EDD8 */
     }
-    wr_le_u16(actor + 0xAu, 0u);                                /* 1000:EDEF */
+    wr_le_u16(actor + 0xAu, 0u); /* 1000:EDEF */
     wr_le_u16(actor + 0xCu, 0u);
     wr_le_u16(actor + 0xEu, 0u);
     wr_le_u16(actor + 0x10u, 0u);
-    objLat = 0;                                           /* 1000:EDFD */
-    object_setActionLatched(1);                            /* 1000:EE01 */
-    return 1;                                             /* AX = 0: converted */
+    objLat = 0; /* 1000:EDFD */
+    object_setActionLatched(1); /* 1000:EE01 */
+    return 1; /* AX = 0: converted */
 }
 
 /* 1000:EE07 (and 0xEFD1 / 0xEFD4, its jump-table aliases): advance the record's
@@ -5330,14 +5938,15 @@ static int32_t objCmdHomeState(uint8_t *actor)
  * and 0x1987 is armed. */
 static void objCmdTurn(uint8_t *actor)
 {
-    if (object_actionLatched()) return;                    /* 1000:EE0C */
+    if (object_actionLatched()) return; /* 1000:EE0C */
     if (!objLat) {
-        objLat = 0xFF;                                    /* 1000:EE16 */
+        objLat = 0xFF; /* 1000:EE16 */
         wr_le_u16(actor + 0xEu, 0u);
     }
-    wr_le_u16(actor + 0xEu, (uint16_t)((rd_le_u16(actor + 0xEu) + 4u) & 0x1FFu));
-    if (objDebounce != 4u) objOutState = 4;               /* 1000:EE30 */
-    objChargeArm = 0xFF;                                  /* 1000:EE35 */
+    wr_le_u16(actor + 0xEu,
+              (uint16_t)((rd_le_u16(actor + 0xEu) + 4u) & 0x1FFu));
+    if (objDebounce != 4u) objOutState = 4; /* 1000:EE30 */
+    objChargeArm = 0xFF; /* 1000:EE35 */
 }
 
 static void objCmdFall(uint8_t *actor, int32_t x, int32_t y, uint32_t frame);
@@ -5357,32 +5966,34 @@ static void objCmdLeave(uint8_t *actor)
     int32_t ax = 4, bx = 2;
     int32_t down = 1;
 
-    objLat = 0;                                      /* 1000:EFE4 */
-    if (rd_le_u16(actor + 4u) != 0x00BBu) {                /* 1000:EFF5 */
+    objLat = 0; /* 1000:EFE4 */
+    if (rd_le_u16(actor + 4u) != 0x00BBu) { /* 1000:EFF5 */
         ax = -4;
         bx = -2;
         down = 0;
     }
-    wr_le_u16(actor + 0x10u, (uint16_t)(int16_t)bx);       /* 1000:F005 */
+    wr_le_u16(actor + 0x10u, (uint16_t)(int16_t)bx); /* 1000:F005 */
     wr_le_u16(actor + 0xEu, 0u);
-    if (cx >= 0x100u) cx = 0x1FFu - cx;              /* 1000:F00D */
-    cx >>= 4;                                        /* 1000:F019 */
-    wr_le_u16(actor + 0xCu, (uint16_t)(0xFu - cx));        /* 1000:F021 */
-    wr_le_u16(actor + 0xAu, 3u);                           /* 1000:F029 */
-    wr_le_u16(actor + 8u, (uint16_t)(rd_le_u16(actor + 8u) + 2u));   /* 1000:F02E */
-    wr_le_u16(actor + 4u, (uint16_t)(rd_le_u16(actor + 4u) + 1u));   /* 1000:F032 */
+    if (cx >= 0x100u) cx = 0x1FFu - cx; /* 1000:F00D */
+    cx >>= 4; /* 1000:F019 */
+    wr_le_u16(actor + 0xCu, (uint16_t)(0xFu - cx)); /* 1000:F021 */
+    wr_le_u16(actor + 0xAu, 3u); /* 1000:F029 */
+    wr_le_u16(actor + 8u,
+              (uint16_t)(rd_le_u16(actor + 8u) + 2u)); /* 1000:F02E */
+    wr_le_u16(actor + 4u,
+              (uint16_t)(rd_le_u16(actor + 4u) + 1u)); /* 1000:F032 */
     {
         uint16_t sx = rd_le_u16(actor + 0u), sy = rd_le_u16(actor + 2u);
 
         wr_le_u16(actor + 0u, (uint16_t)(sx + (uint16_t)(int16_t)ax));
-        wr_le_u16(actor + 2u, (uint16_t)(sy - 4u));        /* 1000:F03C */
-        objDriverCall(2);                            /* 1000:F041 */
+        wr_le_u16(actor + 2u, (uint16_t)(sy - 4u)); /* 1000:F03C */
+        objDriverCall(2); /* 1000:F041 */
         objCmdFall(actor, down ? 0 : 8, down ? 0 : 1, down ? 0x10u : 0u);
-        if (rd_le_u16(actor + 0x10u) == 0u) {              /* 1000:F04A */
-            wr_le_u16(actor + 0u, sx);                     /* 1000:F051: restore */
+        if (rd_le_u16(actor + 0x10u) == 0u) { /* 1000:F04A */
+            wr_le_u16(actor + 0u, sx); /* 1000:F051: restore */
             wr_le_u16(actor + 2u, sy);
-            wr_le_u16(actor + 4u, (uint16_t)objSide);      /* 1000:F056: frame  */
-            wr_le_u16(actor + 8u, objSelXoff);             /* 1000:F05C: type   */
+            wr_le_u16(actor + 4u, (uint16_t)objSide); /* 1000:F056: frame  */
+            wr_le_u16(actor + 8u, objSelXoff); /* 1000:F05C: type   */
         }
     }
 }
@@ -5391,7 +6002,10 @@ static void objCmdLeave(uint8_t *actor)
  * (otherwise the enter sequence runs). */
 static void objCmdTurnIdle(uint8_t *actor)
 {
-    if (objLat) { objCmdLeave(actor); return; }           /* 1000:EFDC -> 0xEFE4 */
+    if (objLat) {
+        objCmdLeave(actor);
+        return;
+    } /* 1000:EFDC -> 0xEFE4 */
     wr_le_u16(actor + 0xEu, 0u);
 }
 
@@ -5441,9 +6055,10 @@ static void objCmdTurnIdle(uint8_t *actor)
  * for the item-word probe, `[0x423C]` the scratch page byte / item word, and
  * `[0x422C]`/`[0x422E]` the 32-bit mask.
  */
-static const int8_t objFallStep[0x19] = {    /* 0x6EF3, 0x18 + the clamp entry */
-    -2, -2, -1, -1, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 1, 1,
-     1, 1, 1, 2, 2, 0, 0, 0, 0,
+static const int8_t objFallStep[0x19] = {
+    /* 0x6EF3, 0x18 + the clamp entry */
+    -2, -2, -1, -1, -1, -1, -1, 0, 0, 0, 0, 0, 0,
+    0,  1,  1,  1,  1,  1,  2,  2, 0, 0, 0, 0,
 };
 /* 0x6EF2..0x6F14: the feet-cell comparison byte, indexed by the *type* (the
  * code reads 0x6F0B + (type - 0x19), which for types 0..0x18 wraps back into
@@ -5462,7 +6077,7 @@ static void objFallMachine(uint8_t *actor)
     uint32_t anim;
     int32_t vy;
 
-    if (!objSettleGate(actor)) {                     /* 1000:F6F6 */
+    if (!objSettleGate(actor)) { /* 1000:F6F6 */
         /* 1000:F6FB/F701: frame <- [0x4230] (objSide), type <- [0x4234]
          * (objSelXoff).  The third word [0x4238] is the item probe's x
          * offset, not the type. */
@@ -5471,108 +6086,115 @@ static void objFallMachine(uint8_t *actor)
         wr_le_u16(actor + 0xAu, 0u);
         return;
     }
-    if (rd_le_u16(actor + 0xAu) == 1u)                     /* 1000:F70D DEC / JNZ */
+    if (rd_le_u16(actor + 0xAu) == 1u) /* 1000:F70D DEC / JNZ */
         wr_le_u16(actor + 4u, (uint16_t)(rd_le_u16(actor + 4u) + 1u));
     wr_le_u16(actor + 0xAu, (uint16_t)(rd_le_u16(actor + 0xAu) - 1u));
 
-    anim = rd_le_u16(actor + 0xCu);                        /* 1000:F715 */
+    anim = rd_le_u16(actor + 0xCu); /* 1000:F715 */
     if (anim >= 0x18u) {
-        vy = 3;                                      /* 1000:F71B */
+        vy = 3; /* 1000:F71B */
     } else {
         /* 1000:F720-0xF727: `CBW` sign-extends the table byte, so the
          * first steps of a full charge are NEGATIVE (the leap rises). */
         vy = objFallStep[anim];
         anim++;
     }
-    wr_le_u16(actor + 0xCu, (uint16_t)anim);               /* 1000:F728 */
-    wr_le_u16(actor + 0xEu, (uint16_t)(rd_le_u16(actor + 0xEu) + (uint16_t)(int16_t)vy));
+    wr_le_u16(actor + 0xCu, (uint16_t)anim); /* 1000:F728 */
+    wr_le_u16(actor + 0xEu,
+              (uint16_t)(rd_le_u16(actor + 0xEu) + (uint16_t)(int16_t)vy));
 
-    ax = (int32_t)(int16_t)rd_le_u16(actor + 0u) + (int32_t)(int16_t)rd_le_u16(actor + 0x10u);
+    ax = (int32_t)(int16_t)rd_le_u16(actor + 0u) +
+         (int32_t)(int16_t)rd_le_u16(actor + 0x10u);
     bx = (int32_t)(int16_t)rd_le_u16(actor + 2u) + vy;
-    cx = ax + 8;                                         /* 1000:F736: the probe x */
-    probeY = (uint32_t)(bx + 0x18);                      /* 1000:F739 */
-    fine = (uint32_t)cx & 0xFu;                          /* 1000:F753 */
-    rowY = probeY & ~0xFu;                               /* 1000:F758: CX = the row */
+    cx = ax + 8; /* 1000:F736: the probe x */
+    probeY = (uint32_t)(bx + 0x18); /* 1000:F739 */
+    fine = (uint32_t)cx & 0xFu; /* 1000:F753 */
+    rowY = probeY & ~0xFu; /* 1000:F758: CX = the row */
 
-    above = objMapAtAbs(cx, (int32_t)rowY - 0x10, NULL); /* 1000:F761: [DI-0x20] */
-    if (above >= 0xF0u) {                                /* 1000:F766 */
+    above =
+        objMapAtAbs(cx, (int32_t)rowY - 0x10, NULL); /* 1000:F761: [DI-0x20] */
+    if (above >= 0xF0u) { /* 1000:F766 */
         /* 1000:F772: AX is the record.x + [+0x10] captured at 1000:F736, not
          * the probe x in CX (`ADD AX,8` then `AND AX,0xFFF0`). */
         uint32_t gx = (uint32_t)(ax + 8) & ~0xFu;
 
         if (above != 0xF1u) {
-            gx -= 4u;                                /* 1000:F778 */
+            gx -= 4u; /* 1000:F778 */
             if (above != 0xF2u) gx += 8u;
-            wr_le_u16(actor + 0u, (uint16_t)gx);           /* 1000:F784 */
+            wr_le_u16(actor + 0u, (uint16_t)gx); /* 1000:F784 */
         }
-        wr_le_u16(actor + 2u, (uint16_t)(rowY - 0x1Cu));   /* 1000:F786 */
+        wr_le_u16(actor + 2u, (uint16_t)(rowY - 0x1Cu)); /* 1000:F786 */
         wr_le_u16(actor + 4u, 0x00CDu);
         wr_le_u16(actor + 8u, 0x001Cu);
         wr_le_u16(actor + 0xCu, 0u);
         wr_le_u16(actor + 0xEu, 0u);
         wr_le_u16(actor + 0xAu, 9u);
-        objDriverCall(6);                            /* 1000:F7A6 */
+        objDriverCall(6); /* 1000:F7A6 */
         return;
     }
-    if (bx >= 0x128) goto place;                     /* 1000:F7AE */
-    below = objMapAtAbs(cx, (int32_t)probeY, NULL);  /* 1000:F7B9: the feet */
-    page = level_pageByte(below, fine);              /* 1000:F7F3 */
-    if (rd_le_u16(actor + 0x10u) != 0u) {                  /* 1000:F7BB */
-        uint32_t want = objTypeTile[rd_le_u16(actor + 8u) < 35u ? rd_le_u16(actor + 8u) : 0u];
+    if (bx >= 0x128) goto place; /* 1000:F7AE */
+    below = objMapAtAbs(cx, (int32_t)probeY, NULL); /* 1000:F7B9: the feet */
+    page = level_pageByte(below, fine); /* 1000:F7F3 */
+    if (rd_le_u16(actor + 0x10u) != 0u) { /* 1000:F7BB */
+        uint32_t want =
+            objTypeTile[rd_le_u16(actor + 8u) < 35u ? rd_le_u16(actor + 8u)
+                                                    : 0u];
 
-        if (below == want) {                         /* 1000:F7CD */
+        if (below == want) { /* 1000:F7CD */
             uint32_t b2 = objMapAtAbs(cx, (int32_t)probeY + 0x10, NULL);
 
-            if (level_pageByte(b2, 0u) == 0u) goto land_at_y;   /* 1000:F7EE */
+            if (level_pageByte(b2, 0u) == 0u) goto land_at_y; /* 1000:F7EE */
         }
     }
-    if (page == 0u) goto zero_case;                  /* 1000:F80A */
-    if (page & 0x80u) {                              /* 1000:F80C JNS */
+    if (page == 0u) goto zero_case; /* 1000:F80A */
+    if (page & 0x80u) { /* 1000:F80C JNS */
         uint32_t b2;
 
-        cx += 0x10;                                  /* 1000:F80E */
+        cx += 0x10; /* 1000:F80E */
         b2 = objMapAtAbs(cx, (int32_t)probeY + 0x10, NULL);
         page = level_pageByte(b2, fine);
-        if (page & 0x80u) goto item_word;            /* 1000:F82F -> F8EC */
+        if (page & 0x80u) goto item_word; /* 1000:F82F -> F8EC */
     }
-    goto snap;                                       /* 1000:F832 -> F87F */
+    goto snap; /* 1000:F832 -> F87F */
 
 zero_case:
-    {                                                /* 1000:F834 */
+    { /* 1000:F834 */
         uint32_t a2 = objMapAtAbs(cx, (int32_t)rowY - 0x10, NULL);
-        uint32_t want = objTypeTile[rd_le_u16(actor + 8u) < 35u ? rd_le_u16(actor + 8u) : 0u];
+        uint32_t want =
+            objTypeTile[rd_le_u16(actor + 8u) < 35u ? rd_le_u16(actor + 8u)
+                                                    : 0u];
         /* 1000:F83A/F84C park these two in [0x422C]/[0x422E] only to compare
          * them; the port compares the cells directly. */
-        if (want == a2) goto land_at_y;              /* 1000:F856 */
+        if (want == a2) goto land_at_y; /* 1000:F856 */
         if (level_pageByte(a2, fine) & 0x80u) goto snap;
-        cx -= 0x10;                                  /* 1000:F86F */
+        cx -= 0x10; /* 1000:F86F */
         page = level_pageByte(a2, fine);
     }
-snap:                                                /* 1000:F87F */
+snap: /* 1000:F87F */
     objSelType = (uint16_t)(int16_t)(int8_t)(uint8_t)page;
     d = (int32_t)(rowY + (uint32_t)(int16_t)(int8_t)(uint8_t)page) - 0x18 - bx;
-    if (d >= 0) goto item_word;                      /* 1000:F891 */
+    if (d >= 0) goto item_word; /* 1000:F891 */
     d = -d;
     if (d > 3) goto item_word;
-    bx -= d;                                         /* 1000:F89A */
+    bx -= d; /* 1000:F89A */
     wr_le_u16(actor + 0u, (uint16_t)ax);
     wr_le_u16(actor + 2u, (uint16_t)bx);
     {
         int32_t speed = (int16_t)rd_le_u16(actor + 0xEu);
 
-        if (speed < 0) goto land_pair;               /* 1000:F8A6 */
-        if (speed >= 0x30) goto hard_landing;        /* 1000:F8AB */
-        level_set_offsetWord((uint16_t)((uint32_t)speed >> 3));  /* 1000:F8CE */
+        if (speed < 0) goto land_pair; /* 1000:F8A6 */
+        if (speed >= 0x30) goto hard_landing; /* 1000:F8AB */
+        level_set_offsetWord((uint16_t)((uint32_t)speed >> 3)); /* 1000:F8CE */
     }
-land_pair:                                           /* 1000:F8D2 */
-    wr_le_u16(actor + 4u, (uint16_t)objSide);              /* frame <- [0x4230] */
-    wr_le_u16(actor + 8u, objSelXoff);                     /* type  <- [0x4234] */
+land_pair: /* 1000:F8D2 */
+    wr_le_u16(actor + 4u, (uint16_t)objSide); /* frame <- [0x4230] */
+    wr_le_u16(actor + 8u, objSelXoff); /* type  <- [0x4234] */
     wr_le_u16(actor + 0xAu, 0u);
     objDriverCall(5);
     return;
 
 item_word:
-    {                                                /* 1000:F8EC */
+    { /* 1000:F8EC */
         int32_t px = ax + (int32_t)(int16_t)objSelFrame;
         int32_t py = bx + 0x18;
         uint32_t tile = objMapAtAbs(px, py, NULL);
@@ -5585,22 +6207,22 @@ item_word:
             lo = 0u;
             hi = 0xFFFFu;
         }
-        for (uint32_t i = 0; i < fine; i++) {        /* 1000:F952 */
+        for (uint32_t i = 0; i < fine; i++) { /* 1000:F952 */
             uint32_t carry = lo & 1u;
 
             lo >>= 1;
             hi = (hi >> 1) | (carry << 15);
         }
         mask = hi;
-        if ((objSelType & mask) != 0u) goto land_at_y;   /* 1000:F964 -> F975 */
+        if ((objSelType & mask) != 0u) goto land_at_y; /* 1000:F964 -> F975 */
     }
-place:                                               /* 1000:F966 */
+place: /* 1000:F966 */
     wr_le_u16(actor + 0u, (uint16_t)ax);
     wr_le_u16(actor + 2u, (uint16_t)bx);
     if (bx >= 0x140) goto hard_landing;
     return;
 
-hard_landing:                                        /* 1000:F8AD */
+hard_landing: /* 1000:F8AD */
     wr_le_u16(actor + 0u, (uint16_t)(rd_le_u16(actor + 0u) - 8u));
     wr_le_u16(actor + 4u, 0x0028u);
     wr_le_u16(actor + 8u, 0x0016u);
@@ -5608,7 +6230,7 @@ hard_landing:                                        /* 1000:F8AD */
     objDriverCall(4);
     return;
 
-land_at_y:                                           /* 1000:F975 */
+land_at_y: /* 1000:F975 */
     wr_le_u16(actor + 2u, (uint16_t)bx);
     wr_le_u16(actor + 0x10u, 0u);
     if (rd_le_u16(actor + 0xCu) < 0x10u) wr_le_u16(actor + 0xCu, 0x0010u);
@@ -5628,10 +6250,10 @@ static void objCmdFall(uint8_t *actor, int32_t x, int32_t y, uint32_t frame)
  * scratch point, then 1000:F23A. */
 static void objCmdPlace(uint8_t *actor, int32_t x, int32_t y, uint32_t frame)
 {
-    objSide = (uint16_t)(int16_t)x;                       /* 1000:F08D */
+    objSide = (uint16_t)(int16_t)x; /* 1000:F08D */
     objSelXoff = (uint16_t)y;
     objSelFrame = frame;
-    objPlaceAt(actor);                                    /* 1000:F23A */
+    objPlaceAt(actor); /* 1000:F23A */
 }
 
 /* 1000:F0B3: the "stand" form - frame 0x10, type 2, a one-frame hold. */
@@ -5650,21 +6272,22 @@ static void objCmdStreamTimed(uint8_t *actor)
     const uint8_t *p;
 
     if (objCmdTimer != 0u) return;
-    if (objStreamCount != 0u) { objStreamCount--; return; }
+    if (objStreamCount != 0u) {
+        objStreamCount--;
+        return;
+    }
     objStreamCount = 0u;
     p = objStreamPtr;
-    wr_le_u16(actor + 4u, p[0]);              /* MOV [SI+4], AX */
-    objStreamCount = p[1];              /* [0x6DEC] */
+    wr_le_u16(actor + 4u, p[0]); /* MOV [SI+4], AX */
+    objStreamCount = p[1]; /* [0x6DEC] */
     p += 2;
     if (*p == 0xFFu) p = objAnimStream; /* 1000:E7FA */
-    objStreamPtr = p;                   /* [0x6DEE] */
+    objStreamPtr = p; /* [0x6DEE] */
 }
 
 /* 1000:EBCA: type 15 command 8 clears the record's +0xA hold. */
 static void objCmdClearCountdown(uint8_t *actor)
-{
-    wr_le_u16(actor + 0xAu, 0u);
-}
+{ wr_le_u16(actor + 0xAu, 0u); }
 
 /* Test seams for the two handler bodies (the row selector's one-shot gate
  * keeps 1000:E7C0 from being driven directly in the unit test). */
@@ -5675,7 +6298,7 @@ void object_setCommandTimer(uint32_t v) { objCmdTimer = (uint16_t)v; }
 static int32_t objCmdCall(uint8_t *actor, uint32_t addr)
 {
     switch (addr) {
-    case 0xD9C7u: return 1;                      /* the common tail: a bare RET */
+    case 0xD9C7u: return 1; /* the common tail: a bare RET */
     case 0xE4F8u: (void)object_stepDown(actor); return 1;
     case 0xE609u: (void)object_stepUp(actor); return 1;
     case 0xE72Au: objCmdIdleA(actor); return 1;
@@ -5692,7 +6315,9 @@ static int32_t objCmdCall(uint8_t *actor, uint32_t addr)
     case 0xEB78u: objCmdPathStep(actor, 0); return 1;
     case 0xEBA0u: objCmdPathStep(actor, 1); return 1;
     case 0xEBD0u: objPathAdvance(actor); return 1;
-    case 0xDC1Fu: objCmdType15Tail(actor); return 1;   /* the type-15 rows' tail */
+    case 0xDC1Fu:
+        objCmdType15Tail(actor);
+        return 1; /* the type-15 rows' tail */
     /* the rows' tails (the +0xC word): 0xD9C7 is the bare RET above */
     case 0xD9C8u: objTailFrameBound(actor, 0x112u); return 1;
     case 0xD9CDu: objTailFrameBound(actor, 0x116u); return 1;
@@ -5708,8 +6333,8 @@ static int32_t objCmdCall(uint8_t *actor, uint32_t addr)
     case 0xEB5Cu: objTailWalkCountdown(actor, 1); return 1;
     case 0xEB6Au: objTailWalkCountdown(actor, 0); return 1;
     case 0xECB7u: objTailType17(actor); return 1;
-    case 0xEF0Au: return 1;                            /* a bare RET */
-    case 0xEF0Bu: return 1;                            /* a bare RET */
+    case 0xEF0Au: return 1; /* a bare RET */
+    case 0xEF0Bu: return 1; /* a bare RET */
     case 0xF067u: objCmdFall(actor, 0, 0, 0x10u); return 1;
     case 0xF078u: objCmdFall(actor, 8, 1, 0u); return 1;
     case 0xF0C9u: objTailType33(actor); return 1;
@@ -5719,8 +6344,14 @@ static int32_t objCmdCall(uint8_t *actor, uint32_t addr)
     case 0xEF66u: objTailType22(actor); return 1;
     case 0xEA0Fu: objCmdRide(actor, 0xABu, 0xCu, 9u); return 1;
     case 0xEA4Du: objCmdRide(actor, 0xADu, 2u, 0xAu); return 1;
-    case 0xEC99u: objWalk(actor, 0); objNeighbourPass(actor, 0xDu, 0xCu, 0xA); return 1;
-    case 0xECA8u: objWalk(actor, 1); objNeighbourPass(actor, 3u, 0xCu, -0xA); return 1;
+    case 0xEC99u:
+        objWalk(actor, 0);
+        objNeighbourPass(actor, 0xDu, 0xCu, 0xA);
+        return 1;
+    case 0xECA8u:
+        objWalk(actor, 1);
+        objNeighbourPass(actor, 3u, 0xCu, -0xA);
+        return 1;
     case 0xED4Fu: objCmdFrameStep(actor, 0x8Eu, 1); return 1;
     case 0xED69u: objCmdFrameStep(actor, 0x8Cu, 0); return 1;
     case 0xED83u: objCmdFrameStep(actor, 0x91u, 0); return 1;
@@ -5738,7 +6369,7 @@ static int32_t objCmdCall(uint8_t *actor, uint32_t addr)
     case 0xF0C6u: objCmdHomeState(actor); return 1;
     case 0xE7C0u: objCmdStreamTimed(actor); return 1;
     case 0xEBCAu: objCmdClearCountdown(actor); return 1;
-    case 0xEA0Eu: return 1;                            /* bare RET */
+    case 0xEA0Eu: return 1; /* bare RET */
     default: return 0;
     }
 }
@@ -5757,16 +6388,16 @@ int32_t object_commandRun(uint8_t *actor, uint8_t input)
     if (c.handler) {
         if (!objCmdCall(actor, c.handler)) return OBJ_CMD_UNPORTED;
         ran = OBJ_CMD_HANDLER;
-        if (rd_le_u16(actor + 8u) != before) goto out;   /* 1000:E4CC */
+        if (rd_le_u16(actor + 8u) != before) goto out; /* 1000:E4CC */
     }
-    if (c.hook) objCmdSettle(actor);               /* 1000:D8BD */
+    if (c.hook) objCmdSettle(actor); /* 1000:D8BD */
     if (c.tail) {
         if (!objCmdCall(actor, c.tail)) return OBJ_CMD_UNPORTED;
         ran = OBJ_CMD_TAIL;
     }
 out:
-    if (objOutState != 0u) {                       /* 1000:E4E4 */
-        objDebounce = (uint8_t)objPending;         /* [0x197A] := the old [0x1979] */
+    if (objOutState != 0u) { /* 1000:E4E4 */
+        objDebounce = (uint8_t)objPending; /* [0x197A] := the old [0x1979] */
         objPending = objOutState;
         objCursor = objOutStateHi;
     }
@@ -5800,10 +6431,10 @@ int32_t object_stepDown(uint8_t *actor)
         if (rd_le_u16((uint8_t *)s + 0u) & 0x8000u) continue;
         d = sx - (x + 8);
         if (d < 0) d = -d;
-        if (d >= 8) continue;                        /* |span.x - (x+8)| < 8 */
+        if (d >= 8) continue; /* |span.x - (x+8)| < 8 */
         d = sy - y;
-        if (d >= 0 && d >= 0x18) continue;           /* span.y - y < 0x18 */
-        if (sy + sh < y) continue;                   /* the span covers y */
+        if (d >= 0 && d >= 0x18) continue; /* span.y - y < 0x18 */
+        if (sy + sh < y) continue; /* the span covers y */
         wr_le_u16(actor + 2u, (uint16_t)(y - 1));
         wr_le_u16(actor + 0u, (uint16_t)(sx - 8));
         wr_le_u16(actor + 4u, 0x0052u);
@@ -5811,7 +6442,7 @@ int32_t object_stepDown(uint8_t *actor)
         wr_le_u16(actor + 0xAu, 0x0000u);
         wr_le_u16(actor + 0xCu, 0x0000u);
         wr_le_u16(actor + 0xEu, (uint16_t)((uintptr_t)s - (uintptr_t)objSpan));
-        objStackUnmark(actor);                       /* 1000:F3CA */
+        objStackUnmark(actor); /* 1000:F3CA */
         return 2;
     }
     {
@@ -5848,7 +6479,7 @@ int32_t object_stepUp(uint8_t *actor)
         if (rd_le_u16((uint8_t *)s + 0u) & 0x8000u) continue;
         d = sx - (x + 8);
         if (d < 0) d = -d;
-        if (d >= 0x10) continue;                     /* |span.x - (x+8)| < 0x10 */
+        if (d >= 0x10) continue; /* |span.x - (x+8)| < 0x10 */
         if (sy >= line) continue;
         if (sy + sh < line) continue;
         wr_le_u16(actor + 2u, (uint16_t)(y + 1));
@@ -5877,7 +6508,8 @@ int32_t object_selectorWalk(uint8_t *actor, int32_t right)
  * the two wrappers 1000:E93D (8/1) and 1000:E952 (0/0) set them and jump here.
  * Returns 0 = done, -1 = nothing found (the original's `JS`); the terrain
  * branch (`1000:F1D7`'s probe, `1000:F223`'s special-tile test) is in. */
-int32_t object_selector(uint8_t *actor, uint16_t xoff, uint16_t frame, uint16_t type)
+int32_t object_selector(uint8_t *actor, uint16_t xoff, uint16_t frame,
+                        uint16_t type)
 {
     uint16_t ax;
     uint8_t *below, *entry;
@@ -5886,24 +6518,25 @@ int32_t object_selector(uint8_t *actor, uint16_t xoff, uint16_t frame, uint16_t 
     objSelXoff = xoff;
     objSelFrame = frame;
     objSelType = type;
-    ax = (uint16_t)(objSelXoff + rd_le_u16(actor + 0u));          /* 1000:F185 */
+    ax = (uint16_t)(objSelXoff + rd_le_u16(actor + 0u)); /* 1000:F185 */
     r = object_stackPop(ax, &below, &entry);
-    if (r < 0) return -1;                                  /* 1000:F18D */
+    if (r < 0) return -1; /* 1000:F18D */
     if (r == 0) {
-        if (rd_le_u16(actor + 4u) != 0x20u) {                    /* 1000:F1F2 */
-            int32_t d = (int32_t)(int16_t)rd_le_u16(actor + 4u) - (int32_t)(int16_t)objSelFrame;
+        if (rd_le_u16(actor + 4u) != 0x20u) { /* 1000:F1F2 */
+            int32_t d = (int32_t)(int16_t)rd_le_u16(actor + 4u) -
+                        (int32_t)(int16_t)objSelFrame;
 
             if (d < 0 || d >= 8) {
-                wr_le_u16(actor + 4u, objSelFrame);              /* 1000:F20C */
+                wr_le_u16(actor + 4u, objSelFrame); /* 1000:F20C */
                 return 0;
             }
-            objWalk(actor, objSelType != 0u);              /* 1000:E6FB / 0xE764 */
+            objWalk(actor, objSelType != 0u); /* 1000:E6FB / 0xE764 */
             return 0;
         }
-        wr_le_u16(actor + 4u, objSelFrame);                      /* 1000:F191 */
+        wr_le_u16(actor + 4u, objSelFrame); /* 1000:F191 */
         return 0;
     }
-    if (below) {                                           /* 1000:F198 */
+    if (below) { /* 1000:F198 */
         wr_le_u16(below + 2u, (uint16_t)(rd_le_u16(below + 2u) - 8u));
         wr_le_u16(below + 4u, 0x0020u);
     }
@@ -5913,7 +6546,7 @@ int32_t object_selector(uint8_t *actor, uint16_t xoff, uint16_t frame, uint16_t 
     {
         uint32_t bit = objIndexBit((uint32_t)(actor - objArray) / OBJ_STRIDE);
 
-        if ((objStackMask[0] | objStackMask[1]) & bit) return 0;  /* 1000:F1CB */
+        if ((objStackMask[0] | objStackMask[1]) & bit) return 0; /* 1000:F1CB */
     }
     /* 1000:F1D7: the step probe's distance test.  A blocked probe, or a step
      * of 10 px or more, goes to 1000:F223; a small step does nothing. */
@@ -5924,12 +6557,13 @@ int32_t object_selector(uint8_t *actor, uint16_t xoff, uint16_t frame, uint16_t 
         if (bx >= 0) {
             d = bx - 0x18 - (int32_t)(int16_t)rd_le_u16(actor + 2u);
             if (d < 0) d = -d;
-            if (d - 0xA < 0) return 0;                 /* 1000:F1F1 */
+            if (d - 0xA < 0) return 0; /* 1000:F1F1 */
         }
         /* 1000:F223: DI is the cell 1000:E389 ended on; when it is one of the
          * level's two special tiles (field K -> [0x6F20]/[0x6F21]) the actor
          * stays put, otherwise it takes the found entry's x. */
-        if (cell == level_specialTile(0u) || cell == level_specialTile(1u)) return 0;
+        if (cell == level_specialTile(0u) || cell == level_specialTile(1u))
+            return 0;
         if (entry) wr_le_u16(actor + 0u, rd_le_u16(entry + 0u));
         return 0;
     }
@@ -5938,8 +6572,8 @@ int32_t object_selector(uint8_t *actor, uint16_t xoff, uint16_t frame, uint16_t 
 /* 1000:FADA: the per-member restore inside a dissolve. */
 static void objGroupRestoreMember(uint8_t *rec)
 {
-    wr_le_u16(rec + 4u, 0x0010u);                  /* frame 0x10 */
-    wr_le_u16(rec + 8u, 0x0003u);                  /* type 3     */
+    wr_le_u16(rec + 4u, 0x0010u); /* frame 0x10 */
+    wr_le_u16(rec + 8u, 0x0003u); /* type 3     */
     wr_le_u16(rec + 0xAu, 0x0001u);
     wr_le_u16(rec + 0xCu, 0x0004u);
     wr_le_u16(rec + 0xEu, 0x0000u);
@@ -5960,23 +6594,24 @@ static void objGroupDissolve(uint8_t *e)
 {
     uint8_t *bp;
     uint32_t n;
-    uint8_t *last;                 /* the topmost list byte's record */
+    uint8_t *last; /* the topmost list byte's record */
 
-    e[0] = 0xFF; e[1] = 0xFF;                /* +0/+2 = 0xFFFF: free */
+    e[0] = 0xFF;
+    e[1] = 0xFF; /* +0/+2 = 0xFFFF: free */
     bp = e + 5;
-    while (!(bp[0] & 0x80u)) bp++;            /* past the terminator */
-    n = (uint32_t)(bp - (e + 5)) - 1u;        /* list length - 1     */
+    while (!(bp[0] & 0x80u)) bp++; /* past the terminator */
+    n = (uint32_t)(bp - (e + 5)) - 1u; /* list length - 1     */
     if (n == 0u) {
-        last = object_slot(bp[-1]);           /* the owner byte      */
+        last = object_slot(bp[-1]); /* the owner byte      */
         if (!last) return;
-        wr_le_u16(last + 4u, 0x0010u);              /* frame 0x10          */
-        wr_le_u16(last + 8u, 0x0002u);              /* type 2, a human     */
+        wr_le_u16(last + 4u, 0x0010u); /* frame 0x10          */
+        wr_le_u16(last + 8u, 0x0002u); /* type 2, a human     */
         return;
     }
-    last = object_slot(bp[-1]);               /* n = 1: the only member */
+    last = object_slot(bp[-1]); /* n = 1: the only member */
     if (!last) return;
     objGroupRestoreMember(last);
-    for (uint32_t k = 1u; k < n; k++) {       /* the members below it */
+    for (uint32_t k = 1u; k < n; k++) { /* the members below it */
         uint8_t *m = object_slot(bp[-1 - (int32_t)k]);
         if (m) objGroupRestoreMember(m);
     }
@@ -5988,9 +6623,12 @@ int32_t object_stackScanDissolve(uint32_t recIndex)
 {
     for (uint32_t i = 0; i < 8u; i++) {
         uint8_t *e = (uint8_t *)objRegister[i];
-        if (e[1] & 0x80u) continue;                       /* +0 bit 15 set = free */
+        if (e[1] & 0x80u) continue; /* +0 bit 15 set = free */
         for (uint8_t *p = e + 5; !(p[0] & 0x80u); p++)
-            if (p[0] == (uint8_t)recIndex) { objGroupDissolve(e); return 1; }
+            if (p[0] == (uint8_t)recIndex) {
+                objGroupDissolve(e);
+                return 1;
+            }
     }
     return 0;
 }
@@ -6005,7 +6643,10 @@ static void objOpResetSpan(void)
     for (uint32_t i = 0; i < 2u; i++) {
         uint16_t *e = objSpan[i];
         if (e[0] != objEntity) continue;
-        if (e[4] != 0u && e[3] > e[4]) { e[4] = 0u; e[9] = 0u; }
+        if (e[4] != 0u && e[3] > e[4]) {
+            e[4] = 0u;
+            e[9] = 0u;
+        }
         return;
     }
 }
@@ -6030,8 +6671,8 @@ static void objChargeDraw(void)
      * strokes stay.  The port recomposes the page every tick, so it redraws
      * the whole run - the same pixels the original accumulated (D-81). */
     v = (uint32_t)(rd_le_u16(actor + 0xEu) & 0x1FFu);
-    statusbar_chargeBar(0u);                 /* 1000:36F7 */
-    statusbar_chargeBar(2u);                 /* 1000:36FF */
+    statusbar_chargeBar(0u); /* 1000:36F7 */
+    statusbar_chargeBar(2u); /* 1000:36FF */
     for (uint32_t x = 4u; x <= v; x += 4u) statusbar_chargeBar(x);
 }
 
@@ -6049,17 +6690,14 @@ void object_pendingRun(void)
      * swallows it at 0x373B); its own event-4 request does not. */
     if (objCharging && code != 4u) objCharging = 0;
     switch (code) {
-    case 4u:                                     /* 1000:36DB: enter 0x36DB */
-        objCharging = 1;
-        break;
-    case 5u: {                                   /* 1000:382D */
+    case 4u: /* 1000:36DB: enter 0x36DB */ objCharging = 1; break;
+    case 5u: { /* 1000:382D */
         uint8_t *p = objPrograms[(objProgramIndex - 1u) % 6u];
 
         p[1] = (uint8_t)objCursor;
         break;
     }
-    default:                                     /* 1000:36C7/36D7/36DA/3843 */
-        break;
+    default: /* 1000:36C7/36D7/36DA/3843 */ break;
     }
 }
 
@@ -6072,12 +6710,12 @@ int32_t object_chargeActive(void) { return objCharging; }
 int32_t object_chargeTick(void)
 {
     if (!objCharging) return 0;
-    if (!objChargeArm) {                         /* 1000:370C */
-        objCharging = 0;                         /* the loop leaves; 0x373B */
+    if (!objChargeArm) { /* 1000:370C */
+        objCharging = 0; /* the loop leaves; 0x373B */
         return 0;
     }
-    objChargeArm = 0u;                           /* 1000:3713 */
-    objChargeDraw();                             /* 1000:3718-0x3730 */
+    objChargeArm = 0u; /* 1000:3713 */
+    objChargeDraw(); /* 1000:3718-0x3730 */
     return 1;
 }
 
@@ -6103,22 +6741,22 @@ void object_actionRun(void)
     case OP_COLLIDE_A:
     case OP_COLLIDE_B: objOpCollide(actor); break;
     case OP_SETFRAME: objOpSetFrame(actor); break;
-    case OP_CLAIM_OR_TYPE:     /* 0x39E4: the player claims, others walk */
+    case OP_CLAIM_OR_TYPE: /* 0x39E4: the player claims, others walk */
         if (actor == objArray + objPlayer * OBJ_STRIDE)
             (void)object_claimBegin(2u, (int32_t)objEntity);
-        else
-            objOpMarkWalk(actor, rd_le_u16(actor + 8u) ? 0u : 0x10u);
+        else objOpMarkWalk(actor, rd_le_u16(actor + 8u) ? 0u : 0x10u);
         break;
     case OP_CLAIM3: (void)object_claimBegin(3u, (int32_t)objEntity); break;
     case OP_CLAIM0: (void)object_claimBegin(0u, (int32_t)objEntity); break;
     case OP_CLAIM1: (void)object_claimBegin(1u, (int32_t)objEntity); break;
-    case OP_TYPE_A:            /* 0x3A05 -> 0xEFA1 / 0xEFB9          */
-        if (rd_le_u16(actor + 8u) <= 2u) objOpSetState(actor, rd_le_u16(actor + 8u) ? 1u : 0u);
+    case OP_TYPE_A: /* 0x3A05 -> 0xEFA1 / 0xEFB9          */
+        if (rd_le_u16(actor + 8u) <= 2u)
+            objOpSetState(actor, rd_le_u16(actor + 8u) ? 1u : 0u);
         break;
-    case OP_RESET:             /* 0x39CC -> 0xEA71                   */
+    case OP_RESET: /* 0x39CC -> 0xEA71                   */
         objOpResetSpan();
         break;
-    case OP_SELECT:            /* 0x3A1A -> 0xECFE                   */
+    case OP_SELECT: /* 0x3A1A -> 0xECFE                   */
         /* 0xECFE: needs a class, then page_offset_to_ptr (0xF123) on the map
          * cell under the record and on the cell one to the right (type 0) or
          * left; only when both are free does it set type 0x12/frame 0x8C
@@ -6144,7 +6782,7 @@ void object_actionRun(void)
             /* [0x6F1D] = 0 at 0xED49 (the dialog flag) — no port equivalent */
         }
         break;
-    case OP_TYPE_B:            /* 0x39CF -> 0xEA0F / 0xEA4D          */
+    case OP_TYPE_B: /* 0x39CF -> 0xEA0F / 0xEA4D          */
         /* Dispatched, and recorded — but its two targets are not callable, so
          * there is nothing to emulate beyond the dispatch itself:
          *  - type != 0 -> 0xEA4D is the operand byte 0xA2 of the JNS at
@@ -6175,8 +6813,7 @@ void object_actionRun(void)
                 "interrupt vector table).  See re_map.md, 'op 7'.");
         }
         break;
-    default:
-        break;
+    default: break;
     }
 }
 
@@ -6194,7 +6831,7 @@ void object_saveTable(uint8_t *dst)
     for (uint32_t i = 0; i < OBJ_SLOTS; i++)
         wr_le_u16(dst + 4u + 2u * i, (uint16_t)(0x3E75u + 0x12u * i));
     for (uint32_t i = 0; i < 20u; i++) dst[0x3Eu + i] = objSlotClass[i];
-    dst[0x53] = (uint8_t)objLiveCount;          /* [0x3E73] */
+    dst[0x53] = (uint8_t)objLiveCount; /* [0x3E73] */
     memcpy(dst + 0x55u, objArray, OBJ_SLOTS * OBJ_STRIDE);
 }
 
@@ -6215,9 +6852,9 @@ void object_loadTable(const uint8_t *src)
  * six 12-byte copies; the original region is the 0x20-byte union, so save the
  * union and overlay each program's cursor byte at its table start. */
 static const uint8_t objProgramBase[0x20] = {
-    0x02,0x01,0x02,0x01,0x04,0x01,0x03,0x04,0x05,0x06,0x04,0x01,
-    0x03,0x07,0x08,0x06,0x04,0x01,0x03,0x05,0x09,0x06,0x04,0x01,
-    0x09,0x0A,0x0B,0x0C,0x01,0x01,0x06,0x01,
+    0x02, 0x01, 0x02, 0x01, 0x04, 0x01, 0x03, 0x04, 0x05, 0x06, 0x04,
+    0x01, 0x03, 0x07, 0x08, 0x06, 0x04, 0x01, 0x03, 0x05, 0x09, 0x06,
+    0x04, 0x01, 0x09, 0x0A, 0x0B, 0x0C, 0x01, 0x01, 0x06, 0x01,
 };
 static const uint32_t objProgramStart[6] = { 0u, 4u, 10u, 16u, 22u, 28u };
 static uint8_t objProgramRegion[0x20];
@@ -6269,8 +6906,8 @@ void object_savePool(uint8_t *dst)
 {
     if (!dst) return;
     memset(dst, 0, 0x13CAu);
-    wr_le_u16(dst + 0u, (uint16_t)level_specialTile(0u));   /* [0x6F20] */
-    wr_le_u16(dst + 2u, (uint16_t)level_specialTile(1u));   /* [0x6F21] */
+    wr_le_u16(dst + 0u, (uint16_t)level_specialTile(0u)); /* [0x6F20] */
+    wr_le_u16(dst + 2u, (uint16_t)level_specialTile(1u)); /* [0x6F21] */
     memcpy(dst + 2u, objRegister, sizeof objRegister);
     memcpy(dst + 0x72u, objSpan, sizeof objSpan);
 }
@@ -6372,8 +7009,10 @@ void object_animatorTick(void)
                 if (c == 0u) dl ^= 0x10u;
                 else c--;
             } else {
-                if (c >= limit) { c = limit; dl ^= 0x10u; }
-                else c++;
+                if (c >= limit) {
+                    c = limit;
+                    dl ^= 0x10u;
+                } else c++;
             }
         }
         if (c > limit) c = limit;
@@ -6389,17 +7028,17 @@ void object_animatorTick(void)
             if (!r) continue;
             frame = rd_le_u16(r + 4u);
             if (frame < 0x20u || frame > 0x22u) continue;
-            wr_le_u16(r + 0u, (uint16_t)(rd_le_u16(g + 0u) +
-                                   (uint16_t)objAnimX[len - 3u][c][len - 1u - m]));
+            wr_le_u16(
+                r + 0u,
+                (uint16_t)(rd_le_u16(g + 0u) +
+                           (uint16_t)objAnimX[len - 3u][c][len - 1u - m]));
         }
-        g[4] = (uint8_t)(dl | (c & 0x0Fu));   /* 1000:D813 OR DL,CL */
+        g[4] = (uint8_t)(dl | (c & 0x0Fu)); /* 1000:D813 OR DL,CL */
     }
 }
 
 uint8_t *object_groupAt(uint32_t i)
-{
-    return i < 8u ? (uint8_t *)objRegister[i] : NULL;
-}
+{ return i < 8u ? (uint8_t *)objRegister[i] : NULL; }
 void object_animatorReset(void)
 {
     objAnimDiv = 0;

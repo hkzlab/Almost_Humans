@@ -33,14 +33,15 @@ static Uint64 probeWindowStartNs;
 
 static void fire_tick(void)
 {
-    SDL_AddAtomicInt(&tickCount, 1);   /* the ISR's INC [0x5AC8] (1000:8AA4) */
+    SDL_AddAtomicInt(&tickCount, 1); /* the ISR's INC [0x5AC8] (1000:8AA4) */
     theTick();
     if (probe) {
         probeTicks++;
         Uint64 now = SDL_GetTicksNS();
         if (now - probeWindowStartNs >= 5000000000ull) {
             double s = (double)(now - probeWindowStartNs) / 1e9;
-            SDL_Log("tick rate: %.2f Hz (target %u)", (double)probeTicks / s, theRate);
+            SDL_Log("tick rate: %.2f Hz (target %u)", (double)probeTicks / s,
+                    theRate);
             probeTicks = 0;
             probeWindowStartNs = now;
         }
@@ -57,13 +58,15 @@ static int32_t SDLCALL tickThreadFn(void *arg)
         for (;;) {
             Sint64 remain = (Sint64)next - (Sint64)SDL_GetTicksNS();
             if (remain <= 0) break;
-            if (remain > 2000000) SDL_Delay((Uint32)((remain - 1000000) / 1000000));
+            if (remain > 2000000)
+                SDL_Delay((Uint32)((remain - 1000000) / 1000000));
         }
         fire_tick();
         next += tickIntervalNs;
         /* a stall (debugger, heavy frame) must not burst ticks to catch up:
          * the original's delta-spin semantics drop missed boundaries */
-        if ((Sint64)(SDL_GetTicksNS() - next) > 0) next = SDL_GetTicksNS() + tickIntervalNs;
+        if ((Sint64)(SDL_GetTicksNS() - next) > 0)
+            next = SDL_GetTicksNS() + tickIntervalNs;
     }
     return 0;
 }
@@ -72,7 +75,7 @@ void sdl3_timerStart(uint32_t ticksPerSec, TickFn tick)
 {
     theTick = tick;
     theRate = ticksPerSec;
-    tickIntervalNs = 1000000000ull / ticksPerSec;  /* 14285714.29 at 70: the
+    tickIntervalNs = 1000000000ull / ticksPerSec; /* 14285714.29 at 70: the
                                                     * constant errs 0.3 ns/tick,
                                                     * no accumulation */
     SDL_SetAtomicInt(&tickCount, 0);
@@ -93,7 +96,6 @@ void sdl3_tickSync(uint32_t *lastSeen)
             *lastSeen = (uint32_t)now;
             return;
         }
-        SDL_Delay(1);   /* the wait_vsync-and-abort spin, sleeping */
+        SDL_Delay(1); /* the wait_vsync-and-abort spin, sleeping */
     }
 }
-

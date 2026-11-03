@@ -35,7 +35,11 @@ static uint8_t *read_file(const char *path, uint32_t *size)
     int64_t n = ftell(f);
     fseek(f, 0, SEEK_SET);
     uint8_t *buf = malloc((size_t)n);
-    if (fread(buf, 1, (size_t)n, f) != (size_t)n) { fclose(f); free(buf); return NULL; }
+    if (fread(buf, 1, (size_t)n, f) != (size_t)n) {
+        fclose(f);
+        free(buf);
+        return NULL;
+    }
     fclose(f);
     if (size) *size = (uint32_t)n;
     return buf;
@@ -51,8 +55,7 @@ static int32_t first_diff(const uint8_t *a, const uint8_t *b, uint32_t n)
 int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";
-    const char *ref_dir = argc > 3 ? argv[3]
-                       : "../analysis/attract_scroll";
+    const char *ref_dir = argc > 3 ? argv[3] : "../analysis/attract_scroll";
 
     char path[512];
     snprintf(path, sizeof path, "%s/HUMANS.000", vol_dir);
@@ -68,17 +71,23 @@ int main(int argc, char **argv)
     snprintf(path, sizeof path, "%s/e4_frames.bin", ref_dir);
     uint32_t frames_size = 0;
     uint8_t *ref_frames = read_file(path, &frames_size);
-    if (!ref_strip || strip_size != 196608u || !ref_frames || frames_size < 4u) {
-        printf("skip: no reference dump at %s (run tools/attract_scroll_sim.py)\n",
-               ref_dir);
-        free(ref_strip); free(ref_frames);
+    if (!ref_strip || strip_size != 196608u || !ref_frames ||
+        frames_size < 4u) {
+        printf(
+            "skip: no reference dump at %s (run tools/attract_scroll_sim.py)\n",
+            ref_dir);
+        free(ref_strip);
+        free(ref_frames);
         return 0;
     }
     /* the dump's frame table: u32 count, then per frame u32 row + 64000 B */
     uint32_t frame_count = 0;
     memcpy(&frame_count, ref_frames, 4);
 
-    if (compat_chdir(vol_dir)) { perror(vol_dir); return 1; }
+    if (compat_chdir(vol_dir)) {
+        perror(vol_dir);
+        return 1;
+    }
 
     int32_t bad = 0;
     {
@@ -90,7 +99,8 @@ int main(int argc, char **argv)
         }
     }
 
-    InputState idle; memset(&idle, 0, sizeof idle);
+    InputState idle;
+    memset(&idle, 0, sizeof idle);
 
     /* 1. into effect 4: effects 1, 3 and 2 play for real (~12 k ticks) */
     uint32_t guard = 0;
@@ -98,8 +108,9 @@ int main(int argc, char **argv)
         attract_tick(&idle);
         palette_tick();
         if (++guard > 60000u) {
-            fprintf(stderr, "FAIL: never reached effect 4 (tick %u, phase %u)\n",
-                    guard, attract_phaseForProbe());
+            fprintf(stderr,
+                    "FAIL: never reached effect 4 (tick %u, phase %u)\n", guard,
+                    attract_phaseForProbe());
             return 1;
         }
     }
@@ -109,14 +120,17 @@ int main(int argc, char **argv)
         uint32_t rows = 0;
         const uint8_t *strip = attract_stripForProbe(&rows);
         if (rows != 1579u) {
-            fprintf(stderr, "FAIL: rowsBuilt %u, want 1579 (the fixture census)\n", rows);
+            fprintf(stderr,
+                    "FAIL: rowsBuilt %u, want 1579 (the fixture census)\n",
+                    rows);
             bad = 1;
         }
         int32_t at = first_diff(strip, ref_strip, strip_size);
         if (at >= 0) {
-            fprintf(stderr, "FAIL: strip diff at byte %d (row %d): "
-                    "%02x vs %02x\n", at, at / 80,
-                    strip[at], ref_strip[at]);
+            fprintf(stderr,
+                    "FAIL: strip diff at byte %d (row %d): "
+                    "%02x vs %02x\n",
+                    at, at / 80, strip[at], ref_strip[at]);
             bad = 1;
         } else {
             printf("ok strip: 192 KB byte-identical, 1579 rows built\n");
@@ -149,9 +163,11 @@ int main(int argc, char **argv)
                     const uint8_t *page = osys_null_page(0);
                     int32_t at = first_diff(page, cursor + 4, 64000);
                     if (at >= 0) {
-                        fprintf(stderr, "FAIL: frame r%u diff at pixel %d "
-                                "(y %d, x %d): %02x vs %02x\n", row, at,
-                                at / 320, at % 320, page[at], cursor[4 + at]);
+                        fprintf(stderr,
+                                "FAIL: frame r%u diff at pixel %d "
+                                "(y %d, x %d): %02x vs %02x\n",
+                                row, at, at / 320, at % 320, page[at],
+                                cursor[4 + at]);
                         bad = 1;
                     }
                     matched++;
@@ -161,16 +177,18 @@ int main(int argc, char **argv)
             row++;
         }
         if (row != 1379u) {
-            fprintf(stderr, "FAIL: %u scroll rows, want 1379 (1579-0xC8)\n", row);
+            fprintf(stderr, "FAIL: %u scroll rows, want 1379 (1579-0xC8)\n",
+                    row);
             bad = 1;
         }
         if (matched != frame_count) {
-            fprintf(stderr, "FAIL: %u/%u reference frames checked\n",
-                    matched, frame_count);
+            fprintf(stderr, "FAIL: %u/%u reference frames checked\n", matched,
+                    frame_count);
             bad = 1;
         }
-        if (!bad) printf("ok scroll: %u rows, %u frames byte-identical\n",
-                         row, matched);
+        if (!bad)
+            printf("ok scroll: %u rows, %u frames byte-identical\n", row,
+                   matched);
     }
 
     /* 4. the natural end: the tail fade, then the cycle into effect 1 */
@@ -186,8 +204,10 @@ int main(int argc, char **argv)
             }
         }
         if (attract_phaseForProbe() != ATTRACT_E1_LOAD) {
-            fprintf(stderr, "FAIL: after effect 4 the cycle must re-enter "
-                    "effect 1 (phase %u)\n", attract_phaseForProbe());
+            fprintf(stderr,
+                    "FAIL: after effect 4 the cycle must re-enter "
+                    "effect 1 (phase %u)\n",
+                    attract_phaseForProbe());
             bad = 1;
         } else if (!bad) {
             printf("ok tail: the fade completed and the cycle continued\n");

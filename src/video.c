@@ -15,14 +15,8 @@ int32_t video_init(const OSystem *osys)
 
 void video_tick(void) {}
 
-uint8_t *video_page(int32_t which)
-{
-    return video_osys->videoPage(which);
-}
+uint8_t *video_page(int32_t which) { return video_osys->videoPage(which); }
 
 /* The mode sets the core performs: the CRTC field the backend must present.
  * The pages stay 320x200x8; a mode-X screen's rows 192..199 are not shown. */
-void video_setMode(VideoMode mode)
-{
-    video_osys->videoSetMode(mode);
-}
+void video_setMode(VideoMode mode) { video_osys->videoSetMode(mode); }

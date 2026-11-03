@@ -21,10 +21,10 @@ int32_t res_init(const OSystem *osys);
 /* The [0xF7E] analog: the disc that name-based loads come from (0..2 =
  * HUMANS.000/.001/.002; the original opens ONE volume file built from the
  * [0xF7E] disc number and never scans across discs). */
-void     res_setDisc(uint32_t disc);
+void res_setDisc(uint32_t disc);
 /* draw_status_indicator's disc probe (1000:20CF): opens the volume file for
  * `disc` and closes it; 0 = the disc is not available. */
-int32_t  res_volumePresent(uint32_t disc);
+int32_t res_volumePresent(uint32_t disc);
 /* The level-header intro-movie/disc index -> disc byte: the ported table
  * `202F:0x6287` (1000:AFF8's lookup; corpus-verified 10/10 — every
  * ANI<idx>.ANI ships on the disc the table names).  0xFF = no entry — the
@@ -52,13 +52,14 @@ uint8_t *res_loadChunk(const char *name, uint32_t *sizeOut, uint16_t *chkOut);
  * *chkOut mirrors the machine's final checksum accumulator (BP) — the
  * scene-object gate tests it against 0 (1000:B444). */
 int32_t res_decode_lzw_mem(const uint8_t *data, uint32_t data_size,
-                       uint32_t off, uint8_t *out, uint32_t out_size,
-                       uint16_t *chkOut);
+                           uint32_t off, uint8_t *out, uint32_t out_size,
+                           uint16_t *chkOut);
 
 /* --- src/video.c — pages/scroll/dirty cells (subsystem 3, §5/§7) ------ */
 int32_t video_init(const OSystem *osys);
 void video_tick(void);
-uint8_t *video_page(int32_t which); /* 320x200x8 page 0 or 1                    */
+uint8_t *
+video_page(int32_t which); /* 320x200x8 page 0 or 1                    */
 /* the mode set, forwarded to the backend (osystem.h's VideoMode): the page
  * layout never changes, only which field the display scans out. */
 void video_setMode(VideoMode mode);
@@ -130,19 +131,33 @@ int32_t attract_init(const OSystem *osys);
  * escape assertions in tests/test_loop.c). */
 typedef enum AttractPhase {
     ATTRACT_IDLE = 0,
-    ATTRACT_E1_LOAD, ATTRACT_E1_FADEWAIT, ATTRACT_E1_WIPE,
-    ATTRACT_E1_HOLD, ATTRACT_E1_OUT,
-    ATTRACT_E3_LOAD, ATTRACT_E3_FADEWAIT, ATTRACT_E3_SLIDE,
-    ATTRACT_E3_TAIL, ATTRACT_E3_HOLD, ATTRACT_E3_OUT,
-    ATTRACT_E2_LOAD, ATTRACT_E2_FADEWAIT, ATTRACT_E2_FRAME,
-    ATTRACT_E2_WIPE, ATTRACT_E2_HOLD, ATTRACT_E2_OUT,
-    ATTRACT_E4_LOAD, ATTRACT_E4_FADEWAIT, ATTRACT_E4_SCROLL,
+    ATTRACT_E1_LOAD,
+    ATTRACT_E1_FADEWAIT,
+    ATTRACT_E1_WIPE,
+    ATTRACT_E1_HOLD,
+    ATTRACT_E1_OUT,
+    ATTRACT_E3_LOAD,
+    ATTRACT_E3_FADEWAIT,
+    ATTRACT_E3_SLIDE,
+    ATTRACT_E3_TAIL,
+    ATTRACT_E3_HOLD,
+    ATTRACT_E3_OUT,
+    ATTRACT_E2_LOAD,
+    ATTRACT_E2_FADEWAIT,
+    ATTRACT_E2_FRAME,
+    ATTRACT_E2_WIPE,
+    ATTRACT_E2_HOLD,
+    ATTRACT_E2_OUT,
+    ATTRACT_E4_LOAD,
+    ATTRACT_E4_FADEWAIT,
+    ATTRACT_E4_SCROLL,
     ATTRACT_E4_OUT,
-    ATTRACT_ESCAPE, ATTRACT_DONE
+    ATTRACT_ESCAPE,
+    ATTRACT_DONE
 } AttractPhase;
 
-int32_t  attract_tick(const InputState *in);   /* 1 = the attract is playing */
-uint32_t attract_phaseForProbe(void);          /* the tests' phase read      */
+int32_t attract_tick(const InputState *in);   /* 1 = the attract is playing */
+uint32_t attract_phaseForProbe(void); /* the tests' phase read      */
 
 /* Effect 4's strip probe (the 192-KB work area at [0xD76] + the rows
  * built, [0xD39]): the byte-exact fixture test compares the fill against
@@ -181,15 +196,15 @@ int32_t statusbar_timeUp(void);
 int32_t statusbar_tribeActive(void);
 /* test seam: sets the odometer digits ([0x5B25]/[0x5B26]) that 1000:F5BC gates on. */
 void statusbar_setTribeDigits(uint32_t tens, uint32_t ones);
-uint32_t statusbar_tribeDigit(uint32_t i);   /* [0x5B25]/[0x5B26] by index */
-void statusbar_saveParams(uint8_t *out);      /* the 0x5B22..0x5B29 block   */
+uint32_t statusbar_tribeDigit(uint32_t i); /* [0x5B25]/[0x5B26] by index */
+void statusbar_saveParams(uint8_t *out); /* the 0x5B22..0x5B29 block   */
 void statusbar_loadParams(const uint8_t *in);
-uint32_t statusbar_tribeValue(void);     /* [0x5B25]*10 + [0x5B26] */
+uint32_t statusbar_tribeValue(void); /* [0x5B25]*10 + [0x5B26] */
 /* [0x5B12]: the ticking gate (the in-level dialogs clear it). */
 void statusbar_setActive(int32_t on);
 void statusbar_setSplit(uint32_t row);
 /* the level end's [0x5B0A] = 0xC9 (1000:342B): stop composing the bar */
-void statusbar_hide(void);   /* [0x5B0A], 201..152 reveal */
+void statusbar_hide(void); /* [0x5B0A], 201..152 reveal */
 uint32_t statusbar_split(void);
 /* [0x5B56] (1..6): the current ACTION program — draws both the program and
  * the action row's group.  object.c owns it; the bar follows. */
@@ -199,11 +214,11 @@ void statusbar_cycleAction(void);
 /* 1000:3747: the jump/throw charge bar, v = the acting record's +0xE. */
 void statusbar_chargeBar(uint32_t v);
 /* the group's selected-cell byte (1-based), for tests; 0 past the table. */
-uint32_t statusbar_actionGroup(void);   /* [0x5B56]: the bar's current group */
+uint32_t statusbar_actionGroup(void); /* [0x5B56]: the bar's current group */
 /* the program/group header ([0x5B2B] -> 0x5B37): {count, cursor, icon...} */
 const uint8_t *object_programHeader(uint32_t group);
 const uint8_t *object_actionHeader(void);
-void object_stepActionCell(void);       /* 1000:3941: SPACE steps the cursor */
+void object_stepActionCell(void); /* 1000:3941: SPACE steps the cursor */
 uint32_t statusbar_actionCount(uint32_t group);
 uint32_t statusbar_actionCell(uint32_t group);
 /* The countdown word for the save's +0x07: minutes<<8 | BCD seconds. */
@@ -234,7 +249,7 @@ int32_t scene_playBootIntro(void);
 /* The main loop's per-tick input state; the boot's abort polls (c0c6's
  * [0x48A3] / +0x5ACE bit-7 equivalents) read this cached copy. */
 void scene_noteInput(const InputState *in);
-uint32_t scene_boot_phaseForProbe(void);   /* probe: the boot machine's phase */
+uint32_t scene_boot_phaseForProbe(void); /* probe: the boot machine's phase */
 
 /* --- src/level.c — the level definitions (subsystem 9, §2) -------------
  *
@@ -243,27 +258,27 @@ uint32_t scene_boot_phaseForProbe(void);   /* probe: the boot machine's phase */
  * metadata, the 640-byte tile map (32x20).
  */
 typedef struct {
-    uint32_t levelId;       /* 0..159                                    */
-    uint8_t  style;         /* +0x00 low: the tile style 1..6            */
-    uint8_t  introIndex;    /* +0x01 high: the intro-movie index (0xFF=none) */
-    uint8_t  goalCount;     /* +0x02 low: the solved-flag threshold      */
-    uint8_t  entityLife;    /* +0x02 high: the entity lifetime seed      */
-    uint16_t objectTest;    /* +0x04: the object-test mode word          */
-    uint8_t  unused06;      /* +0x06: 0 in all 160 shipped records       */
-    uint16_t timeA;         /* +0x07: the BCD MMSS limit (difficulty A)  */
-    uint16_t timeB;         /* +0x09: difficulty B                       */
-    uint16_t timeC;         /* +0x0B: difficulty C                       */
-    uint8_t  map[640];      /* 32 columns x 20 rows, row-major           */
-    uint32_t mapFileOff;    /* the map's offset inside the L*.BIN image  */
-    char     goal[128];     /* the goal text (CR = a line break)         */
-    char     author[128];   /* the author text                           */
+    uint32_t levelId; /* 0..159                                    */
+    uint8_t style; /* +0x00 low: the tile style 1..6            */
+    uint8_t introIndex; /* +0x01 high: the intro-movie index (0xFF=none) */
+    uint8_t goalCount; /* +0x02 low: the solved-flag threshold      */
+    uint8_t entityLife; /* +0x02 high: the entity lifetime seed      */
+    uint16_t objectTest; /* +0x04: the object-test mode word          */
+    uint8_t unused06; /* +0x06: 0 in all 160 shipped records       */
+    uint16_t timeA; /* +0x07: the BCD MMSS limit (difficulty A)  */
+    uint16_t timeB; /* +0x09: difficulty B                       */
+    uint16_t timeC; /* +0x0B: difficulty C                       */
+    uint8_t map[640]; /* 32 columns x 20 rows, row-major           */
+    uint32_t mapFileOff; /* the map's offset inside the L*.BIN image  */
+    char goal[128]; /* the goal text (CR = a line break)         */
+    char author[128]; /* the author text                           */
 } LevelData;
 
 int32_t level_init(const OSystem *osys);
-int32_t level_load(uint32_t levelId);       /* 0..159; 0 = ok            */
-const LevelData *level_data(void);          /* NULL before a load        */
-const uint8_t *level_map(void);             /* == level_data()->map      */
-uint32_t level_style(void);                  /* [0x17EE]: the record's style */
+int32_t level_load(uint32_t levelId); /* 0..159; 0 = ok            */
+const LevelData *level_data(void); /* NULL before a load        */
+const uint8_t *level_map(void); /* == level_data()->map      */
+uint32_t level_style(void); /* [0x17EE]: the record's style */
 /* the working palette 202F:0x14D3 (the fade target of the claim, the level's
  * own fades and the rotate hook) */
 const uint8_t *level_palette(void);
@@ -284,7 +299,7 @@ uint32_t level_specialTile(uint32_t i);
 uint32_t level_pageByte(uint32_t id, uint32_t subcol);
 uint32_t level_itemWord(uint32_t id, uint32_t row);
 uint32_t level_itemByte(uint32_t id, uint32_t off);
-int32_t level_tick(void);                   /* 1 = the level is running  */
+int32_t level_tick(void); /* 1 = the level is running  */
 /* 1000:3DC0: the view's world origin (the CRTC start's source). */
 void level_setView(uint32_t x, uint32_t y);
 /* 1000:5CB6: the camera follows the acting record (update_world's first call,
@@ -294,11 +309,11 @@ void level_followView(void);
  * claim at 1000:3B19 and restored at 1000:3CAB). */
 void level_setUpdates(int32_t on);
 /** [0x2D8E]: the follower's +-1 px offset walk enabler (1000:DAC7 / 0xF8CE). */
-void     level_set_offsetWord(uint16_t v);
+void level_set_offsetWord(uint16_t v);
 uint16_t level_offsetWord(void);
 /* 1000:5D37's walk pointer ([0x2D90]) back to the table's first pair. */
-void     level_reset_offsetWalk(void);
-int32_t level_updates(void);         /* [0xC] */
+void level_reset_offsetWalk(void);
+int32_t level_updates(void); /* [0xC] */
 uint32_t level_viewX(void);
 uint32_t level_viewY(void);
 /* The claim's particles (1000:3E73/0x3FB3/0x3F4A): begin at the appended record
@@ -312,8 +327,8 @@ void level_noteInput(const InputState *in);
 /* menu_loop (1000:012A), the MAP/high-score screen after the ending.
  * START: the HIGH.BIT card + the title, key/ACTION exit; the full
  * map/cursor/score tables are the next pass. */
-int32_t map_begin(void);                    /* 1 = the screen is up      */
-int32_t map_tick(const InputState *in);     /* 1 = still up              */
+int32_t map_begin(void); /* 1 = the screen is up      */
+int32_t map_tick(const InputState *in); /* 1 = still up              */
 
 /* check_highscore (1000:41AE), the score/record screen between the level's
  * end page and the post-level newspaper.  START: SCORE.BIT + the score line
@@ -323,61 +338,62 @@ int32_t map_tick(const InputState *in);     /* 1 = still up              */
  * the one term the object array (0x3E75) still owes. */
 uint32_t score_levelScore(void);
 /* --- HISCORES.HUM (re_formats.md §11, menu_loop 1000:012A) ------------ */
-void     hiscore_init(void);                 /* 1000:069F: load + decrypt  */
-void     hiscore_reset(void);                /* the shipped defaults       */
-void     hiscore_reload(void);               /* re-read the file           */
-void     hiscore_obfuscate(uint8_t *p, uint32_t n);  /* 1000:06DE          */
-void     hiscore_write(void);                /* 1000:06CC: encrypt + save  */
-uint16_t hiscore_best(uint32_t level);       /* DS:0x38A + 2*level         */
-void     hiscore_setBest(uint32_t level, uint16_t value);
-uint32_t hiscore_count(void);                /* 10                         */
-uint32_t hiscore_score(uint32_t i);          /* the top-10, descending     */
+void hiscore_init(void); /* 1000:069F: load + decrypt  */
+void hiscore_reset(void); /* the shipped defaults       */
+void hiscore_reload(void); /* re-read the file           */
+void hiscore_obfuscate(uint8_t *p, uint32_t n); /* 1000:06DE          */
+void hiscore_write(void); /* 1000:06CC: encrypt + save  */
+uint16_t hiscore_best(uint32_t level); /* DS:0x38A + 2*level         */
+void hiscore_setBest(uint32_t level, uint16_t value);
+uint32_t hiscore_count(void); /* 10                         */
+uint32_t hiscore_score(uint32_t i); /* the top-10, descending     */
 const char *hiscore_name(uint32_t i);
-int32_t  hiscore_qualifies(uint32_t score);
-int32_t  hiscore_insert(uint32_t score, const char *name);   /* 0x01CD    */
-int32_t  hiscore_nameApply(char *name, uint32_t column, uint32_t *len);
+int32_t hiscore_qualifies(uint32_t score);
+int32_t hiscore_insert(uint32_t score, const char *name); /* 0x01CD    */
+int32_t hiscore_nameApply(char *name, uint32_t column, uint32_t *len);
 
 /* --- the MAP screen's letter wheel (apl\alpha.spr, 1000:0705/0F93/0CBE) --- */
-void     alpha_expand(const uint8_t *src, uint8_t *dst);
-void     alpha_cell(uint32_t cell, uint32_t angle, uint32_t *src, uint32_t *dst);
-void     alpha_drawWheel(uint8_t *page, uint32_t base);
-void     alpha_drawName(uint8_t *page, const char *name);
+void alpha_expand(const uint8_t *src, uint8_t *dst);
+void alpha_cell(uint32_t cell, uint32_t angle, uint32_t *src, uint32_t *dst);
+void alpha_drawWheel(uint8_t *page, uint32_t base);
+void alpha_drawName(uint8_t *page, const char *name);
 /* --- the MAP screen's frame (apl\band.spr, 1000:12D3/0874/07E6) --------- */
-extern uint32_t map_boxBottom;               /* [0x8AE]                    */
-extern uint32_t map_panel;                   /* [0x8A2]: 1..6              */
-void     map_bandFill(uint8_t *page);        /* 1000:12D3                  */
-void     map_drawBoxEdges(uint8_t *page, uint32_t row);   /* 1000:07E6    */
-void     map_drawList(uint8_t *page);        /* draw_score_block 1000:0651 */
-void     map_drawCongrats(uint8_t *page);    /* 1000:021E..0266            */
-uint32_t map_congratsDraws(void);            /* 1000:0251's two passes     */
-void     map_drawRect(uint8_t *page, uint32_t x, uint32_t y, uint32_t w,
-                      uint32_t h);          /* 1000:1251 outline          */
-uint32_t map_transitionStep(void);           /* 0..6, 1000:028C..030A      */
-uint32_t map_fadeStarts(void);               /* palette_build_fade calls   */
-int32_t  map_fadeAt(uint32_t i, uint32_t *first, uint32_t *entries,
-                    uint32_t *div, uint32_t *target);
-void     map_drawName(uint8_t *page);        /* 1000:0CBE (ring + typed)   */
+extern uint32_t map_boxBottom; /* [0x8AE]                    */
+extern uint32_t map_panel; /* [0x8A2]: 1..6              */
+void map_bandFill(uint8_t *page); /* 1000:12D3                  */
+void map_drawBoxEdges(uint8_t *page, uint32_t row); /* 1000:07E6    */
+void map_drawList(uint8_t *page); /* draw_score_block 1000:0651 */
+void map_drawCongrats(uint8_t *page); /* 1000:021E..0266            */
+uint32_t map_congratsDraws(void); /* 1000:0251's two passes     */
+void map_drawRect(uint8_t *page, uint32_t x, uint32_t y, uint32_t w,
+                  uint32_t h); /* 1000:1251 outline          */
+uint32_t map_transitionStep(void); /* 0..6, 1000:028C..030A      */
+uint32_t map_fadeStarts(void); /* palette_build_fade calls   */
+int32_t map_fadeAt(uint32_t i, uint32_t *first, uint32_t *entries,
+                   uint32_t *div, uint32_t *target);
+void map_drawName(uint8_t *page); /* 1000:0CBE (ring + typed)   */
 
 /* --- check_highscore's data (1000:41B8..4352) ------------------------- */
-uint32_t score_members(void);                /* [0x11FC]'s recompute      */
-void     score_prepare(void);                /* terms, best, NEW RECORD, totals */
-int32_t  score_countersRun(void);            /* 1000:475D: one 10-point step */
-int32_t  score_isRecord(void);               /* [0x1DD6]                  */
-int32_t  score_blinkTick(void);              /* 1000:467A: 1 = phase flipped */
-int32_t  scoreBlinkOn(void);                 /* [0x1DC4]: 1 = the stamp is up */
-void     score_stampDraw(uint8_t *page, int32_t on); /* 1000:46FC / 0x46A3 */
-void     score_column(uint8_t *page, uint32_t value, int32_t x, int32_t y, uint32_t digits);
-void     score_drawColumns(uint8_t *page);   /* 1000:4471                 */
-void     score_drawCard(uint8_t *page);      /* 1000:4403, transparent for 0 */
-void     score_drawNum3(uint8_t *page, uint32_t ax, uint16_t value,
-                        uint32_t bx, uint32_t bp);   /* 1000:44BB / 0x450F */
-uint16_t score_bestFor(uint32_t level);      /* DS:0x38A + level*2        */
-uint16_t score_bestTime(void);               /* [0x1E88]                  */
-uint32_t score_totalLo(void), score_totalHi(void);    /* [0x592]/[0x594]   */
-void     score_setTotal(uint32_t lo, uint32_t hi); /* the save header's halves */
-uint32_t score_shownLo(void), score_shownHi(void);    /* [0x1DD2]/[0x1DD4] */
-int32_t score_begin(uint32_t value);        /* 1 = the screen is up      */
-int32_t score_tick(const InputState *in);   /* 1 = still up              */
+uint32_t score_members(void); /* [0x11FC]'s recompute      */
+void score_prepare(void); /* terms, best, NEW RECORD, totals */
+int32_t score_countersRun(void); /* 1000:475D: one 10-point step */
+int32_t score_isRecord(void); /* [0x1DD6]                  */
+int32_t score_blinkTick(void); /* 1000:467A: 1 = phase flipped */
+int32_t scoreBlinkOn(void); /* [0x1DC4]: 1 = the stamp is up */
+void score_stampDraw(uint8_t *page, int32_t on); /* 1000:46FC / 0x46A3 */
+void score_column(uint8_t *page, uint32_t value, int32_t x, int32_t y,
+                  uint32_t digits);
+void score_drawColumns(uint8_t *page); /* 1000:4471                 */
+void score_drawCard(uint8_t *page); /* 1000:4403, transparent for 0 */
+void score_drawNum3(uint8_t *page, uint32_t ax, uint16_t value, uint32_t bx,
+                    uint32_t bp); /* 1000:44BB / 0x450F */
+uint16_t score_bestFor(uint32_t level); /* DS:0x38A + level*2        */
+uint16_t score_bestTime(void); /* [0x1E88]                  */
+uint32_t score_totalLo(void), score_totalHi(void); /* [0x592]/[0x594]   */
+void score_setTotal(uint32_t lo, uint32_t hi); /* the save header's halves */
+uint32_t score_shownLo(void), score_shownHi(void); /* [0x1DD2]/[0x1DD4] */
+int32_t score_begin(uint32_t value); /* 1 = the screen is up      */
+int32_t score_tick(const InputState *in); /* 1 = still up              */
 /* level_fade_in (1000:3334): the start chain — fade out of the pre-level
  * screen, the eight update_world frames, the fade in to the working palette,
  * then the bar's ticking gate.  level_begin arms it once; the phases advance
@@ -396,7 +412,7 @@ void level_loadingTick(void);
  * takes entry 1000:00DC -> 002B (the restart-game path), not the next level. */
 uint32_t level_required(void);
 uint32_t level_members(void);
-void     level_addMember(void);          /* 1000:DE1F: [0x11FC]++ */
+void level_addMember(void); /* 1000:DE1F: [0x11FC]++ */
 
 /* level_restore (1000:35AF): [0x11FC] := [0x1970] — the members the level
  * started with, before the level's own joins (level_start 1000:3032 then
@@ -417,7 +433,7 @@ void level_requestEnd(int32_t won);
  * screen is up. */
 int32_t level_diskStatusBegin(uint32_t disc);
 int32_t level_diskStatusTick(const InputState *in);
-void level_diskStatusReset(void);          /* test/lifecycle: drop the screen */
+void level_diskStatusReset(void); /* test/lifecycle: drop the screen */
 /* the level-end test (object_test_dispatch 1000:35D6's negative return).
  * level_goalReached is the win hook the discovery/claim path sets; a lost
  * tribe member decrements the live count and ends the level at zero. */
@@ -426,8 +442,8 @@ void level_memberLost(void);
 int32_t level_endTest(void);
 int32_t level_ended(void);
 int32_t level_endHolding(void);
-void level_setEnd(int32_t won);         /* 1000:F66D: [0x138E] = 0 */
-int32_t level_outcome(void);         /* [0x138E]: 1 won, 0 extinct */
+void level_setEnd(int32_t won); /* 1000:F66D: [0x138E] = 0 */
+int32_t level_outcome(void); /* [0x138E]: 1 won, 0 extinct */
 
 /* [0x5D31] / [0x11FC] after level_load's LEVEL-board pick: the record's
  * timeA/B/C word and the 12/10/8 starting tribe (entry 1000:009F,
@@ -470,18 +486,19 @@ uint32_t level_animFrames(void);
 /* 1000:1FD4 field A: the per-tile signed slope profile (behaviour 4). */
 int32_t level_slopeByte(uint32_t id, uint32_t sub);
 void entity_render(uint8_t *page, int32_t scrollX, int32_t scrollY);
-int32_t entity_frameInfo(uint32_t a, uint32_t *src, uint32_t *rows, uint32_t *yoff);
+int32_t entity_frameInfo(uint32_t a, uint32_t *src, uint32_t *rows,
+                         uint32_t *yoff);
 
 /* One entity record: the DS layout word-for-word (+0x00..+0x0E). */
 typedef struct {
-    uint16_t x0;        /* +0x0: endpoint A — handler 1's target        */
-    uint16_t x1;        /* +0x2: endpoint B — handler 0's target        */
-    uint16_t handler;   /* +0x4: the dispatch index (game: 0/1 only)    */
-    uint16_t x;         /* +0x6: the live position                      */
-    uint16_t y;         /* +0x8: row*16 - 0x30 + 1                      */
-    uint16_t hold;      /* +0xA: the beat countdown, seeded 3           */
-    uint16_t waypoint;  /* +0xC: the waypoint / animation index         */
-    uint16_t life;      /* +0xE: the goal word's high byte              */
+    uint16_t x0; /* +0x0: endpoint A — handler 1's target        */
+    uint16_t x1; /* +0x2: endpoint B — handler 0's target        */
+    uint16_t handler; /* +0x4: the dispatch index (game: 0/1 only)    */
+    uint16_t x; /* +0x6: the live position                      */
+    uint16_t y; /* +0x8: row*16 - 0x30 + 1                      */
+    uint16_t hold; /* +0xA: the beat countdown, seeded 3           */
+    uint16_t waypoint; /* +0xC: the waypoint / animation index         */
+    uint16_t life; /* +0xE: the goal word's high byte              */
 } Entity;
 
 /* load_terrain_b (1000:5168): the 25-pair map walk in table order, one
@@ -492,10 +509,10 @@ typedef struct {
  * (the prologue's [0x17EE]); `lifeSeed` = the goal word's high byte
  * ([0x17F1] -> the +0xE seed).  0 = ok, -1 = no map. */
 int32_t entity_spawnFromMap(const uint8_t *map, uint32_t style,
-                        uint32_t lifeSeed);
+                            uint32_t lifeSeed);
 
-const Entity *entity_at(uint32_t i);   /* NULL past the count */
-Entity *entity_atMut(uint32_t i);      /* the 0x58D1 collision pass writes */
+const Entity *entity_at(uint32_t i); /* NULL past the count */
+Entity *entity_atMut(uint32_t i); /* the 0x58D1 collision pass writes */
 int32_t entity_spritePixel(uint32_t src, uint32_t rows, uint32_t x, uint32_t y);
 uint32_t entity_count(void);
 /* save +0x1656+0x28: [0x64C2] and the first seven 0x10-byte records. */
@@ -509,44 +526,49 @@ void entity_loadFixed(const uint8_t *src);
  * are object_test_dispatch's (1000:35D6): -1 = true, 0 = false.
  */
 void object_init(void);
-void     object_blitSprite(uint8_t *page, const uint8_t *src, uint32_t rows,
-                           uint32_t cols, int32_t x, int32_t y);
+void object_blitSprite(uint8_t *page, const uint8_t *src, uint32_t rows,
+                       uint32_t cols, int32_t x, int32_t y);
 /* 1000:5C2F draw_objects_pass2: the two TER.DAT slots at DS:0x649A, disabled by
  * object_array_init (0x4CAB) through their +0x10 flag words. */
-void     object_terSlotInit(void);
-uint8_t *object_terSlotAt(uint32_t i);           /* NULL past the two slots */
-void     object_publishTer(const uint8_t *bank, uint32_t size);
-void     object_renderTer(uint8_t *page, int32_t scrollX, int32_t scrollY);
-uint8_t *object_slot(uint32_t i);        /* NULL past object_slots()      */
+void object_terSlotInit(void);
+uint8_t *object_terSlotAt(uint32_t i); /* NULL past the two slots */
+void object_publishTer(const uint8_t *bank, uint32_t size);
+void object_renderTer(uint8_t *page, int32_t scrollX, int32_t scrollY);
+uint8_t *object_slot(uint32_t i); /* NULL past object_slots()      */
 uint32_t object_slots(void);
-uint32_t object_frameSlots(void);       /* the sprite table bound (0x11E) */
-void     object_frameForProbe(uint32_t frame, uint32_t *off, uint32_t *rows);
+uint32_t object_frameSlots(void); /* the sprite table bound (0x11E) */
+void object_frameForProbe(uint32_t frame, uint32_t *off, uint32_t *rows);
 /* the 0x32B9 background-sprite queue (1000:5F54's input) */
 uint32_t object_bgCount(void);
-void     object_bgAt(uint32_t i, uint32_t *x, uint32_t *y);
+void object_bgAt(uint32_t i, uint32_t *x, uint32_t *y);
 /* the SAVE GAME state ranges (re_formats.md §10/§12.3): object table
  * (0x3E20, 0x25F), pools (0x6F20, 0x13CA), programs (0x5B37, 0x20),
  * TER slots (0x649A, 0x28) and the 0x6F92 copy (0x54). */
-void object_saveTable(uint8_t *dst);   void object_loadTable(const uint8_t *src);
-void object_savePool(uint8_t *dst);    void object_loadPool(const uint8_t *src);
-void object_savePrograms(uint8_t *dst);void object_loadPrograms(const uint8_t *src);
-void object_saveTer(uint8_t *dst);     void object_loadTer(const uint8_t *src);
-void object_saveSpans(uint8_t *dst);   void object_loadSpans(const uint8_t *src);
-int32_t object_current(void);                /* [0x1AF2], -1 = none           */
+void object_saveTable(uint8_t *dst);
+void object_loadTable(const uint8_t *src);
+void object_savePool(uint8_t *dst);
+void object_loadPool(const uint8_t *src);
+void object_savePrograms(uint8_t *dst);
+void object_loadPrograms(const uint8_t *src);
+void object_saveTer(uint8_t *dst);
+void object_loadTer(const uint8_t *src);
+void object_saveSpans(uint8_t *dst);
+void object_loadSpans(const uint8_t *src);
+int32_t object_current(void); /* [0x1AF2], -1 = none           */
 void object_setCurrent(int32_t slot);
-int32_t object_player(void);                 /* [0x180A], -1 = none           */
+int32_t object_player(void); /* [0x180A], -1 = none           */
 void object_setPlayer(int32_t slot);
-int32_t object_noneType1d(void);             /* 1000:3640                     */
-int32_t object_classMatches(uint32_t want);  /* 1000:3659                     */
-int32_t object_typeEquals(uint32_t type);    /* 1000:3678                     */
-int32_t object_entitiesFinished(void);       /* 1000:3688 (the entity table)  */
+int32_t object_noneType1d(void); /* 1000:3640                     */
+int32_t object_classMatches(uint32_t want); /* 1000:3659                     */
+int32_t object_typeEquals(uint32_t type); /* 1000:3678                     */
+int32_t object_entitiesFinished(void); /* 1000:3688 (the entity table)  */
 int32_t object_mapCellEquals(uint32_t cell); /* 1000:36AB (the map cell)     */
-uint32_t object_staticSlots(void);           /* the 8 the predicates scan     */
-uint32_t object_liveCount(void);             /* [0x3E73]; 9 at the level start */
-uint8_t  object_slotClass(uint32_t slot);    /* [0x3E5E + slot]               */
-void     object_setSlotClassForProbe(uint32_t slot, uint8_t cls);
-void     object_setSlotClass(uint32_t slot, uint32_t cls);
-int32_t object_testDispatch(uint16_t mode);  /* 1000:35D6: 1 = goal met       */
+uint32_t object_staticSlots(void); /* the 8 the predicates scan     */
+uint32_t object_liveCount(void); /* [0x3E73]; 9 at the level start */
+uint8_t object_slotClass(uint32_t slot); /* [0x3E5E + slot]               */
+void object_setSlotClassForProbe(uint32_t slot, uint8_t cls);
+void object_setSlotClass(uint32_t slot, uint32_t cls);
+int32_t object_testDispatch(uint16_t mode); /* 1000:35D6: 1 = goal met       */
 /* render_objects' object pass (1000:5D56 -> 0x653C): the base sprite of every
  * live record, drawn at (x - scrollX, y - scrollY). */
 void object_publishBank(const uint8_t *bank, uint32_t size);
@@ -556,7 +578,7 @@ void object_publishBank(const uint8_t *bank, uint32_t size);
  * type 2; 0xAB the spear, appended, frame 0x60, +8 = 0xFFFF, behaviour 5;
  * the rest per re_map.md); returns [0x3E73]. */
 uint32_t object_loadTerrainObjects(uint8_t *map);
-uint32_t object_placedHumans(void);      /* [0x3E20]                       */
+uint32_t object_placedHumans(void); /* [0x3E20]                       */
 /* the map cell under a static record (0xF761 with AX = 8, BX = 0xC); the
  * score's object bonus reads it: 0xA8 -> +1000, 0xA7 -> +2000 (1000:55FA). */
 uint32_t object_recordMapCell(uint32_t slot);
@@ -575,15 +597,15 @@ void object_render(uint8_t *page, int32_t scrollX, int32_t scrollY);
 typedef struct {
     uint32_t handler;
     uint32_t tail;
-    uint32_t hook;      /* the row's +0xA: run 1000:D8BD before the tail */
+    uint32_t hook; /* the row's +0xA: run 1000:D8BD before the tail */
     uint32_t command;
 } ObjCommand;
 ObjCommand object_commandSelect(uint8_t *rec, uint8_t input);
 
 /* 1000:E4B0's outcome for one command. */
-#define OBJ_CMD_NONE      0   /* neither a handler nor a tail ran          */
-#define OBJ_CMD_HANDLER   1   /* the type row's handler ran                */
-#define OBJ_CMD_TAIL      2   /* the row's tail handler ran                */
+#define OBJ_CMD_NONE     0 /* neither a handler nor a tail ran          */
+#define OBJ_CMD_HANDLER  1 /* the type row's handler ran                */
+#define OBJ_CMD_TAIL     2 /* the row's tail handler ran                */
 #define OBJ_CMD_UNPORTED (-1) /* no port */
 /* 1000:E4B0..E4F7: select and run one command for the acting record.  Only the
  * ported handlers are dispatched (the two movement states, the leaves, the snap,
@@ -593,8 +615,8 @@ int32_t object_commandRun(uint8_t *actor, uint8_t input);
 void object_streamCommand(uint8_t *actor);
 void object_clearCountdown(uint8_t *actor);
 void object_setCommandTimer(uint32_t v);
-void object_animatorTick(void);               /* 1000:D6B2 phase 3 */
-uint8_t *object_groupAt(uint32_t i);           /* 0x6F22 entry */
+void object_animatorTick(void); /* 1000:D6B2 phase 3 */
+uint8_t *object_groupAt(uint32_t i); /* 0x6F22 entry */
 void object_animatorReset(void);
 
 /* The human stack (`0x6F22`, 8 entries x 0x0E: +0/+2 x/y, bit 15 = free, +4 the
@@ -606,19 +628,21 @@ void object_animatorReset(void);
  * finds the group holding a record and dissolves it).  The `0x64AD`/`0x64C1`
  * in-a-stack masks (1000:F38F/F3CA) are written by the two pushes and read by
  * the selector. */
-int32_t object_stackPush(uint8_t *actor);         /* 1 = a group took it      */
-int32_t object_stackGrab(uint8_t *actor);         /* 1 = grabbed, 0 = registered */
+int32_t object_stackPush(uint8_t *actor); /* 1 = a group took it      */
+int32_t object_stackGrab(uint8_t *actor); /* 1 = grabbed, 0 = registered */
 /* -1 / 0 / 1 as 1000:FDED; `*below` = the record it leaves in DI and `*entry` =
  * the 0x6F22 entry it was scanning (1000:FDF7's DX, which 1000:F223 reads). */
 int32_t object_stackPop(uint16_t ax, uint8_t **below, uint8_t **entry);
-int32_t object_stackStepOff(uint8_t *actor);      /* 1000:E860: 1/0/-1        */
-int32_t object_stackLeave(uint8_t *actor);        /* 1000:E8DD: 1/0/-1        */
-int32_t object_stackSnap(uint8_t *actor);         /* 1000:E963: 1/0           */
-int32_t object_stackStand(uint8_t *actor);        /* 1000:E99D: 1/0           */
+int32_t object_stackStepOff(uint8_t *actor); /* 1000:E860: 1/0/-1        */
+int32_t object_stackLeave(uint8_t *actor); /* 1000:E8DD: 1/0/-1        */
+int32_t object_stackSnap(uint8_t *actor); /* 1000:E963: 1/0           */
+int32_t object_stackStand(uint8_t *actor); /* 1000:E99D: 1/0           */
 /* 1000:F17C: 0 = done, -1 = nothing found.  The terrain branch is in
  * (1000:F1D7's step probe, 1000:F223's field-K special-tile test). */
-int32_t object_selector(uint8_t *actor, uint16_t xoff, uint16_t frame, uint16_t type);
-int32_t object_stackScanDissolve(uint32_t recIndex); /* 1 = a group was dissolved */
+int32_t object_selector(uint8_t *actor, uint16_t xoff, uint16_t frame,
+                        uint16_t type);
+int32_t
+object_stackScanDissolve(uint32_t recIndex); /* 1 = a group was dissolved */
 /* 1000:FA13 object_group_dissolve, by group slot (the 0x6F22 entry the tail holds
  * in BP when it calls it). */
 void object_groupDissolveAt(uint32_t slot);
@@ -638,11 +662,12 @@ void object_claimTick(const uint8_t *levelPal);
 int32_t object_findNeighbour(int32_t actor);
 /* one level frame of the object machine (the frame counter + the claim) */
 void object_tick(const uint8_t *levelPal);
-int32_t object_lowPhaseMatch(void);       /* 1000:3600: -1 when met         */
+int32_t object_lowPhaseMatch(void); /* 1000:3600: -1 when met         */
 /* 1000:F423's window, against the type row 1000:E467 hands the hook as DI:
  * the row's own words are the "rect", so it never matches on shipped data -
  * the test asserts that over every type and both halves. */
-int32_t object_rowWindowMatches(uint32_t type, uint32_t half, int32_t x, int32_t y);
+int32_t object_rowWindowMatches(uint32_t type, uint32_t half, int32_t x,
+                                int32_t y);
 /* The ACTION program machine (script_op_dispatch, 1000:3979): ACTION with no
  * direction held runs the acting record's program.  The acting record is
  * [0x3E22]; object_actionRun() performs one press, object_cycleEntity(±1) is
@@ -650,7 +675,7 @@ int32_t object_rowWindowMatches(uint32_t type, uint32_t half, int32_t x, int32_t
 void object_actionRun(void);
 void object_pendingRun(void);
 /* one frame of the event-4 charge loop (1000:3702); call after the frame */
-int32_t object_chargeTick(void);   /* the [0x1979] dispatch, per frame */
+int32_t object_chargeTick(void); /* the [0x1979] dispatch, per frame */
 /* the charge loop is running (1000:3702): the status bar must not repaint
  * the band/action row while it is (D-81). */
 int32_t object_chargeActive(void);
@@ -671,17 +696,17 @@ void object_setActionEntity(uint32_t index);
 uint32_t object_actionProgram(void);
 uint32_t object_actionPending(void);
 void object_actionSetCursor(uint32_t cursor);
-void object_actionSetProgram(uint32_t index);   /* [0x5B56], 1..6        */
+void object_actionSetProgram(uint32_t index); /* [0x5B56], 1..6        */
 uint32_t object_actionFault(void);
 /* 1000:83B7 driver_call: the last sfx number a handler asked for (the audio
  * surface has no sfx entry until M6, so the request is only recorded). */
 uint32_t object_lastSfx(void);
 /* [0x6FE6]: the marker 1000:EAE6/0xF1B2 write (no ported reader yet). */
-int32_t  object_flag6fE6(void);
-void     object_driverCall(uint32_t n);   /* 1000:83B7 from another module */
+int32_t object_flag6fE6(void);
+void object_driverCall(uint32_t n); /* 1000:83B7 from another module */
 /* [0x13A4]: the ACTION press's latch as the command handlers see it. */
 int32_t object_actionLatched(void);
-void object_setActionLatched(int32_t on);          /* 7 = op 7 was dispatched */
+void object_setActionLatched(int32_t on); /* 7 = op 7 was dispatched */
 
 /* The arch's fatal route for the op-7 halt (NULL detaches it, the tests do
  * that on purpose); level_init attaches the game's OSystem. */
@@ -694,33 +719,33 @@ int32_t script_init(const OSystem *osys);
  * The boot intro's event script: 25 verbatim cues from 202F:0x843C,
  * dispatched on the exact frame (JE) through a 7-command dispatch. */
 typedef struct {
-    uint32_t frame;         /* the current frame (the player advances it) */
-    uint32_t groupDwell;    /* cmd 7: frames per display-list group       */
-    int32_t  scrollOn;      /* cmd 3 on / cmd 2 off                       */
-    uint32_t scrollDelta;   /* cmd 6: the scroll advance per frame        */
+    uint32_t frame; /* the current frame (the player advances it) */
+    uint32_t groupDwell; /* cmd 7: frames per display-list group       */
+    int32_t scrollOn; /* cmd 3 on / cmd 2 off                       */
+    uint32_t scrollDelta; /* cmd 6: the scroll advance per frame        */
     uint32_t transitionIdx; /* cmd 1: run_screen_transition index         */
-    int32_t  quit;          /* cmd 5: the quit flag                       */
-    int32_t  done;          /* the frame target reached                   */
-    int32_t  seekPending;   /* cmd 4 fired: the player must seek          */
-    uint32_t seekFrame;     /*    ...to this frame                        */
-    const uint16_t *cues;   /* [frame][cmd][arg] triples, verbatim        */
+    int32_t quit; /* cmd 5: the quit flag                       */
+    int32_t done; /* the frame target reached                   */
+    int32_t seekPending; /* cmd 4 fired: the player must seek          */
+    uint32_t seekFrame; /*    ...to this frame                        */
+    const uint16_t *cues; /* [frame][cmd][arg] triples, verbatim        */
     uint32_t cueCount;
-    uint32_t cursor;        /* the next cue to fire                       */
+    uint32_t cursor; /* the next cue to fire                       */
 } CueScript;
 
 /* The boot intro's verbatim cue list (25 cues, frame target 387). */
-void     script_introStart(CueScript *s);
+void script_introStart(CueScript *s);
 /* Fire every cue whose frame == `frame` (JE dispatch). */
-void     script_fire(CueScript *s, uint32_t frame);
-int32_t  script_quit(const CueScript *s);
-int32_t  script_done(const CueScript *s);
+void script_fire(CueScript *s, uint32_t frame);
+int32_t script_quit(const CueScript *s);
+int32_t script_done(const CueScript *s);
 uint32_t script_groupDwell(const CueScript *s);
-int32_t  script_scrollOn(const CueScript *s);
+int32_t script_scrollOn(const CueScript *s);
 uint32_t script_scrollDelta(const CueScript *s);
 uint32_t script_transitionIndex(const CueScript *s);
-int32_t  script_seekPending(const CueScript *s);
+int32_t script_seekPending(const CueScript *s);
 uint32_t script_seekFrame(const CueScript *s);
-void     script_seekDone(CueScript *s);
+void script_seekDone(CueScript *s);
 
 /* --- src/audio.c — tune/sfx state machine (subsystem 7) --------------- */
 int32_t audio_init(const OSystem *osys);
@@ -757,15 +782,15 @@ void frontend_restart(void);
  * hands MUSIC to audio_musicGate, scene.c takes ANIMATIONS, and game_main
  * hands the RESTORE GAME slot to save_loadSlot (entry 1000:004C's load). */
 enum {
-    FRONTEND_OPT_MUSIC = 0,     /* ON/OFF: the frame web's music gate      */
-    FRONTEND_OPT_LEVEL = 1,     /* EASY/NORMAL/HARD: time A/B/C, 12/10/8    */
-    FRONTEND_OPT_GAME  = 2,     /* OFF/1..20: the save slot                */
-    FRONTEND_OPT_ANIM  = 3      /* ON/OFF: cd_file_op off (no cutscenes)   */
+    FRONTEND_OPT_MUSIC = 0, /* ON/OFF: the frame web's music gate      */
+    FRONTEND_OPT_LEVEL = 1, /* EASY/NORMAL/HARD: time A/B/C, 12/10/8    */
+    FRONTEND_OPT_GAME = 2, /* OFF/1..20: the save slot                */
+    FRONTEND_OPT_ANIM = 3 /* ON/OFF: cd_file_op off (no cutscenes)   */
 };
 uint32_t frontend_option(uint32_t idx);
-uint32_t frontend_cellForProbe(void);   /* [0x4220]: the walk's rail node  */
-int32_t  frontend_nameScreenForProbe(void); /* the name screen's phase      */
-const char *frontend_nameForProbe(void);    /* the typed name (0x61E0)      */
+uint32_t frontend_cellForProbe(void); /* [0x4220]: the walk's rail node  */
+int32_t frontend_nameScreenForProbe(void); /* the name screen's phase      */
+const char *frontend_nameForProbe(void); /* the typed name (0x61E0)      */
 
 /* --- src/party_intro.c — the level-intro party screen (subsystem 14) --
  *
@@ -786,17 +811,20 @@ const char *frontend_nameForProbe(void);    /* the typed name (0x61E0)      */
  * (the same art; GAME OVER / YOUR TRIBE IS TOO SMALL / IN THE RACE / PRESS
  * FIRE, one key/fire exit). */
 void party_intro_setGameOver(int32_t on);
-uint32_t party_intro_score(void);            /* g_score [0x592] */
+uint32_t party_intro_score(void); /* g_score [0x592] */
 void party_intro_setValues(uint32_t level, uint32_t need, uint32_t members,
                            uint32_t score, const char *tribe);
 void party_intro_seedScripts(const uint8_t *bytes, uint32_t len);
-void party_intro_seedSlots(const uint8_t *raw);   /* the 128 B at DS:0xFA8 */
+void party_intro_seedSlots(const uint8_t *raw); /* the 128 B at DS:0xFA8 */
 int32_t party_intro_start(void);
 int32_t party_intro_tick(const InputState *in);
-void party_intro_formatScore(uint32_t v, char *out);   /* 2b1b/2b70       */
-void party_intro_compose(uint8_t *page320x200); /* the law compose for the fixtures */
-const uint8_t *party_intro_workpal(void);   /* the 0x4bbc stand-in (diagnostics) */
-const uint8_t *party_intro_palUpper(void); /* 0x4d3c = 0x4bbc + 0x180 (diagnostics) */
+void party_intro_formatScore(uint32_t v, char *out); /* 2b1b/2b70       */
+void party_intro_compose(
+    uint8_t *page320x200); /* the law compose for the fixtures */
+const uint8_t *
+party_intro_workpal(void); /* the 0x4bbc stand-in (diagnostics) */
+const uint8_t *
+party_intro_palUpper(void); /* 0x4d3c = 0x4bbc + 0x180 (diagnostics) */
 /* --- src/textpage.c — the in-level text page (draw_map_object 9EA3) ----
  *
  * The dialog box + its lines + the option markers, ported from
@@ -832,16 +860,16 @@ void textpage_drawLineMaskAt(uint8_t *page, const char *line, uint32_t centreX,
  * The dialog draws through draw_map_object (1000:9EA3); known deviations are
  * in port_deviations.md.
  */
-void     menu_init(const OSystem *osys);
-void     menu_openPause(void);          /* [0x5B12] := 0, cursor 0         */
-void     menu_openTimeUp(void);         /* [0x5E44]'s 3-option block        */
-int32_t  menu_timeUp(void);             /* the dialog currently open        */
-int32_t  menu_active(void);             /* 1 while a dialog is up          */
-int32_t  menu_tick(const InputState *in);   /* 1 = still up; draws         */
-void     menu_draw(void);
-int32_t  menu_result(void);             /* the 0-based pause choice, -1    */
-uint32_t menu_slot(void);               /* the grid's game number 1..20    */
-void     menu_close(void);
+void menu_init(const OSystem *osys);
+void menu_openPause(void); /* [0x5B12] := 0, cursor 0         */
+void menu_openTimeUp(void); /* [0x5E44]'s 3-option block        */
+int32_t menu_timeUp(void); /* the dialog currently open        */
+int32_t menu_active(void); /* 1 while a dialog is up          */
+int32_t menu_tick(const InputState *in); /* 1 = still up; draws         */
+void menu_draw(void);
+int32_t menu_result(void); /* the 0-based pause choice, -1    */
+uint32_t menu_slot(void); /* the grid's game number 1..20    */
+void menu_close(void);
 
 /* --- src/save.c — the save-game format (load side) ---------------------
  *
@@ -854,14 +882,14 @@ int32_t save_init(const OSystem *osys);
 /* Load the slot (1..20; 0 = GAME OFF).  Resets the state first; returns 1
  * when the file's header was read (the original's "save present" [0x34]). */
 int32_t save_loadSlot(uint32_t slot);
-int32_t save_present(void);       /* [0x34]                              */
-uint16_t save_level(void);        /* +0x00, 1..160 -> [0x22]             */
-uint16_t save_time(void);         /* +0x07 word -> [0x5D31]              */
-uint32_t save_members(void);      /* +0x0B -> [0x1970]                   */
+int32_t save_present(void); /* [0x34]                              */
+uint16_t save_level(void); /* +0x00, 1..160 -> [0x22]             */
+uint16_t save_time(void); /* +0x07 word -> [0x5D31]              */
+uint32_t save_members(void); /* +0x0B -> [0x1970]                   */
 /* The whole 0x1800 buffer ([0x1C92]): the header and the state ranges are
  * carried verbatim (the ranges have no port consumer yet). */
 const uint8_t *save_blob(void);
-void save_restoreState(void);   /* after level_load: the 0x1800 ranges */
+void save_restoreState(void); /* after level_load: the 0x1800 ranges */
 /* level_run 1000:30B4: [0x34] := 0 after the level starts, so a later
  * "restart this level" takes the LEVEL board's time again. */
 void save_consume(void);
@@ -869,7 +897,7 @@ void save_consume(void);
  * ranges, 0x1800 bytes; save_restoreState puts them back after level_load.
  * The +0x17F0 parameter block is the image's [0x5B22] defaults. */
 int32_t save_writeSlot(uint32_t slot, uint32_t level, uint16_t timeWord,
-                    uint32_t members);
+                       uint32_t members);
 
 /* --- src/game_main.c — the top-level flow (the original's main loop) --
  *
@@ -884,10 +912,10 @@ int32_t save_writeSlot(uint32_t slot, uint32_t level, uint16_t timeWord,
  *                Enter with a codes.bin match -- frontend_tick)--> LEVEL
  */
 typedef enum GameFlow {
-    FLOW_ATTRACT = 0,      /* game_loop 1000:131E: the effect cycle      */
-    FLOW_MENU,             /* the map/level-select room                   */
-    FLOW_LEVEL,            /* a level is installed and running            */
-    FLOW_ENDING            /* entry 1512: cd_file_op(6 lost / 7 won),
+    FLOW_ATTRACT = 0, /* game_loop 1000:131E: the effect cycle      */
+    FLOW_MENU, /* the map/level-select room                   */
+    FLOW_LEVEL, /* a level is installed and running            */
+    FLOW_ENDING /* entry 1512: cd_file_op(6 lost / 7 won),
                             * draw_status_indicator, menu_loop (the MAP)   */
 } GameFlow;
 
@@ -915,24 +943,24 @@ uint32_t gameflow_levelForProbe(void);
 /* The pause menu's five 0-based results (dispatch_by_result_a167 1000:38EA);
  * returns the flow the action leaves, sets *quit for QUIT THIS GAME. */
 GameFlow gameflow_pauseAction(int32_t choice, int32_t *quit);
-uint32_t gameflow_partyScore(void);          /* the briefing's [0x592] low word */
-int32_t gameflow_partyPending(void);         /* a restart leaves the party to run */
-const char *gameflow_partyTribe(void);       /* 0x1189: the level's author   */
+uint32_t gameflow_partyScore(void); /* the briefing's [0x592] low word */
+int32_t gameflow_partyPending(void); /* a restart leaves the party to run */
+const char *gameflow_partyTribe(void); /* 0x1189: the level's author   */
 /* scan_id_list 1000:386E event 4: ESC opens the 0x5BBC pause block. */
 /* scan_id_list 1000:386E: the DS:0x1989 key list.  Handles ESC (the 0x5BBC
  * pause block), F1..F8 (select the record by scancode), ','/'.' (previous /
  * next record), SPACE (the action-icon step / home state) and F10 (the key
  * wait).  Returns 1 when an entry ran; a non-bit7 entry whose gate [0xC] is
  * closed returns 0 (1000:38AD). */
-int32_t  gameflow_keyList(const InputState *in);
+int32_t gameflow_keyList(const InputState *in);
 /* [0x5BBA]: the goal page (scroll_map 1000:9E51) is up. */
-int32_t  gameflow_goalPageUp(void);
+int32_t gameflow_goalPageUp(void);
 /* 1000:3954's key wait (F10) owns the input and blocks the world. */
-int32_t  gameflow_keyWaitActive(void);
+int32_t gameflow_keyWaitActive(void);
 /* The time-up dialog's 3 results (1000:34F9's inline dispatch): 0 restart
  * this level (level_restore), 1 restart this game (the room), 2 quit. */
 GameFlow gameflow_timeUpAction(int32_t choice, int32_t *quit);
-int32_t  gameflow_restartPending(void);   /* [0x1809] = 0xFF: restart game */
+int32_t gameflow_restartPending(void); /* [0x1809] = 0xFF: restart game */
 /* entry LAB_00CD's post-level step: [0x22]++ / [0x26]-- -> the next level of
  * the 160; when they run out this returns FLOW_ATTRACT (the caller starts
  * FLOW_ENDING: scene 7 -> the disc probe -> the MAP -> the attract). */
@@ -943,6 +971,6 @@ GameFlow gameflow_afterLevel(uint32_t *levelCurrent);
 uint32_t gameflow_postLevelScene(int32_t won, uint32_t introIndex);
 uint32_t gameflow_endingScene(int32_t won);
 /* level_run 3060/3062's gate: the level's required humans vs the tribe. */
-int32_t  gameflow_tribeTooSmall(uint32_t need, uint32_t members);
+int32_t gameflow_tribeTooSmall(uint32_t need, uint32_t members);
 
 #endif /* HUMANSRE_GAME_H */

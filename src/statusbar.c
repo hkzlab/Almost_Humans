@@ -49,10 +49,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define STRIP_LEN 1280u      /* PANELN1 (768) + PANELN2 (512), §12.7a    */
-#define BAR_FIRST_ROW 152u   /* the line-compare split, [0x5B0A] = 0x98  */
-#define BAR_ROWS 40u        /* panel4's top 40 rows                      */
-#define MARK_Y 172u         /* bar row 20 (the destinations 0x6E2..)     */
+#define STRIP_LEN     1280u /* PANELN1 (768) + PANELN2 (512), §12.7a    */
+#define BAR_FIRST_ROW 152u /* the line-compare split, [0x5B0A] = 0x98  */
+#define BAR_ROWS      40u /* panel4's top 40 rows                      */
+#define MARK_Y        172u /* bar row 20 (the destinations 0x6E2..)     */
 
 /* [0x5B0A]: the bar's first screen row.  The original's line-compare reveal
  * starts at 201 (hidden) and the INT 8 hook 1000:331E decrements it to 0x98
@@ -60,26 +60,26 @@
 static uint32_t barSplit = 152u;
 
 static const OSystem *sb_osys;
-static uint8_t *strip;        /* the four-plane panel strip                */
-static uint8_t *panel4;       /* LBM\PANEL4.BIT (the art + the palette)   */
-static uint32_t p4Size;       /* its length: the charge bar reads 0x3EE0+  */
-static uint8_t *icons3;       /* APL\ICONS3.SPR: 12 x 16x24 (0x180 each)  */
+static uint8_t *strip; /* the four-plane panel strip                */
+static uint8_t *panel4; /* LBM\PANEL4.BIT (the art + the palette)   */
+static uint32_t p4Size; /* its length: the charge bar reads 0x3EE0+  */
+static uint8_t *icons3; /* APL\ICONS3.SPR: 12 x 16x24 (0x180 each)  */
 
-static int32_t active;        /* [0x5B12]: the bar's ticking gate         */
+static int32_t active; /* [0x5B12]: the bar's ticking gate         */
 /* The bar is a display overlay in the original (CRTC line compare); the
  * port composes it into the page, so [0x5B0A] beyond the screen has to mean
  * "do not compose".  draw_level_text (0x342B) parks it at 0xC9 for the level
  * end, and blit_bitmap_planes re-renders the world over those rows. */
 static int32_t barHidden;
-static int32_t timeUp;        /* [0x5E44]: the countdown reached zero     */
+static int32_t timeUp; /* [0x5E44]: the countdown reached zero     */
 
 /* the countdown: values [0x5B19..1B], phases [0x5B1C/1E/20], slides
  * [0x5B16..18] — indices 0 = minutes, 1 = seconds-tens, 2 = seconds-ones */
 static uint8_t cd[3];
 static uint16_t cdPhase[3];
 static uint8_t cdSlide[3];
-static uint8_t secDiv;        /* [0x5B14], seeded 0x46 = 70 frames       */
-static uint8_t slideDiv;      /* [0x5B10], seeded 2                      */
+static uint8_t secDiv; /* [0x5B14], seeded 0x46 = 70 frames       */
+static uint8_t slideDiv; /* [0x5B10], seeded 2                      */
 
 /* the elapsed clock [0x5B0C..0E] = seconds ones (0..9), tens (0..5), minutes
  * (1000:96C6, one step per second; reset by level_start at 1000:95B5).  The
@@ -136,7 +136,11 @@ void statusbar_loadParams(const uint8_t *in)
     tdPhase[1] = in[7];
 }
 
-int32_t statusbar_init(const OSystem *osys) { sb_osys = osys; return 0; }
+int32_t statusbar_init(const OSystem *osys)
+{
+    sb_osys = osys;
+    return 0;
+}
 
 /* The mark x positions: the five destinations 0x6E2/0x6E6/0x6E8/0x728/0x72A
  * are bar row 20's bytes 2/6/8/72/74 at the 88-byte pitch; the flat page's
@@ -152,9 +156,8 @@ static const uint16_t markBias[5] = { 0, 0xC0, 0, 0, 0 };
  * level_video_init loaded. */
 static void stamp_marks(uint8_t *page)
 {
-    const uint16_t ph[5] = {
-        cdPhase[0], cdPhase[1], cdPhase[2], tdPhase[0], tdPhase[1]
-    };
+    const uint16_t ph[5] = { cdPhase[0], cdPhase[1], cdPhase[2], tdPhase[0],
+                             tdPhase[1] };
     for (uint32_t m = 0; m < 5u; m++) {
         uint32_t base = 4u * (uint32_t)(ph[m] + markBias[m]);
         for (uint32_t r = 0; r < 8u; r++) {
@@ -182,8 +185,7 @@ static void draw_band(uint8_t *page)
 
         if (at >= 200u) continue;
         dst = page + at * 320u;
-        for (uint32_t x = 0; x < 320u; x++)
-            dst[x] = (uint8_t)(0xC0u | src[x]);
+        for (uint32_t x = 0; x < 320u; x++) dst[x] = (uint8_t)(0xC0u | src[x]);
     }
 }
 
@@ -215,11 +217,12 @@ static void draw_band(uint8_t *page)
  * cursor is the byte SPACE steps and the script dispatcher reads.  The port
  * keeps one copy of those bytes (`object_programHeader`), so the highlighted
  * cell and the executed op cannot drift apart. */
-static const uint8_t actionGold[40] = {   /* 202F:0x5B57 */
-    0xD0,0xD1,0xD2,0xD3,0xD4,0xD5,0xD6,0xD7,0xD8,0xD9,
-    0xDA,0xDB,0xDC,0xDD,0xDE,0xDF,0xE0,0xE1,0xE2,0xE3,
-    0xE3,0xE2,0xE1,0xE0,0xDF,0xDE,0xDD,0xDC,0xDB,0xDA,
-    0xD9,0xD8,0xD7,0xD6,0xD5,0xD4,0xD3,0xD2,0xD1,0xD0,
+static const uint8_t actionGold[40] = {
+    /* 202F:0x5B57 */
+    0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 0xD8, 0xD9,
+    0xDA, 0xDB, 0xDC, 0xDD, 0xDE, 0xDF, 0xE0, 0xE1, 0xE2, 0xE3,
+    0xE3, 0xE2, 0xE1, 0xE0, 0xDF, 0xDE, 0xDD, 0xDC, 0xDB, 0xDA,
+    0xD9, 0xD8, 0xD7, 0xD6, 0xD5, 0xD4, 0xD3, 0xD2, 0xD1, 0xD0,
 };
 /* 1000:3747: the jump/throw charge bar, drawn into the bar band from the
  * acting record's `+0xE`.  Two halves, differing in both art and position:
@@ -237,18 +240,17 @@ static const uint8_t actionGold[40] = {   /* 202F:0x5B57 */
  * The port is per-pixel, so a planar byte becomes the pixel `4*col + plane`. */
 void statusbar_chargeBar(uint32_t v)
 {
-    static const uint8_t shade[10] = {
-        0xDF, 0xE0, 0xE1, 0xE2, 0xE3, 0xE3, 0xE2, 0xE1, 0xE0, 0xDF
-    };
+    static const uint8_t shade[10] = { 0xDF, 0xE0, 0xE1, 0xE2, 0xE3,
+                                       0xE3, 0xE2, 0xE1, 0xE0, 0xDF };
     uint8_t *page = sb_osys ? sb_osys->videoPage(0) : NULL;
     uint32_t i, r;
 
-    if (!page || !panel4) return;              /* no bar art: nothing to draw */
+    if (!page || !panel4) return; /* no bar art: nothing to draw */
     if (v < 0x100u) {
-        uint32_t ax = 0x60u + (v >> 1);        /* 0x372E's `SHR AX,1`        */
+        uint32_t ax = 0x60u + (v >> 1); /* 0x372E's `SHR AX,1`        */
         uint32_t col = ax >> 2, p = ax & 3u;
 
-        for (i = 0; i < 2u; i++) {             /* 0x376D: CX = 2 passes      */
+        for (i = 0; i < 2u; i++) { /* 0x376D: CX = 2 passes      */
             uint32_t x = 4u * col + p;
 
             for (r = 0; r < 10u; r++) {
@@ -256,16 +258,19 @@ void statusbar_chargeBar(uint32_t v)
 
                 if (x < 320u && y < 200u) page[y * 320u + x] = shade[r];
             }
-            if (++p == 4u) { p = 0; col++; }
+            if (++p == 4u) {
+                p = 0;
+                col++;
+            }
         }
         return;
     }
     {
-        uint32_t len = (0x1FFu - v) >> 1;      /* 0x3726-0x372E              */
+        uint32_t len = (0x1FFu - v) >> 1; /* 0x3726-0x372E              */
         uint32_t col = 24u + (len >> 2), p = len & 3u;
         uint32_t src = 0x3EE0u + len;
 
-        if (src + 0x140u * 15u + 4u > p4Size) return;   /* past the art     */
+        if (src + 0x140u * 15u + 4u > p4Size) return; /* past the art     */
         for (i = 0; i < 2u; i++) {
             uint32_t x = 4u * col + p;
 
@@ -277,7 +282,10 @@ void statusbar_chargeBar(uint32_t v)
                 if (x < 320u && y < 200u) page[y * 320u + x] = a;
                 if (x + 4u < 320u && y < 200u) page[y * 320u + x + 4u] = b;
             }
-            if (++p == 4u) { p = 0; col++; }
+            if (++p == 4u) {
+                p = 0;
+                col++;
+            }
         }
     }
 }
@@ -285,10 +293,7 @@ void statusbar_chargeBar(uint32_t v)
 /* 1000:3933's tail: step the selected cell - the program's cursor byte - with
  * the wrap to 1 past the count.  The bar is redrawn every tick, so the store is
  * the whole effect. */
-void statusbar_cycleAction(void)
-{
-    object_stepActionCell();               /* 1000:3941 */
-}
+void statusbar_cycleAction(void) { object_stepActionCell(); /* 1000:3941 */ }
 
 /* [0x5B56] itself, for the tests: the group the bar's next draw uses. */
 uint32_t statusbar_actionGroup(void) { return object_actionProgram(); }
@@ -318,7 +323,10 @@ static void frame_px(uint8_t *page, uint32_t x, uint32_t y, int32_t d,
     int32_t v;
     if (x >= 320u || y >= 200u) return;
     at = y * 320u + x;
-    if (mask) { page[at] = mask; return; }
+    if (mask) {
+        page[at] = mask;
+        return;
+    }
     v = (int32_t)page[at] + d;
     if (v >= 0xD0) v = 0xCF;
     if (v < 0xC0) v = 0xC0;
@@ -365,7 +373,7 @@ static void draw_actions(uint8_t *page)
     const uint8_t *g = object_actionHeader();
     uint32_t count;
 
-    if (!g) return;                        /* [0x5B56] is 1..6, see 1000:32DC */
+    if (!g) return; /* [0x5B56] is 1..6, see 1000:32DC */
     count = g[0];
     uint32_t span = count * 23u + (count - 1u) * 12u;
     uint32_t x = (0x140u - span) / 2u;
@@ -379,7 +387,7 @@ static void draw_actions(uint8_t *page)
         if (g[1] != 0u && i == (uint32_t)(g[1] - 1u))
             frame_box(page, x + 1u, y + 1u, 21u, 29u, actionGold, 6u);
         draw_actionIcon(page, x + 4u, y + 4u, (uint32_t)(g[i + 2u] - 1u));
-        x += 4u + 0x1Fu;      /* the icon's +4 is never undone (0xAD6A/7C) */
+        x += 4u + 0x1Fu; /* the icon's +4 is never undone (0xAD6A/7C) */
     }
 }
 
@@ -394,25 +402,39 @@ static void odometer_tick(void)
     uint16_t both = rd_le_u16(td);
 
     switch (odoState) {
-    case 0:
-        return;
+    case 0: return;
     case 2:
-        if (odoSlide[1]) { tdPhase[1] = (uint16_t)(tdPhase[1] - 2u); odoSlide[1]--; }
-        if (odoSlide[0]) { tdPhase[0] = (uint16_t)(tdPhase[0] - 2u); odoSlide[0]--; }
+        if (odoSlide[1]) {
+            tdPhase[1] = (uint16_t)(tdPhase[1] - 2u);
+            odoSlide[1]--;
+        }
+        if (odoSlide[0]) {
+            tdPhase[0] = (uint16_t)(tdPhase[0] - 2u);
+            odoSlide[0]--;
+        }
         if (!(odoSlide[0] | odoSlide[1])) odoState = 0;
         return;
     case 3:
-        if (odoSlide[1]) { tdPhase[1] = (uint16_t)(tdPhase[1] + 2u); odoSlide[1]--; }
-        if (odoSlide[0]) { tdPhase[0] = (uint16_t)(tdPhase[0] + 2u); odoSlide[0]--; }
+        if (odoSlide[1]) {
+            tdPhase[1] = (uint16_t)(tdPhase[1] + 2u);
+            odoSlide[1]--;
+        }
+        if (odoSlide[0]) {
+            tdPhase[0] = (uint16_t)(tdPhase[0] + 2u);
+            odoSlide[0]--;
+        }
         if (!(odoSlide[0] | odoSlide[1])) odoState = 0;
         return;
     case 1:
-        if (both == 0x0909u) { odoState = 0; return; }  /* 99: capped    */
+        if (both == 0x0909u) {
+            odoState = 0;
+            return;
+        } /* 99: capped    */
         odoState = 3;
         odoSlide[1] = 8;
         if (td[1]++ == 9) {
             td[1] = 0;
-            tdPhase[1] = 0;                    /* roll up from the blank    */
+            tdPhase[1] = 0; /* roll up from the blank    */
             odoSlide[0] = 8;
             if (td[0]++ == 9) {
                 odoState = 0;
@@ -420,16 +442,19 @@ static void odometer_tick(void)
             }
         }
         return;
-    default:                                  /* 0xFF: the roll down      */
-        if (both == 0) { odoState = 0; return; }
+    default: /* 0xFF: the roll down      */
+        if (both == 0) {
+            odoState = 0;
+            return;
+        }
         odoState = 2;
         odoSlide[1] = 8;
         if (td[1]-- == 0) {
             td[1] = 9;
-            tdPhase[1] = 0xB0;                /* slide down from cell 11  */
+            tdPhase[1] = 0xB0; /* slide down from cell 11  */
             odoSlide[0] = 8;
             if (td[0]-- == 0) {
-                odoState = 0;                 /* 00: stop                 */
+                odoState = 0; /* 00: stop                 */
                 odoSlide[0] = 0;
             }
         }
@@ -483,8 +508,8 @@ void statusbar_tick(void)
     uint8_t *page;
 
     if (!sb_osys) return;
-    if (barHidden) return;             /* 1000:342B: [0x5B0A] = 0xC9, no split */
-    if (barSplit > 152u) barSplit--;   /* 1000:331E, one per display period */
+    if (barHidden) return; /* 1000:342B: [0x5B0A] = 0xC9, no split */
+    if (barSplit > 152u) barSplit--; /* 1000:331E, one per display period */
     page = sb_osys->videoPage(0);
     if (!strip || !panel4 || !page) return;
 
@@ -497,17 +522,26 @@ void statusbar_tick(void)
         odometer_tick();
 
         if (--secDiv == 0) {
-            secDiv = 70;                       /* one second at 70 Hz      */
-            elapsed_tick();                    /* 1000:96C6                */
+            secDiv = 70; /* one second at 70 Hz      */
+            elapsed_tick(); /* 1000:96C6                */
             clock_tick();
-            died = timeUp;                     /* the original skips the
+            died = timeUp; /* the original skips the
                                                   slide block on time-up  */
         }
         if (!died && --slideDiv == 0) {
             slideDiv = 2;
-            if (cdSlide[2]) { cdPhase[2] = (uint16_t)(cdPhase[2] - 2u); cdSlide[2]--; }
-            if (cdSlide[1]) { cdPhase[1] = (uint16_t)(cdPhase[1] - 2u); cdSlide[1]--; }
-            if (cdSlide[0]) { cdPhase[0] = (uint16_t)(cdPhase[0] - 2u); cdSlide[0]--; }
+            if (cdSlide[2]) {
+                cdPhase[2] = (uint16_t)(cdPhase[2] - 2u);
+                cdSlide[2]--;
+            }
+            if (cdSlide[1]) {
+                cdPhase[1] = (uint16_t)(cdPhase[1] - 2u);
+                cdSlide[1]--;
+            }
+            if (cdSlide[0]) {
+                cdPhase[0] = (uint16_t)(cdPhase[0] - 2u);
+                cdSlide[0]--;
+            }
         }
     }
 
@@ -533,14 +567,23 @@ void statusbar_start(uint16_t packedTimeBcd, uint32_t tribeMembers,
     uint16_t diff;
 
     n1 = res_loadChunk("APL\\PANELN1.SPR", &n1Size, &chk);
-    if (!n1 || n1Size != 768u) { free(n1); return; }
+    if (!n1 || n1Size != 768u) {
+        free(n1);
+        return;
+    }
     n2 = res_loadChunk("APL\\PANELN2.SPR", &n2Size, &chk);
     if (!n2 || n2Size != 512u) {
-        free(n1); free(n2); return;
+        free(n1);
+        free(n2);
+        return;
     }
     free(strip);
     strip = malloc(STRIP_LEN);
-    if (!strip) { free(n1); free(n2); return; }
+    if (!strip) {
+        free(n1);
+        free(n2);
+        return;
+    }
     memcpy(strip, n1, 768u);
     memcpy(strip + 768u, n2, 512u);
     free(n1);
@@ -564,7 +607,7 @@ void statusbar_start(uint16_t packedTimeBcd, uint32_t tribeMembers,
         icons3 = NULL;
     }
 
-    barSplit = 0xC9u;                  /* 1000:3040: hidden at level start */
+    barSplit = 0xC9u; /* 1000:3040: hidden at level start */
     barHidden = 0;
     cd[0] = m;
     cd[1] = (uint8_t)(s >> 4);
@@ -582,9 +625,9 @@ void statusbar_start(uint16_t packedTimeBcd, uint32_t tribeMembers,
     odoState = 0;
     odoSlide[0] = odoSlide[1] = 0;
 
-    elapsed[0] = elapsed[1] = elapsed[2] = 0u;  /* level_start 1000:95B5  */
-    secDiv = 70;                              /* [0x5B14] = 0x46          */
-    slideDiv = 2;                             /* [0x5B10] = 2             */
+    elapsed[0] = elapsed[1] = elapsed[2] = 0u; /* level_start 1000:95B5  */
+    secDiv = 70; /* [0x5B14] = 0x46          */
+    slideDiv = 2; /* [0x5B10] = 2             */
     /* active stays 0: [0x5B12] is level_fade_in's, set when the start chain
      * completes — the countdown must not run during the fade (see level.c) */
     timeUp = 0;
@@ -593,16 +636,11 @@ void statusbar_start(uint16_t packedTimeBcd, uint32_t tribeMembers,
 /* The live +0xC0 palette bank's source (level_video_init 1000:32CD's copy
  * of panel4's own palette): install at DAC entries 0xC0..0xFF. */
 const uint8_t *statusbar_palette(void)
-{
-    return panel4 ? panel4 + 0xFA00u : NULL;
-}
+{ return panel4 ? panel4 + 0xFA00u : NULL; }
 
 /* object_record_init's arm (1000:F682: [0x5B22] := 0xFF): a follower
  * joined — the displayed counter rolls down by one. */
-void statusbar_armOdometer(void)
-{
-    odoState = 0xFF;
-}
+void statusbar_armOdometer(void) { odoState = 0xFF; }
 
 int32_t statusbar_timeUp(void) { return timeUp; }
 
@@ -612,12 +650,16 @@ void statusbar_setActive(int32_t on) { active = on ? 1 : 0; }
 void statusbar_setSplit(uint32_t row)
 {
     barSplit = row > 200u ? 200u : row;
-    barHidden = 0;                     /* an explicit split re-composes it */
+    barHidden = 0; /* an explicit split re-composes it */
 }
 /* draw_level_text 0x342B: park the split at 0xC9 (off-screen) so the bar is
  * not composed; the level's ISR hook (0x331E) is already uninstalled, so it
  * stays hidden. */
-void statusbar_hide(void) { barHidden = 1; barSplit = 0xC9u; }
+void statusbar_hide(void)
+{
+    barHidden = 1;
+    barSplit = 0xC9u;
+}
 uint32_t statusbar_split(void) { return barSplit; }
 
 /* The countdown word the save writes at +0x07: minutes << 8 | BCD seconds

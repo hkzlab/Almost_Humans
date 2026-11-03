@@ -36,7 +36,9 @@ static uint8_t *read_fixture(const char *fix_dir, const char *rel,
     fseek(f, 0, SEEK_SET);
     uint8_t *b = malloc((size_t)n);
     if (!b || fread(b, 1, (size_t)n, f) != (size_t)n) {
-        fclose(f); free(b); return NULL;
+        fclose(f);
+        free(b);
+        return NULL;
     }
     fclose(f);
     if (size) *size = (uint32_t)n;
@@ -46,8 +48,8 @@ static uint8_t *read_fixture(const char *fix_dir, const char *rel,
 static int32_t load_fixture(const char *fix_dir, uint32_t fileIdx)
 {
     char path[512];
-    snprintf(path, sizeof path, "%s/HUMANS.001/LEVELS/L%c.BIN",
-             fix_dir, 'A' + fileIdx);
+    snprintf(path, sizeof path, "%s/HUMANS.001/LEVELS/L%c.BIN", fix_dir,
+             'A' + fileIdx);
     FILE *f = fopen(path, "rb");
     if (!f) return -1;
     fseek(f, 0, SEEK_END);
@@ -56,7 +58,10 @@ static int32_t load_fixture(const char *fix_dir, uint32_t fileIdx)
     free(file_image);
     file_image = malloc((size_t)n);
     if (fread(file_image, 1, (size_t)n, f) != (size_t)n) {
-        fclose(f); free(file_image); file_image = NULL; return -1;
+        fclose(f);
+        free(file_image);
+        file_image = NULL;
+        return -1;
     }
     fclose(f);
     return 0;
@@ -76,7 +81,10 @@ int main(int argc, char **argv)
     }
     fclose(f);
 
-    if (compat_chdir(vol_dir)) { perror(vol_dir); return 1; }
+    if (compat_chdir(vol_dir)) {
+        perror(vol_dir);
+        return 1;
+    }
 
     char fix_abs[512];
     if (!compat_realpath(fix_dir, fix_abs)) {
@@ -112,7 +120,8 @@ int main(int argc, char **argv)
             bad = 1;
         }
         if ((d->timeA >> 8) < 2u || (d->timeA >> 8) > 9u) {
-            fprintf(stderr, "FAIL level %u: time A minutes %u\n", id, d->timeA >> 8);
+            fprintf(stderr, "FAIL level %u: time A minutes %u\n", id,
+                    d->timeA >> 8);
             bad = 1;
         }
         uint32_t slot;
@@ -126,7 +135,8 @@ int main(int argc, char **argv)
         case 0x09u: slot = 6; break;
         case 0xFFu: slot = 7; break;
         default:
-            fprintf(stderr, "FAIL level %u: intro index %02x\n", id, d->introIndex);
+            fprintf(stderr, "FAIL level %u: intro index %02x\n", id,
+                    d->introIndex);
             bad = 1;
             continue;
         }
@@ -138,15 +148,15 @@ int main(int argc, char **argv)
         static const uint32_t want_style[6] = { 26, 26, 27, 28, 26, 27 };
         for (uint32_t i = 0; i < 8u; i++) {
             if (intro_hist[i] != want_intro[i]) {
-                fprintf(stderr, "FAIL intro hist [%u]: %u, want %u\n",
-                        i, intro_hist[i], want_intro[i]);
+                fprintf(stderr, "FAIL intro hist [%u]: %u, want %u\n", i,
+                        intro_hist[i], want_intro[i]);
                 bad = 1;
             }
         }
         for (uint32_t i = 0; i < 6u; i++) {
             if (style_hist[i] != want_style[i]) {
-                fprintf(stderr, "FAIL style hist [%u]: %u, want %u\n",
-                        i, style_hist[i], want_style[i]);
+                fprintf(stderr, "FAIL style hist [%u]: %u, want %u\n", i,
+                        style_hist[i], want_style[i]);
                 bad = 1;
             }
         }
@@ -175,8 +185,10 @@ int main(int argc, char **argv)
                 /* the file's first record starts at the offset 0: the
                  * re-packed header must match the file's first 13 bytes */
                 uint8_t hdr[13];
-                hdr[0] = d->style; hdr[1] = d->introIndex;
-                hdr[2] = d->goalCount; hdr[3] = d->entityLife;
+                hdr[0] = d->style;
+                hdr[1] = d->introIndex;
+                hdr[2] = d->goalCount;
+                hdr[3] = d->entityLife;
                 hdr[4] = (uint8_t)(d->objectTest & 0xFFu);
                 hdr[5] = (uint8_t)(d->objectTest >> 8);
                 hdr[6] = d->unused06;
@@ -187,7 +199,8 @@ int main(int argc, char **argv)
                 hdr[11] = (uint8_t)(d->timeC & 0xFFu);
                 hdr[12] = (uint8_t)(d->timeC >> 8);
                 if (memcmp(hdr, file_image, 13u) != 0) {
-                    fprintf(stderr, "FAIL L%c.BIN: header bytes\n", 'A' + fileIdx);
+                    fprintf(stderr, "FAIL L%c.BIN: header bytes\n",
+                            'A' + fileIdx);
                     bad = 1;
                 }
             }
@@ -237,8 +250,10 @@ int main(int argc, char **argv)
             for (uint32_t i = 0; i < 4000u && level_starting(); i++) {
                 level_tick();
                 palette_tick();
-                if (level_loadingScreen()) { loadingSeen = 1; level_loadingTick(); }
-                else if (loadingSeen) loadingDone = 1;
+                if (level_loadingScreen()) {
+                    loadingSeen = 1;
+                    level_loadingTick();
+                } else if (loadingSeen) loadingDone = 1;
                 /* The on-screen result, one line per chain frame: the page
                  * through the DAC shadow, averaged over the world band
                  * (rows 0..151) and the bar band (rows 152..191).  This is
@@ -252,17 +267,21 @@ int main(int argc, char **argv)
                     for (uint32_t y = 0; y < 200u; y++) {
                         for (uint32_t x = 0; x < 320u; x++) {
                             const uint8_t *c = dd + 3u * pp[y * 320u + x];
-                            double l = (299.0 * c[0] + 587.0 * c[1] + 114.0 * c[2]) / 1000.0;
+                            double l =
+                                (299.0 * c[0] + 587.0 * c[1] + 114.0 * c[2]) /
+                                1000.0;
 
-                            if (y < 152u) tsum += l; else bsum += l;
+                            if (y < 152u) tsum += l;
+                            else bsum += l;
                         }
                     }
-                    fprintf(stdout,
-                            "chain %02u %-7s world %5.1f  bar %5.1f\n",
+                    fprintf(stdout, "chain %02u %-7s world %5.1f  bar %5.1f\n",
                             loadingFrames,
-                            (i < 1u) ? "start" :
-                            (level_loadingScreen() ? "loading" :
-                             (level_starting() ? "chain" : "play")),
+                            (i < 1u)
+                                ? "start"
+                                : (level_loadingScreen()
+                                       ? "loading"
+                                       : (level_starting() ? "chain" : "play")),
                             tsum / (152.0 * 320.0) * 255.0 / 63.0,
                             bsum / (48.0 * 320.0) * 255.0 / 63.0);
                     fflush(stdout);
@@ -287,7 +306,8 @@ int main(int argc, char **argv)
                         }
                         if (topMax == 0u) {
                             haveBlack = 1;
-                            memcpy(barAtBlack, d + 0xC0u * 3u, sizeof barAtBlack);
+                            memcpy(barAtBlack, d + 0xC0u * 3u,
+                                   sizeof barAtBlack);
                             memcpy(barRowsAtBlack,
                                    osys_null_page(0) + 152u * 320u,
                                    sizeof barRowsAtBlack);
@@ -296,13 +316,18 @@ int main(int argc, char **argv)
                 }
             }
             for (uint32_t k = 0; k < sizeof barAtBlack; k++)
-                if (barAtBlack[k]) { barLit = 1; break; }
+                if (barAtBlack[k]) {
+                    barLit = 1;
+                    break;
+                }
             if (!haveBlack) {
-                fprintf(stderr, "FAIL the fade-out never brought 0..0xBF to black\n");
+                fprintf(stderr,
+                        "FAIL the fade-out never brought 0..0xBF to black\n");
                 bad = 1;
             }
             if (!barStable) {
-                fprintf(stderr, "FAIL 0xC0..0xFF changed during the fade-out\n");
+                fprintf(stderr,
+                        "FAIL 0xC0..0xFF changed during the fade-out\n");
                 bad = 1;
             }
             if (!barLit) {
@@ -345,8 +370,7 @@ int main(int argc, char **argv)
              * (draw_terrain2 1000:505C): the placed records now settle and
              * walk on the real heights. */
             if (sum != 5743109u || nz != 64000u) {
-                fprintf(stderr, "FAIL level 0 page: sum %u nz %u\n",
-                        sum, nz);
+                fprintf(stderr, "FAIL level 0 page: sum %u nz %u\n", sum, nz);
                 bad = 1;
             }
 
@@ -393,31 +417,38 @@ int main(int argc, char **argv)
                 palette_tick();                 /* level_fade_in */
             const uint8_t *pal = osys_null_palette();
             uint32_t n = 0;
-            uint8_t *sp = read_fixture(fix_abs, "HUMANS.001/APL/SPRPAL.APL", &n);
-            uint8_t *bs = read_fixture(fix_abs, "HUMANS.001/LEVELS/BS3.BLK", &n);
+            uint8_t *sp =
+                read_fixture(fix_abs, "HUMANS.001/APL/SPRPAL.APL", &n);
+            uint8_t *bs =
+                read_fixture(fix_abs, "HUMANS.001/LEVELS/BS3.BLK", &n);
             uint8_t *bg = read_fixture(fix_abs, "HUMANS.001/BACKS/BG4.RAW", &n);
-            uint8_t *p4 = read_fixture(fix_abs, "HUMANS.001/LBM/PANEL4.BIT", &n);
+            uint8_t *p4 =
+                read_fixture(fix_abs, "HUMANS.001/LBM/PANEL4.BIT", &n);
             if (!sp || !bs || !bg || !p4) {
                 fprintf(stderr, "FAIL palette fixtures unreadable\n");
                 bad = 1;
             } else {
-                const uint8_t *want[5] = {
-                    sp + 0x18, bs + 0x18, bg + 163840u, NULL, p4 + 0xFA00u
-                };
+                const uint8_t *want[5] = { sp + 0x18, bs + 0x18, bg + 163840u,
+                                           NULL, p4 + 0xFA00u };
                 uint32_t off[5] = { 0u, 0x60u, 0xC0u, 0x180u, 0x240u };
                 uint32_t len[5] = { 0x60u, 0x60u, 0xC0u, 0xC0u, 0xC0u };
                 for (uint32_t r = 0; r < 5u; r++)
                     for (uint32_t i = 0; i < len[r]; i++) {
                         uint8_t w = want[r] ? want[r][i] : 0u;
                         if (pal[off[r] + i] != w) {
-                            fprintf(stderr, "FAIL palette 0x%X: got %02x want "
-                                    "%02x\n", off[r] + i, pal[off[r] + i], w);
+                            fprintf(stderr,
+                                    "FAIL palette 0x%X: got %02x want "
+                                    "%02x\n",
+                                    off[r] + i, pal[off[r] + i], w);
                             bad = 1;
                             break;
                         }
                     }
             }
-            free(sp); free(bs); free(bg); free(p4);
+            free(sp);
+            free(bs);
+            free(bg);
+            free(p4);
 
             /* ... and the acting record actually walks: with the old field-P
              * table the settle judged it unsupported (type 3, y looping
@@ -441,8 +472,10 @@ int main(int argc, char **argv)
                     uint32_t ty = (uint32_t)(m[8] | (m[9] << 8));
 
                     if (x1 < x0 + 4 || ty > 2u) {
-                        fprintf(stderr, "FAIL the record did not walk: "
-                                "x %d -> %d, type %u\n", x0, x1, ty);
+                        fprintf(stderr,
+                                "FAIL the record did not walk: "
+                                "x %d -> %d, type %u\n",
+                                x0, x1, ty);
                         bad = 1;
                     }
                 }
@@ -475,7 +508,8 @@ int main(int argc, char **argv)
                         for (uint32_t x = 0; x + 16u < 320u; x += 3u) {
                             sample++;
                             if (p1[y * 320u + x] !=
-                                before[(y + 8u) * 320u + x + 16u]) diffs++;
+                                before[(y + 8u) * 320u + x + 16u])
+                                diffs++;
                         }
                     if (sample == 0u || diffs != 0u) {
                         fprintf(stderr, "FAIL the view scroll: %u/%u differ\n",
@@ -500,10 +534,12 @@ int main(int argc, char **argv)
                 for (uint32_t t = 0; t < 4u; t++) level_tick();
                 const uint8_t *now = osys_null_palette();
                 for (uint32_t i = 0; i < 4u; i++)
-                    if (memcmp(now + (0x71u + i) * 3u,
-                               before[(i + 3u) % 4u], 3) != 0) {
-                        fprintf(stderr, "FAIL palette rotation: entry 0x71+%u "
-                                "did not take its predecessor\n", i);
+                    if (memcmp(now + (0x71u + i) * 3u, before[(i + 3u) % 4u],
+                               3) != 0) {
+                        fprintf(stderr,
+                                "FAIL palette rotation: entry 0x71+%u "
+                                "did not take its predecessor\n",
+                                i);
                         bad = 1;
                     }
             }
@@ -527,7 +563,8 @@ int main(int argc, char **argv)
         memcpy(before, pal + 0x71u * 3u, 12);
         for (uint32_t t = 0; t < 8u; t++) level_tick();
         if (memcmp(osys_null_palette() + 0x71u * 3u, before, 12) != 0) {
-            fprintf(stderr, "FAIL level 3 (empty field M) rotated its palette\n");
+            fprintf(stderr,
+                    "FAIL level 3 (empty field M) rotated its palette\n");
             bad = 1;
         }
     }
@@ -556,7 +593,8 @@ int main(int argc, char **argv)
             if ((r[4] | (r[5] << 8)) != 0x9Cu) continue;
             found = 1;
             if ((r[0] | (r[1] << 8)) != 272u || (r[2] | (r[3] << 8)) != 177u) {
-                fprintf(stderr, "FAIL the torch is at x=%u y=%u, want 272/177\n",
+                fprintf(stderr,
+                        "FAIL the torch is at x=%u y=%u, want 272/177\n",
                         r[0] | (r[1] << 8), r[2] | (r[3] << 8));
                 bad = 1;
             }
@@ -567,6 +605,8 @@ int main(int argc, char **argv)
         }
     }
 
-    if (!bad) printf("level tests: OK (the 160-record census + the byte-exact maps + the render)\n");
+    if (!bad)
+        printf(
+            "level tests: OK (the 160-record census + the byte-exact maps + the render)\n");
     return bad;
 }

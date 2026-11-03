@@ -45,7 +45,11 @@ static uint8_t *read_file(const char *path, uint32_t *size)
     int64_t n = ftell(f);
     fseek(f, 0, SEEK_SET);
     uint8_t *buf = malloc((size_t)n);
-    if (fread(buf, 1, (size_t)n, f) != (size_t)n) { fclose(f); free(buf); return NULL; }
+    if (fread(buf, 1, (size_t)n, f) != (size_t)n) {
+        fclose(f);
+        free(buf);
+        return NULL;
+    }
     fclose(f);
     if (size) *size = (uint32_t)n;
     return buf;
@@ -95,7 +99,10 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    if (compat_chdir(vol_dir)) { perror(vol_dir); return 1; }
+    if (compat_chdir(vol_dir)) {
+        perror(vol_dir);
+        return 1;
+    }
 
     int32_t bad = 0;
     scene_init(&osys_null);
@@ -112,7 +119,8 @@ int main(int argc, char **argv)
         palette_tick();                        /* the ISR body's fade step */
         if (r != 1) break;                     /* done (the quit cue)     */
         if (dump_dir) {
-            for (size_t k = 0; k < sizeof dump_ticks / sizeof dump_ticks[0]; k++)
+            for (size_t k = 0; k < sizeof dump_ticks / sizeof dump_ticks[0];
+                 k++)
                 if (ticks == dump_ticks[k])
                     dump_ppm(dump_dir, dump_ticks[k], osys_null_page(0),
                              osys_null_palette());
@@ -120,7 +128,8 @@ int main(int argc, char **argv)
         if (++ticks > 10000u) break;           /* runaways are failures   */
     }
     if (r != 0) {
-        fprintf(stderr, "FAIL the boot intro did not finish (%u ticks)\n", ticks);
+        fprintf(stderr, "FAIL the boot intro did not finish (%u ticks)\n",
+                ticks);
         return 1;
     }
     /* the expected shape: the Gametek logo (the fade-in, 33 groups, the 4
@@ -139,9 +148,11 @@ int main(int argc, char **argv)
     {
         const uint8_t *page = osys_null_page(0);
         uint32_t nz = 0;
-        for (uint32_t i = 0; i < 180u * 320u; i++) if (page[i]) nz++;
+        for (uint32_t i = 0; i < 180u * 320u; i++)
+            if (page[i]) nz++;
         if (nz < 56000u) {
-            fprintf(stderr, "FAIL the scrolled background barely drawn (%u)\n", nz);
+            fprintf(stderr, "FAIL the scrolled background barely drawn (%u)\n",
+                    nz);
             bad = 1;
         }
     }
@@ -154,8 +165,10 @@ int main(int argc, char **argv)
         const uint8_t *pal = osys_null_palette();
         for (uint32_t i = 0; i < 768u; i++) {
             if (pal[i] != 0) {
-                fprintf(stderr, "FAIL palette byte %u: got %02x, the outro "
-                                "fade must end black\n", i, pal[i]);
+                fprintf(stderr,
+                        "FAIL palette byte %u: got %02x, the outro "
+                        "fade must end black\n",
+                        i, pal[i]);
                 bad = 1;
                 break;
             }
@@ -180,10 +193,12 @@ int main(int argc, char **argv)
         } else {
             uint16_t chk = 0;
             uint32_t off0;
-            memcpy(&off0, rsc, 4);          /* entry[0] = the list object's offset */
-            int32_t sz = res_decode_lzw_mem(rsc, rsc_size, off0, list, sizeof list, &chk);
+            memcpy(&off0, rsc, 4); /* entry[0] = the list object's offset */
+            int32_t sz = res_decode_lzw_mem(rsc, rsc_size, off0, list,
+                                            sizeof list, &chk);
             if (sz < 0 || chk != 0) {
-                fprintf(stderr, "FAIL intro.rsc object 0 (the list) undecodable\n");
+                fprintf(stderr,
+                        "FAIL intro.rsc object 0 (the list) undecodable\n");
                 bad = 1;
             } else {
                 /* walk the groups from +2 to group 384's record */
@@ -191,20 +206,23 @@ int main(int argc, char **argv)
                 uint32_t g = 0;
                 while (g < 384u && si + 2 <= (uint32_t)sz) {
                     uint16_t w = (uint16_t)(list[si] | (list[si + 1] << 8));
-                    if (w == 0xFFFFu) { si += 2; g++; }
-                    else si += 4;
+                    if (w == 0xFFFFu) {
+                        si += 2;
+                        g++;
+                    } else si += 4;
                 }
                 if (g != 384u || si + 4 > (uint32_t)sz) {
                     fprintf(stderr, "FAIL group 384 not reached in the list\n");
                     bad = 1;
                 } else {
                     uint16_t dest = (uint16_t)(list[si] | (list[si + 1] << 8));
-                    uint16_t stored = (uint16_t)(list[si + 2] | (list[si + 3] << 8));
-                    uint32_t idx = (stored + 1u) & 0xFFFFu;   /* INC AX at b95d */
+                    uint16_t stored =
+                        (uint16_t)(list[si + 2] | (list[si + 3] << 8));
+                    uint32_t idx = (stored + 1u) & 0xFFFFu; /* INC AX at b95d */
                     uint32_t off;
                     memcpy(&off, rsc + idx * 4u, 4);
                     int32_t osz = res_decode_lzw_mem(rsc, rsc_size, off, obj,
-                                                 sizeof obj, &chk);
+                                                     sizeof obj, &chk);
                     if (osz < 0 || chk != 0) {
                         fprintf(stderr, "FAIL object %u undecodable\n", idx);
                         bad = 1;
@@ -213,8 +231,10 @@ int main(int argc, char **argv)
                         uint32_t h = (uint32_t)obj[2] | ((uint32_t)obj[3] << 8);
                         if (dest != 25877u || w == 0u || h == 0u ||
                             4u + (uint32_t)w * h > (uint32_t)osz) {
-                            fprintf(stderr, "FAIL group 384 record mismatch: dest %u, %ux%u\n",
-                                    dest, w, h);
+                            fprintf(
+                                stderr,
+                                "FAIL group 384 record mismatch: dest %u, %ux%u\n",
+                                dest, w, h);
                             bad = 1;
                         } else {
                             const uint8_t *page = osys_null_page(0);
@@ -233,7 +253,10 @@ int main(int argc, char **argv)
                                     if (page[at] != b) miss++;
                                 }
                             if (miss) {
-                                fprintf(stderr, "FAIL group-384 overlay not on the page (%u bytes off)\n", miss);
+                                fprintf(
+                                    stderr,
+                                    "FAIL group-384 overlay not on the page (%u bytes off)\n",
+                                    miss);
                                 bad = 1;
                             }
                         }
@@ -252,10 +275,15 @@ int main(int argc, char **argv)
     {
         const uint8_t *page = osys_null_page(0);
         uint32_t nz_margin = 0;
-        for (uint32_t i = 180u * 320u; i < 182u * 320u; i++) if (page[i]) nz_margin++;
-        for (uint32_t i = 198u * 320u; i < 200u * 320u; i++) if (page[i]) nz_margin++;
+        for (uint32_t i = 180u * 320u; i < 182u * 320u; i++)
+            if (page[i]) nz_margin++;
+        for (uint32_t i = 198u * 320u; i < 200u * 320u; i++)
+            if (page[i]) nz_margin++;
         if (nz_margin) {
-            fprintf(stderr, "FAIL the bar margins hold %u non-zero bytes (garbage blits)\n", nz_margin);
+            fprintf(
+                stderr,
+                "FAIL the bar margins hold %u non-zero bytes (garbage blits)\n",
+                nz_margin);
             bad = 1;
         }
         int32_t colours_ok = 1;
@@ -266,7 +294,9 @@ int main(int argc, char **argv)
             }
         }
         if (!colours_ok) {
-            fprintf(stderr, "FAIL the bar's colours are not the 0xE0-0xEF grey gradient\n");
+            fprintf(
+                stderr,
+                "FAIL the bar's colours are not the 0xE0-0xEF grey gradient\n");
             bad = 1;
         }
     }

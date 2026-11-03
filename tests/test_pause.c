@@ -28,7 +28,7 @@ extern const OSystem osys_null;
 extern const uint8_t *osys_null_page(int32_t which);
 extern const uint8_t *osys_null_palette(void);
 
-#define SAVE_LEN 0x1800u
+#define SAVE_LEN  0x1800u
 #define SAVE_NAME "SAVEB"
 
 static void put16(uint8_t *p, uint32_t v)
@@ -60,8 +60,8 @@ static void dump_ppm(const char *dir, const char *name, const uint8_t *page,
  * byte in [0xF4,0xFB]; each of its four in-page neighbours is either text or
  * 0 (the black outline).  Counts the text and outline pixels and the number
  * of neighbours that are neither. */
-static void text_outline(const uint8_t *page, uint32_t *text,
-                         uint32_t *outline, uint32_t *violations)
+static void text_outline(const uint8_t *page, uint32_t *text, uint32_t *outline,
+                         uint32_t *violations)
 {
     static const int32_t dx[4] = { 0, 0, -1, 1 }, dy[4] = { -1, 1, 0, 0 };
 
@@ -121,7 +121,10 @@ int main(int argc, char **argv)
         return 0;
     }
     fclose(f);
-    if (compat_chdir(vol_dir)) { perror(vol_dir); return 1; }
+    if (compat_chdir(vol_dir)) {
+        perror(vol_dir);
+        return 1;
+    }
 
     f = fopen(SAVE_NAME, "rb");
     if (f) {
@@ -181,7 +184,8 @@ int main(int argc, char **argv)
          * the original, so the list must not reopen or close it */
         (void)gameflow_keyList(&k);
         if (!menu_active() || menu_timeUp()) {
-            fprintf(stderr, "FAIL D-15: a second ESC disturbed the open menu\n");
+            fprintf(stderr,
+                    "FAIL D-15: a second ESC disturbed the open menu\n");
             bad = 1;
         }
         menu_close();
@@ -211,7 +215,10 @@ int main(int argc, char **argv)
 
     /* 1. the pause menu: 5 rows, wrap, the 0-based result = the row */
     for (uint32_t r = 0; r < 5u; r++) {
-        if (!open_pause()) { fprintf(stderr, "FAIL the menu did not open\n"); return 1; }
+        if (!open_pause()) {
+            fprintf(stderr, "FAIL the menu did not open\n");
+            return 1;
+        }
         for (uint32_t i = 0; i < r; i++) (void)press(0x02u);   /* down */
         if (r > 0u && menu_result() != -1) {
             fprintf(stderr, "FAIL the result appeared early\n");
@@ -250,8 +257,9 @@ int main(int argc, char **argv)
          * the black outline around it (1000:9FA7 -> 9FB1) */
         text_outline(page, &text, &outline, &violations);
         if (fill < 500u || text < 50u) {
-            fprintf(stderr, "FAIL the dialog did not render (fill %u, text %u)\n",
-                    fill, text);
+            fprintf(stderr,
+                    "FAIL the dialog did not render (fill %u, text %u)\n", fill,
+                    text);
             bad = 1;
         }
         if (outline == 0u) {
@@ -259,8 +267,10 @@ int main(int argc, char **argv)
             bad = 1;
         }
         if (violations) {
-            fprintf(stderr, "FAIL %u text-neighbour pixels are neither text nor "
-                    "the outline\n", violations);
+            fprintf(stderr,
+                    "FAIL %u text-neighbour pixels are neither text nor "
+                    "the outline\n",
+                    violations);
             bad = 1;
         }
     }
@@ -273,10 +283,15 @@ int main(int argc, char **argv)
     /* 2. the SAVE GAME grid: 4x5 column-major, cell r,c = 4c+r+1.
      *    Row 0 col 0 = game 1; DOWN once = game 2; RIGHT once = game 5. */
     menu_openPause();
-    (void)press(0x02u); (void)press(0x02u); (void)press(0x02u);  /* row 3 */
-    (void)press(0x80u);                                        /* the grid */
-    if (!menu_active()) { fprintf(stderr, "FAIL the grid did not open\n"); return 1; }
-    (void)press(0x02u);                                        /* row 1 */
+    (void)press(0x02u);
+    (void)press(0x02u);
+    (void)press(0x02u); /* row 3 */
+    (void)press(0x80u); /* the grid */
+    if (!menu_active()) {
+        fprintf(stderr, "FAIL the grid did not open\n");
+        return 1;
+    }
+    (void)press(0x02u); /* row 1 */
     (void)press(0x80u);
     if (menu_slot() != 2u || menu_result() != 3) {
         fprintf(stderr, "FAIL grid (0,1) gave game %u (result %d)\n",
@@ -286,9 +301,11 @@ int main(int argc, char **argv)
     menu_close();
 
     menu_openPause();
-    (void)press(0x02u); (void)press(0x02u); (void)press(0x02u);
+    (void)press(0x02u);
+    (void)press(0x02u);
+    (void)press(0x02u);
     (void)press(0x80u);
-    (void)press(0x08u);                                        /* right */
+    (void)press(0x08u); /* right */
     (void)press(0x80u);
     if (menu_slot() != 5u) {
         fprintf(stderr, "FAIL grid (0,1) gave game %u, want 5\n", menu_slot());
@@ -298,7 +315,9 @@ int main(int argc, char **argv)
 
     /* the grid page is the same draw_map_object, so it gets the outline too */
     menu_openPause();
-    (void)press(0x02u); (void)press(0x02u); (void)press(0x02u);
+    (void)press(0x02u);
+    (void)press(0x02u);
+    (void)press(0x02u);
     (void)press(0x80u);
     {
         const uint8_t *page = osys_null_page(0);
@@ -306,19 +325,24 @@ int main(int argc, char **argv)
         menu_draw();
         text_outline(page, &text, &outline, &violations);
         if (text < 50u || outline == 0u || violations) {
-            fprintf(stderr, "FAIL the grid page (text %u, outline %u, %u bad "
-                    "neighbours)\n", text, outline, violations);
+            fprintf(stderr,
+                    "FAIL the grid page (text %u, outline %u, %u bad "
+                    "neighbours)\n",
+                    text, outline, violations);
             bad = 1;
         }
     }
     menu_openPause();
-    (void)press(0x02u); (void)press(0x02u); (void)press(0x02u);
+    (void)press(0x02u);
+    (void)press(0x02u);
+    (void)press(0x02u);
     (void)press(0x80u);
-    (void)press(0x01u);                                        /* row wrap 0->3 */
-    (void)press(0x04u);                                        /* left wrap 0->4 */
+    (void)press(0x01u); /* row wrap 0->3 */
+    (void)press(0x04u); /* left wrap 0->4 */
     (void)press(0x80u);
     if (menu_slot() != 20u) {
-        fprintf(stderr, "FAIL the grid wrap gave game %u, want 20\n", menu_slot());
+        fprintf(stderr, "FAIL the grid wrap gave game %u, want 20\n",
+                menu_slot());
         bad = 1;
     }
     menu_close();
@@ -331,7 +355,10 @@ int main(int argc, char **argv)
         uint8_t *r0 = object_slot(0);
 
         if (r0) {
-            r0[0] = 0x34; r0[1] = 0x12; r0[2] = 0x56; r0[3] = 0x78;
+            r0[0] = 0x34;
+            r0[1] = 0x12;
+            r0[2] = 0x56;
+            r0[3] = 0x78;
         }
         object_setSlotClass(1u, 6u);
     }
@@ -344,33 +371,31 @@ int main(int argc, char **argv)
         f = fopen(SAVE_NAME, "rb");
         if (!f || fread(b, 1, sizeof b, f) != sizeof b) {
             if (f) fclose(f);
-            fprintf(stderr, "FAIL the written %s is not 0x1800 bytes\n", SAVE_NAME);
+            fprintf(stderr, "FAIL the written %s is not 0x1800 bytes\n",
+                    SAVE_NAME);
             return 1;
         }
         fclose(f);
-        if (b[0x00] != 2u || b[0x01] != 0u ||
-            b[0x02] != 0x34u || b[0x03] != 0x12u ||
-            b[0x04] != 0x01u || b[0x05] != 0x00u ||
-            b[0x06] != 1u ||
-            b[0x07] != 0x49u || b[0x08] != 0x05u ||
-            b[0x09] != 0u || b[0x0A] != 9u ||
-            b[0x0B] != 7u || b[0x0C] != 0u) {
-            fprintf(stderr, "FAIL the written header (level %u, state %u, "
-                    "time %02x%02x, members %u)\n", b[0], b[6], b[8], b[7],
-                    b[0x0B]);
+        if (b[0x00] != 2u || b[0x01] != 0u || b[0x02] != 0x34u ||
+            b[0x03] != 0x12u || b[0x04] != 0x01u || b[0x05] != 0x00u ||
+            b[0x06] != 1u || b[0x07] != 0x49u || b[0x08] != 0x05u ||
+            b[0x09] != 0u || b[0x0A] != 9u || b[0x0B] != 7u || b[0x0C] != 0u) {
+            fprintf(stderr,
+                    "FAIL the written header (level %u, state %u, "
+                    "time %02x%02x, members %u)\n",
+                    b[0], b[6], b[8], b[7], b[0x0B]);
             bad = 1;
         }
         /* 0x3E20's fixed pointer table and 0x5B37's first program */
         if (b[0x0D + 4u] != 0x75u || b[0x0D + 5u] != 0x3Eu ||
-            b[0x1636] != 0x02u || b[0x1637] != 0x01u ||
-            b[0x17F0] != 0u || b[0x17F4] != 9u ||
-            b[0x17F5] != 0x10u || b[0x17F7] != 0x90u) {
+            b[0x1636] != 0x02u || b[0x1637] != 0x01u || b[0x17F0] != 0u ||
+            b[0x17F4] != 9u || b[0x17F5] != 0x10u || b[0x17F7] != 0x90u) {
             fprintf(stderr, "FAIL the written state ranges\n");
             bad = 1;
         }
     }
-    if (!save_loadSlot(2u) || !save_present() ||
-        save_level() != 2u || save_time() != 0x0549u || save_members() != 7u) {
+    if (!save_loadSlot(2u) || !save_present() || save_level() != 2u ||
+        save_time() != 0x0549u || save_members() != 7u) {
         fprintf(stderr, "FAIL the written save does not load back\n");
         bad = 1;
     }
@@ -383,8 +408,8 @@ int main(int argc, char **argv)
     {
         const uint8_t *r0 = object_slot(0);
 
-        if (!r0 || r0[0] != 0x34u || r0[1] != 0x12u ||
-            r0[2] != 0x56u || object_slotClass(1u) != 6u) {
+        if (!r0 || r0[0] != 0x34u || r0[1] != 0x12u || r0[2] != 0x56u ||
+            object_slotClass(1u) != 6u) {
             fprintf(stderr, "FAIL the saved object table did not restore\n");
             bad = 1;
         }
@@ -399,10 +424,14 @@ int main(int argc, char **argv)
             fprintf(stderr, "FAIL no object slot 0\n");
             bad = 1;
         } else {
-            r[0] = 0x34; r[1] = 0x12; r[2] = 0x56; r[3] = 0x78;
+            r[0] = 0x34;
+            r[1] = 0x12;
+            r[2] = 0x56;
+            r[3] = 0x78;
             object_setSlotClass(0u, 5u);
             object_saveTable(tbl);
-            r[0] = 0; object_setSlotClass(0u, 0u);
+            r[0] = 0;
+            object_setSlotClass(0u, 0u);
             object_loadTable(tbl);
             if (r[0] != 0x34 || r[1] != 0x12 || r[2] != 0x56 ||
                 object_slotClass(0u) != 5u) {
@@ -411,8 +440,9 @@ int main(int argc, char **argv)
             }
         }
         memset(ent, 0, sizeof ent);
-        ent[0] = 1;                          /* [0x64C2] = 1 */
-        ent[2] = 0x34; ent[3] = 0x12;        /* slot 0 +0x0 */
+        ent[0] = 1; /* [0x64C2] = 1 */
+        ent[2] = 0x34;
+        ent[3] = 0x12; /* slot 0 +0x0 */
         entity_loadFixed(ent);
         if (!entity_at(0u) || entity_at(0u)->x0 != 0x1234u) {
             fprintf(stderr, "FAIL the entity array did not load\n");
@@ -429,28 +459,30 @@ int main(int argc, char **argv)
      * write it back and compare all 0x1800 bytes. */
     {
         static const uint8_t prog[0x20] = {
-            0x02,0x01,0x02,0x01,0x04,0x01,0x03,0x04,0x05,0x06,0x04,0x01,
-            0x03,0x07,0x08,0x06,0x04,0x01,0x03,0x05,0x09,0x06,0x04,0x01,
-            0x09,0x0A,0x0B,0x0C,0x01,0x01,0x06,0x01,
+            0x02, 0x01, 0x02, 0x01, 0x04, 0x01, 0x03, 0x04, 0x05, 0x06, 0x04,
+            0x01, 0x03, 0x07, 0x08, 0x06, 0x04, 0x01, 0x03, 0x05, 0x09, 0x06,
+            0x04, 0x01, 0x09, 0x0A, 0x0B, 0x0C, 0x01, 0x01, 0x06, 0x01,
         };
         static uint8_t fx[SAVE_LEN], got[SAVE_LEN];
 
         memset(fx, 0, sizeof fx);
         put16(fx + 0x00, 2u);
-        put16(fx + 0x02, 0x1234u); put16(fx + 0x04, 1u);
+        put16(fx + 0x02, 0x1234u);
+        put16(fx + 0x04, 1u);
         fx[0x06] = 1u;
         put16(fx + 0x07, 0x0549u);
-        fx[0x09] = 0u; fx[0x0A] = 9u;
+        fx[0x09] = 0u;
+        fx[0x0A] = 9u;
         put16(fx + 0x0B, 7u);
         /* 0x3E20 */
         put16(fx + 0x0D + 0u, 5u);
         put16(fx + 0x0D + 2u, 0u);
         for (uint32_t i = 0; i < 29u; i++)
             put16(fx + 0x0D + 4u + 2u * i, (uint32_t)(0x3E75u + 0x12u * i));
-        fx[0x0D + 0x3E + 1u] = 6u;                  /* class slot 1 */
-        fx[0x0D + 0x53u] = 9u;                      /* [0x3E73] */
-        put16(fx + 0x0D + 0x55u, 0x1234u);          /* record 0 x */
-        put16(fx + 0x0D + 0x57u, 0x5678u);          /* record 0 y */
+        fx[0x0D + 0x3E + 1u] = 6u; /* class slot 1 */
+        fx[0x0D + 0x53u] = 9u; /* [0x3E73] */
+        put16(fx + 0x0D + 0x55u, 0x1234u); /* record 0 x */
+        put16(fx + 0x0D + 0x57u, 0x5678u); /* record 0 y */
         /* 0x6F20: groups and spans all free, then the two specials */
         memset(fx + 0x026C + 2u, 0xFF, 0x70u);
         memset(fx + 0x026C + 0x72u, 0xFF, 0x38u);
@@ -465,9 +497,14 @@ int main(int argc, char **argv)
         /* 0x6F92 copy: spans + zero */
         memset(fx + 0x16F0, 0xFF, 0x38u);
         /* 0x5B22 block */
-        fx[0x17F0] = 1u; fx[0x17F1] = 2u; fx[0x17F2] = 3u;
-        fx[0x17F3] = 0u; fx[0x17F4] = 9u; fx[0x17F5] = 0x12u;
-        fx[0x17F6] = 0u; fx[0x17F7] = 0x34u;
+        fx[0x17F0] = 1u;
+        fx[0x17F1] = 2u;
+        fx[0x17F2] = 3u;
+        fx[0x17F3] = 0u;
+        fx[0x17F4] = 9u;
+        fx[0x17F5] = 0x12u;
+        fx[0x17F6] = 0u;
+        fx[0x17F7] = 0x34u;
 
         f = fopen(SAVE_NAME, "wb");
         if (!f || fwrite(fx, 1, sizeof fx, f) != sizeof fx) {
@@ -495,8 +532,10 @@ int main(int argc, char **argv)
                 if (memcmp(fx, got, sizeof fx) != 0) {
                     uint32_t at = 0;
                     while (at < sizeof fx && fx[at] == got[at]) at++;
-                    fprintf(stderr, "FAIL the state fixture differs at 0x%X "
-                            "(want %02x, got %02x)\n", at, fx[at], got[at]);
+                    fprintf(stderr,
+                            "FAIL the state fixture differs at 0x%X "
+                            "(want %02x, got %02x)\n",
+                            at, fx[at], got[at]);
                     bad = 1;
                 }
             }
@@ -545,14 +584,17 @@ int main(int argc, char **argv)
         /* D-82: 1000:3073 plays the party screen after a restart (only the
          * RESTORE GAME path sets [0x34]); the port must leave it pending. */
         if (!gameflow_partyPending()) {
-            fprintf(stderr, "FAIL RESTART THIS LEVEL skipped the party screen\n");
+            fprintf(stderr,
+                    "FAIL RESTART THIS LEVEL skipped the party screen\n");
             bad = 1;
         }
         /* SAVE GAME through the action: the menu's slot + the live state */
         menu_openPause();
-        (void)press(0x02u); (void)press(0x02u); (void)press(0x02u);
-        (void)press(0x80u);                    /* the grid */
-        (void)press(0x02u);                    /* row 1 = game 2 */
+        (void)press(0x02u);
+        (void)press(0x02u);
+        (void)press(0x02u);
+        (void)press(0x80u); /* the grid */
+        (void)press(0x02u); /* row 1 = game 2 */
         (void)press(0x80u);
         if (menu_slot() != 2u) {
             fprintf(stderr, "FAIL the action's slot is %u\n", menu_slot());
@@ -572,17 +614,18 @@ int main(int argc, char **argv)
             fclose(f);
             if (n != sizeof b || b[0x00] != 1u || b[0x07] != 0x00u ||
                 b[0x08] != 0x06u || b[0x0B] != 12u) {
-                fprintf(stderr, "FAIL SAVE GAME's header (level %u, time "
-                        "%02x%02x, members %u)\n", b[0], b[8], b[7], b[0x0B]);
+                fprintf(stderr,
+                        "FAIL SAVE GAME's header (level %u, time "
+                        "%02x%02x, members %u)\n",
+                        b[0], b[8], b[7], b[0x0B]);
                 bad = 1;
             }
         }
         /* RESTART THIS GAME -> the room, [0x34] cleared */
         /* 1000:390F: [0x138E] = 0 (extinct) and [0x1809] = 0xFF - the
          * level's caption + fades run and postLevelStep takes the room. */
-        if (gameflow_pauseAction(2, &quit) != FLOW_LEVEL ||
-            !level_ended() || level_outcome() != 0 ||
-            !gameflow_restartPending()) {
+        if (gameflow_pauseAction(2, &quit) != FLOW_LEVEL || !level_ended() ||
+            level_outcome() != 0 || !gameflow_restartPending()) {
             fprintf(stderr, "FAIL RESTART THIS GAME\n");
             bad = 1;
         }
@@ -604,7 +647,7 @@ int main(int argc, char **argv)
             fprintf(stderr, "FAIL the time-up dialog did not open\n");
             bad = 1;
         }
-        (void)press(0x02u);                    /* row 1 */
+        (void)press(0x02u); /* row 1 */
         (void)press(0x80u);
         if (!menu_timeUp() || menu_result() != 1) {
             fprintf(stderr, "FAIL the time-up dialog gave %d (kind %d)\n",
@@ -617,9 +660,8 @@ int main(int argc, char **argv)
             bad = 1;
         }
         /* 1000:3510: the same lost-level arm as the pause menu's result 2 */
-        if (gameflow_timeUpAction(1, &quit) != FLOW_LEVEL ||
-            !level_ended() || level_outcome() != 0 ||
-            !gameflow_restartPending()) {
+        if (gameflow_timeUpAction(1, &quit) != FLOW_LEVEL || !level_ended() ||
+            level_outcome() != 0 || !gameflow_restartPending()) {
             fprintf(stderr, "FAIL the time-up RESTART THIS GAME\n");
             bad = 1;
         }
@@ -647,9 +689,11 @@ int main(int argc, char **argv)
         dump_ppm(dump_dir, "menu_port_pause", osys_null_page(0),
                  osys_null_palette());
         level_tick();
-        (void)press(0x02u); (void)press(0x02u); (void)press(0x02u);
-        (void)press(0x80u);                    /* the save grid */
-        level_tick();                          /* the fresh level frame */
+        (void)press(0x02u);
+        (void)press(0x02u);
+        (void)press(0x02u);
+        (void)press(0x80u); /* the save grid */
+        level_tick(); /* the fresh level frame */
         menu_draw();
         dump_ppm(dump_dir, "menu_port_grid", osys_null_page(0),
                  osys_null_palette());

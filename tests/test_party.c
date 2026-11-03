@@ -31,7 +31,11 @@ static uint8_t *read_file(const char *path, uint32_t *size)
     int64_t n = ftell(f);
     fseek(f, 0, SEEK_SET);
     uint8_t *buf = (uint8_t *)malloc((size_t)n);
-    if (fread(buf, 1, (size_t)n, f) != (size_t)n) { fclose(f); free(buf); return NULL; }
+    if (fread(buf, 1, (size_t)n, f) != (size_t)n) {
+        fclose(f);
+        free(buf);
+        return NULL;
+    }
     fclose(f);
     if (size) *size = (uint32_t)n;
     return buf;
@@ -39,11 +43,15 @@ static uint8_t *read_file(const char *path, uint32_t *size)
 
 int main(int argc, char **argv)
 {
-    if (argc < 3) { printf("usage: test_party <volume-dir> <tree-dir>\n"); return 1; }
+    if (argc < 3) {
+        printf("usage: test_party <volume-dir> <tree-dir>\n");
+        return 1;
+    }
 
     if (res_init(&osys_null) || palette_init(&osys_null) ||
         font_init(&osys_null) || video_init(&osys_null)) {
-        printf("PARTY: init failed\n"); return 1;
+        printf("PARTY: init failed\n");
+        return 1;
     }
 
     char path[512];
@@ -55,7 +63,8 @@ int main(int argc, char **argv)
     bit = read_file(path, &sz);
     if (!bit || sz < 64000u) {
         printf("PARTY: SKIP (no fixture at %s)\n", path);
-        free(bit); return 0;
+        free(bit);
+        return 0;
     }
 
     res_setDisc(1);                          /* the level disc HUMANS.001 */
@@ -64,16 +73,22 @@ int main(int argc, char **argv)
     party_intro_setValues(1u, 4u, 12u, 0u, "DARWIN");
     if (!party_intro_start()) {
         printf("PARTY: SKIP (the load path returned 0 — no volume data)\n");
-        free(bit); return 0;
+        free(bit);
+        return 0;
     }
     /* level_intro_screen (1000:2508) leaves the 320x192 mode-X field */
     if (osys_null_videoMode() != VIDEO_MODE_X) {
         printf("PARTY: FAIL the party did not set the mode-X field\n");
-        free(bit); return 1;
+        free(bit);
+        return 1;
     }
 
     /* one tick: the anim runs, the per-tick compose lands */
-    { InputState in; memset(&in, 0, sizeof in); party_intro_tick(&in); }
+    {
+        InputState in;
+        memset(&in, 0, sizeof in);
+        party_intro_tick(&in);
+    }
 
     /* the second compose: the module's own exported law compose */
     page = (uint8_t *)malloc(64000u);
@@ -90,14 +105,18 @@ int main(int argc, char **argv)
         }
 
     if (bitdiffs == 0)
-        printf("PARTY: law OK — the composed page = the .BIT 320x200 verbatim\n");
+        printf(
+            "PARTY: law OK — the composed page = the .BIT 320x200 verbatim\n");
     else {
         uint32_t first = (uint32_t)-1;
         for (uint32_t i = 0; i < 64000u && first == (uint32_t)-1; i++)
             if (page[i] != bit[i]) first = i;
-        printf("PARTY: FAIL %" PRId64 "/~64000 diffs, first at byte %u (%02x != %02x)\n",
+        printf("PARTY: FAIL %" PRId64
+               "/~64000 diffs, first at byte %u (%02x != %02x)\n",
                bitdiffs, first, page[first], bit[first]);
-        free(bit); free(page); return 1;
+        free(bit);
+        free(page);
+        return 1;
     }
     if (vgapage)
         printf("PARTY: video_page(0) path diffs: %" PRId64 "\n", bankdiffs);
@@ -108,7 +127,8 @@ int main(int argc, char **argv)
     if (party_intro_score() != 0x1234u) {
         printf("PARTY: FAIL the briefing score is %u, want 0x1234\n",
                party_intro_score());
-        free(bit); free(page);
+        free(bit);
+        free(page);
         return 1;
     }
     {
@@ -116,12 +136,14 @@ int main(int argc, char **argv)
         party_intro_formatScore(party_intro_score(), out);
         if (strcmp(out, "1234") != 0) {
             printf("PARTY: FAIL the score digits are '%s'\n", out);
-            free(bit); free(page);
+            free(bit);
+            free(page);
             return 1;
         }
     }
 
-    free(bit); free(page);
+    free(bit);
+    free(page);
     printf("PARTY: PASS\n");
     return 0;
 }

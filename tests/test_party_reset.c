@@ -17,7 +17,10 @@ int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";
 
-    if (compat_chdir(vol_dir)) { perror(vol_dir); return 1; }
+    if (compat_chdir(vol_dir)) {
+        perror(vol_dir);
+        return 1;
+    }
     if (res_init(&osys_null) || palette_init(&osys_null) ||
         font_init(&osys_null) || video_init(&osys_null)) {
         printf("PARTY_RESET: init failed\n");
@@ -37,7 +40,10 @@ int main(int argc, char **argv)
         uint32_t t = 0;
 
         memset(&in, 0, sizeof in);
-        for (; t < 400u; t++) { (void)party_intro_tick(&in); palette_tick(); }
+        for (; t < 400u; t++) {
+            (void)party_intro_tick(&in);
+            palette_tick();
+        }
         in.lastKey = 1u;
         for (; t < 20000u; t++) {
             run = party_intro_tick(&in);

@@ -19,11 +19,13 @@ static void joyBits(SDL_Keycode k, int32_t down)
 {
     uint32_t mask;
     switch (k) {
-    case SDLK_UP:      mask = 0x01u; break;
-    case SDLK_DOWN:    mask = 0x02u; break;
-    case SDLK_LEFT:    mask = 0x04u; break;
-    case SDLK_RIGHT:   mask = 0x08u; break;
-    case SDLK_Z:       mask = 0x80u; break;   /* the configured action key
+    case SDLK_UP: mask = 0x01u; break;
+    case SDLK_DOWN: mask = 0x02u; break;
+    case SDLK_LEFT: mask = 0x04u; break;
+    case SDLK_RIGHT: mask = 0x08u; break;
+    case SDLK_Z:
+        mask = 0x80u;
+        break;   /* the configured action key
                                               * ([0x5B05] = scancode 0x2C
                                               * = Z) — ONLY this key sets
                                               * the action bit; Enter and
@@ -44,14 +46,19 @@ static uint8_t scanCode(SDL_Keycode k)
 {
     switch (k) {
     case SDLK_ESCAPE: return 0x01u;
-    case SDLK_COMMA:  return 0x33u;
+    case SDLK_COMMA: return 0x33u;
     case SDLK_PERIOD: return 0x34u;
-    case SDLK_SPACE:  return 0x39u;
-    case SDLK_F1:  return 0x3Bu;  case SDLK_F2:  return 0x3Cu;
-    case SDLK_F3:  return 0x3Du;  case SDLK_F4:  return 0x3Eu;
-    case SDLK_F5:  return 0x3Fu;  case SDLK_F6:  return 0x40u;
-    case SDLK_F7:  return 0x41u;  case SDLK_F8:  return 0x42u;
-    case SDLK_F9:  return 0x43u;  case SDLK_F10: return 0x44u;
+    case SDLK_SPACE: return 0x39u;
+    case SDLK_F1: return 0x3Bu;
+    case SDLK_F2: return 0x3Cu;
+    case SDLK_F3: return 0x3Du;
+    case SDLK_F4: return 0x3Eu;
+    case SDLK_F5: return 0x3Fu;
+    case SDLK_F6: return 0x40u;
+    case SDLK_F7: return 0x41u;
+    case SDLK_F8: return 0x42u;
+    case SDLK_F9: return 0x43u;
+    case SDLK_F10: return 0x44u;
     default: break;
     }
     return 0u;
@@ -60,10 +67,10 @@ static uint8_t scanCode(SDL_Keycode k)
 static uint8_t keyCode(SDL_Keycode k)
 {
     switch (k) {
-    case SDLK_ESCAPE:    return 0x1Bu;   /* ESC — the 0x5F11 table's key   */
+    case SDLK_ESCAPE: return 0x1Bu;   /* ESC — the 0x5F11 table's key   */
     case SDLK_BACKSPACE: return 0x0Eu;   /* the erase action's key         */
-    case SDLK_RETURN: case SDLK_KP_ENTER:
-                        return 0x0Du;   /* the confirm action's key       */
+    case SDLK_RETURN:
+    case SDLK_KP_ENTER: return 0x0Du;   /* the confirm action's key       */
     default: break;
     }
     /* the ISR's XLAT table (0x4260) delivers letters UPPERCASE ('a' -> 0x41,
@@ -78,9 +85,7 @@ void sdl3_eventsPoll(InputState *out)
     SDL_Event ev;
     while (SDL_PollEvent(&ev)) {
         switch (ev.type) {
-        case SDL_EVENT_QUIT:
-            cur.quit = 1;
-            break;
+        case SDL_EVENT_QUIT: cur.quit = 1; break;
         case SDL_EVENT_KEY_DOWN:
             joyBits(ev.key.key, 1);
             cur.lastKey = keyCode(ev.key.key);

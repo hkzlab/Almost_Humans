@@ -11,15 +11,15 @@
 #include <SDL3/SDL.h>
 #include <stdlib.h>
 
-static SDL_Window   *win;
+static SDL_Window *win;
 static SDL_Renderer *ren;
-static SDL_Texture  *tex;
-static int32_t       texRows = 200;      /* the texture's height = the field */
-static uint8_t       pages[2][320 * 200];
-static uint32_t      lut[256];          /* the palette LUT, 6-bit expanded */
-static int32_t       presentProbe;      /* HUMANSRE_RATE_PROBE: report the
+static SDL_Texture *tex;
+static int32_t texRows = 200;      /* the texture's height = the field */
+static uint8_t pages[2][320 * 200];
+static uint32_t lut[256];          /* the palette LUT, 6-bit expanded */
+static int32_t presentProbe;      /* HUMANSRE_RATE_PROBE: report the
                                          * loop/present rate every 5 s    */
-static VideoMode     vidMode = (VideoMode)-1;   /* the core's last mode set */
+static VideoMode vidMode = (VideoMode)-1;   /* the core's last mode set */
 
 /* The field each mode scans out (osystem.h's VideoMode): mode 13h is the
  * full 320x200 page, mode X shows only the top 192 rows — the rest of a
@@ -51,7 +51,7 @@ static void vid_initVideo(void)
      * blocks on the display either — the CRTC flip is latched at vsync by
      * the ISR — so a 60 Hz host display must not drag the 70 Hz flow. */
     vid_makeTexture(200);
-    for (uint32_t i = 0; i < 256u; i++) lut[i] = 0xFF000000u;   /* opaque black */
+    for (uint32_t i = 0; i < 256u; i++) lut[i] = 0xFF000000u; /* opaque black */
     presentProbe = getenv("HUMANSRE_RATE_PROBE") != NULL;
 }
 
@@ -66,8 +66,8 @@ void sdl3_videoSetMode(VideoMode mode)
     if (modeRows() != texRows) vid_makeTexture(modeRows());
     SDL_SetRenderScale(ren, 960.0f / 320.0f, 720.0f / (float)modeRows());
     SDL_Log("video: mode switched to %s (%dx%d)",
-            mode == VIDEO_MODE_X ? "VGA mode X" : "VGA mode 13h",
-            320, modeRows());
+            mode == VIDEO_MODE_X ? "VGA mode X" : "VGA mode 13h", 320,
+            modeRows());
 }
 
 static uint8_t *vid_page(int32_t which) { return pages[which & 1]; }
@@ -89,12 +89,17 @@ static void vid_present(int32_t which)
         static Uint64 windowStart;
         frames++;
         Uint64 now = SDL_GetPerformanceCounter();
-        if (!windowStart) { windowStart = now; return; }
-        double s = (double)(now - windowStart) / (double)SDL_GetPerformanceFrequency();
+        if (!windowStart) {
+            windowStart = now;
+            return;
+        }
+        double s =
+            (double)(now - windowStart) / (double)SDL_GetPerformanceFrequency();
         if (s >= 5.0) {
             /* note: scene playback presents from inside its own loops too,
              * so this can exceed the tick rate; it is not the loop rate */
-            SDL_Log("present rate: %.2f Hz (videoPresent calls)", (double)frames / s);
+            SDL_Log("present rate: %.2f Hz (videoPresent calls)",
+                    (double)frames / s);
             frames = 0;
             windowStart = now;
         }
@@ -104,8 +109,10 @@ static void vid_present(int32_t which)
 void sdl3_videoSetPalette(const uint8_t *p6, uint32_t first, uint32_t n)
 {
     for (uint32_t i = 0; i < n; i++) {
-        uint8_t r = expand6(p6[i*3]), g = expand6(p6[i*3+1]), b = expand6(p6[i*3+2]);
-        lut[first + i] = 0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+        uint8_t r = expand6(p6[i * 3]), g = expand6(p6[i * 3 + 1]),
+                b = expand6(p6[i * 3 + 2]);
+        lut[first + i] =
+            0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
     }
 }
 

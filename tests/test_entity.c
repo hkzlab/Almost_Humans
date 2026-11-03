@@ -37,8 +37,9 @@ static int32_t bad;
 
 static void failf(const char *what, uint32_t id, int64_t got, int64_t want)
 {
-    fprintf(stderr, "FAIL level %" PRIu32 ": %s = %" PRId64 ", want %" PRId64 "\n",
-            id, what, got, want);
+    fprintf(stderr,
+            "FAIL level %" PRIu32 ": %s = %" PRId64 ", want %" PRId64 "\n", id,
+            what, got, want);
     bad = 1;
 }
 
@@ -47,10 +48,9 @@ static void failf(const char *what, uint32_t id, int64_t got, int64_t want)
  * off its +1-moved cursor), <= 0x90, the 0x1F20 flag bit 0x80>>(v&7)
  * => +3 px.  Row 19 reads past the map copy: no shipped B3/B4 there. */
 static const uint8_t style6_flags[32] = {
-    0x00, 0x00, 0x00, 0x00, 0x07, 0xFE, 0x00, 0x07,
-    0xE0, 0x00, 0x02, 0x02, 0x00, 0x03, 0xC3, 0x81,
-    0x80, 0x01, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x07, 0xFE, 0x00, 0x07, 0xE0, 0x00, 0x02,
+    0x02, 0x00, 0x03, 0xC3, 0x81, 0x80, 0x01, 0x80, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 static uint32_t prologue_bonus(const LevelData *d, uint32_t matchIdx)
 {
@@ -84,7 +84,10 @@ int main(int argc, char **argv)
     }
     fclose(f);
 
-    if (compat_chdir(vol_dir)) { perror(vol_dir); return 1; }
+    if (compat_chdir(vol_dir)) {
+        perror(vol_dir);
+        return 1;
+    }
     char fix_abs[512];
     if (!compat_realpath(fix_dir, fix_abs)) {
         fprintf(stderr, "FAIL fixture tree %s unreadable\n", fix_dir);
@@ -111,14 +114,12 @@ int main(int argc, char **argv)
     const Entity *e = entity_at(0);
     if (e) {
         if (e->x0 != 320u) failf("+0 (endpoint A)", 10u, e->x0, 320);
-        if (e->x  != 320u) failf("+6 (spawn x)", 10u, e->x, 320);
-        if (e->y  != 193u) failf("+8 (spawn y)", 10u, e->y, 193);
+        if (e->x != 320u) failf("+6 (spawn x)", 10u, e->x, 320);
+        if (e->y != 193u) failf("+8 (spawn y)", 10u, e->y, 193);
         if (e->hold != 3u) failf("+A (hold seed)", 10u, e->hold, 3);
-        if (e->waypoint != 0u)
-            failf("+C (waypoint)", 10u, e->waypoint, 0);
+        if (e->waypoint != 0u) failf("+C (waypoint)", 10u, e->waypoint, 0);
         if (e->life != 1u) failf("+E (goal high)", 10u, e->life, 1);
-        if (e->handler != 0u)
-            failf("+4 (dispatch)", 10u, e->handler, 0);
+        if (e->handler != 0u) failf("+4 (dispatch)", 10u, e->handler, 0);
         /* the 0xB4 join lands before any tick: x1 = 400 */
         if (e->x1 != 400u) failf("+2 (endpoint B)", 10u, e->x1, 400);
     }
@@ -159,7 +160,8 @@ int main(int argc, char **argv)
         uint32_t src = 0, rows = 0, yoff = 0;
 
         if (entity_frameInfo(0u, &src, &rows, &yoff)) {
-            if (src != 0x1C0u) failf("frame 0's source (block 0 + 0x1C0)", 10u, src, 0x1C0);
+            if (src != 0x1C0u)
+                failf("frame 0's source (block 0 + 0x1C0)", 10u, src, 0x1C0);
             if (rows < 32u || rows > 48u)
                 failf("frame 0's row count (a sane sprite)", 10u, rows, 39);
             if (yoff > 64u) failf("frame 0's y offset", 10u, yoff, 25);
@@ -186,33 +188,42 @@ int main(int argc, char **argv)
 
         memset(bank, 0, sizeof bank);
         bank[4 * 0 + 3] = 0x00;                 /* cell 0: block offset 0 */
-        bank[0xE0] = 0; bank[0xE1] = 5;         /* its y offset             */
-        bank[0x150] = 0; bank[0x151] = 2;       /* its row count            */
-        bank[4 * 1 + 3] = 0x40;                 /* cell 1: block offset 0x40 */
-        bank[0xE2] = 0; bank[0xE3] = 6;
-        bank[0x152] = 0; bank[0x153] = 2;
-        for (uint32_t i = 0; i < 0x40; i++) {   /* the two frames' bytes */
+        bank[0xE0] = 0;
+        bank[0xE1] = 5;         /* its y offset             */
+        bank[0x150] = 0;
+        bank[0x151] = 2;       /* its row count            */
+        bank[4 * 1 + 3] = 0x40; /* cell 1: block offset 0x40 */
+        bank[0xE2] = 0;
+        bank[0xE3] = 6;
+        bank[0x152] = 0;
+        bank[0x153] = 2;
+        for (uint32_t i = 0; i < 0x40; i++) { /* the two frames' bytes */
             bank[0x1C0 + i] = (uint8_t)(0x10u + i);
             bank[0x200 + i] = (uint8_t)(0x80u + i);
         }
         entity_publishBank(bank, sizeof bank);
-        e8 = (uint8_t *)entity_at(0u);          /* mutate the live record */
+        e8 = (uint8_t *)entity_at(0u); /* mutate the live record */
         if (e8) {
-            e8[6] = 100; e8[7] = 0;             /* x = 100 */
-            e8[8] = 50;  e8[9] = 0;             /* y = 50  */
-            e8[0xC] = 0; e8[0xD] = 0;           /* waypoint 0 */
+            e8[6] = 100;
+            e8[7] = 0; /* x = 100 */
+            e8[8] = 50;
+            e8[9] = 0; /* y = 50  */
+            e8[0xC] = 0;
+            e8[0xD] = 0; /* waypoint 0 */
             memset(page, 0, sizeof page);
             entity_render(page, 0, 0);
             /* cell 0 at (100-12, 50+5) = (88, 55), block = 2 rows * 8 */
             if (page[55 * 320 + 88] != bank[0x1C0])
-                failf("cell 0's first pixel", 10u, page[55 * 320 + 88], bank[0x1C0]);
+                failf("cell 0's first pixel", 10u, page[55 * 320 + 88],
+                      bank[0x1C0]);
             /* col 31, row 1: block 3 of 4 -> 3*16 + 8 + 7 = 63 */
             if (page[(55 + 1) * 320 + 88 + 31] != bank[0x1C0 + 63])
                 failf("cell 0's last pixel (block = rows*8)", 10u,
                       page[(55 + 1) * 320 + 88 + 31], bank[0x1C0 + 63]);
             /* cell 1 at x + 0x20, y + 6, from block 0x40 */
             if (page[(50 + 6) * 320 + 88 + 0x20] != bank[0x200])
-                failf("cell 1's first pixel", 10u, page[(50 + 6) * 320 + 120], bank[0x200]);
+                failf("cell 1's first pixel", 10u, page[(50 + 6) * 320 + 120],
+                      bank[0x200]);
         }
     }
 
@@ -228,10 +239,12 @@ int main(int argc, char **argv)
             uint32_t ex = p->x, ey = p->y;
 
             memset(rec, 0, 0x12u);
-            rec[0] = (uint8_t)(ex + 36u); rec[1] = (uint8_t)((ex + 36u) >> 8);
-            rec[2] = (uint8_t)(ey + 30u); rec[3] = (uint8_t)((ey + 30u) >> 8);
+            rec[0] = (uint8_t)(ex + 36u);
+            rec[1] = (uint8_t)((ex + 36u) >> 8);
+            rec[2] = (uint8_t)(ey + 30u);
+            rec[3] = (uint8_t)((ey + 30u) >> 8);
             rec[4] = 0x10u;
-            rec[8] = 0x01u;                 /* type 1: pickable (0x6EC3 = 0) */
+            rec[8] = 0x01u; /* type 1: pickable (0x6EC3 = 0) */
             entity_tick();
             if ((rec[8] | (rec[9] << 8)) != 0x22u)
                 failf("the pick-up's type", 10u, rec[8], 0x22);
@@ -243,14 +256,16 @@ int main(int argc, char **argv)
             if (entity_at(0)->hold != 0xA032u)
                 failf("the carry hold", 10u, entity_at(0)->hold, 0xA032);
             if (entity_at(0)->waypoint != 8u)
-                failf("the carry waypoint (wp[9])", 10u, entity_at(0)->waypoint, 8);
+                failf("the carry waypoint (wp[9])", 10u, entity_at(0)->waypoint,
+                      8);
             /* 1000:CB99: the carry animation runs the hold/sub-step/frame
              * counter and hands the entity back to its walk handler (3's base
              * is 0). */
             {
                 uint32_t t = 0;
 
-                while (entity_at(0)->handler == 3u && t++ < 4000u) entity_tick();
+                while (entity_at(0)->handler == 3u && t++ < 4000u)
+                    entity_tick();
                 if (entity_at(0)->handler != 0u)
                     failf("the carry animation returns to handler 0", 10u,
                           entity_at(0)->handler, 0);
@@ -281,8 +296,10 @@ int main(int argc, char **argv)
             uint32_t px = p ? p->x : 320u, py = p ? p->y : 193u;
 
             memset(cr, 0, 0x12u);
-            cr[0] = (uint8_t)(px + 36u); cr[1] = (uint8_t)((px + 36u) >> 8);
-            cr[2] = (uint8_t)(py + 30u); cr[3] = (uint8_t)((py + 30u) >> 8);
+            cr[0] = (uint8_t)(px + 36u);
+            cr[1] = (uint8_t)((px + 36u) >> 8);
+            cr[2] = (uint8_t)(py + 30u);
+            cr[3] = (uint8_t)((py + 30u) >> 8);
             cr[4] = 0x10u;
             cr[8] = 0x01u;
         }
@@ -290,11 +307,11 @@ int main(int argc, char **argv)
         entity_tick();
         if ((cr[8] | (cr[9] << 8)) != 0x22u)
             failf("D-59: the pick-up", 10u, cr[8], 0x22);
-        statusbar_setTribeDigits(1u, 2u);      /* the bar shows 12 */
+        statusbar_setTribeDigits(1u, 2u); /* the bar shows 12 */
         for (t = 0; t < 4000u; t++) {
             type = (uint32_t)(cr[8] | (cr[9] << 8));
             if (type == 0x21u) break;
-            entity_tick();                     /* the game's order: world first */
+            entity_tick(); /* the game's order: world first */
             (void)object_commandRun(cr, 0u);
         }
         type = (uint32_t)(cr[8] | (cr[9] << 8));
@@ -332,10 +349,10 @@ int main(int argc, char **argv)
             x1 = entity_at(0u)->x;
             if (x1 == x0) failf("the playing world moves", 10u, x1, x0 + 1);
 
-            level_setEnd(0);               /* the pause's RESTART THIS GAME */
+            level_setEnd(0); /* the pause's RESTART THIS GAME */
             x0 = entity_at(0u)->x;
             for (uint32_t t = 0; t < 10u; t++) {
-                level_tick();              /* the caption's per-tick call */
+                level_tick(); /* the caption's per-tick call */
                 palette_tick();
             }
             x1 = entity_at(0u)->x;
@@ -368,7 +385,10 @@ int main(int argc, char **argv)
             for (uint32_t c = 0; c < 32u; c++) {
                 if (lv->map[r * 32u + c] != 0xB3u) continue;
                 const Entity *pe = entity_at(k);
-                if (!pe) { failf("missing record", id, k, want); break; }
+                if (!pe) {
+                    failf("missing record", id, k, want);
+                    break;
+                }
                 if (pe->x0 != c * 16u) failf("x0", id, pe->x0, c * 16u);
                 if (pe->x != pe->x0) failf("x == x0", id, pe->x, pe->x0);
                 {
@@ -422,8 +442,8 @@ int main(int argc, char **argv)
                 /* handler 0 steps +1; x1 = 0 windows walk up freely (the
                  * un-joined walker — the original does the same) */
                 if (pe->x < pe->x0 || pe->x > pe->x0 + 4u) {
-                    fprintf(stderr, "FAIL level %u: x %u out of window\n",
-                            id, pe->x);
+                    fprintf(stderr, "FAIL level %u: x %u out of window\n", id,
+                            pe->x);
                     bad = 1;
                 }
             }

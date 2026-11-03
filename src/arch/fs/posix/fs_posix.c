@@ -14,7 +14,10 @@ static FSVolume *posix_openVolume(uint32_t disc)
     return (FSVolume *)fopen(name, "rb");
 }
 
-static void posix_closeVolume(FSVolume *v) { if (v) fclose((FILE *)v); }
+static void posix_closeVolume(FSVolume *v)
+{
+    if (v) fclose((FILE *)v);
+}
 
 static uint32_t posix_volumeSize(FSVolume *v)
 {
@@ -55,28 +58,26 @@ static FSSave *posix_createSave(char letter)
     return (FSSave *)fopen(name, "wb");
 }
 
-static uint32_t posix_saveWrite(FSSave *s, uint32_t off,
-                                const uint8_t *src, uint32_t n)
+static uint32_t posix_saveWrite(FSSave *s, uint32_t off, const uint8_t *src,
+                                uint32_t n)
 {
     if (fseek((FILE *)s, (long)off, SEEK_SET)) return 0;
     return (uint32_t)fwrite(src, 1, n, (FILE *)s);
 }
 
-static void posix_closeSave(FSSave *s) { if (s) fclose((FILE *)s); }
+static void posix_closeSave(FSSave *s)
+{
+    if (s) fclose((FILE *)s);
+}
 
 /* the game-directory runtime files (HISCORES.HUM): the name is the game's */
 static FSSave *posix_openNamed(const char *name)
-{
-    return (FSSave *)fopen(name, "rb");
-}
+{ return (FSSave *)fopen(name, "rb"); }
 
 static FSSave *posix_createNamed(const char *name)
-{
-    return (FSSave *)fopen(name, "wb");
-}
+{ return (FSSave *)fopen(name, "wb"); }
 
-const FSModule fs = {
-    posix_openVolume, posix_closeVolume, posix_volumeSize, posix_read,
-    posix_openSave, posix_saveRead, posix_createSave, posix_saveWrite,
-    posix_closeSave, posix_openNamed, posix_createNamed
-};
+const FSModule fs = { posix_openVolume, posix_closeVolume, posix_volumeSize,
+                      posix_read,       posix_openSave,    posix_saveRead,
+                      posix_createSave, posix_saveWrite,   posix_closeSave,
+                      posix_openNamed,  posix_createNamed };

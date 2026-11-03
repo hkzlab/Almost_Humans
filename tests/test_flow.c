@@ -24,7 +24,9 @@ static void flow_dump_ppm(const char *path, const uint8_t *page)
     fprintf(f, "P6\n320 200\n255\n");
     for (i = 0; i < 320u * 200u; i++) {
         uint8_t v = page[i] % 64u;
-        fputc(v * 4, f); fputc(v * 4, f); fputc(v * 4, f);
+        fputc(v * 4, f);
+        fputc(v * 4, f);
+        fputc(v * 4, f);
     }
     fclose(f);
 }
@@ -39,14 +41,15 @@ static int32_t bad;
 
 static void check(int32_t ok, const char *what)
 {
-    if (!ok) { fprintf(stderr, "FAIL %s\n", what); bad = 1; }
+    if (!ok) {
+        fprintf(stderr, "FAIL %s\n", what);
+        bad = 1;
+    }
 }
 
 /* the record-word helpers, also used by the walk/marker blocks below */
 static uint32_t tf_rd16(const uint8_t *r, uint32_t o)
-{
-    return (uint32_t)(r[o] | (r[o + 1] << 8));
-}
+{ return (uint32_t)(r[o] | (r[o + 1] << 8)); }
 static void tf_wr16(uint8_t *r, uint32_t o, uint32_t v)
 {
     r[o] = (uint8_t)v;
@@ -62,7 +65,10 @@ int main(int argc, char **argv)
     palette_init(&osys_null);
     level_init(&osys_null);
     statusbar_init(&osys_null);       /* the charge bar draws into the band */
-    if (compat_chdir(vol_dir)) { perror(vol_dir); return 1; }
+    if (compat_chdir(vol_dir)) {
+        perror(vol_dir);
+        return 1;
+    }
     {
         char path[512];
         snprintf(path, sizeof path, "%s/HUMANS.001", vol_dir);
@@ -77,9 +83,9 @@ int main(int argc, char **argv)
 
     /* 1. level_run's gate: need > members skips the level */
     check(!gameflow_tribeTooSmall(4u, 12u), "need 4 <= 12 starts");
-    check(!gameflow_tribeTooSmall(4u, 4u),  "need 4 == 4 starts");
-    check( gameflow_tribeTooSmall(4u, 3u),  "need 4 > 3 skips");
-    check(!gameflow_tribeTooSmall(0u, 0u),  "no need always starts");
+    check(!gameflow_tribeTooSmall(4u, 4u), "need 4 == 4 starts");
+    check(gameflow_tribeTooSmall(4u, 3u), "need 4 > 3 skips");
+    check(!gameflow_tribeTooSmall(0u, 0u), "no need always starts");
 
     /* 2. entry LAB_00CD: [0x22]++ while the 160 levels last, then COMPLETE */
     {
@@ -109,7 +115,8 @@ int main(int argc, char **argv)
         /* load_sprite_pal's fade (1000:1E33): 0x80 entries toward
          * dicon+0x18, div 0x19, before the frames */
         check(palette_fadeActive(), "the LOADING screen fades its palette in");
-        for (uint32_t t = 0; t < 60u && palette_fadeActive(); t++) palette_tick();
+        for (uint32_t t = 0; t < 60u && palette_fadeActive(); t++)
+            palette_tick();
         check(!palette_fadeActive(), "the loading fade completes");
         {
             char dp[512];
@@ -140,9 +147,9 @@ int main(int argc, char **argv)
                     const uint8_t *page = osys_null_page(0);
                     check(page[0] == 0u, "the loading background is cleared");
                     check(page[(0x60u + 10u) * 320u + 0x78u + 40u] ==
-                              dic[0x400u + 10u * 80u + 40u] &&
-                          page[(0x60u + 10u) * 320u + 0x78u + 41u] ==
-                              dic[0x400u + 10u * 80u + 41u],
+                                  dic[0x400u + 10u * 80u + 40u] &&
+                              page[(0x60u + 10u) * 320u + 0x78u + 41u] ==
+                                  dic[0x400u + 10u * 80u + 41u],
                           "the style card is at (0x78,0x60), 1x");
                 }
             }
@@ -156,13 +163,18 @@ int main(int argc, char **argv)
             FILE *f = fopen(lp, "rb");
             uint8_t *bank = NULL;
             if (f) {
-                fseek(f, 0, SEEK_END); int64_t n = ftell(f); fseek(f, 0, SEEK_SET);
+                fseek(f, 0, SEEK_END);
+                int64_t n = ftell(f);
+                fseek(f, 0, SEEK_SET);
                 bank = malloc((size_t)n);
-                if (!bank || fread(bank, 1, (size_t)n, f) != (size_t)n) { free(bank); bank = NULL; }
-                else sz = (uint32_t)n;
+                if (!bank || fread(bank, 1, (size_t)n, f) != (size_t)n) {
+                    free(bank);
+                    bank = NULL;
+                } else sz = (uint32_t)n;
                 fclose(f);
             }
-            check(bank && sz >= 0x400u + 0x19u * 0x180u, "LOADING.APL readable");
+            check(bank && sz >= 0x400u + 0x19u * 0x180u,
+                  "LOADING.APL readable");
             if (bank) {
                 /* the state after one tick: the "L" at (0xB0, 0x1C) — the
                  * template's y=0x1A plus one dy step */
@@ -172,7 +184,9 @@ int main(int argc, char **argv)
                 uint32_t badpx = 0;
                 for (uint32_t r = 0; r < 24u; r++)
                     for (uint32_t c = 0; c < 16u; c++)
-                        if (L[r * 16u + c] && page[(0x24u + r) * 320u + 0x60u + c] != L[r * 16u + c])
+                        if (L[r * 16u + c] &&
+                            page[(0x24u + r) * 320u + 0x60u + c] !=
+                                L[r * 16u + c])
                             badpx++;
                 check(badpx == 0u, "the 'L' block drawn at x=0x60 (bad chars)");
                 free(bank);
@@ -208,7 +222,8 @@ int main(int argc, char **argv)
             uint32_t req = level_required(), mem = level_members();
             const uint8_t *map = level_map();
             uint32_t counted = 0;
-            for (uint32_t i = 0; i < 640u; i++) if (map[i] == 0xAAu) counted++;
+            for (uint32_t i = 0; i < 640u; i++)
+                if (map[i] == 0xAAu) counted++;
             check(req == counted, "required = the map's 0xAA count");
             check(mem == 12u, "the fresh board's 12 members");
             level_restoreMembers();
@@ -222,10 +237,11 @@ int main(int argc, char **argv)
             memcpy(base, osys_null_page(0), sizeof base);
             memcpy(won, base, sizeof won);
             memcpy(gone, base, sizeof gone);
-            textpage_draw(won,  "WELL DONE! YOU FINISHED LEVEL 001", -1, 0u, 0);
+            textpage_draw(won, "WELL DONE! YOU FINISHED LEVEL 001", -1, 0u, 0);
             textpage_draw(gone, "YOUR TRIBE IS EXTINCT!!", -1, 0u, 0);
             check(memcmp(base, won, sizeof base) != 0, "the end page draws");
-            check(memcmp(won, gone, sizeof won) != 0, "the two end texts differ");
+            check(memcmp(won, gone, sizeof won) != 0,
+                  "the two end texts differ");
         }
     } else {
         printf("skip: the level data is not on the disc\n");
@@ -246,7 +262,6 @@ int main(int argc, char **argv)
             statusbar_start(0x0530u, 12u, 4u);        /* 5:30 left */
             check(score_levelScore() == 1u * 12u * 10u + 330u * 10u,
                   "the score follows the remaining time (5:30 = 3420)");
-
         }
         check(level_load(0) == 0 && !level_ended(),
               "a reload clears the end trigger");
@@ -266,29 +281,37 @@ int main(int argc, char **argv)
      * predicates (1000:35D6) and the claim's writes (1000:3A6A) */
     {
         uint8_t *r;
-        static uint8_t testPal[768];    /* the level palette the fades return to */
+        static uint8_t testPal[768]; /* the level palette the fades return to */
         object_init();
-        check(object_staticSlots() == 8u && object_slots() == 29u &&
-              object_liveCount() == 8u && object_current() == -1,
-              "the placed array starts at 8 used (load_terrain_b) with none current");
+        check(
+            object_staticSlots() == 8u && object_slots() == 29u &&
+                object_liveCount() == 8u && object_current() == -1,
+            "the placed array starts at 8 used (load_terrain_b) with none current");
         check(object_noneType1d() == -1, "no 0x1D record -> true");
         check(object_typeEquals(3u) == 0, "record 0 is not type 3");
 
         /* the player at (0x100, 0x80); a neighbour 0x20 right, 8 down, type 2 */
         object_setPlayer(0);
         r = object_slot(0);
-        r[0] = 0x00; r[1] = 0x01; r[2] = 0x80; r[3] = 0x00;
-        r[6] = 0x00;                                  /* active */
+        r[0] = 0x00;
+        r[1] = 0x01;
+        r[2] = 0x80;
+        r[3] = 0x00;
+        r[6] = 0x00; /* active */
         object_setCurrent(0);
         object_setActionEntity(0u);
         check(object_findNeighbour(0) == -1, "an empty array has no neighbour");
 
         r = object_slot(3);
-        r[0] = 0x20; r[1] = 0x01; r[2] = 0x88; r[3] = 0x00;  /* +0x20, +8 */
-        r[6] = 0x00;                                          /* active    */
-        r[8] = 0x02;                                          /* type 2    */
+        r[0] = 0x20;
+        r[1] = 0x01;
+        r[2] = 0x88;
+        r[3] = 0x00; /* +0x20, +8 */
+        r[6] = 0x00; /* active    */
+        r[8] = 0x02; /* type 2    */
         check(object_findNeighbour(0) == 3, "the window finds the neighbour");
-        check(object_typeEquals(2u) == 0, "the predicate reads the *acting* record");
+        check(object_typeEquals(2u) == 0,
+              "the predicate reads the *acting* record");
         object_setActionEntity(3u);
         check(object_typeEquals(2u) == -1, "the neighbour's type matches");
         check(object_classMatches(0x15u) == 0, "its class is 0");
@@ -298,15 +321,19 @@ int main(int argc, char **argv)
         r[8] = 0x03;
         check(object_findNeighbour(0) == -1, "a type >= 3 record is skipped");
         r[8] = 0x00;
-        r[6] = 0x80;                                          /* inactive  */
+        r[6] = 0x80; /* inactive  */
         check(object_findNeighbour(0) == -1, "an inactive record is skipped");
         r[6] = 0x00;
-        r[0] = 0x22; r[1] = 0x01;                             /* +0x22     */
+        r[0] = 0x22;
+        r[1] = 0x01; /* +0x22     */
         check(object_findNeighbour(0) == -1, "0x22 is outside |dx| <= 0x20");
-        r[0] = 0x20; r[1] = 0x01;
-        r[2] = 0x90; r[3] = 0x00;                             /* +0x10     */
+        r[0] = 0x20;
+        r[1] = 0x01;
+        r[2] = 0x90;
+        r[3] = 0x00; /* +0x10     */
         check(object_findNeighbour(0) == -1, "0x10 is outside |dy| <= 8");
-        r[2] = 0x88; r[3] = 0x00;
+        r[2] = 0x88;
+        r[3] = 0x00;
 
         check(object_noneType1d() == -1, "still no 0x1D record");
         r[8] = 0x1d;
@@ -320,7 +347,8 @@ int main(int argc, char **argv)
         /* the window is not 4-aligned on the way in: 1000:3B28 snaps it */
         level_setView(18u, 8u);
         check(object_claimBegin(0u, 0) == 3, "the claim takes the neighbour");
-        check(r[4] == 0x03 && r[5] == 0x01, "the neighbour's frame becomes 0x103");
+        check(r[4] == 0x03 && r[5] == 0x01,
+              "the neighbour's frame becomes 0x103");
         check(r[6] == 0 && r[7] == 0, "the neighbour's flags word clears");
         check(object_slot(0)[4] == 0x20 && object_slot(0)[5] == 0,
               "the old current object's frame becomes 0x20");
@@ -353,7 +381,7 @@ int main(int argc, char **argv)
              * frame (sparkStep is PLAYING-only, like the original's frame body) */
             if (level_starting()) {
                 for (uint32_t i = 0; i < 1200u && level_starting(); i++) {
-                    level_begin();          /* waits for a running fade */
+                    level_begin(); /* waits for a running fade */
                     level_tick();
                     palette_tick();
                     if (level_loadingScreen()) level_loadingTick();
@@ -367,7 +395,7 @@ int main(int argc, char **argv)
                 if (level_starting()) {
                     level_begin();
                     for (uint32_t i = 0; i < 1200u && level_starting(); i++) {
-                        level_begin();          /* waits for a running fade */
+                        level_begin(); /* waits for a running fade */
                         level_tick();
                         palette_tick();
                         if (level_loadingScreen()) level_loadingTick();
@@ -390,8 +418,10 @@ int main(int argc, char **argv)
                     }
                 }
                 check(seen != 0u, "a spawned cell carries a sprite value");
-                check(bitOK != 0u, "the composed pixel carries the cell's plane bit");
-                check(!level_sparkActive(), "the effect ends after its 0x53 life");
+                check(bitOK != 0u,
+                      "the composed pixel carries the cell's plane bit");
+                check(!level_sparkActive(),
+                      "the effect ends after its 0x53 life");
             }
             spawned = object_liveCount();
             check(spawned == 9u, "the spawn appended one live record");
@@ -443,10 +473,11 @@ int main(int argc, char **argv)
         object_init();
         check(level_data() && level_data()->objectTest == 0x0502u,
               "level 1's goal test word is 0x0502 (mode 2, arg 5)");
-        check(object_testDispatch(0x0502u) == 0, "an empty array does not meet it");
+        check(object_testDispatch(0x0502u) == 0,
+              "an empty array does not meet it");
         object_setCurrent(0);
         object_setSlotClass(1u, 5u);
-        object_slot(0)[7] = 1u;                 /* the record's source slot */
+        object_slot(0)[7] = 1u; /* the record's source slot */
         check(object_testDispatch(0x0502u) == 1, "class 5 in slot 1 meets it");
         object_setSlotClass(1u, 4u);
         check(object_testDispatch(0x0502u) == 0, "class 4 does not");
@@ -465,15 +496,18 @@ int main(int argc, char **argv)
         (void)level_load(0);
         object_setCurrent(0);
         r = object_slot(0);
-        r[0] = 0x20; r[1] = 0x00;                    /* x = 0x20          */
-        r[2] = 0x10; r[3] = 0x00;                    /* y = 0x10          */
-        r[8] = 0x02;                                 /* type 2            */
+        r[0] = 0x20;
+        r[1] = 0x00; /* x = 0x20          */
+        r[2] = 0x10;
+        r[3] = 0x00; /* y = 0x10          */
+        r[8] = 0x02; /* type 2            */
         {
             /* cell = 32*((0x10+0xC)/16) + (0x20+8)/16 = 32*1 + 2 = 34 */
             uint32_t cell = level_map()[34];
             check(object_mapCellEquals(cell) == -1,
                   "the map cell under the record matches");
-            check(object_mapCellEquals(cell + 1u) == 0, "a different cell does not");
+            check(object_mapCellEquals(cell + 1u) == 0,
+                  "a different cell does not");
         }
         r[8] = 0x03;
         check(object_mapCellEquals(level_map()[34]) == 0,
@@ -497,10 +531,10 @@ int main(int argc, char **argv)
         check(object_recordMapCell(0u) == 0xAAu,
               "the map cell under a record is the 0xAA marker");
         check((sp[0] | (sp[1] << 8)) == 28u * 16u &&
-              (sp[2] | (sp[3] << 8)) == 2u * 16u,
+                  (sp[2] | (sp[3] << 8)) == 2u * 16u,
               "the 0xAB cell at (28,2) appends at (448,32)");
         check((sp[4] | (sp[5] << 8)) == 0x0060u &&
-              (sp[8] | (sp[9] << 8)) == 0xFFFFu,
+                  (sp[8] | (sp[9] << 8)) == 0xFFFFu,
               "the spear's frame 0x60 and +8 = 0xFFFF");
         check(object_slotClass(1u) == 5u,
               "its behaviour 5 lands in class slot 1");
@@ -519,9 +553,14 @@ int main(int argc, char **argv)
         check(spear != NULL && (spear[4] | (spear[5] << 8)) == 0x0060u,
               "the walk put the spear at index 9");
         /* stand the actor 8 px left of the spear, type 2 (a human) */
-        actor[0] = (uint8_t)(448u - 8u); actor[1] = (uint8_t)((448u - 8u) >> 8);
-        actor[2] = 32u; actor[3] = 0;
-        actor[4] = 0x10; actor[6] = 0; actor[8] = 2; actor[9] = 0;
+        actor[0] = (uint8_t)(448u - 8u);
+        actor[1] = (uint8_t)((448u - 8u) >> 8);
+        actor[2] = 32u;
+        actor[3] = 0;
+        actor[4] = 0x10;
+        actor[6] = 0;
+        actor[8] = 2;
+        actor[9] = 0;
         check(object_testDispatch(0x0502u) == 0,
               "the goal is not met before the pickup");
         object_actionRun();
@@ -535,11 +574,12 @@ int main(int argc, char **argv)
          * [0x5B56] = 2 (0x5B8A[5]), and program 2's prog[6] is op 4, so the
          * cursor at 5 selects it */
         check(object_actionProgram() == 2u, "the pickup left program 2");
-        object_actionSetCursor(5u);          /* program 2: prog[6] = op 4  */
-        actor[8] = 0x00; actor[9] = 0x00;    /* type <= 2 gates the op      */
+        object_actionSetCursor(5u); /* program 2: prog[6] = op 4  */
+        actor[8] = 0x00;
+        actor[9] = 0x00; /* type <= 2 gates the op      */
         object_actionRun();
         check((actor[4] | (actor[5] << 8)) == 0x00BBu &&
-              (actor[8] | (actor[9] << 8)) == 0x0017u,
+                  (actor[8] | (actor[9] << 8)) == 0x0017u,
               "op 4 sets the fixed state (frame 0xBB, type 0x17)");
         object_actionSetCursor(1u);
 
@@ -553,14 +593,15 @@ int main(int argc, char **argv)
             memcpy(before, actor, sizeof before);
             object_attachOsys(NULL);
             object_actionSetProgram(3u);
-            object_actionSetCursor(2u);       /* prog[3] = 0x07 */
+            object_actionSetCursor(2u); /* prog[3] = 0x07 */
             object_actionRun();
-            check(object_actionFault() == 7u, "op 7 is recorded when dispatched");
+            check(object_actionFault() == 7u,
+                  "op 7 is recorded when dispatched");
             check(memcmp(before, actor, sizeof before) == 0,
                   "op 7 touches no state (its targets are wild writes)");
             object_actionSetProgram(1u);
             object_actionSetCursor(1u);
-            object_attachOsys(&osys_null);    /* the game's halt route back   */
+            object_attachOsys(&osys_null); /* the game's halt route back   */
         }
 
 
@@ -583,30 +624,41 @@ int main(int argc, char **argv)
          * marks it type 1, then converts the static record overlapping it */
         if (level_load(0) == 0) {
             uint8_t *mv, *live, *victim;
-            object_actionSetProgram(5u);        /* program 5: prog[2] = op 9 */
+            object_actionSetProgram(5u); /* program 5: prog[2] = op 9 */
             object_actionSetCursor(1u);
-            object_setSlotClass(2u, 6u);        /* class 2 -> behaviour 6    */
-            object_setSlotClass(1u, 3u);        /* live ordinal 1 -> behav 3 */
+            object_setSlotClass(2u, 6u); /* class 2 -> behaviour 6    */
+            object_setSlotClass(1u, 3u); /* live ordinal 1 -> behav 3 */
             mv = object_slot(0);
-            mv[0] = (uint8_t)440u; mv[1] = (uint8_t)(440u >> 8);
-            mv[2] = 32u; mv[3] = 0;
-            mv[4] = 0x10; mv[6] = 0; mv[7] = 2u; mv[8] = 0; mv[9] = 0;
-            victim = object_slot(1);            /* a neighbour at the same x */
-            victim[0] = (uint8_t)440u; victim[1] = (uint8_t)(440u >> 8);
-            victim[2] = 32u; victim[3] = 0;
-            victim[4] = 0x10; victim[6] = 0; victim[7] = 0;
-            victim[8] = 2u; victim[9] = 0;
-            live = object_slot(9);              /* the spear, +8 px right  */
+            mv[0] = (uint8_t)440u;
+            mv[1] = (uint8_t)(440u >> 8);
+            mv[2] = 32u;
+            mv[3] = 0;
+            mv[4] = 0x10;
+            mv[6] = 0;
+            mv[7] = 2u;
+            mv[8] = 0;
+            mv[9] = 0;
+            victim = object_slot(1); /* a neighbour at the same x */
+            victim[0] = (uint8_t)440u;
+            victim[1] = (uint8_t)(440u >> 8);
+            victim[2] = 32u;
+            victim[3] = 0;
+            victim[4] = 0x10;
+            victim[6] = 0;
+            victim[7] = 0;
+            victim[8] = 2u;
+            victim[9] = 0;
+            live = object_slot(9); /* the spear, +8 px right  */
             check((live[4] | (live[5] << 8)) == 0x0060u,
                   "the live record is the spear");
             object_actionRun();
             check((live[8] | (live[9] << 8)) == 0x0001u &&
-                  (live[10] | (live[11] << 8)) == 0x0003u,
+                      (live[10] | (live[11] << 8)) == 0x0003u,
                   "op 9 marks the walked live record as state 1");
             check((victim[4] | (victim[5] << 8)) == 0x0103u &&
-                  (victim[8] | (victim[9] << 8)) == 0x001Eu &&
-                  (victim[10] | (victim[11] << 8)) == 0x0006u &&
-                  (victim[14] | (victim[15] << 8)) == 0x000Au,
+                      (victim[8] | (victim[9] << 8)) == 0x001Eu &&
+                      (victim[10] | (victim[11] << 8)) == 0x0006u &&
+                      (victim[14] | (victim[15] << 8)) == 0x000Au,
                   "the overlap fixup converts the overlapping record");
         }
 
@@ -617,38 +669,47 @@ int main(int argc, char **argv)
          * the 0x92A0 row's 16 negative bytes (`1000:F123`), built from the
          * atlas (1000:505C) - not the old field-P table. */
         check(level_pageFree(0x1Eu) == 1 && level_pageFree(0x1Fu) == 1 &&
-              level_pageFree(0x07u) == 0 && level_pageFree(0xB8u) == 0,
+                  level_pageFree(0x07u) == 0 && level_pageFree(0xB8u) == 0,
               "the page gate: free tiles vs walls (and 0xB8, an item tile)");
         {
             uint8_t *mv;
             object_init();
             object_actionSetProgram(1u);
-            object_actionSetCursor(5u);        /* prog[6] = 0x03 (op 3)     */
+            object_actionSetCursor(5u); /* prog[6] = 0x03 (op 3)     */
             mv = object_slot(0);
-            mv[0] = (uint8_t)(22u * 16u); mv[1] = (uint8_t)((22u * 16u) >> 8);
-            mv[2] = (uint8_t)(1u * 16u); mv[3] = (uint8_t)((1u * 16u) >> 8);
-            mv[4] = 0x10; mv[6] = 0; mv[7] = 1u;   /* a class -> the op runs */
-            mv[8] = 0; mv[9] = 0;                  /* type 0 -> step +1     */
+            mv[0] = (uint8_t)(22u * 16u);
+            mv[1] = (uint8_t)((22u * 16u) >> 8);
+            mv[2] = (uint8_t)(1u * 16u);
+            mv[3] = (uint8_t)((1u * 16u) >> 8);
+            mv[4] = 0x10;
+            mv[6] = 0;
+            mv[7] = 1u; /* a class -> the op runs */
+            mv[8] = 0;
+            mv[9] = 0; /* type 0 -> step +1     */
             object_actionRun();
             check((mv[4] | (mv[5] << 8)) == 0x008Cu &&
-                  (mv[8] | (mv[9] << 8)) == 0x0012u,
+                      (mv[8] | (mv[9] << 8)) == 0x0012u,
                   "op 3 moves a carrier on open ground (0x8C/0x12)");
             /* (18,3) is free but its right neighbour (19,3) is a wall */
             object_init();
             object_actionSetProgram(1u);
             object_actionSetCursor(5u);
             mv = object_slot(0);
-            mv[0] = (uint8_t)(18u * 16u); mv[1] = (uint8_t)((18u * 16u) >> 8);
-            mv[2] = (uint8_t)(3u * 16u); mv[3] = (uint8_t)((3u * 16u) >> 8);
-            mv[4] = 0x10; mv[6] = 0; mv[7] = 1u;
-            mv[8] = 0; mv[9] = 0;
+            mv[0] = (uint8_t)(18u * 16u);
+            mv[1] = (uint8_t)((18u * 16u) >> 8);
+            mv[2] = (uint8_t)(3u * 16u);
+            mv[3] = (uint8_t)((3u * 16u) >> 8);
+            mv[4] = 0x10;
+            mv[6] = 0;
+            mv[7] = 1u;
+            mv[8] = 0;
+            mv[9] = 0;
             object_actionRun();
             check((mv[4] | (mv[5] << 8)) == 0x0010u &&
-                  (mv[8] | (mv[9] << 8)) == 0x0000u,
+                      (mv[8] | (mv[9] << 8)) == 0x0000u,
                   "op 3 refuses when the neighbour is a wall");
             object_init();
         }
-
     }
 
     /* 6d. the object pass (render_objects 1000:5D56 -> 0x653C): the four
@@ -666,10 +727,12 @@ int main(int argc, char **argv)
                 { 48, 25 }, { 208, 25 }, { 256, 137 }, { 464, 265 }
             };
             rec = object_slot(i);
-            rec[0] = (uint8_t)pos[i][0]; rec[1] = (uint8_t)(pos[i][0] >> 8);
-            rec[2] = (uint8_t)pos[i][1]; rec[3] = (uint8_t)(pos[i][1] >> 8);
+            rec[0] = (uint8_t)pos[i][0];
+            rec[1] = (uint8_t)(pos[i][0] >> 8);
+            rec[2] = (uint8_t)pos[i][1];
+            rec[3] = (uint8_t)(pos[i][1] >> 8);
             rec[4] = 0x10;
-            rec[6] = 0x00;                        /* active */
+            rec[6] = 0x00; /* active */
             rec[8] = 0x02;
         }
         bank = res_loadChunk("APL\\SPRITES.DAT", &bankSize, NULL);
@@ -688,11 +751,14 @@ int main(int argc, char **argv)
                         uint8_t v = bank[0x4800u + (col & 3u) * 0x60u +
                                          row * 4u + (col >> 2)];
                         uint8_t got = page[(25u + row) * 320u + 48u + col];
-                        if (v) { ink++; if (got != v) wrong++; }
-                        else if (got) wrong++;
+                        if (v) {
+                            ink++;
+                            if (got != v) wrong++;
+                        } else if (got) wrong++;
                     }
-                check(ink > 200u && wrong == 0u,
-                      "the object pass draws the caveman with the measured law");
+                check(
+                    ink > 200u && wrong == 0u,
+                    "the object pass draws the caveman with the measured law");
             }
             /* the non-24-row classes: the spear (frame 0x60, h 16) uses
              * block = h*4 = 0x40, at SPRITES.DAT + 0x10A0 */
@@ -701,8 +767,13 @@ int main(int argc, char **argv)
                 memset(page, 0, sizeof page);
                 object_init();
                 rec = object_slot(0);
-                rec[0] = 10; rec[1] = 0; rec[2] = 10; rec[3] = 0;
-                rec[4] = 0x60; rec[6] = 0; rec[8] = 0x02;
+                rec[0] = 10;
+                rec[1] = 0;
+                rec[2] = 10;
+                rec[3] = 0;
+                rec[4] = 0x60;
+                rec[6] = 0;
+                rec[8] = 0x02;
                 object_render(page, 0, 0);
                 for (uint32_t row = 0; row < 16u; row++)
                     for (uint32_t col = 0; col < 16u; col++) {
@@ -710,7 +781,8 @@ int main(int argc, char **argv)
                                          row * 4u + (col >> 2)];
                         if (page[(10u + row) * 320u + 10u + col] != v) wrong++;
                     }
-                check(wrong == 0u, "the spear frame (h=16, block h*4) is drawn");
+                check(wrong == 0u,
+                      "the spear frame (h=16, block h*4) is drawn");
                 /* the generated frame table now carries every slot, so the
                  * carried frames draw too -- and the descriptor's ybias is added
                  * to y (select_object_tile 1000:6642: ADD DX,AX) */
@@ -719,14 +791,20 @@ int main(int argc, char **argv)
                     memset(page, 0, sizeof page);
                     object_init();
                     rec = object_slot(0);
-                    rec[0] = 20; rec[1] = 0; rec[2] = 20; rec[3] = 0;
-                    rec[4] = 0x5D; rec[6] = 0; rec[8] = 0x02;
+                    rec[0] = 20;
+                    rec[1] = 0;
+                    rec[2] = 20;
+                    rec[3] = 0;
+                    rec[4] = 0x5D;
+                    rec[6] = 0;
+                    rec[8] = 0x02;
                     object_render(page, 0, 0);
                     for (uint32_t row = 0; row < 11u; row++)
                         for (uint32_t col = 0; col < 16u; col++) {
                             uint8_t v = bank[0x0DF0u + (col & 3u) * 44u +
                                              row * 4u + (col >> 2)];
-                            if (page[(22u + row) * 320u + 20u + col] != v) bad2++;
+                            if (page[(22u + row) * 320u + 20u + col] != v)
+                                bad2++;
                         }
                     check(bad2 == 0u && page[21u * 320u + 20u] == 0u,
                           "frame 0x5D (carried) draws at y + ybias");
@@ -738,15 +816,21 @@ int main(int argc, char **argv)
                     memset(page, 0, sizeof page);
                     object_init();
                     rec = object_slot(0);
-                    rec[0] = 40; rec[1] = 0; rec[2] = 40; rec[3] = 0;
-                    rec[4] = 0x2B; rec[6] = 0; rec[8] = 0x02;
+                    rec[0] = 40;
+                    rec[1] = 0;
+                    rec[2] = 40;
+                    rec[3] = 0;
+                    rec[4] = 0x2B;
+                    rec[6] = 0;
+                    rec[8] = 0x02;
                     object_render(page, 0, 0);
                     for (uint32_t row = 0; row < 20u; row++)
                         for (uint32_t col = 0; col < 32u; col++) {
                             uint8_t v = bank[0xD930u + (col & 3u) * 160u +
                                              row * 8u + (col >> 2)];
                             /* y + ybias: frame 0x2B carries ybias 4 */
-                            if (page[(44u + row) * 320u + 40u + col] != v) bad3++;
+                            if (page[(44u + row) * 320u + 40u + col] != v)
+                                bad3++;
                         }
                     check(bad3 == 0u, "frame 0x2B (mode 2) draws 32 px wide");
                 }
@@ -761,32 +845,60 @@ int main(int argc, char **argv)
                     object_init();
                     object_publishBank(bank, bankSize);
                     rec = object_slot(0);
-                    rec[0] = 100; rec[1] = 0; rec[2] = 100; rec[3] = 0;
-                    rec[4] = 0x10; rec[5] = 0; rec[6] = 0; rec[7] = 0;
-                    rec[8] = 7; rec[9] = 0;
+                    rec[0] = 100;
+                    rec[1] = 0;
+                    rec[2] = 100;
+                    rec[3] = 0;
+                    rec[4] = 0x10;
+                    rec[5] = 0;
+                    rec[6] = 0;
+                    rec[7] = 0;
+                    rec[8] = 7;
+                    rec[9] = 0;
                     memset(soloA, 0, sizeof soloA);
                     object_render(soloA, 0, 0);
 
                     object_init();
                     object_publishBank(bank, bankSize);
                     rec = object_slot(1);
-                    rec[0] = 100; rec[1] = 0; rec[2] = 100; rec[3] = 0;
-                    rec[4] = 0x2B; rec[5] = 0; rec[6] = 0; rec[7] = 0;
-                    rec[8] = 7; rec[9] = 0;
+                    rec[0] = 100;
+                    rec[1] = 0;
+                    rec[2] = 100;
+                    rec[3] = 0;
+                    rec[4] = 0x2B;
+                    rec[5] = 0;
+                    rec[6] = 0;
+                    rec[7] = 0;
+                    rec[8] = 7;
+                    rec[9] = 0;
                     memset(soloB, 0, sizeof soloB);
                     object_render(soloB, 0, 0);
 
                     object_init();
                     object_publishBank(bank, bankSize);
                     rec = object_slot(0);
-                    rec[0] = 100; rec[1] = 0; rec[2] = 100; rec[3] = 0;
-                    rec[4] = 0x10; rec[5] = 0; rec[6] = 0; rec[7] = 0;
-                    rec[8] = 7; rec[9] = 0;
+                    rec[0] = 100;
+                    rec[1] = 0;
+                    rec[2] = 100;
+                    rec[3] = 0;
+                    rec[4] = 0x10;
+                    rec[5] = 0;
+                    rec[6] = 0;
+                    rec[7] = 0;
+                    rec[8] = 7;
+                    rec[9] = 0;
                     rec = object_slot(1);
-                    rec[0] = 100; rec[1] = 0; rec[2] = 100; rec[3] = 0;
-                    rec[4] = 0x2B; rec[5] = 0; rec[6] = 0; rec[7] = 0;
-                    rec[8] = 7; rec[9] = 0;
-                    object_setActionEntity(0u);      /* the climber */
+                    rec[0] = 100;
+                    rec[1] = 0;
+                    rec[2] = 100;
+                    rec[3] = 0;
+                    rec[4] = 0x2B;
+                    rec[5] = 0;
+                    rec[6] = 0;
+                    rec[7] = 0;
+                    rec[8] = 7;
+                    rec[9] = 0;
+                    object_setActionEntity(0u); /* the climber */
                     memset(page, 0, sizeof page);
                     object_render(page, 0, 0);
                     for (uint32_t k = 0; k < 320u * 200u; k++) {
@@ -806,29 +918,55 @@ int main(int argc, char **argv)
                     object_init();
                     object_publishBank(bank, bankSize);
                     rec = object_slot(1);
-                    rec[0] = 100; rec[1] = 0; rec[2] = 100; rec[3] = 0;
-                    rec[4] = 0x10; rec[5] = 0; rec[6] = 0; rec[7] = 0;
-                    rec[8] = 7; rec[9] = 0;
+                    rec[0] = 100;
+                    rec[1] = 0;
+                    rec[2] = 100;
+                    rec[3] = 0;
+                    rec[4] = 0x10;
+                    rec[5] = 0;
+                    rec[6] = 0;
+                    rec[7] = 0;
+                    rec[8] = 7;
+                    rec[9] = 0;
                     memset(soloA, 0, sizeof soloA);
                     object_render(soloA, 0, 0);
 
                     object_init();
                     object_publishBank(bank, bankSize);
                     rec = object_slot(8);
-                    rec[0] = 100; rec[1] = 0; rec[2] = 100; rec[3] = 0;
-                    rec[4] = 0x2B; rec[5] = 0; rec[6] = 0; rec[7] = 0;
+                    rec[0] = 100;
+                    rec[1] = 0;
+                    rec[2] = 100;
+                    rec[3] = 0;
+                    rec[4] = 0x2B;
+                    rec[5] = 0;
+                    rec[6] = 0;
+                    rec[7] = 0;
                     memset(soloB, 0, sizeof soloB);
                     object_render(soloB, 0, 0);
 
                     object_init();
                     object_publishBank(bank, bankSize);
                     rec = object_slot(1);
-                    rec[0] = 100; rec[1] = 0; rec[2] = 100; rec[3] = 0;
-                    rec[4] = 0x10; rec[5] = 0; rec[6] = 0; rec[7] = 0;
-                    rec[8] = 7; rec[9] = 0;
+                    rec[0] = 100;
+                    rec[1] = 0;
+                    rec[2] = 100;
+                    rec[3] = 0;
+                    rec[4] = 0x10;
+                    rec[5] = 0;
+                    rec[6] = 0;
+                    rec[7] = 0;
+                    rec[8] = 7;
+                    rec[9] = 0;
                     rec = object_slot(8);
-                    rec[0] = 100; rec[1] = 0; rec[2] = 100; rec[3] = 0;
-                    rec[4] = 0x2B; rec[5] = 0; rec[6] = 0; rec[7] = 0;
+                    rec[0] = 100;
+                    rec[1] = 0;
+                    rec[2] = 100;
+                    rec[3] = 0;
+                    rec[4] = 0x2B;
+                    rec[5] = 0;
+                    rec[6] = 0;
+                    rec[7] = 0;
                     memset(page, 0, sizeof page);
                     object_render(page, 0, 0);
                     for (uint32_t k = 0; k < 320u * 200u; k++)
@@ -848,8 +986,14 @@ int main(int argc, char **argv)
                     memset(page, 0, sizeof page);
                     object_init();
                     rec = object_slot(0);
-                    rec[0] = 100; rec[1] = 0; rec[2] = 100; rec[3] = 0;
-                    rec[4] = 0x23; rec[6] = 0; rec[7] = 0; rec[8] = 0x02;
+                    rec[0] = 100;
+                    rec[1] = 0;
+                    rec[2] = 100;
+                    rec[3] = 0;
+                    rec[4] = 0x23;
+                    rec[6] = 0;
+                    rec[7] = 0;
+                    rec[8] = 0x02;
                     object_render(page, 0, 0);
                     for (uint32_t k = 0; k < 320u * 200u; k++)
                         if (page[k]) ink++;
@@ -864,32 +1008,38 @@ int main(int argc, char **argv)
 
                     object_init();
                     rec = object_slot(0);
-                    rec[8] = 0x02; rec[9] = 0x00;
-                    c = object_commandSelect(rec, 0x02);   /* bit 1 -> command 4 */
+                    rec[8] = 0x02;
+                    rec[9] = 0x00;
+                    c = object_commandSelect(rec,
+                                             0x02); /* bit 1 -> command 4 */
                     check(c.handler == 0xE609u && c.command == 4u &&
-                          c.tail == 0xD9C7u,
+                              c.tail == 0xD9C7u,
                           "type 2 + bit 1 -> 1000:E609, the push's walk-up");
                     rec[8] = 0x08;
-                    c = object_commandSelect(rec, 0x01);   /* bit 0 -> command 0 */
+                    c = object_commandSelect(rec,
+                                             0x01); /* bit 0 -> command 0 */
                     check(c.handler == 0xE963u && c.command == 0u,
                           "type 8 + bit 0 -> 1000:E963 (the snap)");
                     rec[8] = 0x0F;
                     c = object_commandSelect(rec, 0x02);
-                    check(c.handler == 0u && c.tail == 0xDC1Fu,
-                          "type 15 + command 4 -> no handler, the row's own tail");
+                    check(
+                        c.handler == 0u && c.tail == 0xDC1Fu,
+                        "type 15 + command 4 -> no handler, the row's own tail");
                     /* the one-shot command (key 0x48 = bit 6 + command 8) counts
                      * down from 0x4B0 and turns the record into a human (type 2) */
                     object_init();
                     rec = object_slot(0);
-                    rec[8] = 0x00; rec[9] = 0x00;
-                    object_setCommandTimer(0x3E8u);   /* 1000:41A7's arm */
+                    rec[8] = 0x00;
+                    rec[9] = 0x00;
+                    object_setCommandTimer(0x3E8u); /* 1000:41A7's arm */
                     for (uint32_t i = 0; i < 1000u; i++)
                         (void)object_commandSelect(rec, 0x00);
                     check(rec[8] == 0x02u && rec[9] == 0x00u,
                           "the 0x6DEA one-shot expires to type 2");
                     /* D-75: with the timer at 0 the type-2 idle stream runs
                      * (0xE7C0); its first hold is 200 ticks, then frame 0x12 */
-                    rec[4] = 0x10; rec[5] = 0;
+                    rec[4] = 0x10;
+                    rec[5] = 0;
                     for (uint32_t i = 0; i < 2u; i++)
                         (void)object_commandRun(rec, 0x00u);
                     check(object_actionPending() == 0u,
@@ -904,8 +1054,9 @@ int main(int argc, char **argv)
                             f = rec[4] | (rec[5] << 8);
                             if (f >= 0x12u && f <= 0x16u) seen |= 1u << f;
                         }
-                        check(seen != 0u,
-                              "the idle stream reaches the 0x12..0x16 yawn frames");
+                        check(
+                            seen != 0u,
+                            "the idle stream reaches the 0x12..0x16 yawn frames");
                     }
                 }
                 /* The human stack, end to end (re_map.md: 0x6F22).  Op 1
@@ -918,37 +1069,52 @@ int main(int argc, char **argv)
 
                     object_init();
                     base = object_slot(0);
-                    base[0] = 100; base[1] = 0; base[2] = 100; base[3] = 0;
-                    base[4] = 0x10; base[6] = 0; base[8] = 2; base[9] = 0;
+                    base[0] = 100;
+                    base[1] = 0;
+                    base[2] = 100;
+                    base[3] = 0;
+                    base[4] = 0x10;
+                    base[6] = 0;
+                    base[8] = 2;
+                    base[9] = 0;
                     object_setActionEntity(0u);
-                    object_actionSetProgram(1u);   /* prog[3] = op 1 */
+                    object_actionSetProgram(1u); /* prog[3] = op 1 */
                     object_actionSetCursor(2u);
                     object_actionRun();
                     check((base[4] | (base[5] << 8)) == 0x0020u &&
-                          (base[8] | (base[9] << 8)) == 0x0008u,
+                              (base[8] | (base[9] << 8)) == 0x0008u,
                           "op 1 registers the base (frame 0x20, type 8)");
                     top = object_slot(1);
-                    top[0] = 100; top[1] = 0; top[2] = 70; top[3] = 0;
-                    top[4] = 0x10; top[6] = 0; top[8] = 2; top[9] = 0;
+                    top[0] = 100;
+                    top[1] = 0;
+                    top[2] = 70;
+                    top[3] = 0;
+                    top[4] = 0x10;
+                    top[6] = 0;
+                    top[8] = 2;
+                    top[9] = 0;
                     object_setActionEntity(1u);
                     check(object_stackPush(top) == 1,
                           "the push takes the human standing above the base");
-                    check((top[4] | (top[5] << 8)) == 0x0025u &&
-                          (top[8] | (top[9] << 8)) == 0x0007u &&
-                          (top[0xE] | (top[0xF] << 8)) != 0u,
-                          "the pushed human is frame 0x25 / type 7 with its slot");
+                    check(
+                        (top[4] | (top[5] << 8)) == 0x0025u &&
+                            (top[8] | (top[9] << 8)) == 0x0007u &&
+                            (top[0xE] | (top[0xF] << 8)) != 0u,
+                        "the pushed human is frame 0x25 / type 7 with its slot");
                     /* the pop: a caller x far from the owner truncates the list
                      * at the top member and returns the record below it */
-                    check(object_stackPop(200u, &below, NULL) == 1 && below == base,
+                    check(object_stackPop(200u, &below, NULL) == 1 &&
+                              below == base,
                           "the pop removes the top member and names the base");
                     check(object_stackScanDissolve(1u) == 0,
                           "the popped record is no longer in any group");
                     /* push again and dissolve: n = 1 restores the member */
                     check(object_stackPush(top) == 1, "the push works again");
-                    check(object_stackScanDissolve(1u) == 1,
-                          "the scan finds and dissolves the group holding rec 1");
+                    check(
+                        object_stackScanDissolve(1u) == 1,
+                        "the scan finds and dissolves the group holding rec 1");
                     check((top[4] | (top[5] << 8)) == 0x0010u &&
-                          (top[8] | (top[9] << 8)) == 0x0003u,
+                              (top[8] | (top[9] << 8)) == 0x0003u,
                           "n = 1 dissolves the member to frame 0x10 / type 3");
                     check((base[4] | (base[5] << 8)) == 0x0020u,
                           "the base is untouched by an n = 1 dissolve");
@@ -968,22 +1134,28 @@ int main(int argc, char **argv)
                     object_init();
                     b3 = object_slot(0);
                     memset(b3, 0, 0x12u);
-                    tf_wr16(b3, 0u, 100); tf_wr16(b3, 2u, 100);
-                    tf_wr16(b3, 4u, 0x10u); tf_wr16(b3, 8u, 2u);
+                    tf_wr16(b3, 0u, 100);
+                    tf_wr16(b3, 2u, 100);
+                    tf_wr16(b3, 4u, 0x10u);
+                    tf_wr16(b3, 8u, 2u);
                     object_setActionEntity(0u);
                     object_actionSetProgram(1u);
                     object_actionSetCursor(2u);
-                    object_actionRun();                       /* op 1 */
+                    object_actionRun(); /* op 1 */
                     p1 = object_slot(1);
                     memset(p1, 0, 0x12u);
-                    tf_wr16(p1, 0u, 100); tf_wr16(p1, 2u, 70);
-                    tf_wr16(p1, 4u, 0x10u); tf_wr16(p1, 8u, 2u);
+                    tf_wr16(p1, 0u, 100);
+                    tf_wr16(p1, 2u, 70);
+                    tf_wr16(p1, 4u, 0x10u);
+                    tf_wr16(p1, 8u, 2u);
                     object_setActionEntity(1u);
                     check(object_stackPush(p1) == 1, "the 3-stack: member 1");
                     p2 = object_slot(2);
                     memset(p2, 0, 0x12u);
-                    tf_wr16(p2, 0u, 100); tf_wr16(p2, 2u, 52);
-                    tf_wr16(p2, 4u, 0x10u); tf_wr16(p2, 8u, 2u);
+                    tf_wr16(p2, 0u, 100);
+                    tf_wr16(p2, 2u, 52);
+                    tf_wr16(p2, 4u, 0x10u);
+                    tf_wr16(p2, 8u, 2u);
                     object_setActionEntity(2u);
                     check(object_stackPush(p2) == 1, "the 3-stack: member 2");
                     g = object_groupAt(0u);
@@ -1006,8 +1178,8 @@ int main(int argc, char **argv)
                     }
                     check(bMin == 100 && bMax == 100,
                           "the stack's base stays at the entry x");
-                    check(mMin == 100 && mMax == 100 &&
-                          tMin == 100 && tMax == 100,
+                    check(mMin == 100 && mMax == 100 && tMin == 100 &&
+                              tMax == 100,
                           "the 3-stack does not shear while it animates");
                     check((g[4] & 0x80u) != 0u,
                           "the state byte keeps the 0xF0 mask");
@@ -1028,24 +1200,32 @@ int main(int argc, char **argv)
                     object_init();
                     b4 = object_slot(0);
                     memset(b4, 0, 0x12u);
-                    tf_wr16(b4, 0u, 100); tf_wr16(b4, 2u, 100);
-                    tf_wr16(b4, 4u, 0x10u); tf_wr16(b4, 8u, 2u);
+                    tf_wr16(b4, 0u, 100);
+                    tf_wr16(b4, 2u, 100);
+                    tf_wr16(b4, 4u, 0x10u);
+                    tf_wr16(b4, 8u, 2u);
                     object_setActionEntity(0u);
                     object_actionSetProgram(1u);
                     object_actionSetCursor(2u);
                     object_actionRun();
                     m1 = object_slot(1);
                     memset(m1, 0, 0x12u);
-                    tf_wr16(m1, 0u, 100); tf_wr16(m1, 2u, 70);
-                    tf_wr16(m1, 4u, 0x10u); tf_wr16(m1, 8u, 2u);
+                    tf_wr16(m1, 0u, 100);
+                    tf_wr16(m1, 2u, 70);
+                    tf_wr16(m1, 4u, 0x10u);
+                    tf_wr16(m1, 8u, 2u);
                     object_setActionEntity(1u);
-                    check(object_stackPush(m1) == 1, "the column for the leave");
+                    check(object_stackPush(m1) == 1,
+                          "the column for the leave");
                     top = object_slot(2);
                     memset(top, 0, 0x12u);
-                    tf_wr16(top, 0u, 100); tf_wr16(top, 2u, 52);
-                    tf_wr16(top, 4u, 0x10u); tf_wr16(top, 8u, 2u);
+                    tf_wr16(top, 0u, 100);
+                    tf_wr16(top, 2u, 52);
+                    tf_wr16(top, 4u, 0x10u);
+                    tf_wr16(top, 8u, 2u);
                     object_setActionEntity(2u);
-                    check(object_stackPush(top) == 1, "the third joins the column");
+                    check(object_stackPush(top) == 1,
+                          "the third joins the column");
                     for (uint32_t k = 0; k < 20u; k++) {
                         uint32_t f;
 
@@ -1055,8 +1235,8 @@ int main(int argc, char **argv)
                         seen |= 1u << (f & 0x1Fu);
                     }
                     check(!outside && (seen & (1u << 3)) != 0u &&
-                          (seen & (1u << 4)) != 0u &&
-                          (seen & (1u << 5)) != 0u,
+                              (seen & (1u << 4)) != 0u &&
+                              (seen & (1u << 5)) != 0u,
                           "1000:E934: a member climbs down 0x23..0x25");
                     /* the push lifted it from 52 to 53 (1000:E6DA), then one
                      * pixel per press */
@@ -1064,8 +1244,8 @@ int main(int argc, char **argv)
                           "1000:E934: the down stepper moves y +1 a press");
                     tf_wr16(top, 2u, 100u);
                     check(object_stackLeave(top) == 1 &&
-                          tf_rd16(top, 8u) == 2u &&
-                          (top[4] | (top[5] << 8)) == 0x10u,
+                              tf_rd16(top, 8u) == 2u &&
+                              (top[4] | (top[5] << 8)) == 0x10u,
                           "the leave at the entry's y restores the human");
                 }
 
@@ -1079,58 +1259,85 @@ int main(int argc, char **argv)
 
                     object_init();
                     base = object_slot(0);
-                    base[0] = 100; base[1] = 0; base[2] = 100; base[3] = 0;
-                    base[4] = 0x10; base[6] = 0; base[8] = 2; base[9] = 0;
+                    base[0] = 100;
+                    base[1] = 0;
+                    base[2] = 100;
+                    base[3] = 0;
+                    base[4] = 0x10;
+                    base[6] = 0;
+                    base[8] = 2;
+                    base[9] = 0;
                     object_setActionEntity(0u);
                     object_actionSetProgram(1u);
                     object_actionSetCursor(2u);
-                    object_actionRun();                /* op 1: the base */
+                    object_actionRun(); /* op 1: the base */
                     top = object_slot(1);
-                    top[0] = 102; top[1] = 0; top[2] = 101; top[3] = 0;
-                    top[4] = 0x10; top[6] = 0; top[8] = 2; top[9] = 0;
+                    top[0] = 102;
+                    top[1] = 0;
+                    top[2] = 101;
+                    top[3] = 0;
+                    top[4] = 0x10;
+                    top[6] = 0;
+                    top[8] = 2;
+                    top[9] = 0;
                     object_setActionEntity(1u);
                     check(object_stackGrab(top) == 1,
                           "the grab takes a human within 8 x / 4 y");
-                    check((top[4] | (top[5] << 8)) == 0x0023u &&
-                          (top[8] | (top[9] << 8)) == 0x0006u &&
-                          (top[2] | (top[3] << 8)) == 100u,
-                          "the grabbed human is frame 0x23 / type 6 at the base x");
+                    check(
+                        (top[4] | (top[5] << 8)) == 0x0023u &&
+                            (top[8] | (top[9] << 8)) == 0x0006u &&
+                            (top[2] | (top[3] << 8)) == 100u,
+                        "the grabbed human is frame 0x23 / type 6 at the base x");
                     /* snap: the grabbed record is the top member */
                     object_init();
                     base = object_slot(0);
-                    base[0] = 100; base[1] = 0; base[2] = 100; base[3] = 0;
-                    base[4] = 0x10; base[6] = 0; base[8] = 2; base[9] = 0;
+                    base[0] = 100;
+                    base[1] = 0;
+                    base[2] = 100;
+                    base[3] = 0;
+                    base[4] = 0x10;
+                    base[6] = 0;
+                    base[8] = 2;
+                    base[9] = 0;
                     object_setActionEntity(0u);
                     object_actionSetProgram(1u);
                     object_actionSetCursor(2u);
                     object_actionRun();
                     top = object_slot(1);
-                    top[0] = 100; top[1] = 0; top[2] = 70; top[3] = 0;
-                    top[4] = 0x10; top[6] = 0; top[8] = 2; top[9] = 0;
+                    top[0] = 100;
+                    top[1] = 0;
+                    top[2] = 70;
+                    top[3] = 0;
+                    top[4] = 0x10;
+                    top[6] = 0;
+                    top[8] = 2;
+                    top[9] = 0;
                     object_setActionEntity(1u);
                     check(object_stackPush(top) == 1, "the push for the verbs");
-                    top[0] = 120;                      /* off the base's x */
+                    top[0] = 120; /* off the base's x */
                     check(object_stackSnap(top) == 1 &&
-                          (top[0] | (top[1] << 8)) == 100u &&
-                          (top[4] | (top[5] << 8)) == 0x0020u,
+                              (top[0] | (top[1] << 8)) == 100u &&
+                              (top[4] | (top[5] << 8)) == 0x0020u,
                           "the snap puts the top member on the base's x");
                     /* step off: on `entry.y - 0x18 == actor.y` the actor and the
                      * list byte below it both move down 8 */
-                    top[2] = 76; top[3] = 0;
+                    top[2] = 76;
+                    top[3] = 0;
                     check(object_stackStepOff(top) == 1 &&
-                          (top[2] | (top[3] << 8)) == 84u &&
-                          (top[4] | (top[5] << 8)) == 0x0020u &&
-                          (top[8] | (top[9] << 8)) == 8u,
+                              (top[2] | (top[3] << 8)) == 84u &&
+                              (top[4] | (top[5] << 8)) == 0x0020u &&
+                              (top[8] | (top[9] << 8)) == 8u,
                           "the step off moves the actor down 8 (frame 0x20)");
                     check((base[2] | (base[3] << 8)) == 108u &&
-                          (base[4] | (base[5] << 8)) == 0x0021u,
+                              (base[4] | (base[5] << 8)) == 0x0021u,
                           "the step off moves the record below it too");
                     /* leave: on `entry.y == actor.y` the actor is a standing
                      * human again and the list is cut at its stored slot */
-                    top[2] = 100; top[3] = 0;
+                    top[2] = 100;
+                    top[3] = 0;
                     check(object_stackLeave(top) == 1 &&
-                          (top[4] | (top[5] << 8)) == 0x0010u &&
-                          (top[8] | (top[9] << 8)) == 2u,
+                              (top[4] | (top[5] << 8)) == 0x0010u &&
+                              (top[8] | (top[9] << 8)) == 2u,
                           "the leave restores the actor (frame 0x10 / type 2)");
                     check(object_stackScanDissolve(1u) == 0,
                           "the leave cut the list at the actor's slot");
@@ -1139,26 +1346,40 @@ int main(int argc, char **argv)
                      * and the record below moves up 8 with frame 0x20 */
                     object_init();
                     base = object_slot(0);
-                    base[0] = 100; base[1] = 0; base[2] = 100; base[3] = 0;
-                    base[4] = 0x10; base[6] = 0; base[8] = 2; base[9] = 0;
+                    base[0] = 100;
+                    base[1] = 0;
+                    base[2] = 100;
+                    base[3] = 0;
+                    base[4] = 0x10;
+                    base[6] = 0;
+                    base[8] = 2;
+                    base[9] = 0;
                     object_setActionEntity(0u);
                     object_actionSetProgram(1u);
                     object_actionSetCursor(2u);
                     object_actionRun();
                     top = object_slot(1);
-                    top[0] = 100; top[1] = 0; top[2] = 70; top[3] = 0;
-                    top[4] = 0x10; top[6] = 0; top[8] = 2; top[9] = 0;
+                    top[0] = 100;
+                    top[1] = 0;
+                    top[2] = 70;
+                    top[3] = 0;
+                    top[4] = 0x10;
+                    top[6] = 0;
+                    top[8] = 2;
+                    top[9] = 0;
                     object_setActionEntity(1u);
-                    check(object_stackPush(top) == 1, "the push before the stand");
+                    check(object_stackPush(top) == 1,
+                          "the push before the stand");
                     check(object_stackStand(top) == 1 &&
-                          (top[0] | (top[1] << 8)) == 100u &&
-                          (top[2] | (top[3] << 8)) == 64u &&   /* 71 after the push */
-                          (top[4] | (top[5] << 8)) == 0x0025u &&
-                          (top[8] | (top[9] << 8)) == 7u &&
-                          (top[0xE] | (top[0xF] << 8)) != 0u,
+                              (top[0] | (top[1] << 8)) == 100u &&
+                              (top[2] | (top[3] << 8)) ==
+                                  64u && /* 71 after the push */
+                              (top[4] | (top[5] << 8)) == 0x0025u &&
+                              (top[8] | (top[9] << 8)) == 7u &&
+                              (top[0xE] | (top[0xF] << 8)) != 0u,
                           "1000:E99D stands the member (x, y-7, frame 0x25)");
                     check((base[2] | (base[3] << 8)) == 92u &&
-                          (base[4] | (base[5] << 8)) == 0x0020u,
+                              (base[4] | (base[5] << 8)) == 0x0020u,
                           "1000:E99D moves the record below up 8");
                 }
                 /* 1000:E896/E89B: the step off's walk starts at DX = entry.y and
@@ -1170,38 +1391,60 @@ int main(int argc, char **argv)
 
                     object_init();
                     base = object_slot(0);
-                    base[0] = 100; base[1] = 0; base[2] = 100; base[3] = 0;
-                    base[4] = 0x10; base[6] = 0; base[8] = 2; base[9] = 0;
+                    base[0] = 100;
+                    base[1] = 0;
+                    base[2] = 100;
+                    base[3] = 0;
+                    base[4] = 0x10;
+                    base[6] = 0;
+                    base[8] = 2;
+                    base[9] = 0;
                     object_setActionEntity(0u);
                     object_actionSetProgram(1u);
                     object_actionSetCursor(2u);
                     object_actionRun();
                     m1 = object_slot(1);
-                    m1[0] = 100; m1[1] = 0; m1[2] = 70; m1[3] = 0;
-                    m1[4] = 0x10; m1[6] = 0; m1[8] = 2; m1[9] = 0;
+                    m1[0] = 100;
+                    m1[1] = 0;
+                    m1[2] = 70;
+                    m1[3] = 0;
+                    m1[4] = 0x10;
+                    m1[6] = 0;
+                    m1[8] = 2;
+                    m1[9] = 0;
                     object_setActionEntity(1u);
                     check(object_stackPush(m1) == 1,
                           "the first member for the slot walk");
                     m2 = object_slot(2);
-                    m2[0] = 100; m2[1] = 0; m2[2] = 52; m2[3] = 0;
-                    m2[4] = 0x10; m2[6] = 0; m2[8] = 2; m2[9] = 0;
+                    m2[0] = 100;
+                    m2[1] = 0;
+                    m2[2] = 52;
+                    m2[3] = 0;
+                    m2[4] = 0x10;
+                    m2[6] = 0;
+                    m2[8] = 2;
+                    m2[9] = 0;
                     object_setActionEntity(2u);
                     check(object_stackPush(m2) == 1,
                           "the second member for the slot walk");
                     /* negative control: the owner's y is not this slot's */
-                    m2[2] = 76; m2[3] = 0;
+                    m2[2] = 76;
+                    m2[3] = 0;
                     check(object_stackStepOff(m2) == -1 &&
-                          (m1[4] | (m1[5] << 8)) == 0x0025u,
+                              (m1[4] | (m1[5] << 8)) == 0x0025u,
                           "1000:E896: the second member refuses the owner's y");
-                    m2[2] = 60; m2[3] = 0;
-                    check(object_stackStepOff(m2) == 1 &&
-                          (m2[2] | (m2[3] << 8)) == 68u &&
-                          (m2[4] | (m2[5] << 8)) == 0x0020u &&
-                          (m2[8] | (m2[9] << 8)) == 8u,
-                          "1000:E896: the second member steps off at entry.y - 0x28");
-                    check((m1[2] | (m1[3] << 8)) == 79u &&
-                          (m1[4] | (m1[5] << 8)) == 0x0021u,
-                          "1000:E896: the record below the second member crouches");
+                    m2[2] = 60;
+                    m2[3] = 0;
+                    check(
+                        object_stackStepOff(m2) == 1 &&
+                            (m2[2] | (m2[3] << 8)) == 68u &&
+                            (m2[4] | (m2[5] << 8)) == 0x0020u &&
+                            (m2[8] | (m2[9] << 8)) == 8u,
+                        "1000:E896: the second member steps off at entry.y - 0x28");
+                    check(
+                        (m1[2] | (m1[3] << 8)) == 79u &&
+                            (m1[4] | (m1[5] << 8)) == 0x0021u,
+                        "1000:E896: the record below the second member crouches");
                 }
                 /* the selector (1000:F17C): its stack path removes the member,
                  * and its two terrain-dependent branches report -2 */
@@ -1210,17 +1453,30 @@ int main(int argc, char **argv)
 
                     object_init();
                     base = object_slot(0);
-                    base[0] = 100; base[1] = 0; base[2] = 100; base[3] = 0;
-                    base[4] = 0x10; base[6] = 0; base[8] = 2; base[9] = 0;
+                    base[0] = 100;
+                    base[1] = 0;
+                    base[2] = 100;
+                    base[3] = 0;
+                    base[4] = 0x10;
+                    base[6] = 0;
+                    base[8] = 2;
+                    base[9] = 0;
                     object_setActionEntity(0u);
                     object_actionSetProgram(1u);
                     object_actionSetCursor(2u);
                     object_actionRun();
                     top = object_slot(1);
-                    top[0] = 100; top[1] = 0; top[2] = 70; top[3] = 0;
-                    top[4] = 0x10; top[6] = 0; top[8] = 2; top[9] = 0;
+                    top[0] = 100;
+                    top[1] = 0;
+                    top[2] = 70;
+                    top[3] = 0;
+                    top[4] = 0x10;
+                    top[6] = 0;
+                    top[8] = 2;
+                    top[9] = 0;
                     object_setActionEntity(1u);
-                    check(object_stackPush(top) == 1, "the push for the selector");
+                    check(object_stackPush(top) == 1,
+                          "the push for the selector");
                     /* frame 0x25 is not the stack pose, so a near target hands
                      * over to the walk step (1000:E6FB -> 1000:F25F, the level's
                      * two maps).  It either steps or refuses whole. */
@@ -1228,34 +1484,38 @@ int main(int argc, char **argv)
                         uint16_t x0 = (uint16_t)(top[0] | (top[1] << 8));
 
                         check(object_selector(top, 1u, 8u, 1u) == 0 &&
-                              (top[4] | (top[5] << 8)) == 0x0008u &&
-                              (uint16_t)(top[0] | (top[1] << 8)) == x0,
+                                  (top[4] | (top[5] << 8)) == 0x0008u &&
+                                  (uint16_t)(top[0] | (top[1] << 8)) == x0,
                               "a far target only writes the frame (1000:F20C)");
                     }
                     /* in the stack pose the selector is a plain frame write */
-                    check(object_stackSnap(top) == 1, "the snap before the selector");
-                    check(object_selector(top, 1u, 8u, 1u) == 0 &&
-                          (top[4] | (top[5] << 8)) == 8u,
-                          "the selector writes the target frame in the stack pose");
+                    check(object_stackSnap(top) == 1,
+                          "the snap before the selector");
+                    check(
+                        object_selector(top, 1u, 8u, 1u) == 0 &&
+                            (top[4] | (top[5] << 8)) == 8u,
+                        "the selector writes the target frame in the stack pose");
                     /* a caller x far from the record below removes the member;
                      * the unmarked 0x64AD/0x64C1 bit then runs 1000:E389 and
                      * 1000:F223, which either takes the entry's x or stops on a
                      * special tile (field K's [0x6F20]/[0x6F21]) */
-                    top[0] = 140; top[1] = 0;
+                    top[0] = 140;
+                    top[1] = 0;
                     check(object_selector(top, 200u, 8u, 1u) == 0 &&
-                          (top[8] | (top[9] << 8)) == 1u,
+                              (top[8] | (top[9] << 8)) == 1u,
                           "the selector's removal sets the wrapper's type");
                     /* 1000:E361 aligns the probe row (AND BX,0xFFF0), so the
                      * distance test is 1 px and F1D7 returns before F223's x
                      * write; the old 100 was the unaligned reading. */
-                    check((top[0] | (top[1] << 8)) == 140u,
-                          "1000:F1D7 rejects the 1-px step before F223's x write");
+                    check(
+                        (top[0] | (top[1] << 8)) == 140u,
+                        "1000:F1D7 rejects the 1-px step before F223's x write");
                     check((base[2] | (base[3] << 8)) == 92u &&
-                          (base[4] | (base[5] << 8)) == 0x0020u,
+                              (base[4] | (base[5] << 8)) == 0x0020u,
                           "the record below moves up 8 and takes frame 0x20");
                     below = NULL;
                     check(object_stackPop(100u, &below, NULL) == -1 &&
-                          object_stackScanDissolve(1u) == 0,
+                              object_stackScanDissolve(1u) == 0,
                           "the selector removed the member from the group");
                 }
                 /* The walk step (1000:E6FB/E764) against level 1's two maps:
@@ -1273,37 +1533,51 @@ int main(int argc, char **argv)
 
                             object_init();
                             base = object_slot(0);
-                            base[0] = (uint8_t)x; base[1] = 0;
-                            base[2] = (uint8_t)y; base[3] = 0;
-                            base[4] = 0x10; base[6] = 0; base[8] = 2; base[9] = 0;
+                            base[0] = (uint8_t)x;
+                            base[1] = 0;
+                            base[2] = (uint8_t)y;
+                            base[3] = 0;
+                            base[4] = 0x10;
+                            base[6] = 0;
+                            base[8] = 2;
+                            base[9] = 0;
                             object_setActionEntity(0u);
                             object_actionSetProgram(1u);
                             object_actionSetCursor(2u);
                             object_actionRun();
                             top2 = object_slot(1);
-                            top2[0] = (uint8_t)x; top2[1] = 0;
-                            top2[2] = (uint8_t)(y - 0x1Cu); top2[3] = 0;
-                            top2[4] = 0x10; top2[6] = 0; top2[8] = 2; top2[9] = 0;
+                            top2[0] = (uint8_t)x;
+                            top2[1] = 0;
+                            top2[2] = (uint8_t)(y - 0x1Cu);
+                            top2[3] = 0;
+                            top2[4] = 0x10;
+                            top2[6] = 0;
+                            top2[8] = 2;
+                            top2[9] = 0;
                             object_setActionEntity(1u);
                             if (object_stackPush(top2) != 1) continue;
                             /* the first call lands the frame in the left cycle
                              * (1000:F20C); the second one is the walk's own
                              * distance test (0 <= frame - 8 < 8) */
-                            if (object_selector(top2, 1u, 8u, 1u) != 0) continue;
+                            if (object_selector(top2, 1u, 8u, 1u) != 0)
+                                continue;
                             x0 = (uint16_t)(top2[0] | (top2[1] << 8));
                             f0 = (uint16_t)(top2[4] | (top2[5] << 8));
-                            if (object_selector(top2, 1u, 8u, 1u) != 0) continue;
+                            if (object_selector(top2, 1u, 8u, 1u) != 0)
+                                continue;
                             x1 = (uint16_t)(top2[0] | (top2[1] << 8));
                             if (x1 == x0) {
-                                check((top2[4] | (top2[5] << 8)) == f0,
-                                      "a refused walk step leaves the frame alone");
+                                check(
+                                    (top2[4] | (top2[5] << 8)) == f0,
+                                    "a refused walk step leaves the frame alone");
                                 refused++;
                                 continue;
                             }
                             check(x1 == (uint16_t)(x0 - 1u),
                                   "the left walk step moves x by one");
                             check((uint32_t)(top2[4] | (top2[5] << 8)) >= 8u &&
-                                  (uint32_t)(top2[4] | (top2[5] << 8)) <= 0x000Fu,
+                                      (uint32_t)(top2[4] | (top2[5] << 8)) <=
+                                          0x000Fu,
                                   "the left walk frame lands in 8..0xF");
                             stepped++;
                             /* the right walk (1000:E764) from the same spot:
@@ -1316,8 +1590,10 @@ int main(int argc, char **argv)
                                 right++;
                         }
                     }
-                    check(stepped != 0, "some cell of level 1 lets the walk step");
-                    check(refused != 0, "some cell of level 1 refuses the walk step");
+                    check(stepped != 0,
+                          "some cell of level 1 lets the walk step");
+                    check(refused != 0,
+                          "some cell of level 1 refuses the walk step");
                     check(right != 0, "the right walk step mirrors the left");
                 }
 
@@ -1334,8 +1610,12 @@ int main(int argc, char **argv)
 
                     object_init();
                     w = object_slot(0);
-                    tf_wr16(w, 0u, 48); tf_wr16(w, 2u, 24); tf_wr16(w, 4u, 0x10u);
-                    tf_wr16(w, 8u, 0u); tf_wr16(w, 0xAu, 0u); tf_wr16(w, 0xCu, 0u);
+                    tf_wr16(w, 0u, 48);
+                    tf_wr16(w, 2u, 24);
+                    tf_wr16(w, 4u, 0x10u);
+                    tf_wr16(w, 8u, 0u);
+                    tf_wr16(w, 0xAu, 0u);
+                    tf_wr16(w, 0xCu, 0u);
                     object_setActionEntity(0u);
                     for (i = 0; i < 40u; i++) (void)object_commandRun(w, 0x04u);
                     x = tf_rd16(w, 0u);
@@ -1343,15 +1623,21 @@ int main(int argc, char **argv)
 
                     object_init();
                     w = object_slot(0);
-                    tf_wr16(w, 0u, 48); tf_wr16(w, 2u, 24); tf_wr16(w, 4u, 0x10u);
-                    tf_wr16(w, 8u, 0u); tf_wr16(w, 0xAu, 0u); tf_wr16(w, 0xCu, 0u);
+                    tf_wr16(w, 0u, 48);
+                    tf_wr16(w, 2u, 24);
+                    tf_wr16(w, 4u, 0x10u);
+                    tf_wr16(w, 8u, 0u);
+                    tf_wr16(w, 0xAu, 0u);
+                    tf_wr16(w, 0xCu, 0u);
                     object_setActionEntity(0u);
                     for (i = 0; i < 41u; i++) (void)object_commandRun(w, 0x08u);
-                    x = tf_rd16(w, 0u); y = tf_rd16(w, 2u);
+                    x = tf_rd16(w, 0u);
+                    y = tf_rd16(w, 2u);
                     check(x == 89u && y == 27u,
                           "the right walk settles to y 27 at x 89");
                     for (i = 0; i < 5u; i++) (void)object_commandRun(w, 0x08u);
-                    x = tf_rd16(w, 0u); y = tf_rd16(w, 2u);
+                    x = tf_rd16(w, 0u);
+                    y = tf_rd16(w, 2u);
                     check(x == 94u && y == 24u,
                           "the right walk is back at y 24 by x 94");
                 }
@@ -1365,24 +1651,31 @@ int main(int argc, char **argv)
                     object_init();
                     h = object_slot(1);
                     memset(h, 0, 0x12u);
-                    tf_wr16(h, 0u, 100); tf_wr16(h, 2u, 120); tf_wr16(h, 4u, 0x10u);
+                    tf_wr16(h, 0u, 100);
+                    tf_wr16(h, 2u, 120);
+                    tf_wr16(h, 4u, 0x10u);
                     tf_wr16(h, 8u, 2u);
                     h = object_slot(2);
                     memset(h, 0, 0x12u);
-                    tf_wr16(h, 0u, 200); tf_wr16(h, 2u, 80); tf_wr16(h, 4u, 0x10u);
+                    tf_wr16(h, 0u, 200);
+                    tf_wr16(h, 2u, 80);
+                    tf_wr16(h, 4u, 0x10u);
                     tf_wr16(h, 8u, 2u);
                     object_setActionEntity(1u);
                     m = object_slot(8u);
                     memset(m, 0, 0x12u);
-                    tf_wr16(m, 0u, 0xFFFFu); tf_wr16(m, 2u, 0xFFFFu);
+                    tf_wr16(m, 0u, 0xFFFFu);
+                    tf_wr16(m, 2u, 0xFFFFu);
                     check(object_cycleEntity(1) == 2,
                           "the selector moves to the next enabled record");
-                    check(tf_rd16(m, 0u) == 200u && tf_rd16(m, 2u) == 80u - 0x1Au &&
-                          tf_rd16(m, 6u) == 0u && tf_rd16(m, 8u) == 0x1Au &&
-                          tf_rd16(m, 0xAu) == 0x0605u,
+                    check(tf_rd16(m, 0u) == 200u &&
+                              tf_rd16(m, 2u) == 80u - 0x1Au &&
+                              tf_rd16(m, 6u) == 0u && tf_rd16(m, 8u) == 0x1Au &&
+                              tf_rd16(m, 0xAu) == 0x0605u,
                           "1000:4188 arms the marker on the new acting record");
                     object_markerTick();
-                    check(tf_rd16(m, 0u) == 200u && tf_rd16(m, 2u) == 80u - 0x1Au,
+                    check(tf_rd16(m, 0u) == 200u &&
+                              tf_rd16(m, 2u) == 80u - 0x1Au,
                           "1000:D64F tracks the acting record");
                     for (uint32_t k = 0; k < 6u; k++) object_markerTick();
                     check(tf_rd16(m, 8u) == 0x18u,
@@ -1390,8 +1683,8 @@ int main(int argc, char **argv)
                     /* the lifetime: type 0x12 and a zero high byte expire */
                     tf_wr16(m, 8u, 0x12u);
                     tf_wr16(m, 0xAu, 0x0001u);
-                    object_markerTick();          /* low byte -> 0 */
-                    object_markerTick();          /* wrap: +B 0 -> -1 */
+                    object_markerTick(); /* low byte -> 0 */
+                    object_markerTick(); /* wrap: +B 0 -> -1 */
                     check((m[6] & 0x80u) != 0u,
                           "the marker disables when its +0xA lifetime ends");
                 }
@@ -1414,26 +1707,26 @@ int main(int argc, char **argv)
                     memset(r1, 0, 0x12u);
                     tf_wr16(r1, 8u, 2u);
                     level_setUpdates(1);
-                    k.keyScan = 0x3Cu;                     /* F2 */
+                    k.keyScan = 0x3Cu; /* F2 */
                     check(gameflow_keyList(&k) == 1 &&
-                          object_actionEntity() == 1u,
+                              object_actionEntity() == 1u,
                           "F2 selects record 1 (1000:38C3)");
-                    k.keyScan = 0x3Bu;                     /* F1 */
+                    k.keyScan = 0x3Bu; /* F1 */
                     check(gameflow_keyList(&k) == 1 &&
-                          object_actionEntity() == 0u,
+                              object_actionEntity() == 0u,
                           "F1 selects record 0");
-                    k.keyScan = 0x34u;                     /* '.' next */
+                    k.keyScan = 0x34u; /* '.' next */
                     check(gameflow_keyList(&k) == 1 &&
-                          object_actionEntity() == 1u,
+                              object_actionEntity() == 1u,
                           "'.' steps to the next record (1000:38E4)");
-                    k.keyScan = 0x33u;                     /* ',' previous */
+                    k.keyScan = 0x33u; /* ',' previous */
                     check(gameflow_keyList(&k) == 1 &&
-                          object_actionEntity() == 0u,
+                              object_actionEntity() == 0u,
                           "',' steps to the previous record");
-                    r1[6] = 0x80u;                         /* disabled */
+                    r1[6] = 0x80u; /* disabled */
                     k.keyScan = 0x3Cu;
                     check(gameflow_keyList(&k) == 1 &&
-                          object_actionEntity() == 0u,
+                              object_actionEntity() == 0u,
                           "a disabled record is not selected (1000:38CE)");
                     r1[6] = 0u;
                     /* SPACE: a convertible pose is stood up, the cell stays */
@@ -1442,14 +1735,13 @@ int main(int argc, char **argv)
                     tf_wr16(r0, 8u, 0x12u);
                     tf_wr16(r0, 4u, 0x2Bu);
                     k.keyScan = 0x39u;
-                    check(gameflow_keyList(&k) == 1 &&
-                          tf_rd16(r0, 8u) == 0u &&
-                          statusbar_actionCell(1u) == cell,
+                    check(gameflow_keyList(&k) == 1 && tf_rd16(r0, 8u) == 0u &&
+                              statusbar_actionCell(1u) == cell,
                           "SPACE home-states the acting record (1000:392D)");
                     /* a normal pose steps the row's selected cell instead */
                     k.keyScan = 0x39u;
                     check(gameflow_keyList(&k) == 1 &&
-                          statusbar_actionCell(1u) != cell,
+                              statusbar_actionCell(1u) != cell,
                           "SPACE steps the action row's cell (1000:3933)");
                     /* the [0xC] gate: F2 needs the world open, F10 (id bit 7)
                      * runs regardless */
@@ -1457,23 +1749,20 @@ int main(int argc, char **argv)
                     k.keyScan = 0x3Cu;
                     check(gameflow_keyList(&k) == 0,
                           "the [0xC] gate stops F2 (1000:38AD)");
-                    k.keyScan = 0x44u;                     /* F10 */
-                    check(gameflow_keyList(&k) == 1 &&
-                          gameflow_keyWaitActive(),
+                    k.keyScan = 0x44u; /* F10 */
+                    check(gameflow_keyList(&k) == 1 && gameflow_keyWaitActive(),
                           "F10 runs with the world gate closed (id bit 7)");
                     /* 1000:3954: release -> press -> release, then back to
                      * the play loop */
                     memset(&k, 0, sizeof k);
-                    check(gameflow_keyList(&k) == 1 &&
-                          gameflow_keyWaitActive(),
+                    check(gameflow_keyList(&k) == 1 && gameflow_keyWaitActive(),
                           "F10 waits for the release");
-                    k.lastKey = 'A';                       /* a make */
-                    check(gameflow_keyList(&k) == 1 &&
-                          gameflow_keyWaitActive(),
+                    k.lastKey = 'A'; /* a make */
+                    check(gameflow_keyList(&k) == 1 && gameflow_keyWaitActive(),
                           "F10 then waits for the press");
                     memset(&k, 0, sizeof k);
                     check(gameflow_keyList(&k) == 1 &&
-                          !gameflow_keyWaitActive(),
+                              !gameflow_keyWaitActive(),
                           "F10 releases the world after the second release");
                     level_setUpdates(1);
                 }
@@ -1486,37 +1775,52 @@ int main(int argc, char **argv)
                 {
                     const uint8_t *map = level_map();
                     uint8_t *a0, *a1;
-                    uint32_t sp0 = level_specialTile(0u), sp1 = level_specialTile(1u);
+                    uint32_t sp0 = level_specialTile(0u),
+                             sp1 = level_specialTile(1u);
                     int32_t found = 0, col = 0, row = 0;
                     int32_t tileUp = 0, tileDown = 0;
 
-                    check(map != NULL, "level 1's map is loaded for the states");
+                    check(map != NULL,
+                          "level 1's map is loaded for the states");
                     for (uint32_t r = 0; r < 640u && !found; r++)
                         if (map[r] == sp0 || map[r] == sp1) {
-                            found = 1; row = (int32_t)(r / 32u); col = (int32_t)(r % 32u);
+                            found = 1;
+                            row = (int32_t)(r / 32u);
+                            col = (int32_t)(r % 32u);
                         }
                     if (found) {
                         object_init();
                         a0 = object_slot(0);
-                        a0[0] = (uint8_t)(16 * col - 8); a0[1] = 0;
-                        a0[2] = (uint8_t)(16 * row - 0x19); a0[3] = 0;
-                        a0[4] = 0x10; a0[6] = 0; a0[8] = 2; a0[9] = 0;
+                        a0[0] = (uint8_t)(16 * col - 8);
+                        a0[1] = 0;
+                        a0[2] = (uint8_t)(16 * row - 0x19);
+                        a0[3] = 0;
+                        a0[4] = 0x10;
+                        a0[6] = 0;
+                        a0[8] = 2;
+                        a0[9] = 0;
                         check(object_stepUp(a0) == 1 &&
-                              (a0[0] | (a0[1] << 8)) == 16 * col &&
-                              (a0[2] | (a0[3] << 8)) == 16 * row - 0x18 &&
-                              (a0[4] | (a0[5] << 8)) == 0x25u &&
-                              (a0[8] | (a0[9] << 8)) == 5u,
+                                  (a0[0] | (a0[1] << 8)) == 16 * col &&
+                                  (a0[2] | (a0[3] << 8)) == 16 * row - 0x18 &&
+                                  (a0[4] | (a0[5] << 8)) == 0x25u &&
+                                  (a0[8] | (a0[9] << 8)) == 5u,
                               "the walk-up tile rule snaps to the grid");
                         tileUp = 1;
                         object_init();
                         a0 = object_slot(0);
-                        a0[0] = (uint8_t)(16 * col - 8); a0[1] = 0;
-                        a0[2] = (uint8_t)(16 * row - 0x16); a0[3] = 0;
-                        a0[4] = 0x10; a0[6] = 0; a0[8] = 2; a0[9] = 0;
-                        check(object_stepDown(a0) == 1 &&
-                              (a0[4] | (a0[5] << 8)) == 0x23u &&
-                              (a0[8] | (a0[9] << 8)) == 4u,
-                              "the step-down tile rule sets frame 0x23 / type 4");
+                        a0[0] = (uint8_t)(16 * col - 8);
+                        a0[1] = 0;
+                        a0[2] = (uint8_t)(16 * row - 0x16);
+                        a0[3] = 0;
+                        a0[4] = 0x10;
+                        a0[6] = 0;
+                        a0[8] = 2;
+                        a0[9] = 0;
+                        check(
+                            object_stepDown(a0) == 1 &&
+                                (a0[4] | (a0[5] << 8)) == 0x23u &&
+                                (a0[8] | (a0[9] << 8)) == 4u,
+                            "the step-down tile rule sets frame 0x23 / type 4");
                         tileDown = 1;
                     }
                     check(tileUp != 0 && tileDown != 0,
@@ -1533,45 +1837,61 @@ int main(int argc, char **argv)
 
                         object_init();
                         a = object_slot(0);
-                        a[0] = (uint8_t)(16 * col - 8); a[1] = 0;
-                        a[4] = 0x23; a[6] = 0; a[8] = 4; a[9] = 0;
-                        a[0xA] = 0; a[0xB] = 0; a[0xC] = 0;
+                        a[0] = (uint8_t)(16 * col - 8);
+                        a[1] = 0;
+                        a[4] = 0x23;
+                        a[6] = 0;
+                        a[8] = 4;
+                        a[9] = 0;
+                        a[0xA] = 0;
+                        a[0xB] = 0;
+                        a[0xC] = 0;
                         object_setActionEntity(0u);
                         for (uint32_t t = 0; t < 30u; t++) {
                             uint32_t f;
 
-                            a[2] = (uint8_t)(16 * row - 0xE); a[3] = 0;
+                            a[2] = (uint8_t)(16 * row - 0xE);
+                            a[3] = 0;
                             (void)object_commandRun(a, 0x01u);
                             f = (uint32_t)(a[4] | (a[5] << 8));
                             if (f < 0x23u || f > 0x25u) outside = 1;
                             seen |= 1u << (f & 0x1Fu);
                         }
-                        check(!outside && (seen & (1u << (0x23u & 0x1Fu))) != 0u &&
-                              (seen & (1u << (0x24u & 0x1Fu))) != 0u &&
-                              (seen & (1u << (0x25u & 0x1Fu))) != 0u,
+                        check(!outside &&
+                                  (seen & (1u << (0x23u & 0x1Fu))) != 0u &&
+                                  (seen & (1u << (0x24u & 0x1Fu))) != 0u &&
+                                  (seen & (1u << (0x25u & 0x1Fu))) != 0u,
                               "1000:E828: the climb cycles 0x23..0x25");
                         check(tf_rd16(a, 2u) == (uint32_t)(16 * row - 0xE - 1),
                               "1000:FD91 still moves y one px per step");
                         object_init();
                         a = object_slot(0);
-                        a[0] = (uint8_t)(16 * col - 8); a[1] = 0;
-                        a[4] = 0x25; a[6] = 0; a[8] = 5; a[9] = 0;
-                        a[0xA] = 0; a[0xB] = 0; a[0xC] = 0;
+                        a[0] = (uint8_t)(16 * col - 8);
+                        a[1] = 0;
+                        a[4] = 0x25;
+                        a[6] = 0;
+                        a[8] = 5;
+                        a[9] = 0;
+                        a[0xA] = 0;
+                        a[0xB] = 0;
+                        a[0xC] = 0;
                         object_setActionEntity(0u);
                         outside = 0;
                         seen = 0;
                         for (uint32_t t = 0; t < 30u; t++) {
                             uint32_t f;
 
-                            a[2] = (uint8_t)(16 * row - 0x10); a[3] = 0;
+                            a[2] = (uint8_t)(16 * row - 0x10);
+                            a[3] = 0;
                             (void)object_commandRun(a, 0x01u);
                             f = (uint32_t)(a[4] | (a[5] << 8));
                             if (f < 0x23u || f > 0x25u) outside = 1;
                             seen |= 1u << (f & 0x1Fu);
                         }
-                        check(!outside && (seen & (1u << (0x23u & 0x1Fu))) != 0u &&
-                              (seen & (1u << (0x24u & 0x1Fu))) != 0u &&
-                              (seen & (1u << (0x25u & 0x1Fu))) != 0u,
+                        check(!outside &&
+                                  (seen & (1u << (0x23u & 0x1Fu))) != 0u &&
+                                  (seen & (1u << (0x24u & 0x1Fu))) != 0u &&
+                                  (seen & (1u << (0x25u & 0x1Fu))) != 0u,
                               "1000:E857: the descend cycles 0x23..0x25");
                     }
                     /* with no group and no span: up does nothing, down
@@ -1579,13 +1899,20 @@ int main(int argc, char **argv)
                      * next walk-up pushes onto it */
                     object_init();
                     a0 = object_slot(0);
-                    a0[0] = 100; a0[1] = 0; a0[2] = 100; a0[3] = 0;
-                    a0[4] = 0x10; a0[6] = 0; a0[8] = 2; a0[9] = 0;
+                    a0[0] = 100;
+                    a0[1] = 0;
+                    a0[2] = 100;
+                    a0[3] = 0;
+                    a0[4] = 0x10;
+                    a0[6] = 0;
+                    a0[8] = 2;
+                    a0[9] = 0;
                     object_setActionEntity(0u);
-                    check(object_stepUp(a0) == 4, "walk-up with no group does nothing");
+                    check(object_stepUp(a0) == 4,
+                          "walk-up with no group does nothing");
                     check(object_stepDown(a0) == 4 &&
-                          (a0[4] | (a0[5] << 8)) == 0x0020u &&
-                          (a0[8] | (a0[9] << 8)) == 8u,
+                              (a0[4] | (a0[5] << 8)) == 0x0020u &&
+                              (a0[8] | (a0[9] << 8)) == 8u,
                           "step-down registers the base (frame 0x20 / type 8)");
                     {
                         int32_t pushed = 0;
@@ -1593,316 +1920,416 @@ int main(int argc, char **argv)
                         for (uint32_t ty = 68u; ty < 76u && !pushed; ty++) {
                             object_init();
                             a0 = object_slot(0);
-                            a0[0] = 100; a0[1] = 0; a0[2] = 100; a0[3] = 0;
-                            a0[4] = 0x10; a0[6] = 0; a0[8] = 2; a0[9] = 0;
+                            a0[0] = 100;
+                            a0[1] = 0;
+                            a0[2] = 100;
+                            a0[3] = 0;
+                            a0[4] = 0x10;
+                            a0[6] = 0;
+                            a0[8] = 2;
+                            a0[9] = 0;
                             object_setActionEntity(0u);
                             if (object_stepDown(a0) != 4) continue;
                             a1 = object_slot(1);
-                            a1[0] = 100; a1[1] = 0; a1[2] = (uint8_t)ty; a1[3] = 0;
-                            a1[4] = 0x10; a1[6] = 0; a1[8] = 2; a1[9] = 0;
+                            a1[0] = 100;
+                            a1[1] = 0;
+                            a1[2] = (uint8_t)ty;
+                            a1[3] = 0;
+                            a1[4] = 0x10;
+                            a1[6] = 0;
+                            a1[8] = 2;
+                            a1[9] = 0;
                             object_setActionEntity(1u);
                             if (object_stepUp(a1) != 3) continue;
                             check((a1[4] | (a1[5] << 8)) == 0x0025u &&
-                                  (a1[8] | (a1[9] << 8)) == 7u,
+                                      (a1[8] | (a1[9] << 8)) == 7u,
                                   "walk-up pushes (frame 0x25 / type 7)");
                             pushed = 1;
                         }
-                        check(pushed != 0, "walk-up pushes onto the registered base");
+                        check(pushed != 0,
+                              "walk-up pushes onto the registered base");
                     }
-                /* 1000:E4B0: the dispatch runs the handler, not just selects it.
+                    /* 1000:E4B0: the dispatch runs the handler, not just selects it.
                  * The movement states change the record's type, which skips the
                  * tail (1000:E4CC); a row with no handler but a ported tail
                  * reports the tail, and anything without a port says so. */
-                {
-                    uint8_t *base, *a1;
+                    {
+                        uint8_t *base, *a1;
 
-                    object_init();
-                    base = object_slot(0);
-                    base[0] = 100; base[1] = 0; base[2] = 100; base[3] = 0;
-                    base[4] = 0x10; base[6] = 0; base[8] = 2; base[9] = 0;
-                    object_setActionEntity(0u);
-                    check(object_stepDown(base) == 4, "the base registers");
-                    a1 = object_slot(1);
-                    a1[0] = 100; a1[1] = 0; a1[2] = 70; a1[3] = 0;
-                    a1[4] = 0x10; a1[6] = 0; a1[8] = 2; a1[9] = 0;
-                    object_setActionEntity(1u);
-                    check(object_commandRun(a1, 0x02u) == OBJ_CMD_HANDLER,
-                          "type 2 + bit 1 runs the walk-up handler");
-                    check((a1[8] | (a1[9] << 8)) != 2u,
-                          "...whose type change skips the row's tail");
-                    /* command 2 -> the type-2 row's index 6 (1000:E790, the
+                        object_init();
+                        base = object_slot(0);
+                        base[0] = 100;
+                        base[1] = 0;
+                        base[2] = 100;
+                        base[3] = 0;
+                        base[4] = 0x10;
+                        base[6] = 0;
+                        base[8] = 2;
+                        base[9] = 0;
+                        object_setActionEntity(0u);
+                        check(object_stepDown(base) == 4, "the base registers");
+                        a1 = object_slot(1);
+                        a1[0] = 100;
+                        a1[1] = 0;
+                        a1[2] = 70;
+                        a1[3] = 0;
+                        a1[4] = 0x10;
+                        a1[6] = 0;
+                        a1[8] = 2;
+                        a1[9] = 0;
+                        object_setActionEntity(1u);
+                        check(object_commandRun(a1, 0x02u) == OBJ_CMD_HANDLER,
+                              "type 2 + bit 1 runs the walk-up handler");
+                        check((a1[8] | (a1[9] << 8)) != 2u,
+                              "...whose type change skips the row's tail");
+                        /* command 2 -> the type-2 row's index 6 (1000:E790, the
                      * idle handler): frame 0x10/type 2 -> 0/0 with a 4-frame
                      * countdown, a type change, so the tail is skipped */
-                    a1[8] = 2; a1[9] = 0;
-                    a1[4] = 0x10; a1[5] = 0; a1[0xA] = 0; a1[0xB] = 0;
-                    check(object_commandRun(a1, 0x08u) == OBJ_CMD_HANDLER &&
-                          (a1[4] | (a1[5] << 8)) == 0u &&
-                          (a1[8] | (a1[9] << 8)) == 0u &&
-                          (a1[0xA] | (a1[0xB] << 8)) == 4u,
-                          "command 2 runs the idle handler (frame 0 / type 0)");
-                    /* command 6 -> index 4 (1000:E72A): 0x10 -> 8 / type 1 */
-                    a1[8] = 2; a1[9] = 0;
-                    a1[4] = 0x10; a1[5] = 0; a1[0xA] = 0; a1[0xB] = 0;
-                    check(object_commandRun(a1, 0x04u) == OBJ_CMD_HANDLER &&
-                          (a1[4] | (a1[5] << 8)) == 8u &&
-                          (a1[8] | (a1[9] << 8)) == 1u,
-                          "command 6 runs the other idle handler (frame 8 / type 1)");
-                    /* every row's tail is ported now: drive each type's
+                        a1[8] = 2;
+                        a1[9] = 0;
+                        a1[4] = 0x10;
+                        a1[5] = 0;
+                        a1[0xA] = 0;
+                        a1[0xB] = 0;
+                        check(
+                            object_commandRun(a1, 0x08u) == OBJ_CMD_HANDLER &&
+                                (a1[4] | (a1[5] << 8)) == 0u &&
+                                (a1[8] | (a1[9] << 8)) == 0u &&
+                                (a1[0xA] | (a1[0xB] << 8)) == 4u,
+                            "command 2 runs the idle handler (frame 0 / type 0)");
+                        /* command 6 -> index 4 (1000:E72A): 0x10 -> 8 / type 1 */
+                        a1[8] = 2;
+                        a1[9] = 0;
+                        a1[4] = 0x10;
+                        a1[5] = 0;
+                        a1[0xA] = 0;
+                        a1[0xB] = 0;
+                        check(
+                            object_commandRun(a1, 0x04u) == OBJ_CMD_HANDLER &&
+                                (a1[4] | (a1[5] << 8)) == 8u &&
+                                (a1[8] | (a1[9] << 8)) == 1u,
+                            "command 6 runs the other idle handler (frame 8 / type 1)");
+                        /* every row's tail is ported now: drive each type's
                      * command 0 (input 0x01) and require that none reports an
                      * unported handler or tail. */
-                    {
-                        uint32_t unported = 0;
+                        {
+                            uint32_t unported = 0;
 
-                        for (uint32_t t = 0; t < 35u; t++) {
-                            a1[8] = (uint8_t)t; a1[9] = 0;
-                            a1[0xA] = 0; a1[0xB] = 0;
-                            a1[0xE] = 0; a1[0xF] = 0;
-                            if (object_commandRun(a1, 0x01u) == OBJ_CMD_UNPORTED)
-                                unported++;
+                            for (uint32_t t = 0; t < 35u; t++) {
+                                a1[8] = (uint8_t)t;
+                                a1[9] = 0;
+                                a1[0xA] = 0;
+                                a1[0xB] = 0;
+                                a1[0xE] = 0;
+                                a1[0xF] = 0;
+                                if (object_commandRun(a1, 0x01u) ==
+                                    OBJ_CMD_UNPORTED)
+                                    unported++;
+                            }
+                            check(unported == 0u,
+                                  "every one of the 35 rows runs to its tail");
                         }
-                        check(unported == 0u,
-                              "every one of the 35 rows runs to its tail");
-                    }
-                    /* D-16: type 2 command 8 (1000:E7C0) walks the timed
+                        /* D-16: type 2 command 8 (1000:E7C0) walks the timed
                      * frame stream; the one-shot gate is cleared for the seam. */
-                    a1[8] = 2; a1[9] = 0;
-                    a1[4] = 0; a1[5] = 0;
-                    object_setCommandTimer(0u);
-                    object_streamCommand(a1);
-                    check((a1[4] | (a1[5] << 8)) == 0x10u,
-                          "1000:E7C0: type 2 command 8 takes the first stream frame");
-                    /* type 15 command 8 (1000:EBCA) clears the +0xA hold */
-                    a1[8] = 15; a1[9] = 0;
-                    a1[0xA] = 5; a1[0xB] = 0;
-                    object_clearCountdown(a1);
-                    check((a1[0xA] | (a1[0xB] << 8)) == 0u,
-                          "1000:EBCA: type 15 command 8 clears the hold");
-                    check(object_commandRun(a1, 0x00u) != OBJ_CMD_UNPORTED,
-                          "1000:EBCA is wired into the command table");
-                    /* 1000:D6B2 phases 1/2: the pending-move table raises a
+                        a1[8] = 2;
+                        a1[9] = 0;
+                        a1[4] = 0;
+                        a1[5] = 0;
+                        object_setCommandTimer(0u);
+                        object_streamCommand(a1);
+                        check(
+                            (a1[4] | (a1[5] << 8)) == 0x10u,
+                            "1000:E7C0: type 2 command 8 takes the first stream frame");
+                        /* type 15 command 8 (1000:EBCA) clears the +0xA hold */
+                        a1[8] = 15;
+                        a1[9] = 0;
+                        a1[0xA] = 5;
+                        a1[0xB] = 0;
+                        object_clearCountdown(a1);
+                        check((a1[0xA] | (a1[0xB] << 8)) == 0u,
+                              "1000:EBCA: type 15 command 8 clears the hold");
+                        check(object_commandRun(a1, 0x00u) != OBJ_CMD_UNPORTED,
+                              "1000:EBCA is wired into the command table");
+                        /* 1000:D6B2 phases 1/2: the pending-move table raises a
                      * record's +4 tag 0x21 -> 0x22 for 0x28 ticks and puts it
                      * back. */
-                    {
-                        uint8_t *p = object_slot(1);
+                        {
+                            uint8_t *p = object_slot(1);
 
-                        if (p && object_placedHumans() > 1u) {
-                            p[4] = 0x21; p[5] = 0;
-                            object_animatorReset();
-                            object_animatorTick();
-                            check((p[4] | (p[5] << 8)) == 0x22u,
-                                  "1000:D6B2 phase 1 raises 0x21 -> 0x22");
-                            for (uint32_t i = 0; i < 0x29u; i++)
+                            if (p && object_placedHumans() > 1u) {
+                                p[4] = 0x21;
+                                p[5] = 0;
+                                object_animatorReset();
                                 object_animatorTick();
-                            check((p[4] | (p[5] << 8)) == 0x21u,
-                                  "1000:D6B2 phase 2 restores 0x22 -> 0x21");
+                                check((p[4] | (p[5] << 8)) == 0x22u,
+                                      "1000:D6B2 phase 1 raises 0x21 -> 0x22");
+                                for (uint32_t i = 0; i < 0x29u; i++)
+                                    object_animatorTick();
+                                check(
+                                    (p[4] | (p[5] << 8)) == 0x21u,
+                                    "1000:D6B2 phase 2 restores 0x22 -> 0x21");
+                            }
                         }
-                    }
 
-                    /* 1000:D6B2 phase 3: three members on a group animate
+                        /* 1000:D6B2 phase 3: three members on a group animate
                      * their x with the length-3 count-0 offsets.  The list is
                      * walked backwards from the terminator while the run is
                      * read forwards (1000:D81D/D820), so the top member (27)
                      * takes run[1] = -2, 26 takes run[2] = -1 and the owner
                      * (25) takes run[3] = 0. */
-                    {
-                        uint8_t *g = object_groupAt(7);
-                        uint8_t *m0 = object_slot(25);
-                        uint8_t *m1 = object_slot(26);
-                        uint8_t *m2 = object_slot(27);
+                        {
+                            uint8_t *g = object_groupAt(7);
+                            uint8_t *m0 = object_slot(25);
+                            uint8_t *m1 = object_slot(26);
+                            uint8_t *m2 = object_slot(27);
 
-                        if (g && m0 && m1 && m2) {
-                            memset(g, 0, 14u);
-                            g[0] = 100; g[1] = 0;       /* group base x */
-                            g[4] = 0x80;                 /* the 0xFF clear's
+                            if (g && m0 && m1 && m2) {
+                                memset(g, 0, 14u);
+                                g[0] = 100;
+                                g[1] = 0; /* group base x */
+                                g[4] = 0x80; /* the 0xFF clear's
                                                           * sentinel, dir 0 */
-                            g[5] = 25; g[6] = 26; g[7] = 27; g[8] = 0x80;
-                            m0[4] = m1[4] = m2[4] = 0x20;
-                            m0[5] = m1[5] = m2[5] = 0;
-                            m0[0] = m1[0] = m2[0] = 100;
-                            m0[1] = m1[1] = m2[1] = 0;
-                            object_animatorReset();
-                            for (uint32_t i = 0; i < 7u; i++)
-                                object_animatorTick();
-                            check((m0[0] | (m0[1] << 8)) == 100u &&
-                                  (m1[0] | (m1[1] << 8)) == 99u &&
-                                  (m2[0] | (m2[1] << 8)) == 98u &&
-                                  (g[4] & 0x10u) != 0u,
-                                  "1000:D6B2: the top member takes -2, the "
-                                  "owner 0");
-                            /* 1000:D813: the state byte keeps the 0xF0 mask -
+                                g[5] = 25;
+                                g[6] = 26;
+                                g[7] = 27;
+                                g[8] = 0x80;
+                                m0[4] = m1[4] = m2[4] = 0x20;
+                                m0[5] = m1[5] = m2[5] = 0;
+                                m0[0] = m1[0] = m2[0] = 100;
+                                m0[1] = m1[1] = m2[1] = 0;
+                                object_animatorReset();
+                                for (uint32_t i = 0; i < 7u; i++)
+                                    object_animatorTick();
+                                check((m0[0] | (m0[1] << 8)) == 100u &&
+                                          (m1[0] | (m1[1] << 8)) == 99u &&
+                                          (m2[0] | (m2[1] << 8)) == 98u &&
+                                          (g[4] & 0x10u) != 0u,
+                                      "1000:D6B2: the top member takes -2, the "
+                                      "owner 0");
+                                /* 1000:D813: the state byte keeps the 0xF0 mask -
                              * the 0x80 the 0xFF clear leaves is the sentinel
                              * the original's backward walk stops on */
-                            check((g[4] & 0x80u) != 0u,
-                                  "1000:D813: the state byte keeps the 0x80");
-                            g[0] = 0xFF; g[1] = 0xFF;    /* free again */
+                                check(
+                                    (g[4] & 0x80u) != 0u,
+                                    "1000:D813: the state byte keeps the 0x80");
+                                g[0] = 0xFF;
+                                g[1] = 0xFF; /* free again */
+                            }
                         }
-                    }
-                    /* type 6's row has no handler for command 0, hook 0 and the
+                        /* type 6's row has no handler for command 0, hook 0 and the
                      * tail 1000:E860 (the step off) */
-                    a1[8] = 6; a1[9] = 0;
-                    check(object_commandRun(a1, 0x01u) == OBJ_CMD_TAIL,
-                          "a row with only a ported tail reports the tail");
-                    /* type 15's tail is 1000:DC1F, now ported: the command
+                        a1[8] = 6;
+                        a1[9] = 0;
+                        check(object_commandRun(a1, 0x01u) == OBJ_CMD_TAIL,
+                              "a row with only a ported tail reports the tail");
+                        /* type 15's tail is 1000:DC1F, now ported: the command
                      * runs its handler and reports the tail */
-                    a1[8] = 15; a1[9] = 0;
-                    check(object_commandRun(a1, 0x01u) == OBJ_CMD_TAIL ||
-                          object_commandRun(a1, 0x01u) == OBJ_CMD_HANDLER,
-                          "type 15's command now reaches its tail (1000:DC1F)");
-                }
-                /* load_terrain_b's 0xF0..0xF2 tile: the shared decoration
+                        a1[8] = 15;
+                        a1[9] = 0;
+                        check(
+                            object_commandRun(a1, 0x01u) == OBJ_CMD_TAIL ||
+                                object_commandRun(a1, 0x01u) == OBJ_CMD_HANDLER,
+                            "type 15's command now reaches its tail (1000:DC1F)");
+                    }
+                    /* load_terrain_b's 0xF0..0xF2 tile: the shared decoration
                  * handler (1000:556B) appends {x, y, frame, +8 = frame} with
                  * behaviour 1 (frame 0xC1 / 0xC5 / 0xC9). */
-                {
-                    static uint8_t m[640];
-                    uint32_t n;
-                    uint8_t *r;
+                    {
+                        static uint8_t m[640];
+                        uint32_t n;
+                        uint8_t *r;
 
-                    memset(m, 0, sizeof m);
-                    m[2u * 32u + 3u] = 0xF0u;             /* row 2, col 3 */
-                    m[5u * 32u + 7u] = 0xF2u;             /* row 5, col 7 */
-                    object_init();
-                    n = object_loadTerrainObjects(m);
-                    check(n == 10u, "the decorations append two records");
-                    r = object_slot(9);
-                    check(r != NULL && (r[0] | (r[1] << 8)) == 48u &&
-                          (r[2] | (r[3] << 8)) == 32u &&
-                          (r[4] | (r[5] << 8)) == 0x00C1u &&
-                          (r[8] | (r[9] << 8)) == 0x00C1u,
-                          "0xF0 appends frame 0xC1 at (col*16, row*16)");
-                    r = object_slot(10);
-                    check(r != NULL && (r[0] | (r[1] << 8)) == 112u &&
-                          (r[4] | (r[5] << 8)) == 0x00C9u,
-                          "0xF2 appends frame 0xC9");
-                }
-                /* load_terrain_b's 0xA9 tile: 1000:51F9 appends the five
+                        memset(m, 0, sizeof m);
+                        m[2u * 32u + 3u] = 0xF0u; /* row 2, col 3 */
+                        m[5u * 32u + 7u] = 0xF2u; /* row 5, col 7 */
+                        object_init();
+                        n = object_loadTerrainObjects(m);
+                        check(n == 10u, "the decorations append two records");
+                        r = object_slot(9);
+                        check(r != NULL && (r[0] | (r[1] << 8)) == 48u &&
+                                  (r[2] | (r[3] << 8)) == 32u &&
+                                  (r[4] | (r[5] << 8)) == 0x00C1u &&
+                                  (r[8] | (r[9] << 8)) == 0x00C1u,
+                              "0xF0 appends frame 0xC1 at (col*16, row*16)");
+                        r = object_slot(10);
+                        check(r != NULL && (r[0] | (r[1] << 8)) == 112u &&
+                                  (r[4] | (r[5] << 8)) == 0x00C9u,
+                              "0xF2 appends frame 0xC9");
+                    }
+                    /* load_terrain_b's 0xA9 tile: 1000:51F9 appends the five
                  * records from the 0x1EFE offset table at
                  * (col*16 + dx, row*16 + 1 + dy), frames 0x33..0x37. */
-                {
-                    static uint8_t m[640];
+                    {
+                        static uint8_t m[640];
 
-                    memset(m, 0, sizeof m);
-                    m[3u * 32u + 2u] = 0xA9u;             /* row 3, col 2 */
-                    object_init();
-                    check(object_loadTerrainObjects(m) == 13u,
-                          "0xA9 appends its five records");
-                    check((object_slot(9)[0] | (object_slot(9)[1] << 8)) == 48u &&
-                          (object_slot(9)[2] | (object_slot(9)[3] << 8)) == 0x44u &&
-                          (object_slot(9)[4] | (object_slot(9)[5] << 8)) == 0x33u,
-                          "the first record is (col*16+0x10, row*16+0x14) frame 0x33");
-                    check((object_slot(13)[4] | (object_slot(13)[5] << 8)) == 0x37u,
-                          "the fifth record is frame 0x37");
-                    /* the handler's SI is one past the cell: live level 16 has
+                        memset(m, 0, sizeof m);
+                        m[3u * 32u + 2u] = 0xA9u; /* row 3, col 2 */
+                        object_init();
+                        check(object_loadTerrainObjects(m) == 13u,
+                              "0xA9 appends its five records");
+                        check(
+                            (object_slot(9)[0] | (object_slot(9)[1] << 8)) ==
+                                    48u &&
+                                (object_slot(9)[2] |
+                                 (object_slot(9)[3] << 8)) == 0x44u &&
+                                (object_slot(9)[4] |
+                                 (object_slot(9)[5] << 8)) == 0x33u,
+                            "the first record is (col*16+0x10, row*16+0x14) frame 0x33");
+                        check((object_slot(13)[4] |
+                               (object_slot(13)[5] << 8)) == 0x37u,
+                              "the fifth record is frame 0x37");
+                        /* the handler's SI is one past the cell: live level 16 has
                      * 0x33 C2 C9 at cols 14..16 (2026-11-02) */
-                    check(m[4u * 32u + 2u] == 0x00u &&
-                          m[4u * 32u + 3u] == 0xC2u &&
-                          m[4u * 32u + 4u] == 0xC9u,
-                          "0xA9 marks the next two cells a row below as 0xC2/0xC9");
-                    /* 0xB7: two appended records, the only computed class
+                        check(
+                            m[4u * 32u + 2u] == 0x00u &&
+                                m[4u * 32u + 3u] == 0xC2u &&
+                                m[4u * 32u + 4u] == 0xC9u,
+                            "0xA9 marks the next two cells a row below as 0xC2/0xC9");
+                        /* 0xB7: two appended records, the only computed class
                      * (+6 = (count-6)<<8) and frame 0x116 / 0x11A */
-                    {
-                        static uint8_t m3[640], m4[640];
+                        {
+                            static uint8_t m3[640], m4[640];
 
-                        memset(m3, 0, sizeof m3);
-                        m3[2u * 32u + 2u] = 0xB7u;
-                        object_init();
-                        check(object_loadTerrainObjects(m3) == 10u,
-                              "0xB7 appends two records");
-                        check((object_slot(9)[4] | (object_slot(9)[5] << 8)) == 0x0116u &&
-                              (object_slot(9)[6] | (object_slot(9)[7] << 8)) == 0x0200u &&
-                              (object_slot(9)[0xA] | (object_slot(9)[0xB] << 8)) == 2u,
-                              "0xB7: frame 0x116, class (count-6)<<8, +0xA = 2");
-                        check((object_slot(10)[4] | (object_slot(10)[5] << 8)) == 0u &&
-                              object_slotClass(1u) == 8u &&
-                              object_slotClass(2u) == 0x85u,
-                              "0xB7: behaviour 8 then an empty record with 0x85");
-                        /* a 0xB6 within four columns either side: frame 0x11A */
-                        memset(m4, 0, sizeof m4);
-                        m4[2u * 32u + 5u] = 0xB7u;
-                        m4[2u * 32u + 2u] = 0xB6u;
-                        object_init();
-                        (void)object_loadTerrainObjects(m4);
-                        check((object_slot(10)[4] | (object_slot(10)[5] << 8)) == 0x011Au &&
-                              (object_slot(10)[0xA] | (object_slot(10)[0xB] << 8)) == 3u,
-                              "0xB7 beside a 0xB6: frame 0x11A and +0xA = 3");
-                        /* 0xBB / 0xC1: two more appends (0x26 / 0x100) */
-                        memset(m4, 0, sizeof m4);
-                        m4[1u * 32u + 1u] = 0xBBu;
-                        m4[1u * 32u + 2u] = 0xC1u;
-                        object_init();
-                        check(object_loadTerrainObjects(m4) == 10u &&
-                              (object_slot(9)[4] | (object_slot(9)[5] << 8)) == 0x0026u &&
-                              (object_slot(10)[4] | (object_slot(10)[5] << 8)) == 0x0100u &&
-                              (object_slot(10)[2] | (object_slot(10)[3] << 8)) == 0u,
-                              "0xBB appends 0x26, 0xC1 appends 0x100 at y-0x10");
-                        /* 0xBE + 0xBF: the join writes the 0xBF tile's x into the
+                            memset(m3, 0, sizeof m3);
+                            m3[2u * 32u + 2u] = 0xB7u;
+                            object_init();
+                            check(object_loadTerrainObjects(m3) == 10u,
+                                  "0xB7 appends two records");
+                            check(
+                                (object_slot(9)[4] |
+                                 (object_slot(9)[5] << 8)) == 0x0116u &&
+                                    (object_slot(9)[6] |
+                                     (object_slot(9)[7] << 8)) == 0x0200u &&
+                                    (object_slot(9)[0xA] |
+                                     (object_slot(9)[0xB] << 8)) == 2u,
+                                "0xB7: frame 0x116, class (count-6)<<8, +0xA = 2");
+                            check(
+                                (object_slot(10)[4] |
+                                 (object_slot(10)[5] << 8)) == 0u &&
+                                    object_slotClass(1u) == 8u &&
+                                    object_slotClass(2u) == 0x85u,
+                                "0xB7: behaviour 8 then an empty record with 0x85");
+                            /* a 0xB6 within four columns either side: frame 0x11A */
+                            memset(m4, 0, sizeof m4);
+                            m4[2u * 32u + 5u] = 0xB7u;
+                            m4[2u * 32u + 2u] = 0xB6u;
+                            object_init();
+                            (void)object_loadTerrainObjects(m4);
+                            check(
+                                (object_slot(10)[4] |
+                                 (object_slot(10)[5] << 8)) == 0x011Au &&
+                                    (object_slot(10)[0xA] |
+                                     (object_slot(10)[0xB] << 8)) == 3u,
+                                "0xB7 beside a 0xB6: frame 0x11A and +0xA = 3");
+                            /* 0xBB / 0xC1: two more appends (0x26 / 0x100) */
+                            memset(m4, 0, sizeof m4);
+                            m4[1u * 32u + 1u] = 0xBBu;
+                            m4[1u * 32u + 2u] = 0xC1u;
+                            object_init();
+                            check(
+                                object_loadTerrainObjects(m4) == 10u &&
+                                    (object_slot(9)[4] |
+                                     (object_slot(9)[5] << 8)) == 0x0026u &&
+                                    (object_slot(10)[4] |
+                                     (object_slot(10)[5] << 8)) == 0x0100u &&
+                                    (object_slot(10)[2] |
+                                     (object_slot(10)[3] << 8)) == 0u,
+                                "0xBB appends 0x26, 0xC1 appends 0x100 at y-0x10");
+                            /* 0xBE + 0xBF: the join writes the 0xBF tile's x into the
                          * record 0xBE made (+0xC) */
-                        memset(m4, 0, sizeof m4);
-                        m4[1u * 32u + 1u] = 0xBEu;
-                        m4[1u * 32u + 4u] = 0xBFu;
-                        object_init();
-                        check(object_loadTerrainObjects(m4) == 9u &&
-                              (object_slot(9)[4] | (object_slot(9)[5] << 8)) == 0x0082u &&
-                              (object_slot(9)[0xC] | (object_slot(9)[0xD] << 8)) == 64u,
-                              "0xBF joins into 0xBE's record (+0xC = its x)");
-                    }
-                    /* 0xAC/0xAD/0xAE: one record each, then 1000:5639 snaps its
+                            memset(m4, 0, sizeof m4);
+                            m4[1u * 32u + 1u] = 0xBEu;
+                            m4[1u * 32u + 4u] = 0xBFu;
+                            object_init();
+                            check(
+                                object_loadTerrainObjects(m4) == 9u &&
+                                    (object_slot(9)[4] |
+                                     (object_slot(9)[5] << 8)) == 0x0082u &&
+                                    (object_slot(9)[0xC] |
+                                     (object_slot(9)[0xD] << 8)) == 64u,
+                                "0xBF joins into 0xBE's record (+0xC = its x)");
+                        }
+                        /* 0xAC/0xAD/0xAE: one record each, then 1000:5639 snaps its
                      * y to the terrain step at (x+8, y+0x10) */
-                    {
-                        static uint8_t m2[640];
+                        {
+                            static uint8_t m2[640];
 
-                        memset(m2, 0, sizeof m2);
-                        m2[1u * 32u + 1u] = 0xACu;
-                        m2[1u * 32u + 2u] = 0xADu;
-                        m2[1u * 32u + 3u] = 0xAEu;
-                        object_init();
-                        check(object_loadTerrainObjects(m2) == 11u,
-                              "the three style tiles append one record each");
-                        check((object_slot(9)[4] | (object_slot(9)[5] << 8)) == 0x96u &&
-                              (object_slot(10)[4] | (object_slot(10)[5] << 8)) == 0x9Cu &&
-                              (object_slot(11)[4] | (object_slot(11)[5] << 8)) == 0x38u,
-                              "campfire 0x96, torch 0x9C, stone 0x38");
-                        /* level 1 is style 1, so 1000:5662's +3 nudge must not
+                            memset(m2, 0, sizeof m2);
+                            m2[1u * 32u + 1u] = 0xACu;
+                            m2[1u * 32u + 2u] = 0xADu;
+                            m2[1u * 32u + 3u] = 0xAEu;
+                            object_init();
+                            check(
+                                object_loadTerrainObjects(m2) == 11u,
+                                "the three style tiles append one record each");
+                            check((object_slot(9)[4] |
+                                   (object_slot(9)[5] << 8)) == 0x96u &&
+                                      (object_slot(10)[4] |
+                                       (object_slot(10)[5] << 8)) == 0x9Cu &&
+                                      (object_slot(11)[4] |
+                                       (object_slot(11)[5] << 8)) == 0x38u,
+                                  "campfire 0x96, torch 0x9C, stone 0x38");
+                            /* level 1 is style 1, so 1000:5662's +3 nudge must not
                          * apply even with a marked neighbour below-left */
-                        check((object_slot(9)[2] | (object_slot(9)[3] << 8)) !=
-                                  (uint16_t)(16u + 3u) || level_style() == 6u,
-                              "the +3 nudge is gated on the style");
-                        check((object_slot(9)[8] | (object_slot(9)[9] << 8)) == 0xFFFFu &&
-                              (object_slot(11)[8] | (object_slot(11)[9] << 8)) == 0u &&
-                              (object_slot(11)[0xC] | (object_slot(11)[0xD] << 8)) == 0xFFFFu,
-                              "the style fields (+8 / +0xC) are per tile");
+                            check((object_slot(9)[2] |
+                                   (object_slot(9)[3] << 8)) !=
+                                          (uint16_t)(16u + 3u) ||
+                                      level_style() == 6u,
+                                  "the +3 nudge is gated on the style");
+                            check((object_slot(9)[8] |
+                                   (object_slot(9)[9] << 8)) == 0xFFFFu &&
+                                      (object_slot(11)[8] |
+                                       (object_slot(11)[9] << 8)) == 0u &&
+                                      (object_slot(11)[0xC] |
+                                       (object_slot(11)[0xD] << 8)) == 0xFFFFu,
+                                  "the style fields (+8 / +0xC) are per tile");
+                        }
                     }
-                }
-                /* The +0xA hook, 1000:D8BD (the terrain settle), on a special
+                    /* The +0xA hook, 1000:D8BD (the terrain settle), on a special
                  * tile: the settle returns before writing anything, so the only
                  * change is the idle handler's, and the tail still runs. */
-                {
-                    const uint8_t *map = level_map();
-                    uint32_t sp0 = level_specialTile(0u), sp1 = level_specialTile(1u);
-                    uint8_t *a1;
-                    int32_t found = 0, col = 0, row = 0;
+                    {
+                        const uint8_t *map = level_map();
+                        uint32_t sp0 = level_specialTile(0u),
+                                 sp1 = level_specialTile(1u);
+                        uint8_t *a1;
+                        int32_t found = 0, col = 0, row = 0;
 
-                    for (uint32_t r = 0; r < 640u && !found; r++)
-                        if (map[r] == sp0 || map[r] == sp1) {
-                            found = 1; row = (int32_t)(r / 32u); col = (int32_t)(r % 32u);
-                        }
-                    check(found != 0, "a special tile for the settle test");
-                    object_init();
-                    a1 = object_slot(0);
-                    a1[0] = (uint8_t)(16 * col - 8); a1[1] = 0;
-                    a1[2] = (uint8_t)(16 * row - 0x18); a1[3] = 0;
-                    a1[4] = 0; a1[5] = 0; a1[6] = 0; a1[7] = 0;
-                    a1[8] = 2; a1[9] = 0; a1[0xA] = 0; a1[0xB] = 0;
-                    object_setActionEntity(0u);
-                    /* command 6 (input 0x04) -> 1000:E72A leaves the type at 2
+                        for (uint32_t r = 0; r < 640u && !found; r++)
+                            if (map[r] == sp0 || map[r] == sp1) {
+                                found = 1;
+                                row = (int32_t)(r / 32u);
+                                col = (int32_t)(r % 32u);
+                            }
+                        check(found != 0, "a special tile for the settle test");
+                        object_init();
+                        a1 = object_slot(0);
+                        a1[0] = (uint8_t)(16 * col - 8);
+                        a1[1] = 0;
+                        a1[2] = (uint8_t)(16 * row - 0x18);
+                        a1[3] = 0;
+                        a1[4] = 0;
+                        a1[5] = 0;
+                        a1[6] = 0;
+                        a1[7] = 0;
+                        a1[8] = 2;
+                        a1[9] = 0;
+                        a1[0xA] = 0;
+                        a1[0xB] = 0;
+                        object_setActionEntity(0u);
+                        /* command 6 (input 0x04) -> 1000:E72A leaves the type at 2
                      * (frame 0x10), so the hook runs; the feet are on a special
                      * tile, which stops the settle before it writes anything */
-                    check(object_commandRun(a1, 0x04u) == OBJ_CMD_TAIL,
-                          "the settle hook runs and the tail still follows");
-                    check((a1[2] | (a1[3] << 8)) == (uint16_t)(16 * row - 0x18) &&
-                          (a1[4] | (a1[5] << 8)) == 0x0010u &&
-                          (a1[8] | (a1[9] << 8)) == 2u,
-                          "a special tile stops the settle before it writes");
-                }
+                        check(
+                            object_commandRun(a1, 0x04u) == OBJ_CMD_TAIL,
+                            "the settle hook runs and the tail still follows");
+                        check(
+                            (a1[2] | (a1[3] << 8)) ==
+                                    (uint16_t)(16 * row - 0x18) &&
+                                (a1[4] | (a1[5] << 8)) == 0x0010u &&
+                                (a1[8] | (a1[9] << 8)) == 2u,
+                            "a special tile stops the settle before it writes");
+                    }
                 }
                 /* the four placed humans again for the second-record check */
                 object_init();
@@ -1911,8 +2338,10 @@ int main(int argc, char **argv)
                         { 48, 25 }, { 208, 25 }, { 256, 137 }, { 465, 265 }
                     };
                     rec = object_slot(i);
-                    rec[0] = (uint8_t)pos[i][0]; rec[1] = (uint8_t)(pos[i][0] >> 8);
-                    rec[2] = (uint8_t)pos[i][1]; rec[3] = (uint8_t)(pos[i][1] >> 8);
+                    rec[0] = (uint8_t)pos[i][0];
+                    rec[1] = (uint8_t)(pos[i][0] >> 8);
+                    rec[2] = (uint8_t)pos[i][1];
+                    rec[3] = (uint8_t)(pos[i][1] >> 8);
                     rec[4] = 0x10;
                     rec[6] = 0x00;
                     rec[8] = 0x02;
@@ -1942,15 +2371,16 @@ int main(int argc, char **argv)
                 uint8_t *carried = object_slot(13u);
 
                 rec = host;
-                rec[4] = 0x01; rec[5] = 0x00;          /* frame 1 */
-                rec[7] = 5u;                            /* the class slot id */
-                object_setSlotClass(5u, 5u);            /* behaviour class 5 */
+                rec[4] = 0x01;
+                rec[5] = 0x00; /* frame 1 */
+                rec[7] = 5u; /* the class slot id */
+                object_setSlotClass(5u, 5u); /* behaviour class 5 */
                 memset(carried, 0, 0x12u);
                 memset(page, 0, sizeof page);
                 object_render(page, 0, 0);
                 check((carried[0] | (carried[1] << 8)) == 52u &&
-                      (carried[2] | (carried[3] << 8)) == 33u &&
-                      (carried[4] | (carried[5] << 8)) == 0x5Au,
+                          (carried[2] | (carried[3] << 8)) == 33u &&
+                          (carried[4] | (carried[5] << 8)) == 0x5Au,
                       "the class overlay moves and frames the carried record");
                 rec[7] = 0u;
                 object_setSlotClass(5u, 0u);
@@ -1965,16 +2395,19 @@ int main(int argc, char **argv)
                 uint32_t ink;
 
                 memset(m5, 0, sizeof m5);
-                m5[2u * 32u + 2u] = 0xABu;              /* the spear tile */
+                m5[2u * 32u + 2u] = 0xABu; /* the spear tile */
                 object_init();
                 check(object_loadTerrainObjects(m5) == 9u,
                       "the 0xAB spear for the taken-record walk");
                 sp = object_slot(9);
-                sp[0] = 10; sp[1] = 0; sp[2] = 10; sp[3] = 0;
+                sp[0] = 10;
+                sp[1] = 0;
+                sp[2] = 10;
+                sp[3] = 0;
                 check((sp[4] | (sp[5] << 8)) == 0x0060u &&
-                      object_slotClass(1u) == 5u,
+                          object_slotClass(1u) == 5u,
                       "the spear sits in live slot 1");
-                object_setSlotClass(1u, 0x85u);         /* the pickup's mark */
+                object_setSlotClass(1u, 0x85u); /* the pickup's mark */
                 memset(page, 0, sizeof page);
                 object_render(page, 0, 0);
                 ink = 0;
@@ -1991,8 +2424,7 @@ int main(int argc, char **argv)
                 for (uint32_t y = 10; y < 26; y++)
                     for (uint32_t x = 10; x < 26; x++)
                         if (page[y * 320u + x]) ink++;
-                check(ink != 0u,
-                      "the same record draws while it is not taken");
+                check(ink != 0u, "the same record draws while it is not taken");
             }
             object_publishBank(NULL, 0u);
             free(bank);
@@ -2006,9 +2438,11 @@ int main(int argc, char **argv)
     check(level_diskStatusBegin(1u) == 0, "a present disc skips the prompt");
     {
         check(!res_volumePresent(3u), "disc 3 is the missing-volume case");
-        check(level_diskStatusBegin(3u) == 1, "a missing disc draws the prompt");
+        check(level_diskStatusBegin(3u) == 1,
+              "a missing disc draws the prompt");
         check(palette_fadeActive(), "the prompt fades its palette in");
-        for (uint32_t t = 0; t < 80u && palette_fadeActive(); t++) palette_tick();
+        for (uint32_t t = 0; t < 80u && palette_fadeActive(); t++)
+            palette_tick();
         check(!palette_fadeActive(), "the prompt fade completes");
         {
             InputState k;
@@ -2053,7 +2487,7 @@ int main(int argc, char **argv)
      * (class 5 -> 2, the bar's 4-icon spear group), and op 6 with the class
      * set runs the class path 1000:9D5D: the carried record is thrown at the
      * acting record's feet and the bar returns to group 1. */
-    object_init();                       /* fresh array: 6c2 marked the spear */
+    object_init(); /* fresh array: 6c2 marked the spear */
     if (level_load(0) == 0) {
         uint8_t *actor = object_slot(0), *spear = object_slot(9);
 
@@ -2061,12 +2495,17 @@ int main(int argc, char **argv)
          * reads prog[2] = op 2; earlier blocks may have left a stale cursor */
         object_actionSetCursor(1u);
         check(actor != NULL && spear != NULL &&
-              (spear[4] | (spear[5] << 8)) == 0x0060u,
+                  (spear[4] | (spear[5] << 8)) == 0x0060u,
               "the spear is live at index 9");
         object_setActionEntity(0u);
-        actor[0] = (uint8_t)(448u - 8u); actor[1] = (uint8_t)((448u - 8u) >> 8);
-        actor[2] = 32u; actor[3] = 0;
-        actor[4] = 0x10; actor[6] = 0; actor[8] = 2; actor[9] = 0;
+        actor[0] = (uint8_t)(448u - 8u);
+        actor[1] = (uint8_t)((448u - 8u) >> 8);
+        actor[2] = 32u;
+        actor[3] = 0;
+        actor[4] = 0x10;
+        actor[6] = 0;
+        actor[8] = 2;
+        actor[9] = 0;
         check(object_actionProgram() == 1u && statusbar_actionGroup() == 1u,
               "the bar starts on group 1");
         object_actionRun();
@@ -2074,7 +2513,8 @@ int main(int argc, char **argv)
               "the pickup takes the spear");
         check(object_actionProgram() == 2u && statusbar_actionGroup() == 2u,
               "the pickup moves the bar to the spear's group 2");
-        check(statusbar_actionCount(1u) == 2u && statusbar_actionCount(2u) == 4u,
+        check(statusbar_actionCount(1u) == 2u &&
+                  statusbar_actionCount(2u) == 4u,
               "group 2 shows four icons where group 1 shows two");
         /* program 2's opcode walk is prog[2..5] = 3,4,5,6 - cursor 4 is op 6 */
         object_actionSetCursor(4u);
@@ -2086,9 +2526,9 @@ int main(int argc, char **argv)
         /* 1000:E361 aligns the probe row: row 48 + the 0xAB page byte's bit 7
          * leaves BX = 48, so y = 48 - 0xF = 33 (the old 41 was unaligned). */
         check((spear[0] | (spear[1] << 8)) == 440u &&
-              (spear[2] | (spear[3] << 8)) == 33u &&
-              (spear[4] | (spear[5] << 8)) == 0x0060u &&
-              (spear[8] | (spear[9] << 8)) == 0xFFFFu,
+                  (spear[2] | (spear[3] << 8)) == 33u &&
+                  (spear[4] | (spear[5] << 8)) == 0x0060u &&
+                  (spear[8] | (spear[9] << 8)) == 0xFFFFu,
               "the spear is thrown to the actor's feet, frame 0x60");
         object_actionSetCursor(1u);
     }
@@ -2099,12 +2539,15 @@ int main(int argc, char **argv)
      * the next (masked) frame's idle form (0xEFD7) then runs 0xEFE4 and the
      * record leaves the pose (type += 2, frame += 1). */
     object_init();
-    if (level_load(1) == 0) {                /* level 2: positional goal */
+    if (level_load(1) == 0) { /* level 2: positional goal */
         uint32_t ord = 0, i;
         uint8_t *actor = object_slot(0), *it = NULL;
 
         for (i = 1; i <= object_liveCount() - 8u; i++)
-            if (object_slotClass(i) == 5u) { ord = i; break; }
+            if (object_slotClass(i) == 5u) {
+                ord = i;
+                break;
+            }
         check(ord != 0u, "level 2 has a spear for the release test");
         if (ord) {
             it = object_slot(8u + ord);
@@ -2113,12 +2556,18 @@ int main(int argc, char **argv)
             object_setActionLatched(0);
             actor[0] = (uint8_t)((it[0] | (it[1] << 8)) - 8u);
             actor[1] = (uint8_t)(((it[0] | (it[1] << 8)) - 8u) >> 8);
-            actor[2] = it[2]; actor[3] = it[3];
-            actor[4] = 0x10; actor[6] = 0; actor[8] = 2; actor[9] = 0;
-            object_actionRun();                  /* the pickup */
+            actor[2] = it[2];
+            actor[3] = it[3];
+            actor[4] = 0x10;
+            actor[6] = 0;
+            actor[8] = 2;
+            actor[9] = 0;
+            object_actionRun(); /* the pickup */
             object_actionSetCursor(2u);
-            actor[8] = 2; actor[9] = 0; actor[4] = 0x10;
-            object_actionRun();                  /* op 4: the pose */
+            actor[8] = 2;
+            actor[9] = 0;
+            actor[4] = 0x10;
+            object_actionRun(); /* op 4: the pose */
             check((uint32_t)(actor[4] | (actor[5] << 8)) == 0x00BEu,
                   "the throw pose is up before the release");
             /* the press frame: the fire half selects the turn; pause_toggle
@@ -2150,15 +2599,19 @@ int main(int argc, char **argv)
         ObjCommand c;
 
         object_setActionEntity(0u);
-        actor[6] = 0; actor[7] = 0;
-        actor[8] = 0x18; actor[9] = 0;       /* the throw pose's type */
-        actor[4] = 0xBE; actor[5] = 0;
+        actor[6] = 0;
+        actor[7] = 0;
+        actor[8] = 0x18;
+        actor[9] = 0; /* the throw pose's type */
+        actor[4] = 0xBE;
+        actor[5] = 0;
         c = object_commandSelect(actor, 0x00u);
         check(c.handler == 0xEFD7u,
               "the no-input command selects the pose row's row[9] (0xEFD7)");
         c = object_commandSelect(actor, 0x80u);
-        check(c.handler == 0xEFD4u,
-              "the fire-only command selects the fire half's row[0x19] (0xEFD4)");
+        check(
+            c.handler == 0xEFD4u,
+            "the fire-only command selects the fire half's row[0x19] (0xEFD4)");
     }
 
     /* 6c7. D-68: the pending-event 4 charge loop.  With the throw pose up,
@@ -2166,13 +2619,16 @@ int main(int argc, char **argv)
      * (0x3747) in the bar band; the ACTION press ends the charge (0x373B) and
      * the release (0xEFD7 -> 0xEFE4) performs the jump/throw. */
     object_init();
-    if (level_load(1) == 0) {                /* level 2: positional goal */
+    if (level_load(1) == 0) { /* level 2: positional goal */
         uint32_t ord = 0, split = 0, i;
         uint8_t *actor = object_slot(0);
         uint8_t *it = NULL;
 
         for (i = 1; i <= object_liveCount() - 8u; i++)
-            if (object_slotClass(i) == 5u) { ord = i; break; }
+            if (object_slotClass(i) == 5u) {
+                ord = i;
+                break;
+            }
         check(ord != 0u, "level 2 has a spear");
         if (ord) {
             it = object_slot(8u + ord);
@@ -2180,31 +2636,40 @@ int main(int argc, char **argv)
             object_actionSetCursor(1u);
             actor[0] = (uint8_t)((it[0] | (it[1] << 8)) - 8u);
             actor[1] = (uint8_t)(((it[0] | (it[1] << 8)) - 8u) >> 8);
-            actor[2] = it[2]; actor[3] = it[3];
-            actor[4] = 0x10; actor[6] = 0; actor[8] = 2; actor[9] = 0;
-            object_actionRun();                  /* pickup */
+            actor[2] = it[2];
+            actor[3] = it[3];
+            actor[4] = 0x10;
+            actor[6] = 0;
+            actor[8] = 2;
+            actor[9] = 0;
+            object_actionRun(); /* pickup */
             object_actionSetCursor(2u);
-            actor[8] = 2; actor[9] = 0; actor[4] = 0x10;
-            object_actionRun();                  /* op 4: the pose */
+            actor[8] = 2;
+            actor[9] = 0;
+            actor[4] = 0x10;
+            object_actionRun(); /* op 4: the pose */
             check((uint32_t)(actor[4] | (actor[5] << 8)) == 0x00BEu &&
-                  (uint32_t)(actor[8] | (actor[9] << 8)) == 0x0018u,
+                      (uint32_t)(actor[8] | (actor[9] << 8)) == 0x0018u,
                   "the throw pose is up (frame 0xBE, type 0x18)");
             /* earlier blocks may have left the ACTION latch or the [0x6F1D]
              * sequence latch set: SPACE home-states the pose (clearing both)
              * and the op re-poses, so the turn starts from a known state */
             object_setActionLatched(0);
             object_spaceAction();
-            object_setActionLatched(0);   /* 0xEE01 sets it; a release clears it */
+            object_setActionLatched(
+                0); /* 0xEE01 sets it; a release clears it */
             object_actionSetCursor(2u);
-            actor[8] = 2; actor[9] = 0; actor[4] = 0x10;
+            actor[8] = 2;
+            actor[9] = 0;
+            actor[4] = 0x10;
             object_actionRun();
-            for (i = 0; i < 60u; i++) statusbar_tick();   /* split -> 152 */
+            for (i = 0; i < 60u; i++) statusbar_tick(); /* split -> 152 */
             split = statusbar_split();
-            object_setActionLatched(0);          /* poll_input 0x85A9 */
-            object_commandRun(actor, 0x02u);     /* DOWN: the turn */
+            object_setActionLatched(0); /* poll_input 0x85A9 */
+            object_commandRun(actor, 0x02u); /* DOWN: the turn */
             check((uint32_t)(actor[0xEu] | (actor[0xFu] << 8)) == 4u,
                   "the turn starts the charge (+0xE = 4)");
-            object_pendingRun();                 /* event 4: enter the loop */
+            object_pendingRun(); /* event 4: enter the loop */
             check(object_chargeTick() == 1, "the charge loop runs");
             {
                 static const uint8_t shade[10] = {
@@ -2218,7 +2683,7 @@ int main(int argc, char **argv)
                         bad++;
                 check(bad == 0u, "the charge bar is drawn at +0xE = 4");
             }
-            object_commandRun(actor, 0x02u);     /* another turn frame */
+            object_commandRun(actor, 0x02u); /* another turn frame */
             object_pendingRun();
             check(object_chargeTick() == 1, "the loop keeps running");
             {
@@ -2228,7 +2693,7 @@ int main(int argc, char **argv)
                 check(video_page(0)[(split + 15u) * 320u + x] == 0xDFu,
                       "the bar follows +0xE");
             }
-            object_actionRun();                  /* the release press */
+            object_actionRun(); /* the release press */
             check(object_chargeTick() == 0, "the press ends the charge");
             {
                 uint32_t f0 = actor[4] | (actor[5] << 8);
@@ -2236,7 +2701,7 @@ int main(int argc, char **argv)
 
                 object_commandRun(actor, 0x01u); /* UP: 0xEFD7 */
                 check((uint32_t)(actor[4] | (actor[5] << 8)) != f0 ||
-                      (uint32_t)(actor[8] | (actor[9] << 8)) != t0,
+                          (uint32_t)(actor[8] | (actor[9] << 8)) != t0,
                       "the release performs the jump/throw (0xEFE4)");
             }
         }
@@ -2252,27 +2717,32 @@ int main(int argc, char **argv)
 
         object_setActionEntity(0u);
         object_actionSetCursor(1u);
-        actor[0] = (uint8_t)(448u - 8u); actor[1] = (uint8_t)((448u - 8u) >> 8);
-        actor[2] = 32u; actor[3] = 0;
-        actor[4] = 0x10; actor[6] = 0; actor[8] = 2; actor[9] = 0;
-        object_actionRun();                      /* the pickup: op 2 */
+        actor[0] = (uint8_t)(448u - 8u);
+        actor[1] = (uint8_t)((448u - 8u) >> 8);
+        actor[2] = 32u;
+        actor[3] = 0;
+        actor[4] = 0x10;
+        actor[6] = 0;
+        actor[8] = 2;
+        actor[9] = 0;
+        object_actionRun(); /* the pickup: op 2 */
         /* the six groups' cell bytes persist across levels (they are the DS
          * image's), so pin this one before the sequence */
         object_actionSetCursor(1u);
         check(actor[7] == 1u && statusbar_actionCell(2u) == 1u,
               "the pickup leaves the spear group on cell 1");
         check(object_programHeader(2u) != NULL &&
-              object_programHeader(2u)[2] == 3u &&
-              object_programHeader(2u)[3] == 4u &&
-              object_programHeader(2u)[4] == 5u &&
-              object_programHeader(2u)[5] == 6u,
+                  object_programHeader(2u)[2] == 3u &&
+                  object_programHeader(2u)[3] == 4u &&
+                  object_programHeader(2u)[4] == 5u &&
+                  object_programHeader(2u)[5] == 6u,
               "group 2's icons are ops 3,4,5,6");
-        object_spaceAction();                    /* SPACE: cell 2 */
+        object_spaceAction(); /* SPACE: cell 2 */
         check(statusbar_actionCell(2u) == 2u,
               "SPACE steps the cell to 2 (1000:3947)");
         object_actionRun();
         check((actor[4] | (actor[5] << 8)) == 0x00BEu &&
-              (actor[8] | (actor[9] << 8)) == 0x0018u,
+                  (actor[8] | (actor[9] << 8)) == 0x0018u,
               "cell 2 runs op 4 (frame 0xBE, type 0x18)");
         /* the posed type must be stood up before the next press (1000:392D),
          * then SPACE steps to cell 3 */
@@ -2281,7 +2751,7 @@ int main(int argc, char **argv)
         check(statusbar_actionCell(2u) == 3u, "SPACE reaches cell 3");
         object_actionRun();
         check((actor[4] | (actor[5] << 8)) == 0x0112u &&
-              (actor[8] | (actor[9] << 8)) == 0x0020u,
+                  (actor[8] | (actor[9] << 8)) == 0x0020u,
               "cell 3 runs op 5 (frame 0x112, type 0x20)");
         object_actionSetCursor(1u);
     }
@@ -2300,10 +2770,15 @@ int main(int argc, char **argv)
 
         object_setActionEntity(0u);
         object_actionSetCursor(1u);
-        actor[0] = (uint8_t)(448u - 8u); actor[1] = (uint8_t)((448u - 8u) >> 8);
-        actor[2] = 32u; actor[3] = 0;
-        actor[4] = 0x10; actor[6] = 0; actor[8] = 2; actor[9] = 0;
-        object_actionRun();                      /* the pickup: class 1, slot 0x85 */
+        actor[0] = (uint8_t)(448u - 8u);
+        actor[1] = (uint8_t)((448u - 8u) >> 8);
+        actor[2] = 32u;
+        actor[3] = 0;
+        actor[4] = 0x10;
+        actor[6] = 0;
+        actor[8] = 2;
+        actor[9] = 0;
+        object_actionRun(); /* the pickup: class 1, slot 0x85 */
         check(bank != NULL && bankSize > 0x10A0u + 0x40u,
               "SPRITES.DAT loads for the overlay test");
         if (bank) {
@@ -2313,17 +2788,23 @@ int main(int argc, char **argv)
             /* the marker is at 440, off the 320-wide page: move the carrier and
              * the carried record somewhere visible (the overlay re-derives the
              * carried x/y from the carrier anyway) */
-            actor[0] = 100u; actor[1] = 0; actor[2] = 25u; actor[3] = 0;
-            object_slot(9)[0] = 108u; object_slot(9)[1] = 0;
-            actor[4] = 0xBBu; actor[5] = 0;      /* the throw pose */
-            actor[8] = 1; actor[9] = 0;
+            actor[0] = 100u;
+            actor[1] = 0;
+            actor[2] = 25u;
+            actor[3] = 0;
+            object_slot(9)[0] = 108u;
+            object_slot(9)[1] = 0;
+            actor[4] = 0xBBu;
+            actor[5] = 0; /* the throw pose */
+            actor[8] = 1;
+            actor[9] = 0;
             memset(page, 0, sizeof page);
             object_render(page, 0, 0);
             /* frame 0x60 = {4256, 16, 0, 1}: the mode-1 law, block h*4 = 0x40 */
             for (row = 0; row < 16u; row++)
                 for (col = 0; col < 16u; col++) {
-                    uint8_t v = bank[0x10A0u + (col & 3u) * 0x40u +
-                                     row * 4u + (col >> 2)];
+                    uint8_t v = bank[0x10A0u + (col & 3u) * 0x40u + row * 4u +
+                                     (col >> 2)];
 
                     if (!v) continue;
                     ink++;
@@ -2335,12 +2816,13 @@ int main(int argc, char **argv)
              * carried record is moved to (x-2, y-5) with frame 0x5B (the
              * entry's trailing 0x79 sprite is drawn over part of it, so the
              * pixel law is only checked on the throw pose above) */
-            actor[4] = 0x8Cu; actor[5] = 0;
+            actor[4] = 0x8Cu;
+            actor[5] = 0;
             memset(page, 0, sizeof page);
             object_render(page, 0, 0);
             check((object_slot(9)[0] | (object_slot(9)[1] << 8)) == 98u &&
-                  (object_slot(9)[2] | (object_slot(9)[3] << 8)) == 20u &&
-                  (object_slot(9)[4] | (object_slot(9)[5] << 8)) == 0x005Bu,
+                      (object_slot(9)[2] | (object_slot(9)[3] << 8)) == 20u &&
+                      (object_slot(9)[4] | (object_slot(9)[5] << 8)) == 0x005Bu,
                   "the aim pose carries the spear at (x-2,y-5), frame 0x5B");
             object_publishBank(NULL, 0u);
         }
@@ -2356,7 +2838,10 @@ int main(int argc, char **argv)
         uint32_t o, ordinal = 0;
 
         for (o = 1; o <= object_liveCount() - 8u; o++)
-            if (object_slotClass(o) == 4u) { ordinal = o; break; }
+            if (object_slotClass(o) == 4u) {
+                ordinal = o;
+                break;
+            }
         check(ordinal != 0u, "level 13's 0xAE record takes behaviour 4");
         if (ordinal) {
             uint8_t *it = object_slot(8u + ordinal), *actor = object_slot(0);
@@ -2366,16 +2851,21 @@ int main(int argc, char **argv)
                   "the 0xAE record carries +0xE = 0xFFFF (1000:52EB)");
             object_setActionEntity(0u);
             object_actionSetCursor(1u);
-            actor[0] = (uint8_t)(ix - 8u); actor[1] = (uint8_t)((ix - 8u) >> 8);
-            actor[2] = it[2]; actor[3] = it[3];
-            actor[4] = 0x10; actor[6] = 0; actor[8] = 2; actor[9] = 0;
-            object_actionRun();                  /* the give / hold */
+            actor[0] = (uint8_t)(ix - 8u);
+            actor[1] = (uint8_t)((ix - 8u) >> 8);
+            actor[2] = it[2];
+            actor[3] = it[3];
+            actor[4] = 0x10;
+            actor[6] = 0;
+            actor[8] = 2;
+            actor[9] = 0;
+            object_actionRun(); /* the give / hold */
             check(actor[7] == ordinal && object_slotClass(ordinal) == 0x84u &&
-                  (actor[8] | (actor[9] << 8)) == 0x000Fu,
+                      (actor[8] | (actor[9] << 8)) == 0x000Fu,
                   "the give attaches the record and makes the actor type 0x0F");
             check(object_actionProgram() == 6u && statusbar_actionGroup() == 6u,
                   "the give moves the bar to behaviour 4's group 6");
-            object_actionRun();                  /* program 6: op 6 */
+            object_actionRun(); /* program 6: op 6 */
             check(actor[7] == 0u && object_slotClass(ordinal) == 0x04u,
                   "the class path clears the class and the mark");
             check((uint32_t)(actor[2] | (actor[3] << 8)) == iy - 8u,
@@ -2397,7 +2887,8 @@ int main(int argc, char **argv)
         if (cb) {
             uint32_t ink = 0, bad = 0, s, row, col, i;
 
-            for (i = 0; i < 0x600u; i++) if (cb[i]) ink++;
+            for (i = 0; i < 0x600u; i++)
+                if (cb[i]) ink++;
             check(ink > 300u, "the C block carries the branch art");
             /* level_setup_screen's add_delta_nonzero(0x600, 0x20): every
              * non-zero C byte moves into the 0x20..0x3F art bank (BD2's raw
@@ -2431,11 +2922,12 @@ int main(int argc, char **argv)
                     for (row = 0; row < 24u; row++)
                         for (col = 0; col < 32u; col++) {
                             uint8_t v = cb[s * 0x300u + (col & 3u) * 0xC0u +
-                                              row * 8u + (col >> 2)];
+                                           row * 8u + (col >> 2)];
 
                             if (!v) continue;
                             seen++;
-                            if (page[(129u + row) * 320u + 160u + s * 0x20u + col] == v)
+                            if (page[(129u + row) * 320u + 160u + s * 0x20u +
+                                     col] == v)
                                 hit++;
                         }
                 check(seen == ink && hit == seen,
@@ -2502,7 +2994,10 @@ int main(int argc, char **argv)
         for (i = 8u; i <= object_liveCount(); i++) {
             uint8_t *r = object_slot(i);
 
-            if ((uint32_t)(r[4] | (r[5] << 8)) == 0x33u) { log = r; break; }
+            if ((uint32_t)(r[4] | (r[5] << 8)) == 0x33u) {
+                log = r;
+                break;
+            }
         }
         check(log != NULL, "level 16's first A9 log record exists");
         /* the marker pair lands one cell right of the 0xA9 */
@@ -2510,10 +3005,9 @@ int main(int argc, char **argv)
             for (col = 0; col < 32u; col++)
                 if (level_map()[row * 32u + col] == 0xA9u) goto found;
     found:
-        check(row < 20u &&
-              level_map()[(row + 1u) * 32u + col] == 0x33u &&
-              level_map()[(row + 1u) * 32u + col + 1u] == 0xC2u &&
-              level_map()[(row + 1u) * 32u + col + 2u] == 0xC9u,
+        check(row < 20u && level_map()[(row + 1u) * 32u + col] == 0x33u &&
+                  level_map()[(row + 1u) * 32u + col + 1u] == 0xC2u &&
+                  level_map()[(row + 1u) * 32u + col + 2u] == 0xC9u,
               "the 0xA9 markers sit one cell right of the tile (live)");
         if (log) {
             uint8_t *logs[5];
@@ -2522,32 +3016,33 @@ int main(int argc, char **argv)
             for (k = 0; k < 5u; k++) logs[k] = log + k * 0x12u;
             /* the marker pair, as 1000:DF2C leaves it */
             check(level_map()[(row + 1u) * 32u + col + 1u] == 0xC2u &&
-                  level_map()[(row + 1u) * 32u + col + 2u] == 0xC9u,
+                      level_map()[(row + 1u) * 32u + col + 2u] == 0xC9u,
                   "the A9 marker pair is C2/C9 before a mark");
             /* the settle pokes the log the foot is on: the table offset is
              * 8 + 0x12*k, i.e. that record's +8 */
-            logs[4][8] = 0xFFu;              /* log 13, the rightmost */
+            logs[4][8] = 0xFFu; /* log 13, the rightmost */
             logs[4][9] = 0xFFu;
             object_tick(NULL);
             check((uint32_t)(logs[4][2] | (logs[4][3] << 8)) == 0x116u &&
-                  !(logs[4][6] & 0x80u),
+                      !(logs[4][6] & 0x80u),
                   "a marked log falls 2 px on the next tick");
             /* live: after log 13 the pair reads C2/CA (DS:0x6697's table) */
             check(level_map()[(row + 1u) * 32u + col + 1u] == 0xC2u &&
-                  level_map()[(row + 1u) * 32u + col + 2u] == 0xCAu,
+                      level_map()[(row + 1u) * 32u + col + 2u] == 0xCAu,
                   "the marker pair encodes the marked log (C2/CA)");
             /* live: logs 11..13 marked -> C3/00 */
             logs[2][8] = logs[2][9] = 0xFFu;
             logs[3][8] = logs[3][9] = 0xFFu;
             object_tick(NULL);
             check(level_map()[(row + 1u) * 32u + col + 1u] == 0xC3u &&
-                  level_map()[(row + 1u) * 32u + col + 2u] == 0x00u,
+                      level_map()[(row + 1u) * 32u + col + 2u] == 0x00u,
                   "the marker pair follows the marked set (C3/00)");
             /* past 0x138 the record hides itself */
-            logs[4][2] = 0x38u; logs[4][3] = 0x01u;  /* y = 0x138 */
+            logs[4][2] = 0x38u;
+            logs[4][3] = 0x01u; /* y = 0x138 */
             object_tick(NULL);
             check((uint32_t)(logs[4][2] | (logs[4][3] << 8)) == 0x13Au &&
-                  (logs[4][6] & 0x80u) != 0u,
+                      (logs[4][6] & 0x80u) != 0u,
                   "past y 0x138 the log hides itself (1000:D5E4)");
         }
     }
@@ -2567,13 +3062,20 @@ int main(int argc, char **argv)
             object_init();
             memset(flat, 0, sizeof flat);
             r = object_slot(0);
-            r[0] = 10; r[1] = 0; r[2] = 10; r[3] = 0;
-            r[4] = (uint8_t)frames[k]; r[5] = (uint8_t)(frames[k] >> 8);
-            r[6] = 0; r[7] = 0;
+            r[0] = 10;
+            r[1] = 0;
+            r[2] = 10;
+            r[3] = 0;
+            r[4] = (uint8_t)frames[k];
+            r[5] = (uint8_t)(frames[k] >> 8);
+            r[6] = 0;
+            r[7] = 0;
             object_render(flat, 0, 0);
-            for (i = 0; i < 320u * 200u; i++) if (flat[i]) ink++;
+            for (i = 0; i < 320u * 200u; i++)
+                if (flat[i]) ink++;
             if (k == 0u)
-                check(ink > 10u, "the A9 log sprite draws (field E, frame 0x33)");
+                check(ink > 10u,
+                      "the A9 log sprite draws (field E, frame 0x33)");
             else
                 check(ink > 10u, k == 1u ? "field H draws frame 0x26"
                                          : "field H draws frame 0x27");
@@ -2637,9 +3139,9 @@ int main(int argc, char **argv)
         uint32_t i;
 
         memset(m, 0, sizeof m);
-        m[10 * 32 + 10] = 0xAAu;             /* a placed human  */
-        m[10 * 32 + 20] = 0xABu;             /* a spear: class 5 */
-        m[10 * 32 + 22] = 0xB7u;             /* a behaviour-8 record */
+        m[10 * 32 + 10] = 0xAAu; /* a placed human  */
+        m[10 * 32 + 20] = 0xABu; /* a spear: class 5 */
+        m[10 * 32 + 22] = 0xB7u; /* a behaviour-8 record */
         object_init();
         (void)object_loadTerrainObjects(m);
         for (i = 8u; i <= object_liveCount(); i++) {
@@ -2655,36 +3157,65 @@ int main(int argc, char **argv)
             uint32_t keep = (uint32_t)((mover - object_slot(0)) / 0x12u);
             uint8_t *save = mover;
 
-            mover[0] = 100; mover[1] = 0; mover[2] = 100; mover[3] = 0;
-            mover[4] = 0x58; mover[5] = 0;
-            mover[8] = 0xFF; mover[9] = 0xFF;
-            mover[0xA] = 0; mover[0xB] = 0; mover[0xC] = 1; mover[0xD] = 0;
-            mover[0xE] = 0; mover[0xF] = 0;
-            slot[0] = 100; slot[1] = 0; slot[2] = 100; slot[3] = 0;
-            slot[4] = 0x10; slot[6] = 0; slot[8] = 2; slot[9] = 0;
-            if (rec) { rec[0] = 0xFF; rec[1] = 0xFF; }  /* keep the record pass out */
+            mover[0] = 100;
+            mover[1] = 0;
+            mover[2] = 100;
+            mover[3] = 0;
+            mover[4] = 0x58;
+            mover[5] = 0;
+            mover[8] = 0xFF;
+            mover[9] = 0xFF;
+            mover[0xA] = 0;
+            mover[0xB] = 0;
+            mover[0xC] = 1;
+            mover[0xD] = 0;
+            mover[0xE] = 0;
+            mover[0xF] = 0;
+            slot[0] = 100;
+            slot[1] = 0;
+            slot[2] = 100;
+            slot[3] = 0;
+            slot[4] = 0x10;
+            slot[6] = 0;
+            slot[8] = 2;
+            slot[9] = 0;
+            if (rec) {
+                rec[0] = 0xFF;
+                rec[1] = 0xFF;
+            } /* keep the record pass out */
             object_updateList();
             check((slot[4] | (slot[5] << 8)) == 0x0028u &&
-                  (slot[8] | (slot[9] << 8)) == 0x0016u &&
-                  (slot[0xAu] | (slot[0xBu] << 8)) == 5u &&
-                  (slot[0] | (slot[1] << 8)) == 92u &&
-                  save[6] == 0xFFu,
+                      (slot[8] | (slot[9] << 8)) == 0x0016u &&
+                      (slot[0xAu] | (slot[0xBu] << 8)) == 5u &&
+                      (slot[0] | (slot[1] << 8)) == 92u && save[6] == 0xFFu,
                   "a mover in reach rewrites the placed slot (1000:5B3E)");
             (void)keep;
         }
         if (mover && rec) {
-            object_setSlotClassForProbe((uint32_t)((mover - object_slot(0)) / 0x12u) - 8u, 5u);
-            mover[6] = 0; mover[7] = 0;
-            mover[8] = 0xFF; mover[9] = 0xFF;
-            mover[0xA] = 0; mover[0xB] = 0; mover[0xC] = 1; mover[0xD] = 0;
-            mover[0xE] = 0; mover[0xF] = 0;
-            rec[0] = 100; rec[1] = 0; rec[2] = 90; rec[3] = 0;   /* dy -10 */
-            rec[4] = 0x16; rec[5] = 0x01; rec[6] = 0; rec[7] = 0;
+            object_setSlotClassForProbe(
+                (uint32_t)((mover - object_slot(0)) / 0x12u) - 8u, 5u);
+            mover[6] = 0;
+            mover[7] = 0;
+            mover[8] = 0xFF;
+            mover[9] = 0xFF;
+            mover[0xA] = 0;
+            mover[0xB] = 0;
+            mover[0xC] = 1;
+            mover[0xD] = 0;
+            mover[0xE] = 0;
+            mover[0xF] = 0;
+            rec[0] = 100;
+            rec[1] = 0;
+            rec[2] = 90;
+            rec[3] = 0; /* dy -10 */
+            rec[4] = 0x16;
+            rec[5] = 0x01;
+            rec[6] = 0;
+            rec[7] = 0;
             object_updateList();
             check((rec[4] | (rec[5] << 8)) == 0x0028u &&
-                  (rec[8] | (rec[9] << 8)) == 3u &&
-                  (rec[0xAu] | (rec[0xBu] << 8)) == 6u &&
-                  mover[6] == 0xFFu,
+                      (rec[8] | (rec[9] << 8)) == 3u &&
+                      (rec[0xAu] | (rec[0xBu] << 8)) == 6u && mover[6] == 0xFFu,
                   "a mover in reach rewrites a behaviour-8 record (1000:5A2F)");
         }
     }
@@ -2704,14 +3235,17 @@ int main(int argc, char **argv)
         for (i = 8u; i <= object_liveCount(); i++) {
             uint8_t *r = object_slot(i);
 
-            if ((object_slotClass(i - 8u) & 0x3Fu) == 8u) { rec = r; break; }
+            if ((object_slotClass(i - 8u) & 0x3Fu) == 8u) {
+                rec = r;
+                break;
+            }
         }
         check(rec != NULL, "the 0xB7 behaviour-8 record spawns");
         if (rec) {
             f0 = rec[4] | (rec[5] << 8);
             object_updateList();
             check((uint32_t)(rec[4] | (rec[5] << 8)) == f0 + 1u &&
-                  (rec[8] | (rec[9] << 8)) == 6u,
+                      (rec[8] | (rec[9] << 8)) == 6u,
                   "the state-2 animation advances the frame (1000:C615)");
         }
     }
@@ -2735,10 +3269,11 @@ int main(int argc, char **argv)
              * vy++ step (the phase-1 slope is not guaranteed on this cell) */
             x0 = (uint32_t)(stone[0] | (stone[1] << 8));
             a0 = (uint32_t)(stone[2] | (stone[3] << 8));
-            stone[0xA] = 1; stone[0xB] = 0;
+            stone[0xA] = 1;
+            stone[0xB] = 0;
             object_updateList();
             check((uint32_t)(stone[2] | (stone[3] << 8)) != a0 &&
-                  (stone[0xA] | (stone[0xB] << 8)) == 2u,
+                      (stone[0xA] | (stone[0xB] << 8)) == 2u,
                   "the behaviour-4 stone falls (1000:CEC3 phase 2)");
             (void)x0;
         }
@@ -2756,39 +3291,53 @@ int main(int argc, char **argv)
         a = object_slot(0);
         object_setActionEntity(0u);
         object_actionSetProgram(2u);
-        object_actionSetCursor(2u);          /* program 2, cell 2 = icon 4 */
+        object_actionSetCursor(2u); /* program 2, cell 2 = icon 4 */
         object_setActionLatched(0);
         object_setSlotClass(1u, 5u);
         a[7] = 1u;
-        a[0] = 100; a[1] = 0; a[2] = 100; a[3] = 0;
-        a[4] = 0x10; a[5] = 0; a[6] = 0; a[8] = 2; a[9] = 0;
-        a[0xA] = 0; a[0xB] = 0; a[0xC] = 0; a[0xD] = 0;
-        a[0xE] = 0; a[0xF] = 0;
+        a[0] = 100;
+        a[1] = 0;
+        a[2] = 100;
+        a[3] = 0;
+        a[4] = 0x10;
+        a[5] = 0;
+        a[6] = 0;
+        a[8] = 2;
+        a[9] = 0;
+        a[0xA] = 0;
+        a[0xB] = 0;
+        a[0xC] = 0;
+        a[0xD] = 0;
+        a[0xE] = 0;
+        a[0xF] = 0;
 
-        object_actionRun();                  /* the tap */
-        check((a[8] | (a[9] << 8)) == 0x0018u &&
-              (a[4] | (a[5] << 8)) == 0x00BEu && object_actionLatched(),
-              "op 4 winds the human up and pause_toggle latches (1000:EFA1/0x3538)");
+        object_actionRun(); /* the tap */
+        check(
+            (a[8] | (a[9] << 8)) == 0x0018u &&
+                (a[4] | (a[5] << 8)) == 0x00BEu && object_actionLatched(),
+            "op 4 winds the human up and pause_toggle latches (1000:EFA1/0x3538)");
 
-        object_setActionLatched(0);          /* the tap's release */
-        check(!object_actionLatched(), "the release clears the latch (1000:85A9)");
+        object_setActionLatched(0); /* the tap's release */
+        check(!object_actionLatched(),
+              "the release clears the latch (1000:85A9)");
 
-        (void)object_commandRun(a, 0x80u);   /* a held frame: the fire column */
+        (void)object_commandRun(a, 0x80u); /* a held frame: the fire column */
         check(!object_actionLatched() &&
-              (uint32_t)(a[0xE] | (a[0xF] << 8)) == 4u &&
-              object_actionPending() == 4u,
+                  (uint32_t)(a[0xE] | (a[0xF] << 8)) == 4u &&
+                  object_actionPending() == 4u,
               "the fire column charges without latching (1000:EE07)");
         object_pendingRun();
-        check(object_chargeTick() == 1, "the charge loop draws the bar (1000:3702)");
+        check(object_chargeTick() == 1,
+              "the charge loop draws the bar (1000:3702)");
 
-        (void)object_commandRun(a, 0x80u);   /* the next held frame */
+        (void)object_commandRun(a, 0x80u); /* the next held frame */
         check((uint32_t)(a[0xE] | (a[0xF] << 8)) == 8u,
               "the charge keeps walking +0xE while ACTION is held");
-        object_actionRun();                  /* 1000:3530: blocked by [0x6F1D] */
+        object_actionRun(); /* 1000:3530: blocked by [0x6F1D] */
         check((a[8] | (a[9] << 8)) == 0x0018u,
               "pause_toggle is blocked while the charge owns the record");
 
-        (void)object_commandRun(a, 0x00u);   /* the release */
+        (void)object_commandRun(a, 0x00u); /* the release */
         {
             uint32_t t = a[8] | (a[9] << 8);
             uint32_t e = a[0xE] | (a[0xF] << 8);
@@ -2804,9 +3353,10 @@ int main(int argc, char **argv)
             /* D-84: the landing pair is 1000:F8D2/F8D8 - frame <- [0x4230]
              * (objSide), type <- [0x4234] (objSelXoff) - so the throw path
              * (0xF078: 8/1) must not land as frame 1/type 0. */
-            check((t == 0x0000u || t == 0x0001u) &&
-                  ((a[4] | (a[5] << 8)) == 8u || (a[4] | (a[5] << 8)) == 0u),
-                  "the landing pair is frame <- [0x4230], type <- [0x4234]");
+            check(
+                (t == 0x0000u || t == 0x0001u) &&
+                    ((a[4] | (a[5] << 8)) == 8u || (a[4] | (a[5] << 8)) == 0u),
+                "the landing pair is frame <- [0x4230], type <- [0x4234]");
         }
     }
 
@@ -2827,8 +3377,10 @@ int main(int argc, char **argv)
              * descriptor - verified live against DS:0x39A8 on 2026-11-02. */
             {
                 static const uint32_t pairs[4][2] = {
-                    { 0x10Fu, 0x111u }, { 0x113u, 0x115u },
-                    { 0x117u, 0x119u }, { 0x11Bu, 0x11Du },
+                    { 0x10Fu, 0x111u },
+                    { 0x113u, 0x115u },
+                    { 0x117u, 0x119u },
+                    { 0x11Bu, 0x11Du },
                 };
                 uint32_t k, bad = 0;
 
@@ -2859,11 +3411,17 @@ int main(int argc, char **argv)
                 object_publishBank(bank, sz);
                 memset(page, 0, sizeof page);
                 r = object_slot(0);
-                r[0] = 10; r[1] = 0; r[2] = 10; r[3] = 0;
-                r[4] = (uint8_t)frames[k]; r[5] = (uint8_t)(frames[k] >> 8);
-                r[6] = 0; r[7] = 0;
+                r[0] = 10;
+                r[1] = 0;
+                r[2] = 10;
+                r[3] = 0;
+                r[4] = (uint8_t)frames[k];
+                r[5] = (uint8_t)(frames[k] >> 8);
+                r[6] = 0;
+                r[7] = 0;
                 object_render(page, 0, 0);
-                for (i = 0; i < 320u * 200u; i++) if (page[i]) ink++;
+                for (i = 0; i < 320u * 200u; i++)
+                    if (page[i]) ink++;
                 check(k < 2u ? ink > 100u : ink == 0u, whats[k]);
             }
         }
@@ -2887,8 +3445,8 @@ int main(int argc, char **argv)
 
                     if (!v) continue;
                     ink++;
-                    if (bg[(96u + r) * 512u + 176u + c] !=
-                        (uint8_t)(v + 0x20u)) bad++;
+                    if (bg[(96u + r) * 512u + 176u + c] != (uint8_t)(v + 0x20u))
+                        bad++;
                 }
             check(ink > 500u && bad == 0u,
                   "the 0xB9 igloo is stamped at (176,96)");
@@ -2909,8 +3467,8 @@ int main(int argc, char **argv)
             for (uint32_t i = 0; i < 512u * 320u; i++) {
                 uint8_t v = raw[i];
                 uint8_t want = (v == 0xFFu)
-                    ? (uint8_t)(0x80u + (i / 0xA00u) % 64u)
-                    : (uint8_t)(v < 0x40u ? 0x40u + v : v);
+                                   ? (uint8_t)(0x80u + (i / 0xA00u) % 64u)
+                                   : (uint8_t)(v < 0x40u ? 0x40u + v : v);
 
                 if (!bg || bg[i] != want) bad++;
             }
@@ -2927,7 +3485,8 @@ int main(int argc, char **argv)
             if (level_load(id) != 0) continue;
             loaded++;
             uint32_t ii = level_data()->introIndex;
-            check(ii == 0xFFu || ii < 0x80u, "the header intro byte is 0xFF/0..9");
+            check(ii == 0xFFu || ii < 0x80u,
+                  "the header intro byte is 0xFF/0..9");
             if (gameflow_postLevelScene(1, ii) != 0xFFFFu) newspapers++;
         }
         check(loaded == 160u, "all 160 level records load");
@@ -2943,19 +3502,19 @@ int main(int argc, char **argv)
         uint32_t before;
         uint32_t t1;
 
-        hiscore_reset();           /* the shipped 0x0999 table */
+        hiscore_reset(); /* the shipped 0x0999 table */
         for (uint32_t i = 0; i < object_staticSlots(); i++) {
             uint8_t *r = object_slot(i);
 
-            if (r) r[6] |= 0x80u;                  /* all inactive */
+            if (r) r[6] |= 0x80u; /* all inactive */
         }
-        statusbar_setTribeDigits(1u, 2u);          /* the odometer shows 12 */
+        statusbar_setTribeDigits(1u, 2u); /* the odometer shows 12 */
         check(score_members() == 12u,
               "the member count is the odometer plus the live records");
         {
             uint8_t *r0 = object_slot(0u);
 
-            if (r0) r0[6] &= 0x7Fu;                /* one active record */
+            if (r0) r0[6] &= 0x7Fu; /* one active record */
             check(score_members() == 13u, "an active record adds one");
             if (r0) r0[6] |= 0x80u;
         }
@@ -2963,15 +3522,16 @@ int main(int argc, char **argv)
               "the best-time table ships as the 0x0999 sentinel");
         before = score_totalLo() | (score_totalHi() << 16);
         score_prepare();
-        check(score_isRecord() == 1 && score_bestFor(1u) == statusbar_elapsedWord() &&
-              score_bestTime() == statusbar_elapsedWord(),
+        check(score_isRecord() == 1 &&
+                  score_bestFor(1u) == statusbar_elapsedWord() &&
+                  score_bestTime() == statusbar_elapsedWord(),
               "the first win beats the sentinel and stores its elapsed time");
         check(score_shownLo() == (before & 0xFFFFu) &&
-              score_shownHi() == (before >> 16),
+                  score_shownHi() == (before >> 16),
               "the displayed total starts at the old running total");
         t1 = score_totalLo() | (score_totalHi() << 16);
         check(t1 > before, "the running total keeps the level's two terms");
-        score_prepare();                            /* the same elapsed time */
+        score_prepare(); /* the same elapsed time */
         check(score_isRecord() == 0,
               "an equal (not better) time is not a new record");
         check((score_totalLo() | (score_totalHi() << 16)) > t1,
@@ -2979,10 +3539,9 @@ int main(int argc, char **argv)
         {
             uint32_t guard = 0;
 
-            while (score_countersRun() && guard++ < 20000u) { }
-            check(guard < 20000u &&
-                  score_shownLo() == score_totalLo() &&
-                  score_shownHi() == score_totalHi(),
+            while (score_countersRun() && guard++ < 20000u) {}
+            check(guard < 20000u && score_shownLo() == score_totalLo() &&
+                      score_shownHi() == score_totalHi(),
                   "1000:475D counts the display up to the running total");
         }
     }
@@ -3001,13 +3560,15 @@ int main(int argc, char **argv)
         hiscore_obfuscate(buf, sizeof buf);
         {
             int32_t changed = 0;
-            for (uint32_t i = 0; i < sizeof buf; i++) if (buf[i] != (uint8_t)i) changed = 1;
+            for (uint32_t i = 0; i < sizeof buf; i++)
+                if (buf[i] != (uint8_t)i) changed = 1;
             check(changed, "1000:06DE obfuscates the table");
         }
         hiscore_obfuscate(buf, sizeof buf);
         {
             int32_t same = 1;
-            for (uint32_t i = 0; i < sizeof buf; i++) if (buf[i] != (uint8_t)i) same = 0;
+            for (uint32_t i = 0; i < sizeof buf; i++)
+                if (buf[i] != (uint8_t)i) same = 0;
             check(same, "1000:06DE is an involution (load and save share it)");
         }
 
@@ -3015,7 +3576,7 @@ int main(int argc, char **argv)
         check(hiscore_best(1u) == 0x0999u && hiscore_best(160u) == 0x0999u,
               "every per-level best ships as 0x0999");
         check(hiscore_score(0u) == 100000u &&
-              strcmp(hiscore_name(0u), "STEVE JONES") == 0,
+                  strcmp(hiscore_name(0u), "STEVE JONES") == 0,
               "the shipped top-10 is the image's 0x4DE block");
 
         check(!hiscore_qualifies(9999u) && hiscore_qualifies(10000u),
@@ -3023,7 +3584,8 @@ int main(int argc, char **argv)
 
         slot = hiscore_insert(55000u, "AB CD");
         check(slot == 5, "55000 lands between 60000 and 50000");
-        check(hiscore_score(5u) == 55000u && strcmp(hiscore_name(5u), "AB CD") == 0,
+        check(hiscore_score(5u) == 55000u &&
+                  strcmp(hiscore_name(5u), "AB CD") == 0,
               "the inserted entry carries its score and name");
         check(hiscore_score(6u) == 50000u && hiscore_score(9u) == 20000u,
               "the entries below shifted down one slot, the last dropped");
@@ -3031,10 +3593,11 @@ int main(int argc, char **argv)
         /* the name grid: 0..0x19 = A..Z, 0x1A = space, 0x1B = '.', 0x1C =
          * delete, 0x1D = enter; 13 characters at most */
         name[0] = 0;
-        check(hiscore_nameApply(name, 0u, &len) == 0 && len == 1u && name[0] == 'A',
+        check(hiscore_nameApply(name, 0u, &len) == 0 && len == 1u &&
+                  name[0] == 'A',
               "column 0 types 'A'");
-        hiscore_nameApply(name, 26u, &len);          /* space */
-        hiscore_nameApply(name, 27u, &len);          /* '.'   */
+        hiscore_nameApply(name, 26u, &len); /* space */
+        hiscore_nameApply(name, 27u, &len); /* '.'   */
         check(strcmp(name, "A .") == 0, "0x1A is space and 0x1B is '.'");
         hiscore_nameApply(name, 28u, &len);
         check(strcmp(name, "A ") == 0, "0x1C deletes the last character");
@@ -3049,12 +3612,14 @@ int main(int argc, char **argv)
               "77777 lands below 80000");
         hiscore_reload();
         check(hiscore_score(3u) == 77777u &&
-              strcmp(hiscore_name(3u), "ROUND TRIP") == 0,
+                  strcmp(hiscore_name(3u), "ROUND TRIP") == 0,
               "HISCORES.HUM survives a save/load round-trip");
 
         /* the commit's 0x1A/0x1B mapping reaches the stored name */
         hiscore_reset();
-        hiscore_insert(200000u, "A\x1A" "B\x1B" "C");
+        hiscore_insert(200000u, "A\x1A"
+                                "B\x1B"
+                                "C");
         check(strcmp(hiscore_name(0u), "A B.C") == 0,
               "0x1A/0x1B are stored as space and '.'");
         hiscore_reset();
@@ -3078,7 +3643,8 @@ int main(int argc, char **argv)
 
         memset(pg, 0x5A, 320u * 200u);
         level_redrawPage();
-        for (uint32_t i = 0; i < 320u * 200u; i++) if (pg[i] != 0x5A) changed++;
+        for (uint32_t i = 0; i < 320u * 200u; i++)
+            if (pg[i] != 0x5A) changed++;
         check(changed > 1000u,
               "1000:344C: the end page re-renders the world over the caption");
     }
@@ -3103,8 +3669,8 @@ int main(int argc, char **argv)
          * three bytes (0x28/0x04/0x22) are exactly where a plane-3 subsample
          * would give 0x29/0x04/0x04, so they pin the linear read. */
         check(page[18u * 320u + 18u] == 0xE8u &&
-              page[40u * 320u + 60u] == 0xC4u &&
-              page[185u * 320u + 60u] == 0xE2u,
+                  page[40u * 320u + 60u] == 0xC4u &&
+                  page[185u * 320u + 60u] == 0xE2u,
               "1000:4403: the card is SCORE.BIT read 1 byte per pixel");
     }
     /* 1000:33E2 draw_level_text's seal: the LEVEL palette's (0x14D3) first
@@ -3122,12 +3688,13 @@ int main(int argc, char **argv)
         }
         palette_sealTriples(pal, 0u, 0x80u);
         for (uint32_t i = 0; i < 0x80u; i++) {
-            uint32_t want = (77u * (i & 0x3Fu) +
-                             151u * ((i * 3u) & 0x3Fu) +
-                             28u * ((i * 5u) & 0x3Fu)) >> 9;
+            uint32_t want = (77u * (i & 0x3Fu) + 151u * ((i * 3u) & 0x3Fu) +
+                             28u * ((i * 5u) & 0x3Fu)) >>
+                            9;
 
             if (pal[i * 3u] != want || pal[i * 3u + 1u] != want ||
-                pal[i * 3u + 2u] != want) bad++;
+                pal[i * 3u + 2u] != want)
+                bad++;
         }
         check(bad == 0u, "1000:33E2: the first 0x80 triples seal to grey");
         (void)kept;
@@ -3136,33 +3703,34 @@ int main(int argc, char **argv)
         InputState k;
         memset(&k, 0, sizeof k);
         k.lastKey = 1;
-    /* 8a-digit. 1000:462D's digit law: block `digit*256` of SCORE.SPR, 16 rows
+        /* 8a-digit. 1000:462D's digit law: block `digit*256` of SCORE.SPR, 16 rows
      * x 4 bytes per plane pass.  The pass restores DI but NOT SI, so pass p
      * reads the slot's quarter p and the glyph is a 16x16 chunky image stored
      * plane-major: pixel 4k+p = src[p*64 + r*4 + k], drawn 0xC0 | v. */
-    {
-        static uint8_t page[320 * 200];
-        static uint8_t page2[320 * 200];
+        {
+            static uint8_t page[320 * 200];
+            static uint8_t page2[320 * 200];
 
-        memset(page, 0, sizeof page);
-        score_column(page, 3u, 0, 0, 1u);
-        check(page[0 * 320u + 0] == 0xC2u && page[0 * 320u + 15] == 0xC2u,
-              "1000:462D: digit 3's row 0 is all 0xC2");
-        check(page[2 * 320u + 0] == 0xC2u && page[2 * 320u + 4] == 0xE9u &&
-              page[2 * 320u + 12] == 0xCCu && page[2 * 320u + 3] == 0xC9u,
-              "the glyph is plane-major (row 2: 02 0a 0a 09 ...)");
-        /* 1234 in 5 digits is "01234", right to left in 16-px steps */
-        memset(page, 0, sizeof page);
-        memset(page2, 0, sizeof page2);
-        score_column(page, 1234u, 0, 0, 5u);
-        score_column(page2, 0u, 0, 0, 1u);
-        score_column(page2, 1u, 16, 0, 1u);
-        score_column(page2, 2u, 32, 0, 1u);
-        score_column(page2, 3u, 48, 0, 1u);
-        score_column(page2, 4u, 64, 0, 1u);
-        check(memcmp(page, page2, sizeof page) == 0,
-              "a 5-digit column is zero-padded and 16 px per digit");
-    }
+            memset(page, 0, sizeof page);
+            score_column(page, 3u, 0, 0, 1u);
+            check(page[0 * 320u + 0] == 0xC2u && page[0 * 320u + 15] == 0xC2u,
+                  "1000:462D: digit 3's row 0 is all 0xC2");
+            check(page[2 * 320u + 0] == 0xC2u && page[2 * 320u + 4] == 0xE9u &&
+                      page[2 * 320u + 12] == 0xCCu &&
+                      page[2 * 320u + 3] == 0xC9u,
+                  "the glyph is plane-major (row 2: 02 0a 0a 09 ...)");
+            /* 1234 in 5 digits is "01234", right to left in 16-px steps */
+            memset(page, 0, sizeof page);
+            memset(page2, 0, sizeof page2);
+            score_column(page, 1234u, 0, 0, 5u);
+            score_column(page2, 0u, 0, 0, 1u);
+            score_column(page2, 1u, 16, 0, 1u);
+            score_column(page2, 2u, 32, 0, 1u);
+            score_column(page2, 3u, 48, 0, 1u);
+            score_column(page2, 4u, 64, 0, 1u);
+            check(memcmp(page, page2, sizeof page) == 0,
+                  "a 5-digit column is zero-padded and 16 px per digit");
+        }
 
         /* 1000:44BB draw_scorenum_three_passes: the elapsed and best times are
          * three SCORENUM digits at row 181, px 80..87 and px 240..247, every
@@ -3178,7 +3746,8 @@ int main(int argc, char **argv)
             for (uint32_t i = 0; i < sizeof a; i++) {
                 uint32_t y = i / 320u, x = i % 320u;
                 if (a[i]) {
-                    if (y < 181u || y >= 189u || x < 104u || x >= 128u) outside++;
+                    if (y < 181u || y >= 189u || x < 104u || x >= 128u)
+                        outside++;
                     else if (a[i] < 0xC0u) low++;
                     else ina++;
                 }
@@ -3189,8 +3758,8 @@ int main(int argc, char **argv)
             /* the first digit of 0x0123 is slot 1; its row 0 is
              * 17 17 02 02 02 02 17 17 -> D7 D7 C2 C2 C2 C2 D7 D7 */
             check(a[181u * 320u + 104u] == 0xD7u &&
-                  a[181u * 320u + 105u] == 0xD7u &&
-                  a[181u * 320u + 106u] == 0xC2u,
+                      a[181u * 320u + 105u] == 0xD7u &&
+                      a[181u * 320u + 106u] == 0xC2u,
                   "1000:450F: the SCORENUM slot is a chunky 8x8 image");
             check(diff != 0u, "a different time draws different digits");
             memset(a, 0, sizeof a);
@@ -3201,7 +3770,8 @@ int main(int argc, char **argv)
                 for (uint32_t y = 181u; y < 189u; y++)
                     for (uint32_t x = 264u; x < 288u; x++)
                         if (a[y * 320u + x]) hit++;
-                check(hit != 0u, "the best time sits at px 264 with BP = 0x280");
+                check(hit != 0u,
+                      "the best time sits at px 264 with BP = 0x280");
             }
         }
 
@@ -3232,7 +3802,8 @@ int main(int argc, char **argv)
                     uint8_t v = page[y * 320u + x];
 
                     if (!v) continue;
-                    if (x < 128u || x >= 192u || y < 176u || y >= 200u) outside++;
+                    if (x < 128u || x >= 192u || y < 176u || y >= 200u)
+                        outside++;
                     else if (y < 178u) top++;
                     else if (v != 0xC2u && v != 0xC3u) bad++;
                     else set++;
@@ -3247,13 +3818,16 @@ int main(int argc, char **argv)
 
                 for (uint32_t y = 176u; y < 200u; y++)
                     for (uint32_t x = 128u; x < 192u; x++)
-                        if (page[y * 320u + x]) { inkRow[y - 176u] = 1; break; }
+                        if (page[y * 320u + x]) {
+                            inkRow[y - 176u] = 1;
+                            break;
+                        }
                 for (uint32_t r = 0; r < 24u; r++)
                     if (inkRow[r]) profile |= (1u << r);
                 check(profile == 0x00FE7FFCu,
                       "the stamp is the sprite's chunky 64x24 row profile");
                 check(page[180u * 320u + 128u + 32u] == 0xC2u &&
-                      page[180u * 320u + 128u + 31u] == 0u,
+                          page[180u * 320u + 128u + 31u] == 0u,
                       "the stamp's row 4 ink starts at sprite x 32");
             }
             /* 0x4697/0x46A3: the cell is saved to A000:0000 - which is
@@ -3319,7 +3893,8 @@ int main(int argc, char **argv)
         if (score_isRecord()) {
             uint32_t flips = 0;
 
-            for (uint32_t i = 0; i < 26u; i++) if (score_blinkTick()) flips++;
+            for (uint32_t i = 0; i < 26u; i++)
+                if (score_blinkTick()) flips++;
             check(flips == 1u, "1000:467A: the NEW RECORD blink toggles once");
         }
 
@@ -3348,7 +3923,7 @@ int main(int argc, char **argv)
             uint32_t t, diff;
 
             memset(&tk, 0, sizeof tk);
-            hiscore_reset();                        /* the 0x0999 sentinels */
+            hiscore_reset(); /* the 0x0999 sentinels */
             statusbar_start(0x0600u, 12u, 4u);
             level_requestEnd(1);
             check(score_begin(0u) == 1, "the blink screen starts");
@@ -3356,7 +3931,7 @@ int main(int argc, char **argv)
                 (void)score_tick(&tk);
                 palette_tick();
             }
-            (void)score_tick(&tk);                  /* the arm tick */
+            (void)score_tick(&tk); /* the arm tick */
             for (t = 0; t < 400u && scoreBlinkOn() == 0; t++) {
                 (void)score_tick(&tk);
                 palette_tick();
@@ -3389,16 +3964,22 @@ int main(int argc, char **argv)
         uint32_t cell;
         int32_t met = 0;
 
-        r[0] = 0x40u; r[1] = 0x00u;
-        r[2] = 0x40u; r[3] = 0x00u;
-        r[8] = 0x02u; r[9] = 0x00u;                 /* type 2: the gate passes */
+        r[0] = 0x40u;
+        r[1] = 0x00u;
+        r[2] = 0x40u;
+        r[3] = 0x00u;
+        r[8] = 0x02u;
+        r[9] = 0x00u; /* type 2: the gate passes */
         cell = 32u * ((0x40u + 0x0Cu) / 16u) + ((0x40u + 8u) / 16u);
         if (map && cell + 32u < 640u) {
-            map[cell] = 0x00u;                      /* the feet are not the goal */
-            map[cell + 32u] = 0xA8u;                /* the row below is         */
+            map[cell] = 0x00u; /* the feet are not the goal */
+            map[cell + 32u] = 0xA8u; /* the row below is         */
             for (uint32_t i = 0; i < 0x8Cu + 2u; i++) {
                 object_tick(pal);
-                if (object_lowPhaseMatch() < 0) { met = 1; break; }
+                if (object_lowPhaseMatch() < 0) {
+                    met = 1;
+                    break;
+                }
             }
             check(met, "a goal tile one row below counts (1000:3624)");
             /* negative control: the same cell cleared never meets the goal */
@@ -3406,7 +3987,10 @@ int main(int argc, char **argv)
             met = 0;
             for (uint32_t i = 0; i < 0x8Cu + 8u; i++) {
                 object_tick(pal);
-                if (object_lowPhaseMatch() < 0) { met = 1; break; }
+                if (object_lowPhaseMatch() < 0) {
+                    met = 1;
+                    break;
+                }
             }
             check(!met, "with neither cell the goal is not met");
         }
@@ -3433,8 +4017,9 @@ int main(int argc, char **argv)
     /* 7b. the rest of the type rows' handlers (DS:0x6918) */
     {
         uint8_t *a = object_slot(0u);
-        #define rd16t(r, o) ((uint32_t)((r)[o] | ((r)[(o) + 1] << 8)))
-        #define wr16t(r, o, v) ((r)[o] = (uint8_t)(v), (r)[(o) + 1] = (uint8_t)((v) >> 8))
+#define rd16t(r, o) ((uint32_t)((r)[o] | ((r)[(o) + 1] << 8)))
+#define wr16t(r, o, v)                                                         \
+    ((r)[o] = (uint8_t)(v), (r)[(o) + 1] = (uint8_t)((v) >> 8))
 
         /* type 18 (0x12), input 0x06 -> normalised 0x0A -> key 0x05 -> command
          * 5 -> index 37 (1000:EDB7): the home-state transition */
@@ -3449,8 +4034,10 @@ int main(int argc, char **argv)
         check(rd16t(a, 4u) == 0u && rd16t(a, 8u) == 0u,
               "type 0x12 becomes frame 0 / type 0 (1000:EDD9)");
         check(rd16t(a, 0xAu) == 0u && rd16t(a, 0xEu) == 0u &&
-              rd16t(a, 0x10u) == 0u, "the pending words are cleared");
-        check(object_actionLatched(), "the transition consumes the ACTION press");
+                  rd16t(a, 0x10u) == 0u,
+              "the pending words are cleared");
+        check(object_actionLatched(),
+              "the transition consumes the ACTION press");
 
         /* input 0x81 -> half 1, command 0 -> index 38 (1000:EE07): the turn,
          * which needs the ACTION press to have been released (1000:EE0C) */
@@ -3459,7 +4046,8 @@ int main(int argc, char **argv)
         wr16t(a, 0xEu, 0u);
         check(object_commandRun(a, 0x81u) != OBJ_CMD_UNPORTED,
               "type 18 half-1 command 0 runs the turn handler");
-        check(rd16t(a, 0xEu) == 4u, "the turn advances the direction counter by 4");
+        check(rd16t(a, 0xEu) == 4u,
+              "the turn advances the direction counter by 4");
 
         /* input 0x01 -> half 0, command 0 -> index 39 (1000:EE3B): the door */
         wr16t(a, 4u, 0x8Cu);
@@ -3482,11 +4070,12 @@ int main(int argc, char **argv)
             /* 1000:F9E4 counts one tick per *frame* ([0x4103]), so the frame
              * has to advance between the calls: object_tick is what counts it. */
             for (uint32_t i = 0; i < 28u; i++) {
-                (void)object_commandRun(a, 0x04u);   /* normalises to key 8 */
+                (void)object_commandRun(a, 0x04u); /* normalises to key 8 */
                 object_tick(pal);
             }
         }
-        check(rd16t(a, 4u) == 0x8Du, "the 25-frame cadence steps the frame once");
+        check(rd16t(a, 4u) == 0x8Du,
+              "the 25-frame cadence steps the frame once");
 
         /* 1000:D9E8 (type 3's tail): the two deterministic branches.
          *   - y + 0x18 >= 0x158 takes the hard landing (0xDB15);
@@ -3497,25 +4086,25 @@ int main(int argc, char **argv)
             wr16t(a, 8u, 3u);
             wr16t(a, 4u, 0x20u);
             wr16t(a, 0u, 100u);
-            wr16t(a, 2u, 0x150u);          /* probe y 0x168 >= 0x158 */
+            wr16t(a, 2u, 0x150u); /* probe y 0x168 >= 0x158 */
             wr16t(a, 0xAu, 0u);
             (void)object_commandRun(a, 0x01u);
             check(rd16t(a, 0u) == 93u && rd16t(a, 4u) == 0x28u &&
-                  rd16t(a, 8u) == 0x16u && rd16t(a, 0xAu) == 5u &&
-                  object_lastSfx() == 4u,
+                      rd16t(a, 8u) == 0x16u && rd16t(a, 0xAu) == 5u &&
+                      object_lastSfx() == 4u,
                   "a probe past 0x158 takes the hard landing (1000:DB15)");
-            wr16t(a, 8u, 3u);              /* the crash left type 0x16 */
+            wr16t(a, 8u, 3u); /* the crash left type 0x16 */
             wr16t(a, 0u, 100u);
             wr16t(a, 2u, 100u);
             wr16t(a, 4u, 0x20u);
             wr16t(a, 0xAu, 0u);
-            if (m) m[198] = 0xF0u;         /* 2*0x60 + (108 >> 4) */
+            if (m) m[198] = 0xF0u; /* 2*0x60 + (108 >> 4) */
             (void)object_commandRun(a, 0x01u);
             /* 1000:DA3E..0xDA61 writes only y (rowY - 0x1C); the x is left
              * alone - live level 16 drowns at (344,292), stable (D-78). */
             check(rd16t(a, 0u) == 100u && rd16t(a, 2u) == 84u &&
-                  rd16t(a, 4u) == 0xCDu && rd16t(a, 8u) == 0x1Cu &&
-                  rd16t(a, 0xAu) == 9u && object_lastSfx() == 6u,
+                      rd16t(a, 4u) == 0xCDu && rd16t(a, 8u) == 0x1Cu &&
+                      rd16t(a, 0xAu) == 9u && object_lastSfx() == 6u,
                   "a 0xF0 cell one row above is the platform snap (1000:DA3E)");
             if (m) m[198] = 0u;
         }
@@ -3529,7 +4118,7 @@ int main(int argc, char **argv)
             wr16t(a, 8u, 0x0Fu);
             wr16t(a, 4u, 0x20u);
             wr16t(a, 0xAu, 0u);
-            wr16t(a, 0xEu, 1u * 0x12u + 4u);   /* the link to slot 1 */
+            wr16t(a, 0xEu, 1u * 0x12u + 4u); /* the link to slot 1 */
             memset(node, 0, 0x12u);
             /* the handler runs; the run still reports UNPORTED because the
              * type-15 rows' *tail* (0xDC1F) is not ported yet - the next
@@ -3548,7 +4137,7 @@ int main(int argc, char **argv)
             check(rd16t(node, 8u) == 10u, "a parked node is not nudged");
             /* the arrival: a progress already past -0xF takes frame 0x4A */
             node[7] = 0u;
-            wr16t(node, 8u, 0xFFF1u);          /* -15 */
+            wr16t(node, 8u, 0xFFF1u); /* -15 */
             (void)object_commandRun(a, 0x08u);
             check(rd16t(a, 4u) == 0x4Au && node[7] == 0x0Cu,
                   "reaching +-0xF sets frame 0x4A and parks the node");
@@ -3574,17 +4163,18 @@ int main(int argc, char **argv)
 
             wr16t(a, 8u, 0x0Fu);
             wr16t(a, 4u, 0x20u);
-            wr16t(a, 0xEu, 1u * 0x12u + 4u);   /* the link to slot 1 */
+            wr16t(a, 0xEu, 1u * 0x12u + 4u); /* the link to slot 1 */
             memset(node, 0, 0x12u);
             wr16t(node, 0u, 100u);
             wr16t(node, 2u, 100u);
-            wr16t(node, 8u, 1u);               /* a non-zero progress */
+            wr16t(node, 8u, 1u); /* a non-zero progress */
             memset(target, 0, 0x12u);
-            wr16t(target, 0u, 108u);           /* node.x + 8 */
-            wr16t(target, 2u, 92u);            /* node.y - 8 */
-            wr16t(target, 8u, 1u);             /* type 1 */
-            check(object_commandRun(a, 0x01u) == OBJ_CMD_TAIL,
-                  "a type-15 command with no handler reports its tail (1000:DC1F)");
+            wr16t(target, 0u, 108u); /* node.x + 8 */
+            wr16t(target, 2u, 92u); /* node.y - 8 */
+            wr16t(target, 8u, 1u); /* type 1 */
+            check(
+                object_commandRun(a, 0x01u) == OBJ_CMD_TAIL,
+                "a type-15 command with no handler reports its tail (1000:DC1F)");
             check(rd16t(target, 4u) == 0x55u && rd16t(target, 8u) == 0x10u,
                   "the record in the window takes the carried form");
             check(rd16t(target, 0xAu) == 0u && rd16t(target, 0xCu) == 0u,
@@ -3606,7 +4196,7 @@ int main(int argc, char **argv)
             uint8_t *slotRec = object_slot(9u);
 
             wr16t(a, 8u, 0x0Fu);
-            a[7] = 1u;                          /* class id 1 -> record 8+1 */
+            a[7] = 1u; /* class id 1 -> record 8+1 */
             wr16t(a, 0xEu, 1u * 0x12u + 4u);
             memset(node, 0, 0x12u);
             wr16t(node, 0u, 100u);
@@ -3648,17 +4238,19 @@ int main(int argc, char **argv)
             wr16t(a, 2u, 100u);
             wr16t(a, 0xEu, 0u);
             check(object_commandRun(a, 0x81u) != OBJ_CMD_UNPORTED &&
-                  rd16t(a, 0xEu) == 4u,
+                      rd16t(a, 0xEu) == 4u,
                   "type 0x17 half-1 command 0 arms the turn (+0xE = 4)");
-            if (m) m[198] = 0xF0u;   /* 2*(rowY-0x10) + (cx>>4), cx=108, rowY=112 */
+            if (m)
+                m[198] = 0xF0u; /* 2*(rowY-0x10) + (cx>>4), cx=108, rowY=112 */
             check(object_commandRun(a, 0x01u) != OBJ_CMD_UNPORTED,
                   "the latched idle command runs the leave sequence");
             /* frame 0x20 != 0xBB, so the leave nudges LEFT (x -= 4) and then
              * xoff = -2: AX = 100 (1000:F736).  The splash x is
              * ((AX + 8) & ~0xF) - 4 + 8 = 100 (1000:F772) - reading the probe
              * CX instead would give 116.  y = rowY - 0x1C = 84. */
-            check(rd16t(a, 0u) == 100u && rd16t(a, 2u) == 84u,
-                  "the platform branch snaps to AX, not CX (1000:F772): x 100, y 84");
+            check(
+                rd16t(a, 0u) == 100u && rd16t(a, 2u) == 84u,
+                "the platform branch snaps to AX, not CX (1000:F772): x 100, y 84");
             check(rd16t(a, 4u) == 0xCDu && rd16t(a, 8u) == 0x1Cu,
                   "the platform branch sets frame 0xCD / type 0x1C");
             check(rd16t(a, 0xAu) == 9u && object_lastSfx() == 6u,
@@ -3678,23 +4270,23 @@ int main(int argc, char **argv)
             wr16t(a, 4u, 0x10u);
             wr16t(a, 0u, 0x40u);
             wr16t(a, 2u, 0x40u);
-            object_setSlotClass(1u, 4u);            /* live record 9's class */
-            wr16t(nb, 0u, 0x46u);                   /* the window of the probe */
+            object_setSlotClass(1u, 4u); /* live record 9's class */
+            wr16t(nb, 0u, 0x46u); /* the window of the probe */
             wr16t(nb, 2u, 0x44u);
-            wr16t(nb, 8u, 0x20u);                   /* |type| > 0xA: skipped */
+            wr16t(nb, 8u, 0x20u); /* |type| > 0xA: skipped */
             wr16t(nb, 6u, 0u);
             check(object_commandRun(a, 0x88u) != OBJ_CMD_UNPORTED &&
-                  rd16t(nb, 8u) == 0x20u,
+                      rd16t(nb, 8u) == 0x20u,
                   "a neighbour with |type| > 0xA is skipped");
             wr16t(nb, 8u, 0x8u);
             wr16t(a, 0u, 0x40u);
             (void)object_commandRun(a, 0x88u);
             check(rd16t(nb, 8u) == 0x8u || rd16t(nb, 8u) == 0x12u,
                   "a neighbour under the gate takes +0xA or keeps its type");
-            object_setSlotClass(1u, 5u);            /* restore the spear's class */
+            object_setSlotClass(1u, 5u); /* restore the spear's class */
         }
-        #undef rd16t
-        #undef wr16t
+#undef rd16t
+#undef wr16t
     }
 
     /* 8. the camera follower (1000:5CB6): target = record - (0x88, 0x44),
@@ -3709,8 +4301,10 @@ int main(int argc, char **argv)
          * machine may have cleared it in an earlier test, so start from rest. */
         level_set_offsetWord(0xFFFFu);
         level_reset_offsetWalk();
-        rec[0] = (uint8_t)(0x88u + 0x20u); rec[1] = 0x00u;  /* (0x20,0x10) */
-        rec[2] = (uint8_t)(0x44u + 0x10u); rec[3] = 0x00u;
+        rec[0] = (uint8_t)(0x88u + 0x20u);
+        rec[1] = 0x00u; /* (0x20,0x10) */
+        rec[2] = (uint8_t)(0x44u + 0x10u);
+        rec[3] = 0x00u;
         level_followView();
         check(level_viewX() == 4u && level_viewY() == 4u,
               "the follower moves 4 px an axis (0x5D09/0x5D21)");
@@ -3718,14 +4312,18 @@ int main(int argc, char **argv)
         check(level_viewX() == 0x20u && level_viewY() == 0x10u,
               "the follower settles on record - (0x88, 0x44)");
 
-        rec[0] = 0x68u; rec[1] = 0x01u;             /* 0x0168: past 0xC0+0x88 */
-        rec[2] = 0x04u; rec[3] = 0x01u;             /* 0x0104: past 0xA8+0x44 */
+        rec[0] = 0x68u;
+        rec[1] = 0x01u; /* 0x0168: past 0xC0+0x88 */
+        rec[2] = 0x04u;
+        rec[3] = 0x01u; /* 0x0104: past 0xA8+0x44 */
         for (uint32_t i = 0; i < 64u; i++) level_followView();
         check(level_viewX() == 0xC0u && level_viewY() == 0xA8u,
               "the pan clamps to 512-320 px x 320-152 rows");
 
-        rec[0] = 0x10u; rec[1] = 0x00u;             /* left of the anchor */
-        rec[2] = 0x10u; rec[3] = 0x00u;
+        rec[0] = 0x10u;
+        rec[1] = 0x00u; /* left of the anchor */
+        rec[2] = 0x10u;
+        rec[3] = 0x00u;
         for (uint32_t i = 0; i < 64u; i++) level_followView();
         check(level_viewX() == 0u && level_viewY() == 0u,
               "a record left of the anchor pins the pan at 0");
@@ -3733,7 +4331,8 @@ int main(int argc, char **argv)
         level_setView(0u, 0u);
     }
 
-    #define wr16t2(r, o, v) ((r)[o] = (uint8_t)(v), (r)[(o) + 1] = (uint8_t)((v) >> 8))
+#define wr16t2(r, o, v)                                                        \
+    ((r)[o] = (uint8_t)(v), (r)[(o) + 1] = (uint8_t)((v) >> 8))
     /* 8b. 1000:5D37, the follower's offset walk.  The pair at [0x2D90] is added
      * to the record's position before the clamp, and the pointer advances one
      * pair per call while [0x2D8E]'s bit 15 is clear; on the last pair (0x2DA2)
@@ -3747,7 +4346,7 @@ int main(int argc, char **argv)
         wr16t2(rec, 0u, 0x88u + 0x20u);
         wr16t2(rec, 2u, 0x44u + 0x10u);
         level_setView(0u, 0u);
-        level_set_offsetWord(0xFFFFu);      /* bit 15: the walk idles */
+        level_set_offsetWord(0xFFFFu); /* bit 15: the walk idles */
         level_reset_offsetWalk();
         for (uint32_t i = 0; i < 16u; i++) level_followView();
         check(level_viewX() == 0x20u && level_viewY() == 0x10u,
@@ -3755,12 +4354,13 @@ int main(int argc, char **argv)
         /* 0xF8CE's write: a small vertical speed clears bit 15 */
         level_set_offsetWord(0x0000u);
         for (uint32_t i = 0; i < 16u; i++) level_followView();
-        check(level_viewX() == 0x21u && level_viewY() == 0x11u,
-              "the cleared gate walks the pairs and shifts the camera to (1, 1)");
+        check(
+            level_viewX() == 0x21u && level_viewY() == 0x11u,
+            "the cleared gate walks the pairs and shifts the camera to (1, 1)");
         check(level_offsetWord() == 0x2D91u,
               "the last pair writes 0x2D91 into the gate (1000:5D47/5D4D)");
     }
-    #undef wr16t2
+#undef wr16t2
 
     /* 10. 1000:5C2F, the two TER.DAT slots.  object_array_init (0x4CAB) hides
      * them with 0xFFFF in their +0x10 flag words - the live game reads exactly
@@ -3777,14 +4377,19 @@ int main(int argc, char **argv)
         {
             uint32_t nz = 0;
 
-            for (uint32_t i = 0; i < sizeof page; i++) if (page[i]) nz++;
+            for (uint32_t i = 0; i < sizeof page; i++)
+                if (page[i]) nz++;
             check(nz == 0u, "a disabled slot draws nothing (1000:587F)");
         }
         /* enable slot 0: index 0 -> TER source 0x40, y offset 6, 24 rows */
-        s0[0x10] = 0; s0[0x11] = 0;
-        s0[0] = 0x0C + 20; s0[1] = 0;      /* x: the sprite starts at 20 */
-        s0[2] = 30; s0[3] = 0;             /* y: 30 + the y offset 6 -> 36 */
-        s0[0x0C] = 0; s0[0x0D] = 0;        /* the 0x2D7E index */
+        s0[0x10] = 0;
+        s0[0x11] = 0;
+        s0[0] = 0x0C + 20;
+        s0[1] = 0; /* x: the sprite starts at 20 */
+        s0[2] = 30;
+        s0[3] = 0; /* y: 30 + the y offset 6 -> 36 */
+        s0[0x0C] = 0;
+        s0[0x0D] = 0; /* the 0x2D7E index */
         memset(page, 0, sizeof page);
         object_renderTer(page, 0, 0);
         {
@@ -3794,13 +4399,15 @@ int main(int argc, char **argv)
                 for (uint32_t x = 0; x < 320u; x++) {
                     int32_t in = (x >= 20u && x < 52u && y >= 36u && y < 60u);
                     if (page[y * 320u + x]) {
-                        if (in) inside++; else outside++;
+                        if (in) inside++;
+                        else outside++;
                     }
                 }
             check(inside != 0u && outside == 0u,
                   "an enabled slot draws the 32x24 cell at (x-0xC, y+yoff)");
         }
-        s0[0x10] = 0xFFu; s0[0x11] = 0xFFu;   /* back off */
+        s0[0x10] = 0xFFu;
+        s0[0x11] = 0xFFu; /* back off */
     }
 
     /* 9. menu_loop's MAP screen: the card loads, the high-score insert runs
@@ -3816,7 +4423,8 @@ int main(int argc, char **argv)
         /* the score screen's `prepared` total qualifies, so the name grid is
          * up.  Type two letters, delete one, type again, then Enter commits. */
         {
-            uint32_t total = ((uint32_t)score_totalHi() << 16) | score_totalLo();
+            uint32_t total =
+                ((uint32_t)score_totalHi() << 16) | score_totalLo();
             int32_t found = 0;
 
             check(hiscore_qualifies(total),
@@ -3837,7 +4445,8 @@ int main(int argc, char **argv)
                             if (page[(y + r) * 320u + x]) n++;
                     check(n != 0u, "1000:024B: a congratulation line is drawn");
                 }
-                for (uint32_t i = 0; i < sizeof page; i++) if (page[i]) lit++;
+                for (uint32_t i = 0; i < sizeof page; i++)
+                    if (page[i]) lit++;
                 check(lit != 0u, "the congratulation page draws text");
             }
             /* 1000:0251 MOV CX,2: the page is drawn twice with a flip between.
@@ -3855,7 +4464,8 @@ int main(int argc, char **argv)
                 check(map_tick(&k) == 1, "the flip tick keeps the page up");
                 check(map_congratsDraws() == 2u,
                       "1000:0251: the second congratulation pass is drawn");
-                for (uint32_t i = 0; i < 320u * 200u; i++) if (pg[i]) lit++;
+                for (uint32_t i = 0; i < 320u * 200u; i++)
+                    if (pg[i]) lit++;
                 check(lit != 0u,
                       "the second pass redraws the page after the flip");
             }
@@ -3866,7 +4476,8 @@ int main(int argc, char **argv)
                 uint32_t f0 = map_fadeStarts();
                 uint32_t guard = 0;
 
-                k.lastKey = 'Q'; map_tick(&k);   /* dismiss the page */
+                k.lastKey = 'Q';
+                map_tick(&k); /* dismiss the page */
                 k.lastKey = 0;
                 while (map_transitionStep() < 6u && guard++ < 2000u) {
                     map_tick(&k);
@@ -3888,20 +4499,27 @@ int main(int argc, char **argv)
                     for (uint32_t i = 0; i < 5u; i++) {
                         uint32_t f = 0, e = 0, d = 0, t = 0;
 
-                        check(map_fadeAt(f0 + i, &f, &e, &d, &t) &&
-                              f == want[i][0] && e == want[i][1] &&
-                              d == want[i][2] && t == want[i][3],
-                              "1000:028C..0307: the fade parameters are the listing's");
+                        check(
+                            map_fadeAt(f0 + i, &f, &e, &d, &t) &&
+                                f == want[i][0] && e == want[i][1] &&
+                                d == want[i][2] && t == want[i][3],
+                            "1000:028C..0307: the fade parameters are the listing's");
                     }
                 }
             }
-            k.lastKey = 'Q'; map_tick(&k);
-            k.lastKey = 'X'; map_tick(&k);
-            k.lastKey = 8u;  map_tick(&k);      /* delete */
-            k.lastKey = 'Z'; map_tick(&k);
-            k.lastKey = 13u; map_tick(&k);      /* Enter: commit */
+            k.lastKey = 'Q';
+            map_tick(&k);
+            k.lastKey = 'X';
+            map_tick(&k);
+            k.lastKey = 8u;
+            map_tick(&k); /* delete */
+            k.lastKey = 'Z';
+            map_tick(&k);
+            k.lastKey = 13u;
+            map_tick(&k); /* Enter: commit */
             for (uint32_t i = 0; i < hiscore_count(); i++)
-                if (hiscore_score(i) == total && strcmp(hiscore_name(i), "QZ") == 0)
+                if (hiscore_score(i) == total &&
+                    strcmp(hiscore_name(i), "QZ") == 0)
                     found = 1;
             check(found, "the typed name and the total reach the table");
 
@@ -3920,7 +4538,8 @@ int main(int argc, char **argv)
                         uint32_t n = 0;
 
                         for (uint32_t r = 4u; r < 14u; r++)
-                            for (uint32_t x = cx[c] - 16u; x <= cx[c] + 16u; x++)
+                            for (uint32_t x = cx[c] - 16u; x <= cx[c] + 16u;
+                                 x++)
                                 if (page[(y + r) * 320u + x]) n++;
                         check(n != 0u,
                               "1000:0651: rank/name/score ink at the column");
@@ -3950,8 +4569,9 @@ int main(int argc, char **argv)
                     for (uint32_t y = 69u; y < 86u; y++)
                         for (uint32_t x = 0; x < 320u; x++)
                             if (page[y * 320u + x]) nameInk++;
-                    check(low == 0u && wide == 0u && nameInk != 0u,
-                          "1000:0CBE: the name screen has no list and no NAME line");
+                    check(
+                        low == 0u && wide == 0u && nameInk != 0u,
+                        "1000:0CBE: the name screen has no list and no NAME line");
                 }
             }
         }
@@ -3962,13 +4582,15 @@ int main(int argc, char **argv)
             static uint8_t in[32], out[65536];
 
             memset(in, 0, sizeof in);
-            in[16] = 0x07u; in[17] = 0xE0u;
+            in[16] = 0x07u;
+            in[17] = 0xE0u;
             memset(out, 0, sizeof out);
             alpha_expand(in, out);
-            check(out[32] == 0u && out[33] == 14u && out[34] == 7u && out[35] == 0u,
+            check(out[32] == 0u && out[33] == 14u && out[34] == 7u &&
+                      out[35] == 0u,
                   "1000:0705: plane 0 of 0xE007 is 0,14,7,0");
             check(out[0x4000 + 32] == 0u && out[0x4000 + 33] == 12u &&
-                  out[0x4000 + 34] == 15u && out[0x4000 + 35] == 0u,
+                      out[0x4000 + 34] == 15u && out[0x4000 + 35] == 0u,
                   "1000:0705: plane 1 is 0,12,15,0");
         }
 
@@ -3994,7 +4616,8 @@ int main(int argc, char **argv)
 
             memset(page, 0, sizeof page);
             alpha_drawWheel(page, 0x10Eu);
-            for (uint32_t i = 0; i < sizeof page; i++) if (page[i]) in++;
+            for (uint32_t i = 0; i < sizeof page; i++)
+                if (page[i]) in++;
             check(in != 0u, "the 30-cell letter wheel draws into the page");
             flow_dump_ppm("map_ring.ppm", page);
             memset(page, 0, sizeof page);
@@ -4014,7 +4637,8 @@ int main(int argc, char **argv)
 
                 memset(page, 0, sizeof page);
                 alpha_drawName(page, "A");
-                for (uint32_t i = 0; i < sizeof page; i++) if (page[i]) lit++;
+                for (uint32_t i = 0; i < sizeof page; i++)
+                    if (page[i]) lit++;
                 check(lit == 46u,
                       "the 'A' glyph is 46 pixels of the shipped alpha cell");
             }
@@ -4043,14 +4667,14 @@ int main(int argc, char **argv)
             map_drawRect(page, 0x95u, 9u, 0xFu, 0xFu);
             map_drawRect(page, 0x60u, 0x45u, 0x77u, 0xFu);
             check((page[9u * 320u + 0x95u] & 0x40u) != 0u &&
-                  (page[(9u + 0xFu) * 320u + 0x95u] & 0x50u) != 0u &&
-                  (page[9u * 320u + 0x95u + 0xFu] & 0x40u) != 0u &&
-                  (page[20u * 320u + 0x95u] & 0x50u) != 0u,
+                      (page[(9u + 0xFu) * 320u + 0x95u] & 0x50u) != 0u &&
+                      (page[9u * 320u + 0x95u + 0xFu] & 0x40u) != 0u &&
+                      (page[20u * 320u + 0x95u] & 0x50u) != 0u,
                   "1000:1251: the first outline is at (0x95,9) 0xF x 0xF");
             check((page[0x45u * 320u + 0x60u] & 0x40u) != 0u &&
-                  (page[(0x45u + 0xFu) * 320u + 0x60u] & 0x50u) != 0u &&
-                  (page[0x45u * 320u + 0x60u + 0x77u] & 0x40u) != 0u &&
-                  (page[0x45u * 320u + 0x60u + 0xFu] & 0x50u) != 0u,
+                      (page[(0x45u + 0xFu) * 320u + 0x60u] & 0x50u) != 0u &&
+                      (page[0x45u * 320u + 0x60u + 0x77u] & 0x40u) != 0u &&
+                      (page[0x45u * 320u + 0x60u + 0xFu] & 0x50u) != 0u,
                   "1000:1251: the name outline is at (0x60,0x45) 0x77 x 0xF");
         }
         /* 1000:0518: the entry animation runs [0x8AE] from 0x130 to 2 - about
@@ -4094,8 +4718,9 @@ int main(int argc, char **argv)
             map_tick(&k);
             k.joyBits = 0;
             for (uint32_t i = 0; i < 0x14u; i++) map_tick(&k);
-            check(map_panel == 5u && map_boxBottom == 2u + 4u * 0x14u,
-                  "1000:05ED: a down step walks the frame back over 0x14 frames");
+            check(
+                map_panel == 5u && map_boxBottom == 2u + 4u * 0x14u,
+                "1000:05ED: a down step walks the frame back over 0x14 frames");
         }
         /* 1000:07E6: the five frame rows, at rows 46/66/86/106/126 (the
          * 0xE66/0x14A6/0x1AE6/0x2126/0x2766 offsets on an 80-byte stride),
@@ -4111,10 +4736,14 @@ int main(int argc, char **argv)
             for (uint32_t y = 0; y < 200u; y++) {
                 uint32_t n = 0;
 
-                for (uint32_t x = 0; x < 320u; x++) if (page[y * 320u + x]) n++;
+                for (uint32_t x = 0; x < 320u; x++)
+                    if (page[y * 320u + x]) n++;
                 inBlock = 0;
                 for (uint32_t k = 0; k < 5u; k++)
-                    if (y >= want[k] && y < want[k] + 13u) { inBlock = 1; hit[k] += n; }
+                    if (y >= want[k] && y < want[k] + 13u) {
+                        inBlock = 1;
+                        hit[k] += n;
+                    }
                 if (n && !inBlock) stray++;
             }
             check(stray == 0u,
@@ -4133,16 +4762,17 @@ int main(int argc, char **argv)
     /* 9. the last four tails and the level-end probe, field by field.
      *    These run last: they free records and re-arm the bar. */
     {
-        #define R16(r, o) ((uint32_t)((r)[o] | ((r)[(o) + 1] << 8)))
-        #define W16(r, o, v) ((r)[o] = (uint8_t)(v), (r)[(o) + 1] = (uint8_t)((v) >> 8))
+#define R16(r, o)    ((uint32_t)((r)[o] | ((r)[(o) + 1] << 8)))
+#define W16(r, o, v) ((r)[o] = (uint8_t)(v), (r)[(o) + 1] = (uint8_t)((v) >> 8))
         uint8_t *spare = object_slot(5u);
-        uint8_t ent[2u + 7u * 16u];        /* D-59: the +0xA entity records */
+        uint8_t ent[2u + 7u * 16u]; /* D-59: the +0xA entity records */
 
         /* the odometer is armed from the level start (12 members, 4 required),
          * so the probes below would take the goal form; empty it first to
          * exercise 0xF5BC's taken branch, and re-arm it for the goal test. */
         statusbar_setTribeDigits(0u, 0u);
-        check(!statusbar_tribeActive(), "an empty odometer is the taken branch");
+        check(!statusbar_tribeActive(),
+              "an empty odometer is the taken branch");
 
         /* --- 1000:DBCD (type 28): the 0x6868 table walk.  The stepper only
          * fires when +0xA counts below zero, so each step re-seeds it. --- */
@@ -4153,7 +4783,7 @@ int main(int argc, char **argv)
         W16(spare, 0xAu, 0u);
         (void)object_commandRun(spare, 0x01u);
         check(R16(spare, 4u) == 0xCDu && R16(spare, 0xCu) == 1u &&
-              R16(spare, 0xAu) == 9u,
+                  R16(spare, 0xAu) == 9u,
               "0xDBCD: the frame takes the 0x6868 byte and the cursor steps");
         W16(spare, 0xAu, 0u);
         (void)object_commandRun(spare, 0x01u);
@@ -4164,7 +4794,8 @@ int main(int argc, char **argv)
         W16(spare, 2u, 0x45u);
         W16(spare, 0xAu, 0u);
         (void)object_commandRun(spare, 0x01u);
-        check(R16(spare, 2u) == 0x46u, "0xDBCD: at 0xD3 the record climbs a pixel");
+        check(R16(spare, 2u) == 0x46u,
+              "0xDBCD: at 0xD3 the record climbs a pixel");
         /* and the row boundary runs the level-end probe (0xFFFF scratch pairs,
          * a non-acting record: the taken branch) */
         W16(spare, 2u, 0x40u);
@@ -4172,7 +4803,7 @@ int main(int argc, char **argv)
         W16(spare, 6u, 0u);
         (void)object_commandRun(spare, 0x01u);
         check(R16(spare, 0u) == 0xFFFFu && R16(spare, 2u) == 0xFFFFu &&
-              spare[6] == 0xFFu && R16(spare, 8u) == 0x1Bu,
+                  spare[6] == 0xFFu && R16(spare, 8u) == 0x1Bu,
               "0xDBCD: a row boundary runs 0xF5BC's taken branch");
 
         /* --- 1000:DE7E (type 30): the 0x687C {dx, dy, flag} walk.  Every flag
@@ -4185,25 +4816,26 @@ int main(int argc, char **argv)
         W16(spare, 0xAu, 0u);
         (void)object_commandRun(spare, 0x01u);
         check(R16(spare, 0xCu) == 2u && R16(spare, 0xAu) == 6u &&
-              R16(spare, 4u) == 0x21u,
+                  R16(spare, 4u) == 0x21u,
               "0xDE7E: entry {1, 6, 1} steps the cursor, hold and frame");
-        W16(spare, 0xCu, 0x0Cu);          /* the {-1, 0x32, 1} entry */
+        W16(spare, 0xCu, 0x0Cu); /* the {-1, 0x32, 1} entry */
         W16(spare, 0xAu, 0u);
         (void)object_commandRun(spare, 0x01u);
         check(R16(spare, 0xCu) == 0x0Eu && R16(spare, 0xAu) == 0x32u &&
-              R16(spare, 4u) == 0x20u,
+                  R16(spare, 4u) == 0x20u,
               "0xDE7E: entry {-1, 0x32, 1} walks the frame down");
 
         /* --- 1000:DED1 (type 34): +0xA is the ENTITY link (0x8000|index),
          * not an object link; [DI+4]/[DI+C]/[DI+8] are the entity fields. --- */
         memset(ent, 0, sizeof ent);
-        ent[0] = 1u; ent[1] = 0u;           /* one entity */
-        W16(ent + 2u, 4u, 2u);              /* the entity's handler = 2   */
-        W16(ent + 2u, 0xCu, 0x77u);         /* its waypoint; +0xE matches */
+        ent[0] = 1u;
+        ent[1] = 0u; /* one entity */
+        W16(ent + 2u, 4u, 2u); /* the entity's handler = 2   */
+        W16(ent + 2u, 0xCu, 0x77u); /* its waypoint; +0xE matches */
         entity_loadFixed(ent);
         memset(spare, 0, 0x12u);
         W16(spare, 8u, 34u);
-        W16(spare, 0xAu, 0x8000u);          /* the entity 0 link */
+        W16(spare, 0xAu, 0x8000u); /* the entity 0 link */
         W16(spare, 0xEu, 0x77u);
         (void)object_commandRun(spare, 0x01u);
         check(spare[6] == 0x80u,
@@ -4227,7 +4859,7 @@ int main(int argc, char **argv)
         W16(spare, 0xCu, 0x55u);
         (void)object_commandRun(spare, 0x01u);
         check(R16(spare, 4u) == 0x10u && R16(spare, 8u) == 2u &&
-              R16(spare, 0xAu) == 0u && R16(spare, 0xCu) == 0u,
+                  R16(spare, 0xAu) == 0u && R16(spare, 0xCu) == 0u,
               "0xDED1: bit 7 clear + a non-2/3 entity is the home form");
 
         /* --- 1000:EF66 (type 22): the 5-frame step to frame 0x2E, then the
@@ -4238,31 +4870,35 @@ int main(int argc, char **argv)
         W16(spare, 0xAu, 0u);
         (void)object_commandRun(spare, 0x01u);
         check(R16(spare, 4u) == 0x2Eu && R16(spare, 0xAu) == 5u &&
-              R16(spare, 0u) == 0xFFFFu && R16(spare, 8u) == 0x1Bu,
+                  R16(spare, 0u) == 0xFFFFu && R16(spare, 8u) == 0x1Bu,
               "0xEF66: the step to 0x2E runs 0xF5BC's taken branch");
 
         /* --- 1000:F5BC's goal branch: with the tribe odometer showing a count
          * the record takes the goal form instead (frame 0x2D / type 0x21). --- */
-        statusbar_setTribeDigits(0u, 4u);   /* the digits show "04" */
-        check(statusbar_tribeActive(), "the odometer is armed for the goal form");
+        statusbar_setTribeDigits(0u, 4u); /* the digits show "04" */
+        check(statusbar_tribeActive(),
+              "the odometer is armed for the goal form");
         W16(ent + 2u, 4u, 5u);
-        W16(ent + 2u, 8u, 50u);             /* -> [0x4222] = 50 + 0x28 */
+        W16(ent + 2u, 8u, 50u); /* -> [0x4222] = 50 + 0x28 */
         entity_loadFixed(ent);
         memset(spare, 0, 0x12u);
         W16(spare, 8u, 34u);
         W16(spare, 0xAu, 0x8000u);
-        W16(spare, 0x10u, 100u);            /* -> [0x4220] */
+        W16(spare, 0x10u, 100u); /* -> [0x4220] */
         W16(spare, 0xEu, 0u);
-        spare[6] = 0x80u;                   /* bit 7: the probe path */
+        spare[6] = 0x80u; /* bit 7: the probe path */
         (void)object_commandRun(spare, 0x01u);
         check(R16(spare, 4u) == 0x2Du && R16(spare, 8u) == 0x21u &&
-              R16(spare, 0xAu) == 5u && R16(spare, 0u) == 92u,
+                  R16(spare, 0xAu) == 5u && R16(spare, 0u) == 92u,
               "0xF5BC: the armed odometer takes the goal form at [0x4220] - 8");
-        #undef R16
-        #undef W16
+#undef R16
+#undef W16
     }
 
-    if (bad) { fprintf(stderr, "flow: FAIL\n"); return 1; }
+    if (bad) {
+        fprintf(stderr, "flow: FAIL\n");
+        return 1;
+    }
     printf("flow: ok (the level gate, the post-level spine, the end page)\n");
     return 0;
 }

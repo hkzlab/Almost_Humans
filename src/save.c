@@ -37,7 +37,11 @@
 static uint8_t save_buf[SAVE_LEN];   /* the [0x1C92] buffer          */
 static int32_t save_loaded;          /* [0x34]: a save is present    */
 
-int32_t save_init(const OSystem *osys) { (void)osys; return 0; }
+int32_t save_init(const OSystem *osys)
+{
+    (void)osys;
+    return 0;
+}
 
 /* entry:004C: slot 1..20 -> the letter 'A'+(n-1); 0 = GAME OFF.  Resets the
  * state first, so a failed/absent slot leaves the fresh-game path. */
@@ -60,16 +64,16 @@ int32_t save_loadSlot(uint32_t slot)
  * a later "restart this level" takes the LEVEL board's time again. */
 void save_consume(void) { save_loaded = 0; }
 
-int32_t save_present(void)          { return save_loaded; }
-uint16_t save_level(void)       { return rd_le_u16(save_buf + 0x00); }
-uint16_t save_time(void)        { return rd_le_u16(save_buf + 0x07); }
-uint32_t save_members(void)     { return rd_le_u16(save_buf + 0x0B); }
-const uint8_t *save_blob(void)  { return save_buf; }
+int32_t save_present(void) { return save_loaded; }
+uint16_t save_level(void) { return rd_le_u16(save_buf + 0x00); }
+uint16_t save_time(void) { return rd_le_u16(save_buf + 0x07); }
+uint32_t save_members(void) { return rd_le_u16(save_buf + 0x0B); }
+const uint8_t *save_blob(void) { return save_buf; }
 
 /* SAVE GAME (save_progress 1FE7:0000, re_formats.md §10.0): the 13-byte
  * header from the port's live state + the five state ranges. */
 int32_t save_writeSlot(uint32_t slot, uint32_t level, uint16_t timeWord,
-                   uint32_t members)
+                       uint32_t members)
 {
     static uint8_t out[SAVE_LEN];
 

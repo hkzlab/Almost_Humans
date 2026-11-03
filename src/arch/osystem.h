@@ -24,14 +24,15 @@
  * the original feeds both from its own keyboard ISR; the backend translates
  * host events into the same shape. */
 typedef struct InputState {
-    uint8_t joyBits;   /* +0x5ACE equivalent: bit0=up bit1=down bit2=left bit3=right, bit7=fire */
-    uint8_t lastKey;   /* +0x48A3 equivalent: the last key code, 0 when none  */
-    uint8_t keyScan;   /* the PC set-1 make scancode (the key list [0x1989]'s
+    uint8_t
+        joyBits; /* +0x5ACE equivalent: bit0=up bit1=down bit2=left bit3=right, bit7=fire */
+    uint8_t lastKey; /* +0x48A3 equivalent: the last key code, 0 when none  */
+    uint8_t keyScan; /* the PC set-1 make scancode (the key list [0x1989]'s
                         * index; 0 = none).  lastKey is the translated ASCII
                         * code the text screens read — scan_id_list (1000:386E)
                         * indexes [0x42B7 + scancode] instead, so F1..F10 and
                         * the punctuation keys need this separate field. */
-    uint8_t quit;      /* the backend-level quit (window closed, ^C)          */
+    uint8_t quit; /* the backend-level quit (window closed, ^C)          */
 } InputState;
 
 /* The fixed-tick callback: everything the original's INT 8 ISR body did, in
@@ -53,7 +54,7 @@ typedef void (*TickFn)(void);
  */
 typedef enum VideoMode {
     VIDEO_MODE_13H = 0,
-    VIDEO_MODE_X   = 1
+    VIDEO_MODE_X = 1
 } VideoMode;
 
 /* The tick-boundary gate: the arch owns the tick counter (the ISR's
@@ -67,25 +68,25 @@ typedef void (*TickSyncFn)(uint32_t *lastSeen);
 
 typedef struct OSystem {
     /* --- video ------------------------------------------------------- */
-    void     (*videoSetMode)(VideoMode mode);       /* every mode set (13h/X)    */
-    uint8_t *(*videoPage)(int32_t which);           /* which: 0 or 1; 320x200x8   */
-    void     (*videoPresent)(int32_t which);        /* the CRTC-flip equivalent   */
-    void     (*videoSetPalette)(const uint8_t *p6, uint32_t first, uint32_t n);
+    void (*videoSetMode)(VideoMode mode); /* every mode set (13h/X)    */
+    uint8_t *(*videoPage)(int32_t which); /* which: 0 or 1; 320x200x8   */
+    void (*videoPresent)(int32_t which); /* the CRTC-flip equivalent   */
+    void (*videoSetPalette)(const uint8_t *p6, uint32_t first, uint32_t n);
 
     /* --- input ------------------------------------------------------- */
-    void     (*eventsPoll)(InputState *out);
+    void (*eventsPoll)(InputState *out);
 
     /* --- timing ------------------------------------------------------ */
-    void     (*timerStart)(uint32_t ticksPerSec, TickFn tick);
-    TickSyncFn tickSync;                            /* the [0x5AC8]/[0x48BA] pair */
+    void (*timerStart)(uint32_t ticksPerSec, TickFn tick);
+    TickSyncFn tickSync; /* the [0x5AC8]/[0x48BA] pair */
 
     /* --- audio ------------------------------------------------------- */
-    int32_t  (*audioStart)(void);                   /* 0 = ok                     */
-    int32_t  (*audioPlayTune)(uint32_t id);
-    void     (*audioStop)(void);
+    int32_t (*audioStart)(void); /* 0 = ok                     */
+    int32_t (*audioPlayTune)(uint32_t id);
+    void (*audioStop)(void);
 
     /* --- misc -------------------------------------------------------- */
-    void     (*fatalError)(const char *msg);        /* does not return            */
+    void (*fatalError)(const char *msg); /* does not return            */
 } OSystem;
 
 /* Implemented by each arch/<port>/; the arch layer's main() picks one and

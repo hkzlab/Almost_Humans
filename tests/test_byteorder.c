@@ -10,7 +10,10 @@ static int32_t bad;
 
 static void check(int32_t ok, const char *what)
 {
-    if (!ok) { fprintf(stderr, "FAIL %s\n", what); bad = 1; }
+    if (!ok) {
+        fprintf(stderr, "FAIL %s\n", what);
+        bad = 1;
+    }
 }
 
 int main(void)
@@ -34,17 +37,25 @@ int main(void)
           "wr_be_u32 lays out high byte first");
 
     /* reads of a fixed byte pattern */
-    b[0] = 0x34u; b[1] = 0x12u;
+    b[0] = 0x34u;
+    b[1] = 0x12u;
     check(rd_le_u16(b) == 0x1234u, "rd_le_u16");
     check(rd_le_i16(b) == 0x1234, "rd_le_i16 positive");
     check(rd_be_u16(b) == 0x3412u, "rd_be_u16");
-    b[0] = 0xFFu; b[1] = 0xFFu;
+    b[0] = 0xFFu;
+    b[1] = 0xFFu;
     check(rd_le_i16(b) == -1, "rd_le_i16 sign-extends");
     check(rd_be_i16(b) == -1, "rd_be_i16 sign-extends");
-    b[0] = 0x78u; b[1] = 0x56u; b[2] = 0x34u; b[3] = 0x12u;
+    b[0] = 0x78u;
+    b[1] = 0x56u;
+    b[2] = 0x34u;
+    b[3] = 0x12u;
     check(rd_le_u32(b) == 0x12345678u, "rd_le_u32");
     check(rd_be_u32(b) == 0x78563412u, "rd_be_u32");
-    b[0] = 0xFFu; b[1] = 0xFFu; b[2] = 0xFFu; b[3] = 0xFFu;
+    b[0] = 0xFFu;
+    b[1] = 0xFFu;
+    b[2] = 0xFFu;
+    b[3] = 0xFFu;
     check(rd_le_i32(b) == -1, "rd_le_i32 sign-extends");
     check(rd_be_i32(b) == -1, "rd_be_i32 sign-extends");
 
@@ -69,7 +80,10 @@ int main(void)
         check(rd_be_i32(b) == l, "be i32 round trip");
     }
 
-    if (bad) { fprintf(stderr, "byteorder: FAIL\n"); return 1; }
+    if (bad) {
+        fprintf(stderr, "byteorder: FAIL\n");
+        return 1;
+    }
     printf("byteorder: ok\n");
     return 0;
 }

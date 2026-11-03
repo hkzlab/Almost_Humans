@@ -25,7 +25,7 @@
 
 extern const OSystem osys_null;
 
-#define SAVE_LEN 0x1800u
+#define SAVE_LEN  0x1800u
 #define SAVE_NAME "SAVEB"
 
 static void put16(uint8_t *p, uint32_t v)
@@ -50,7 +50,8 @@ static int32_t tick(GameFlow *s, const InputState *in)
 
 /* Hold `dirBit` until the rail arrival changes the cell (or the room hands
  * over to LEVEL).  One idle tick afterwards so the rail cannot re-arm. */
-static int32_t walk_to(GameFlow *s, uint32_t dirBit, uint32_t want, const char *what)
+static int32_t walk_to(GameFlow *s, uint32_t dirBit, uint32_t want,
+                       const char *what)
 {
     uint32_t start = frontend_cellForProbe();
     InputState in = idle();
@@ -92,7 +93,8 @@ int main(int argc, char **argv)
     put16(fx + 0x04, 0x0001);            /* score high                 */
     fx[0x06] = 7;                        /* the state id               */
     put16(fx + 0x07, 0x0549);            /* 5:49 remaining (BCD)       */
-    fx[0x09] = 0; fx[0x0A] = 9;          /* the counter digits         */
+    fx[0x09] = 0;
+    fx[0x0A] = 9;          /* the counter digits         */
     put16(fx + 0x0B, 7);                 /* members: the board gives 12 */
     fx[0x0D] = 0xC3;                     /* the blob's first byte      */
     fx[0x17F0] = 0x5A;                   /* the parameter block        */
@@ -104,7 +106,10 @@ int main(int argc, char **argv)
         return 0;
     }
     fclose(f);
-    if (compat_chdir(vol_dir)) { perror(vol_dir); return 1; }
+    if (compat_chdir(vol_dir)) {
+        perror(vol_dir);
+        return 1;
+    }
 
     f = fopen(SAVE_NAME, "rb");
     if (f) {
@@ -213,7 +218,8 @@ int main(int argc, char **argv)
     } else {
         const LevelData *d = level_data();
         if (level_timeLimit() != d->timeA || level_tribeMembers() != 12u) {
-            fprintf(stderr, "FAIL the fresh pick is not the board's "
+            fprintf(stderr,
+                    "FAIL the fresh pick is not the board's "
                     "(time 0x%04x, members %u)\n",
                     (uint32_t)level_timeLimit(), level_tribeMembers());
             bad = 1;

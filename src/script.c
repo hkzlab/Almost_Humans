@@ -32,7 +32,11 @@
 #define CUE_SCROLL     6
 #define CUE_DWELL      7
 
-int32_t script_init(const OSystem *osys) { (void)osys; return 0; }
+int32_t script_init(const OSystem *osys)
+{
+    (void)osys;
+    return 0;
+}
 
 /* Wire a cue list (flattened [frame][cmd][arg] u16 triples). */
 void script_start(CueScript *s, const uint16_t *cues, uint32_t cueCount)
@@ -54,7 +58,7 @@ void script_fire(CueScript *s, uint32_t frame)
     s->frame = frame;
 
     while (s->cursor < s->cueCount) {
-        uint16_t f   = s->cues[s->cursor * 3u];
+        uint16_t f = s->cues[s->cursor * 3u];
         uint16_t cmd = s->cues[s->cursor * 3u + 1u];
         uint16_t arg = s->cues[s->cursor * 3u + 2u];
         if (f != s->frame) break;               /* JE vs the LIVE counter */
@@ -62,16 +66,16 @@ void script_fire(CueScript *s, uint32_t frame)
         s->cursor++;
         switch (cmd) {
         case CUE_TRANSITION: s->transitionIdx = arg; break;
-        case CUE_SCROLL_OFF: s->scrollOn = 0;        break;
-        case CUE_SCROLL_ON:  s->scrollOn = 1;        break;
+        case CUE_SCROLL_OFF: s->scrollOn = 0; break;
+        case CUE_SCROLL_ON: s->scrollOn = 1; break;
         case CUE_SEEK:
             s->seekFrame = arg;
             s->seekPending = 1;
-            s->frame = arg;      /* b92d: [0x6466] = arg, the scan continues */
+            s->frame = arg; /* b92d: [0x6466] = arg, the scan continues */
             break;
-        case CUE_QUIT:       s->quit = 1;            break;
-        case CUE_SCROLL:     s->scrollDelta = arg;   break;
-        case CUE_DWELL:      s->groupDwell = arg;    break;
+        case CUE_QUIT: s->quit = 1; break;
+        case CUE_SCROLL: s->scrollDelta = arg; break;
+        case CUE_DWELL: s->groupDwell = arg; break;
         }
         if (s->quit) return;
     }
@@ -93,35 +97,32 @@ void script_seekDone(CueScript *s) { s->seekPending = 0; }
 
 static const uint16_t intro_cues[25u * 3u] = {
     /* frame  cmd  arg */
-    0, 7, 1,       /* dwell 1                                        */
-    0, 6, 3,       /* scroll delta 3                                 */
-    0, 3, 0,       /* scroll on                                      */
-    0, 4, 0,       /* seek 0                                         */
-    0, 1, 0,       /* transition 0                                   */
-    64, 2, 0,      /* scroll off                                     */
-    65, 1, 1,      /* transition 1                                   */
-    76, 3, 0,      /* scroll on                                      */
-    170, 2, 0,     /* scroll off                                     */
-    171, 1, 2,     /* transition 2                                   */
-    186, 3, 0,     /* scroll on                                      */
-    186, 6, 4,     /* scroll delta 4                                 */
-    245, 2, 0,     /* scroll off                                     */
-    246, 1, 3,     /* transition 3                                   */
-    261, 3, 0,     /* scroll on                                      */
-    261, 6, 8,     /* scroll delta 8                                 */
-    261, 7, 1,     /* dwell 1                                        */
-    294, 2, 0,     /* scroll off                                     */
-    295, 1, 4,     /* transition 4                                   */
-    307, 3, 0,     /* scroll on                                      */
-    323, 4, 314,   /* seek to frame 314 (the tail loop)              */
-    323, 4, 314,   /* seek to frame 314 again                        */
-    325, 2, 0,     /* scroll off                                     */
-    355, 1, 5,     /* transition 5                                   */
-    385, 5, 0,     /* quit                                           */
+    0,   7, 1, /* dwell 1                                        */
+    0,   6, 3, /* scroll delta 3                                 */
+    0,   3, 0, /* scroll on                                      */
+    0,   4, 0, /* seek 0                                         */
+    0,   1, 0, /* transition 0                                   */
+    64,  2, 0, /* scroll off                                     */
+    65,  1, 1, /* transition 1                                   */
+    76,  3, 0, /* scroll on                                      */
+    170, 2, 0, /* scroll off                                     */
+    171, 1, 2, /* transition 2                                   */
+    186, 3, 0, /* scroll on                                      */
+    186, 6, 4, /* scroll delta 4                                 */
+    245, 2, 0, /* scroll off                                     */
+    246, 1, 3, /* transition 3                                   */
+    261, 3, 0, /* scroll on                                      */
+    261, 6, 8, /* scroll delta 8                                 */
+    261, 7, 1, /* dwell 1                                        */
+    294, 2, 0, /* scroll off                                     */
+    295, 1, 4, /* transition 4                                   */
+    307, 3, 0, /* scroll on                                      */
+    323, 4, 314, /* seek to frame 314 (the tail loop)              */
+    323, 4, 314, /* seek to frame 314 again                        */
+    325, 2, 0, /* scroll off                                     */
+    355, 1, 5, /* transition 5                                   */
+    385, 5, 0, /* quit                                           */
 };
 
 /* Start the intro cue script (the verbatim 202F:0x843C template). */
-void script_introStart(CueScript *s)
-{
-    script_start(s, intro_cues, 25u);
-}
+void script_introStart(CueScript *s) { script_start(s, intro_cues, 25u); }
