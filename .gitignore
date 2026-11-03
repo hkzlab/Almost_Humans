@@ -67,3 +67,6 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
+
+# CodeGraph index (tools/codegraph)
+.codegraph/
