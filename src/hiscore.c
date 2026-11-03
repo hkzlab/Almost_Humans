@@ -70,11 +70,9 @@ static void hiscore_crypt(void) { hiscore_obfuscate(hiscoreTable, HIS_TABLE); }
 static void hiscoreDefaults(void)
 {
     memset(hiscoreTable, 0, sizeof hiscoreTable);
-    hiscoreTable[0] = 0x99u; hiscoreTable[1] = 0x09u;   /* [0x38A] = 0x0999 */
-    for (unsigned n = 1; n < HIS_LEVELS; n++) {
-        hiscoreTable[2u + 2u * n] = 0x99u;
-        hiscoreTable[3u + 2u * n] = 0x09u;
-    }
+    wr_le_u16(hiscoreTable, 0x0999u);                  /* [0x38A] = 0x0999 */
+    for (unsigned n = 1; n < HIS_LEVELS; n++)
+        wr_le_u16(hiscoreTable + 2u + 2u * n, 0x0999u);
     for (unsigned i = 0; i < HIS_TOPN; i++) {
         uint8_t *e = hiscoreEntry(i);
         uint32_t v = hiscoreDefault[i].score;
