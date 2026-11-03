@@ -10,6 +10,7 @@
  * 0x0D (the name screen's confirm), Backspace = 0x0E (the erase).  Every
  * key-UP clears the code (the ISR's 942F) — a tap must not linger. */
 #include "osystem.h"
+
 #include <SDL3/SDL.h>
 #include <string.h>
 

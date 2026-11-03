@@ -29,6 +29,7 @@
 #include "hiscore.h"
 #include "byteorder.h"
 #include "fs/fs.h"
+
 #include <string.h>
 
 #define HIS_LEVELS 161u /* the table's 1-based level index        */

@@ -88,6 +88,7 @@
 #include "palette.h"
 #include "res.h"
 #include "video.h"
+
 #include <stdlib.h>
 #include <string.h>
 

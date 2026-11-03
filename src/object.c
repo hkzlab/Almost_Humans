@@ -51,6 +51,7 @@
 #include "palette.h"
 #include "statusbar.h"
 #include "byteorder.h"
+
 #include <string.h>
 
 #define OBJ_STATIC 8u /* the records 0x3640/check_highscore scan */

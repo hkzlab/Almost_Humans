@@ -8,6 +8,7 @@
  * 960x720 window, so both fields keep the 4:3 display geometry.
  * The loop is paced by the tick gate (timer.c's tickSync), not by vsync. */
 #include "osystem.h"
+
 #include <SDL3/SDL.h>
 #include <stdlib.h>
 

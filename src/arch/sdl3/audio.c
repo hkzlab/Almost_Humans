@@ -2,6 +2,7 @@
  * decision is M5's (port_structure.md §7).  The interface is stable either
  * way, so the core never changes. */
 #include "osystem.h"
+
 #include <SDL3/SDL.h>
 
 int32_t sdl3_audioStart(void)

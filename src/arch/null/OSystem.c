@@ -5,6 +5,7 @@
  * the callback for the test to drive manually.  It is also the shape every
  * other backend must match (port_structure.md §2). */
 #include "osystem.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>

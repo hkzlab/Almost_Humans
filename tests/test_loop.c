@@ -21,6 +21,7 @@
 #include "res.h"
 #include "video.h"
 #include "compat.h"
+
 #include <stdio.h>
 #include <string.h>
 

@@ -38,6 +38,7 @@
 #include "statusbar.h"
 #include "textpage.h"
 #include "video.h"
+
 #include <stdio.h>
 #include <stddef.h>
 

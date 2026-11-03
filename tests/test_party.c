@@ -22,6 +22,7 @@
 #include "score.h"
 #include "video.h"
 #include "compat.h"
+
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>

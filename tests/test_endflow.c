@@ -19,6 +19,7 @@
 #include "level.h"
 #include "osystem.h"
 #include "compat.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

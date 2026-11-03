@@ -4,6 +4,7 @@
  * assertions prove the little-endian and big-endian paths on a LE host and a
  * BE host alike. */
 #include "byteorder.h"
+
 #include <stdio.h>
 
 static int32_t bad;

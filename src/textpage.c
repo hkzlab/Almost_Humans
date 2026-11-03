@@ -47,6 +47,7 @@
  */
 #include "textpage.h"
 #include "font.h"
+
 #include <string.h>
 
 #define TEXT_LIMIT 96u

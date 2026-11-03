@@ -4,6 +4,7 @@
  * LZW payloads) and the save format are the core's business (re_formats.md
  * §8/§10); the module only opens, sizes and reads bytes through stdio. */
 #include "fs/fs.h"
+
 #include <stdio.h>
 
 static FSVolume *posix_openVolume(uint32_t disc);

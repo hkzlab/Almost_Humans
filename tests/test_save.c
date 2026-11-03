@@ -29,6 +29,7 @@
 #include "statusbar.h"
 #include "video.h"
 #include "compat.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

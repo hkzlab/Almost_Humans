@@ -16,6 +16,7 @@
  * cannot be trusted for the game's heartbeat; this thread sleeps until
  * close and spins the last stretch on the QPC-backed clock instead. */
 #include "osystem.h"
+
 #include <SDL3/SDL.h>
 #include <stdlib.h>
 

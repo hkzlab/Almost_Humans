@@ -17,6 +17,7 @@
  * §8.4): ANI03 = 0x3c3f, ITB = 0x2adb. */
 #include "res.h"
 #include "compat.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

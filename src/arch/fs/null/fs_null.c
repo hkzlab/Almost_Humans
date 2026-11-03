@@ -4,6 +4,7 @@
  * the deliberate "no disc" state.  openVolume returns NULL, which the core's
  * callers treat as "the volume is not available" and own the error path. */
 #include "fs/fs.h"
+
 #include <stdio.h>
 
 static FSVolume *null_openVolume(uint32_t disc);

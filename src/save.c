@@ -34,6 +34,7 @@
 #include "statusbar.h"
 #include "byteorder.h"
 #include "fs/fs.h"
+
 #include <string.h>
 
 #define SAVE_LEN 0x1800u

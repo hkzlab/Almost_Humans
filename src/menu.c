@@ -30,6 +30,7 @@
 #include "osystem.h"
 #include "statusbar.h"
 #include "textpage.h"
+
 #include <string.h>
 
 #define MENU_ROWS 5u

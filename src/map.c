@@ -39,6 +39,7 @@
 #include "textpage.h"
 #include "video.h"
 #include "byteorder.h"
+
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
