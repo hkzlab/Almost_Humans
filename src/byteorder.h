@@ -49,7 +49,20 @@
 #endif
 #endif /* BYTEORDER_HOST_LITTLE */
 
-/* --- the host-order load/store primitives ---------------------------- */
+/* --- the host-order load/store primitives ----------------------------
+ *
+ * memcpy is deliberate.  It is the C99-safe way to say "read a native u16
+ * out of an arbitrary byte buffer": a cast would be UB on an unaligned
+ * address.  The size is constant, so gcc and clang lower it to one
+ * unaligned load/store (gcc even at -O0, clang from -O1 up) -- the direct
+ * mapping this module exists for.  Spelling the bytes out instead
+ * (`p[0] | p[1] << 8`) reaches the same instruction at -O2, but then the
+ * native and foreign paths would each carry their own hand-written byte
+ * order; here the foreign order is just the bswap below.
+ *
+ * In an unoptimised clang build nothing is inlined, so these become calls;
+ * that is a debug-build cost, not a property of the generated code.
+ */
 
 static inline uint16_t bo_ld16(const uint8_t *p)
 {
