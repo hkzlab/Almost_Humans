@@ -2923,9 +2923,9 @@ static void objMoverPassRecords(uint8_t *r, int32_t ax, int32_t bx)
         if (i < OBJ_LIVE0 + 1u) continue;
         if ((*beh & 0x3Fu) != 8u) continue;
         dx = (int16_t)rd_le_u16(t + 0u) - ax;
-        if (!(dx < 0 && dx + 0x10 > 0)) continue;
+        if (!(dx < 0 && dx + 0x10 >= 0)) continue; /* 1000:5A55/0x5A5D */
         dy = (int16_t)rd_le_u16(t + 2u) - bx;
-        if (!(dy < 0 && dy + 0x1Au > 0)) continue;
+        if (!(dy < 0 && dy + 0x1Au >= 0)) continue; /* 1000:5A66/0x5A6E */
         if (rd_le_u16(r + 0xCu) != 0u || (rd_le_u16(r + 0xEu) & 0x8000u) ||
             rd_le_u16(r + 0xEu) > 1u) {
             uint8_t cls;
@@ -2946,16 +2946,19 @@ static void objMoverPassRecords(uint8_t *r, int32_t ax, int32_t bx)
             return;
         }
         if (t[7] == 0u) {
-            uint32_t mover = (uint32_t)((r - objArray) / OBJ_STRIDE);
+            /* 1000:5A9D..0x5AD6: clear the ACTING record's +6/+8/+0xA/+0xC,
+             * OR 0x80 into the ACTING record's class byte and link the
+             * candidate to it by that class ordinal; the scan then moves on
+             * to the next record (0x5B31). */
+            uint32_t ord = (uint32_t)((r - objArray) / OBJ_STRIDE) - 8u;
 
+            wr_le_u16(r + 6u, 0u);
             wr_le_u16(r + 8u, 0u);
             wr_le_u16(r + 0xAu, 0u);
             wr_le_u16(r + 0xCu, 0u);
-            wr_le_u16(r + 0xEu, 0u);
-            *beh |= 0x80u;
-            t[7] = (uint8_t)(mover + 1u);
+            objSlotClass[ord] |= 0x80u;
+            t[7] = (uint8_t)ord;
         }
-        return;
     }
 }
 
@@ -2995,11 +2998,13 @@ static void objMoverPassEntity(uint8_t *r, int32_t ax, int32_t bx)
             if (!entity_spritePixel(src, rows, (uint32_t)ex, (uint32_t)dy))
                 continue;
             objSlotClass[(uint32_t)((r - objArray) / OBJ_STRIDE) - 8u] = 0u;
-            r[0] = 0xFFu;
+            r[6] = 0xFFu; /* 1000:59F2: SI = record+6 */
             e->hold = 5u;
             e->waypoint =
                 (e->handler != 0u && e->handler != 3u) ? 0x1Au : 0x0Cu;
-            if (e->life > 0u) e->life--;
+            /* 1000:5A14: the DEC is unconditional, so a zero life word wraps
+             * to 0xFFFF and does not enter handler 4. */
+            e->life--;
             if (e->life == 0u) e->handler = 4u;
             return;
         }
@@ -3022,9 +3027,9 @@ static void objMoverPassPlaced(uint8_t *r, int32_t ax, int32_t bx)
 
         if (slot[6] & 0x80u) continue;
         dx = (int16_t)rd_le_u16(slot + 0u) - ax;
-        if (!(dx < 0 && dx + 0x10 > 0)) continue;
+        if (!(dx < 0 && dx + 0x10 >= 0)) continue; /* 1000:5B77/0x5B7F */
         dy = (int16_t)rd_le_u16(slot + 2u) - bx;
-        if (!(dy - 2 < 0 && dy + 0x0C > 0)) continue;
+        if (!(dy - 2 < 0 && dy + 0x0C >= 0)) continue; /* 1000:5B89/0x5B91 */
         type = rd_le_u16(slot + 8u);
         if (type < 16u && objTypeOverlaps[type]) continue;
         (void)object_stackScanDissolve(i); /* 1000:F453, AX = 5 */
@@ -6807,7 +6812,10 @@ void object_actionRun(void)
          * cell under the record and on the cell one to the right (type 0) or
          * left; only when both are free does it set type 0x12/frame 0x8C
          * (type 0) or type 0x14/frame 0x91.  The 16-bit `DI += CX` can walk
-         * off the map, so both indices are bounds-checked. */
+         * off the map, so both indices are bounds-checked.  The original's
+         * single exit (1000:ED49) clears the sequence latch [0x6F1D] on every
+         * path and nothing in the body reads it, so the clear is done here. */
+        objLat = 0;
         {
             uint32_t t = rd_le_u16(actor + 8u);
             uint32_t step = (t == 0u) ? 1u : 0xFFFFu;
@@ -6825,8 +6833,6 @@ void object_actionRun(void)
             if (!level_pageFree(map[next])) break;
             wr_le_u16(actor + 8u, (uint16_t)((t == 0u) ? 0x12u : 0x14u));
             wr_le_u16(actor + 4u, (uint16_t)frame);
-            /* 1000:ED49 clears [0x6F1D] (objLat) on every exit; the port does
-             * not — port_deviations.md D-167. */
         }
         break;
     case OP_TYPE_B: /* 0x39CF -> 0xEA0F / 0xEA4D          */

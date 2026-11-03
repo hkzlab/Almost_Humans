@@ -467,6 +467,38 @@ int main(int argc, char **argv)
     if (entity_count() != 0u)
         failf("la#1 count", 0u, (int64_t)entity_count(), 0);
 
+    /* 6. handler 4 (1000:C998): the mover collision's life word drives it, and
+     * the hold counts down every tick; the tick that takes the hold negative
+     * bumps the waypoint, switches to the no-op handler 5 and adds 0x7D0 to
+     * [0x1DCA]. */
+    if (level_load(10u) == 0) {
+        Entity *p;
+
+        entity_spawnFromMap(level_map(), level_data()->style,
+                            level_data()->entityLife);
+        p = entity_atMut(0u);
+        if (p) {
+            uint16_t wp = p->waypoint;
+
+            p->handler = 4u;
+            p->hold = 9u;
+            entity_tick();
+            if (p->handler != 4u)
+                failf("handler 4 holds while the hold lasts", 10u, p->handler,
+                      4);
+            p->hold = 0u; /* 1000:C99D's DEC wraps it to 0xFFFF */
+            entity_tick();
+            if (p->handler != 5u)
+                failf("the hold's expiry", 10u, p->handler, 5);
+            if (p->waypoint != (uint16_t)(wp + 1u))
+                failf("the expiry bumps the waypoint", 10u, p->waypoint,
+                      (int64_t)wp + 1);
+            entity_tick();
+            if (p->handler != 5u)
+                failf("handler 5 is the bare RET", 10u, p->handler, 5);
+        }
+    }
+
     if (!bad)
         printf("entity tests: OK (the lb#1 spawn fields, the 0xB4 join, "
                "the exact-flip walk, the 160-level census)\n");

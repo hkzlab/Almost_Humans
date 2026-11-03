@@ -37,6 +37,7 @@
 #include "entity.h"
 #include "object.h"
 #include "osystem.h"
+#include "score.h"
 #include "byteorder.h"
 
 #include <stddef.h>
@@ -458,7 +459,9 @@ void entity_render(uint8_t *page, int32_t scrollX, int32_t scrollY)
 /* --- the dispatch (1000:C93C) ------------------------------------------- */
 void entity_tick(void)
 {
-    for (uint32_t i = 0; i < ent_count; i++) {
+    /* 1000:C944: AX = [0x64C2]-1, DEC/JNS - the entity table is walked
+     * DOWNWARD, so the highest index runs first. */
+    for (uint32_t i = ent_count; i-- > 0u;) {
         Entity *ep = (Entity *)ents[i];
         /* c94c-c951: BX = +0, CX = +2, DX = +4 into the handler switch.
          * The handlers re-latch their fixed words EVERY call (BP is not
@@ -482,11 +485,16 @@ void entity_tick(void)
             sel_primary = 0x0Cu;
             entity_carry_anim(ep);
             break;
+        case 4u: /* 1000:C998: the hold ran out */
+            if ((int16_t)--ep->hold < 0) { /* C99D/C9A1 */
+                ep->waypoint++; /* C9A6: INC word [record+0xC] */
+                ep->handler = 5u; /* C9AD */
+                object_driverCall(0x0Cu); /* C9B2 */
+                score_addLevelTerm(0x7D0u); /* C9B9 */
+            }
+            break;
         default:
-            /* Handlers 4 and 5: only the tail's wp[8] ever writes a handler
-             * other than 0/1, and the two shipped tables give 3 and 2 - so
-             * 4 (1000:C998) and 5 (the bare RET at 1000:C9C0) stay
-             * unreachable.  The old "0/1 only" reading missed the tail. */
+            /* 1000:C9C0: handler 5 is a bare RET. */
             break;
         }
     }

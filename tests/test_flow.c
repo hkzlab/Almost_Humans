@@ -2439,6 +2439,44 @@ int main(int argc, char **argv)
                         if (page[y * 320u + x]) ink++;
                 check(ink != 0u, "the same record draws while it is not taken");
             }
+            /* the mover's record pass (1000:5A2F): a candidate sitting exactly
+             * on the far edge of both windows is collected (the listing's
+             * ADD/JNS is >=), the ACTING record's class byte takes 0x80 and
+             * the candidate's +7 gets the acting record's ordinal. */
+            {
+                static uint8_t m6[640];
+                uint8_t *spear, *cand;
+                uint16_t lifeBefore;
+
+                memset(m6, 0, sizeof m6);
+                m6[4u * 32u + 4u] = 0xABu; /* the mover, at (64,64) */
+                m6[6u * 32u + 6u] = 0xB7u; /* the behaviour-8 candidate */
+                object_init();
+                (void)object_loadTerrainObjects(m6);
+                spear = object_slot(9u); /* live ordinal 1 */
+                cand = object_slot(10u); /* live ordinal 2 */
+                check(spear && cand && object_slotClass(1u) == 5u &&
+                          object_slotClass(2u) == 8u,
+                      "the mover and the behaviour-8 candidate");
+                /* frame 0x60 selects (dx,dy) = (+8,+15); the window's far
+                 * edges are x - 0x10 and y - 0x1A */
+                cand[0] = (uint8_t)(64 + 8 - 0x10);
+                cand[1] = 0u;
+                cand[2] = (uint8_t)(64 + 15 - 0x1A);
+                cand[3] = 0u;
+                cand[6] &= 0x7Fu;
+                cand[7] = 0u;
+                lifeBefore = (uint16_t)(spear[0xE] | (spear[0xF] << 8));
+                object_updateList();
+                check(cand[7] == 1u,
+                      "the candidate links to the acting ordinal");
+                check(object_slotClass(1u) == 0x85u,
+                      "the acting record's class byte takes 0x80");
+                check((spear[6] | (spear[7] << 8)) == 0u,
+                      "the acting record's +6 word is cleared");
+                check((uint16_t)(spear[0xE] | (spear[0xF] << 8)) == lifeBefore,
+                      "the acting record's +0xE is not cleared");
+            }
             object_publishBank(NULL, 0u);
             free(bank);
         }

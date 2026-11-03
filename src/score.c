@@ -155,12 +155,19 @@ uint32_t score_members(void)
     return n;
 }
 
+/* 1000:C9B9: handler 4 adds 0x7D0 to the level's score term [0x1DCA]. */
+void score_addLevelTerm(uint16_t v)
+{ scoreLevelTerm = (uint16_t)(scoreLevelTerm + v); }
+
 /* 1000:41EA..4235: the level's two terms. */
 static void score_terms(void)
 {
     uint32_t levelNo = gameflow_levelForProbe() + 1u;
 
-    scoreLevelTerm = (uint16_t)(levelNo * score_members() * 10u);
+    /* 1000:41F6 is an ADD: [0x1DCA] also carries whatever the handler-4
+     * steps (1000:C9B9) added during play, so the term accumulates. */
+    scoreLevelTerm =
+        (uint16_t)(scoreLevelTerm + levelNo * score_members() * 10u);
     for (uint32_t i = 0; i < object_staticSlots(); i++) {
         uint32_t cell = object_recordMapCell(i);
 
@@ -191,7 +198,8 @@ void score_prepare(void)
     uint16_t elapsed = statusbar_elapsedWord(); /* [0x1E84] */
     uint32_t idx = levelNo;
 
-    scoreLevelTerm = 0; /* [0x1DCA] starts at 0 */
+    /* [0x1DCA] is NOT cleared here: the original only drains it through the
+     * score screen (1000:4786..0x478D), so a lost level's term carries over. */
     score_terms();
     scoreIsRecord = 0; /* 1000:42E4 */
     if (elapsed < hiscore_best(idx)) { /* 1000:42F9 */

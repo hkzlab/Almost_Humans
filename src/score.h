@@ -16,6 +16,7 @@ uint32_t score_levelScore(void);
 
 /* --- check_highscore's data (1000:41B8..4352) ------------------------- */
 uint32_t score_members(void); /* [0x11FC]'s recompute      */
+void score_addLevelTerm(uint16_t v); /* [0x1DCA] += v (1000:C9B9) */
 void score_prepare(void); /* terms, best, NEW RECORD, totals */
 int32_t score_countersRun(void); /* 1000:475D: one 10-point step */
 int32_t score_isRecord(void); /* [0x1DD6]                  */
