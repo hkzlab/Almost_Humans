@@ -3306,8 +3306,10 @@ static int32_t objProjCull(int32_t vx, int32_t x)
     return vx;
 }
 
-/* 1000:D5D5: the terrain snap/landing for the projectile.  Returns the new
- * y, or -1 when it is off the page (the slot splash is not modelled). */
+/* The terrain snap/landing block of `advance_position_snap_row`
+ * (`1000:D41B`): returns the new y, or -1 when it is off the page (the slot
+ * splash is not modelled, and the routine's water/drown branch is not ported -
+ * port_deviations.md D-97). */
 static int32_t objProjSnap(uint8_t *r, int32_t bx, int32_t cx)
 {
     const uint8_t *map = level_map();
