@@ -25,8 +25,8 @@
  * (`[0x5ACE]`).  `handler` is the in-segment address the original calls
  * (0 = none, so the row's `tail` applies); `command` is the 0..7 number the
  * type row was indexed by.  Index 2 is 1000:E609, whose tail holds the human
- * stack's push.  The handler bodies are ported except 0xE7C0 and 0xEBCA
- * (all rows are now ported). */
+ * stack's push.  Every handler body is ported (the former `0xE7C0` and
+ * `0xEBCA` gaps were closed). */
 typedef struct {
     uint32_t handler;
     uint32_t tail;
