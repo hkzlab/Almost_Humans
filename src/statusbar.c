@@ -555,12 +555,13 @@ void statusbar_tick(void)
 
 /* build_statusbar_layout (1000:961B) + level_start's time pick (1000:9589):
  * `packedTimeBcd` = the level's chosen limit, AH = minutes, AL = BCD
- * seconds (the header's timeA/B/C picked by the difficulty byte [0x5E65];
- * the port passes timeA — no difficulty select yet).  The tribe digits =
- * [0x11FC] - [0x17FB] (members - required), DIV/MOD 10 — the caller owns
- * both counts: the members start at 12/10/8 by difficulty (entry
- * 1000:00B1) and the required = the map's 0xAA-tile count (load_level
- * 1000:315F). */
+ * seconds.  The caller picks the header's timeA/B/C by the LEVEL board's
+ * counter (`[0x5E65]`, `frontend_option(FRONTEND_OPT_LEVEL)`), and the
+ * members 12/10/8 by the same byte (entry `1000:00B1`); a loaded save
+ * replaces both with its `+0x07` word and `+0x0B` members (`level.c`).
+ * The tribe digits = [0x11FC] - [0x17FB] (members - required), DIV/MOD 10 —
+ * the caller owns both counts: the required = the map's 0xAA-tile count
+ * (load_level 1000:315F). */
 void statusbar_start(uint16_t packedTimeBcd, uint32_t tribeMembers,
                      uint32_t tribeRequired)
 {
