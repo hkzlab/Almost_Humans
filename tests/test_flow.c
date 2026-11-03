@@ -4133,9 +4133,9 @@ int main(int argc, char **argv)
             wr16t(a, 0xAu, 0u);
             wr16t(a, 0xEu, 1u * 0x12u + 4u); /* the link to slot 1 */
             memset(node, 0, 0x12u);
-            /* the handler runs; the run still reports UNPORTED because the
-             * type-15 rows' *tail* (0xDC1F) is not ported yet - the next
-             * objective - and the dispatcher stops there. */
+            /* the handler and the type-15 rows' *tail* (0xDC1F,
+             * `objCmdType15Tail`) both run; the checks below read the state
+             * they leave. */
             (void)object_commandRun(a, 0x08u);
             check(rd16t(node, 8u) == 1u && rd16t(a, 0xAu) == 1u,
                   "the nudge adds the actor's ramped +0xA to the node's +8");

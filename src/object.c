@@ -220,11 +220,15 @@ typedef struct {
  *   1  0x3A26 register the object in the 0x6F22 table (8 slots, stride 0xE), frame 0x20, type 8
  *   2  0x9C1B the collision pass (also op 6) — see below
  *   3  0x3A1A -> 0xECFE  `cmd_select_8c_or_91_and_draw` (needs a class; sets frame 0x8C/0x91)
- *   4  0x3A05 -> 0xEFA1/0xEFB9                                  (per-type, not decoded)
- *   5  0x39B5 type += 0x1F and frame = 0x10E + 4*type
- *   7  0x39CF -> 0xEA0F/0xEA4D                                  (per-type, not decoded)
- *   8  0x39CC -> 0xEA71 `reset_span_entry_on_phase`
- *   9  0x39E4 the player claims (AX = 2), otherwise 0xEF0C/0xEF39  (not decoded)
+ *                        - ported inline (`OP_SELECT`)
+ *   4  0x3A05 -> 0xEFA1/0xEFB9 per type (<= 2) -> `objOpSetState`: type 1/frame 0xBB for type
+ *                        0, type 2/frame 0x17 otherwise - ported (`OP_TYPE_A`)
+ *   5  0x39B5 type += 0x1F and frame = 0x10E + 4*type         - ported (`OP_SETFRAME`)
+ *   7  0x39CF -> 0xEA0F/0xEA4D the two ride commands - the port halts: port_deviations.md D-92
+ *   8  0x39CC -> 0xEA71 `reset_span_entry_on_phase`            - ported (`OP_RESET`)
+ *   9  0x39E4 the player claims (AX = 2), otherwise 0xEF0C/0xEF39 `cmd_walk_and_mark_state1_a/b`
+ *                        (walk 0x10 / walk 0 and mark state 1) - ported (`OP_CLAIM_OR_TYPE`,
+ *                        `objOpMarkWalk`)
  *   10 0x3A64 claim with AX = 3     11 0x3A5F claim with AX = 0     12 0x3A5A claim with AX = 1
  *
  * The **program** comes from `[0x5B56]` (1-based) through `get_action_program_ptr`

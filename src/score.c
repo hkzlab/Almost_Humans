@@ -212,9 +212,9 @@ void score_prepare(void)
 }
 
 /* 1000:467A blink_tick: while [0x1DD6] (NEW RECORD) is set, a 0x19-frame
- * counter toggles [0x1DC4], the RECORD sprite's on/off phase (its two drawing
- * halves at 0x46A3 / 0x46FC are not ported: they copy a 16x24 mask from the
- * scratch at 0x3CA0 to the page). */
+ * counter toggles [0x1DC4], the RECORD sprite's on/off phase.  The two drawing
+ * halves at 0x4697 / 0x46FC are ported by `score_stampDraw`/`stampCopy`
+ * (below), which keep the same 0x3CA0 address and the four plane passes. */
 /* the stamp's current phase ([0x1DC4]): 1 = drawn */
 int32_t scoreBlinkOn(void) { return scoreBlinkPhase; }
 
