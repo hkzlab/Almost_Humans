@@ -19,7 +19,16 @@
  *
  * argv[1] = the game data directory holding HUMANS.000/001/002.
  * Missing volumes = skip. */
-#include "game.h"
+#include "audio.h"
+#include "font.h"
+#include "frontend.h"
+#include "level.h"
+#include "osystem.h"
+#include "palette.h"
+#include "res.h"
+#include "scene.h"
+#include "statusbar.h"
+#include "video.h"
 #include "compat.h"
 #include <stdio.h>
 #include <stdlib.h>

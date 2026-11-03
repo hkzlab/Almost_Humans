@@ -1,6 +1,7 @@
 /* audio.c — the tune/sfx state machine (game_structure.md §1 subsystem 7)
  * over osys->audio*; the INT 60h ABI is re_map.md's audio section. */
-#include "game.h"
+#include "audio.h"
+#include "osystem.h"
 
 static const OSystem *au_osys;
 static int32_t musicActive;  /* [0x40BB]: the latch music_resume raises   */

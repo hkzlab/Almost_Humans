@@ -25,7 +25,12 @@
  *
  * argv[1] = the volume dir, argv[2] = the extracted tree.  Missing data =
  * skip with a notice (test_party's contract). */
-#include "game.h"
+#include "font.h"
+#include "osystem.h"
+#include "palette.h"
+#include "party_intro.h"
+#include "res.h"
+#include "video.h"
 #include "compat.h"
 #include <stdio.h>
 #include <stdlib.h>

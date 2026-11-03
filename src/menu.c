@@ -26,7 +26,10 @@
  * here; that renderer landed in pass 10/12 and the note was stale.)  The
  * pause block is opened by `gameflow_keyList` (ESC, 1000:386E event 4).
  */
-#include "game.h"
+#include "menu.h"
+#include "osystem.h"
+#include "statusbar.h"
+#include "textpage.h"
 #include <string.h>
 
 #define MENU_ROWS 5u

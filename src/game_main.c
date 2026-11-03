@@ -17,7 +17,27 @@
  * tick boundary.  The modules are real; the open deviations are listed in
  * port_deviations.md.
  */
-#include "game.h"
+#include "gameflow.h"
+#include "attract.h"
+#include "audio.h"
+#include "entity.h"
+#include "font.h"
+#include "frontend.h"
+#include "level.h"
+#include "map.h"
+#include "menu.h"
+#include "object.h"
+#include "osystem.h"
+#include "palette.h"
+#include "party_intro.h"
+#include "res.h"
+#include "save.h"
+#include "scene.h"
+#include "score.h"
+#include "script.h"
+#include "statusbar.h"
+#include "textpage.h"
+#include "video.h"
 #include <stdio.h>
 #include <stddef.h>
 

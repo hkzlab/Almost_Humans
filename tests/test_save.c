@@ -17,7 +17,17 @@
  * location — and removed at the end.  A pre-existing SAVEB is never
  * clobbered: the test skips.
  * Missing volumes = skip. */
-#include "game.h"
+#include "audio.h"
+#include "font.h"
+#include "frontend.h"
+#include "gameflow.h"
+#include "level.h"
+#include "osystem.h"
+#include "palette.h"
+#include "save.h"
+#include "score.h"
+#include "statusbar.h"
+#include "video.h"
 #include "compat.h"
 #include <stdio.h>
 #include <stdlib.h>

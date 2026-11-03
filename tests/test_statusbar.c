@@ -18,7 +18,13 @@
  * argv[3] = optional PPM dump directory (the level page at t=0 and t=90,
  *           rendered with the installed DAC — for eyeballing/analysis).
  * Missing volumes = skip. */
-#include "game.h"
+#include "level.h"
+#include "object.h"
+#include "osystem.h"
+#include "palette.h"
+#include "res.h"
+#include "statusbar.h"
+#include "video.h"
 #include "compat.h"
 #include <stdio.h>
 #include <stdlib.h>

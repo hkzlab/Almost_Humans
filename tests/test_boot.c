@@ -27,7 +27,11 @@
  * argv[3] = optional PPM frame-dump directory (frames 0, 100, 322, 344,
  *           384 rendered with bac.bit's palette — for eyeballing/analysis).
  * Missing volumes = skip. */
-#include "game.h"
+#include "osystem.h"
+#include "palette.h"
+#include "res.h"
+#include "scene.h"
+#include "video.h"
 #include "compat.h"
 #include <stdio.h>
 #include <stdlib.h>

@@ -70,7 +70,12 @@
  * music_stop 8389, INT 60 service 0xA inside present_frames_75) ride the
  * OSystem audio contract, which the null build stubs.
  */
-#include "game.h"
+#include "party_intro.h"
+#include "font.h"
+#include "osystem.h"
+#include "palette.h"
+#include "res.h"
+#include "video.h"
 #include "byteorder.h"
 #include <stdlib.h>
 #include <stdio.h>

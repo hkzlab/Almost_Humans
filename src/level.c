@@ -28,7 +28,18 @@
  * census walk, tools/level_census.py) — some records carry a 0/1-byte
  * alignment trailer after the map.
  */
-#include "game.h"
+#include "level.h"
+#include "entity.h"
+#include "font.h"
+#include "frontend.h"
+#include "object.h"
+#include "osystem.h"
+#include "palette.h"
+#include "res.h"
+#include "save.h"
+#include "statusbar.h"
+#include "textpage.h"
+#include "video.h"
 #include "byteorder.h"
 #include <stdio.h>
 #include <stdlib.h>

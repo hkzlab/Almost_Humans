@@ -26,7 +26,12 @@
  *
  * The load mirrors entry:004C: a missing/short file is the original's JC
  * path (no save, the fresh game), never an abort. */
-#include "game.h"
+#include "save.h"
+#include "entity.h"
+#include "object.h"
+#include "osystem.h"
+#include "score.h"
+#include "statusbar.h"
 #include "byteorder.h"
 #include "fs/fs.h"
 #include <string.h>

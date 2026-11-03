@@ -13,7 +13,14 @@
  * party_intro_tick's first compose window.  The check: the composed page vs
  * the extracted LBM/PARTY1.BIT rows byte-for-byte.
  */
-#include "game.h"
+#include "font.h"
+#include "gameflow.h"
+#include "osystem.h"
+#include "palette.h"
+#include "party_intro.h"
+#include "res.h"
+#include "score.h"
+#include "video.h"
 #include "compat.h"
 #include <inttypes.h>
 #include <stdio.h>

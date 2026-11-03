@@ -37,7 +37,8 @@
  * loads live with a nonzero block accumulator); the verified gate is the
  * scene-object test (1000:B444) which lands with the scene player.
  */
-#include "game.h"
+#include "res.h"
+#include "osystem.h"
 #include "byteorder.h"
 #include "fs/fs.h"
 #include <stdlib.h>

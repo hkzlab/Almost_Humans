@@ -3,7 +3,8 @@
  * plane quirks stay in the core's blitters, the backend sees flat pages.
  * The page MEMORY is the backend's (OSystem::videoPage) — the core only
  * blits into it. */
-#include "game.h"
+#include "video.h"
+#include "osystem.h"
 
 static const OSystem *video_osys;
 

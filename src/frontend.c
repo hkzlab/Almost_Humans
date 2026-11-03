@@ -81,7 +81,13 @@
  *    the fade phases, and the code match answers index 1 (DARWIN) so the
  *    flow completes — the attract's asset-failure pattern.
  */
-#include "game.h"
+#include "frontend.h"
+#include "audio.h"
+#include "font.h"
+#include "osystem.h"
+#include "palette.h"
+#include "res.h"
+#include "video.h"
 #include <stdlib.h>
 #include <string.h>
 

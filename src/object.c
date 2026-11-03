@@ -44,7 +44,12 @@
  * overlays of `1000:653C` and all six `1000:35D6` goal-test handlers are
  * ported.  The bare-RET slot `1000:EA0E` is in the table (type 16 command 8).
  */
-#include "game.h"
+#include "object.h"
+#include "entity.h"
+#include "level.h"
+#include "osystem.h"
+#include "palette.h"
+#include "statusbar.h"
 #include "byteorder.h"
 #include <string.h>
 

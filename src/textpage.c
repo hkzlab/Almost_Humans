@@ -45,7 +45,8 @@
  * 76-(lines+2)*8 = 52, text top = +15, glyph rows 4..13) and so prints
  * F8 F7 F6 F5 F4 F4 F5 F6 F7 F8 — the live capture's ramp, exactly.
  */
-#include "game.h"
+#include "textpage.h"
+#include "font.h"
 #include <string.h>
 
 #define TEXT_LIMIT 96u

@@ -34,7 +34,9 @@
  * the sound driver (9).  It writes the entity's handler/waypoint/hold, which
  * is what makes handlers 2 and 3 (the carry animation) reachable.
  */
-#include "game.h"
+#include "entity.h"
+#include "object.h"
+#include "osystem.h"
 #include "byteorder.h"
 #include <stddef.h>
 #include <string.h>

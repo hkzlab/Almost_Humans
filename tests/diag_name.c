@@ -1,7 +1,11 @@
 /* diag_name.c — drive the front-end into the name screen and dump the
  * composed frame as PPM (a one-off diagnostic for the DARWIN-blit bug;
  * not wired into ctest). */
-#include "game.h"
+#include "font.h"
+#include "frontend.h"
+#include "osystem.h"
+#include "palette.h"
+#include "video.h"
 #include "compat.h"
 #include <stdio.h>
 #include <stdlib.h>

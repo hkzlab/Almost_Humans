@@ -18,7 +18,20 @@
  *
  * argv[1] = the game data directory (the volumes + the save location).
  * Missing volumes = skip; a pre-existing SAVEB is never clobbered. */
-#include "game.h"
+#include "entity.h"
+#include "font.h"
+#include "gameflow.h"
+#include "level.h"
+#include "menu.h"
+#include "object.h"
+#include "osystem.h"
+#include "palette.h"
+#include "party_intro.h"
+#include "res.h"
+#include "save.h"
+#include "score.h"
+#include "statusbar.h"
+#include "video.h"
 #include "compat.h"
 #include <stdio.h>
 #include <stdlib.h>

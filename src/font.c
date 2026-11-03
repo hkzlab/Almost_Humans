@@ -21,7 +21,8 @@
  * two consecutive 1-bpp pixels: the glyph doubles horizontally, which is
  * what the advance table's "advance ~= 2*ink + 1" encodes.
  */
-#include "game.h"
+#include "font.h"
+#include "osystem.h"
 #include "byteorder.h"
 
 /* 202F:0x1E28 — the charset (44 glyphs + the terminator). */

@@ -18,7 +18,12 @@
  *   - the natural end: the tail fade, then the cycle continues into
  *     effect 1 with no key pressed anywhere.
  */
-#include "game.h"
+#include "attract.h"
+#include "font.h"
+#include "osystem.h"
+#include "palette.h"
+#include "res.h"
+#include "video.h"
 #include "compat.h"
 #include <stdio.h>
 #include <stdlib.h>

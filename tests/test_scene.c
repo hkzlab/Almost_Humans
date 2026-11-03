@@ -11,7 +11,10 @@
  * argv[1] = the game data directory holding HUMANS.000/001/002.
  * argv[2] = the extracted-tree fixture root (expected bytes).
  * Missing volumes = skip; a wrong decode with data present = fail. */
-#include "game.h"
+#include "osystem.h"
+#include "palette.h"
+#include "scene.h"
+#include "video.h"
 #include "compat.h"
 #include <stdio.h>
 #include <stdlib.h>

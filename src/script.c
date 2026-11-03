@@ -17,7 +17,8 @@
  * the seek's target, not the frame the call started with.  The player owns
  * the counter and passes it to script_fire().
  */
-#include "game.h"
+#include "script.h"
+#include "osystem.h"
 #include <stddef.h>
 #include <string.h>
 

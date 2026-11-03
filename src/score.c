@@ -20,7 +20,17 @@
  * (HISCORES.HUM) and map.c (the insert screen).  The stamp's underlay is saved
  * and restored by score_stampDraw (0x4697/0x46A3).
  */
-#include "game.h"
+#include "score.h"
+#include "font.h"
+#include "gameflow.h"
+#include "hiscore.h"
+#include "level.h"
+#include "object.h"
+#include "osystem.h"
+#include "palette.h"
+#include "res.h"
+#include "statusbar.h"
+#include "video.h"
 #include "byteorder.h"
 #include <stdio.h>
 #include <stdlib.h>

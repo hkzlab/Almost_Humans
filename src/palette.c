@@ -8,7 +8,8 @@
  * (1000:8bac) reads the CURRENT DAC into the ramp and stores per-component
  * deltas (target-current)<<8/div; each tick adds one delta, clamps at the
  * target and clears the active flag once every component reached it. */
-#include "game.h"
+#include "palette.h"
+#include "osystem.h"
 
 static const OSystem *pal_osys;
 static uint8_t working[768];   /* 202F:0x4BBC — the working palette       */

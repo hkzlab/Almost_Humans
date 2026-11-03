@@ -15,7 +15,7 @@
  * corpus measurement (the 2026-10-23 sweep in the decode's own model —
  * the last-block reset semantics of resource_load's BP, re_formats.md
  * §8.4): ANI03 = 0x3c3f, ITB = 0x2adb. */
-#include "game.h"
+#include "res.h"
 #include "compat.h"
 #include <stdio.h>
 #include <stdlib.h>

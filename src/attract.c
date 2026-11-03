@@ -50,7 +50,13 @@
  * [0xD78] == [0xD39] - 0xC8; more credtext re-fills the next screenful,
  * else the tail ([0x1E7C]:=0x0A, fade to black div 0x1E).
  */
-#include "game.h"
+#include "attract.h"
+#include "font.h"
+#include "hiscore.h"
+#include "osystem.h"
+#include "palette.h"
+#include "res.h"
+#include "video.h"
 #include "byteorder.h"
 #include <stdlib.h>
 #include <string.h>

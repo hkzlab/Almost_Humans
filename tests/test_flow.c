@@ -10,7 +10,19 @@
  * argv[1] = the game data directory (HUMANS.000/001/002).  A no-data run
  * skips the level-loading parts.
  */
-#include "game.h"
+#include "entity.h"
+#include "gameflow.h"
+#include "hiscore.h"
+#include "level.h"
+#include "map.h"
+#include "object.h"
+#include "osystem.h"
+#include "palette.h"
+#include "res.h"
+#include "score.h"
+#include "statusbar.h"
+#include "textpage.h"
+#include "video.h"
 #include "compat.h"
 #include <stdio.h>
 #include <string.h>

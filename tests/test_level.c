@@ -12,7 +12,12 @@
  * argv[1] = the game data directory holding HUMANS.000/001/002.
  * argv[2] = the extracted-tree fixture root (the raw L*.BIN files).
  * Missing volumes = skip. */
-#include "game.h"
+#include "level.h"
+#include "object.h"
+#include "osystem.h"
+#include "palette.h"
+#include "scene.h"
+#include "video.h"
 #include "compat.h"
 #include <stdio.h>
 #include <stdlib.h>

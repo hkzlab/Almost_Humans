@@ -24,7 +24,13 @@
  * argv[2] = the extracted-tree fixture root.
  * Missing volumes = skip.
  */
-#include "game.h"
+#include "entity.h"
+#include "level.h"
+#include "object.h"
+#include "osystem.h"
+#include "palette.h"
+#include "statusbar.h"
+#include "video.h"
 #include "compat.h"
 #include <inttypes.h>
 #include <stdio.h>

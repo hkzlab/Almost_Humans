@@ -44,7 +44,10 @@
  * end, which the port models as `statusbar_hide` (no composition at all,
  * since the bar is a display overlay there and the page shows the world).
  */
-#include "game.h"
+#include "statusbar.h"
+#include "object.h"
+#include "osystem.h"
+#include "res.h"
 #include "byteorder.h"
 #include <stdlib.h>
 #include <string.h>

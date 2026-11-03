@@ -17,7 +17,15 @@
  * (decode_bitstream, 1000:91B9, via res.c) are real and byte-verified
  * against the validated python decoder (tools/ani_lzw.py).
  */
-#include "game.h"
+#include "scene.h"
+#include "font.h"
+#include "frontend.h"
+#include "osystem.h"
+#include "palette.h"
+#include "res.h"
+#include "script.h"
+#include "textpage.h"
+#include "video.h"
 #include "byteorder.h"
 #include <stdio.h>
 #include <stdlib.h>

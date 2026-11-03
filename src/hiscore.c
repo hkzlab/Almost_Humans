@@ -26,7 +26,7 @@
  * a 13-character buffer at DS:0x757 and, on Enter, copies it into the inserted
  * entry as 14 bytes with 0x1A -> space and 0x1B -> '.'.
  */
-#include "game.h"
+#include "hiscore.h"
 #include "byteorder.h"
 #include "fs/fs.h"
 #include <string.h>

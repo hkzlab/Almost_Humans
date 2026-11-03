@@ -29,7 +29,15 @@
  * Entry state: entry 0x151A sets [0xF7E]=0 and calls draw_status_indicator
  * (the disc-0 probe) before menu_loop, so the asset loads from disc 0.
  */
-#include "game.h"
+#include "map.h"
+#include "font.h"
+#include "hiscore.h"
+#include "osystem.h"
+#include "palette.h"
+#include "res.h"
+#include "score.h"
+#include "textpage.h"
+#include "video.h"
 #include "byteorder.h"
 #include <inttypes.h>
 #include <stdio.h>

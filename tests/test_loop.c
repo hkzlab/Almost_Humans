@@ -13,7 +13,13 @@
  * chdirs into an empty scratch directory first — a build tree that carries
  * HUMANS.00N links must not turn this into the real, multi-hundred-tick
  * playback (test_attract and test_smoke drive that path). */
-#include "game.h"
+#include "attract.h"
+#include "font.h"
+#include "gameflow.h"
+#include "osystem.h"
+#include "palette.h"
+#include "res.h"
+#include "video.h"
 #include "compat.h"
 #include <stdio.h>
 #include <string.h>
