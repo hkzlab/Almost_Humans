@@ -261,8 +261,10 @@ void alpha_expand(const uint8_t *src, uint8_t *dst)
     }
 }
 
-/* 1000:119F sin_deg / 1000:11AA: CX + (sin[a] * DX) >> 13, with the negative
- * half's extra `- DX*4` (the listing's asymmetry, kept). */
+/* 1000:119F cos_scaled (angle + 0x5A, wrapped) / 1000:11AA sin_scaled:
+ * CX + (sin[a] * DX) >> 14, with the negative half's extra `- DX*4` (the
+ * listing's asymmetry, kept).  The 14 is the 14 `SHR DX,1`/`RCR AX,1` pairs
+ * at 0x11B7..0x11ED and 0x11FC..0x1232. */
 static uint32_t alpha_rot(uint32_t angle, uint32_t cx, uint32_t dx,
                           int32_t plus90)
 {
