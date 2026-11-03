@@ -78,10 +78,9 @@
  *   0xAA  `1000:524B`  the human: the **first free static slot** (the scan
  *                    tests `+6` bit 7), `x = col*16`, `y = row*16 - 7`,
  *                    `+4 = 0x10`, `+6 = 0`, `+8 = 2`, `[0x3E20]++`.
- *                    ⚠ the live records sit at `y = row*16 - 8` (memory reads
- *                    and the sprite's screen rect both say so), so the humans
- *                    are not placed by this handler as read — open question,
- *                    see re_map.md.
+ *                    Live-confirmed 2026-10-30: level 1's records read
+ *                    `(48,25) (208,25) (256,137) (464,265)` = `row*16 - 7`
+ *                    for rows 2/2/9/17, exactly this store (re_map.md).
  *   0xAB  `1000:527D`  the spear: **appended** at the live end, `x = col*16`,
  *                    `y = row*16` (no bias), `+4 = 0x60`, `+6 = 0`, `+8 = 0xFFFF`,
  *                    `+0xA = 0`, the behaviour 5 into `[0x3E5F + n]`, `[0x3E73]++`.
