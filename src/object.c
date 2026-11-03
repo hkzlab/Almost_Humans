@@ -1640,11 +1640,12 @@ int32_t object_typeEquals(uint32_t type)
  * ((x+8)>>4)` — the row is the record's y rounded down to the 16-px grid,
  * doubled into the 32-column row stride.  0xFFFF when it falls outside the
  * map (the original would read whatever follows it). */
-/* The map buffer as 1000:3138 builds it: 640 bytes plus a second copy of the
- * first row at +0x20 (672 bytes).  1000:D9E8's `[DI-0x20]` / `[DI+0x20]` reads
- * can address the duplicate, so they go through this rather than the 640-byte
- * map directly; past 672 the original reads whatever follows the buffer and the
- * port returns 0. */
+/* The map buffer as `1000:3138` builds it is 640 map bytes, a **32-byte gap the
+ * loader never writes** at `+0x280..+0x29F`, and a **full second copy of the map
+ * at `+0x2A0`** — NOT a duplicated first row.  The port's model here (row 0 for
+ * `[640,672)`, zero past it) is the reverse of the listing:
+ * port_deviations.md D-100.  `1000:D9E8`'s `[DI-0x20]` / `[DI+0x20]` reads do
+ * address that tail, so they go through this rather than the 640-byte map. */
 static uint32_t objMapBufferByte(uint32_t idx)
 {
     const uint8_t *map = level_map();
@@ -1736,9 +1737,9 @@ int32_t object_lowPhaseMatch(void)
         uint32_t cell = objMapCellIndex(objActor());
         int32_t goal = (cell < 640u && map && map[cell] == 0xA8u);
 
-        /* The original's map buffer is 640 bytes followed by a copy of the first
-         * row at +0x20 (1000:3138 copies it twice), so the last row's below-cell
-         * wraps to row 0 rather than reading off the buffer. */
+        /* The original's buffer has a 32-byte gap at +0x280..+0x29F and the full
+         * map again at +0x2A0 (1000:3138), so the last row's below-cell reads the
+         * gap (0x00 = tile 0) — the port's row-0 wrap is D-100. */
         if (!goal && cell < 640u && map) {
             uint32_t below = cell + 32u;
 
