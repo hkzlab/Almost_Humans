@@ -197,8 +197,11 @@ enum {
  * `tools/sprite_frames.py`; don't hand-edit it.
  *
  * `select_object_tile` (1000:6625) draws at `y + ybias` (`ADD DX,AX` after
- * `SHR AL,1 / AND 0x1F`) and dispatches on `mode`; only mode 1 (the unscaled
- * blit) is ported, and every frame the port draws so far is mode 1.
+ * `SHR AL,1 / AND 0x1F`) and dispatches on the descriptor's mode bits
+ * (`CMP AX,1/2` at 1000:66CB/66D0): mode 1 -> `draw_object_scaled_x1`
+ * (1000:66EC), mode 2 -> `draw_object_scaled_x2` (1000:6C74), and 0/3 fall to
+ * the `RET` at 1000:66D5, i.e. draw nothing.  The port's `objBlitFrame` does
+ * the same (16 cols / 32 cols / skip).
  */
 typedef struct {
     uint32_t off;
