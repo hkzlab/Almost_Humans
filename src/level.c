@@ -1537,8 +1537,10 @@ uint32_t level_pageByte(uint32_t id, uint32_t subcol)
 
 /* The `[0x1FD6]` item record's `row` word: `B + word[B + 2*id]` then `2*row`,
  * i.e. the 16-bit sub-cell occupancy mask 1000:F25F tests. 0xFFFF when absent. */
-/* The item record's raw byte at `off` from the tile's offset (1000:EC27 reads
- * one byte, not a word: the same table `level_itemWord` indexes by row). */
+/* The item record's raw byte at `off` from the tile's offset, i.e. from field
+ * B.  NOTE: `1000:EC27` does NOT read this table - it reads field A
+ * (`[0x1FD4]`, the slope profiles) with the same `offset + sub` shape; the
+ * path-advance step that uses it is port_deviations.md D-110. */
 uint32_t level_itemByte(uint32_t id, uint32_t off)
 {
     uint32_t o;
