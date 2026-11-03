@@ -40,10 +40,11 @@
 #include <string.h>
 
 /* --- the record and the array space ------------------------------------ */
-
-#define ENT_MAX  12u
-#define MAP_COLS 32u
-#define MAP_ROWS 20u
+#define ENT_MAX             12u
+#define MAP_COLS            32u
+#define MAP_ROWS            20u
+#define TILE_HANDLER_APPEND 10u   /* 0xB3 -> entity_append_to_array 5360 */
+#define TILE_HANDLER_FIND   11u   /* 0xB4 -> entity_find_by_id 5399      */
 
 /* The DS globals 0x64C4.. (the exe image at file 0x106F0 + 0x64C4,
  * byte-verified 2026-10-23).  Slots 2 and 3 are not just array slots:
@@ -91,8 +92,6 @@ static const uint8_t tile_ids[25] = {
     0xB2, 0xB3, 0xB4, 0xB5, 0xC0, 0xB6, 0xB7, 0xB8, 0xBA,
     0xBB, 0xBE, 0xBF, 0xC1, 0xF0, 0xF1, 0xF2,
 };
-#define TILE_HANDLER_APPEND 10u   /* 0xB3 -> entity_append_to_array 5360 */
-#define TILE_HANDLER_FIND   11u   /* 0xB4 -> entity_find_by_id 5399      */
 
 /* The 0x1F20 byte flag table (image 0x1F20..0x1F3F), the style-6 spawn
  * test's bit source (1000:567d). */
@@ -101,6 +100,35 @@ static const uint8_t style6_flags[32] = {
     0x02, 0x00, 0x03, 0xC3, 0x81, 0x80, 0x01, 0x80, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
+
+/* DS:0x6EC3 - the 44-byte table the interaction gate tests: a record whose type
+ * has a non-zero byte here is not picked up. */
+static const uint8_t entNoPick[0x2C] = {
+    0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x01, 0x01,
+    0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x01, 0x00, 0x00,
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+/* --- the REX.DAT frame tables (1000:58A5) ------------------------------
+ *
+ * `update_object_list` (1000:5823) walks the entities, sets `ES` to the
+ * `apl\rex.dat` slot and calls `draw_objects_all` (1000:5894) with the entity's
+ * x - 0xC, its y, its waypoint as the animation index and mode 2.  That routine
+ * doubles the index (`SHL CX,1`) and draws TWO cells 0x20 px apart, whose index
+ * `a` is `2*waypoint + k`.  For each cell the bank is read through three
+ * BIG-ENDIAN tables (the file is a byte-swapped export - re_formats.md §7.3):
+ *
+ *   BE16(4a + 2)      the block offset; the sprite data starts 0x1C0 into it
+ *   BE16(2a + 0xE0)   a y offset added to the entity's y
+ *   BE16(2a + 0x150)  the row count
+ *
+ * and the cell is blitted with mode 2 (`1000:5C5F` -> `1000:6C74`): 32 px wide,
+ * 8 source bytes per row per plane pass - the same storage law as the object
+ * sprites (`block = rows * 8`).
+ */
+static const uint8_t *entBank;
+static uint32_t entBankSize;
 
 /* --- the appender (1000:5360) and the prologue (1000:5662) -------------- */
 
@@ -229,15 +257,6 @@ static uint16_t entWord(uint32_t slot, uint32_t off, uint32_t k)
 
     return i < ENT_MAX * 8u ? flat[i] : 0u;
 }
-
-/* DS:0x6EC3 - the 44-byte table the interaction gate tests: a record whose type
- * has a non-zero byte here is not picked up. */
-static const uint8_t entNoPick[0x2C] = {
-    0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x01, 0x01,
-    0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x01, 0x00, 0x00,
-    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-};
 
 /* The entity's index, for the +0xA carry link (the port's stand-in for the
  * original's DS pointer 0x64C4 + 0x10*n). */
@@ -376,26 +395,6 @@ static void entity_carry_anim(Entity *ep)
     ep->handler = sel_secondary; /* cbe2/cbe5: [0x4238] */
 }
 
-/* --- the REX.DAT frame tables (1000:58A5) ------------------------------
- *
- * `update_object_list` (1000:5823) walks the entities, sets `ES` to the
- * `apl\rex.dat` slot and calls `draw_objects_all` (1000:5894) with the entity's
- * x - 0xC, its y, its waypoint as the animation index and mode 2.  That routine
- * doubles the index (`SHL CX,1`) and draws TWO cells 0x20 px apart, whose index
- * `a` is `2*waypoint + k`.  For each cell the bank is read through three
- * BIG-ENDIAN tables (the file is a byte-swapped export - re_formats.md §7.3):
- *
- *   BE16(4a + 2)      the block offset; the sprite data starts 0x1C0 into it
- *   BE16(2a + 0xE0)   a y offset added to the entity's y
- *   BE16(2a + 0x150)  the row count
- *
- * and the cell is blitted with mode 2 (`1000:5C5F` -> `1000:6C74`): 32 px wide,
- * 8 source bytes per row per plane pass - the same storage law as the object
- * sprites (`block = rows * 8`).
- */
-static const uint8_t *entBank;
-static uint32_t entBankSize;
-
 /* The three table reads for one cell index; 0 = the indices are outside the
  * bank (the original would read whatever follows it in memory). */
 int32_t entity_frameInfo(uint32_t a, uint32_t *src, uint32_t *rows,
@@ -454,7 +453,6 @@ void entity_render(uint8_t *page, int32_t scrollX, int32_t scrollY)
 }
 
 /* --- the dispatch (1000:C93C) ------------------------------------------- */
-
 void entity_tick(void)
 {
     for (uint32_t i = 0; i < ent_count; i++) {
@@ -492,7 +490,6 @@ void entity_tick(void)
 }
 
 /* --- the interface ------------------------------------------------------ */
-
 int32_t entity_init(const OSystem *osys)
 {
     (void)osys;

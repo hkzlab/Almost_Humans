@@ -47,6 +47,9 @@ enum {
     MAP_LIST,
     MAP_EXIT
 };
+struct MapFade {
+    uint32_t first, entries, div, target;
+};
 
 /* 1000:024B..1000:0266: the qualifying page`s seven lines at DS:0x7BB..0x85C
  * (verbatim, from the image), drawn at x=0xA0, y=0x19 + 0x10*line with
@@ -83,14 +86,7 @@ static uint32_t mapCongratsDraws;
 /* 1000:028C..030A: the name-entry transition's fade/rectangle steps. */
 static uint32_t mapTrans;        /* 0..6; 6 = the ring is up */
 static uint32_t mapFadeStarts;   /* the palette_build_fade calls made */
-struct MapFade {
-    uint32_t first, entries, div, target;
-};
 static struct MapFade mapFadeLog[8];
-
-static uint32_t mapScore(void)
-{ return ((uint32_t)score_totalHi() << 16) | score_totalLo(); }
-
 
 /* --- the letter wheel: ALPHA.SPR + rotate_spinner_cell -------------------
  *
@@ -166,6 +162,47 @@ static const int16_t alphaSin[360] = {
     -5063,  -4790,  -4516,  -4240,  -3964,  -3686,  -3406,  -3126,  -2845,
     -2563,  -2280,  -1997,  -1713,  -1428,  -1143,  -857,   -572,   -286,
 };
+
+/* --- the box frame: BAND.SPR, vga_write_masked_plane_copy, draw_box_edges --
+ *
+ * `menu_loop` loads `apl\band.spr` (`1000:01B7`, DS:0x7AE) into [0x776] and
+ * immediately copies it with `vga_write_masked_plane_copy` (`1000:12D3`):
+ * four plane passes, each copying **0x17C0 = 6080** bytes with the source
+ * advancing **4** bytes per output byte, so the file's 24320 bytes fill a
+ * 6080-byte band (76 rows of 320 px) four planes deep.
+ *
+ * `draw_box_edges` (`1000:07E6`) then draws the five box frames.  Its source
+ * row is `[0x8AE]` and the sheet is exactly **304 rows of 80 bytes** = BAND's
+ * size, which is why the entry animation can run `[0x8AE]` from `0x130` (304)
+ * down to 2.  Each frame makes five `vga_blit_row` (`1000:0874`) calls:
+ *
+ *   dest   = { 0xE66, 0x14A6, 0x1AE6, 0x2126, 0x2766 }   (rows 46/66/86/106/126, col 6)
+ *   mask   = { 0xA0,  0xB0,   0xE0,   0xF0,   0x30 }     (the GDC Bit Mask)
+ *   source = [0x8AE]*80 + 6, plus 0x640 (20 rows) per call
+ *
+ * and `vga_blit_row` copies 14 iterations of `4 / +7 / 24 / +9 / 16 / +0xE`
+ * MOVSB runs (74 destination bytes per iteration) with `Bit Mask = CH`, i.e.
+ * each of the five rows writes only part of each byte's pixels and the five
+ * together build the frame.
+ *
+ * The five frame blocks and `[0x8A2]` (1..6): each step is 0x14 frames of
+ * `[0x8AE]` moving one unit per frame (`1000:05F4`/`0613`), so the band
+ * scrolls through the fixed frame windows rather than changing contents.
+ *
+ * deviation: the original's destination is `A000:0xC000` in a four-plane page
+ * the port does not model; the band is drawn as the same 76-row, 320-px layer
+ * at the page origin, and the Bit Mask's bits 4..7 - which are pixels 0..3 of
+ * a byte in this page's 4-px-per-byte layout - select which pixels of the
+ * group a row writes.  The row positions, the run structure, the masks, the
+ * source offsets and the animation are the listing's.
+ */
+static uint8_t *bandSheet; /* apl\band.spr: 304 rows x 80 bytes      */
+
+uint32_t map_boxBottom; /* [0x8AE]                                */
+uint32_t map_panel; /* [0x8A2]: 1..6                          */
+
+static uint32_t mapScore(void)
+{ return ((uint32_t)score_totalHi() << 16) | score_totalLo(); }
 
 /* 1000:0705 expand_nibbles_4plane: the packed 4bpp sheet into four planes of
  * 0x4000 bytes (a literal port of the bit twiddling). */
@@ -296,45 +333,6 @@ void alpha_drawName(uint8_t *page, const char *name)
         x += 9u;
     }
 }
-
-
-/* --- the box frame: BAND.SPR, vga_write_masked_plane_copy, draw_box_edges --
- *
- * `menu_loop` loads `apl\band.spr` (`1000:01B7`, DS:0x7AE) into [0x776] and
- * immediately copies it with `vga_write_masked_plane_copy` (`1000:12D3`):
- * four plane passes, each copying **0x17C0 = 6080** bytes with the source
- * advancing **4** bytes per output byte, so the file's 24320 bytes fill a
- * 6080-byte band (76 rows of 320 px) four planes deep.
- *
- * `draw_box_edges` (`1000:07E6`) then draws the five box frames.  Its source
- * row is `[0x8AE]` and the sheet is exactly **304 rows of 80 bytes** = BAND's
- * size, which is why the entry animation can run `[0x8AE]` from `0x130` (304)
- * down to 2.  Each frame makes five `vga_blit_row` (`1000:0874`) calls:
- *
- *   dest   = { 0xE66, 0x14A6, 0x1AE6, 0x2126, 0x2766 }   (rows 46/66/86/106/126, col 6)
- *   mask   = { 0xA0,  0xB0,   0xE0,   0xF0,   0x30 }     (the GDC Bit Mask)
- *   source = [0x8AE]*80 + 6, plus 0x640 (20 rows) per call
- *
- * and `vga_blit_row` copies 14 iterations of `4 / +7 / 24 / +9 / 16 / +0xE`
- * MOVSB runs (74 destination bytes per iteration) with `Bit Mask = CH`, i.e.
- * each of the five rows writes only part of each byte's pixels and the five
- * together build the frame.
- *
- * The five frame blocks and `[0x8A2]` (1..6): each step is 0x14 frames of
- * `[0x8AE]` moving one unit per frame (`1000:05F4`/`0613`), so the band
- * scrolls through the fixed frame windows rather than changing contents.
- *
- * deviation: the original's destination is `A000:0xC000` in a four-plane page
- * the port does not model; the band is drawn as the same 76-row, 320-px layer
- * at the page origin, and the Bit Mask's bits 4..7 - which are pixels 0..3 of
- * a byte in this page's 4-px-per-byte layout - select which pixels of the
- * group a row writes.  The row positions, the run structure, the masks, the
- * source offsets and the animation are the listing's.
- */
-static uint8_t *bandSheet; /* apl\band.spr: 304 rows x 80 bytes      */
-
-uint32_t map_boxBottom; /* [0x8AE]                                */
-uint32_t map_panel; /* [0x8A2]: 1..6                          */
 
 /* 1000:12D3: the 1:1 band copy (6080 bytes, four plane passes, source stride
  * 4).  The output is the 76-row band at the page origin. */
@@ -501,7 +499,6 @@ static void map_redraw(void)
     else if (mapPhase == MAP_LIST) map_drawList(page);
     if (mapPhase == MAP_LIST) map_drawBoxEdges(page, map_boxBottom);
 }
-
 
 int32_t map_begin(void)
 {

@@ -26,10 +26,10 @@
  * argv[1] = the volume dir, argv[2] = the extracted tree.  Missing data =
  * skip with a notice (test_party's contract). */
 #include "game.h"
+#include "compat.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "compat.h"
 
 extern const OSystem osys_null;
 

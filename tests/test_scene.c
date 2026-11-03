@@ -12,15 +12,16 @@
  * argv[2] = the extracted-tree fixture root (expected bytes).
  * Missing volumes = skip; a wrong decode with data present = fail. */
 #include "game.h"
+#include "compat.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "compat.h"
 
-extern const OSystem osys_null;
 extern void osys_null_inject(const InputState *in);
 extern const uint8_t *osys_null_page(int32_t which);
 extern const uint8_t *osys_null_palette(void);
+
+extern const OSystem osys_null;
 
 static uint32_t xor16(const uint8_t *p, uint32_t n)
 {

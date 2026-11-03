@@ -85,8 +85,18 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* --- the planar space (A000, unchained, byte mode) -------------------- */
+/* --- the module state (the DS analogs in comments) -------------------- */
+typedef enum FePhase {
+    FE_IDLE = 0,
+    FE_LOAD,
+    FE_FADEIN,
+    FE_ROOM,
+    FE_PAN,
+    FE_NAME,
+    FE_EXITFADE
+} FePhase;
 
+/* --- the planar space (A000, unchained, byte mode) -------------------- */
 static uint8_t vram[65536][4];   /* [address][plane]: 1 byte = 4 pixels   */
 static uint32_t pageDraw, pageDisp;   /* [0x5AC4]/[0x5AC6] — page bases   */
 static uint32_t scroll;               /* [0x0]: the front-end scroll      */
@@ -137,18 +147,6 @@ static const uint8_t slotTab[61] = {
     0xAA, 0xCC, 0xBB, 0xAA, 0xCC, 0xBB, 0xAA, 0xBB, 0xBB, 0xAA, 0xAA,
     0xAA, 0xAA, 0x99, 0x99, 0x99, 0x00, /* [60] = the wrap terminator, verbatim from the image      */
 };
-
-/* --- the module state (the DS analogs in comments) -------------------- */
-
-typedef enum FePhase {
-    FE_IDLE = 0,
-    FE_LOAD,
-    FE_FADEIN,
-    FE_ROOM,
-    FE_PAN,
-    FE_NAME,
-    FE_EXITFADE
-} FePhase;
 
 static FePhase phase = FE_IDLE;
 static uint16_t cell; /* [0x4220]: the rail node              */
@@ -208,7 +206,6 @@ int32_t frontend_nameScreenForProbe(void) { return phase == FE_NAME; }
 const char *frontend_nameForProbe(void) { return nameBuf; }
 
 /* --- the VRAM primitives ---------------------------------------------- */
-
 static void put_pixel(uint32_t rowBase, uint32_t px, uint8_t v)
 { vram[(rowBase + (px >> 2)) & 0xFFFFu][px & 3u] = v; }
 
@@ -701,7 +698,6 @@ static void name_screen_enter(void)
 }
 
 /* --- the phases ---------------------------------------------------------- */
-
 static void start_exit(void)
 {
     /* the event loop's exit tail (AA86..): the fade to the 0x48BC ramp

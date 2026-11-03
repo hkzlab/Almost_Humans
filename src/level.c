@@ -41,6 +41,90 @@
 #define SIG_LEN   6u
 #define FIELD_LEN 8u
 
+/* --- the level's visual assets (re_formats.md §3-§5) -------------------
+ *
+ * DEFS\BD<style>.BIN: the defs walk — the loader steps the buffer
+ * sequentially (array_max_word over the A/B offset tables, then the fixed
+ * blocks); field L (the u16 background index) selects BACKS\BG<n>.RAW.
+ * LEVELS\BS<style>.BLK: the 169x16x16 tile atlas behind a 0x400 APL header.
+ * BACKS\BG<n>.RAW: 512x320 chunky + a 768-byte 6-bit palette; draw_map_digit
+ * copies only its first 64 entries (0xC0 bytes) into the DAC. */
+#define VIEW_W  320u
+#define VIEW_H  200u
+#define WORLD_W 512u
+#define WORLD_H 320u
+
+#define ATLAS_TILES 169u
+
+/* level_fade_in (1000:3334) — the level's start chain.  The original blocks
+ * in the foreground for each fade (wait_palette_fade_done) while the ISR
+ * steps it; the port's loop is tick-driven, so the chain advances one phase
+ * per level_tick and the play loop only starts once it is done. */
+enum {
+    LVSTART_IDLE,
+    LVSTART_VIDEO_BASE,
+    LVSTART_VIDEO_BAR,
+    LVSTART_LOADING,
+    LVSTART_FADE_OUT,
+    LVSTART_WARMUP,
+    LVSTART_FADE_IN,
+    LVSTART_PLAYING
+};
+static struct {
+    uint8_t live, value;
+    uint16_t x, y, age;
+} spark[0x58];
+
+/* The BD walk (re_formats.md §4): returns the end offset (== the file size
+ * for all six shipped files), 0 on a bounds failure.  The doc's "D" row —
+ * the 5 far pointers — is loader-constructed, 0 file bytes; row J advances
+ * by the LITERAL si += word[si] (the length word is part of the skip), then
+ * 8 bytes; field M (a u16 count + 4-byte entries) is the palette-rotation
+ * table, handed back to the caller.  Byte-exact over BD1..BD6 (2026-10-23). */
+typedef struct BdPage {
+    const uint8_t *aTable; /* field A: the per-tile slope profiles  */
+    uint32_t aSize;
+    const uint8_t *items; /* field B: 256 word offsets             */
+    uint32_t itemsSize; /* maxB + 0x20: the record area          */
+    const uint8_t *jBytes; /* field J: the 8 bytes at 0x1E98        */
+    const uint8_t *rowBlock; /* field I: 0xC0 B (the 0x80..0xBF bank) */
+    const uint8_t *nList; /* field N: count + 17-byte {id, 16}     */
+    uint32_t nCount;
+    const uint8_t *oList; /* field O: count + 16 id bytes          */
+    uint32_t oCount;
+    const uint8_t *cBlock; /* field C: the 0xA9 background sprites  */
+    const uint8_t *eBlock; /* field E: the 0x80-byte A9 log sprite    */
+    const uint8_t *hBlock; /* field H: the two 0x100-byte sprites     */
+    const uint8_t *gBlock; /* field G: 3 layers x n x 0x100 sprites */
+    uint32_t gCount; /* n (blocks per layer)                  */
+    const uint8_t *pBlock; /* field P: the 0x1000-byte exit art     */
+    uint32_t pSize;
+} BdPage;
+
+/* --- draw_status_indicator (1000:1FEF) ---------------------------------
+ *
+ * The disc-presence screen.  It is NOT a normal level screen: at the head it
+ * opens the volume file for [0xF7E] (1000:20CF); if the file opens, it
+ * returns at once.  Only a failed open draws the "PUT THE DISK INTO DRIVE n /
+ * PRESS FIRE WHEN READY" page, fades its palette in (0x100 div 0x1E),
+ * animates, retries the open on a key/ACTION, and on success fades to
+ * [0x48BC] (black), holds 0x4B frames and returns.
+ *
+ * The art: APL\DISKIMG1.DAT is consumed by blit_sprite_to_page
+ * (1000:2105): 4 planes, source stride 4, 0x1E40 = 7744 bytes per plane,
+ * written to the page at [0x5AC4] (= 0 here).  The port converts those
+ * planes to its chunky page with the same bit order.  The prompt's text is
+ * drawn with the game's font (APL\TEXT.SPR ships on every disc); the
+ * original draws the same two lines through the text renderer.
+ */
+enum {
+    DISK_OFF,
+    DISK_FADE_IN,
+    DISK_WAIT,
+    DISK_FADE_OUT,
+    DISK_HOLD
+};
+
 static const uint8_t recSig[SIG_LEN] = { 0x00, 0x20, 0x00, 0x14, 0x00, 0x00 };
 
 /* The 202F:0x6287-equivalent: the intro cue state lives in script.c; the
@@ -103,21 +187,6 @@ static const uint8_t loadLetters[2u + 8u * 10u] = {
     0x16, 0x00, 0x10, 0x01, 0x14, 0x00, 0x00, 0x00, 0x02, 0x00, 0x17, 0x00,
     0x20, 0x01, 0x13, 0x00, 0x00, 0x00, 0x02, 0x00, 0x18, 0x00
 };
-
-/* level_fade_in (1000:3334) — the level's start chain.  The original blocks
- * in the foreground for each fade (wait_palette_fade_done) while the ISR
- * steps it; the port's loop is tick-driven, so the chain advances one phase
- * per level_tick and the play loop only starts once it is done. */
-enum {
-    LVSTART_IDLE,
-    LVSTART_VIDEO_BASE,
-    LVSTART_VIDEO_BAR,
-    LVSTART_LOADING,
-    LVSTART_FADE_OUT,
-    LVSTART_WARMUP,
-    LVSTART_FADE_IN,
-    LVSTART_PLAYING
-};
 static int32_t startPhase = LVSTART_IDLE;
 static uint32_t warmupLeft;
 /* the fade-to-black target: 0x48BC, the ramp the boot leaves zeroed */
@@ -154,20 +223,6 @@ static int32_t endSoundSent; /* 1000:34E6's 0x83B7 call, once          */
 static uint32_t playExitHold; /* 1000:34E6: the 15 x 1000:8B56 waits    */
 static int32_t goalHit; /* the discovery/claim win hook          */
 static int32_t endWon; /* [0x138E]: 1 won, 0 extinct            */
-
-/* --- the level's visual assets (re_formats.md §3-§5) -------------------
- *
- * DEFS\BD<style>.BIN: the defs walk — the loader steps the buffer
- * sequentially (array_max_word over the A/B offset tables, then the fixed
- * blocks); field L (the u16 background index) selects BACKS\BG<n>.RAW.
- * LEVELS\BS<style>.BLK: the 169x16x16 tile atlas behind a 0x400 APL header.
- * BACKS\BG<n>.RAW: 512x320 chunky + a 768-byte 6-bit palette; draw_map_digit
- * copies only its first 64 entries (0xC0 bytes) into the DAC. */
-
-#define VIEW_W  320u
-#define VIEW_H  200u
-#define WORLD_W 512u
-#define WORLD_H 320u
 /* The chained screen the original draws into: one byte = 4 pixels, 88 bytes per
  * row (352 px, of which the visible window is 320 — that slack is what lets the
  * CRTC start sit on a 4-px column boundary, 1000:3DC0's `y*88 + x/4`). */
@@ -218,14 +273,89 @@ static const int8_t sparkDir[8][2] = {
     { 1, 0 },  { 1, -1 }, { 0, -1 }, { -1, -1 },
     { -1, 0 }, { -1, 1 }, { 0, 1 },  { 1, 1 },
 };
-static struct {
-    uint8_t live, value;
-    uint16_t x, y, age;
-} spark[0x58];
 static uint32_t sparkWrite, sparkSpawned; /* [0x1AF8] cursor, [0x1AFC] count */
 static uint32_t sparkOX, sparkOY; /* [0x1AFE] / [0x1B00]            */
 static uint8_t sparkShade[16][16]; /* 0x19EA, from the recipe sprite */
 static int32_t sparkOn;
+
+static const OSystem *level_osys;
+
+static uint8_t *atlas; /* 0x400 + 169*256                            */
+static uint8_t *bgImage; /* 512*320 + 768                              */
+static uint8_t *world; /* the 512x320 composite (BG + terrain)       */
+
+/* DEFS\BD<style>.BIN field M = the palette-rotation table, one 4-byte entry
+ * per range: {timer, reload, first DAC entry, entry count}.  It is the table
+ * palette_rotate_table (1000:8C78) walks from 202F:0x1FC6; only BD3 has a
+ * range (4 entries at 0x71, every 4th tick). */
+/* DEFS\BD<style>.BIN's page tables (the terrain-page system behind
+ * page_offset_to_ptr, 1000:F123): 256 x 16 mask bytes per tile id and the
+ * 16-word item records field B offsets into.  Built by the same loader that
+ * `load_terrain_pages` (1000:505C) implements. */
+static uint8_t pageMask[256][16];
+static uint8_t pageOpacity[32]; /* 0x1FA4: the 32-colour opacity flags */
+/* BD field I, copied by copy_level_row (0x4EE9) into the level palette's
+ * 0x80..0xBF bank: the level background's 64-colour gradient. */
+static uint8_t bdRowBlock[0xC0];
+static uint8_t bdCBlock[0x600]; /* field C: the 0xA9 background art */
+static uint8_t bdGBlock[3u * 4u * 0x100u]; /* field G: 3 layers x 4 max    */
+static uint8_t bdEBlock[0x80]; /* field E: the A9 log sprite   */
+static uint8_t bdHBlock[0x200]; /* field H: frames 0x26/0x27    */
+static uint8_t slopeProfiles[0x400]; /* field A: the slope profiles  */
+static uint32_t slopeSize;
+static uint32_t bdAnimFrames; /* field F -> [0x6532]          */
+static int32_t bdCHave;
+static uint8_t bdPBlock[0x1000]; /* field P: the exit/igloo art (0xB9) */
+static int32_t bdPHave;
+static uint32_t levelBgIndex; /* the BD page's field L (test probe) */
+static uint8_t *pageItems; /* field B + its record area          */
+static uint32_t pageItemsSize;
+static int32_t pageValid;
+static uint8_t kBytes[4]; /* field K: [0x6F20], [0x6F0B]        */
+static uint8_t *animTable;
+static uint32_t animCount;
+
+/* DS:0x1413 — the shipped 64-entry gradient that draw_level_text copies into
+ * palette entries 0x80..0xBF (0x33F2, 0xC0 bytes).  The runtime buffer was
+ * read live from the running game (DS 0x123A:0x1413) on 2026-11-01. */
+static const uint8_t levelEndGradient[0xC0] = {
+    0x3Cu, 0x28u, 0x3Cu, 0x3Cu, 0x26u, 0x3Cu, 0x3Cu, 0x24u, 0x3Cu, 0x3Cu, 0x22u,
+    0x3Cu, 0x3Cu, 0x20u, 0x3Cu, 0x3Cu, 0x1Eu, 0x3Cu, 0x3Cu, 0x1Cu, 0x3Cu, 0x3Cu,
+    0x1Au, 0x3Cu, 0x3Cu, 0x18u, 0x3Cu, 0x3Cu, 0x16u, 0x3Cu, 0x3Cu, 0x14u, 0x3Cu,
+    0x3Cu, 0x12u, 0x3Cu, 0x3Cu, 0x10u, 0x3Cu, 0x3Cu, 0x0Eu, 0x3Cu, 0x3Cu, 0x0Cu,
+    0x3Cu, 0x3Cu, 0x0Au, 0x3Cu, 0x3Cu, 0x0Cu, 0x3Cu, 0x3Cu, 0x0Bu, 0x38u, 0x3Cu,
+    0x0Bu, 0x35u, 0x3Cu, 0x0Bu, 0x32u, 0x3Cu, 0x0Bu, 0x2Fu, 0x3Cu, 0x0Au, 0x2Bu,
+    0x3Cu, 0x0Au, 0x28u, 0x3Cu, 0x0Au, 0x25u, 0x3Cu, 0x0Au, 0x22u, 0x3Cu, 0x09u,
+    0x1Eu, 0x3Cu, 0x09u, 0x1Bu, 0x3Cu, 0x09u, 0x18u, 0x3Cu, 0x09u, 0x15u, 0x3Cu,
+    0x08u, 0x11u, 0x3Cu, 0x08u, 0x0Eu, 0x3Cu, 0x08u, 0x0Bu, 0x3Cu, 0x08u, 0x08u,
+    0x3Cu, 0x07u, 0x07u, 0x3Cu, 0x06u, 0x06u, 0x3Cu, 0x05u, 0x05u, 0x3Cu, 0x04u,
+    0x04u, 0x3Cu, 0x03u, 0x03u, 0x3Cu, 0x02u, 0x02u, 0x3Cu, 0x01u, 0x01u, 0x3Cu,
+    0x00u, 0x00u, 0x39u, 0x00u, 0x00u, 0x37u, 0x00u, 0x00u, 0x34u, 0x00u, 0x00u,
+    0x32u, 0x00u, 0x00u, 0x2Fu, 0x00u, 0x00u, 0x2Du, 0x00u, 0x00u, 0x2Au, 0x00u,
+    0x00u, 0x28u, 0x00u, 0x00u, 0x25u, 0x00u, 0x00u, 0x23u, 0x00u, 0x00u, 0x20u,
+    0x00u, 0x00u, 0x1Eu, 0x00u, 0x00u, 0x1Bu, 0x00u, 0x00u, 0x19u, 0x00u, 0x00u,
+    0x16u, 0x00u, 0x00u, 0x14u, 0x00u, 0x00u, 0x11u, 0x00u, 0x00u, 0x0Fu, 0x00u,
+    0x00u, 0x0Cu, 0x00u, 0x00u, 0x0Au, 0x00u, 0x00u, 0x07u, 0x00u, 0x00u, 0x05u,
+    0x00u, 0x00u, 0x02u, 0x00u, 0x00u,
+};
+
+/* The in-level per-tick render (draw_map_digit 1000:4F22 + draw_terrain
+ * 1000:4FEF): the BG fills the 512x320 screen buffer, draw_terrain blits the
+ * map's tiles over it (tile ids >= 0xA9 are empty and let the BG through;
+ * every non-zero tile byte gains the +0x20 bank bias and a zero byte is not
+ * stored, so the BG shows through the tile's transparent pixels), and the
+ * visible 320x200 window reads the buffer's left edge (the CRTC start at
+ * scroll 0,0), the status bar, and the working palette 202F:0x14D3 built at
+ * load.  The entity / logic systems land with entity.c.  Returns 1 while
+ * the level is running. */
+static uint8_t levelJoy; /* [0x5ACE]: this tick's input word  */
+
+static int32_t diskPhase = DISK_OFF;
+static uint32_t diskDisc;
+static uint16_t diskHold;
+static uint8_t diskPal[768];
+static const uint8_t diskBlack[768];
+static uint8_t *diskFont;
 
 /* 1000:3E73: clear the list, take the shade table and the origin (its tail is
  * the view set the claim already does). */
@@ -313,45 +443,6 @@ static void sparkDraw(void)
     }
 }
 
-#define ATLAS_TILES 169u
-
-static const OSystem *level_osys;
-
-static uint8_t *atlas; /* 0x400 + 169*256                            */
-static uint8_t *bgImage; /* 512*320 + 768                              */
-static uint8_t *world; /* the 512x320 composite (BG + terrain)       */
-
-/* DEFS\BD<style>.BIN field M = the palette-rotation table, one 4-byte entry
- * per range: {timer, reload, first DAC entry, entry count}.  It is the table
- * palette_rotate_table (1000:8C78) walks from 202F:0x1FC6; only BD3 has a
- * range (4 entries at 0x71, every 4th tick). */
-/* DEFS\BD<style>.BIN's page tables (the terrain-page system behind
- * page_offset_to_ptr, 1000:F123): 256 x 16 mask bytes per tile id and the
- * 16-word item records field B offsets into.  Built by the same loader that
- * `load_terrain_pages` (1000:505C) implements. */
-static uint8_t pageMask[256][16];
-static uint8_t pageOpacity[32]; /* 0x1FA4: the 32-colour opacity flags */
-/* BD field I, copied by copy_level_row (0x4EE9) into the level palette's
- * 0x80..0xBF bank: the level background's 64-colour gradient. */
-static uint8_t bdRowBlock[0xC0];
-static uint8_t bdCBlock[0x600]; /* field C: the 0xA9 background art */
-static uint8_t bdGBlock[3u * 4u * 0x100u]; /* field G: 3 layers x 4 max    */
-static uint8_t bdEBlock[0x80]; /* field E: the A9 log sprite   */
-static uint8_t bdHBlock[0x200]; /* field H: frames 0x26/0x27    */
-static uint8_t slopeProfiles[0x400]; /* field A: the slope profiles  */
-static uint32_t slopeSize;
-static uint32_t bdAnimFrames; /* field F -> [0x6532]          */
-static int32_t bdCHave;
-static uint8_t bdPBlock[0x1000]; /* field P: the exit/igloo art (0xB9) */
-static int32_t bdPHave;
-static uint32_t levelBgIndex; /* the BD page's field L (test probe) */
-static uint8_t *pageItems; /* field B + its record area          */
-static uint32_t pageItemsSize;
-static int32_t pageValid;
-static uint8_t kBytes[4]; /* field K: [0x6F20], [0x6F0B]        */
-static uint8_t *animTable;
-static uint32_t animCount;
-
 static void visuals_free(void)
 {
     free(atlas);
@@ -368,32 +459,6 @@ static void visuals_free(void)
     pageValid = 0;
     animCount = 0;
 }
-
-/* The BD walk (re_formats.md §4): returns the end offset (== the file size
- * for all six shipped files), 0 on a bounds failure.  The doc's "D" row —
- * the 5 far pointers — is loader-constructed, 0 file bytes; row J advances
- * by the LITERAL si += word[si] (the length word is part of the skip), then
- * 8 bytes; field M (a u16 count + 4-byte entries) is the palette-rotation
- * table, handed back to the caller.  Byte-exact over BD1..BD6 (2026-10-23). */
-typedef struct BdPage {
-    const uint8_t *aTable; /* field A: the per-tile slope profiles  */
-    uint32_t aSize;
-    const uint8_t *items; /* field B: 256 word offsets             */
-    uint32_t itemsSize; /* maxB + 0x20: the record area          */
-    const uint8_t *jBytes; /* field J: the 8 bytes at 0x1E98        */
-    const uint8_t *rowBlock; /* field I: 0xC0 B (the 0x80..0xBF bank) */
-    const uint8_t *nList; /* field N: count + 17-byte {id, 16}     */
-    uint32_t nCount;
-    const uint8_t *oList; /* field O: count + 16 id bytes          */
-    uint32_t oCount;
-    const uint8_t *cBlock; /* field C: the 0xA9 background sprites  */
-    const uint8_t *eBlock; /* field E: the 0x80-byte A9 log sprite    */
-    const uint8_t *hBlock; /* field H: the two 0x100-byte sprites     */
-    const uint8_t *gBlock; /* field G: 3 layers x n x 0x100 sprites */
-    uint32_t gCount; /* n (blocks per layer)                  */
-    const uint8_t *pBlock; /* field P: the 0x1000-byte exit art     */
-    uint32_t pSize;
-} BdPage;
 
 static uint32_t bd_walk(const uint8_t *b, uint32_t size, uint32_t *bgIndex,
                         const uint8_t **anim, uint32_t *animEntries,
@@ -1320,7 +1385,6 @@ uint16_t level_offsetWord(void) { return levelOffsetWord; }
 /* test seam: the walk's pointer back to the table's first pair */
 void level_reset_offsetWalk(void) { levelOffsetPtr = 0x2D92u; }
 
-
 void level_begin(void)
 {
     if (!level_loaded || startPhase != LVSTART_IDLE) return;
@@ -1355,7 +1419,6 @@ int32_t level_starting(void)
 { return level_loaded && startPhase != LVSTART_PLAYING; }
 
 /* --- level_run's end and the entry state machine's spine -------------- */
-
 uint32_t level_required(void) { return levelRequired; }
 uint32_t level_members(void) { return tribeMembers; }
 /* 1000:DE1F: the join tail increments the tribe count ([0x11FC]). */
@@ -1496,30 +1559,6 @@ const uint8_t *level_map(void) { return level_loaded ? levelMapCopy : NULL; }
 /* the level's working palette 202F:0x14D3 (levelPal above) */
 const uint8_t *level_palette(void) { return levelPal; }
 
-/* DS:0x1413 — the shipped 64-entry gradient that draw_level_text copies into
- * palette entries 0x80..0xBF (0x33F2, 0xC0 bytes).  The runtime buffer was
- * read live from the running game (DS 0x123A:0x1413) on 2026-11-01. */
-static const uint8_t levelEndGradient[0xC0] = {
-    0x3Cu, 0x28u, 0x3Cu, 0x3Cu, 0x26u, 0x3Cu, 0x3Cu, 0x24u, 0x3Cu, 0x3Cu, 0x22u,
-    0x3Cu, 0x3Cu, 0x20u, 0x3Cu, 0x3Cu, 0x1Eu, 0x3Cu, 0x3Cu, 0x1Cu, 0x3Cu, 0x3Cu,
-    0x1Au, 0x3Cu, 0x3Cu, 0x18u, 0x3Cu, 0x3Cu, 0x16u, 0x3Cu, 0x3Cu, 0x14u, 0x3Cu,
-    0x3Cu, 0x12u, 0x3Cu, 0x3Cu, 0x10u, 0x3Cu, 0x3Cu, 0x0Eu, 0x3Cu, 0x3Cu, 0x0Cu,
-    0x3Cu, 0x3Cu, 0x0Au, 0x3Cu, 0x3Cu, 0x0Cu, 0x3Cu, 0x3Cu, 0x0Bu, 0x38u, 0x3Cu,
-    0x0Bu, 0x35u, 0x3Cu, 0x0Bu, 0x32u, 0x3Cu, 0x0Bu, 0x2Fu, 0x3Cu, 0x0Au, 0x2Bu,
-    0x3Cu, 0x0Au, 0x28u, 0x3Cu, 0x0Au, 0x25u, 0x3Cu, 0x0Au, 0x22u, 0x3Cu, 0x09u,
-    0x1Eu, 0x3Cu, 0x09u, 0x1Bu, 0x3Cu, 0x09u, 0x18u, 0x3Cu, 0x09u, 0x15u, 0x3Cu,
-    0x08u, 0x11u, 0x3Cu, 0x08u, 0x0Eu, 0x3Cu, 0x08u, 0x0Bu, 0x3Cu, 0x08u, 0x08u,
-    0x3Cu, 0x07u, 0x07u, 0x3Cu, 0x06u, 0x06u, 0x3Cu, 0x05u, 0x05u, 0x3Cu, 0x04u,
-    0x04u, 0x3Cu, 0x03u, 0x03u, 0x3Cu, 0x02u, 0x02u, 0x3Cu, 0x01u, 0x01u, 0x3Cu,
-    0x00u, 0x00u, 0x39u, 0x00u, 0x00u, 0x37u, 0x00u, 0x00u, 0x34u, 0x00u, 0x00u,
-    0x32u, 0x00u, 0x00u, 0x2Fu, 0x00u, 0x00u, 0x2Du, 0x00u, 0x00u, 0x2Au, 0x00u,
-    0x00u, 0x28u, 0x00u, 0x00u, 0x25u, 0x00u, 0x00u, 0x23u, 0x00u, 0x00u, 0x20u,
-    0x00u, 0x00u, 0x1Eu, 0x00u, 0x00u, 0x1Bu, 0x00u, 0x00u, 0x19u, 0x00u, 0x00u,
-    0x16u, 0x00u, 0x00u, 0x14u, 0x00u, 0x00u, 0x11u, 0x00u, 0x00u, 0x0Fu, 0x00u,
-    0x00u, 0x0Cu, 0x00u, 0x00u, 0x0Au, 0x00u, 0x00u, 0x07u, 0x00u, 0x00u, 0x05u,
-    0x00u, 0x00u, 0x02u, 0x00u, 0x00u,
-};
-
 /* draw_level_text 0x33E2 + 0x33F2: the level palette's 0..0x7F becomes grey
  * (seal_triples), then the shipped gradient fills 0x80..0xBF.  The 0x33FD
  * fade targets this palette. */
@@ -1529,22 +1568,10 @@ void level_endPalette(void)
     memcpy(levelPal + 0x80u * 3u, levelEndGradient, sizeof levelEndGradient);
 }
 
-
 /* [0x5D31] and [0x11FC] after the LEVEL board's pick (the bar's seed; the
  * party screen reads the members too). */
 uint16_t level_timeLimit(void) { return timeLimit; }
 uint32_t level_tribeMembers(void) { return tribeMembers; }
-
-/* The in-level per-tick render (draw_map_digit 1000:4F22 + draw_terrain
- * 1000:4FEF): the BG fills the 512x320 screen buffer, draw_terrain blits the
- * map's tiles over it (tile ids >= 0xA9 are empty and let the BG through;
- * every non-zero tile byte gains the +0x20 bank bias and a zero byte is not
- * stored, so the BG shows through the tile's transparent pixels), and the
- * visible 320x200 window reads the buffer's left edge (the CRTC start at
- * scroll 0,0), the status bar, and the working palette 202F:0x14D3 built at
- * load.  The entity / logic systems land with entity.c.  Returns 1 while
- * the level is running. */
-static uint8_t levelJoy; /* [0x5ACE]: this tick's input word  */
 
 /* The play loop's input (1000:8526's output; the backend already produces the
  * same shape in InputState.joyBits).  Kept out of level_tick's signature so the
@@ -1802,37 +1829,6 @@ int32_t level_tick(void)
      * palette"). */
     return 1;
 }
-
-/* --- draw_status_indicator (1000:1FEF) ---------------------------------
- *
- * The disc-presence screen.  It is NOT a normal level screen: at the head it
- * opens the volume file for [0xF7E] (1000:20CF); if the file opens, it
- * returns at once.  Only a failed open draws the "PUT THE DISK INTO DRIVE n /
- * PRESS FIRE WHEN READY" page, fades its palette in (0x100 div 0x1E),
- * animates, retries the open on a key/ACTION, and on success fades to
- * [0x48BC] (black), holds 0x4B frames and returns.
- *
- * The art: APL\DISKIMG1.DAT is consumed by blit_sprite_to_page
- * (1000:2105): 4 planes, source stride 4, 0x1E40 = 7744 bytes per plane,
- * written to the page at [0x5AC4] (= 0 here).  The port converts those
- * planes to its chunky page with the same bit order.  The prompt's text is
- * drawn with the game's font (APL\TEXT.SPR ships on every disc); the
- * original draws the same two lines through the text renderer.
- */
-enum {
-    DISK_OFF,
-    DISK_FADE_IN,
-    DISK_WAIT,
-    DISK_FADE_OUT,
-    DISK_HOLD
-};
-
-static int32_t diskPhase = DISK_OFF;
-static uint32_t diskDisc;
-static uint16_t diskHold;
-static uint8_t diskPal[768];
-static const uint8_t diskBlack[768];
-static uint8_t *diskFont;
 
 static void disk_draw(uint32_t disc)
 {

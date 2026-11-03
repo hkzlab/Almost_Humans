@@ -64,7 +64,6 @@
  * In an unoptimised clang build nothing is inlined, so these become calls;
  * that is a debug-build cost, not a property of the generated code.
  */
-
 static inline uint16_t bo_ld16(const uint8_t *p)
 {
     uint16_t v;
@@ -105,7 +104,6 @@ static inline uint32_t bo_be32(uint32_t v) { return v; }
 #endif
 
 /* --- reads ----------------------------------------------------------- */
-
 static inline uint8_t rd_u8(const uint8_t *p) { return *p; }
 static inline int8_t rd_i8(const uint8_t *p) { return (int8_t)*p; }
 
@@ -128,7 +126,6 @@ static inline int32_t rd_be_i32(const uint8_t *p)
 { return (int32_t)rd_be_u32(p); }
 
 /* --- writes ---------------------------------------------------------- */
-
 static inline void wr_u8(uint8_t *p, uint8_t v) { *p = v; }
 static inline void wr_i8(uint8_t *p, int8_t v) { *p = (uint8_t)v; }
 

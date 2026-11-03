@@ -28,6 +28,228 @@
 #define OBJ_SEG_SIZE                                                           \
     65536u   /* the original decodes objects into a 64K segment */
 
+/* --- ANI image handling ------------------------------------------------
+
+ * The ANI chunk image is:
+ *   u32[0] = table_size_bytes (also entry[0])
+ *   u32[1..n-1] = byte offsets of blobs 1..n-1 into the image
+ *   blob k = [entry[k], entry[k+1])
+ *
+ * Each blob is an LZW object: [u16 decompressed_size][u16 checksum]
+ * [u16 bit buffer][LZW bits].  Object 0 is the script object.
+ */
+typedef struct {
+    uint8_t *image;
+    uint32_t image_size;
+    uint32_t table_size;
+    uint32_t n_entries;
+    uint32_t *entries; /* copy of the u32 offset table           */
+} Ani;
+
+typedef enum {
+    SCENE_IDLE, /* not started                                */
+    SCENE_PANEL_FADE, /* the panel's first 0x20 entries fade in     */
+    SCENE_DWELL, /* the 210-tick pre-scene dwell               */
+    SCENE_PANEL_OUT, /* the 0x20-entry fade to black before frames */
+    SCENE_PALFADE, /* the fade to the script object's palette    */
+    SCENE_QUIT_FADE, /* key-skip: the 0x100-entry fade to black    */
+    SCENE_PLAY, /* decode + draw the next object (instant)    */
+    SCENE_WAIT, /* per-object 6-tick wait                     */
+    SCENE_CHAIN, /* decide the next scene (instant)            */
+    SCENE_CHAIN_WAIT, /* wait up to 210 ticks for a key (replay)    */
+    SCENE_RESTART, /* chain advance: reload ANI (instant)        */
+    SCENE_DONE
+} ScenePhase;
+
+/* --- the boot intro: boot_intro_sequence (1000:B590) --------------------
+ *
+ * The original's boot chain, four stages in this order:
+ *   1. the Gametek logo (init_level_scene 1000:BEE9 + play_scene_sequence
+ *      1000:B211): fade to black, then GAMETEK.RSC's display list — one
+ *      group per tick, the DAC faded to the list's embedded palette in
+ *      steps (entries 0-3 fast before the first group, then the 4-bank
+ *      cycles and the 0x20-0x2F bank) — abortable by key, then the 0x1a4
+ *      hold and the fade to the working palette
+ *   2. the IDI card (present_scene2 1000:BD73): IDI.BIT through its own
+ *      palette (fade BP=0x32), 0x1a4 hold, fade out
+ *   3. the FIRST card (present_scene 1000:BD13): FIRST.BIT fades in bank
+ *      by bank (7 x 16 entries at BP=0x23, 0x118 hold each), then fades out
+ *   4. the ITB card + the scene (load_intro_scene 1000:B63B), below
+ * The music init (8437/83f7/84a5, mus\title.ALB) sits between 1's fade and
+ * the logo — deferred in the port.
+ *
+ * Stage 4 plays INTRO\INTRO.RSC's display list over a horizontally
+ * scrolling INTRO\BAC.BIT background, with the treetop/treebot/apple
+ * sprites riding the scroll.  Per tick:
+ *   1. script_fire(frame) — the cues (the verbatim 202F:0x843C list)
+ *   2. the scroll render (copy_rows_0x140, 1000:B9F8): the bac screen
+ *      wrapped horizontally by the scroll position, 184 rows in 92 pairs
+ *   3. the sprites (blit_intro_trees/apple, 1000:BA6E/BA4B via
+ *      blit_sprite_transparent 1000:BAA5): their screen X = world X -
+ *      the scroll, so they ride the background
+ *   4. the display-list group (blit_display_list, 1000:B955): transparent
+ *      overlays at the records' destinations; at the group terminator the
+ *      dwell counts down and the next group + frame follow
+ *   5. present, then the 2-tick frame wait
+ * The quit cue (frame 385) ends it; the frame counter ran 0..386 live.
+ * No key skip: the loop ends on the quit cue alone.
+ *
+ * The present (deplanarise_bitmap, 1000:BB05) shows the pool's rows 4-183
+ * in the visible rows 0-179 — the port composes both stages into its flat
+ * page.  The bar (the transition handler's words expansion, visible rows
+ * 182-197, colours 0xE0-0xEF = bac's grey gradient) persists below every
+ * present.
+ *
+ * The palette fades are ported through palette.c's build/step machine (the
+ * ISR body's palette_fade_step 1000:8bfd): the card's own-palette fade-in
+ * (b68f build + c0af wait), the post-dwell fade-out to the zeroed ramp and
+ * the 0x8C-tick black hold (b6f2-b707), the transition's white flash with
+ * the black 0xE0-0xEF bank + fade-back to the working palette
+ * (run_screen_transition 1000:B82E) and the caption bank fade 0x28 ticks
+ * after it (fade_countdown 1000:b7c0).  The ITB title card (present_frame
+ * 1000:BDBC, shown through the initial 280-tick dwell) is ported. */
+typedef enum {
+    BOOT_START,
+    BOOT_GT_PRE, /* the boot fade-to-black wait; the list decode  */
+    BOOT_GT_FADE0, /* group 0 shown; the 4-entry fast fade + wait   */
+    BOOT_GT_FRAME, /* one group shown (b29b's LOOP)                 */
+    BOOT_GT_FLIP, /* the flip-apply tick (87c7's ISR sync)         */
+    BOOT_GT_BANK_HOLD, /* the 30-tick hold before each bank cycle       */
+    BOOT_GT_BANK_A, /* bank fade -> gtpal+0x48 (BP=3) + wait         */
+    BOOT_GT_BANK_B, /* bank fade -> gtpal+0x3C (BP=0x1e) + wait      */
+    BOOT_GT_LAST_F, /* entries 0x20-0x2F -> gtpal+0x60 (BP=0x32)     */
+    BOOT_GT_HOLD, /* the 0x1a4-tick hold                           */
+    BOOT_GT_OUT, /* fade all -> 0x4BBC (zeroed: nothing loaded yet
+                         * — to black), BP=0x32 (bf60)                   */
+    BOOT_ABORT, /* c0c6 -> JMP b60a: a held key/fire unwinds the
+                         * whole boot; the final fade (div 0x23) starts   */
+    BOOT_ABORT_FADE, /* its wait (8b8b — the non-aborting spin)       */
+    BOOT_IDI_FADE, /* idi.bit shown; fade to its own palette        */
+    BOOT_IDI_HOLD, /* the 0x1a4-tick hold                           */
+    BOOT_IDI_OUT, /* fade to the zeroed ramp + wait                */
+    BOOT_FIRST_BANK, /* bank fade (16 entries at BP=0x23) + wait      */
+    BOOT_FIRST_HOLD, /* the 0x118-tick hold per bank                  */
+    BOOT_FIRST_LASTHOLD, /* bd50: the extra 0x118-tick hold after bank 7  */
+    BOOT_FIRST_OUT, /* fade to the zeroed ramp (BP=0x23) + wait      */
+    BOOT_ITB_SHOW, /* the ITB card present + its fade-in start      */
+    BOOT_CARD_FADE, /* its wait                                      */
+    BOOT_DWELL, /* the 280-tick initial dwell                    */
+    BOOT_FADEOUT, /* the post-dwell fade to the zeroed ramp (b6f2) */
+    BOOT_BLACK, /* the 0x8C-tick black hold (c0b8)               */
+    BOOT_FRAME, /* cues + scroll + sprites + display-list blit   */
+    BOOT_WAIT, /* the 2-tick frame wait                         */
+    BOOT_SCENE_HOLD, /* the scene's final 0x8C-tick hold (b7a3)       */
+    BOOT_TRANS, /* the transition's white-flash fade (b854)      */
+    BOOT_TRANS_HOLD, /* the words redraw + 0xa-tick hold (b866-b871)  */
+    BOOT_OUTRO, /* the scene-tail fade to black (b7a9, BP=0x1e)  */
+    BOOT_DONE
+} BootPhase;
+
+/* --- scene playback ----------------------------------------------------- */
+
+/* The scene chain table, ported from 202F:0x6293 (exe bytes): chain[scene]
+ * = the next scene played after it; self = replay until a key; 4 = the
+ * tail loop (scenes 4 and 8 ping-pong until a key). */
+static const uint8_t sceneChainTable[10] = { 0, 1, 2, 3, 8, 5, 6, 7, 4, 9 };
+
+/* Background-object table, ported from 202F:0x629e: bgTable[movie] = the
+ * 0xE00-byte apl\scoops.apl block drawn as the cutscene background. */
+static const uint8_t sceneBgTable[10] = { 1, 2, 3, 4, 5, 6, 8, 0, 5, 7 };
+
+/* 202F:0x6304 — the panel's "scoop" headlines, one per scene index (the
+ * 10th is empty).  Drawn centred at 0xA0, row 0x41, colour 0x10. */
+static const char *const sceneHeadline[10] = {
+    "HUMANS INVENT WEAPON! THE SPEAR!",
+    "HUMANS RESCUE BABY DINOSAUR!",
+    "REVOLUTION IN TRANSPORT! THE WHEEL!",
+    "BRAVE HUMAN RESCUES THE QUEEN!",
+    "SPECIAL REPORT ON NEW DISCOVERY! FIRE!",
+    "UNIDENTIFIED FLYING HUMAN SPOTTED!",
+    "HUMANS FAIL IN RACE FOR EVOLUTION!",
+    "HUMANS WIN THE RACE FOR EVOLUTION!",
+    "HUMANS RECOVER THE STOLEN IDOL!",
+    ""
+};
+
+static const OSystem *scene_osys;
+static ScenePhase scene_phase = SCENE_IDLE;
+static uint32_t scene_level = 0xFFFFu; /* the level the intro is for */
+
+static uint8_t *aniData;
+static Ani ani;
+static uint8_t *scriptBuf; /* decoded script object                */
+static uint32_t plays;
+static const uint16_t *indices; /* into scriptBuf + 2 + 768             */
+static uint8_t *objBuf; /* 64K segment model                    */
+static uint8_t *scoopsBuf;
+static uint32_t scoopsSize;
+static uint8_t *textSpr; /* apl\text.spr — the panel's font */
+
+static uint8_t curScene;
+static int32_t chainReplay; /* 210-tick wait ends in a self-replay */
+static uint16_t dwellTicks;
+static uint8_t panelPal[768]; /* daily.bit's palette (masked 6-bit) */
+static int32_t panelPalValid;
+/* c537/c563's target: [0x48BC] is the 256x3 scratch ramp, and every writer
+ * restores it to zero — clear_fade_ramp (1000:B90F) at boot, the level's
+ * discovery op (1000:3A6A) on every exit (1000:3CF9/3D01), run_screen_
+ * transition (1000:B82E), and menu_loop's 0xC0 only (1000:051C) — so the
+ * panel's pre-scene fade and the key exit are fades to black. */
+static const uint8_t sceneBlackPal[768];
+/* [0x627C]: boot_intro_sequence's fast mode — its only writer (set at
+ * 1000:B59F, cleared at 1000:B623, entry's caller only).  play_scene_sequence
+ * reads it twice: the pre-frame palette fade is 4 entries div 2 instead of
+ * 0x100 div 0x19 (1000:B263), and wait_flag_timeout waits 1 tick instead of
+ * 6 per object (1000:B2D3).  The level's .ANI always runs with it clear. */
+static int32_t sceneFast;
+static uint16_t objWait;
+static uint16_t chainWait;
+static uint32_t objIndex;
+
+/* The boot's flag-style key tests (b2ba and c0c6) read the original's
+ * level-triggered ISR flags ([0x48A3] / +0x5ACE bit-7) — not an event
+ * queue.  They read the main loop's per-tick poll (scene_noteInput):
+ * extra eventsPoll calls here would consume input events the foreground
+ * owns (the null backend's script is call-indexed). */
+static InputState scene_lastInput;
+
+static BootPhase boot_phase = BOOT_START;
+static CueScript boot_script;
+static uint8_t *bootBac; /* intro\bac.bit — scroll source + palette */
+static uint8_t *bootTreetop; /* intro\treetop.bit 140x113               */
+static uint8_t *bootTreebot; /* intro\treebot.bit 21x59                 */
+static uint8_t *bootApple; /* intro\apple.spr 16x16                   */
+static uint8_t *bootWords; /* intro\words.bit — the bar's 1-bit text  */
+static uint8_t boot_bar[16u * 320u]; /* the visible bar, rows 182-197     */
+static int32_t boot_bar_arg = -1; /* the transition the bar holds      */
+static uint8_t *bootRsc; /* intro\intro.rsc — the display list      */
+static uint32_t bootRscSize;
+static uint32_t *bootEntries;
+static uint32_t bootEntryCount;
+static uint8_t *bootListBuf; /* the decoded display-list object         */
+static uint32_t bootListSize; /* its decoded size                        */
+static uint8_t *bootObj; /* the records' decoded overlay objects    */
+static uint32_t bootListStart; /* 0x6FEA: the records' start              */
+static uint32_t bootListPos; /* [0x6468]: the current group             */
+static uint32_t bootFrame; /* [0x6466]: the display-list group index  */
+static uint32_t bootGroupDwell; /* [0x6460]: frames per group              */
+static uint32_t bootDwellCount; /* [0x6462]: the group dwell countdown     */
+static uint32_t bootScrollPos; /* [0x6473]: the horizontal scroll         */
+static uint16_t bootWaitTicks;
+static uint8_t boot_ramp[768]; /* the fade-target scratch (202F:0x48BC)   */
+static uint32_t bootTransTicks; /* the 0xa-tick words hold (b869)          */
+static uint32_t bootBankCountdown; /* [0x644E]: the b7c0 bank-fade timer   */
+static uint8_t *bootGt; /* intro\gametek.rsc — the logo display list */
+static uint32_t bootGtSize;
+static uint32_t *bootGtEntries; /* its u32 object table                    */
+static uint32_t bootGtEntryCount;
+static uint8_t *bootGtList; /* decoded object 0: [u16 count][768-byte  *
+                                   * palette][u16 object index x count]      */
+static uint32_t bootGtGroup; /* the group loop counter (b29b's CX)      */
+static uint32_t bootGtBank; /* the 4-bank palette-cycle counter        */
+static uint8_t *bootItb; /* intro\itb.bit held until its stage      */
+static uint32_t bootHold; /* the stages' hold counters (c0b8's CX)   */
+
 /* --- AL expander: blit_background_data (1000:B2EB) --------------------
  *
  * Source = AL stream, destination = page.  Grammar (from the listing):
@@ -101,25 +323,6 @@ static void scene_al_expand(const uint8_t *src, uint32_t src_size, uint8_t *dst,
     }
 }
 
-/* --- ANI image handling ------------------------------------------------
-
- * The ANI chunk image is:
- *   u32[0] = table_size_bytes (also entry[0])
- *   u32[1..n-1] = byte offsets of blobs 1..n-1 into the image
- *   blob k = [entry[k], entry[k+1])
- *
- * Each blob is an LZW object: [u16 decompressed_size][u16 checksum]
- * [u16 bit buffer][LZW bits].  Object 0 is the script object.
- */
-
-typedef struct {
-    uint8_t *image;
-    uint32_t image_size;
-    uint32_t table_size;
-    uint32_t n_entries;
-    uint32_t *entries; /* copy of the u32 offset table           */
-} Ani;
-
 static int32_t ani_load(Ani *a, uint32_t ani_idx)
 {
     char name[32];
@@ -155,79 +358,6 @@ static int32_t ani_decode_object(const Ani *a, uint32_t idx, uint8_t *out,
                               out_size, chkOut);
 }
 
-/* --- scene playback ----------------------------------------------------- */
-
-/* The scene chain table, ported from 202F:0x6293 (exe bytes): chain[scene]
- * = the next scene played after it; self = replay until a key; 4 = the
- * tail loop (scenes 4 and 8 ping-pong until a key). */
-static const uint8_t sceneChainTable[10] = { 0, 1, 2, 3, 8, 5, 6, 7, 4, 9 };
-
-/* Background-object table, ported from 202F:0x629e: bgTable[movie] = the
- * 0xE00-byte apl\scoops.apl block drawn as the cutscene background. */
-static const uint8_t sceneBgTable[10] = { 1, 2, 3, 4, 5, 6, 8, 0, 5, 7 };
-
-/* 202F:0x6304 — the panel's "scoop" headlines, one per scene index (the
- * 10th is empty).  Drawn centred at 0xA0, row 0x41, colour 0x10. */
-static const char *const sceneHeadline[10] = {
-    "HUMANS INVENT WEAPON! THE SPEAR!",
-    "HUMANS RESCUE BABY DINOSAUR!",
-    "REVOLUTION IN TRANSPORT! THE WHEEL!",
-    "BRAVE HUMAN RESCUES THE QUEEN!",
-    "SPECIAL REPORT ON NEW DISCOVERY! FIRE!",
-    "UNIDENTIFIED FLYING HUMAN SPOTTED!",
-    "HUMANS FAIL IN RACE FOR EVOLUTION!",
-    "HUMANS WIN THE RACE FOR EVOLUTION!",
-    "HUMANS RECOVER THE STOLEN IDOL!",
-    ""
-};
-
-typedef enum {
-    SCENE_IDLE, /* not started                                */
-    SCENE_PANEL_FADE, /* the panel's first 0x20 entries fade in     */
-    SCENE_DWELL, /* the 210-tick pre-scene dwell               */
-    SCENE_PANEL_OUT, /* the 0x20-entry fade to black before frames */
-    SCENE_PALFADE, /* the fade to the script object's palette    */
-    SCENE_QUIT_FADE, /* key-skip: the 0x100-entry fade to black    */
-    SCENE_PLAY, /* decode + draw the next object (instant)    */
-    SCENE_WAIT, /* per-object 6-tick wait                     */
-    SCENE_CHAIN, /* decide the next scene (instant)            */
-    SCENE_CHAIN_WAIT, /* wait up to 210 ticks for a key (replay)    */
-    SCENE_RESTART, /* chain advance: reload ANI (instant)        */
-    SCENE_DONE
-} ScenePhase;
-
-static const OSystem *scene_osys;
-static ScenePhase scene_phase = SCENE_IDLE;
-static uint32_t scene_level = 0xFFFFu; /* the level the intro is for */
-
-static uint8_t *aniData;
-static Ani ani;
-static uint8_t *scriptBuf; /* decoded script object                */
-static uint32_t plays;
-static const uint16_t *indices; /* into scriptBuf + 2 + 768             */
-static uint8_t *objBuf; /* 64K segment model                    */
-static uint8_t *scoopsBuf;
-static uint32_t scoopsSize;
-static uint8_t *textSpr; /* apl\text.spr — the panel's font */
-
-static uint8_t curScene;
-static int32_t chainReplay; /* 210-tick wait ends in a self-replay */
-static uint16_t dwellTicks;
-static uint8_t panelPal[768]; /* daily.bit's palette (masked 6-bit) */
-static int32_t panelPalValid;
-/* c537/c563's target: [0x48BC] is the 256x3 scratch ramp, and every writer
- * restores it to zero — clear_fade_ramp (1000:B90F) at boot, the level's
- * discovery op (1000:3A6A) on every exit (1000:3CF9/3D01), run_screen_
- * transition (1000:B82E), and menu_loop's 0xC0 only (1000:051C) — so the
- * panel's pre-scene fade and the key exit are fades to black. */
-static const uint8_t sceneBlackPal[768];
-/* [0x627C]: boot_intro_sequence's fast mode — its only writer (set at
- * 1000:B59F, cleared at 1000:B623, entry's caller only).  play_scene_sequence
- * reads it twice: the pre-frame palette fade is 4 entries div 2 instead of
- * 0x100 div 0x19 (1000:B263), and wait_flag_timeout waits 1 tick instead of
- * 6 per object (1000:B2D3).  The level's .ANI always runs with it clear. */
-static int32_t sceneFast;
-
 void scene_setFastMode(int32_t on) { sceneFast = on ? 1u : 0u; }
 
 /* Start a NEW cutscene on the next scene_playLevelIntro call: cd_file_op has
@@ -256,22 +386,12 @@ static void scene_quitFade(void)
     palette_buildFade(0u, 0x100u, 0x19u, sceneBlackPal);
     scene_phase = SCENE_QUIT_FADE;
 }
-static uint16_t objWait;
-static uint16_t chainWait;
-static uint32_t objIndex;
 
 int32_t scene_init(const OSystem *osys)
 {
     scene_osys = osys;
     return 0;
 }
-
-/* The boot's flag-style key tests (b2ba and c0c6) read the original's
- * level-triggered ISR flags ([0x48A3] / +0x5ACE bit-7) — not an event
- * queue.  They read the main loop's per-tick poll (scene_noteInput):
- * extra eventsPoll calls here would consume input events the foreground
- * owns (the null backend's script is call-indexed). */
-static InputState scene_lastInput;
 
 static int32_t boot_keyState(void)
 {
@@ -594,128 +714,6 @@ int32_t scene_playLevelIntro(uint32_t introIndex)
         }
     }
 }
-
-/* --- the boot intro: boot_intro_sequence (1000:B590) --------------------
- *
- * The original's boot chain, four stages in this order:
- *   1. the Gametek logo (init_level_scene 1000:BEE9 + play_scene_sequence
- *      1000:B211): fade to black, then GAMETEK.RSC's display list — one
- *      group per tick, the DAC faded to the list's embedded palette in
- *      steps (entries 0-3 fast before the first group, then the 4-bank
- *      cycles and the 0x20-0x2F bank) — abortable by key, then the 0x1a4
- *      hold and the fade to the working palette
- *   2. the IDI card (present_scene2 1000:BD73): IDI.BIT through its own
- *      palette (fade BP=0x32), 0x1a4 hold, fade out
- *   3. the FIRST card (present_scene 1000:BD13): FIRST.BIT fades in bank
- *      by bank (7 x 16 entries at BP=0x23, 0x118 hold each), then fades out
- *   4. the ITB card + the scene (load_intro_scene 1000:B63B), below
- * The music init (8437/83f7/84a5, mus\title.ALB) sits between 1's fade and
- * the logo — deferred in the port.
- *
- * Stage 4 plays INTRO\INTRO.RSC's display list over a horizontally
- * scrolling INTRO\BAC.BIT background, with the treetop/treebot/apple
- * sprites riding the scroll.  Per tick:
- *   1. script_fire(frame) — the cues (the verbatim 202F:0x843C list)
- *   2. the scroll render (copy_rows_0x140, 1000:B9F8): the bac screen
- *      wrapped horizontally by the scroll position, 184 rows in 92 pairs
- *   3. the sprites (blit_intro_trees/apple, 1000:BA6E/BA4B via
- *      blit_sprite_transparent 1000:BAA5): their screen X = world X -
- *      the scroll, so they ride the background
- *   4. the display-list group (blit_display_list, 1000:B955): transparent
- *      overlays at the records' destinations; at the group terminator the
- *      dwell counts down and the next group + frame follow
- *   5. present, then the 2-tick frame wait
- * The quit cue (frame 385) ends it; the frame counter ran 0..386 live.
- * No key skip: the loop ends on the quit cue alone.
- *
- * The present (deplanarise_bitmap, 1000:BB05) shows the pool's rows 4-183
- * in the visible rows 0-179 — the port composes both stages into its flat
- * page.  The bar (the transition handler's words expansion, visible rows
- * 182-197, colours 0xE0-0xEF = bac's grey gradient) persists below every
- * present.
- *
- * The palette fades are ported through palette.c's build/step machine (the
- * ISR body's palette_fade_step 1000:8bfd): the card's own-palette fade-in
- * (b68f build + c0af wait), the post-dwell fade-out to the zeroed ramp and
- * the 0x8C-tick black hold (b6f2-b707), the transition's white flash with
- * the black 0xE0-0xEF bank + fade-back to the working palette
- * (run_screen_transition 1000:B82E) and the caption bank fade 0x28 ticks
- * after it (fade_countdown 1000:b7c0).  The ITB title card (present_frame
- * 1000:BDBC, shown through the initial 280-tick dwell) is ported. */
-
-typedef enum {
-    BOOT_START,
-    BOOT_GT_PRE, /* the boot fade-to-black wait; the list decode  */
-    BOOT_GT_FADE0, /* group 0 shown; the 4-entry fast fade + wait   */
-    BOOT_GT_FRAME, /* one group shown (b29b's LOOP)                 */
-    BOOT_GT_FLIP, /* the flip-apply tick (87c7's ISR sync)         */
-    BOOT_GT_BANK_HOLD, /* the 30-tick hold before each bank cycle       */
-    BOOT_GT_BANK_A, /* bank fade -> gtpal+0x48 (BP=3) + wait         */
-    BOOT_GT_BANK_B, /* bank fade -> gtpal+0x3C (BP=0x1e) + wait      */
-    BOOT_GT_LAST_F, /* entries 0x20-0x2F -> gtpal+0x60 (BP=0x32)     */
-    BOOT_GT_HOLD, /* the 0x1a4-tick hold                           */
-    BOOT_GT_OUT, /* fade all -> 0x4BBC (zeroed: nothing loaded yet
-                         * — to black), BP=0x32 (bf60)                   */
-    BOOT_ABORT, /* c0c6 -> JMP b60a: a held key/fire unwinds the
-                         * whole boot; the final fade (div 0x23) starts   */
-    BOOT_ABORT_FADE, /* its wait (8b8b — the non-aborting spin)       */
-    BOOT_IDI_FADE, /* idi.bit shown; fade to its own palette        */
-    BOOT_IDI_HOLD, /* the 0x1a4-tick hold                           */
-    BOOT_IDI_OUT, /* fade to the zeroed ramp + wait                */
-    BOOT_FIRST_BANK, /* bank fade (16 entries at BP=0x23) + wait      */
-    BOOT_FIRST_HOLD, /* the 0x118-tick hold per bank                  */
-    BOOT_FIRST_LASTHOLD, /* bd50: the extra 0x118-tick hold after bank 7  */
-    BOOT_FIRST_OUT, /* fade to the zeroed ramp (BP=0x23) + wait      */
-    BOOT_ITB_SHOW, /* the ITB card present + its fade-in start      */
-    BOOT_CARD_FADE, /* its wait                                      */
-    BOOT_DWELL, /* the 280-tick initial dwell                    */
-    BOOT_FADEOUT, /* the post-dwell fade to the zeroed ramp (b6f2) */
-    BOOT_BLACK, /* the 0x8C-tick black hold (c0b8)               */
-    BOOT_FRAME, /* cues + scroll + sprites + display-list blit   */
-    BOOT_WAIT, /* the 2-tick frame wait                         */
-    BOOT_SCENE_HOLD, /* the scene's final 0x8C-tick hold (b7a3)       */
-    BOOT_TRANS, /* the transition's white-flash fade (b854)      */
-    BOOT_TRANS_HOLD, /* the words redraw + 0xa-tick hold (b866-b871)  */
-    BOOT_OUTRO, /* the scene-tail fade to black (b7a9, BP=0x1e)  */
-    BOOT_DONE
-} BootPhase;
-
-static BootPhase boot_phase = BOOT_START;
-static CueScript boot_script;
-static uint8_t *bootBac; /* intro\bac.bit — scroll source + palette */
-static uint8_t *bootTreetop; /* intro\treetop.bit 140x113               */
-static uint8_t *bootTreebot; /* intro\treebot.bit 21x59                 */
-static uint8_t *bootApple; /* intro\apple.spr 16x16                   */
-static uint8_t *bootWords; /* intro\words.bit — the bar's 1-bit text  */
-static uint8_t boot_bar[16u * 320u]; /* the visible bar, rows 182-197     */
-static int32_t boot_bar_arg = -1; /* the transition the bar holds      */
-static uint8_t *bootRsc; /* intro\intro.rsc — the display list      */
-static uint32_t bootRscSize;
-static uint32_t *bootEntries;
-static uint32_t bootEntryCount;
-static uint8_t *bootListBuf; /* the decoded display-list object         */
-static uint32_t bootListSize; /* its decoded size                        */
-static uint8_t *bootObj; /* the records' decoded overlay objects    */
-static uint32_t bootListStart; /* 0x6FEA: the records' start              */
-static uint32_t bootListPos; /* [0x6468]: the current group             */
-static uint32_t bootFrame; /* [0x6466]: the display-list group index  */
-static uint32_t bootGroupDwell; /* [0x6460]: frames per group              */
-static uint32_t bootDwellCount; /* [0x6462]: the group dwell countdown     */
-static uint32_t bootScrollPos; /* [0x6473]: the horizontal scroll         */
-static uint16_t bootWaitTicks;
-static uint8_t boot_ramp[768]; /* the fade-target scratch (202F:0x48BC)   */
-static uint32_t bootTransTicks; /* the 0xa-tick words hold (b869)          */
-static uint32_t bootBankCountdown; /* [0x644E]: the b7c0 bank-fade timer   */
-static uint8_t *bootGt; /* intro\gametek.rsc — the logo display list */
-static uint32_t bootGtSize;
-static uint32_t *bootGtEntries; /* its u32 object table                    */
-static uint32_t bootGtEntryCount;
-static uint8_t *bootGtList; /* decoded object 0: [u16 count][768-byte  *
-                                   * palette][u16 object index x count]      */
-static uint32_t bootGtGroup; /* the group loop counter (b29b's CX)      */
-static uint32_t bootGtBank; /* the 4-bank palette-cycle counter        */
-static uint8_t *bootItb; /* intro\itb.bit held until its stage      */
-static uint32_t bootHold; /* the stages' hold counters (c0b8's CX)   */
 
 /* One gametek group: place_scene_obj (1000:B3F9) decodes the object out of
  * the RSC's u32 table (the same machine as res_decode_lzw_mem — the b444

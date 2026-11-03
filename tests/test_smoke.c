@@ -10,16 +10,47 @@
  * argv[2] = the extracted-tree fixture root (expected bytes).
  * Missing volumes = skip. */
 #include "game.h"
+#include "compat.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "compat.h"
 
-extern const OSystem osys_null;
+#define DUMP_N (sizeof dumpAt / sizeof dumpAt[0])
+
+enum {
+    SCRIPT_N = 8700
+};
+
 extern void osys_null_inputScript(const InputState *states, uint32_t n);
 extern const uint8_t *osys_null_page(int32_t which);
 extern const uint8_t *osys_null_palette(void);
 extern uint32_t osys_null_pollCount(void);
+
+extern void osys_null_onPresent(void (*fn)(uint32_t poll));
+
+extern const OSystem osys_null;
+
+/* Optional frame evidence (argv[3] = a directory): page 0 + the DAC shadow
+ * at the flow's milestones, so the room -> party -> .ANI -> level relay can
+ * be looked at instead of guessed. */
+static const char *dump_dir;
+static uint32_t dumped;
+
+/* the milestones: the room's exit, the party, the LOADING screen and the
+ * level's first play frames (the goal page is dismissed by the held key) */
+static const uint32_t dumpAt[] = { 6600, 6900, 6930, 7100, 7300, 7500,
+                                   7650, 7800, 7900, 8100, 8300, 8600 };
+static const char *dumpName[] = { "flow_6600_room",      "flow_6900_roomexit",
+                                  "flow_6930_party_a",   "flow_7100_party_b",
+                                  "flow_7300_loading_a", "flow_7500_loading_b",
+                                  "flow_7650_level_a",   "flow_7800_level_b",
+                                  "flow_7900_level_c",   "flow_8100_level_d",
+                                  "flow_8300_level_e",   "flow_8600_level_f" };
+
+static int32_t sawPause;
+/* the goal page (scroll_map 1000:9E51): the actor must not move while it is
+ * up even with a direction held, and the page must be seen at all */
+static int32_t sawGoal, goalMoved, goalTicks, goalX;
 
 static uint8_t *read_file(const char *path, uint32_t *size)
 {
@@ -39,16 +70,6 @@ static uint8_t *read_file(const char *path, uint32_t *size)
     return buf;
 }
 
-enum {
-    SCRIPT_N = 8700
-};
-
-/* Optional frame evidence (argv[3] = a directory): page 0 + the DAC shadow
- * at the flow's milestones, so the room -> party -> .ANI -> level relay can
- * be looked at instead of guessed. */
-static const char *dump_dir;
-static uint32_t dumped;
-
 static void dump_ppm(const char *name, const uint8_t *page)
 {
     char path[512];
@@ -67,25 +88,6 @@ static void dump_ppm(const char *name, const uint8_t *page)
     fclose(f);
     dumped++;
 }
-
-/* the milestones: the room's exit, the party, the LOADING screen and the
- * level's first play frames (the goal page is dismissed by the held key) */
-static const uint32_t dumpAt[] = { 6600, 6900, 6930, 7100, 7300, 7500,
-                                   7650, 7800, 7900, 8100, 8300, 8600 };
-static const char *dumpName[] = { "flow_6600_room",      "flow_6900_roomexit",
-                                  "flow_6930_party_a",   "flow_7100_party_b",
-                                  "flow_7300_loading_a", "flow_7500_loading_b",
-                                  "flow_7650_level_a",   "flow_7800_level_b",
-                                  "flow_7900_level_c",   "flow_8100_level_d",
-                                  "flow_8300_level_e",   "flow_8600_level_f" };
-#define DUMP_N (sizeof dumpAt / sizeof dumpAt[0])
-
-extern void osys_null_onPresent(void (*fn)(uint32_t poll));
-
-static int32_t sawPause;
-/* the goal page (scroll_map 1000:9E51): the actor must not move while it is
- * up even with a direction held, and the page must be seen at all */
-static int32_t sawGoal, goalMoved, goalTicks, goalX;
 
 static void present_hook(uint32_t poll)
 {

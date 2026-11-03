@@ -6,6 +6,25 @@
 #include "fs/fs.h"
 #include <stdio.h>
 
+static FSVolume *null_openVolume(uint32_t disc);
+static void null_closeVolume(FSVolume *v);
+static uint32_t null_volumeSize(FSVolume *v);
+static uint32_t null_read(FSVolume *v, uint32_t off, uint8_t *dst, uint32_t n);
+static FSSave *null_openSave(char letter);
+static uint32_t null_saveRead(FSSave *s, uint32_t off, uint8_t *dst,
+                              uint32_t n);
+static FSSave *null_createSave(char letter);
+static uint32_t null_saveWrite(FSSave *s, uint32_t off, const uint8_t *src,
+                               uint32_t n);
+static void null_closeSave(FSSave *s);
+static FSSave *null_openNamed(const char *name);
+static FSSave *null_createNamed(const char *name);
+
+const FSModule fs = { null_openVolume, null_closeVolume, null_volumeSize,
+                      null_read,       null_openSave,    null_saveRead,
+                      null_createSave, null_saveWrite,   null_closeSave,
+                      null_openNamed,  null_createNamed };
+
 static FSVolume *null_openVolume(uint32_t disc)
 {
     (void)disc;
@@ -64,8 +83,3 @@ static FSSave *null_createNamed(const char *name)
     (void)name;
     return NULL;
 }
-
-const FSModule fs = { null_openVolume, null_closeVolume, null_volumeSize,
-                      null_read,       null_openSave,    null_saveRead,
-                      null_createSave, null_saveWrite,   null_closeSave,
-                      null_openNamed,  null_createNamed };

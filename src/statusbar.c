@@ -93,6 +93,50 @@ static uint8_t td[2];
 static uint16_t tdPhase[2];
 static uint8_t odoState;
 static uint8_t odoSlide[2];
+
+/* The mark x positions: the five destinations 0x6E2/0x6E6/0x6E8/0x728/0x72A
+ * are bar row 20's bytes 2/6/8/72/74 at the 88-byte pitch; the flat page's
+ * x = 4 * byte.  The seconds-tens mark (index 1) reads its glyphs at
+ * +0xC0 — PANELN2, the strip's cells 12..19. */
+static const uint16_t markX[5] = { 8, 24, 32, 288, 296 };
+static const uint16_t markBias[5] = { 0, 0xC0, 0, 0, 0 };
+
+/* --- the action row (the bar's centre) ---------------------------------
+ *
+ * blit_sprite_loop (1000:990A) draws a *group* of icon slots selected by
+ * [0x5B56] from the six word pointers at 202F:0x5B2B.  Each group is
+ * `count, selected-cell, icon...` (the second byte is the 1-based selected
+ * cell, stepped by SPACE 1000:3933) with 1-based ICONS3 cells; the shipped
+ * groups are
+ *
+ *   1: 2 icons  02 01        2: 4 icons  03 04 05 06
+ *   3: 4 icons  03 07 08 06  4: 4 icons  03 05 09 06
+ *   5: 4 icons  09 0a 0b 0c  6: 1 icon   06
+ *
+ * so the level's start (group 1, [0x5B56] = 1) shows ICONS3 cells 1 and 0.
+ * The row starts at x = (0x140 - (count*23 + (count-1)*12)) / 2, the slot
+ * pitch is 0x1F and every slot sits at bar row 5 (1000:993B..9947).  Each
+ * slot gets an embossed 23x31 bevel (1000:997D, its mask 0x48BC zeroed = a
+ * pure shade: top/right -4, bottom/left +4, clamped to the bar bank's
+ * 0xC0..0xCF greys) and the selected cell also the gold 21x29 inner frame at
+ * +1,+1 (1000:996E from the 0x5B57 ramp d0..e3..d0, one ramp byte per pixel
+ * or row; 1000:990A counts the header's second byte down to pick it).  The
+ * icon (1000:9993) is the 16x24 cell at +4,+4: byte != 0 stored
+ * +0xC0, 0 transparent.
+ *
+ * The group itself is the ACTION program at `0x5B37` (`[0x5B56]` selects it
+ * through `202F:0x5B2B`): its first two bytes are `count, cursor`, and the
+ * cursor is the byte SPACE steps and the script dispatcher reads.  The port
+ * keeps one copy of those bytes (`object_programHeader`), so the highlighted
+ * cell and the executed op cannot drift apart. */
+static const uint8_t actionGold[40] = {
+    /* 202F:0x5B57 */
+    0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 0xD8, 0xD9,
+    0xDA, 0xDB, 0xDC, 0xDD, 0xDE, 0xDF, 0xE0, 0xE1, 0xE2, 0xE3,
+    0xE3, 0xE2, 0xE1, 0xE0, 0xDF, 0xDE, 0xDD, 0xDC, 0xDB, 0xDA,
+    0xD9, 0xD8, 0xD7, 0xD6, 0xD5, 0xD4, 0xD3, 0xD2, 0xD1, 0xD0,
+};
+
 /* 1000:F5E3: the "anything collected" test ([0x5B25] | [0x5B26] != 0). */
 int32_t statusbar_tribeActive(void) { return (td[0] | td[1]) != 0; }
 /* The two digits as the number the check_highscore arithmetic reads (1000:41B8:
@@ -142,13 +186,6 @@ int32_t statusbar_init(const OSystem *osys)
     return 0;
 }
 
-/* The mark x positions: the five destinations 0x6E2/0x6E6/0x6E8/0x728/0x72A
- * are bar row 20's bytes 2/6/8/72/74 at the 88-byte pitch; the flat page's
- * x = 4 * byte.  The seconds-tens mark (index 1) reads its glyphs at
- * +0xC0 — PANELN2, the strip's cells 12..19. */
-static const uint16_t markX[5] = { 8, 24, 32, 288, 296 };
-static const uint16_t markBias[5] = { 0, 0xC0, 0, 0, 0 };
-
 /* stamp_statusbar_plane_bits (1000:9846) + copy_8rows_2bytes_to_vga
  * (1000:98D1): one mark = 16 consecutive strip bytes laid out 8 px per
  * row, 8 rows.  The strip values are the low nibbles {03,07,0E} = the
@@ -188,42 +225,6 @@ static void draw_band(uint8_t *page)
         for (uint32_t x = 0; x < 320u; x++) dst[x] = (uint8_t)(0xC0u | src[x]);
     }
 }
-
-/* --- the action row (the bar's centre) ---------------------------------
- *
- * blit_sprite_loop (1000:990A) draws a *group* of icon slots selected by
- * [0x5B56] from the six word pointers at 202F:0x5B2B.  Each group is
- * `count, selected-cell, icon...` (the second byte is the 1-based selected
- * cell, stepped by SPACE 1000:3933) with 1-based ICONS3 cells; the shipped
- * groups are
- *
- *   1: 2 icons  02 01        2: 4 icons  03 04 05 06
- *   3: 4 icons  03 07 08 06  4: 4 icons  03 05 09 06
- *   5: 4 icons  09 0a 0b 0c  6: 1 icon   06
- *
- * so the level's start (group 1, [0x5B56] = 1) shows ICONS3 cells 1 and 0.
- * The row starts at x = (0x140 - (count*23 + (count-1)*12)) / 2, the slot
- * pitch is 0x1F and every slot sits at bar row 5 (1000:993B..9947).  Each
- * slot gets an embossed 23x31 bevel (1000:997D, its mask 0x48BC zeroed = a
- * pure shade: top/right -4, bottom/left +4, clamped to the bar bank's
- * 0xC0..0xCF greys) and the selected cell also the gold 21x29 inner frame at
- * +1,+1 (1000:996E from the 0x5B57 ramp d0..e3..d0, one ramp byte per pixel
- * or row; 1000:990A counts the header's second byte down to pick it).  The
- * icon (1000:9993) is the 16x24 cell at +4,+4: byte != 0 stored
- * +0xC0, 0 transparent.
- *
- * The group itself is the ACTION program at `0x5B37` (`[0x5B56]` selects it
- * through `202F:0x5B2B`): its first two bytes are `count, cursor`, and the
- * cursor is the byte SPACE steps and the script dispatcher reads.  The port
- * keeps one copy of those bytes (`object_programHeader`), so the highlighted
- * cell and the executed op cannot drift apart. */
-static const uint8_t actionGold[40] = {
-    /* 202F:0x5B57 */
-    0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 0xD8, 0xD9,
-    0xDA, 0xDB, 0xDC, 0xDD, 0xDE, 0xDF, 0xE0, 0xE1, 0xE2, 0xE3,
-    0xE3, 0xE2, 0xE1, 0xE0, 0xDF, 0xDE, 0xDD, 0xDC, 0xDB, 0xDA,
-    0xD9, 0xD8, 0xD7, 0xD6, 0xD5, 0xD4, 0xD3, 0xD2, 0xD1, 0xD0,
-};
 /* 1000:3747: the jump/throw charge bar, drawn into the bar band from the
  * acting record's `+0xE`.  Two halves, differing in both art and position:
  *

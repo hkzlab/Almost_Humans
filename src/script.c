@@ -32,6 +32,36 @@
 #define CUE_SCROLL     6
 #define CUE_DWELL      7
 
+/* --- intro cue list (verbatim from 202F:0x843C) ------------------------- */
+static const uint16_t intro_cues[25u * 3u] = {
+    /* frame  cmd  arg */
+    0,   7, 1, /* dwell 1                                        */
+    0,   6, 3, /* scroll delta 3                                 */
+    0,   3, 0, /* scroll on                                      */
+    0,   4, 0, /* seek 0                                         */
+    0,   1, 0, /* transition 0                                   */
+    64,  2, 0, /* scroll off                                     */
+    65,  1, 1, /* transition 1                                   */
+    76,  3, 0, /* scroll on                                      */
+    170, 2, 0, /* scroll off                                     */
+    171, 1, 2, /* transition 2                                   */
+    186, 3, 0, /* scroll on                                      */
+    186, 6, 4, /* scroll delta 4                                 */
+    245, 2, 0, /* scroll off                                     */
+    246, 1, 3, /* transition 3                                   */
+    261, 3, 0, /* scroll on                                      */
+    261, 6, 8, /* scroll delta 8                                 */
+    261, 7, 1, /* dwell 1                                        */
+    294, 2, 0, /* scroll off                                     */
+    295, 1, 4, /* transition 4                                   */
+    307, 3, 0, /* scroll on                                      */
+    323, 4, 314, /* seek to frame 314 (the tail loop)              */
+    323, 4, 314, /* seek to frame 314 again                        */
+    325, 2, 0, /* scroll off                                     */
+    355, 1, 5, /* transition 5                                   */
+    385, 5, 0, /* quit                                           */
+};
+
 int32_t script_init(const OSystem *osys)
 {
     (void)osys;
@@ -92,37 +122,6 @@ uint32_t script_transitionIndex(const CueScript *s) { return s->transitionIdx; }
 int32_t script_seekPending(const CueScript *s) { return s->seekPending; }
 uint32_t script_seekFrame(const CueScript *s) { return s->seekFrame; }
 void script_seekDone(CueScript *s) { s->seekPending = 0; }
-
-/* --- intro cue list (verbatim from 202F:0x843C) ------------------------- */
-
-static const uint16_t intro_cues[25u * 3u] = {
-    /* frame  cmd  arg */
-    0,   7, 1, /* dwell 1                                        */
-    0,   6, 3, /* scroll delta 3                                 */
-    0,   3, 0, /* scroll on                                      */
-    0,   4, 0, /* seek 0                                         */
-    0,   1, 0, /* transition 0                                   */
-    64,  2, 0, /* scroll off                                     */
-    65,  1, 1, /* transition 1                                   */
-    76,  3, 0, /* scroll on                                      */
-    170, 2, 0, /* scroll off                                     */
-    171, 1, 2, /* transition 2                                   */
-    186, 3, 0, /* scroll on                                      */
-    186, 6, 4, /* scroll delta 4                                 */
-    245, 2, 0, /* scroll off                                     */
-    246, 1, 3, /* transition 3                                   */
-    261, 3, 0, /* scroll on                                      */
-    261, 6, 8, /* scroll delta 8                                 */
-    261, 7, 1, /* dwell 1                                        */
-    294, 2, 0, /* scroll off                                     */
-    295, 1, 4, /* transition 4                                   */
-    307, 3, 0, /* scroll on                                      */
-    323, 4, 314, /* seek to frame 314 (the tail loop)              */
-    323, 4, 314, /* seek to frame 314 again                        */
-    325, 2, 0, /* scroll off                                     */
-    355, 1, 5, /* transition 5                                   */
-    385, 5, 0, /* quit                                           */
-};
 
 /* Start the intro cue script (the verbatim 202F:0x843C template). */
 void script_introStart(CueScript *s) { script_start(s, intro_cues, 25u); }

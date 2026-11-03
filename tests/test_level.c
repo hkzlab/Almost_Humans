@@ -13,14 +13,15 @@
  * argv[2] = the extracted-tree fixture root (the raw L*.BIN files).
  * Missing volumes = skip. */
 #include "game.h"
+#include "compat.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "compat.h"
 
-extern const OSystem osys_null;
 extern const uint8_t *osys_null_page(int32_t which);
 extern const uint8_t *osys_null_palette(void);
+
+extern const OSystem osys_null;
 
 static uint8_t *file_image;
 

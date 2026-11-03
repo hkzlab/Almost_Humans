@@ -76,8 +76,45 @@
 #include <stdio.h>
 #include <string.h>
 
-/* === the A000 vram + the CRTC pair ========================================== */
+#define SCRIPT_COUNT 7
 
+/* === the 8-slot script machine ============================================== */
+struct slot { /* 16 B at [0x11fe]:0xFA8 + 0x10*i    */
+    uint16_t dst; /* +0: the stamp's dest word          */
+    uint8_t count; /* +2: the 8-tick countdown           */
+    uint8_t script; /* +3: the running id (1-indexed)     */
+    uint8_t fpos; /* +4: the frame position             */
+    uint8_t loopc; /* +5: the sub-list counter           */
+    uint8_t sub[10]; /* +6..15: the sub-list               */
+};
+struct script {
+    uint32_t len;
+    const uint8_t *b;
+};
+
+/* the machine state (the ticker's + 2bda's phase-split) */
+enum {
+    PH_FADEWAIT = 0, /* 25ec                   */
+    PH_SWAPWAIT, /* 2bda's {28e9; 8b9a; JC} */
+    PH_SET1,
+    PH_SET1_WAIT, /* 2600..2699             */
+    PH_SET2,
+    PH_SET2_WAIT, /* 269b..2703             */
+    PH_GAMEOVER, /* 2739: the need>members page */
+    PH_EXITWAIT,
+    PH_PRESENT,
+    PH_DONE /* 2711..272b             */
+};
+
+/* 2bda's internal split: its own fade-wait (2bec..2bf2), THEN the 0xE0
+ * mask reset (2bf4) + clear + band redraws (2c01..2c1c) — the tail is
+ * what wipes the previous text and re-bakes the canvas-empty band. */
+enum {
+    SW_FADEWAIT = 0,
+    SW_TAIL
+};
+
+/* === the A000 vram + the CRTC pair ========================================== */
 static uint8_t vram[65536][4];        /* [address][plane]                   */
 static uint16_t pageDraw = 0x1200; /* [0x5ac4]: the stamp target         */
 static uint16_t pageDisp = 0x8100; /* [0x5ac6]: the displayed page       */
@@ -87,7 +124,6 @@ static uint16_t marqCell; /* [0xf9c], 0..0xB                    */
 static uint16_t marqHold; /* [0xfa6]                            */
 
 /* === the [0x11fe] heap-segment buffers ====================================== */
-
 static uint8_t canvas[16000]; /* [0x1e20]: the 200x80 draw arena    */
 static uint8_t sheet[2784]; /* [0x1202]: the 29x96 party sprites  */
 static uint8_t strip[15360]; /* [0x1206]: the rescaled birdy       */
@@ -101,7 +137,6 @@ static uint8_t *bitImg; /* the loaded lbm\party1.bit          */
 static uint8_t *fontBytes; /* [0x1e1c]: the published text.spr   */
 
 /* === the DS values the screen reads ========================================= */
-
 static uint16_t g_level; /* [0x1f41]                           */
 static uint16_t g_need; /* [0x17fb]                           */
 static uint16_t g_members; /* [0x11fc]                           */
@@ -109,7 +144,6 @@ static uint16_t g_score; /* [0x592]                            */
 static char g_tribe[16]; /* 0x1189                             */
 
 /* === the string table (verbatim templates; the digit slots rewritten) ======= */
-
 static char s_all[28]; /* 0x105F: "COMING UP.... LEVEL 000"  (3 slots)    */
 static char s_need[40]; /* 0x1077: "YOU WILL NEED 0 HUMANS TO COMPLETE"    */
 static char s_this[16]; /* 0x109A: "THIS LEVEL"                            */
@@ -120,28 +154,46 @@ static char s_fire[32]; /* 0x1108: "PRESS FIRE TO START LEVEL...."         */
 
 static const uint8_t ramp10[10] = /* 2e94's ramp -> CS:[0x2DFE+i]  */
     { 0x80, 0xA0, 0xC0, 0xE0, 0xE0, 0xE0, 0xE0, 0xC0, 0xA0, 0x80 };
-
-/* === the 8-slot script machine ============================================== */
-
-struct slot { /* 16 B at [0x11fe]:0xFA8 + 0x10*i    */
-    uint16_t dst; /* +0: the stamp's dest word          */
-    uint8_t count; /* +2: the 8-tick countdown           */
-    uint8_t script; /* +3: the running id (1-indexed)     */
-    uint8_t fpos; /* +4: the frame position             */
-    uint8_t loopc; /* +5: the sub-list counter           */
-    uint8_t sub[10]; /* +6..15: the sub-list               */
-};
 static struct slot slots[8];
-
-#define SCRIPT_COUNT 7
-struct script {
-    uint32_t len;
-    const uint8_t *b;
-};
 static struct script scripts[SCRIPT_COUNT];
 
 static uint8_t *scriptStore; /* the seeded bodies (memcpy'd)       */
 
+/* === the file-image script seed (2026-10-30: the tables are STATIC bytes
+ * of the MZ image — the 202F:0xFA8 / 0x1028 hexdumps == the live DS
+ * read-back; the sub-lists are never rewritten by traced code, so no seed
+ * writer exists.  The countdowns slug the slots' phase: {10,8,6,4,5,0,7,9};
+ * a count of 0 (slot 5) counts up to 8 on its first tick per 2909
+ * DEC-then-test.) */
+static const uint8_t slots_file[128] = {
+    0xf0, 0x2f, 10, 1, 0, 0, 1, 1, 1, 3, 6, 3, 6, 1, 1, 1,
+    0xf8, 0x31, 8,  1, 0, 0, 6, 6, 6, 6, 4, 5, 4, 5, 1, 1,
+    0x50, 0x30, 6,  1, 0, 0, 1, 2, 3, 4, 5, 6, 1, 2, 3, 4,
+    0x98, 0x31, 4,  1, 0, 0, 1, 6, 2, 5, 3, 4, 4, 3, 4, 1,
+    0x08, 0x31, 5,  1, 0, 0, 6, 6, 5, 4, 4, 3, 7, 4, 1, 3,
+    0x48, 0x33, 0,  1, 0, 0, 1, 3, 7, 3, 7, 6, 3, 3, 1, 5,
+    0x20, 0x33, 7,  1, 0, 0, 6, 3, 4, 3, 5, 4, 3, 4, 1, 4,
+    0x48, 0x34, 9,  1, 0, 0, 3, 7, 3, 7, 3, 7, 6, 4, 3, 2
+};
+static const uint8_t scripts_file[41] = {
+    /* DS:0x1036..0x105E */
+    0x01, 0x02, 0x03, 0x02, 0xFF, /* 0x1036 s1 */
+    0x05, 0x06, 0x07, 0x08, 0x09, 0x06, 0x05, 0x04, 0xFF, /* 0x103b s2 */
+    0x0a, 0x0b, 0xFF, /* 0x1044 s3 */
+    0x0a, 0x0d, 0x0e, 0x0f, 0x0e, 0x0d, 0xFF, /* 0x1047 s4 */
+    0x11, 0x12, 0x11, 0x0d, 0xFF, /* 0x104e s5 */
+    0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1b, 0x1c, 0xFF, /* 0x1053 s6 */
+    0x0a, 0x0c, 0xFF /* 0x105c s7 */
+};
+
+static uint32_t phase = PH_FADEWAIT; /* the machine phase                   */
+static uint32_t step; /* the in-phase op counter             */
+static uint32_t waitLeft; /* 297f's AX                           */
+static int32_t keyCaught; /* the JNS's source                    */
+static uint32_t presentLeft; /* 835a's 0x4B cycles                  */
+static uint32_t swapNext; /* the 2bda's tail's next phase        */
+static int32_t gameOverMode; /* level_intro_screen 2739's variant   */
+static uint32_t swPhase = SW_FADEWAIT;
 
 void party_intro_seedScripts(const uint8_t *bytes, uint32_t len)
 {
@@ -176,33 +228,6 @@ void party_intro_seedSlots(const uint8_t *raw) /* the 128 B at DS:0xFA8 */
     }
 }
 
-/* === the file-image script seed (2026-10-30: the tables are STATIC bytes
- * of the MZ image — the 202F:0xFA8 / 0x1028 hexdumps == the live DS
- * read-back; the sub-lists are never rewritten by traced code, so no seed
- * writer exists.  The countdowns slug the slots' phase: {10,8,6,4,5,0,7,9};
- * a count of 0 (slot 5) counts up to 8 on its first tick per 2909
- * DEC-then-test.) */
-static const uint8_t slots_file[128] = {
-    0xf0, 0x2f, 10, 1, 0, 0, 1, 1, 1, 3, 6, 3, 6, 1, 1, 1,
-    0xf8, 0x31, 8,  1, 0, 0, 6, 6, 6, 6, 4, 5, 4, 5, 1, 1,
-    0x50, 0x30, 6,  1, 0, 0, 1, 2, 3, 4, 5, 6, 1, 2, 3, 4,
-    0x98, 0x31, 4,  1, 0, 0, 1, 6, 2, 5, 3, 4, 4, 3, 4, 1,
-    0x08, 0x31, 5,  1, 0, 0, 6, 6, 5, 4, 4, 3, 7, 4, 1, 3,
-    0x48, 0x33, 0,  1, 0, 0, 1, 3, 7, 3, 7, 6, 3, 3, 1, 5,
-    0x20, 0x33, 7,  1, 0, 0, 6, 3, 4, 3, 5, 4, 3, 4, 1, 4,
-    0x48, 0x34, 9,  1, 0, 0, 3, 7, 3, 7, 3, 7, 6, 4, 3, 2
-};
-static const uint8_t scripts_file[41] = {
-    /* DS:0x1036..0x105E */
-    0x01, 0x02, 0x03, 0x02, 0xFF, /* 0x1036 s1 */
-    0x05, 0x06, 0x07, 0x08, 0x09, 0x06, 0x05, 0x04, 0xFF, /* 0x103b s2 */
-    0x0a, 0x0b, 0xFF, /* 0x1044 s3 */
-    0x0a, 0x0d, 0x0e, 0x0f, 0x0e, 0x0d, 0xFF, /* 0x1047 s4 */
-    0x11, 0x12, 0x11, 0x0d, 0xFF, /* 0x104e s5 */
-    0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1b, 0x1c, 0xFF, /* 0x1053 s6 */
-    0x0a, 0x0c, 0xFF /* 0x105c s7 */
-};
-
 static void seed_slots_live(void)
 {
     party_intro_seedSlots(slots_file);
@@ -210,7 +235,6 @@ static void seed_slots_live(void)
 }
 
 /* === 2b1b format_score + 2b70 ================================================ */
-
 void party_intro_formatScore(uint32_t v, char *out)
 {
     static const uint32_t divs[8] = { 100000000u, 10000000u, 1000000u, 100000u,
@@ -257,7 +281,6 @@ static char *append_str(char *dst, const char *src)
 }
 
 /* === the vram-layer helpers ================================================== */
-
 static void clear_canvas(void) /* 2af5: rows 20..87 = 0x640..0x1B80 */
 { memset(canvas + 0x640u, 0, 68u * 80u); }
 
@@ -436,37 +459,6 @@ static void intro_anim(void)
     palette_buildFade(0x80u, 0x80u, 0x28u, palUpper); /* 2bca: BX=0x80 */
 }
 
-/* the machine state (the ticker's + 2bda's phase-split) */
-enum {
-    PH_FADEWAIT = 0, /* 25ec                   */
-    PH_SWAPWAIT, /* 2bda's {28e9; 8b9a; JC} */
-    PH_SET1,
-    PH_SET1_WAIT, /* 2600..2699             */
-    PH_SET2,
-    PH_SET2_WAIT, /* 269b..2703             */
-    PH_GAMEOVER, /* 2739: the need>members page */
-    PH_EXITWAIT,
-    PH_PRESENT,
-    PH_DONE /* 2711..272b             */
-};
-
-static uint32_t phase = PH_FADEWAIT; /* the machine phase                   */
-static uint32_t step; /* the in-phase op counter             */
-static uint32_t waitLeft; /* 297f's AX                           */
-static int32_t keyCaught; /* the JNS's source                    */
-static uint32_t presentLeft; /* 835a's 0x4B cycles                  */
-static uint32_t swapNext; /* the 2bda's tail's next phase        */
-static int32_t gameOverMode; /* level_intro_screen 2739's variant   */
-
-/* 2bda's internal split: its own fade-wait (2bec..2bf2), THEN the 0xE0
- * mask reset (2bf4) + clear + band redraws (2c01..2c1c) — the tail is
- * what wipes the previous text and re-bakes the canvas-empty band. */
-enum {
-    SW_FADEWAIT = 0,
-    SW_TAIL
-};
-static uint32_t swPhase = SW_FADEWAIT;
-
 /* 2bda fade_and_animate — verbatim phase-split: 2bda runs [28d0]; builds
  * the window fade; THEN BLOCKS ON ITS OWN FADE ({28e9; 8b9a; JC} at
  * 2bec..2bf2) before the 0xE0 mask reset (2bf4), the 2af5 clear (2c01)
@@ -561,7 +553,6 @@ static void rescale_rows(const uint8_t *src)
 }
 
 /* === the API ================================================================= */
-
 void party_intro_setValues(uint32_t level, uint32_t need, uint32_t members,
                            uint32_t score, const char *tribe)
 {

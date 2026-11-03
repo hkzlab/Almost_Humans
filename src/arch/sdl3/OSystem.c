@@ -22,12 +22,7 @@ void sdl3_tickSync(uint32_t *lastSeen);
 int32_t sdl3_audioStart(void);
 int32_t sdl3_audioPlayTune(uint32_t id);
 void sdl3_audioStop(void);
-
-static void fatal(const char *msg)
-{
-    SDL_LogCritical(SDL_LOG_CATEGORY_APPLICATION, "%s", msg);
-    exit(1);
-}
+static void fatal(const char *msg);
 
 const OSystem osys_sdl3 = { sdl3_videoSetMode,
                             sdl3_videoPage,
@@ -40,6 +35,12 @@ const OSystem osys_sdl3 = { sdl3_videoSetMode,
                             sdl3_audioPlayTune,
                             sdl3_audioStop,
                             fatal };
+
+static void fatal(const char *msg)
+{
+    SDL_LogCritical(SDL_LOG_CATEGORY_APPLICATION, "%s", msg);
+    exit(1);
+}
 
 /* The arch layer owns main() (port_structure.md §2).
  *

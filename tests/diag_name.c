@@ -2,9 +2,9 @@
  * composed frame as PPM (a one-off diagnostic for the DARWIN-blit bug;
  * not wired into ctest). */
 #include "game.h"
+#include "compat.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include "compat.h"
 
 extern const OSystem osys_null;
 

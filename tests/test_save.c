@@ -18,15 +18,15 @@
  * clobbered: the test skips.
  * Missing volumes = skip. */
 #include "game.h"
+#include "compat.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "compat.h"
-
-extern const OSystem osys_null;
 
 #define SAVE_LEN  0x1800u
 #define SAVE_NAME "SAVEB"
+
+extern const OSystem osys_null;
 
 static void put16(uint8_t *p, uint32_t v)
 {

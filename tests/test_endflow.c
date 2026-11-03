@@ -16,20 +16,21 @@
  * grey and black but NEVER the card (check_highscore's 0x41AE gate jumps to
  * 0x438A instead). */
 #include "game.h"
+#include "compat.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "compat.h"
-
-extern const OSystem osys_null;
-extern void osys_null_inputScript(const InputState *states, uint32_t n);
-extern const uint8_t *osys_null_palette(void);
-extern void osys_null_onPresent(void (*fn)(uint32_t poll));
 
 enum {
     FORCE_POLL = 7900u,
     SCRIPT_N = 9000u
 };
+
+extern void osys_null_inputScript(const InputState *states, uint32_t n);
+extern const uint8_t *osys_null_palette(void);
+extern void osys_null_onPresent(void (*fn)(uint32_t poll));
+
+extern const OSystem osys_null;
 
 static int32_t outcome;
 static int32_t greySeen, blackSeen, cardSeen, seenCardAfterBlack;

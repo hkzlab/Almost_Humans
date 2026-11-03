@@ -26,6 +26,38 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define SCORE_PAGE (320u * 200u)
+
+/* --- 1000:46FC / 0x4697 / 0x46A3: the NEW RECORD stamp -------------------
+ *
+ * `blink_tick` toggles `[0x1DC4]` and jumps on the new phase: 0 -> `0x46A3`,
+ * 1 -> `0x46FC`.  `0x46FC` draws `apl\record.spr` ([0x1DDE]) into the page at
+ * byte `0x3CA0 + [0x4106]`: 0x18 rows x 64 bytes, `LODSB` + `ADD SI,3` (the
+ * `p::4` pass de-interleave), a non-zero byte drawn as `0xC0 + v`, four
+ * Map-Mask passes.  A page address is a 4-pixel group (plane p = pixel 4j+p),
+ * so the four passes read `src[4j+p]` into pixel `4j+p`: a 1:1 copy of the
+ * chunky 64 x 24 sprite.  `0x3CA0` is not a multiple of the 88-address row:
+ * 0x3CA0 = 176*88 + 32, so the stamp sits at row 176, address column 32 -
+ * a 64 x 24 cell at px 128..191 on rows 176..199.
+ *
+ * 0x4697/0x46A3 are one body at 0x46AF with source and destination swapped.
+ * Its segment setup is `B8 00 A0 / 8E C0 / 8E D8`: ES and DS are both A000,
+ * so the scratch is **A000:0000**, not DS:0.  The on phase (`0x46FC`) copies
+ * the 16 x 24 cell to page 0 and then draws the sprite; the off phase
+ * (`0x46A3`) copies page 0 back.  The copy runs with Map Mask 0x0F and read
+ * map 0, so it carries one page byte per 4-px group (plane 0's pixel) and
+ * writes it to all four; the port keeps that shape (`stampCopy`).
+ */
+#define STAMP_ROW 176u
+#define STAMP_COL 32u
+
+enum {
+    SCORE_OFF,
+    SCORE_WAIT,
+    SCORE_FADE,
+    SCORE_HOLD
+};
+
 /* --- check_highscore's data (1000:41B8..4352) ---------------------------
  *
  * `1000:41B8` recomputes the member count `[0x11FC]` from the bar's odometer
@@ -58,6 +90,36 @@ static uint16_t scoreBestTime; /* [0x1E88] */
 static int32_t scoreIsRecord; /* [0x1DD6] */
 static uint8_t scoreBlink = 0x19; /* [0x1DD7] */
 static int32_t scoreBlinkPhase; /* [0x1DC4]: the RECORD's on/off */
+
+static uint8_t *scoreBit;
+static uint32_t scoreSize;
+static uint8_t *scoreFont;
+static uint8_t *scoreDigits; /* apl\SCORE.SPR (the 4x16 digit blocks) */
+static uint8_t *scoreRecord; /* apl\RECORD.SPR (the NEW RECORD stamp)  */
+static uint8_t *scoreNum; /* apl\SCORENUM.SPR (20 slots of 0x40)    */
+static int32_t scorePhase;
+static int32_t scoreArmed;
+static int32_t scoreArmFade; /* the entry fade is still running */
+static uint16_t scoreHold;
+
+/* 1000:46AF: 24 rows x 16 page bytes at the 88-byte stride, Map Mask 0x0F
+ * and read map 0.  A page address is a 4-pixel group (plane p = pixel 4j+p),
+ * so the copy carries the group's plane-0 pixel (the first of the four) and
+ * writes it back to all four.
+ *
+ * The scratch itself is A000:0000, while the screen's page base ([0x4106])
+ * is elsewhere (the live screen had 0x1230), so the scratch is NOT part of
+ * the visible page.  The port keeps it in a private buffer of the same shape
+ * instead of the flat page's top-left.
+ *
+ * The cell is saved and restored PER PIXEL.  A live DOSBox capture
+ * (2026-11-02, level 1 with a NEW RECORD) shows the off phase putting the
+ * card back exactly: the cell before the first stamp draw and after the
+ * erase are byte-identical (0 of 1536 pixels differ) and keep the card's
+ * 1-px detail (142 of its 384 4-px groups still vary).  The earlier model -
+ * one byte per 4-px page address, i.e. the address's plane-0 pixel written
+ * back to all four - left the card behind the stamp as 4-px blocks. */
+static uint8_t stampUnder[24u * 64u];
 
 /* 1000:41B8..41E6: the member count the score uses. */
 uint32_t score_members(void)
@@ -203,26 +265,6 @@ uint32_t score_totalHi(void) { return scoreTotalHi; }
 uint32_t score_shownLo(void) { return scoreShownLo; }
 uint32_t score_shownHi(void) { return scoreShownHi; }
 
-
-#define SCORE_PAGE (320u * 200u)
-enum {
-    SCORE_OFF,
-    SCORE_WAIT,
-    SCORE_FADE,
-    SCORE_HOLD
-};
-
-static uint8_t *scoreBit;
-static uint32_t scoreSize;
-static uint8_t *scoreFont;
-static uint8_t *scoreDigits; /* apl\SCORE.SPR (the 4x16 digit blocks) */
-static uint8_t *scoreRecord; /* apl\RECORD.SPR (the NEW RECORD stamp)  */
-static uint8_t *scoreNum; /* apl\SCORENUM.SPR (20 slots of 0x40)    */
-static int32_t scorePhase;
-static int32_t scoreArmed;
-static int32_t scoreArmFade; /* the entry fade is still running */
-static uint16_t scoreHold;
-
 /* check_highscore's score terms (1000:41AE).  [0x1F41] = the level number
  * (1-based, the same value draw_level_text prints), [0x11FC] = the members. */
 uint32_t score_levelScore(void)
@@ -251,49 +293,6 @@ uint32_t score_levelScore(void)
     (void)remaining;
     return bonus;
 }
-
-
-/* --- 1000:46FC / 0x4697 / 0x46A3: the NEW RECORD stamp -------------------
- *
- * `blink_tick` toggles `[0x1DC4]` and jumps on the new phase: 0 -> `0x46A3`,
- * 1 -> `0x46FC`.  `0x46FC` draws `apl\record.spr` ([0x1DDE]) into the page at
- * byte `0x3CA0 + [0x4106]`: 0x18 rows x 64 bytes, `LODSB` + `ADD SI,3` (the
- * `p::4` pass de-interleave), a non-zero byte drawn as `0xC0 + v`, four
- * Map-Mask passes.  A page address is a 4-pixel group (plane p = pixel 4j+p),
- * so the four passes read `src[4j+p]` into pixel `4j+p`: a 1:1 copy of the
- * chunky 64 x 24 sprite.  `0x3CA0` is not a multiple of the 88-address row:
- * 0x3CA0 = 176*88 + 32, so the stamp sits at row 176, address column 32 -
- * a 64 x 24 cell at px 128..191 on rows 176..199.
- *
- * 0x4697/0x46A3 are one body at 0x46AF with source and destination swapped.
- * Its segment setup is `B8 00 A0 / 8E C0 / 8E D8`: ES and DS are both A000,
- * so the scratch is **A000:0000**, not DS:0.  The on phase (`0x46FC`) copies
- * the 16 x 24 cell to page 0 and then draws the sprite; the off phase
- * (`0x46A3`) copies page 0 back.  The copy runs with Map Mask 0x0F and read
- * map 0, so it carries one page byte per 4-px group (plane 0's pixel) and
- * writes it to all four; the port keeps that shape (`stampCopy`).
- */
-#define STAMP_ROW 176u
-#define STAMP_COL 32u
-
-/* 1000:46AF: 24 rows x 16 page bytes at the 88-byte stride, Map Mask 0x0F
- * and read map 0.  A page address is a 4-pixel group (plane p = pixel 4j+p),
- * so the copy carries the group's plane-0 pixel (the first of the four) and
- * writes it back to all four.
- *
- * The scratch itself is A000:0000, while the screen's page base ([0x4106])
- * is elsewhere (the live screen had 0x1230), so the scratch is NOT part of
- * the visible page.  The port keeps it in a private buffer of the same shape
- * instead of the flat page's top-left.
- *
- * The cell is saved and restored PER PIXEL.  A live DOSBox capture
- * (2026-11-02, level 1 with a NEW RECORD) shows the off phase putting the
- * card back exactly: the cell before the first stamp draw and after the
- * erase are byte-identical (0 of 1536 pixels differ) and keep the card's
- * 1-px detail (142 of its 384 4-px groups still vary).  The earlier model -
- * one byte per 4-px page address, i.e. the address's plane-0 pixel written
- * back to all four - left the card behind the stamp as 4-px blocks. */
-static uint8_t stampUnder[24u * 64u];
 
 void score_stampDraw(uint8_t *page, int32_t on)
 {
@@ -447,7 +446,6 @@ void score_drawNum3(uint8_t *page, uint32_t ax, uint16_t value, uint32_t bx,
     score_numBlock(page, (uint32_t)((value >> 4) & 0x0Fu), bp, off + 8u);
     score_numBlock(page, (uint32_t)(value & 0x0Fu), bp, off + 10u);
 }
-
 
 /* 1000:4403 reblit_framebuffer_88's card pass: SCORE.BIT is a chunky 320x200
  * image (one byte per pixel); the four plane passes read `src[4j+p]` into

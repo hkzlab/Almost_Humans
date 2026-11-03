@@ -11,9 +11,17 @@
  * skips the level-loading parts.
  */
 #include "game.h"
+#include "compat.h"
 #include <stdio.h>
 #include <string.h>
-#include "compat.h"
+
+extern const uint8_t *osys_null_page(int32_t which);
+extern const uint8_t *osys_null_palette(void);
+extern VideoMode osys_null_videoMode(void);
+
+extern const OSystem osys_null;
+
+static int32_t bad;
 
 static void flow_dump_ppm(const char *path, const uint8_t *page)
 {
@@ -30,14 +38,6 @@ static void flow_dump_ppm(const char *path, const uint8_t *page)
     }
     fclose(f);
 }
-
-
-extern const OSystem osys_null;
-extern const uint8_t *osys_null_page(int32_t which);
-extern const uint8_t *osys_null_palette(void);
-extern VideoMode osys_null_videoMode(void);
-
-static int32_t bad;
 
 static void check(int32_t ok, const char *what)
 {

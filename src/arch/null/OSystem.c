@@ -9,6 +9,18 @@
 #include <stdio.h>
 #include <string.h>
 
+static void null_setMode(VideoMode mode);
+static uint8_t *null_page(int32_t which);
+static void null_present(int32_t which);
+static void null_setPalette(const uint8_t *p6, uint32_t first, uint32_t n);
+static void null_poll(InputState *out);
+static void null_timerStart(uint32_t rate, TickFn tick);
+static void null_tickSync(uint32_t *lastSeen);
+static int32_t null_audioStart(void);
+static int32_t null_playTune(uint32_t id);
+static void null_stop(void);
+static void null_fatal(const char *msg);
+
 static uint8_t pages[2][320 * 200];
 static uint8_t pal[256 * 3];
 static TickFn the_tick;
@@ -18,11 +30,25 @@ static const InputState *script_states;   /* scripted input for smoke tests */
 static uint32_t script_n, script_i;
 static VideoMode modeSet;                 /* the core's last videoSetMode */
 
-static void null_setMode(VideoMode mode) { modeSet = mode; }
-static uint8_t *null_page(int32_t which) { return pages[which & 1]; }
 /* a test hook: the frame-evidence dumps key on the poll count, which only
  * the backend knows (the smoke script is indexed by eventsPoll calls) */
 static void (*present_hook)(uint32_t poll);
+/* The null backend has no clock: the foreground loop itself is the tick
+ * source (one tickSync call = one tick), so the scripted tests keep their
+ * one-poll-per-tick timing.  osys_null_runTicks drives the ISR body by hand
+ * for the content tests and advances the same counter. */
+static uint32_t tick_counter;          /* [0x5AC8] */
+/* the audio calls are counted: the MUSIC board's gate is the only
+ * observable the M5 stub has, and test_frontend asserts it */
+static uint32_t audio_starts, audio_stops;
+
+const OSystem osys_null = { null_setMode,    null_page,       null_present,
+                            null_setPalette, null_poll,       null_timerStart,
+                            null_tickSync,   null_audioStart, null_playTune,
+                            null_stop,       null_fatal };
+
+static void null_setMode(VideoMode mode) { modeSet = mode; }
+static uint8_t *null_page(int32_t which) { return pages[which & 1]; }
 static void null_present(int32_t which)
 {
     (void)which;
@@ -45,11 +71,6 @@ static void null_timerStart(uint32_t rate, TickFn tick)
     the_rate = rate;
     the_tick = tick;
 }
-/* The null backend has no clock: the foreground loop itself is the tick
- * source (one tickSync call = one tick), so the scripted tests keep their
- * one-poll-per-tick timing.  osys_null_runTicks drives the ISR body by hand
- * for the content tests and advances the same counter. */
-static uint32_t tick_counter;          /* [0x5AC8] */
 static void null_tickSync(uint32_t *lastSeen)
 {
     /* one tickSync = one tick: the ISR's INC [0x5AC8] (1000:8AA4) then the
@@ -60,9 +81,6 @@ static void null_tickSync(uint32_t *lastSeen)
     if (the_tick) the_tick();
     *lastSeen = tick_counter;
 }
-/* the audio calls are counted: the MUSIC board's gate is the only
- * observable the M5 stub has, and test_frontend asserts it */
-static uint32_t audio_starts, audio_stops;
 static int32_t null_audioStart(void)
 {
     audio_starts++;
@@ -79,11 +97,6 @@ static void null_fatal(const char *msg)
     fprintf(stderr, "fatal: %s\n", msg);
     exit(1);
 }
-
-const OSystem osys_null = { null_setMode,    null_page,       null_present,
-                            null_setPalette, null_poll,       null_timerStart,
-                            null_tickSync,   null_audioStart, null_playTune,
-                            null_stop,       null_fatal };
 
 /* test hooks: drive N ticks by hand, inject input, read back video state
  * (the headless tests use these) */

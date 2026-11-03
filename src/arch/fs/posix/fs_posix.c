@@ -5,7 +5,25 @@
  * §8/§10); the module only opens, sizes and reads bytes through stdio. */
 #include "fs/fs.h"
 #include <stdio.h>
-#include <stdio.h>
+
+static FSVolume *posix_openVolume(uint32_t disc);
+static void posix_closeVolume(FSVolume *v);
+static uint32_t posix_volumeSize(FSVolume *v);
+static uint32_t posix_read(FSVolume *v, uint32_t off, uint8_t *dst, uint32_t n);
+static FSSave *posix_openSave(char letter);
+static uint32_t posix_saveRead(FSSave *s, uint32_t off, uint8_t *dst,
+                               uint32_t n);
+static FSSave *posix_createSave(char letter);
+static uint32_t posix_saveWrite(FSSave *s, uint32_t off, const uint8_t *src,
+                                uint32_t n);
+static void posix_closeSave(FSSave *s);
+static FSSave *posix_openNamed(const char *name);
+static FSSave *posix_createNamed(const char *name);
+
+const FSModule fs = { posix_openVolume, posix_closeVolume, posix_volumeSize,
+                      posix_read,       posix_openSave,    posix_saveRead,
+                      posix_createSave, posix_saveWrite,   posix_closeSave,
+                      posix_openNamed,  posix_createNamed };
 
 static FSVolume *posix_openVolume(uint32_t disc)
 {
@@ -76,8 +94,3 @@ static FSSave *posix_openNamed(const char *name)
 
 static FSSave *posix_createNamed(const char *name)
 { return (FSSave *)fopen(name, "wb"); }
-
-const FSModule fs = { posix_openVolume, posix_closeVolume, posix_volumeSize,
-                      posix_read,       posix_openSave,    posix_saveRead,
-                      posix_createSave, posix_saveWrite,   posix_closeSave,
-                      posix_openNamed,  posix_createNamed };

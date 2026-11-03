@@ -14,6 +14,156 @@
 
 #include "osystem.h"
 
+/* 1000:E4B0's outcome for one command. */
+#define OBJ_CMD_NONE     0 /* neither a handler nor a tail ran          */
+#define OBJ_CMD_HANDLER  1 /* the type row's handler ran                */
+#define OBJ_CMD_TAIL     2 /* the row's tail handler ran                */
+#define OBJ_CMD_UNPORTED (-1) /* no port */
+
+/* The tick rate the port assumes: the original MEASURES it at boot
+ * (init_crtc_timer calibrates the PIT divisor [0x5ABE] against the display
+ * and the ISR re-spins to the next vsync edge each tick), so one tick = one
+ * display period.  Verified live in DOSBox: the ISR tick counter runs at
+ * 70.19-70.5 Hz, and the calibrated divisor 0x3E59 = PIT 74.76 Hz with the
+ * bit-3-of-3DA wait making up the remainder to one display period.
+ *
+ * This rate is the SOLE pacer: game_main's loop gates on osys->tickSync
+ * (the [0x5AC8] counter + [0x48BA] abort pair — re_map.md "Timer / INT 8"),
+ * so the host display's refresh rate must never enter the pacing.  The
+ * foreground runs exactly one flow step per tick boundary and drops missed
+ * boundaries (the original's delta-spin semantics), it never catches up. */
+#define GAME_TICK_HZ 70
+
+/* The machine's phases — public for the flow tests (the cycle-order and
+ * escape assertions in tests/test_loop.c). */
+typedef enum AttractPhase {
+    ATTRACT_IDLE = 0,
+    ATTRACT_E1_LOAD,
+    ATTRACT_E1_FADEWAIT,
+    ATTRACT_E1_WIPE,
+    ATTRACT_E1_HOLD,
+    ATTRACT_E1_OUT,
+    ATTRACT_E3_LOAD,
+    ATTRACT_E3_FADEWAIT,
+    ATTRACT_E3_SLIDE,
+    ATTRACT_E3_TAIL,
+    ATTRACT_E3_HOLD,
+    ATTRACT_E3_OUT,
+    ATTRACT_E2_LOAD,
+    ATTRACT_E2_FADEWAIT,
+    ATTRACT_E2_FRAME,
+    ATTRACT_E2_WIPE,
+    ATTRACT_E2_HOLD,
+    ATTRACT_E2_OUT,
+    ATTRACT_E4_LOAD,
+    ATTRACT_E4_FADEWAIT,
+    ATTRACT_E4_SCROLL,
+    ATTRACT_E4_OUT,
+    ATTRACT_ESCAPE,
+    ATTRACT_DONE
+} AttractPhase;
+
+/* --- src/level.c — the level definitions (subsystem 9, §2) -------------
+ *
+ * LEVELS\LA.BIN..LP.BIN: 16 files x 10 records = 160 levels.  The record:
+ * the 13-byte header, the goal/author ASCIIZ text, the 8-byte editor
+ * metadata, the 640-byte tile map (32x20).
+ */
+typedef struct {
+    uint32_t levelId; /* 0..159                                    */
+    uint8_t style; /* +0x00 low: the tile style 1..6            */
+    uint8_t introIndex; /* +0x01 high: the intro-movie index (0xFF=none) */
+    uint8_t goalCount; /* +0x02 low: the solved-flag threshold      */
+    uint8_t entityLife; /* +0x02 high: the entity lifetime seed      */
+    uint16_t objectTest; /* +0x04: the object-test mode word          */
+    uint8_t unused06; /* +0x06: 0 in all 160 shipped records       */
+    uint16_t timeA; /* +0x07: the BCD MMSS limit (difficulty A)  */
+    uint16_t timeB; /* +0x09: difficulty B                       */
+    uint16_t timeC; /* +0x0B: difficulty C                       */
+    uint8_t map[640]; /* 32 columns x 20 rows, row-major           */
+    uint32_t mapFileOff; /* the map's offset inside the L*.BIN image  */
+    char goal[128]; /* the goal text (CR = a line break)         */
+    char author[128]; /* the author text                           */
+} LevelData;
+
+/* One entity record: the DS layout word-for-word (+0x00..+0x0E). */
+typedef struct {
+    uint16_t x0; /* +0x0: endpoint A — handler 1's target        */
+    uint16_t x1; /* +0x2: endpoint B — handler 0's target        */
+    uint16_t handler; /* +0x4: the dispatch index (game: 0/1 only)    */
+    uint16_t x; /* +0x6: the live position                      */
+    uint16_t y; /* +0x8: row*16 - 0x30 + 1                      */
+    uint16_t hold; /* +0xA: the beat countdown, seeded 3           */
+    uint16_t waypoint; /* +0xC: the waypoint / animation index         */
+    uint16_t life; /* +0xE: the goal word's high byte              */
+} Entity;
+/* The adjacent-object op of the entity bytecode (1000:3A6A): the gate and the
+ * scan around the *acting* record (`actor`, the entity's own slot), then the
+ * red/white flash, the blinks, the animation, the append and the settle.
+ * `recipe` = 1/0/3 for the three handlers.  object_tick drives the sequence
+ * and supplies the level's palette (the fades return to it). */
+/* 1000:E3F6's command dispatch: the acting record's handler for one input word
+ * (`[0x5ACE]`).  `handler` is the in-segment address the original calls
+ * (0 = none, so the row's `tail` applies); `command` is the 0..7 number the
+ * type row was indexed by.  Index 2 is 1000:E609, whose tail holds the human
+ * stack's push.  The handler bodies are ported except 0xE7C0 and 0xEBCA
+ * (all rows are now ported). */
+typedef struct {
+    uint32_t handler;
+    uint32_t tail;
+    uint32_t hook; /* the row's +0xA: run 1000:D8BD before the tail */
+    uint32_t command;
+} ObjCommand;
+
+/* --- src/script.c — the frame-keyed cue interpreter (§8.7a) -------------
+ * The boot intro's event script: 25 verbatim cues from 202F:0x843C,
+ * dispatched on the exact frame (JE) through a 7-command dispatch. */
+typedef struct {
+    uint32_t frame; /* the current frame (the player advances it) */
+    uint32_t groupDwell; /* cmd 7: frames per display-list group       */
+    int32_t scrollOn; /* cmd 3 on / cmd 2 off                       */
+    uint32_t scrollDelta; /* cmd 6: the scroll advance per frame        */
+    uint32_t transitionIdx; /* cmd 1: run_screen_transition index         */
+    int32_t quit; /* cmd 5: the quit flag                       */
+    int32_t done; /* the frame target reached                   */
+    int32_t seekPending; /* cmd 4 fired: the player must seek          */
+    uint32_t seekFrame; /*    ...to this frame                        */
+    const uint16_t *cues; /* [frame][cmd][arg] triples, verbatim        */
+    uint32_t cueCount;
+    uint32_t cursor; /* the next cue to fire                       */
+} CueScript;
+/* The four option counters — the descriptor tables' +7 bytes at
+ * 202F:0x5E5B/0x5E65/0x5E6F/0x5E79, where the badge's frame IS the
+ * setting.  The read side uses this accessor: level.c takes LEVEL, the room
+ * hands MUSIC to audio_musicGate, scene.c takes ANIMATIONS, and game_main
+ * hands the RESTORE GAME slot to save_loadSlot (entry 1000:004C's load). */
+enum {
+    FRONTEND_OPT_MUSIC = 0, /* ON/OFF: the frame web's music gate      */
+    FRONTEND_OPT_LEVEL = 1, /* EASY/NORMAL/HARD: time A/B/C, 12/10/8    */
+    FRONTEND_OPT_GAME = 2, /* OFF/1..20: the save slot                */
+    FRONTEND_OPT_ANIM = 3 /* ON/OFF: cd_file_op off (no cutscenes)   */
+};
+
+/* --- src/game_main.c — the top-level flow (the original's main loop) --
+ *
+ * The original's foreground loop is one flow-step per display period: the
+ * ISR does the fixed work (flip apply, palette step, music tick) and the
+ * foreground advances the flow once per tick boundary.  The states mirror
+ * the original's top-level control (game_structure.md §1):
+ *
+ *     ATTRACT --(the escape: the action key or any held key, after the
+ *                13B2 fade completes -- attract_tick)--> MENU
+ *     MENU    --(the room's confirm: the walk off the right edge, or
+ *                Enter with a codes.bin match -- frontend_tick)--> LEVEL
+ */
+typedef enum GameFlow {
+    FLOW_ATTRACT = 0, /* game_loop 1000:131E: the effect cycle      */
+    FLOW_MENU, /* the map/level-select room                   */
+    FLOW_LEVEL, /* a level is installed and running            */
+    FLOW_ENDING /* entry 1512: cd_file_op(6 lost / 7 won),
+                            * draw_status_indicator, menu_loop (the MAP)   */
+} GameFlow;
+
 /* --- src/res.c — resource I/O (subsystem 2, re_formats.md §8) ---------
  * The volume file (named chunks), the LZW decode, the offset-based pool
  * arena standing in for the original's segment pool. */
@@ -127,35 +277,6 @@ const char *attract_hiscoreName(uint32_t i);
  */
 int32_t attract_init(const OSystem *osys);
 
-/* The machine's phases — public for the flow tests (the cycle-order and
- * escape assertions in tests/test_loop.c). */
-typedef enum AttractPhase {
-    ATTRACT_IDLE = 0,
-    ATTRACT_E1_LOAD,
-    ATTRACT_E1_FADEWAIT,
-    ATTRACT_E1_WIPE,
-    ATTRACT_E1_HOLD,
-    ATTRACT_E1_OUT,
-    ATTRACT_E3_LOAD,
-    ATTRACT_E3_FADEWAIT,
-    ATTRACT_E3_SLIDE,
-    ATTRACT_E3_TAIL,
-    ATTRACT_E3_HOLD,
-    ATTRACT_E3_OUT,
-    ATTRACT_E2_LOAD,
-    ATTRACT_E2_FADEWAIT,
-    ATTRACT_E2_FRAME,
-    ATTRACT_E2_WIPE,
-    ATTRACT_E2_HOLD,
-    ATTRACT_E2_OUT,
-    ATTRACT_E4_LOAD,
-    ATTRACT_E4_FADEWAIT,
-    ATTRACT_E4_SCROLL,
-    ATTRACT_E4_OUT,
-    ATTRACT_ESCAPE,
-    ATTRACT_DONE
-} AttractPhase;
-
 int32_t attract_tick(const InputState *in);   /* 1 = the attract is playing */
 uint32_t attract_phaseForProbe(void); /* the tests' phase read      */
 
@@ -251,29 +372,6 @@ int32_t scene_playBootIntro(void);
 void scene_noteInput(const InputState *in);
 uint32_t scene_boot_phaseForProbe(void); /* probe: the boot machine's phase */
 
-/* --- src/level.c — the level definitions (subsystem 9, §2) -------------
- *
- * LEVELS\LA.BIN..LP.BIN: 16 files x 10 records = 160 levels.  The record:
- * the 13-byte header, the goal/author ASCIIZ text, the 8-byte editor
- * metadata, the 640-byte tile map (32x20).
- */
-typedef struct {
-    uint32_t levelId; /* 0..159                                    */
-    uint8_t style; /* +0x00 low: the tile style 1..6            */
-    uint8_t introIndex; /* +0x01 high: the intro-movie index (0xFF=none) */
-    uint8_t goalCount; /* +0x02 low: the solved-flag threshold      */
-    uint8_t entityLife; /* +0x02 high: the entity lifetime seed      */
-    uint16_t objectTest; /* +0x04: the object-test mode word          */
-    uint8_t unused06; /* +0x06: 0 in all 160 shipped records       */
-    uint16_t timeA; /* +0x07: the BCD MMSS limit (difficulty A)  */
-    uint16_t timeB; /* +0x09: difficulty B                       */
-    uint16_t timeC; /* +0x0B: difficulty C                       */
-    uint8_t map[640]; /* 32 columns x 20 rows, row-major           */
-    uint32_t mapFileOff; /* the map's offset inside the L*.BIN image  */
-    char goal[128]; /* the goal text (CR = a line break)         */
-    char author[128]; /* the author text                           */
-} LevelData;
-
 int32_t level_init(const OSystem *osys);
 int32_t level_load(uint32_t levelId); /* 0..159; 0 = ok            */
 const LevelData *level_data(void); /* NULL before a load        */
@@ -357,9 +455,6 @@ void alpha_expand(const uint8_t *src, uint8_t *dst);
 void alpha_cell(uint32_t cell, uint32_t angle, uint32_t *src, uint32_t *dst);
 void alpha_drawWheel(uint8_t *page, uint32_t base);
 void alpha_drawName(uint8_t *page, const char *name);
-/* --- the MAP screen's frame (apl\band.spr, 1000:12D3/0874/07E6) --------- */
-extern uint32_t map_boxBottom; /* [0x8AE]                    */
-extern uint32_t map_panel; /* [0x8A2]: 1..6              */
 void map_bandFill(uint8_t *page); /* 1000:12D3                  */
 void map_drawBoxEdges(uint8_t *page, uint32_t row); /* 1000:07E6    */
 void map_drawList(uint8_t *page); /* draw_score_block 1000:0651 */
@@ -489,18 +584,6 @@ void entity_render(uint8_t *page, int32_t scrollX, int32_t scrollY);
 int32_t entity_frameInfo(uint32_t a, uint32_t *src, uint32_t *rows,
                          uint32_t *yoff);
 
-/* One entity record: the DS layout word-for-word (+0x00..+0x0E). */
-typedef struct {
-    uint16_t x0; /* +0x0: endpoint A — handler 1's target        */
-    uint16_t x1; /* +0x2: endpoint B — handler 0's target        */
-    uint16_t handler; /* +0x4: the dispatch index (game: 0/1 only)    */
-    uint16_t x; /* +0x6: the live position                      */
-    uint16_t y; /* +0x8: row*16 - 0x30 + 1                      */
-    uint16_t hold; /* +0xA: the beat countdown, seeded 3           */
-    uint16_t waypoint; /* +0xC: the waypoint / animation index         */
-    uint16_t life; /* +0xE: the goal word's high byte              */
-} Entity;
-
 /* load_terrain_b (1000:5168): the 25-pair map walk in table order, one
  * handler call per matching cell (CX = col*16, DX = row*16; the spawn's
  * y is row*16 - 0x30 + 1, +3 under the style-6 prologue).  Resets the
@@ -583,30 +666,7 @@ uint32_t object_placedHumans(void); /* [0x3E20]                       */
  * score's object bonus reads it: 0xA8 -> +1000, 0xA7 -> +2000 (1000:55FA). */
 uint32_t object_recordMapCell(uint32_t slot);
 void object_render(uint8_t *page, int32_t scrollX, int32_t scrollY);
-/* The adjacent-object op of the entity bytecode (1000:3A6A): the gate and the
- * scan around the *acting* record (`actor`, the entity's own slot), then the
- * red/white flash, the blinks, the animation, the append and the settle.
- * `recipe` = 1/0/3 for the three handlers.  object_tick drives the sequence
- * and supplies the level's palette (the fades return to it). */
-/* 1000:E3F6's command dispatch: the acting record's handler for one input word
- * (`[0x5ACE]`).  `handler` is the in-segment address the original calls
- * (0 = none, so the row's `tail` applies); `command` is the 0..7 number the
- * type row was indexed by.  Index 2 is 1000:E609, whose tail holds the human
- * stack's push.  The handler bodies are ported except 0xE7C0 and 0xEBCA
- * (all rows are now ported). */
-typedef struct {
-    uint32_t handler;
-    uint32_t tail;
-    uint32_t hook; /* the row's +0xA: run 1000:D8BD before the tail */
-    uint32_t command;
-} ObjCommand;
 ObjCommand object_commandSelect(uint8_t *rec, uint8_t input);
-
-/* 1000:E4B0's outcome for one command. */
-#define OBJ_CMD_NONE     0 /* neither a handler nor a tail ran          */
-#define OBJ_CMD_HANDLER  1 /* the type row's handler ran                */
-#define OBJ_CMD_TAIL     2 /* the row's tail handler ran                */
-#define OBJ_CMD_UNPORTED (-1) /* no port */
 /* 1000:E4B0..E4F7: select and run one command for the acting record.  Only the
  * ported handlers are dispatched (the two movement states, the leaves, the snap,
  * the selector wrappers and the bare-RET tail). */
@@ -715,24 +775,6 @@ void object_attachOsys(const OSystem *osys);
 /* --- src/script.c — interpreter skeleton (re_scripts.md) -------------- */
 int32_t script_init(const OSystem *osys);
 
-/* --- src/script.c — the frame-keyed cue interpreter (§8.7a) -------------
- * The boot intro's event script: 25 verbatim cues from 202F:0x843C,
- * dispatched on the exact frame (JE) through a 7-command dispatch. */
-typedef struct {
-    uint32_t frame; /* the current frame (the player advances it) */
-    uint32_t groupDwell; /* cmd 7: frames per display-list group       */
-    int32_t scrollOn; /* cmd 3 on / cmd 2 off                       */
-    uint32_t scrollDelta; /* cmd 6: the scroll advance per frame        */
-    uint32_t transitionIdx; /* cmd 1: run_screen_transition index         */
-    int32_t quit; /* cmd 5: the quit flag                       */
-    int32_t done; /* the frame target reached                   */
-    int32_t seekPending; /* cmd 4 fired: the player must seek          */
-    uint32_t seekFrame; /*    ...to this frame                        */
-    const uint16_t *cues; /* [frame][cmd][arg] triples, verbatim        */
-    uint32_t cueCount;
-    uint32_t cursor; /* the next cue to fire                       */
-} CueScript;
-
 /* The boot intro's verbatim cue list (25 cues, frame target 387). */
 void script_introStart(CueScript *s);
 /* Fire every cue whose frame == `frame` (JE dispatch). */
@@ -776,17 +818,6 @@ uint32_t frontend_selectedLevel(void);
 /* entry's JMP LAB_002B (the pause's RESTART THIS GAME): the room's setup
  * runs again; the option counters persist. */
 void frontend_restart(void);
-/* The four option counters — the descriptor tables' +7 bytes at
- * 202F:0x5E5B/0x5E65/0x5E6F/0x5E79, where the badge's frame IS the
- * setting.  The read side uses this accessor: level.c takes LEVEL, the room
- * hands MUSIC to audio_musicGate, scene.c takes ANIMATIONS, and game_main
- * hands the RESTORE GAME slot to save_loadSlot (entry 1000:004C's load). */
-enum {
-    FRONTEND_OPT_MUSIC = 0, /* ON/OFF: the frame web's music gate      */
-    FRONTEND_OPT_LEVEL = 1, /* EASY/NORMAL/HARD: time A/B/C, 12/10/8    */
-    FRONTEND_OPT_GAME = 2, /* OFF/1..20: the save slot                */
-    FRONTEND_OPT_ANIM = 3 /* ON/OFF: cd_file_op off (no cutscenes)   */
-};
 uint32_t frontend_option(uint32_t idx);
 uint32_t frontend_cellForProbe(void); /* [0x4220]: the walk's rail node  */
 int32_t frontend_nameScreenForProbe(void); /* the name screen's phase      */
@@ -899,40 +930,6 @@ void save_consume(void);
 int32_t save_writeSlot(uint32_t slot, uint32_t level, uint16_t timeWord,
                        uint32_t members);
 
-/* --- src/game_main.c — the top-level flow (the original's main loop) --
- *
- * The original's foreground loop is one flow-step per display period: the
- * ISR does the fixed work (flip apply, palette step, music tick) and the
- * foreground advances the flow once per tick boundary.  The states mirror
- * the original's top-level control (game_structure.md §1):
- *
- *     ATTRACT --(the escape: the action key or any held key, after the
- *                13B2 fade completes -- attract_tick)--> MENU
- *     MENU    --(the room's confirm: the walk off the right edge, or
- *                Enter with a codes.bin match -- frontend_tick)--> LEVEL
- */
-typedef enum GameFlow {
-    FLOW_ATTRACT = 0, /* game_loop 1000:131E: the effect cycle      */
-    FLOW_MENU, /* the map/level-select room                   */
-    FLOW_LEVEL, /* a level is installed and running            */
-    FLOW_ENDING /* entry 1512: cd_file_op(6 lost / 7 won),
-                            * draw_status_indicator, menu_loop (the MAP)   */
-} GameFlow;
-
-/* The tick rate the port assumes: the original MEASURES it at boot
- * (init_crtc_timer calibrates the PIT divisor [0x5ABE] against the display
- * and the ISR re-spins to the next vsync edge each tick), so one tick = one
- * display period.  Verified live in DOSBox: the ISR tick counter runs at
- * 70.19-70.5 Hz, and the calibrated divisor 0x3E59 = PIT 74.76 Hz with the
- * bit-3-of-3DA wait making up the remainder to one display period.
- *
- * This rate is the SOLE pacer: game_main's loop gates on osys->tickSync
- * (the [0x5AC8] counter + [0x48BA] abort pair — re_map.md "Timer / INT 8"),
- * so the host display's refresh rate must never enter the pacing.  The
- * foreground runs exactly one flow step per tick boundary and drops missed
- * boundaries (the original's delta-spin semantics), it never catches up. */
-#define GAME_TICK_HZ 70
-
 /* Advance the flow one step with the polled input; the loop calls it once
  * per tick boundary.  Returns the new state. */
 GameFlow gameflow_step(GameFlow state, const InputState *input);
@@ -972,5 +969,9 @@ uint32_t gameflow_postLevelScene(int32_t won, uint32_t introIndex);
 uint32_t gameflow_endingScene(int32_t won);
 /* level_run 3060/3062's gate: the level's required humans vs the tribe. */
 int32_t gameflow_tribeTooSmall(uint32_t need, uint32_t members);
+
+/* --- the MAP screen's frame (apl\band.spr, 1000:12D3/0874/07E6) --------- */
+extern uint32_t map_boxBottom; /* [0x8AE]                    */
+extern uint32_t map_panel; /* [0x8A2]: 1..6              */
 
 #endif /* HUMANSRE_GAME_H */

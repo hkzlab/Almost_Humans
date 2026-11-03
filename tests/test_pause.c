@@ -19,17 +19,18 @@
  * argv[1] = the game data directory (the volumes + the save location).
  * Missing volumes = skip; a pre-existing SAVEB is never clobbered. */
 #include "game.h"
+#include "compat.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "compat.h"
-
-extern const OSystem osys_null;
-extern const uint8_t *osys_null_page(int32_t which);
-extern const uint8_t *osys_null_palette(void);
 
 #define SAVE_LEN  0x1800u
 #define SAVE_NAME "SAVEB"
+
+extern const uint8_t *osys_null_page(int32_t which);
+extern const uint8_t *osys_null_palette(void);
+
+extern const OSystem osys_null;
 
 static void put16(uint8_t *p, uint32_t v)
 {

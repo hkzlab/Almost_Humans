@@ -19,13 +19,14 @@
  *     effect 1 with no key pressed anywhere.
  */
 #include "game.h"
+#include "compat.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "compat.h"
+
+extern const uint8_t *osys_null_page(int32_t which);
 
 extern const OSystem osys_null;
-extern const uint8_t *osys_null_page(int32_t which);
 
 static uint8_t *read_file(const char *path, uint32_t *size)
 {

@@ -28,14 +28,21 @@
  *           384 rendered with bac.bit's palette — for eyeballing/analysis).
  * Missing volumes = skip. */
 #include "game.h"
+#include "compat.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "compat.h"
 
-extern const OSystem osys_null;
 extern const uint8_t *osys_null_page(int32_t which);
 extern const uint8_t *osys_null_palette(void);
+
+extern const OSystem osys_null;
+
+/* the render call indices for the PPM dumps predate the palette-fade
+ * phases (2026-10-23) — the fade/black-hold blocks shift every offset, so
+ * these no longer pin their frames.  shortcut: stale indices, recompute
+ * from a traced run when the dumps are next used. */
+static const uint32_t dump_ticks[] = { 281, 581, 1247, 1340, 1460 };
 
 static uint8_t *read_file(const char *path, uint32_t *size)
 {
@@ -54,12 +61,6 @@ static uint8_t *read_file(const char *path, uint32_t *size)
     if (size) *size = (uint32_t)n;
     return buf;
 }
-
-/* the render call indices for the PPM dumps predate the palette-fade
- * phases (2026-10-23) — the fade/black-hold blocks shift every offset, so
- * these no longer pin their frames.  shortcut: stale indices, recompute
- * from a traced run when the dumps are next used. */
-static const uint32_t dump_ticks[] = { 281, 581, 1247, 1340, 1460 };
 
 static void dump_ppm(const char *dir, uint32_t tick, const uint8_t *page,
                      const uint8_t *pal6)

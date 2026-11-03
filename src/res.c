@@ -43,6 +43,37 @@
 #include <stdlib.h>
 #include <string.h>
 
+typedef struct VolReader {
+    FSVolume *v;
+    uint32_t pos;
+} VolReader;
+
+/* --- the LZ machine (decode_bitstream, per compressed block) ---------- */
+typedef uint16_t (*WordReader)(void *ctx);
+
+typedef struct LzState {
+    WordReader rd; /* reads the next u16 from the stream     */
+    void *rd_ctx; /* reader context (volume or memory)      */
+    uint8_t *out; /* the whole decoded resource             */
+    uint32_t base; /* this block's first output byte         */
+    uint32_t p; /* the backward cursor (fills down)       */
+    uint32_t buf; /* the bit buffer                         */
+    uint16_t chk; /* the running BP (checksum) accumulator  */
+    uint32_t under; /* cursor wrapped past 0 (scene-form CMP  */
+    /*  DI,-1 -> END: the game discards the   */
+    /*  overshoot bytes and stops)            */
+} LzState;
+
+/* Memory reader adapter for decoding LZW objects straight out of a
+ * loaded image (e.g. an .ANI's chunk data). */
+typedef struct {
+    const uint8_t *d;
+    uint32_t pos;
+    uint32_t len;
+    uint32_t over; /* a read ran past the loaded image            */
+    uint32_t ate_tail; /* the stream was consumed to the image's end  */
+} MemRd;
+
 /* The intro-movie disc table, ported from `202F:0x6287` (1000:AFF8's
  * lookup).  Corpus-verified 10/10: ANI<idx>.ANI ships in exactly the
  * HUMANS.00N the table names (extraction index.txt, all languages):
@@ -65,11 +96,6 @@ uint32_t res_movieDisc(uint32_t idx)
     return res_movieDiscTable[idx];
 }
 
-typedef struct VolReader {
-    FSVolume *v;
-    uint32_t pos;
-} VolReader;
-
 static int32_t vol_sixteen(VolReader *r, uint32_t at, uint8_t *dst, uint32_t n)
 {
     uint32_t got = fs.read(r->v, at, dst, n);
@@ -84,23 +110,6 @@ static uint16_t vol_word(VolReader *r)
     r->pos += 2;
     return rd_le_u16(tmp);
 }
-
-/* --- the LZ machine (decode_bitstream, per compressed block) ---------- */
-
-typedef uint16_t (*WordReader)(void *ctx);
-
-typedef struct LzState {
-    WordReader rd; /* reads the next u16 from the stream     */
-    void *rd_ctx; /* reader context (volume or memory)      */
-    uint8_t *out; /* the whole decoded resource             */
-    uint32_t base; /* this block's first output byte         */
-    uint32_t p; /* the backward cursor (fills down)       */
-    uint32_t buf; /* the bit buffer                         */
-    uint16_t chk; /* the running BP (checksum) accumulator  */
-    uint32_t under; /* cursor wrapped past 0 (scene-form CMP  */
-    /*  DI,-1 -> END: the game discards the   */
-    /*  overshoot bytes and stops)            */
-} LzState;
 
 /* Volume reader adapter: reads u16 words at VolReader::pos. */
 static uint16_t vol_word_reader(void *ctx)
@@ -196,16 +205,6 @@ static uint16_t lz_block(LzState *s, uint32_t clen)
     }
     return s->chk;
 }
-
-/* Memory reader adapter for decoding LZW objects straight out of a
- * loaded image (e.g. an .ANI's chunk data). */
-typedef struct {
-    const uint8_t *d;
-    uint32_t pos;
-    uint32_t len;
-    uint32_t over; /* a read ran past the loaded image            */
-    uint32_t ate_tail; /* the stream was consumed to the image's end  */
-} MemRd;
 
 static uint16_t mem_word_reader(void *ctx)
 {

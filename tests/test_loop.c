@@ -14,9 +14,9 @@
  * HUMANS.00N links must not turn this into the real, multi-hundred-tick
  * playback (test_attract and test_smoke drive that path). */
 #include "game.h"
+#include "compat.h"
 #include <stdio.h>
 #include <string.h>
-#include "compat.h"
 
 extern const OSystem osys_null;
 

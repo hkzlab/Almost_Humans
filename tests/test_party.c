@@ -14,14 +14,15 @@
  * the extracted LBM/PARTY1.BIT rows byte-for-byte.
  */
 #include "game.h"
+#include "compat.h"
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "compat.h"
+
+extern VideoMode osys_null_videoMode(void);
 
 extern const OSystem osys_null;
-extern VideoMode osys_null_videoMode(void);
 
 static uint8_t *read_file(const char *path, uint32_t *size)
 {

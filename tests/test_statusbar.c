@@ -19,19 +19,26 @@
  *           rendered with the installed DAC — for eyeballing/analysis).
  * Missing volumes = skip. */
 #include "game.h"
+#include "compat.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "compat.h"
-
-extern const OSystem osys_null;
-extern const uint8_t *osys_null_page(int32_t which);
-extern const uint8_t *osys_null_palette(void);
 
 #define BAR_Y        152u
 #define MARK_Y       172u
 #define MARK_X(m)    ((const uint16_t[5]){ 8, 24, 32, 288, 296 })[m]
 #define MARK_BIAS(m) ((const uint16_t[5]){ 0, 0xC0, 0, 0, 0 })[m]
+
+/* The action row (the two icon slots at the bar's centre) is a fixed overlay
+ * and is checked by check_actions below; the band+marks model skips the
+ * rectangle it covers (the slots sit at x 131..154 and 166..189). */
+#define ACTION_X0 128u
+#define ACTION_X1 192u
+
+extern const uint8_t *osys_null_page(int32_t which);
+extern const uint8_t *osys_null_palette(void);
+
+extern const OSystem osys_null;
 
 static uint8_t strip[1280];
 static uint8_t panel4[12800 + 0xFA00 + 768]; /* art + the palette */
@@ -126,12 +133,6 @@ static void model_page(uint8_t *page, const uint8_t *ph)
     model_band(page);
     for (uint32_t m = 0; m < 5u; m++) model_mark(page, m, ph[m]);
 }
-
-/* The action row (the two icon slots at the bar's centre) is a fixed overlay
- * and is checked by check_actions below; the band+marks model skips the
- * rectangle it covers (the slots sit at x 131..154 and 166..189). */
-#define ACTION_X0 128u
-#define ACTION_X1 192u
 
 static int32_t diff_rows(const char *what, const uint8_t *page,
                          const uint8_t *model)

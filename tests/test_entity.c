@@ -25,23 +25,15 @@
  * Missing volumes = skip.
  */
 #include "game.h"
+#include "compat.h"
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "compat.h"
 
 extern const OSystem osys_null;
 
 static int32_t bad;
-
-static void failf(const char *what, uint32_t id, int64_t got, int64_t want)
-{
-    fprintf(stderr,
-            "FAIL level %" PRIu32 ": %s = %" PRId64 ", want %" PRId64 "\n", id,
-            what, got, want);
-    bad = 1;
-}
 
 /* style_handler_prologue (1000:5662), replicated: style 6 + the cell
  * directly below the match (matchIdx + 0x20; the original's +0x1F runs
@@ -52,6 +44,14 @@ static const uint8_t style6_flags[32] = {
     0x02, 0x00, 0x03, 0xC3, 0x81, 0x80, 0x01, 0x80, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
+
+static void failf(const char *what, uint32_t id, int64_t got, int64_t want)
+{
+    fprintf(stderr,
+            "FAIL level %" PRIu32 ": %s = %" PRId64 ", want %" PRId64 "\n", id,
+            what, got, want);
+    bad = 1;
+}
 static uint32_t prologue_bonus(const LevelData *d, uint32_t matchIdx)
 {
     if (d->style != 6u) return 0;

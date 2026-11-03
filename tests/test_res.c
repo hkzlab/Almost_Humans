@@ -16,10 +16,10 @@
  * the last-block reset semantics of resource_load's BP, re_formats.md
  * §8.4): ANI03 = 0x3c3f, ITB = 0x2adb. */
 #include "game.h"
+#include "compat.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "compat.h"
 #include <limits.h>
 
 static int32_t data_missing(const char *dir)

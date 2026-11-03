@@ -33,6 +33,14 @@
 #define GRID_ROWS 4u
 #define GRID_COLS 5u
 
+typedef enum {
+    MENU_NONE = 0,
+    MENU_PAUSE,
+    MENU_GRID,
+    MENU_TIMEOUT,
+    MENU_DONE
+} MenuPhase;
+
 /* 202F:0x5BBC+1 — "PLEASE SELECT YOUR OPTION", then the 5 options (the
  * block's leading count byte is [0x5E41], not part of the text). */
 static const char pauseBlock[] = "PLEASE SELECT YOUR OPTION\r"
@@ -57,14 +65,6 @@ static const char timeUpBlock[] = "YOU RAN OUT OF TIME!!\r"
                                   "RESTART THIS LEVEL\r"
                                   "RESTART THIS GAME\r"
                                   "QUIT THIS GAME";
-
-typedef enum {
-    MENU_NONE = 0,
-    MENU_PAUSE,
-    MENU_GRID,
-    MENU_TIMEOUT,
-    MENU_DONE
-} MenuPhase;
 
 static const OSystem *menu_osys;
 static MenuPhase phase = MENU_NONE;

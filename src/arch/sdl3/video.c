@@ -11,6 +11,8 @@
 #include <SDL3/SDL.h>
 #include <stdlib.h>
 
+static VideoMode vidMode = (VideoMode)-1;   /* the core's last mode set */
+
 static SDL_Window *win;
 static SDL_Renderer *ren;
 static SDL_Texture *tex;
@@ -19,7 +21,6 @@ static uint8_t pages[2][320 * 200];
 static uint32_t lut[256];          /* the palette LUT, 6-bit expanded */
 static int32_t presentProbe;      /* HUMANSRE_RATE_PROBE: report the
                                          * loop/present rate every 5 s    */
-static VideoMode vidMode = (VideoMode)-1;   /* the core's last mode set */
 
 /* The field each mode scans out (osystem.h's VideoMode): mode 13h is the
  * full 320x200 page, mode X shows only the top 192 rows — the rest of a

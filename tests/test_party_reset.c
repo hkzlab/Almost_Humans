@@ -7,9 +7,9 @@
  * argv[1] = the volume dir (holding HUMANS.000/001/002).  Missing data =
  * skip with a notice, like the other fixture tests. */
 #include "game.h"
+#include "compat.h"
 #include <stdio.h>
 #include <string.h>
-#include "compat.h"
 
 extern const OSystem osys_null;
 

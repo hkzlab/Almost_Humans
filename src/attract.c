@@ -55,32 +55,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* --- the planar address space (A000, unchained, byte mode) ------------- */
+/* --- the machine --------------------------------------------------------- */
+static void next_effect(void); /* below: the 1->3->2->4 cycle            */
 
+/* --- the planar address space (A000, unchained, byte mode) ------------- */
 static uint8_t vram[65536][4];   /* [address][plane]: 1 byte = 4 pixels   */
 static uint32_t pageDraw, pageDisp;   /* [0x5AC4]/[0x5AC6]                */
 static uint32_t displayStart;          /* [0x4106]: the CRTC start (bytes) */
 static uint32_t savedDraw, savedDisp;  /* game_loop's PUSH pair (1387)     */
-
-/* --- the shipped DS tables (re_formats.md §9.4, extracted 2026-10-25) -- */
-
-/* 202F:0x4DE — the top-10 (re_formats.md §11): the shipped defaults live in
- * hiscore.c, which HISCORES.HUM overrides once a game has been played. */
-uint32_t attract_hiscoreCount(void) { return 10u; }
-uint32_t attract_hiscoreScore(uint32_t i) { return hiscore_score(i); }
-const char *attract_hiscoreName(uint32_t i) { return hiscore_name(i); }
-
-/* 202F:0x38C — 160 per-level records of [seconds][minutes] (two
- * pseudo-decimal nibbles / one digit), shipped as 99 09 ("9:99") for every
- * level. */
-/* 202F:0x38C — the per-level bests: `hiscore_best(level)` (the same 160 u16
- * the score screen compares against). */
-static void fastest_time(uint32_t levelMinus1, uint8_t rec[2])
-{
-    uint16_t v = hiscore_best(levelMinus1 + 1u);
-
-    wr_le_u16(rec, v);                   /* [seconds][minutes] */
-}
 
 /* the strings at 202F:0xC38/0xC4D/0xC73/0xC79 (re_formats.md §9.4) */
 static const char STR_TIMES_HEADER[] = "FASTEST LEVEL TIMES!";
@@ -93,7 +75,6 @@ static const char STR_SCORE_HEADER[] = "TOP TEN TRIBES";
 static const uint8_t ramp0[768];
 
 /* --- the module state --------------------------------------------------- */
-
 static AttractPhase phase = ATTRACT_IDLE;
 static uint32_t counter;          /* the multi-tick phase countdown        */
 static uint32_t frame;            /* effect 2's frame: 0 = scores, 1..16   */
@@ -119,11 +100,37 @@ static uint32_t credCursor;       /* [0xD6C]: the credtext cursor          */
 static uint16_t rowsBuilt;        /* [0xD39]: the strip rows built         */
 static uint16_t scrollRow;        /* [0xD78]: the scroll window's start row */
 
+/* --- effect 1's wipe: intro_wipe_step (1000:14C3) -----------------------
+ * The damped oscillator on [0xC35]=pos, [0xC36]=dir (0=shrink), [0xC37]=speed:
+ * trace 199->0 (speed 32), grow 16 -> peak 136, shrink -> 0, grow 8 -> 36,
+ * -> 0, 4 -> 10, 2 -> 3, 1 -> 1, 0 -> exit (pos==0 && dir==0). */
+static uint32_t wipePos, wipeSpeed;
+static int32_t wipeDir;
+
+/* --- the shipped DS tables (re_formats.md §9.4, extracted 2026-10-25) -- */
+
+/* 202F:0x4DE — the top-10 (re_formats.md §11): the shipped defaults live in
+ * hiscore.c, which HISCORES.HUM overrides once a game has been played. */
+uint32_t attract_hiscoreCount(void) { return 10u; }
+uint32_t attract_hiscoreScore(uint32_t i) { return hiscore_score(i); }
+const char *attract_hiscoreName(uint32_t i) { return hiscore_name(i); }
+
+/* 202F:0x38C — 160 per-level records of [seconds][minutes] (two
+ * pseudo-decimal nibbles / one digit), shipped as 99 09 ("9:99") for every
+ * level. */
+/* 202F:0x38C — the per-level bests: `hiscore_best(level)` (the same 160 u16
+ * the score screen compares against). */
+static void fastest_time(uint32_t levelMinus1, uint8_t rec[2])
+{
+    uint16_t v = hiscore_best(levelMinus1 + 1u);
+
+    wr_le_u16(rec, v);                   /* [seconds][minutes] */
+}
+
 /* [0x1E7C] and [0xD3D] are not carried: in the decoded image they are
  * write-only (the cycle/effect tag and the skip flag — the writers are in
  * re_map.md § "The ATTRACT loop decoded"; no reader is traced), so the
  * port records their semantics in comments instead of dead state. */
-
 int32_t attract_init(const OSystem *osys)
 {
     (void)osys;
@@ -190,13 +197,6 @@ static void compose_window(void)
             d[x] = vram[(row + (x >> 2)) & 0xFFFFu][x & 3u];
     }
 }
-
-/* --- effect 1's wipe: intro_wipe_step (1000:14C3) -----------------------
- * The damped oscillator on [0xC35]=pos, [0xC36]=dir (0=shrink), [0xC37]=speed:
- * trace 199->0 (speed 32), grow 16 -> peak 136, shrink -> 0, grow 8 -> 36,
- * -> 0, 4 -> 10, 2 -> 3, 1 -> 1, 0 -> exit (pos==0 && dir==0). */
-static uint32_t wipePos, wipeSpeed;
-static int32_t wipeDir;
 
 static void wipe_step(void)
 {
@@ -356,7 +356,6 @@ static void wipe_row(uint32_t k)
 }
 
 /* --- the per-effect loads ------------------------------------------------ */
-
 static void unload_img(void)
 {
     free(imgBuf);
@@ -590,10 +589,6 @@ static int32_t e4_load(void)
     e4_fill();
     return 1;
 }
-
-/* --- the machine --------------------------------------------------------- */
-
-static void next_effect(void); /* below: the 1->3->2->4 cycle            */
 
 /* game_loop's prologue + LAB_000E's disc reset: run at every (re)entry. */
 static void attract_restart(void)
