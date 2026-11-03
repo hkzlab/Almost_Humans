@@ -38,6 +38,7 @@
  * scene-object test (1000:B444) which lands with the scene player.
  */
 #include "game.h"
+#include "byteorder.h"
 #include "fs/fs.h"
 #include <stdlib.h>
 #include <string.h>
@@ -69,17 +70,6 @@ typedef struct VolReader {
     uint32_t  pos;
 } VolReader;
 
-static uint16_t rd_le16(const uint8_t *p)
-{
-    return (uint16_t)(p[0] | (p[1] << 8));
-}
-
-static uint32_t rd_le32(const uint8_t *p)
-{
-    return (uint32_t)(unsigned)p[0] | ((uint32_t)(unsigned)p[1] << 8) |
-           ((uint32_t)(unsigned)p[2] << 16) | ((uint32_t)(unsigned)p[3] << 24);
-}
-
 static int vol_sixteen(VolReader *r, uint32_t at, uint8_t *dst, unsigned n)
 {
     uint32_t got = fs.read(r->v, at, dst, n);
@@ -92,7 +82,7 @@ static uint16_t vol_word(VolReader *r)
     uint8_t tmp[2];
     if (vol_sixteen(r, r->pos, tmp, 2)) return 0;
     r->pos += 2;
-    return rd_le16(tmp);
+    return rd_le_u16(tmp);
 }
 
 /* --- the LZ machine (decode_bitstream, per compressed block) ---------- */
@@ -217,7 +207,7 @@ static uint16_t mem_word_reader(void *ctx)
 {
     MemRd *mr = (MemRd *)ctx;
     if (mr->pos + 2 > mr->len) { mr->over = 1; return 0; }
-    uint16_t w = rd_le16(mr->d + mr->pos);
+    uint16_t w = rd_le_u16(mr->d + mr->pos);
     mr->pos += 2;
     if (mr->pos == mr->len) mr->ate_tail = 1;   /* the stream ran to the image's exact end */
     return w;
@@ -232,7 +222,7 @@ int res_decode_lzw_mem(const uint8_t *data, uint32_t data_size,
                        uint16_t *chkOut)
 {
     if (off + 6 > data_size) return -1;
-    uint16_t size = rd_le16(data + off);
+    uint16_t size = rd_le_u16(data + off);
     if (size > out_size) return -1;
 
     MemRd mr = { data, off + 2, data_size, 0, 0 };
@@ -290,7 +280,7 @@ static uint8_t *res_decodeChunk(VolReader *r, uint32_t off,
                                 const uint8_t *rec /* 0x40 bytes */,
                                 uint32_t length, uint16_t *chkOut)
 {
-    unsigned block = rd_le16(rec + 0x36) ? rd_le16(rec + 0x36) : 0x4000;
+    unsigned block = rd_le_u16(rec + 0x36) ? rd_le_u16(rec + 0x36) : 0x4000;
     uint8_t *out = malloc(length ? length : 1);
     uint16_t acc = 0;
     if (!out) return NULL;
@@ -304,7 +294,7 @@ static uint8_t *res_decodeChunk(VolReader *r, uint32_t off,
             uint32_t take = (uint32_t)block < length - done ? block : length - done;
             if (vol_sixteen(r, r->pos, out + done, (unsigned)take)) goto fail;
             for (uint32_t i = 0; i < (take & ~1u); i += 2)
-                acc ^= rd_le16(out + done + i);
+                acc ^= rd_le_u16(out + done + i);
             r->pos += take;
             done += take;
         } else {                               /* LZ block               */
@@ -336,15 +326,15 @@ uint8_t *res_loadChunk(const char *name, uint32_t *sizeOut, uint16_t *chkOut)
 
     uint8_t head[2];
     if (vol_sixteen(&r, 0, head, 2)) { fs.closeVolume(v); return NULL; }
-    unsigned count = rd_le16(head);
+    unsigned count = rd_le_u16(head);
 
     for (unsigned i = 0; i < count && !result; i++) {
         uint8_t rec[0x40];
         if (vol_sixteen(&r, 2u + i * 0x40u, rec, sizeof rec)) break;
         if (!name_equal(name, rec)) continue;
 
-        uint32_t length = rd_le32(rec + 0x38);
-        uint32_t off    = rd_le32(rec + 0x3c);
+        uint32_t length = rd_le_u32(rec + 0x38);
+        uint32_t off    = rd_le_u32(rec + 0x3c);
         result = res_decodeChunk(&r, off, rec, length, chkOut);
         if (result && sizeOut) *sizeOut = length;
     }

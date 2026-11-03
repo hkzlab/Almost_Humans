@@ -21,6 +21,7 @@
  * and restored by score_stampDraw (0x4697/0x46A3).
  */
 #include "game.h"
+#include "byteorder.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -70,7 +71,7 @@ unsigned score_members(void)
 
         if (!r || (r[6] & 0x80u)) continue;
         {
-            unsigned ty = (unsigned)(r[8] | (r[9] << 8));
+            unsigned ty = rd_le_u16(r + 8);
 
             if (ty == 0x1Du || ty == 0x1Eu) continue;
         }

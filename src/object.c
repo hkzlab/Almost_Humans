@@ -45,6 +45,7 @@
  * ported.  The bare-RET slot `1000:EA0E` is in the table (type 16 command 8).
  */
 #include "game.h"
+#include "byteorder.h"
 #include <string.h>
 
 #define OBJ_STATIC 8u                    /* the records 0x3640/check_highscore scan */
@@ -251,17 +252,6 @@ static uint8_t objSlotClass[0x40];
  * DS:0x3E24, indexed by [0x3E22] — i.e. objArray[objEntity]. */
 static uint8_t *objActor(void) { return objArray + objEntity * OBJ_STRIDE; }
 
-static uint16_t rd16(const uint8_t *r, unsigned off)
-{
-    return (uint16_t)(r[off] | ((uint16_t)r[off + 1u] << 8));
-}
-
-static void wr16(uint8_t *r, unsigned off, uint16_t v)
-{
-    r[off] = (uint8_t)(v & 0xFFu);
-    r[off + 1u] = (uint8_t)(v >> 8);
-}
-
 /* The four shipped recipes (202F:0x19BA, 12 bytes each): [uses][behaviour]
  * then the sprite word and the four parameter words, re-armed to one use
  * every level start (level_setup 1000:31C3). */
@@ -284,9 +274,9 @@ void object_init(void)
     memset(objArray, 0, sizeof objArray);
     for (unsigned i = 0; i < OBJ_SLOTS; i++) {
         uint8_t *r = objArray + i * OBJ_STRIDE;
-        wr16(r, 0u, 0xFFFFu);
-        wr16(r, 2u, 0xFFFFu);
-        wr16(r, 6u, 0x0080u);
+        wr_le_u16(r + 0u, 0xFFFFu);
+        wr_le_u16(r + 2u, 0xFFFFu);
+        wr_le_u16(r + 6u, 0x0080u);
     }
     memset(objSlotClass, 0, sizeof objSlotClass);
     objCurrent = -1;
@@ -373,7 +363,7 @@ void object_setPlayer(int slot)
 int object_noneType1d(void)
 {
     for (unsigned i = 0; i < OBJ_STATIC; i++)
-        if (rd16(objArray + i * OBJ_STRIDE, 8u) == 0x1Du) return 0;
+        if (rd_le_u16(objArray + i * OBJ_STRIDE + 8u) == 0x1Du) return 0;
     return -1;
 }
 
@@ -392,7 +382,7 @@ int object_classMatches(unsigned want)
 /* 1000:3678 — the current record's type equals the test's word. */
 int object_typeEquals(unsigned type)
 {
-    return rd16(objActor(), 8u) == type ? -1 : 0;
+    return rd_le_u16(objActor() + 8u) == type ? -1 : 0;
 }
 
 /* 0xF761's map addressing for a record: `cell = 32*((y+0xC)&0xFFF0)/16 +
@@ -419,8 +409,8 @@ static unsigned objMapBufferByte(unsigned idx)
  * below) can address it; 0xFFFF when the point is outside the map. */
 static unsigned objMapCellIndex(const uint8_t *rec)
 {
-    unsigned x = (unsigned)rd16(rec, 0u) + 8u;
-    unsigned y = (unsigned)rd16(rec, 2u) + 0xCu;
+    unsigned x = (unsigned)rd_le_u16(rec + 0u) + 8u;
+    unsigned y = (unsigned)rd_le_u16(rec + 2u) + 0xCu;
     unsigned cell;
 
     if (!level_map() || y < 16u) return 0xFFFFu;
@@ -448,7 +438,7 @@ unsigned object_recordMapCell(unsigned slot)
  * test's byte. */
 int object_mapCellEquals(unsigned want)
 {
-    if (rd16(objActor(), 8u) > 2u) return 0;
+    if (rd_le_u16(objActor() + 8u) > 2u) return 0;
     return objMapCell(objActor()) == (uint16_t)want
            ? -1 : 0;
 }
@@ -488,7 +478,7 @@ int object_lowPhaseMatch(void)
 {
     static unsigned lastFrame = ~0u;
 
-    if (rd16(objActor(), 8u) > 2u) return 0;
+    if (rd_le_u16(objActor() + 8u) > 2u) return 0;
     if (lastFrame == objFrame) return 0;            /* once per frame */
     lastFrame = objFrame;
     {
@@ -606,17 +596,17 @@ int object_findNeighbour(int actor)
 
     if (actor < 0 || (unsigned)actor >= OBJ_STATIC) return -1;
     cur = objArray + actor * OBJ_STRIDE;
-    cx = (int16_t)rd16(cur, 0u);
-    cy = (int16_t)rd16(cur, 2u);
+    cx = (int16_t)rd_le_u16(cur + 0u);
+    cy = (int16_t)rd_le_u16(cur + 2u);
 
     for (unsigned i = 0; i < OBJ_STATIC; i++) {
         const uint8_t *r = objArray + i * OBJ_STRIDE;
         int dx, dy;
 
         if ((int)i == actor) continue;               /* 1000:3A9C */
-        if (rd16(r, 8u) > 2u) continue;              /* type <= 2 */
-        dx = (int)(int16_t)rd16(r, 0u) - cx;
-        dy = (int)(int16_t)rd16(r, 2u) - cy;
+        if (rd_le_u16(r + 8u) > 2u) continue;              /* type <= 2 */
+        dx = (int)(int16_t)rd_le_u16(r + 0u) - cx;
+        dy = (int)(int16_t)rd_le_u16(r + 2u) - cy;
         if (dx < 0) dx = -dx;
         if (dy < 0) dy = -dy;
         if (dx > 0x20 || dy > 8) continue;
@@ -634,7 +624,7 @@ int object_claimBegin(unsigned recipe, int actor)
 
     if (actor < 0 || (unsigned)actor >= OBJ_STATIC) return -1;
     if (recipe >= 4u) return -1;
-    if (rd16(objArray + actor * OBJ_STRIDE, 8u) > 2u) return -1;
+    if (rd_le_u16(objArray + actor * OBJ_STRIDE + 8u) > 2u) return -1;
     if (!objUses[recipe]) return -1;                 /* 1000:3A89: the use counter */
 
     n = object_findNeighbour(actor);
@@ -646,12 +636,12 @@ int object_claimBegin(unsigned recipe, int actor)
         unsigned slot = cls - 1u;
         objSlotClass[cls] = 0u;                      /* 0x3E5F + slot */
         live = objArray + (OBJ_LIVE0 + slot) * OBJ_STRIDE;
-        wr16(live, 6u, 0xFFFFu);                     /* 0x3F17 + 0x12*slot */
+        wr_le_u16(live + 6u, 0xFFFFu);                     /* 0x3F17 + 0x12*slot */
     }
     object_setCurrent(n);                            /* 1000:3B03 */
-    wr16(rec, 4u, 0x0103u);                          /* 1000:3B07 */
-    wr16(rec, 6u, 0u);                               /* 1000:3B0D */
-    wr16(objArray + actor * OBJ_STRIDE, 4u, 0x0020u);/* 1000:3B13 */
+    wr_le_u16(rec + 4u, 0x0103u);                          /* 1000:3B07 */
+    wr_le_u16(rec + 6u, 0u);                               /* 1000:3B0D */
+    wr_le_u16(objArray + actor * OBJ_STRIDE + 4u, 0x0020u);/* 1000:3B13 */
     statusbar_setActive(0);                          /* 1000:3B23: [0x5B12] = 0 */
     /* 1000:3B19/3B28: the world freezes for the sequence, and the display
      * window is snapped to a 4-pixel boundary (`AND [0x0], 0xFFFC`) because the
@@ -663,9 +653,9 @@ int object_claimBegin(unsigned recipe, int actor)
      * itself is no longer readable once its use is gone) */
     objUses[recipe]--;
     claimBehav = objRecipes[recipe][1];
-    claimSprite = (unsigned)((objRecipes[recipe][2] << 8) | objRecipes[recipe][3]);
+    claimSprite = rd_be_u16(objRecipes[recipe] + 2u);
     for (unsigned k = 0; k < 4u; k++)
-        claimParams[k] = rd16(objRecipes[recipe], 4u + 2u * k);
+        claimParams[k] = rd_le_u16(objRecipes[recipe] + 4u + 2u * k);
 
     claimNeighbour = n;
     claimBlinks = 10u;                               /* 1000:3BAC */
@@ -745,7 +735,7 @@ void object_claimTick(const uint8_t *levelPal)
         break;
     case CLAIM_ANIM:                                 /* 1000:3BD6..1000:3BF6 */
         if (++claimTimer % 9u == 0u)                 /* the 1000:3BE9 frame++ */
-            wr16(nrec, 4u, (uint16_t)(rd16(nrec, 4u) + 1u));
+            wr_le_u16(nrec + 4u, (uint16_t)(rd_le_u16(nrec + 4u) + 1u));
         if (claimTimer < 56u) break;
         claimTimer = 0u;
         /* 1000:3BF9..1000:3C64: the append from the stashed fields.  The live record is
@@ -754,14 +744,14 @@ void object_claimTick(const uint8_t *levelPal)
          * class c <-> live index 8+c. */
         if (objLiveCount + 1u < OBJ_SLOTS) {
             uint8_t *nr = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
-            wr16(nr, 0u, rd16(nrec, 0u));
-            wr16(nr, 2u, (uint16_t)(rd16(nrec, 2u) + 9u));
-            wr16(nr, 4u, (uint16_t)claimSprite);
-            wr16(nr, 6u, 0u);
-            wr16(nr, 8u, (uint16_t)claimParams[0]);
-            wr16(nr, 0xAu, (uint16_t)claimParams[1]);
-            wr16(nr, 0xCu, (uint16_t)claimParams[2]);
-            wr16(nr, 0xEu, (uint16_t)claimParams[3]);
+            wr_le_u16(nr + 0u, rd_le_u16(nrec + 0u));
+            wr_le_u16(nr + 2u, (uint16_t)(rd_le_u16(nrec + 2u) + 9u));
+            wr_le_u16(nr + 4u, (uint16_t)claimSprite);
+            wr_le_u16(nr + 6u, 0u);
+            wr_le_u16(nr + 8u, (uint16_t)claimParams[0]);
+            wr_le_u16(nr + 0xAu, (uint16_t)claimParams[1]);
+            wr_le_u16(nr + 0xCu, (uint16_t)claimParams[2]);
+            wr_le_u16(nr + 0xEu, (uint16_t)claimParams[3]);
             objSlotClass[objLiveCount - 7u] = (uint8_t)claimBehav;
             objLiveCount++;
             /* 1000:3C70 calls init_dirty_cell_list (1000:3E73), whose tail
@@ -775,7 +765,7 @@ void object_claimTick(const uint8_t *levelPal)
                 uint8_t shade[16 * 16];
 
                 objBuildShade(claimSprite, shade);
-                level_sparkBegin(rd16(nr, 0u), rd16(nr, 2u), shade);
+                level_sparkBegin(rd_le_u16(nr + 0u), rd_le_u16(nr + 2u), shade);
             }
         }
         claimPhase = CLAIM_HOLD;
@@ -794,7 +784,7 @@ void object_claimTick(const uint8_t *levelPal)
     case CLAIM_FRAME2:                               /* 1000:3C9F */
         if (++claimTimer <= 1u) break;               /* one 0x9F56 */
         claimTimer = 0u;
-        wr16(nrec, 6u, 0xFFFFu);                     /* 50A6: removed */
+        wr_le_u16(nrec + 6u, 0xFFFFu);                     /* 50A6: removed */
         statusbar_setActive(1);                      /* 50B0: [0x5B12] */
         claimPhase = CLAIM_FLIP;
         break;
@@ -861,11 +851,11 @@ static int objPlaceHuman(unsigned col, unsigned row)
     for (unsigned i = 0; i < OBJ_STATIC; i++) {
         uint8_t *r = objArray + i * OBJ_STRIDE;
         if (!(r[6] & 0x80u)) continue;
-        wr16(r, 0u, (uint16_t)(col * 16u));
-        wr16(r, 2u, (uint16_t)y);        /* 0x524B: nudge, then y = row*16 - 7 */
-        wr16(r, 4u, 0x0010u);
-        wr16(r, 6u, 0u);
-        wr16(r, 8u, 0x0002u);
+        wr_le_u16(r + 0u, (uint16_t)(col * 16u));
+        wr_le_u16(r + 2u, (uint16_t)y);        /* 0x524B: nudge, then y = row*16 - 7 */
+        wr_le_u16(r + 4u, 0x0010u);
+        wr_le_u16(r + 6u, 0u);
+        wr_le_u16(r + 8u, 0x0002u);
         objPlacedHumans++;
         return (int)i;
     }
@@ -881,17 +871,17 @@ static void objAppendSpear(unsigned col, unsigned row)
 
     if (objLiveCount + 1u >= OBJ_SLOTS) return;
     r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
-    wr16(r, 0u, (uint16_t)(col * 16u));
-    wr16(r, 2u, (uint16_t)(row * 16u + objStyleNudge(NULL, col, row)));
-    wr16(r, 4u, 0x0060u);
-    wr16(r, 6u, 0u);
-    wr16(r, 8u, 0xFFFFu);
-    wr16(r, 0xAu, 0u);
+    wr_le_u16(r + 0u, (uint16_t)(col * 16u));
+    wr_le_u16(r + 2u, (uint16_t)(row * 16u + objStyleNudge(NULL, col, row)));
+    wr_le_u16(r + 4u, 0x0060u);
+    wr_le_u16(r + 6u, 0u);
+    wr_le_u16(r + 8u, 0xFFFFu);
+    wr_le_u16(r + 0xAu, 0u);
     objSlotClass[objLiveCount - 7u] = 5u;        /* [0x3E5F + count-8] = 0x05 */
     objLiveCount++;
     /* 1000:527D ends JMP 0x5639: the shared ground snap. */
     bx = objStepProbeAt(r, 8, 0x10, &probe);
-    if (bx >= 0) wr16(r, 2u, (uint16_t)(bx - 0x10));
+    if (bx >= 0) wr_le_u16(r + 2u, (uint16_t)(bx - 0x10));
 }
 
 /* 0xBE / 0xBF's hand-off: 0xBE keeps the record it appended (`0x1F1C`) and the
@@ -906,11 +896,11 @@ static void objSpawnBB(unsigned col, unsigned row)
 
     if (objLiveCount + 1u >= OBJ_SLOTS) return;
     r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
-    wr16(r, 0u, (uint16_t)(col * 16u));
-    wr16(r, 2u, (uint16_t)(row * 16u + objStyleNudge(NULL, col, row)));
-    wr16(r, 4u, 0x0026u);
-    wr16(r, 6u, 0x0000u);
-    wr16(r, 8u, (uint16_t)(row * OBJ_COLS + col - 1u));
+    wr_le_u16(r + 0u, (uint16_t)(col * 16u));
+    wr_le_u16(r + 2u, (uint16_t)(row * 16u + objStyleNudge(NULL, col, row)));
+    wr_le_u16(r + 4u, 0x0026u);
+    wr_le_u16(r + 6u, 0x0000u);
+    wr_le_u16(r + 8u, (uint16_t)(row * OBJ_COLS + col - 1u));
     objSlotClass[objLiveCount - 7u] = 9u;
     objLiveCount++;
 }
@@ -923,13 +913,13 @@ static void objSpawnBE(unsigned col, unsigned row)
 
     if (objLiveCount + 1u >= OBJ_SLOTS) return;
     r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
-    wr16(r, 0u, (uint16_t)(col * 16u));
-    wr16(r, 2u, (uint16_t)(row * 16u + objStyleNudge(NULL, col, row)));
-    wr16(r, 4u, 0x0082u);
-    wr16(r, 6u, 0x0000u);
-    wr16(r, 8u, 0x0000u);
-    wr16(r, 0xAu, (uint16_t)(col * 16u));
-    wr16(r, 0xEu, 0x0001u);
+    wr_le_u16(r + 0u, (uint16_t)(col * 16u));
+    wr_le_u16(r + 2u, (uint16_t)(row * 16u + objStyleNudge(NULL, col, row)));
+    wr_le_u16(r + 4u, 0x0082u);
+    wr_le_u16(r + 6u, 0x0000u);
+    wr_le_u16(r + 8u, 0x0000u);
+    wr_le_u16(r + 0xAu, (uint16_t)(col * 16u));
+    wr_le_u16(r + 0xEu, 0x0001u);
     objSlotClass[objLiveCount - 7u] = 2u;
     objJoinSlot = (int)(objLiveCount + 1u);      /* the record, not the count */
     objLiveCount++;
@@ -939,7 +929,7 @@ static void objSpawnBE(unsigned col, unsigned row)
 static void objJoinBF(unsigned col)
 {
     if (objJoinSlot < 0) return;
-    wr16(objArray + (unsigned)objJoinSlot * OBJ_STRIDE, 0xCu, (uint16_t)(col * 16u));
+    wr_le_u16(objArray + (unsigned)objJoinSlot * OBJ_STRIDE + 0xCu, (uint16_t)(col * 16u));
 }
 
 /* 1000:5535 / 1000:553D (0xC0 / 0xC1): 0xC0 runs the human handler and keeps
@@ -958,10 +948,10 @@ static void objSpawnC1(unsigned col, unsigned row)
 
     if (objLiveCount + 1u >= OBJ_SLOTS) return;
     r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
-    wr16(r, 0u, (uint16_t)(col * 16u));
-    wr16(r, 2u, (uint16_t)(row * 16u + objStyleNudge(NULL, col, row) - 0x10u));
-    wr16(r, 4u, 0x0100u);
-    wr16(r, 6u, 0x0000u);
+    wr_le_u16(r + 0u, (uint16_t)(col * 16u));
+    wr_le_u16(r + 2u, (uint16_t)(row * 16u + objStyleNudge(NULL, col, row) - 0x10u));
+    wr_le_u16(r + 4u, 0x0100u);
+    wr_le_u16(r + 6u, 0x0000u);
     objSlotClass[objLiveCount - 7u] = 0u;
     objLiveCount++;
 }
@@ -998,13 +988,13 @@ static void objSpawnB6(unsigned col, unsigned row)
         uint8_t *r = objArray + i * OBJ_STRIDE;
 
         if (!(r[6] & 0x80u)) continue;
-        wr16(r, 0u, (uint16_t)(col * 16u));
-        wr16(r, 2u, (uint16_t)(row * 16u + objStyleNudge(NULL, col, row) - 0x10u));
-        wr16(r, 4u, 0x00FEu);
-        wr16(r, 6u, 0x0000u);
-        wr16(r, 8u, 0x001Du);
-        wr16(r, 0xAu, 0x00FAu);
-        wr16(r, 0xCu, (uint16_t)(((objLiveCount + 1u) * OBJ_STRIDE) & 0xFFFFu));
+        wr_le_u16(r + 0u, (uint16_t)(col * 16u));
+        wr_le_u16(r + 2u, (uint16_t)(row * 16u + objStyleNudge(NULL, col, row) - 0x10u));
+        wr_le_u16(r + 4u, 0x00FEu);
+        wr_le_u16(r + 6u, 0x0000u);
+        wr_le_u16(r + 8u, 0x001Du);
+        wr_le_u16(r + 0xAu, 0x00FAu);
+        wr_le_u16(r + 0xCu, (uint16_t)(((objLiveCount + 1u) * OBJ_STRIDE) & 0xFFFFu));
         objSlotClass[objLiveCount - 7u] = 0u;
         objLiveCount++;
         return;
@@ -1033,12 +1023,12 @@ static void objSpawnB7(const uint8_t *map, unsigned col, unsigned row)
             if (c >= 0 && c < 640 && map[c] == 0xB6u) { nearB6 = 1; break; }
         }
     }
-    wr16(r, 0u, (uint16_t)(col * 16u));
-    wr16(r, 2u, (uint16_t)(row * 16u + objStyleNudge(NULL, col, row) - 8u));
-    wr16(r, 4u, nearB6 ? 0x011Au : 0x0116u);
-    wr16(r, 6u, (uint16_t)(((objLiveCount - 6u) << 8) & 0xFF00u));
-    wr16(r, 8u, 0x0000u);
-    wr16(r, 0xAu, nearB6 ? 3u : 2u);
+    wr_le_u16(r + 0u, (uint16_t)(col * 16u));
+    wr_le_u16(r + 2u, (uint16_t)(row * 16u + objStyleNudge(NULL, col, row) - 8u));
+    wr_le_u16(r + 4u, nearB6 ? 0x011Au : 0x0116u);
+    wr_le_u16(r + 6u, (uint16_t)(((objLiveCount - 6u) << 8) & 0xFF00u));
+    wr_le_u16(r + 8u, 0x0000u);
+    wr_le_u16(r + 0xAu, nearB6 ? 3u : 2u);
     objSlotClass[objLiveCount - 7u] = 8u;
     objLiveCount++;
     r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
@@ -1055,14 +1045,14 @@ static void objSpawnB8(unsigned col, unsigned row)
 
     if (objLiveCount + 1u >= OBJ_SLOTS) return;
     r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
-    wr16(r, 0u, (uint16_t)(col * 16u));
-    wr16(r, 2u, (uint16_t)(row * 16u + objStyleNudge(NULL, col, row) - 8u));
-    wr16(r, 4u, 0x00AFu);
-    wr16(r, 6u, 0x0000u);
-    wr16(r, 8u, 0x0000u);
-    wr16(r, 0xAu, 0x0000u);
-    wr16(r, 0xCu, 0x0000u);
-    wr16(r, 0xEu, (uint16_t)(row * OBJ_COLS + col - 1u));
+    wr_le_u16(r + 0u, (uint16_t)(col * 16u));
+    wr_le_u16(r + 2u, (uint16_t)(row * 16u + objStyleNudge(NULL, col, row) - 8u));
+    wr_le_u16(r + 4u, 0x00AFu);
+    wr_le_u16(r + 6u, 0x0000u);
+    wr_le_u16(r + 8u, 0x0000u);
+    wr_le_u16(r + 0xAu, 0x0000u);
+    wr_le_u16(r + 0xCu, 0x0000u);
+    wr_le_u16(r + 0xEu, (uint16_t)(row * OBJ_COLS + col - 1u));
     objSlotClass[objLiveCount - 7u] = 3u;
     objLiveCount++;
 }
@@ -1105,18 +1095,18 @@ static void objAppendStyle(const uint8_t *map, unsigned col, unsigned row,
     if (objLiveCount + 1u >= OBJ_SLOTS) return;
     y3 = objStyleNudge(map, col, row);
     r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
-    wr16(r, 0u, (uint16_t)(col * 16u));
-    wr16(r, 2u, (uint16_t)(row * 16u + y3));
-    wr16(r, 4u, frame);
-    wr16(r, 6u, 0u);
-    wr16(r, 8u, f8);
-    wr16(r, 0xAu, 0u);
-    wr16(r, 0xCu, fc);
-    wr16(r, 0xEu, fe);
+    wr_le_u16(r + 0u, (uint16_t)(col * 16u));
+    wr_le_u16(r + 2u, (uint16_t)(row * 16u + y3));
+    wr_le_u16(r + 4u, frame);
+    wr_le_u16(r + 6u, 0u);
+    wr_le_u16(r + 8u, f8);
+    wr_le_u16(r + 0xAu, 0u);
+    wr_le_u16(r + 0xCu, fc);
+    wr_le_u16(r + 0xEu, fe);
     objSlotClass[objLiveCount - 7u] = (uint8_t)behaviour;
     objLiveCount++;
     bx = objStepProbeAt(r, 8, 0x10, &probeCell);        /* 1000:5639 */
-    if (bx >= 0) wr16(r, 2u, (uint16_t)(bx - 0x10));
+    if (bx >= 0) wr_le_u16(r + 2u, (uint16_t)(bx - 0x10));
 }
 
 /* 1000:51F9 decode_terrain_row (tile 0xA9): five records from the 0x1EFE
@@ -1140,11 +1130,11 @@ static void objAppendRow9(uint8_t *map, unsigned col, unsigned row)
 
         if (objLiveCount + 1u >= OBJ_SLOTS) return;
         r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
-        wr16(r, 0u, (uint16_t)(col * 16u + table[i][0]));
-        wr16(r, 2u, (uint16_t)(row * 16u + 1u + table[i][1]));
-        wr16(r, 4u, table[i][2]);
-        wr16(r, 6u, 0u);
-        wr16(r, 8u, 0u);
+        wr_le_u16(r + 0u, (uint16_t)(col * 16u + table[i][0]));
+        wr_le_u16(r + 2u, (uint16_t)(row * 16u + 1u + table[i][1]));
+        wr_le_u16(r + 4u, table[i][2]);
+        wr_le_u16(r + 6u, 0u);
+        wr_le_u16(r + 8u, 0u);
         objSlotClass[objLiveCount - 7u] = 0u;     /* behaviour 0 */
         objLiveCount++;
     }
@@ -1184,12 +1174,12 @@ static void objAppendDecoration(unsigned x, unsigned y, uint8_t tile)
 
     if (objLiveCount + 1u >= OBJ_SLOTS) return;
     r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
-    wr16(r, 0u, (uint16_t)x);
-    wr16(r, 2u, (uint16_t)y);
-    wr16(r, 4u, f);
-    wr16(r, 6u, 0u);
-    wr16(r, 8u, f);
-    wr16(r, 0xAu, 0u);
+    wr_le_u16(r + 0u, (uint16_t)x);
+    wr_le_u16(r + 2u, (uint16_t)y);
+    wr_le_u16(r + 4u, f);
+    wr_le_u16(r + 6u, 0u);
+    wr_le_u16(r + 8u, f);
+    wr_le_u16(r + 0xAu, 0u);
     objSlotClass[objLiveCount - 7u] = 1u;        /* [0x3E5F + count-8] = 0x01 */
     objLiveCount++;
 }
@@ -1625,7 +1615,7 @@ static void objDrawClassOverlay(uint8_t *page, int scrollX, int scrollY, uint8_t
      * 1000:3659 reads 0x3E5E + AX and the port reads objSlotClass[b]). */
     col = objClsCol[objSlotClass[cls] & 0x3Fu];              /* 1000:657F */
     if (!col) return;
-    frame = rd16(rec, 4u);
+    frame = rd_le_u16(rec + 4u);
     /* 1000:65A7: `draw_object_cell` enters the class branch whenever the
      * frame's 0x3570 byte is NON-ZERO and only then masks it to 0x7F - a
      * 0x80 byte means row 0, whose 0x368A entry can still be live. */
@@ -1634,16 +1624,16 @@ static void objDrawClassOverlay(uint8_t *page, int scrollX, int scrollY, uint8_t
     idx = objOverlayIdx[3u * row + col];                     /* 1000:65C2 */
     if (!idx) return;
     e = objOverlayEnt + 4u * idx;                            /* 1000:65D5 */
-    x = rd16(rec, 0u);
-    y = rd16(rec, 2u);
+    x = rd_le_u16(rec + 0u);
+    y = rd_le_u16(rec + 2u);
     if (e[2]) {                                              /* 1000:65E4 */
         if (8u + cls < OBJ_SLOTS) {
             carried = objArray + (8u + cls) * OBJ_STRIDE;
-            wr16(carried, 0u, (uint16_t)(x + (uint16_t)(int16_t)(int8_t)e[0]));
-            wr16(carried, 2u, (uint16_t)(y + (uint16_t)(int16_t)(int8_t)e[1]));
-            wr16(carried, 4u, e[2]);
-            objBlitFrame(page, e[2], (int)(int16_t)rd16(carried, 0u) - scrollX,
-                         (int)(int16_t)rd16(carried, 2u) - scrollY);
+            wr_le_u16(carried + 0u, (uint16_t)(x + (uint16_t)(int16_t)(int8_t)e[0]));
+            wr_le_u16(carried + 2u, (uint16_t)(y + (uint16_t)(int16_t)(int8_t)e[1]));
+            wr_le_u16(carried + 4u, e[2]);
+            objBlitFrame(page, e[2], (int)(int16_t)rd_le_u16(carried + 0u) - scrollX,
+                         (int)(int16_t)rd_le_u16(carried + 2u) - scrollY);
         }
     }
     if (e[3])                                                /* 1000:6605 */
@@ -1668,9 +1658,9 @@ static void objDrawRecord(uint8_t *page, int scrollX, int scrollY,
                           unsigned i, int scan)
 {
     uint8_t *r = objArray + i * OBJ_STRIDE;
-    int x = (int)(int16_t)rd16(r, 0u) - scrollX;
-    int y = (int)(int16_t)rd16(r, 2u) - scrollY;
-    unsigned frame = rd16(r, 4u);
+    int x = (int)(int16_t)rd_le_u16(r + 0u) - scrollX;
+    int y = (int)(int16_t)rd_le_u16(r + 2u) - scrollY;
+    unsigned frame = rd_le_u16(r + 4u);
 
     if (r[6] & 0x80u) return;                       /* 1000:794C / 1000:6458 */
     /* 1000:6450/1000:6467: the record's class slot (0x3E5E + record-8)
@@ -1707,7 +1697,7 @@ static void objPartition(uint8_t *back, unsigned *nb,
 
         if (r[6] & 0x80u) continue;
         if (i == objEntity) continue;
-        t = rd16(r, 8u);
+        t = rd_le_u16(r + 8u);
         if (t >= 6u && t <= 8u) front[f++] = (uint8_t)i;
         else back[b++] = (uint8_t)i;
     }
@@ -1715,7 +1705,7 @@ static void objPartition(uint8_t *back, unsigned *nb,
         unsigned t;
 
         if (objEntity >= OBJ_SLOTS) { *nb = b; *nf = f; return; }
-        t = rd16(objArray + objEntity * OBJ_STRIDE, 8u);
+        t = rd_le_u16(objArray + objEntity * OBJ_STRIDE + 8u);
         if (t >= 6u && t <= 8u) front[f++] = (uint8_t)objEntity;
         else back[b++] = (uint8_t)objEntity;
     }
@@ -1774,8 +1764,8 @@ static uint8_t objTerSlot[2][0x14];
 void object_terSlotInit(void)
 {
     memset(objTerSlot, 0, sizeof objTerSlot);        /* 1000:4CB2.. */
-    wr16(objTerSlot[0], 0x10u, 0xFFFFu);             /* 1000:4CC3 [0x64AA] */
-    wr16(objTerSlot[1], 0x10u, 0xFFFFu);             /* 1000:4CC6 [0x64BE] */
+    wr_le_u16(objTerSlot[0] + 0x10u, 0xFFFFu);             /* 1000:4CC3 [0x64AA] */
+    wr_le_u16(objTerSlot[1] + 0x10u, 0xFFFFu);             /* 1000:4CC6 [0x64BE] */
 }
 
 uint8_t *object_terSlotAt(unsigned i) { return i < 2u ? objTerSlot[i] : NULL; }
@@ -1802,17 +1792,17 @@ void object_renderTer(uint8_t *page, int scrollX, int scrollY)
         uint8_t *e = objTerSlot[s];
         unsigned index, idx, src, yoff, rows;
 
-        if (rd16(e, 0x10u) & 0x8000u) continue;      /* 1000:587F */
-        index = rd16(e, 0xCu);
+        if (rd_le_u16(e + 0x10u) & 0x8000u) continue;      /* 1000:587F */
+        index = rd_le_u16(e + 0xCu);
         idx = index < sizeof objTerIndex ? objTerIndex[index] : 0u;
         if (4u * idx + 4u > objTerSize || 2u * idx + 0x32u > objTerSize) continue;
-        src = (unsigned)((objTerBank[4u * idx + 2u] << 8) | objTerBank[4u * idx + 3u]) + 0x40u;
-        yoff = (unsigned)((objTerBank[2u * idx + 0x20u] << 8) | objTerBank[2u * idx + 0x21u]);
-        rows = (unsigned)((objTerBank[2u * idx + 0x30u] << 8) | objTerBank[2u * idx + 0x31u]);
+        src = (unsigned)rd_be_u16(objTerBank + 4u * idx + 2u) + 0x40u;
+        yoff = rd_be_u16(objTerBank + 2u * idx + 0x20u);
+        rows = rd_be_u16(objTerBank + 2u * idx + 0x30u);
         if (src + rows * 8u > objTerSize) continue;
         object_blitSprite(page, objTerBank + src, rows, 32u,
-                          (int)(int16_t)rd16(e, 0u) - 0xCu - scrollX,
-                          (int)(int16_t)rd16(e, 2u) + (int)yoff - scrollY);
+                          (int)(int16_t)rd_le_u16(e + 0u) - 0xCu - scrollX,
+                          (int)(int16_t)rd_le_u16(e + 2u) + (int)yoff - scrollY);
     }
 }
 
@@ -1872,9 +1862,9 @@ static void objBgTick(void)
             if (!(r[6] & 0x80u)) {
                 unsigned y;
 
-                if (rd16(r, 8u) == 0u) continue;     /* 1000:D614: no OR  */
-                y = (unsigned)rd16(r, 2u) + 2u;
-                wr16(r, 2u, (uint16_t)y);
+                if (rd_le_u16(r + 8u) == 0u) continue;     /* 1000:D614: no OR  */
+                y = (unsigned)rd_le_u16(r + 2u) + 2u;
+                wr_le_u16(r + 2u, (uint16_t)y);
                 if (y > 0x138u) r[6] = 0xFFu;        /* 1000:D61F         */
             }
             cx |= tbl[t];
@@ -1910,16 +1900,16 @@ static const uint8_t objSeq6568[0x64] = {
 /* 0xC77B (behaviour 1): an 8-tick frame stepper between +8 and +8 + [0x6532]. */
 static void objWalkStep1(uint8_t *r)
 {
-    unsigned a = rd16(r, 0xAu);
+    unsigned a = rd_le_u16(r + 0xAu);
 
-    if (a != 0u) { wr16(r, 0xAu, a - 1u); return; }
-    wr16(r, 0xAu, 8u);
+    if (a != 0u) { wr_le_u16(r + 0xAu, a - 1u); return; }
+    wr_le_u16(r + 0xAu, 8u);
     {
-        unsigned base = rd16(r, 8u);
-        unsigned f = (unsigned)(rd16(r, 4u) + 1u);
+        unsigned base = rd_le_u16(r + 8u);
+        unsigned f = (unsigned)(rd_le_u16(r + 4u) + 1u);
 
         if (f >= base + level_animFrames()) f = base;
-        wr16(r, 4u, (uint16_t)f);
+        wr_le_u16(r + 4u, (uint16_t)f);
     }
 }
 
@@ -1929,19 +1919,19 @@ static void objWalkSeq(uint8_t *r)
 {
     unsigned a, cur, i;
 
-    if (rd16(r, 8u) != 1u) return;
-    a = rd16(r, 0xAu);
-    if (a != 0u) { wr16(r, 0xAu, a - 1u); return; }
-    wr16(r, 0xAu, 4u);
-    cur = rd16(r, 0xCu);
-    wr16(r, 0xCu, cur + 1u);
+    if (rd_le_u16(r + 8u) != 1u) return;
+    a = rd_le_u16(r + 0xAu);
+    if (a != 0u) { wr_le_u16(r + 0xAu, a - 1u); return; }
+    wr_le_u16(r + 0xAu, 4u);
+    cur = rd_le_u16(r + 0xCu);
+    wr_le_u16(r + 0xCu, cur + 1u);
     i = cur;
-    wr16(r, 4u, i < sizeof objSeq6568 ? objSeq6568[i] : 0u);
+    wr_le_u16(r + 4u, i < sizeof objSeq6568 ? objSeq6568[i] : 0u);
     if (i + 1u < sizeof objSeq6568 && objSeq6568[i + 1u] == 0u) {
         uint8_t *map = (uint8_t *)level_map();   /* the writable [0x1FA0] copy */
 
-        wr16(r, 8u, 2u);
-        if (map && rd16(r, 0xEu) < 640u) map[rd16(r, 0xEu)] = 0u;
+        wr_le_u16(r + 8u, 2u);
+        if (map && rd_le_u16(r + 0xEu) < 640u) map[rd_le_u16(r + 0xEu)] = 0u;
     }
 }
 
@@ -1952,14 +1942,14 @@ static void objWalkWander(uint8_t *r)
     unsigned ax, bx, cx, dx;
 
     if (objFrame & 1u) return;
-    ax = rd16(r, 0u); bx = rd16(r, 4u); cx = rd16(r, 8u); dx = rd16(r, 0x10u);
+    ax = rd_le_u16(r + 0u); bx = rd_le_u16(r + 4u); cx = rd_le_u16(r + 8u); dx = rd_le_u16(r + 0x10u);
     switch (cx) {
     case 0:                                          /* 0xCCC0 */
         ax++;
         if (dx == 0u) {
             dx = 3u; bx++;
             if (bx > 0x85u) bx = 0x82u;
-            if (ax >= rd16(r, 0xCu)) { bx = 0x86u; cx = 1u; }
+            if (ax >= rd_le_u16(r + 0xCu)) { bx = 0x86u; cx = 1u; }
         } else dx--;
         break;
     case 1:                                          /* 0xCCE3 */
@@ -1967,37 +1957,37 @@ static void objWalkWander(uint8_t *r)
         if (dx == 0u) {
             dx = 3u; bx++;
             if (bx > 0x89u) bx = 0x86u;
-            if (ax > rd16(r, 0xAu)) { bx = 0x82u; cx = 0u; }
+            if (ax > rd_le_u16(r + 0xAu)) { bx = 0x82u; cx = 0u; }
         } else dx--;
         break;
     default:                                         /* 0xCD06 */
         bx = 0x8Au;
         break;
     }
-    wr16(r, 0u, (uint16_t)ax);
-    wr16(r, 4u, (uint16_t)bx);
-    wr16(r, 0x10u, (uint16_t)dx);
-    wr16(r, 8u, (uint16_t)cx);
+    wr_le_u16(r + 0u, (uint16_t)ax);
+    wr_le_u16(r + 4u, (uint16_t)bx);
+    wr_le_u16(r + 0x10u, (uint16_t)dx);
+    wr_le_u16(r + 8u, (uint16_t)cx);
     if (cx != 0u) return;
     /* 1000:CC65: the (x-3, y-8) match against the eight fixed slots. */
     for (unsigned i = 0; i < OBJ_STATIC; i++) {
         uint8_t *slot = objArray + i * OBJ_STRIDE;
         unsigned type;
 
-        if ((unsigned)(int16_t)(ax - 3) != rd16(slot, 0u)) continue;
-        if ((unsigned)(int16_t)(bx - 8) != rd16(slot, 2u)) continue;
-        type = rd16(slot, 8u);
+        if ((unsigned)(int16_t)(ax - 3) != rd_le_u16(slot + 0u)) continue;
+        if ((unsigned)(int16_t)(bx - 8) != rd_le_u16(slot + 2u)) continue;
+        type = rd_le_u16(slot + 8u);
         if (type > 2u) return;
-        if (rd16(r, 0xEu) == 0u) {
-            wr16(r, 0xEu, 5u);
-            wr16(r, 8u, 2u);
-            wr16(slot, 0xAu, 0u);
-            wr16(slot, 0xCu, 0u);
-            wr16(slot, 0xEu, rd16(slot, 4u));
-            wr16(slot, 0x10u, type);
-            wr16(slot, 8u, 0x11u);
+        if (rd_le_u16(r + 0xEu) == 0u) {
+            wr_le_u16(r + 0xEu, 5u);
+            wr_le_u16(r + 8u, 2u);
+            wr_le_u16(slot + 0xAu, 0u);
+            wr_le_u16(slot + 0xCu, 0u);
+            wr_le_u16(slot + 0xEu, rd_le_u16(slot + 4u));
+            wr_le_u16(slot + 0x10u, type);
+            wr_le_u16(slot + 8u, 0x11u);
         } else {
-            wr16(r, 0xEu, (uint16_t)(rd16(r, 0xEu) - 1u));
+            wr_le_u16(r + 0xEu, (uint16_t)(rd_le_u16(r + 0xEu) - 1u));
         }
         return;
     }
@@ -2011,11 +2001,11 @@ static void objWalkTorch(uint8_t *r)
     unsigned f;
 
     if ((objFrame & 3u) != 0u) return;
-    if (rd16(r, 8u) != 0xFFFFu) return;
-    if (rd16(r, 0xAu) != 0u) return;
-    f = (unsigned)(rd16(r, 4u) + 1u);
+    if (rd_le_u16(r + 8u) != 0xFFFFu) return;
+    if (rd_le_u16(r + 0xAu) != 0u) return;
+    f = (unsigned)(rd_le_u16(r + 4u) + 1u);
     if (f >= 0x9Fu) f = 0x9Cu;
-    wr16(r, 4u, (uint16_t)f);
+    wr_le_u16(r + 4u, (uint16_t)f);
 }
 
 /* DS:0x6EC3, 16 bytes: object_find_overlap's "this type does not take part"
@@ -2044,18 +2034,18 @@ static void objMoverPassRecords(uint8_t *r, int ax, int bx)
 
         if (i < OBJ_LIVE0 + 1u) continue;
         if ((*beh & 0x3Fu) != 8u) continue;
-        dx = (int16_t)rd16(t, 0u) - ax;
+        dx = (int16_t)rd_le_u16(t + 0u) - ax;
         if (!(dx < 0 && dx + 0x10 > 0)) continue;
-        dy = (int16_t)rd16(t, 2u) - bx;
+        dy = (int16_t)rd_le_u16(t + 2u) - bx;
         if (!(dy < 0 && dy + 0x1Au > 0)) continue;
-        if (rd16(r, 0xCu) != 0u || (rd16(r, 0xEu) & 0x8000u) ||
-            rd16(r, 0xEu) > 1u) {
+        if (rd_le_u16(r + 0xCu) != 0u || (rd_le_u16(r + 0xEu) & 0x8000u) ||
+            rd_le_u16(r + 0xEu) > 1u) {
             uint8_t cls;
 
-            wr16(t, 0u, (uint16_t)(rd16(t, 0u) - 8u));
-            wr16(t, 4u, 0x0028u);
-            wr16(t, 8u, 0x0003u);
-            wr16(t, 0xAu, 6u);
+            wr_le_u16(t + 0u, (uint16_t)(rd_le_u16(t + 0u) - 8u));
+            wr_le_u16(t + 4u, 0x0028u);
+            wr_le_u16(t + 8u, 0x0003u);
+            wr_le_u16(t + 0xAu, 6u);
             cls = t[7];
             if (cls) {
                 objSlotClass[cls] = 0u;
@@ -2070,10 +2060,10 @@ static void objMoverPassRecords(uint8_t *r, int ax, int bx)
         if (t[7] == 0u) {
             unsigned mover = (unsigned)((r - objArray) / OBJ_STRIDE);
 
-            wr16(r, 8u, 0u);
-            wr16(r, 0xAu, 0u);
-            wr16(r, 0xCu, 0u);
-            wr16(r, 0xEu, 0u);
+            wr_le_u16(r + 8u, 0u);
+            wr_le_u16(r + 0xAu, 0u);
+            wr_le_u16(r + 0xCu, 0u);
+            wr_le_u16(r + 0xEu, 0u);
             *beh |= 0x80u;
             t[7] = (uint8_t)(mover + 1u);
         }
@@ -2089,7 +2079,7 @@ static void objMoverPassEntity(uint8_t *r, int ax, int bx)
 {
     unsigned n = entity_count();
 
-    if (rd16(r, 0xCu) == 0u && rd16(r, 0xEu) == 0u) return;
+    if (rd_le_u16(r + 0xCu) == 0u && rd_le_u16(r + 0xEu) == 0u) return;
     for (unsigned i = 0; i < n; i++) {
         Entity *e = entity_atMut(i);
         int ex, anim;
@@ -2129,8 +2119,8 @@ static void objMoverPassPlaced(uint8_t *r, int ax, int bx)
     unsigned i;
 
     /* 1000:5B3E's gate is on the record's +0xA/+0xC/+0xE (arg_SI = r+6). */
-    if (rd16(r, 0xAu) != 0u) return;
-    if (!(rd16(r, 0xCu) != 0u || (rd16(r, 0xEu) & 0x8000u) || rd16(r, 0xEu) > 1u))
+    if (rd_le_u16(r + 0xAu) != 0u) return;
+    if (!(rd_le_u16(r + 0xCu) != 0u || (rd_le_u16(r + 0xEu) & 0x8000u) || rd_le_u16(r + 0xEu) > 1u))
         return;
     for (i = 0; i < OBJ_STATIC; i++) {
         uint8_t *slot = objArray + i * OBJ_STRIDE;
@@ -2138,11 +2128,11 @@ static void objMoverPassPlaced(uint8_t *r, int ax, int bx)
         unsigned type, cls;
 
         if (slot[6] & 0x80u) continue;
-        dx = (int16_t)rd16(slot, 0u) - ax;
+        dx = (int16_t)rd_le_u16(slot + 0u) - ax;
         if (!(dx < 0 && dx + 0x10 > 0)) continue;
-        dy = (int16_t)rd16(slot, 2u) - bx;
+        dy = (int16_t)rd_le_u16(slot + 2u) - bx;
         if (!(dy - 2 < 0 && dy + 0x0C > 0)) continue;
-        type = rd16(slot, 8u);
+        type = rd_le_u16(slot + 8u);
         if (type < 16u && objTypeOverlaps[type]) continue;
         (void)object_stackScanDissolve(i);        /* 1000:F453, AX = 5 */
         objSlotClass[(unsigned)((r - objArray) / OBJ_STRIDE) - 8u] = 0u;
@@ -2153,10 +2143,10 @@ static void objMoverPassPlaced(uint8_t *r, int ax, int bx)
             if (cls >= 1u && OBJ_LIVE0 + cls <= objLiveCount)
                 objArray[(OBJ_LIVE0 + cls) * OBJ_STRIDE + 6] = 0xFFu;
         }
-        wr16(slot, 0u, (uint16_t)(rd16(slot, 0u) - 8u));
-        wr16(slot, 4u, 0x0028u);
-        wr16(slot, 8u, 0x0016u);
-        wr16(slot, 0xAu, 5u);
+        wr_le_u16(slot + 0u, (uint16_t)(rd_le_u16(slot + 0u) - 8u));
+        wr_le_u16(slot + 4u, 0x0028u);
+        wr_le_u16(slot + 8u, 0x0016u);
+        wr_le_u16(slot + 0xAu, 5u);
         objDriverCall(4);
         return;
     }
@@ -2192,35 +2182,35 @@ static void objMoverStepper(uint8_t *r, unsigned mode)
     unsigned f;
 
     if (!(objFrame & 1u)) return;
-    f = rd16(r, 4u);
+    f = rd_le_u16(r + 4u);
     if (mode != 0u) {                             /* 0xCE40 */
         int b = (mode == 1u) ? 1 : -1;
 
         b += (int)f;
         if (b >= 0x68) b = 0x58;
         if (b <= 0x57) b = 0x67;
-        wr16(r, 4u, (uint16_t)b);
+        wr_le_u16(r + 4u, (uint16_t)b);
         {
-            int c = (int16_t)rd16(r, 0xCu);
+            int c = (int16_t)rd_le_u16(r + 0xCu);
 
             if (c != 0) c += (c < 0) ? 1 : -1;
-            wr16(r, 0xCu, (uint16_t)c);
+            wr_le_u16(r + 0xCu, (uint16_t)c);
         }
         return;
     }
     {
-        int bx = (int16_t)rd16(r, 0xCu), cx = (int16_t)rd16(r, 0xEu);
+        int bx = (int16_t)rd_le_u16(r + 0xCu), cx = (int16_t)rd_le_u16(r + 0xEu);
 
         if (bx == 0) {
             if (cx == 0) return;
-            wr16(r, 4u, (uint16_t)(cx > 0 ? 0x60 : 0x58));
+            wr_le_u16(r + 4u, (uint16_t)(cx > 0 ? 0x60 : 0x58));
         } else if (cx == 0) {
-            wr16(r, 4u, (uint16_t)(bx > 0 ? 0x5C : 0x64));
+            wr_le_u16(r + 4u, (uint16_t)(bx > 0 ? 0x5C : 0x64));
         } else {
             unsigned idx = (unsigned)(((bx + 0x10) >> 2) * 8 + ((cx + 0x10) >> 2));
 
             if (idx < sizeof objMoverDir)
-                wr16(r, 4u, objMoverDir[idx]);
+                wr_le_u16(r + 4u, objMoverDir[idx]);
         }
     }
 }
@@ -2230,17 +2220,17 @@ static void objWalkMover(uint8_t *r)
 {
     unsigned f, mode;
 
-    if (!(rd16(r, 8u) & 0x8000u)) return;
-    mode = rd16(r, 0xAu);
+    if (!(rd_le_u16(r + 8u) & 0x8000u)) return;
+    mode = rd_le_u16(r + 0xAu);
     if (mode <= 2u) objMoverStepper(r, mode);
-    f = rd16(r, 4u);
+    f = rd_le_u16(r + 4u);
     if (f < 0x58u || f > 0x67u) return;
     {
         unsigned ix = (f - 0x58u) * 4u;
         int dx = (int8_t)objMoverTab[ix];
         int dy = (int8_t)objMoverTab[ix + 1u];
-        int ax = (int16_t)rd16(r, 0u) + dx;
-        int bx = (int16_t)rd16(r, 2u) + dy;
+        int ax = (int16_t)rd_le_u16(r + 0u) + dx;
+        int bx = (int16_t)rd_le_u16(r + 2u) + dy;
 
         objMoverPassEntity(r, ax, bx);
         objMoverPassRecords(r, ax, bx);
@@ -2260,7 +2250,7 @@ static void objWalkMover(uint8_t *r)
 static void objStack8Fail(uint8_t *r, unsigned frame)
 {
     r[0xAu] ^= 1u;
-    wr16(r, 4u, (uint16_t)frame);
+    wr_le_u16(r + 4u, (uint16_t)frame);
 }
 
 static void objStack8Slots(uint8_t *r)
@@ -2270,28 +2260,28 @@ static void objStack8Slots(uint8_t *r)
     if (r[7] == 0u) return;
     for (i = 0; i < OBJ_STATIC; i++) {
         uint8_t *slot = objArray + i * OBJ_STRIDE;
-        int dx = (int)(int16_t)rd16(r, 0u) - (int)(int16_t)rd16(slot, 0u);
+        int dx = (int)(int16_t)rd_le_u16(r + 0u) - (int)(int16_t)rd_le_u16(slot + 0u);
         int dy;
 
         if (dx >= 0) {
             if (dx > 0x40) continue;
-            dy = (int)(int16_t)rd16(r, 2u) - (int)(int16_t)rd16(slot, 2u);
+            dy = (int)(int16_t)rd_le_u16(r + 2u) - (int)(int16_t)rd_le_u16(slot + 2u);
             if (dy < 0) dy = -dy;
             dy -= 8;
             if (dy >= 0) continue;
-            wr16(r, 4u, 0x00E8u);
-            wr16(r, 8u, 2u);
-            wr16(r, 0xAu, 5u);
+            wr_le_u16(r + 4u, 0x00E8u);
+            wr_le_u16(r + 8u, 2u);
+            wr_le_u16(r + 0xAu, 5u);
             return;
         }
         if (-dx > 0x40) continue;
-        dy = (int)(int16_t)rd16(r, 2u) - (int)(int16_t)rd16(slot, 2u);
+        dy = (int)(int16_t)rd_le_u16(r + 2u) - (int)(int16_t)rd_le_u16(slot + 2u);
         if (dy < 0) dy = -dy;
         dy -= 8;
         if (dy >= 0) continue;
-        wr16(r, 4u, 0x00DCu);
-        wr16(r, 8u, 2u);
-        wr16(r, 0xAu, 4u);
+        wr_le_u16(r + 4u, 0x00DCu);
+        wr_le_u16(r + 8u, 2u);
+        wr_le_u16(r + 0xAu, 4u);
         return;
     }
 }
@@ -2306,12 +2296,12 @@ static void objStack8Move(uint8_t *r, int vx, int vy, unsigned stopFrame,
     {
         unsigned probeCell;
 
-        land = objLandY((int)(int16_t)rd16(r, 0u) + vy + 8, 0x18, &probeCell);
+        land = objLandY((int)(int16_t)rd_le_u16(r + 0u) + vy + 8, 0x18, &probeCell);
         (void)probeCell;
     }
     if (land < 0) { objStack8Fail(r, stopFrame); return; }
     bx = land - 0x18;
-    ax = (int)(int16_t)rd16(r, 0u) + vx;
+    ax = (int)(int16_t)rd_le_u16(r + 0u) + vx;
     rowFine = (unsigned)(bx + 0xC) & 0xFu;
     {
         unsigned ci = ((unsigned)(bx + 0xC) >> 4) * 32u + ((unsigned)ax >> 4);
@@ -2320,50 +2310,50 @@ static void objStack8Move(uint8_t *r, int vx, int vy, unsigned stopFrame,
     }
     word = level_itemWord(tile, rowFine);
     if (word != 0u) { objStack8Fail(r, stopFrame); return; }
-    recY = (int)(int16_t)rd16(r, 2u) - bx;
+    recY = (int)(int16_t)rd_le_u16(r + 2u) - bx;
     if (recY < 0 && bx + 8 < 0) { objStack8Fail(r, stopFrame); return; }
-    wr16(r, 0u, (uint16_t)(rd16(r, 0u) + (uint16_t)vy));
-    wr16(r, 2u, (uint16_t)bx);
+    wr_le_u16(r + 0u, (uint16_t)(rd_le_u16(r + 0u) + (uint16_t)vy));
+    wr_le_u16(r + 2u, (uint16_t)bx);
     {
-        unsigned s = rd16(r, 8u);
+        unsigned s = rd_le_u16(r + 8u);
 
         if (s == 0u) {
             unsigned f;
 
-            wr16(r, 8u, 3u);
-            f = (unsigned)(rd16(r, 4u) + 1u);
+            wr_le_u16(r + 8u, 3u);
+            f = (unsigned)(rd_le_u16(r + 4u) + 1u);
             if (f == endFrame) f -= 8u;
-            wr16(r, 4u, (uint16_t)f);
+            wr_le_u16(r + 4u, (uint16_t)f);
         } else {
-            wr16(r, 8u, (uint16_t)(s - 1u));
+            wr_le_u16(r + 8u, (uint16_t)(s - 1u));
         }
     }
 }
 
 static void objStack8Anim(uint8_t *r, unsigned endFrame)
 {
-    unsigned s = rd16(r, 8u);
+    unsigned s = rd_le_u16(r + 8u);
 
-    if (s != 0u) { wr16(r, 8u, s - 1u); return; }
-    wr16(r, 8u, 6u);
+    if (s != 0u) { wr_le_u16(r + 8u, s - 1u); return; }
+    wr_le_u16(r + 8u, 6u);
     {
-        unsigned f = (unsigned)(rd16(r, 4u) + 1u);
+        unsigned f = (unsigned)(rd_le_u16(r + 4u) + 1u);
 
-        wr16(r, 4u, (uint16_t)f);
-        if (f == endFrame) wr16(r, 4u, (uint16_t)(f - 4u));
+        wr_le_u16(r + 4u, (uint16_t)f);
+        if (f == endFrame) wr_le_u16(r + 4u, (uint16_t)(f - 4u));
     }
 }
 
 static void objStack8Land(uint8_t *r, unsigned bx, int ax, int bx2, unsigned idx)
 {
-    unsigned s = rd16(r, 8u);
+    unsigned s = rd_le_u16(r + 8u);
 
     s = (unsigned)(s - 1u);
-    wr16(r, 8u, (uint16_t)s);
+    wr_le_u16(r + 8u, (uint16_t)s);
     if ((int16_t)s >= 0) return;
-    wr16(r, 8u, 2u);
-    wr16(r, 4u, (uint16_t)(rd16(r, 4u) + 1u));
-    if (bx == rd16(r, 4u)) {
+    wr_le_u16(r + 8u, 2u);
+    wr_le_u16(r + 4u, (uint16_t)(rd_le_u16(r + 4u) + 1u));
+    if (bx == rd_le_u16(r + 4u)) {
         unsigned cls = r[7];
 
         r[7] = 0u;
@@ -2371,23 +2361,23 @@ static void objStack8Land(uint8_t *r, unsigned bx, int ax, int bx2, unsigned idx
         if (cls >= 1u && OBJ_LIVE0 + cls <= objLiveCount) {
             uint8_t *t = objArray + (OBJ_LIVE0 + cls) * OBJ_STRIDE;
 
-            wr16(t, 8u, 0xFFFFu);
-            wr16(t, 0xAu, 0u);
-            wr16(t, 0xCu, (uint16_t)ax);
-            wr16(t, 0xEu, (uint16_t)bx2);
+            wr_le_u16(t + 8u, 0xFFFFu);
+            wr_le_u16(t + 0xAu, 0u);
+            wr_le_u16(t + 0xCu, (uint16_t)ax);
+            wr_le_u16(t + 0xEu, (uint16_t)bx2);
         }
         objDriverCall(3);
     }
-    if (bx + 3u == rd16(r, 4u)) {
-        wr16(r, 4u, (uint16_t)(rd16(r, 4u) - 0xCu));
-        wr16(r, 0xAu, (uint16_t)(rd16(r, 0xAu) - 4u));
+    if (bx + 3u == rd_le_u16(r + 4u)) {
+        wr_le_u16(r + 4u, (uint16_t)(rd_le_u16(r + 4u) - 0xCu));
+        wr_le_u16(r + 0xAu, (uint16_t)(rd_le_u16(r + 0xAu) - 4u));
     }
     (void)idx;
 }
 
 static void objWalkStack(uint8_t *r, unsigned idx)
 {
-    switch (rd16(r, 0xAu)) {
+    switch (rd_le_u16(r + 0xAu)) {
     case 0u: objStack8Move(r, 0x11, 1, 0xE0u, 0xDCu); objStack8Slots(r); break;
     case 1u: objStack8Move(r, -1, -1, 0xD4u, 0xE8u); objStack8Slots(r); break;
     case 2u: objStack8Anim(r, 0x11Au); objStack8Slots(r); break;
@@ -2395,16 +2385,16 @@ static void objWalkStack(uint8_t *r, unsigned idx)
     case 4u: objStack8Land(r, 0xDDu, 0xA, -3, idx); break;
     case 5u: objStack8Land(r, 0xE9u, -0xA, -3, idx); break;
     default: {                                   /* state 6, the exit */
-        unsigned s = rd16(r, 8u);
+        unsigned s = rd_le_u16(r + 8u);
 
         s = (unsigned)(s - 1u);
-        wr16(r, 8u, (uint16_t)s);
+        wr_le_u16(r + 8u, (uint16_t)s);
         if ((int16_t)s >= 0) break;
-        wr16(r, 8u, 3u);
+        wr_le_u16(r + 8u, 3u);
         {
-            unsigned f = (unsigned)(rd16(r, 4u) + 1u);
+            unsigned f = (unsigned)(rd_le_u16(r + 4u) + 1u);
 
-            wr16(r, 4u, (uint16_t)f);
+            wr_le_u16(r + 4u, (uint16_t)f);
             if (f == 0x2Eu) {
                 objSlotClass[idx - 8u] = 0u;
                 r[6] = 0xFFu;
@@ -2497,13 +2487,13 @@ static int objProjSnap(uint8_t *r, int bx, int cx)
 /* 0xCEC3, the behaviour-4 handler. */
 static void objWalkProjectile(uint8_t *r, unsigned idx)
 {
-    int x = (int16_t)rd16(r, 0u), y = (int16_t)rd16(r, 2u);
-    unsigned frame = rd16(r, 4u);
+    int x = (int16_t)rd_le_u16(r + 0u), y = (int16_t)rd_le_u16(r + 2u);
+    unsigned frame = rd_le_u16(r + 4u);
     int vx, vy;
 
     if (r[6] & 0x40u) return;
-    vx = (int16_t)rd16(r, 8u);
-    vy = (int16_t)rd16(r, 0xAu);
+    vx = (int16_t)rd_le_u16(r + 8u);
+    vy = (int16_t)rd_le_u16(r + 0xAu);
     if (vy == 0) {                                /* phase 1: horizontal    */
         const uint8_t *map = level_map();
         int sx = x + 8, sy = y + 0x10;
@@ -2524,15 +2514,15 @@ static void objWalkProjectile(uint8_t *r, unsigned idx)
             if (vx >= 0) step = -step;
             vx += step;
             if (vx != 0) {
-                int fuse = (int16_t)rd16(r, 0xCu) - 1;
+                int fuse = (int16_t)rd_le_u16(r + 0xCu) - 1;
 
-                wr16(r, 0xCu, (uint16_t)fuse);
+                wr_le_u16(r + 0xCu, (uint16_t)fuse);
                 if (fuse < 0) {
                     int t = (vx < 0) ? -1 : 1;
                     int a = (vx < 0) ? -vx : vx;
 
                     a = -(a >> 2) + 8;
-                    wr16(r, 0xCu, (uint16_t)a);
+                    wr_le_u16(r + 0xCu, (uint16_t)a);
                     {
                         unsigned nf = (unsigned)((int)frame + t);
 
@@ -2550,14 +2540,14 @@ static void objWalkProjectile(uint8_t *r, unsigned idx)
                 y = ny;
             } else {
                 vy = 0x10;
-                wr16(r, 0x10u, (uint16_t)y);
+                wr_le_u16(r + 0x10u, (uint16_t)y);
             }
         }
-        wr16(r, 0u, (uint16_t)x);
-        wr16(r, 2u, (uint16_t)y);
-        wr16(r, 8u, (uint16_t)vx);
-        wr16(r, 0xAu, (uint16_t)vy);
-        wr16(r, 4u, (uint16_t)frame);
+        wr_le_u16(r + 0u, (uint16_t)x);
+        wr_le_u16(r + 2u, (uint16_t)y);
+        wr_le_u16(r + 8u, (uint16_t)vx);
+        wr_le_u16(r + 0xAu, (uint16_t)vy);
+        wr_le_u16(r + 4u, (uint16_t)frame);
         return;
     }
     /* phase 2: the fall */
@@ -2569,31 +2559,31 @@ static void objWalkProjectile(uint8_t *r, unsigned idx)
             int ny = objProjSnap(r, x, y);
 
             if (ny >= 0 && ny <= y) {
-                int prev = (int16_t)rd16(r, 0x10u);
+                int prev = (int16_t)rd_le_u16(r + 0x10u);
                 int d = prev - ny;
 
                 if (!(prev >= 0 && d >= 0 && d > 0x10)) {
                     int m = -d;
-                    int tgt = (int16_t)rd16(r, 0xEu);
+                    int tgt = (int16_t)rd_le_u16(r + 0xEu);
                     int sfx;
 
                     if (m < 0 || m < 0x40 || tgt < 0) {
-                        wr16(r, 0xAu, 0xFFFFu);
+                        wr_le_u16(r + 0xAu, 0xFFFFu);
                         sfx = 5;
                     } else {
                         uint8_t *t = objArray + (unsigned)tgt * OBJ_STRIDE;
 
-                        wr16(r, 0xEu, 0xFFFFu);
+                        wr_le_u16(r + 0xEu, 0xFFFFu);
                         objSlotClass[idx - 8u] &= 0x7Fu;
                         r[6] &= 0x7Fu;
-                        wr16(t, 0u, (uint16_t)(x > 8 ? x - 8 : 0));
-                        wr16(t, 2u, (uint16_t)(ny > 8 ? ny - 8 : 0));
-                        wr16(t, 4u, 0x0028u);
-                        wr16(t, 6u, 0u);
-                        wr16(t, 8u, 0x0016u);
-                        wr16(t, 0xAu, 5u);
-                        wr16(r, 0xAu, 0u);
-                        wr16(r, 0x10u, (uint16_t)y);
+                        wr_le_u16(t + 0u, (uint16_t)(x > 8 ? x - 8 : 0));
+                        wr_le_u16(t + 2u, (uint16_t)(ny > 8 ? ny - 8 : 0));
+                        wr_le_u16(t + 4u, 0x0028u);
+                        wr_le_u16(t + 6u, 0u);
+                        wr_le_u16(t + 8u, 0x0016u);
+                        wr_le_u16(t + 0xAu, 5u);
+                        wr_le_u16(r + 0xAu, 0u);
+                        wr_le_u16(r + 0x10u, (uint16_t)y);
                         sfx = 4;
                     }
                     y = ny;
@@ -2606,11 +2596,11 @@ static void objWalkProjectile(uint8_t *r, unsigned idx)
             vy += 1;
         }
     }
-    wr16(r, 0u, (uint16_t)x);
-    wr16(r, 2u, (uint16_t)y);
-    wr16(r, 8u, (uint16_t)vx);
-    wr16(r, 0xAu, (uint16_t)vy);
-    wr16(r, 4u, (uint16_t)frame);
+    wr_le_u16(r + 0u, (uint16_t)x);
+    wr_le_u16(r + 2u, (uint16_t)y);
+    wr_le_u16(r + 8u, (uint16_t)vx);
+    wr_le_u16(r + 0xAu, (uint16_t)vy);
+    wr_le_u16(r + 4u, (uint16_t)frame);
 }
 
 /* 0x6531: cmd 9's mode flag (zero in the image; the port keeps it too). */
@@ -2626,41 +2616,41 @@ static void objWalkMarker(uint8_t *r)
     unsigned i;
 
     if ((objFrame & 3u) == 0u) {                 /* 1000:C541 */
-        unsigned f = rd16(r, 4u);
+        unsigned f = rd_le_u16(r + 4u);
 
         if (objMarkerMode) {
-            if (f == 0x26u) { wr16(r, 4u, f + 1u); return; }
+            if (f == 0x26u) { wr_le_u16(r + 4u, f + 1u); return; }
             r[6] |= 0x80u;
-            if (map && rd16(r, 8u) < 640u) ((uint8_t *)map)[rd16(r, 8u)] = 0u;
+            if (map && rd_le_u16(r + 8u) < 640u) ((uint8_t *)map)[rd_le_u16(r + 8u)] = 0u;
             return;
         }
         if (r[6] & 0x80u) { r[6] = 0u; return; }
         if (f == 0x26u) return;
-        wr16(r, 4u, f - 1u);
-        if (map && rd16(r, 8u) < 640u) ((uint8_t *)map)[rd16(r, 8u)] = 0xBBu;
+        wr_le_u16(r + 4u, f - 1u);
+        if (map && rd_le_u16(r + 8u) < 640u) ((uint8_t *)map)[rd_le_u16(r + 8u)] = 0xBBu;
         return;
     }
     if (r[6] & 0x80u) return;
     {
-        unsigned mx = (unsigned)(rd16(r, 0u) + 8u) & ~0xFu;
-        unsigned my = (unsigned)(rd16(r, 2u) + 8u) & ~0xFu;
+        unsigned mx = (unsigned)(rd_le_u16(r + 0u) + 8u) & ~0xFu;
+        unsigned my = (unsigned)(rd_le_u16(r + 2u) + 8u) & ~0xFu;
 
         for (i = 0; i < OBJ_STATIC; i++) {
             uint8_t *slot = objArray + i * OBJ_STRIDE;
             unsigned sx, sy, type;
 
-            sx = (unsigned)(rd16(slot, 0u) + 8u) & ~0xFu;
-            if (rd16(slot, 8u) == 0x0Fu) sx = (unsigned)(rd16(slot, 0u) + 0x10u) & ~0xFu;
-            sy = (unsigned)(rd16(slot, 2u) + 0x0Cu) & ~0xFu;
+            sx = (unsigned)(rd_le_u16(slot + 0u) + 8u) & ~0xFu;
+            if (rd_le_u16(slot + 8u) == 0x0Fu) sx = (unsigned)(rd_le_u16(slot + 0u) + 0x10u) & ~0xFu;
+            sy = (unsigned)(rd_le_u16(slot + 2u) + 0x0Cu) & ~0xFu;
             if (sx != mx || sy != my) continue;
             if (slot[6] & 0x80u) continue;
-            type = rd16(slot, 8u);
+            type = rd_le_u16(slot + 8u);
             if (type < 16u && objTypeOverlaps[type]) continue;
             object_stackScanDissolve(i);          /* 1000:F453, DX = 5 */
-            wr16(r, 0u, (uint16_t)(rd16(r, 0u) - 8u));
-            wr16(r, 4u, 0x0028u);
-            wr16(r, 8u, 0x0016u);
-            wr16(r, 0xAu, 5u);
+            wr_le_u16(r + 0u, (uint16_t)(rd_le_u16(r + 0u) - 8u));
+            wr_le_u16(r + 4u, 0x0028u);
+            wr_le_u16(r + 8u, 0x0016u);
+            wr_le_u16(r + 0xAu, 5u);
             objDriverCall(4);                     /* 1000:83B7, AX = 4 */
             {
                 unsigned gx = (unsigned)(objSettled[i][0] + 8u) & ~0xFu;
@@ -2787,10 +2777,10 @@ void object_levelStartRecord(void)
     uint8_t *r = object_slot(8u);
 
     if (!r) return;
-    wr16(r, 4u, 0x0017u);
-    wr16(r, 6u, 0x0000u);
-    wr16(r, 8u, 0x001Au);
-    wr16(r, 0xAu, 0x1006u);
+    wr_le_u16(r + 4u, 0x0017u);
+    wr_le_u16(r + 6u, 0x0000u);
+    wr_le_u16(r + 8u, 0x001Au);
+    wr_le_u16(r + 0xAu, 0x1006u);
     /* The next instruction of level_fade_in, `MOV byte ptr [0xc], 0xff` at
      * 1000:336C, is the GLOBAL update_world gate (level.c's worldUpdates) -
      * not this record's +0xC, which stays 0 as the asm leaves it. */
@@ -2805,11 +2795,11 @@ static void objMarkerArm(void)
     uint8_t *r = objArray + objEntity * OBJ_STRIDE;
 
     if (!m) return;
-    wr16(m, 0u, rd16(r, 0u));
-    wr16(m, 2u, (uint16_t)(rd16(r, 2u) - 0x1Au));
-    wr16(m, 6u, 0u);
-    wr16(m, 8u, 0x001Au);
-    wr16(m, 0xAu, 0x0605u);
+    wr_le_u16(m + 0u, rd_le_u16(r + 0u));
+    wr_le_u16(m + 2u, (uint16_t)(rd_le_u16(r + 2u) - 0x1Au));
+    wr_le_u16(m + 6u, 0u);
+    wr_le_u16(m + 8u, 0x001Au);
+    wr_le_u16(m + 0xAu, 0x0605u);
     objCmdTimer = 0x03E8u;
 }
 
@@ -2826,27 +2816,27 @@ void object_markerTick(void)
 
     if (!m) return;
     if (m[6] & 0x80u) return;                        /* 1000:D655 */
-    wr16(m, 0u, rd16(r, 0u));                        /* 1000:D65B */
-    type = rd16(m, 8u);
-    wr16(m, 2u, (uint16_t)(rd16(r, 2u) - type));     /* 1000:D65F */
-    frame = rd16(r, 4u);
+    wr_le_u16(m + 0u, rd_le_u16(r + 0u));                        /* 1000:D65B */
+    type = rd_le_u16(m + 8u);
+    wr_le_u16(m + 2u, (uint16_t)(rd_le_u16(r + 2u) - type));     /* 1000:D65F */
+    frame = rd_le_u16(r + 4u);
     mode = frame < OBJ_FRAME_SLOTS ? objSprites[frame].mode : 0u;
-    wr16(m, 0u, (uint16_t)(rd16(m, 0u) + ((int)mode - 1) * 8));  /* 1000:D66B */
+    wr_le_u16(m + 0u, (uint16_t)(rd_le_u16(m + 0u) + ((int)mode - 1) * 8));  /* 1000:D66B */
     m[0xAu] = (uint8_t)(m[0xAu] - 1u);               /* 1000:D68F */
     if (!(m[0xAu] & 0x80u)) {                        /* 1000:D693 JNS */
-        wr16(m, 8u, type);
+        wr_le_u16(m + 8u, type);
         return;
     }
     m[0xAu] = 2u;                                    /* 1000:D695 */
     ax = type - 2u;                                  /* 1000:D699 */
     if (ax >= 0x12u) {                               /* 1000:D69F JNC */
-        wr16(m, 8u, ax);
+        wr_le_u16(m + 8u, ax);
         return;
     }
     ax = 0x001Au;                                    /* 1000:D6A1 */
     m[0xBu] = (uint8_t)(m[0xBu] - 1u);               /* 1000:D6A4 */
     if (m[0xBu] & 0x80u) m[6] = 0x80u;               /* 1000:D6A8 */
-    wr16(m, 8u, ax);                                 /* 1000:D6AE */
+    wr_le_u16(m + 8u, ax);                                 /* 1000:D6AE */
 }
 
 void object_setActionEntity(unsigned i) { objEntity = i < OBJ_STATIC ? i : objEntity; }
@@ -2895,15 +2885,15 @@ unsigned object_actionPending(void) { return objPending; }
 /* 0x3A26 (op 1): register the object in the 0x6F22 table and turn it into type 8. */
 static void objOpRegister(uint8_t *actor)
 {
-    if (rd16(actor, 8u) > 2u) return;
+    if (rd_le_u16(actor + 8u) > 2u) return;
     for (unsigned i = 0; i < 8u; i++) {
         uint16_t *s = objRegister[i];
         if (!(s[0] & 0x8000u)) continue;         /* testw $0x8000 -> free  */
-        s[0] = rd16(actor, 0u);
-        s[1] = rd16(actor, 2u);
+        s[0] = rd_le_u16(actor + 0u);
+        s[1] = rd_le_u16(actor + 2u);
         ((uint8_t *)s)[5] = (uint8_t)objEntity;
-        wr16(actor, 4u, 0x0020u);
-        wr16(actor, 8u, 0x0008u);
+        wr_le_u16(actor + 4u, 0x0020u);
+        wr_le_u16(actor + 8u, 0x0008u);
         return;
     }
 }
@@ -2911,20 +2901,20 @@ static void objOpRegister(uint8_t *actor)
 /* 0x39B5 (op 5): the "pick up / change state" frame step. */
 static void objOpSetFrame(uint8_t *actor)
 {
-    unsigned t = rd16(actor, 8u);
+    unsigned t = rd_le_u16(actor + 8u);
     if (t >= 2u) return;
-    wr16(actor, 8u, (uint16_t)(t + 0x1Fu));
-    wr16(actor, 4u, (uint16_t)(0x010Eu + 4u * t));
+    wr_le_u16(actor + 8u, (uint16_t)(t + 0x1Fu));
+    wr_le_u16(actor + 4u, (uint16_t)(0x010Eu + 4u * t));
 }
 
 /* 0x9D38 (direction 1): the found live record is taken by the actor. */
 static int objTakeFound(uint8_t *actor, uint8_t *found, uint8_t *slot, unsigned ordinal)
 {
-    if (rd16(found, 8u) != 0xFFFFu) return 0;
-    if (rd16(found, 0xAu) != 0u) return 0;
+    if (rd_le_u16(found + 8u) != 0xFFFFu) return 0;
+    if (rd_le_u16(found + 0xAu) != 0u) return 0;
     actor[7] = (uint8_t)ordinal;                 /* [SI+3] = DL */
     *slot |= 0x80u;                              /* ORB $0x80, [BP] */
-    wr16(found, 8u, (uint16_t)objEntity);        /* [DI+4] = [0x3E22] */
+    wr_le_u16(found + 8u, (uint16_t)objEntity);        /* [DI+4] = [0x3E22] */
     return 1;
 }
 
@@ -2932,15 +2922,15 @@ static int objTakeFound(uint8_t *actor, uint8_t *found, uint8_t *slot, unsigned 
 static int objGiveFound(uint8_t *actor, uint8_t *found, uint8_t *slot, unsigned ordinal)
 {
     if (found[6] & 0x40u) return 0;
-    if (!(rd16(found, 0xEu) & 0x8000u)) return 0;
-    wr16(found, 0xEu, (uint16_t)objEntity);
+    if (!(rd_le_u16(found + 0xEu) & 0x8000u)) return 0;
+    wr_le_u16(found + 0xEu, (uint16_t)objEntity);
     found[7] = 0u;
     *slot |= 0x80u;
-    wr16(actor, 4u, 0u);                         /* the actor's own record:  */
+    wr_le_u16(actor + 4u, 0u);                         /* the actor's own record:  */
     actor[7] = (uint8_t)ordinal;
-    wr16(actor, 8u, 0x000Fu);
-    wr16(actor, 0xAu, 0u);
-    wr16(actor, 0xEu, (uint16_t)((uintptr_t)found - (uintptr_t)objArray + 4u));
+    wr_le_u16(actor + 8u, 0x000Fu);
+    wr_le_u16(actor + 0xAu, 0u);
+    wr_le_u16(actor + 0xEu, (uint16_t)((uintptr_t)found - (uintptr_t)objArray + 4u));
     return 1;
 }
 
@@ -2952,17 +2942,17 @@ static void objClassDrop(uint8_t *actor, uint8_t *found, uint8_t *slot)
 
     actor[7] = 0u;                               /* 1000:9D94 */
     *slot &= 0x7Fu;
-    wr16(found, 0xEu, 0xFFFFu);
+    wr_le_u16(found + 0xEu, 0xFFFFu);
     found[6] &= 0x7Fu;
-    if (rd16(found, 8u) & 0x8000u) {             /* 1000:9DAA */
+    if (rd_le_u16(found + 8u) & 0x8000u) {             /* 1000:9DAA */
         ax = 1u;
         bx = 8u;
     }
-    wr16(actor, 0u, rd16(found, 0u));            /* 1000:9DB7 */
-    wr16(actor, 2u, (uint16_t)(rd16(found, 2u) - 8u));
-    wr16(actor, 4u, (uint16_t)bx);
-    wr16(actor, 6u, 0u);
-    wr16(actor, 8u, (uint16_t)ax);
+    wr_le_u16(actor + 0u, rd_le_u16(found + 0u));            /* 1000:9DB7 */
+    wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(found + 2u) - 8u));
+    wr_le_u16(actor + 4u, (uint16_t)bx);
+    wr_le_u16(actor + 6u, 0u);
+    wr_le_u16(actor + 8u, (uint16_t)ax);
 }
 
 /* 1000:9DD7 (behaviours 5..7): the carried record is thrown / placed at the
@@ -2971,24 +2961,24 @@ static void objClassDrop(uint8_t *actor, uint8_t *found, uint8_t *slot)
  * reader of those words writes them itself (1000:650B, 1000:A783). */
 static void objClassThrow(uint8_t *actor, uint8_t *found, uint8_t *slot)
 {
-    unsigned type = rd16(actor, 8u);
+    unsigned type = rd_le_u16(actor + 8u);
     unsigned beh = (unsigned)(*slot & 0x3Fu);
     int landed;
     unsigned cell;
 
     actor[7] = 0u;                               /* 1000:9DF1 */
     *slot &= 0x7Fu;
-    wr16(found, 0u, (uint16_t)(rd16(actor, 0u) +
+    wr_le_u16(found + 0u, (uint16_t)(rd_le_u16(actor + 0u) +
                                (type < 8u ? objThrowDx[type] : 0)));
-    wr16(found, 2u, (uint16_t)(rd16(actor, 2u) + 8u));
-    wr16(found, 4u, beh < 8u ? objDropFrame[beh] : 0u);
-    wr16(found, 6u, 0u);
-    wr16(found, 8u, 0xFFFFu);
-    wr16(found, 0xAu, 0u);
-    wr16(found, 0xCu, 0u);
-    wr16(found, 0xEu, 0u);
+    wr_le_u16(found + 2u, (uint16_t)(rd_le_u16(actor + 2u) + 8u));
+    wr_le_u16(found + 4u, beh < 8u ? objDropFrame[beh] : 0u);
+    wr_le_u16(found + 6u, 0u);
+    wr_le_u16(found + 8u, 0xFFFFu);
+    wr_le_u16(found + 0xAu, 0u);
+    wr_le_u16(found + 0xCu, 0u);
+    wr_le_u16(found + 0xEu, 0u);
     landed = objStepProbeAt(found, 8, 0x10, &cell);  /* 1000:9E43 -> E389 */
-    if (landed >= 0) wr16(found, 2u, (uint16_t)(landed - 0xF));
+    if (landed >= 0) wr_le_u16(found + 2u, (uint16_t)(landed - 0xF));
 }
 
 /* 1000:9D5D (the class path): the acting record's `+7` is set, so it carries
@@ -3023,7 +3013,7 @@ static void objOpClassPath(uint8_t *actor)
 /* 0x9C1B (ops 2/6): the collision pass over the live records. */
 static void objOpCollide(uint8_t *actor)
 {
-    unsigned type = rd16(actor, 8u);
+    unsigned type = rd_le_u16(actor + 8u);
     int ax, bx;
     unsigned live;
 
@@ -3032,8 +3022,8 @@ static void objOpCollide(uint8_t *actor)
         objOpClassPath(actor);
         return;
     }
-    ax = (int16_t)rd16(actor, 0u);
-    bx = (int16_t)rd16(actor, 2u);
+    ax = (int16_t)rd_le_u16(actor + 0u);
+    bx = (int16_t)rd_le_u16(actor + 2u);
     live = objLiveCount > OBJ_LIVE0 ? objLiveCount - OBJ_LIVE0 : 0u;
 
     for (unsigned k = 0; k < live; k++) {
@@ -3050,10 +3040,10 @@ static void objOpCollide(uint8_t *actor)
         beh = (unsigned)(*slot & 0x3Fu);
         dir = objBehDir[beh];
         if (dir & 0x80u) continue;
-        dx = (int16_t)rd16(found, 0u) - ax;
+        dx = (int16_t)rd_le_u16(found + 0u) - ax;
         if (dx < 0) dx = -dx;                    /* SUB/NEG, then < 0x10 */
         if (dx >= 0x10) continue;
-        dy = (int16_t)rd16(found, 2u) - bx;      /* 0 <= dy < 0x18 */
+        dy = (int16_t)rd_le_u16(found + 2u) - bx;      /* 0 <= dy < 0x18 */
         if (dy < 0 || dy >= 0x18) continue;
         if (dir == 0u) { if (!objGiveFound(actor, found, slot, ordinal)) continue; }
         else if (!objTakeFound(actor, found, slot, ordinal)) continue;
@@ -3076,7 +3066,7 @@ static void objResolveSprite(unsigned index)
     uint8_t *r = objArray + index * OBJ_STRIDE;
     unsigned prog = 0u;
 
-    if (rd16(cur, 8u) == 2u) wr16(cur, 4u, 0x0010u);   /* the previous record */
+    if (rd_le_u16(cur + 8u) == 2u) wr_le_u16(cur + 4u, 0x0010u);   /* the previous record */
     objEntity = index;
     if (r[7]) prog = objBehProgram[objSlotClass[r[7]] & 0x3Fu];
     if (index == (unsigned)objPlayer) prog = 4u;
@@ -3095,7 +3085,7 @@ int object_selectByIndex(unsigned index)
 
     if (index >= OBJ_STATIC) return 0;
     r = objArray + index * OBJ_STRIDE;
-    if ((r[6] & 0x80u) || rd16(r, 8u) == 0x1Du) return 0;   /* 1000:38CE */
+    if ((r[6] & 0x80u) || rd_le_u16(r + 8u) == 0x1Du) return 0;   /* 1000:38CE */
     objResolveSprite(index);                                /* 1000:38DA */
     return 1;
 }
@@ -3125,7 +3115,7 @@ int object_cycleEntity(int step)
         if (idx < 0) idx = (int)OBJ_STATIC - 1;
         if (idx >= (int)OBJ_STATIC) idx = 0;
         r = objArray + idx * OBJ_STRIDE;
-        if (!(r[6] & 0x80u) && rd16(r, 8u) != 0x1Du) {
+        if (!(r[6] & 0x80u) && rd_le_u16(r + 8u) != 0x1Du) {
             objResolveSprite((unsigned)idx);
             return idx;
         }
@@ -3152,8 +3142,8 @@ static int objStateIs(uint8_t *actor, unsigned state)
  * -0x18 <= dy < 0.  Returns the slot index or -1. */
 static int objRecordWalk(uint8_t *actor, unsigned step)
 {
-    int cx = (int16_t)rd16(actor, 2u) + 0x0C;
-    int bx = (int16_t)rd16(actor, 0u) + (int)step;
+    int cx = (int16_t)rd_le_u16(actor + 2u) + 0x0C;
+    int bx = (int16_t)rd_le_u16(actor + 0u) + (int)step;
     unsigned live = objLiveCount > OBJ_LIVE0 ? objLiveCount - OBJ_LIVE0 : 0u;
 
     for (unsigned k = 0; k < live; k++) {
@@ -3162,10 +3152,10 @@ static int objRecordWalk(uint8_t *actor, unsigned step)
 
         if ((objSlotClass[1u + k] & 0x3Fu) != 3u) continue;
         if (r[6] & 0x80u) continue;
-        if (rd16(r, 8u) == 2u) continue;
-        dx = (int16_t)rd16(r, 0u) - bx;
+        if (rd_le_u16(r + 8u) == 2u) continue;
+        dx = (int16_t)rd_le_u16(r + 0u) - bx;
         if (!(dx < 0 && dx + 0x10 >= 0)) continue;
-        dy = (int16_t)rd16(r, 2u) - cx;
+        dy = (int16_t)rd_le_u16(r + 2u) - cx;
         if (!(dy < 0 && dy + 0x18 >= 0)) continue;
         return (int)(OBJ_LIVE0 + 1u + k);       /* BP = the record           */
     }
@@ -3178,11 +3168,11 @@ static void objOpSetState(uint8_t *actor, unsigned type)
 {
     if (!objStateIs(actor, 1u)) return;
     if (type == 0u) {
-        wr16(actor, 4u, 0x00BBu);                     /* 1000:EFA9 */
-        wr16(actor, 8u, 0x0017u);
+        wr_le_u16(actor + 4u, 0x00BBu);                     /* 1000:EFA9 */
+        wr_le_u16(actor + 8u, 0x0017u);
     } else {
-        wr16(actor, 4u, 0x00BEu);                     /* 1000:EFC1 */
-        wr16(actor, 8u, 0x0018u);
+        wr_le_u16(actor + 4u, 0x00BEu);                     /* 1000:EFC1 */
+        wr_le_u16(actor + 8u, 0x0018u);
     }
     objLat = 0;                                       /* 1000:EFB3 */
 }
@@ -3198,8 +3188,8 @@ int object_stackScanDissolve(unsigned recIndex);
 
 static void objFindOverlap(uint8_t *actor)
 {
-    int ax = (int16_t)rd16(actor, 0u);
-    int bx = (int16_t)rd16(actor, 2u);
+    int ax = (int16_t)rd_le_u16(actor + 0u);
+    int bx = (int16_t)rd_le_u16(actor + 2u);
 
     (void)object_stackScanDissolve((unsigned)(actor - objArray) / OBJ_STRIDE);
 
@@ -3211,22 +3201,22 @@ static void objFindOverlap(uint8_t *actor)
 
         if (r == actor) continue;
         if (r[6] & 0x80u) continue;
-        dx = (int16_t)rd16(r, 0u) - ax;
+        dx = (int16_t)rd_le_u16(r + 0u) - ax;
         if (dx < 0) dx = -dx;
         if (dx > 0x10) continue;
-        dy = (int16_t)rd16(r, 2u) - bx;
+        dy = (int16_t)rd_le_u16(r + 2u) - bx;
         if (dy < 0) dy = -dy;
         if (dy > 0x10) continue;
         found = (i == (unsigned)objPlayer) ? actor : r;
-        type = rd16(found, 8u);
+        type = rd_le_u16(found + 8u);
         if (type < 16u && objTypeOverlaps[type]) continue;
         /* 1000:F453 scan_groups_for_record (DX = 5) -> 1000:FA13: the group
          * whose member list holds this record is dissolved */
-        wr16(found, 4u, 0x0103u);
-        wr16(found, 8u, 0x001Eu);
-        wr16(found, 0xAu, 0x0006u);
-        wr16(found, 0xCu, 0x0000u);
-        wr16(found, 0xEu, 0x000Au);
+        wr_le_u16(found + 4u, 0x0103u);
+        wr_le_u16(found + 8u, 0x001Eu);
+        wr_le_u16(found + 0xAu, 0x0006u);
+        wr_le_u16(found + 0xCu, 0x0000u);
+        wr_le_u16(found + 0xEu, 0x000Au);
     }
 }
 
@@ -3242,10 +3232,10 @@ static void objOpMarkWalk(uint8_t *actor, unsigned step)
     if (slot < 0) return;
     {
         uint8_t *r = objArray + (unsigned)slot * OBJ_STRIDE;
-        if (rd16(r, 8u) == 1u) return;
-        wr16(r, 8u, 0x0001u);
-        wr16(r, 0xAu, 0x0003u);
-        wr16(r, 0xCu, 0x0000u);
+        if (rd_le_u16(r + 8u) == 1u) return;
+        wr_le_u16(r + 8u, 0x0001u);
+        wr_le_u16(r + 0xAu, 0x0003u);
+        wr_le_u16(r + 0xCu, 0x0000u);
     }
     objFindOverlap(actor);
 }
@@ -3339,7 +3329,7 @@ ObjCommand object_commandSelect(uint8_t *rec, uint8_t input)
     uint8_t v = objNormaliseInput(input);
     uint8_t cmd = objCmdKey[v & 0x0Fu];
     const uint8_t *row;
-    unsigned type = rd16(rec, 8u);           /* [SI+8] */
+    unsigned type = rd_le_u16(rec + 8u);           /* [SI+8] */
     unsigned idx;
 
     out.handler = 0u;
@@ -3349,7 +3339,7 @@ ObjCommand object_commandSelect(uint8_t *rec, uint8_t input)
     if (type >= 35u) return out;             /* no row: the original reads 0x6DEA */
     row = objCmdRows[type] + ((v & 0x80u) ? 0x10u : 0u);
     objRowOfs = (unsigned)(row - &objCmdRows[0][0]);   /* DI at 1000:E467 */
-    out.tail = rd16(row, 0xCu);
+    out.tail = rd_le_u16(row + 0xCu);
     out.hook = row[0xAu];
     if (cmd & 0x80u) return out;             /* bit 7: this input has no command */
     {
@@ -3365,7 +3355,7 @@ ObjCommand object_commandSelect(uint8_t *rec, uint8_t input)
             n = objCmdTimer;
             if (objCmdTimer && row[0]) {
                 n--;
-                if (!n) wr16(rec, 8u, 0x0002u);
+                if (!n) wr_le_u16(rec + 8u, 0x0002u);
             }
         }
         objCmdTimer = n;
@@ -3425,17 +3415,17 @@ static void objFrameStep(uint8_t *actor, unsigned lo, unsigned hi)
 {
     unsigned f;
 
-    wr16(actor, 2u, (uint16_t)(rd16(actor, 2u) - 1u));
-    wr16(actor, 0xAu, (uint16_t)(rd16(actor, 0xAu) - 1u));
-    if ((int16_t)rd16(actor, 0xAu) >= 0) return;
-    wr16(actor, 0xAu, 0x0004u);
-    f = rd16(actor, 4u);
+    wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(actor + 2u) - 1u));
+    wr_le_u16(actor + 0xAu, (uint16_t)(rd_le_u16(actor + 0xAu) - 1u));
+    if ((int16_t)rd_le_u16(actor + 0xAu) >= 0) return;
+    wr_le_u16(actor + 0xAu, 0x0004u);
+    f = rd_le_u16(actor + 4u);
     if (actor[0xCu] != 0u) {
         if (--f == lo) actor[0xCu] = 0u;
     } else {
         if (++f == hi) actor[0xCu] = 0xFFu;
     }
-    wr16(actor, 4u, (uint16_t)f);
+    wr_le_u16(actor + 4u, (uint16_t)f);
 }
 
 /* 1000:E697 (a fall-through inside 1000:E609, the walk-up state): push the
@@ -3445,8 +3435,8 @@ static void objFrameStep(uint8_t *actor, unsigned lo, unsigned hi)
  * Returns 1 when a group took it (frame 0x25, type 7, `+0xE` = its slot). */
 int object_stackPush(uint8_t *actor)
 {
-    uint16_t ax = rd16(actor, 0u);
-    uint16_t bx = (uint16_t)(rd16(actor, 2u) + 0x18u);
+    uint16_t ax = rd_le_u16(actor + 0u);
+    uint16_t bx = (uint16_t)(rd_le_u16(actor + 2u) + 0x18u);
 
     for (unsigned i = 0; i < 8u; i++) {              /* `CX = 7` + `JNS`: 8 */
         uint8_t *e = (uint8_t *)objRegister[i];
@@ -3454,12 +3444,12 @@ int object_stackPush(uint8_t *actor)
         uint8_t *di;
         int de;
 
-        ex = rd16(e, 0u);
+        ex = rd_le_u16(e + 0u);
         if (ex & 0x8000u) continue;               /* free */
         de = (int)(int16_t)ex - (int)(int16_t)ax;
         if (de < 0) de = -de;
         if (de >= 8) continue;                    /* |entry.x - actor.x| < 8 */
-        ey = rd16(e, 2u);
+        ey = rd_le_u16(e + 2u);
         if (bx >= ey) return 0;                   /* `JNC 0xE6FA`: not under it */
         dx = ey;
         di = e + 5;                               /* the owner byte */
@@ -3474,13 +3464,13 @@ int object_stackPush(uint8_t *actor)
         *di = (uint8_t)objEntity;                 /* `[0x3E22]` into the list */
         /* the original stores the slot's pointer; the port stores its offset in
          * the register, the same relation the 0x3E24 paths use for records */
-        wr16(actor, 0xEu, (uint16_t)((uintptr_t)di - (uintptr_t)objRegister));
-        wr16(actor, 2u, (uint16_t)(rd16(actor, 2u) + 1u));
-        wr16(actor, 0u, ex);
-        wr16(actor, 4u, 0x0025u);
-        wr16(actor, 8u, 0x0007u);
-        wr16(actor, 0xAu, 0x0000u);
-        wr16(actor, 0xCu, 0x0000u);
+        wr_le_u16(actor + 0xEu, (uint16_t)((uintptr_t)di - (uintptr_t)objRegister));
+        wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(actor + 2u) + 1u));
+        wr_le_u16(actor + 0u, ex);
+        wr_le_u16(actor + 4u, 0x0025u);
+        wr_le_u16(actor + 8u, 0x0007u);
+        wr_le_u16(actor + 0xAu, 0x0000u);
+        wr_le_u16(actor + 0xCu, 0x0000u);
         objStackMark(actor, di);                  /* 1000:F38F */
         return 1;
     }
@@ -3504,7 +3494,7 @@ int object_stackPop(uint16_t ax, uint8_t **below, uint8_t **entry)
 
         if (entry) *entry = e;                    /* 1000:FDF7: DX = the entry */
 
-        if (rd16(di, 0u) & 0x8000u) continue;     /* free */
+        if (rd_le_u16(di + 0u) & 0x8000u) continue;     /* free */
         di += 5;
         while (!(di[0] & 0x80u) && di[0] != (uint8_t)objEntity) di++;
         if (di[0] & 0x80u) continue;              /* not in this entry */
@@ -3513,7 +3503,7 @@ int object_stackPop(uint16_t ax, uint8_t **below, uint8_t **entry)
         bl = (int8_t)di[-2];                      /* the list byte below */
         if (bl >= 0) {
             uint8_t *nb = object_slot((unsigned)bl);
-            int dx = nb ? (int)(int16_t)rd16(nb, 0u) - (int)(int16_t)ax : 8;
+            int dx = nb ? (int)(int16_t)rd_le_u16(nb + 0u) - (int)(int16_t)ax : 8;
 
             if (dx < 0) dx = -dx;
             if (nb && dx < 8) return 0;           /* already aligned: no removal */
@@ -3521,8 +3511,8 @@ int object_stackPop(uint16_t ax, uint8_t **below, uint8_t **entry)
         di[-1] = 0xFFu;                           /* terminate at the match */
         bl = (int8_t)di[-2];
         if (bl < 0) {                             /* nothing below: free the entry */
-            wr16(di - 6, 0u, 0xFFFFu);
-            wr16(di - 6, 2u, 0xFFFFu);
+            wr_le_u16(di - 6 + 0u, 0xFFFFu);
+            wr_le_u16(di - 6 + 2u, 0xFFFFu);
             return 1;
         }
         *below = object_slot((unsigned)bl);
@@ -3539,13 +3529,13 @@ int object_stackPop(uint16_t ax, uint8_t **below, uint8_t **entry)
  * the original would write through a stale `[0x423C]`, the port refuses). */
 int object_stackGrab(uint8_t *actor)
 {
-    uint16_t ax = rd16(actor, 0u);
-    uint16_t bx = rd16(actor, 2u);
+    uint16_t ax = rd_le_u16(actor + 0u);
+    uint16_t bx = rd_le_u16(actor + 2u);
     uint8_t *lastFree = NULL;
 
     for (unsigned i = 0; i < 8u; i++) {
         uint8_t *e = (uint8_t *)objRegister[i];
-        uint16_t ex = rd16(e, 0u), ey;
+        uint16_t ex = rd_le_u16(e + 0u), ey;
         uint8_t *di;
         int d;
 
@@ -3553,28 +3543,28 @@ int object_stackGrab(uint8_t *actor)
         d = (int)(int16_t)ex - (int)(int16_t)ax;
         if (d < 0) d = -d;
         if (d >= 8) continue;                              /* |entry.x - actor.x| < 8 */
-        ey = rd16(e, 2u);
+        ey = rd_le_u16(e + 2u);
         d = (int)(int16_t)ey - (int)(int16_t)bx;
         if (d < 0) d = -d;
         if (d >= 4) continue;                              /* |entry.y - actor.y| < 4 */
         di = e + 5;
         while (!(di[0] & 0x80u)) di++;                     /* to the terminator */
         *di = (uint8_t)objEntity;
-        wr16(actor, 2u, (uint16_t)(rd16(actor, 2u) - 1u));
-        wr16(actor, 0u, ex);
-        wr16(actor, 4u, 0x0023u);
-        wr16(actor, 8u, 0x0006u);
-        wr16(actor, 0xAu, 0x0000u);
-        wr16(actor, 0xCu, 0x0000u);
+        wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(actor + 2u) - 1u));
+        wr_le_u16(actor + 0u, ex);
+        wr_le_u16(actor + 4u, 0x0023u);
+        wr_le_u16(actor + 8u, 0x0006u);
+        wr_le_u16(actor + 0xAu, 0x0000u);
+        wr_le_u16(actor + 0xCu, 0x0000u);
         objStackMark(actor, di);                           /* 1000:F38F */
         return 1;
     }
     if (!lastFree) return -1;
-    wr16(lastFree, 0u, bx);                                /* entry + 2: y */
+    wr_le_u16(lastFree + 0u, bx);                                /* entry + 2: y */
     lastFree[3] = (uint8_t)objEntity;                      /* entry + 5: the owner */
-    wr16(lastFree - 2, 0u, ax);                            /* entry + 0: x */
-    wr16(actor, 4u, 0x0020u);
-    wr16(actor, 8u, 0x0008u);
+    wr_le_u16(lastFree - 2 + 0u, ax);                            /* entry + 0: x */
+    wr_le_u16(actor + 4u, 0x0020u);
+    wr_le_u16(actor + 8u, 0x0008u);
     return 0;
 }
 
@@ -3586,15 +3576,15 @@ int object_stackGrab(uint8_t *actor)
 int object_stackStepOff(uint8_t *actor)
 {
     unsigned idx = (unsigned)((actor - objArray) / OBJ_STRIDE);
-    uint16_t ax = rd16(actor, 0u);
+    uint16_t ax = rd_le_u16(actor + 0u);
 
     for (unsigned i = 0; i < 8u; i++) {
         uint8_t *e = (uint8_t *)objRegister[i];
         uint8_t *di;
         uint16_t ey;
 
-        if (rd16(e, 0u) != ax) continue;
-        ey = rd16(e, 2u);
+        if (rd_le_u16(e + 0u) != ax) continue;
+        ey = rd_le_u16(e + 2u);
         di = e + 6;                               /* the first member */
         while (!(di[0] & 0x80u) && di[0] != (uint8_t)idx) {
             ey -= 0x10u;                          /* 1000:E896: one level up */
@@ -3602,20 +3592,20 @@ int object_stackStepOff(uint8_t *actor)
         }
         if (di[0] & 0x80u) continue;
         ey -= 0x18u;                              /* 1000:E89B */
-        if (ey != rd16(actor, 2u)) {
+        if (ey != rd_le_u16(actor + 2u)) {
             objFrameStep(actor, 0x23u, 0x25u);             /* 1000:E8D4 */
             return -1;
         }
-        wr16(actor, 2u, (uint16_t)(rd16(actor, 2u) + 8u));
-        wr16(actor, 4u, 0x0020u);
-        wr16(actor, 8u, 0x0008u);
+        wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(actor + 2u) + 8u));
+        wr_le_u16(actor + 4u, 0x0020u);
+        wr_le_u16(actor + 8u, 0x0008u);
         if (!(di[-1] & 0x80u)) {
             uint8_t *nb = object_slot(di[-1]);
 
             if (nb) {
-                wr16(nb, 0u, ax);
-                wr16(nb, 2u, (uint16_t)(rd16(nb, 2u) + 8u));
-                wr16(nb, 4u, 0x0021u);
+                wr_le_u16(nb + 0u, ax);
+                wr_le_u16(nb + 2u, (uint16_t)(rd_le_u16(nb + 2u) + 8u));
+                wr_le_u16(nb + 4u, 0x0021u);
             }
         }
         return 1;
@@ -3631,27 +3621,27 @@ int object_stackStepOff(uint8_t *actor)
 int object_stackLeave(uint8_t *actor)
 {
     unsigned idx = (unsigned)((actor - objArray) / OBJ_STRIDE);
-    uint16_t ax = rd16(actor, 0u);
+    uint16_t ax = rd_le_u16(actor + 0u);
 
     for (unsigned i = 0; i < 8u; i++) {
         uint8_t *e = (uint8_t *)objRegister[i];
         uint8_t *di;
 
-        if (rd16(e, 0u) != ax) continue;
+        if (rd_le_u16(e + 0u) != ax) continue;
         di = e + 6;
         while (!(di[0] & 0x80u) && di[0] != (uint8_t)idx) di++;
         if (di[0] & 0x80u) continue;
-        if (rd16(e, 2u) != rd16(actor, 2u)) {
+        if (rd_le_u16(e + 2u) != rd_le_u16(actor + 2u)) {
             /* 1000:E934: the *down* stepper (y += 1, frames 0x23..0x25) - the
              * member climbs down the column 1 px a step.  (The step-off's
              * 1000:E8D4 is the one that uses the up stepper.) */
             objFrameStepDown(actor, 0x23u, 0x25u);
             return -1;
         }
-        wr16(actor, 4u, 0x0010u);
-        wr16(actor, 8u, 0x0002u);
+        wr_le_u16(actor + 4u, 0x0010u);
+        wr_le_u16(actor + 8u, 0x0002u);
         {
-            unsigned off = rd16(actor, 0xEu);
+            unsigned off = rd_le_u16(actor + 0xEu);
 
             if (off < sizeof objRegister)                  /* 1000:E922 */
                 ((uint8_t *)objRegister)[off] = 0xFFu;
@@ -3675,14 +3665,14 @@ int object_stackStand(uint8_t *actor)
         uint8_t *di;
         int bl;
 
-        if (rd16(e, 0u) & 0x8000u) continue;
+        if (rd_le_u16(e + 0u) & 0x8000u) continue;
         di = e + 5;
         while (!(di[0] & 0x80u) && di[0] != (uint8_t)idx) di++;
         if (di[0] & 0x80u) continue;
         di++;
         if (!(di[0] & 0x80u)) return 0;                 /* a member above it */
         di--;                                            /* the match */
-        wr16(actor, 0xEu, (uint16_t)((uintptr_t)di - (uintptr_t)objRegister));
+        wr_le_u16(actor + 0xEu, (uint16_t)((uintptr_t)di - (uintptr_t)objRegister));
         di--;
         bl = (int8_t)di[0];
         if (bl < 0) return 0;
@@ -3690,16 +3680,16 @@ int object_stackStand(uint8_t *actor)
             uint8_t *nb = object_slot((unsigned)bl);
 
             if (nb) {
-                wr16(nb, 2u, (uint16_t)(rd16(nb, 2u) - 8u));
-                wr16(nb, 4u, 0x0020u);
+                wr_le_u16(nb + 2u, (uint16_t)(rd_le_u16(nb + 2u) - 8u));
+                wr_le_u16(nb + 4u, 0x0020u);
             }
         }
-        wr16(actor, 0u, rd16(e, 0u));
-        wr16(actor, 2u, (uint16_t)(rd16(actor, 2u) - 7u));
-        wr16(actor, 4u, 0x0025u);
-        wr16(actor, 8u, 0x0007u);
-        wr16(actor, 0xAu, 0x0000u);
-        wr16(actor, 0xCu, 0x0000u);
+        wr_le_u16(actor + 0u, rd_le_u16(e + 0u));
+        wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(actor + 2u) - 7u));
+        wr_le_u16(actor + 4u, 0x0025u);
+        wr_le_u16(actor + 8u, 0x0007u);
+        wr_le_u16(actor + 0xAu, 0x0000u);
+        wr_le_u16(actor + 0xCu, 0x0000u);
         return 1;
     }
     return 0;
@@ -3715,14 +3705,14 @@ int object_stackSnap(uint8_t *actor)
         uint8_t *e = (uint8_t *)objRegister[i];
         uint8_t *di;
 
-        if (rd16(e, 0u) & 0x8000u) continue;
+        if (rd_le_u16(e + 0u) & 0x8000u) continue;
         di = e + 5;
         while (!(di[0] & 0x80u) && di[0] != (uint8_t)idx) di++;
         if (di[0] & 0x80u) continue;
         di++;
         if (!(di[0] & 0x80u)) return 0;                    /* a member above it */
-        wr16(actor, 0u, rd16(e, 0u));
-        wr16(actor, 4u, 0x0020u);
+        wr_le_u16(actor + 0u, rd_le_u16(e + 0u));
+        wr_le_u16(actor + 4u, 0x0020u);
         return 1;
     }
     return 0;
@@ -3780,8 +3770,8 @@ static int objLandY(int x, int y, unsigned *cellOut)
 /* 1000:E389 from the actor: the cell ahead (x + 8, y + 0x18). */
 static int objStepProbeAt(const uint8_t *actor, int dx, int dy, unsigned *cellOut)
 {
-    return objLandY((int)(int16_t)rd16(actor, 0u) + dx,
-                    (int)(int16_t)rd16(actor, 2u) + dy, cellOut);
+    return objLandY((int)(int16_t)rd_le_u16(actor + 0u) + dx,
+                    (int)(int16_t)rd_le_u16(actor + 2u) + dy, cellOut);
 }
 
 static int objStepProbe(const uint8_t *actor, unsigned *cellOut)
@@ -3802,11 +3792,11 @@ static unsigned objWalkTest(const uint8_t *actor)
     int bx = objStepProbeAt(actor, (int)(int16_t)objSelFrame, 0x18, &cell);
 
     if (bx >= 0) {
-        d = bx - 0x18 - (int)(int16_t)rd16(actor, 2u);
+        d = bx - 0x18 - (int)(int16_t)rd_le_u16(actor + 2u);
         if (d < 0 && d + 8 < 0) return 0xFFFFu;
     }
-    x = (int)(int16_t)rd16(actor, 0u) + (int)(int16_t)objSelFrame;
-    y = (int)(int16_t)rd16(actor, 2u) + 0x10;
+    x = (int)(int16_t)rd_le_u16(actor + 0u) + (int)(int16_t)objSelFrame;
+    y = (int)(int16_t)rd_le_u16(actor + 2u) + 0x10;
     id = objMapAtAbs(x, y, &sub);
     bit = 1u << (0xFu - ((unsigned)x & 0xFu));
     return (level_itemWord(id, (unsigned)((unsigned)y & 0xFu)) & bit) ? 0xFFFFu : 0u;
@@ -3822,13 +3812,13 @@ static void objWalk(uint8_t *actor, int left)
     objSelFrame = left ? 2u : 0xEu;
     objSelType = 0x10u;
     if (objWalkTest(actor) != 0u) return;             /* blocked: no step */
-    wr16(actor, 0u, (uint16_t)(rd16(actor, 0u) + (left ? 0xFFFFu : 1u)));
-    wr16(actor, 0xAu, (uint16_t)(rd16(actor, 0xAu) - 1u));
-    if ((int16_t)rd16(actor, 0xAu) >= 0) return;
-    wr16(actor, 0xAu, 0x0004u);
-    f = (unsigned)((rd16(actor, 4u) + 1u) & 0xFFFFu);
+    wr_le_u16(actor + 0u, (uint16_t)(rd_le_u16(actor + 0u) + (left ? 0xFFFFu : 1u)));
+    wr_le_u16(actor + 0xAu, (uint16_t)(rd_le_u16(actor + 0xAu) - 1u));
+    if ((int16_t)rd_le_u16(actor + 0xAu) >= 0) return;
+    wr_le_u16(actor + 0xAu, 0x0004u);
+    f = (unsigned)((rd_le_u16(actor + 4u) + 1u) & 0xFFFFu);
     if (f >= hi) f = lo;
-    wr16(actor, 4u, (uint16_t)f);
+    wr_le_u16(actor + 4u, (uint16_t)f);
 }
 
 /* The settle's static data: the per-type gate at 0x6EBE (32 bytes) and the two
@@ -3871,7 +3861,7 @@ static unsigned objRowWord(unsigned off)
     unsigned i = objRowOfs + off;
 
     if (i + 1u >= sizeof objCmdRows) return 0u;
-    return (unsigned)(f[i] | (f[i + 1u] << 8));
+    return rd_le_u16(f + i);
 }
 
 /* 1000:F423: is (BX, CX) inside the window the row half at `off` describes?  A
@@ -3924,9 +3914,9 @@ int object_rowWindowMatches(unsigned type, unsigned half, int x, int y)
  * (the original's ZF). */
 static int objSettleGate(uint8_t *actor)
 {
-    unsigned t = rd16(actor, 8u);
+    unsigned t = rd_le_u16(actor + 8u);
     uint8_t bit = (uint8_t)(1u << (7u - (t & 7u)));
-    int bx = (int16_t)rd16(actor, 0u), cx = (int16_t)rd16(actor, 2u);
+    int bx = (int16_t)rd_le_u16(actor + 0u), cx = (int16_t)rd_le_u16(actor + 2u);
 
     objStackUnmark(actor);                                   /* 1000:F3CA */
     if (objTypeGate[(t >> 3) & 0x1Fu] & bit) return 1;       /* 1000:F450 */
@@ -3952,7 +3942,7 @@ static int objBgMark(const uint8_t *actor)
         if ((objFootY & 0xFFF0u) != ((ry + 0x10u) & 0xFFF0u)) continue;
         if (d < 0 || d >= 0x20) continue;
         if (idx < 8u) {
-            if (rd16(actor, 8u) > 1u) return -1;             /* 1000:E001 */
+            if (rd_le_u16(actor + 8u) > 1u) return -1;             /* 1000:E001 */
             tbl = objFootB;
         } else {
             int side = (int16_t)objSide;
@@ -3974,8 +3964,8 @@ static int objBgMark(const uint8_t *actor)
  * value. */
 static void objCmdSettle(uint8_t *actor)
 {
-    int x = (int16_t)rd16(actor, 0u);
-    int y = (int16_t)rd16(actor, 2u);
+    int x = (int16_t)rd_le_u16(actor + 0u);
+    int y = (int16_t)rd_le_u16(actor + 2u);
     int ax = x + 8, feet = y + 0x18, line = feet & ~0xF, bx, d;
     unsigned sub, cell, b;
 
@@ -4004,18 +3994,18 @@ static void objCmdSettle(uint8_t *actor)
         d = -d;
         if (d > 8) goto landed;
     }
-    wr16(actor, 2u, (uint16_t)(bx - 0x18));
-    objFootX = (uint16_t)(rd16(actor, 0u) + 8u);
-    objFootY = (uint16_t)(rd16(actor, 2u) + 0x18u);
+    wr_le_u16(actor + 2u, (uint16_t)(bx - 0x18));
+    objFootX = (uint16_t)(rd_le_u16(actor + 0u) + 8u);
+    objFootY = (uint16_t)(rd_le_u16(actor + 2u) + 0x18u);
     if (objBgMark(actor) != 0) return;                       /* 1000:D986 */
-    objSettled[(unsigned)((actor - objArray) / OBJ_STRIDE)][0] = rd16(actor, 0u);
-    objSettled[(unsigned)((actor - objArray) / OBJ_STRIDE)][1] = rd16(actor, 2u);
+    objSettled[(unsigned)((actor - objArray) / OBJ_STRIDE)][0] = rd_le_u16(actor + 0u);
+    objSettled[(unsigned)((actor - objArray) / OBJ_STRIDE)][1] = rd_le_u16(actor + 2u);
     return;
 landed:
-    wr16(actor, 8u, 0x0003u);                                /* 1000:D9B2 */
-    wr16(actor, 0xAu, 0x0001u);
-    wr16(actor, 0xCu, 0x0004u);
-    wr16(actor, 0xEu, 0x0000u);
+    wr_le_u16(actor + 8u, 0x0003u);                                /* 1000:D9B2 */
+    wr_le_u16(actor + 0xAu, 0x0001u);
+    wr_le_u16(actor + 0xCu, 0x0004u);
+    wr_le_u16(actor + 0xEu, 0x0000u);
 }
 
 /* 1000:3E73's shade table: the recipe sprite's bytes as a 16x16 table.  Rows
@@ -4046,36 +4036,36 @@ static void objBuildShade(unsigned frame, uint8_t *out)
  * second to 0x10/type 2 and then 0/0. */
 static void objCmdIdleA(uint8_t *actor)
 {
-    unsigned f = rd16(actor, 4u);
+    unsigned f = rd_le_u16(actor + 4u);
 
     if (f < 8u || f > 0x10u) {                 /* 1000:E739: stand up */
-        wr16(actor, 4u, 0x0010u);
-        wr16(actor, 8u, 0x0002u);
-        wr16(actor, 0xAu, 0x0004u);
+        wr_le_u16(actor + 4u, 0x0010u);
+        wr_le_u16(actor + 8u, 0x0002u);
+        wr_le_u16(actor + 0xAu, 0x0004u);
         return;
     }
-    wr16(actor, 0xAu, (uint16_t)(rd16(actor, 0xAu) - 1u));   /* 1000:E74F */
-    if ((int16_t)rd16(actor, 0xAu) >= 0) return;
-    wr16(actor, 4u, 0x0008u);
-    wr16(actor, 8u, 0x0001u);
-    wr16(actor, 0xAu, 0x0004u);
+    wr_le_u16(actor + 0xAu, (uint16_t)(rd_le_u16(actor + 0xAu) - 1u));   /* 1000:E74F */
+    if ((int16_t)rd_le_u16(actor + 0xAu) >= 0) return;
+    wr_le_u16(actor + 4u, 0x0008u);
+    wr_le_u16(actor + 8u, 0x0001u);
+    wr_le_u16(actor + 0xAu, 0x0004u);
 }
 
 static void objCmdIdleB(uint8_t *actor)
 {
-    unsigned f = rd16(actor, 4u);
+    unsigned f = rd_le_u16(actor + 4u);
 
     if (f >= 8u && f != 0x10u) {               /* 1000:E79D: stand up */
-        wr16(actor, 4u, 0x0010u);
-        wr16(actor, 8u, 0x0002u);
-        wr16(actor, 0xAu, 0x0004u);
+        wr_le_u16(actor + 4u, 0x0010u);
+        wr_le_u16(actor + 8u, 0x0002u);
+        wr_le_u16(actor + 0xAu, 0x0004u);
         return;
     }
-    wr16(actor, 0xAu, (uint16_t)(rd16(actor, 0xAu) - 1u));   /* 1000:E7AD */
-    if ((int16_t)rd16(actor, 0xAu) >= 0) return;
-    wr16(actor, 4u, 0x0000u);
-    wr16(actor, 8u, 0x0000u);
-    wr16(actor, 0xAu, 0x0004u);
+    wr_le_u16(actor + 0xAu, (uint16_t)(rd_le_u16(actor + 0xAu) - 1u));   /* 1000:E7AD */
+    if ((int16_t)rd_le_u16(actor + 0xAu) >= 0) return;
+    wr_le_u16(actor + 4u, 0x0000u);
+    wr_le_u16(actor + 8u, 0x0000u);
+    wr_le_u16(actor + 0xAu, 0x0004u);
 }
 
 /* 1000:E4BD's `CALL word ptr [BX + 0x6916]` — the ported handlers, by address.
@@ -4142,20 +4132,20 @@ static int objFrameCadence(uint8_t *actor)
 {
     unsigned ax = objFrame;
 
-    if (ax == rd16(actor, 0xAu)) {                        /* 1000:F9FD */
-        uint16_t e = (uint16_t)(rd16(actor, 0xEu) - 1u); /* 1000:FA01 SUB */
+    if (ax == rd_le_u16(actor + 0xAu)) {                        /* 1000:F9FD */
+        uint16_t e = (uint16_t)(rd_le_u16(actor + 0xEu) - 1u); /* 1000:FA01 SUB */
 
-        wr16(actor, 0xAu, (uint16_t)(ax + 1u));
-        wr16(actor, 0xEu, e);
+        wr_le_u16(actor + 0xAu, (uint16_t)(ax + 1u));
+        wr_le_u16(actor + 0xEu, e);
         if ((int16_t)e < 0) {
-            wr16(actor, 0xEu, 0x0019u);                  /* 1000:FA0A */
+            wr_le_u16(actor + 0xEu, 0x0019u);                  /* 1000:FA0A */
             return 0;
         }
         return 1;
     }
-    wr16(actor, 0xAu, (uint16_t)(ax + 1u));              /* 1000:F9EC */
-    wr16(actor, 0xEu, 0x0019u);
-    wr16(actor, 0x10u, 0u);
+    wr_le_u16(actor + 0xAu, (uint16_t)(ax + 1u));              /* 1000:F9EC */
+    wr_le_u16(actor + 0xEu, 0x0019u);
+    wr_le_u16(actor + 0x10u, 0u);
     return 1;
 }
 
@@ -4170,11 +4160,11 @@ static void objPlaceAt(uint8_t *actor)
     int d;
 
     if (bx < 0) return;                                  /* 1000:F243 */
-    d = bx - 0x18 - (int)(int16_t)rd16(actor, 2u);
+    d = bx - 0x18 - (int)(int16_t)rd_le_u16(actor + 2u);
     if (d < 0) return;                                   /* 1000:F24B */
     if (d - 8 >= 0) return;                              /* 1000:F250 */
-    wr16(actor, 4u, objSelXoff);                         /* 1000:F255 */
-    wr16(actor, 8u, objSelFrame);
+    wr_le_u16(actor + 4u, objSelXoff);                         /* 1000:F255 */
+    wr_le_u16(actor + 8u, objSelFrame);
 }
 
 /* 1000:FC81: the point scan.  Runs only on even frames (on odd ones it just
@@ -4188,8 +4178,8 @@ static void objPlaceAt(uint8_t *actor)
  * type.  An entry whose +6 is 0 copies its own point into +0xA/+0xC. */
 static void objScanPoint(uint8_t *actor, unsigned xoff)
 {
-    int x = (int)(int16_t)rd16(actor, 0u) + (int)xoff;
-    int y = (int)(int16_t)rd16(actor, 2u) + 0x10;
+    int x = (int)(int16_t)rd_le_u16(actor + 0u) + (int)xoff;
+    int y = (int)(int16_t)rd_le_u16(actor + 2u) + 0x10;
     int top = y, d;
     unsigned b;
     uint8_t *span = NULL;
@@ -4220,9 +4210,9 @@ static void objScanPoint(uint8_t *actor, unsigned xoff)
     for (unsigned i = 0; i < 2u; i++) {      /* 1000:FD20 */
         uint8_t *e = (uint8_t *)objSpan[i];
 
-        if (rd16(e, 0u) & 0x8000u) fallback = (int)i;
-        if (rd16(e, 0u) == (uint16_t)objEntity) {
-            objSelFrame = rd16(e, 6u);
+        if (rd_le_u16(e + 0u) & 0x8000u) fallback = (int)i;
+        if (rd_le_u16(e + 0u) == (uint16_t)objEntity) {
+            objSelFrame = rd_le_u16(e + 6u);
             span = e;
             break;
         }
@@ -4232,19 +4222,19 @@ static void objScanPoint(uint8_t *actor, unsigned xoff)
         if (fallback < 0) return;
         span = (uint8_t *)objSpan[fallback];
     }
-    wr16(span, 0u, (uint16_t)objEntity);     /* 1000:FD4D */
-    wr16(span, 2u, (uint16_t)x);
-    wr16(actor, 8u, objSelType);             /* 1000:FD52 */
-    wr16(span, 4u, (uint16_t)top);
-    wr16(span, 6u, objSelFrame);
-    wr16(span, 8u, (uint16_t)d);
+    wr_le_u16(span + 0u, (uint16_t)objEntity);     /* 1000:FD4D */
+    wr_le_u16(span + 2u, (uint16_t)x);
+    wr_le_u16(actor + 8u, objSelType);             /* 1000:FD52 */
+    wr_le_u16(span + 4u, (uint16_t)top);
+    wr_le_u16(span + 6u, objSelFrame);
+    wr_le_u16(span + 8u, (uint16_t)d);
     if (objSelFrame == 0u) {                 /* 1000:FD6C */
-        wr16(span, 6u, 0u);
-        wr16(span, 0xAu, rd16(span, 2u));
-        wr16(span, 0xCu, (uint16_t)top);
+        wr_le_u16(span + 6u, 0u);
+        wr_le_u16(span + 0xAu, rd_le_u16(span + 2u));
+        wr_le_u16(span + 0xCu, (uint16_t)top);
     }
-    wr16(span, 0x12u, 0xFFFFu);              /* 1000:FD7B */
-    wr16(span, 0x12u, (uint16_t)(d < (int)objSelFrame ? 1 : 0));
+    wr_le_u16(span + 0x12u, 0xFFFFu);              /* 1000:FD7B */
+    wr_le_u16(span + 0x12u, (uint16_t)(d < (int)objSelFrame ? 1 : 0));
 }
 
 /* 1000:FAF4: the neighbour pass.  For every appended record whose class slot is
@@ -4255,8 +4245,8 @@ static void objScanPoint(uint8_t *actor, unsigned xoff)
  * (a step right) and -0xA from 1000:ECA8 (a step left). */
 static void objNeighbourPass(uint8_t *actor, unsigned offX, unsigned offY, int delta)
 {
-    int x = (int)(int16_t)(uint16_t)(rd16(actor, 0u) + offX);
-    int y = (int)(int16_t)(uint16_t)(rd16(actor, 2u) + offY);
+    int x = (int)(int16_t)(uint16_t)(rd_le_u16(actor + 0u) + offX);
+    int y = (int)(int16_t)(uint16_t)(rd_le_u16(actor + 2u) + offY);
     unsigned n = objLiveCount > OBJ_LIVE0 ? objLiveCount - OBJ_LIVE0 : 0u;
 
     objAux = (uint16_t)delta;                            /* 1000:FAF9 */
@@ -4266,26 +4256,26 @@ static void objNeighbourPass(uint8_t *actor, unsigned offX, unsigned offY, int d
         uint8_t *r = objArray + (OBJ_LIVE0 + 1u + k) * OBJ_STRIDE;
         int d, ty;
 
-        objSide = rd16(r, 0u);
-        objSelXoff = rd16(r, 2u);
+        objSide = rd_le_u16(r + 0u);
+        objSelXoff = rd_le_u16(r + 2u);
         if ((objSlotClass[1u + k] & 0x3Fu) != 4u) continue;   /* 1000:FB39 */
         if (r[6] & 0x40u) continue;                           /* 1000:FB46 */
-        d = (int16_t)(uint16_t)(rd16(r, 0u) - (uint16_t)x);
+        d = (int16_t)(uint16_t)(rd_le_u16(r + 0u) - (uint16_t)x);
         if (d >= 0 || d + 0x10 < 0) continue;                 /* 1000:FB4F */
-        d = (int16_t)(uint16_t)(rd16(r, 2u) - (uint16_t)y);
+        d = (int16_t)(uint16_t)(rd_le_u16(r + 2u) - (uint16_t)y);
         if (d >= 0 || d + 0x10 < 0) continue;                 /* 1000:FB62 */
-        ty = (int16_t)rd16(r, 8u);
+        ty = (int16_t)rd_le_u16(r + 8u);
         if (ty < 0) ty = -ty;
         if (ty > 0xA) continue;                               /* 1000:FB7E */
         {
-            int px = (int)(int16_t)rd16(r, 0u) + (delta >= 0 ? 0x10 : 0);
-            int py = (int)(int16_t)rd16(r, 2u) + 8;
+            int px = (int)(int16_t)rd_le_u16(r + 0u) + (delta >= 0 ? 0x10 : 0);
+            int py = (int)(int16_t)rd_le_u16(r + 2u) + 8;
             unsigned sub, tile = objMapAtAbs(px, py, &sub);
             unsigned word = level_itemWord(tile, (unsigned)(py & 0xF));
             unsigned bit = 1u << (0xFu - ((unsigned)px & 0xFu));
 
             if (!(word & bit))                                /* 1000:FC17 */
-                wr16(r, 8u, (uint16_t)(rd16(r, 8u) + objAux));  /* 1000:FC1D */
+                wr_le_u16(r + 8u, (uint16_t)(rd_le_u16(r + 8u) + objAux));  /* 1000:FC1D */
         }
     }
 }
@@ -4308,21 +4298,21 @@ static void objCmdEnter(uint8_t *actor)
     uint8_t *rec;
 
     if (!objLat) {                           /* 1000:EE42 */
-        wr16(actor, 0xEu, 0u);
+        wr_le_u16(actor + 0xEu, 0u);
         return;
     }
     objLat = 0;                              /* 1000:EE48 */
-    ax = rd16(actor, 0xEu);
+    ax = rd_le_u16(actor + 0xEu);
     if (ax >= 0x100u) ax = 0x1FFu - ax;      /* 1000:EE55 */
     ax >>= 6;
-    dx = (unsigned)((rd16(actor, 4u) - 0x8Cu) & 0xFFFFu);
+    dx = (unsigned)((rd_le_u16(actor + 4u) - 0x8Cu) & 0xFFFFu);
     if (dx >= 8u) return;                    /* past 0x6E76's eight entries */
     objPtX = (uint16_t)(doors[dx][0] >= 0 ? doors[dx][0] + (int)ax
                                           : doors[dx][0] - (int)ax);
     objPtY = (uint16_t)doors[dx][1];         /* 1000:EE8B */
-    wr16(actor, 4u, (uint16_t)doors[dx][2]); /* 1000:EE94 */
-    wr16(actor, 8u, (uint16_t)doors[dx][3]);
-    wr16(actor, 0xAu, 0u);
+    wr_le_u16(actor + 4u, (uint16_t)doors[dx][2]); /* 1000:EE94 */
+    wr_le_u16(actor + 8u, (uint16_t)doors[dx][3]);
+    wr_le_u16(actor + 0xAu, 0u);
 
     idx = actor[7];                          /* 1000:EEB8 */
     actor[7] = 0u;
@@ -4339,10 +4329,10 @@ static void objCmdEnter(uint8_t *actor)
         idx--;
         objSlotClass[idx] &= 0x3Fu;          /* 0x3E5E + idx */
         rec = objArray + (8u + idx) * OBJ_STRIDE;                /* 0x3F17 + 0x12*idx */
-        wr16(rec, 8u, 0xFFFFu);              /* 1000:EED5 */
-        wr16(rec, 0xAu, 0u);
-        wr16(rec, 0xCu, objPtX);             /* 1000:EEE5 */
-        wr16(rec, 0xEu, objPtY);
+        wr_le_u16(rec + 8u, 0xFFFFu);              /* 1000:EED5 */
+        wr_le_u16(rec + 0xAu, 0u);
+        wr_le_u16(rec + 0xCu, objPtX);             /* 1000:EEE5 */
+        wr_le_u16(rec + 0xEu, objPtY);
     }
     objSetProgramIndex(1u);                  /* 1000:EEF2: [0x5B56] = 1 */
     objOutState = 5;                         /* 1000:EEF7 */
@@ -4364,17 +4354,17 @@ static void objFrameStepDown(uint8_t *actor, unsigned lo, unsigned hi)
 {
     unsigned f;
 
-    wr16(actor, 2u, (uint16_t)(rd16(actor, 2u) + 1u));    /* 1000:FDBF */
-    wr16(actor, 0xAu, (uint16_t)(rd16(actor, 0xAu) - 1u));
-    if ((int16_t)rd16(actor, 0xAu) >= 0) return;
-    wr16(actor, 0xAu, 4u);
-    f = rd16(actor, 4u);
+    wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(actor + 2u) + 1u));    /* 1000:FDBF */
+    wr_le_u16(actor + 0xAu, (uint16_t)(rd_le_u16(actor + 0xAu) - 1u));
+    if ((int16_t)rd_le_u16(actor + 0xAu) >= 0) return;
+    wr_le_u16(actor + 0xAu, 4u);
+    f = rd_le_u16(actor + 4u);
     if (actor[0xCu] != 0u) {
         if (++f == hi) actor[0xCu] = 0u;
     } else {
         if (--f == lo) actor[0xCu] = 0xFFu;
     }
-    wr16(actor, 4u, f);
+    wr_le_u16(actor + 4u, f);
 }
 
 /* DS:0x6E5C - the frame list 0xECB7 walks: twelve ramp words and then 3-word
@@ -4422,10 +4412,10 @@ static void objLevelEndProbe(uint8_t *actor, int bx)
     }
     if (!t) return;
     if (statusbar_tribeActive()) goto goal;          /* 1000:F5E3 */
-    wr16(t, 0u, 0xFFFFu);                            /* 1000:F5EF: taken */
-    wr16(t, 2u, 0xFFFFu);
+    wr_le_u16(t + 0u, 0xFFFFu);                            /* 1000:F5EF: taken */
+    wr_le_u16(t + 2u, 0xFFFFu);
     t[6] = 0xFFu;
-    wr16(t, 8u, 0x001Bu);
+    wr_le_u16(t + 8u, 0x001Bu);
     if (t[7]) {                                      /* 1000:F603 */
         unsigned cls = t[7];
 
@@ -4440,7 +4430,7 @@ static void objLevelEndProbe(uint8_t *actor, int bx)
         unsigned ty;
 
         if (!r || (r[6] & 0x80u)) continue;
-        ty = rd16(r, 8u);
+        ty = rd_le_u16(r + 8u);
         if (ty == 0x16u) continue;
         if (ty >= 0x1Bu && ty <= 0x1Eu) continue;
         if (ty == 0x21u) continue;
@@ -4452,17 +4442,17 @@ static void objLevelEndProbe(uint8_t *actor, int bx)
 
 goal:                                                /* 1000:F682 */
     statusbar_armOdometer();                         /* [0x5B22] = 0xFF */
-    wr16(t, 2u, objSelXoff);                         /* [0x4222] */
-    wr16(t, 0u, objSide);                            /* [0x4220] */
+    wr_le_u16(t + 2u, objSelXoff);                         /* [0x4222] */
+    wr_le_u16(t + 0u, objSide);                            /* [0x4220] */
     if ((int16_t)objSide < 0) {                      /* 1000:F692 */
-        wr16(t, 0u, (uint16_t)((objSettled[idx][0] + 8u) & 0xFFF0u));
-        wr16(t, 2u, objSettled[idx][1]);
+        wr_le_u16(t + 0u, (uint16_t)((objSettled[idx][0] + 8u) & 0xFFF0u));
+        wr_le_u16(t + 2u, objSettled[idx][1]);
     }
-    wr16(t, 0u, (uint16_t)(rd16(t, 0u) - 8u));       /* 1000:F6B1 */
-    wr16(t, 4u, 0x002Du);
+    wr_le_u16(t + 0u, (uint16_t)(rd_le_u16(t + 0u) - 8u));       /* 1000:F6B1 */
+    wr_le_u16(t + 4u, 0x002Du);
     t[6] = 0u;
-    wr16(t, 8u, 0x0021u);
-    wr16(t, 0xAu, 5u);
+    wr_le_u16(t + 8u, 0x0021u);
+    wr_le_u16(t + 0xAu, 5u);
     if (idx == objEntity && (int)idx != objPlayer && !t[7]) {
         objSetProgramIndex(1u);                      /* [0x5B56] = 1 */
         objOutState = 5;                             /* [0x6916] = 0x105 */
@@ -4470,10 +4460,10 @@ goal:                                                /* 1000:F682 */
     }
     {
         unsigned cell;
-        int land = objLandY((int)(int16_t)rd16(t, 0u) + 0x10,
-                            (int)(int16_t)rd16(t, 2u) + 0x18, &cell);
+        int land = objLandY((int)(int16_t)rd_le_u16(t + 0u) + 0x10,
+                            (int)(int16_t)rd_le_u16(t + 2u) + 0x18, &cell);
 
-        if (land >= 0) wr16(t, 2u, (uint16_t)(land - 0x18));   /* 1000:F6F2 */
+        if (land >= 0) wr_le_u16(t + 2u, (uint16_t)(land - 0x18));   /* 1000:F6F2 */
     }
 }
 
@@ -4502,20 +4492,20 @@ static unsigned objTabByte(const uint8_t *t, unsigned n, unsigned off)
  * probe runs with the scratch pair at 0xFFFF. */
 static void objTailType28(uint8_t *actor)
 {
-    unsigned a = (uint16_t)(rd16(actor, 0xAu) - 1u);
+    unsigned a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
 
-    wr16(actor, 0xAu, a);                            /* 1000:DBCD */
+    wr_le_u16(actor + 0xAu, a);                            /* 1000:DBCD */
     if ((int16_t)a >= 0) return;
-    wr16(actor, 0xAu, 9u);
-    if (rd16(actor, 4u) != 0x00D3u) {                /* 1000:DBD7 */
-        unsigned off = rd16(actor, 0xCu);
+    wr_le_u16(actor + 0xAu, 9u);
+    if (rd_le_u16(actor + 4u) != 0x00D3u) {                /* 1000:DBD7 */
+        unsigned off = rd_le_u16(actor + 0xCu);
 
         actor[4] = (uint8_t)objTabByte(objTab6868, sizeof objTab6868, off);
-        wr16(actor, 0xCu, (uint16_t)(off + 1u));
+        wr_le_u16(actor + 0xCu, (uint16_t)(off + 1u));
         return;
     }
-    if (rd16(actor, 2u) & 0xFu) {                    /* 1000:DBEC */
-        wr16(actor, 2u, (uint16_t)(rd16(actor, 2u) + 1u));
+    if (rd_le_u16(actor + 2u) & 0xFu) {                    /* 1000:DBEC */
+        wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(actor + 2u) + 1u));
         return;
     }
     objSide = 0xFFFFu;                               /* [0x4220] */
@@ -4526,12 +4516,12 @@ static void objTailType28(uint8_t *actor)
 /* 1000:DE7E (type 30): the 0x687C table walk. */
 static void objTailType30(uint8_t *actor)
 {
-    unsigned a = (uint16_t)(rd16(actor, 0xAu) - 1u);
+    unsigned a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
 
-    wr16(actor, 0xAu, a);                            /* 1000:DE7E */
+    wr_le_u16(actor + 0xAu, a);                            /* 1000:DE7E */
     if ((int16_t)a >= 0) return;
     {
-        unsigned off = rd16(actor, 0xCu);
+        unsigned off = rd_le_u16(actor + 0xCu);
         int dx = (int)(int8_t)(uint8_t)objTabByte(objTab687C, sizeof objTab687C, off);
         int dy = (int)(int8_t)(uint8_t)objTabByte(objTab687C, sizeof objTab687C, off + 1u);
         unsigned nxt = off + 2u;
@@ -4540,18 +4530,18 @@ static void objTailType30(uint8_t *actor)
             unsigned e;
 
             nxt = (uint16_t)(nxt - 4u);              /* 1000:DEA5 */
-            e = (uint16_t)(rd16(actor, 0xEu) - 1u);
-            wr16(actor, 0xEu, e);                    /* 1000:DEA8 */
+            e = (uint16_t)(rd_le_u16(actor + 0xEu) - 1u);
+            wr_le_u16(actor + 0xEu, e);                    /* 1000:DEA8 */
             if ((int16_t)e < 0 && statusbar_tribeActive()) {   /* 1000:DEB4 */
-                objSide = rd16(actor, 0u);           /* [0x4220] */
-                objSelXoff = rd16(actor, 2u);        /* [0x4222] */
+                objSide = rd_le_u16(actor + 0u);           /* [0x4220] */
+                objSelXoff = rd_le_u16(actor + 2u);        /* [0x4222] */
                 objLevelEndProbe(actor, -1);     /* 1000:DEC4 */
                 return;
             }
         }
-        wr16(actor, 0xCu, nxt);                      /* 1000:DEC7 */
-        wr16(actor, 0xAu, (uint16_t)(int16_t)dy);    /* [SI+0xA] = CX */
-        wr16(actor, 4u, (uint16_t)(rd16(actor, 4u) + (uint16_t)(int16_t)dx));
+        wr_le_u16(actor + 0xCu, nxt);                      /* 1000:DEC7 */
+        wr_le_u16(actor + 0xAu, (uint16_t)(int16_t)dy);    /* [SI+0xA] = CX */
+        wr_le_u16(actor + 4u, (uint16_t)(rd_le_u16(actor + 4u) + (uint16_t)(int16_t)dx));
     }
 }
 
@@ -4565,7 +4555,7 @@ static void objTailType34(uint8_t *actor)
     /* 1000:DED1: +0xA is the ENTITY record pointer, not an object link.  The
      * entity interaction tags the index (0x8000|n); an untagged link is not
      * a carry and leaves the record alone. */
-    unsigned link = rd16(actor, 0xAu);
+    unsigned link = rd_le_u16(actor + 0xAu);
     const Entity *e = (link & 0x8000u) ? entity_at(link & 0x7FFFu) : NULL;
     unsigned v;
 
@@ -4573,33 +4563,33 @@ static void objTailType34(uint8_t *actor)
     v = e->handler;
     if (v == 2u || v == 3u) {                        /* 1000:DEDA / 0xDF0A */
         if (!(actor[6] & 0x80u)) {
-            if (e->waypoint == rd16(actor, 0xEu)) actor[6] |= 0x80u;
+            if (e->waypoint == rd_le_u16(actor + 0xEu)) actor[6] |= 0x80u;
         }
         return;
     }
     if (actor[6] & 0x80u) {                          /* 1000:DEE8 */
-        objSide = rd16(actor, 0x10u);                /* [0x4220] */
+        objSide = rd_le_u16(actor + 0x10u);                /* [0x4220] */
         objSelXoff = (uint16_t)(e->y + 0x28u);       /* [0x4222] */
         objLevelEndProbe(actor, -1);
         return;
     }
-    wr16(actor, 4u, 0x0010u);                        /* 1000:DF17 */
-    wr16(actor, 8u, 0x0002u);
-    wr16(actor, 0xAu, 0u);
-    wr16(actor, 0xCu, 0u);
+    wr_le_u16(actor + 4u, 0x0010u);                        /* 1000:DF17 */
+    wr_le_u16(actor + 8u, 0x0002u);
+    wr_le_u16(actor + 0xAu, 0u);
+    wr_le_u16(actor + 0xCu, 0u);
 }
 
 /* 1000:EF66 (type 22): a 5-frame stepper to frame 0x2E, then the level-end
  * probe with the scratch pair at 0xFFFF. */
 static void objTailType22(uint8_t *actor)
 {
-    unsigned a = (uint16_t)(rd16(actor, 0xAu) - 1u);
+    unsigned a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
 
-    wr16(actor, 0xAu, a);                            /* 1000:EF66 */
+    wr_le_u16(actor + 0xAu, a);                            /* 1000:EF66 */
     if ((int16_t)a >= 0) return;
-    wr16(actor, 0xAu, 5u);
-    wr16(actor, 4u, (uint16_t)(rd16(actor, 4u) + 1u));
-    if (rd16(actor, 4u) != 0x2Eu) return;            /* 1000:EF73 */
+    wr_le_u16(actor + 0xAu, 5u);
+    wr_le_u16(actor + 4u, (uint16_t)(rd_le_u16(actor + 4u) + 1u));
+    if (rd_le_u16(actor + 4u) != 0x2Eu) return;            /* 1000:EF73 */
     objSide = 0xFFFFu;                               /* [0x4220] */
     objSelXoff = 0xFFFFu;                            /* [0x4222] */
     objLevelEndProbe(actor, -1);                 /* 1000:EF93 */
@@ -4616,14 +4606,14 @@ static void objTailType22(uint8_t *actor)
  * that steps the frame up and wraps four back at the bound (0x112 / 0x116). */
 static void objTailFrameBound(uint8_t *actor, unsigned bound)
 {
-    unsigned a = (uint16_t)(rd16(actor, 0xAu) - 1u);
+    unsigned a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
 
-    wr16(actor, 0xAu, a);                            /* 1000:D9D0 */
+    wr_le_u16(actor + 0xAu, a);                            /* 1000:D9D0 */
     if ((int16_t)a >= 0) return;
-    wr16(actor, 0xAu, 7u);                           /* 1000:D9D6 */
-    wr16(actor, 4u, (uint16_t)(rd16(actor, 4u) + 1u));
-    if (rd16(actor, 4u) == bound)
-        wr16(actor, 4u, (uint16_t)(rd16(actor, 4u) - 4u));   /* 1000:D9E3 */
+    wr_le_u16(actor + 0xAu, 7u);                           /* 1000:D9D6 */
+    wr_le_u16(actor + 4u, (uint16_t)(rd_le_u16(actor + 4u) + 1u));
+    if (rd_le_u16(actor + 4u) == bound)
+        wr_le_u16(actor + 4u, (uint16_t)(rd_le_u16(actor + 4u) - 4u));   /* 1000:D9E3 */
 }
 
 /* 0xD9C8 / 0xD9CD: `MOV AX,bound; JMP 0xD9D0`. */
@@ -4633,20 +4623,20 @@ static void objTailFrameToType(uint8_t *actor)
 {
     unsigned t = 2;
 
-    if (rd16(actor, 4u) < 0x10u) {                   /* 1000:DB33 */
+    if (rd_le_u16(actor + 4u) < 0x10u) {                   /* 1000:DB33 */
         t = 1;
-        if (rd16(actor, 4u) < 8u) t = 0;
+        if (rd_le_u16(actor + 4u) < 8u) t = 0;
     }
-    wr16(actor, 8u, t);                              /* 1000:DB44 */
+    wr_le_u16(actor + 8u, t);                              /* 1000:DB44 */
 }
 
 /* 1000:DB15: the hard landing. */
 static void objTailCrash(uint8_t *actor)
 {
-    wr16(actor, 0u, (uint16_t)(rd16(actor, 0u) - 7u));   /* 1000:DB15 */
-    wr16(actor, 4u, 0x0028u);
-    wr16(actor, 8u, 0x0016u);
-    wr16(actor, 0xAu, 5u);
+    wr_le_u16(actor + 0u, (uint16_t)(rd_le_u16(actor + 0u) - 7u));   /* 1000:DB15 */
+    wr_le_u16(actor + 4u, 0x0028u);
+    wr_le_u16(actor + 8u, 0x0016u);
+    wr_le_u16(actor + 0xAu, 5u);
     objDriverCall(4);                                /* 1000:DB28 */
 }
 
@@ -4668,9 +4658,9 @@ static void objTailType3(uint8_t *actor)
         objTailFrameToType(actor);
         return;
     }
-    ax = (unsigned)(rd16(actor, 0u) + 8u);
-    bx = (unsigned)(rd16(actor, 2u) + 0x18u);
-    dx = rd16(actor, 0xAu);
+    ax = (unsigned)(rd_le_u16(actor + 0u) + 8u);
+    bx = (unsigned)(rd_le_u16(actor + 2u) + 0x18u);
+    dx = rd_le_u16(actor + 0xAu);
     if (bx >= 0x158u) { objTailCrash(actor); return; }   /* 1000:DA02 */
     cx = bx;
     bx &= 0xFFF0u;
@@ -4683,11 +4673,11 @@ static void objTailType3(uint8_t *actor)
             /* 1000:DA3E..0xDA61 writes only y/frame/type/+C/+A - no x store
              * (the x snap belongs to 0xF6F6's branch, not this one).  Writing
              * it teleported a drowning actor to x -4 (D-78). */
-            wr16(actor, 2u, (uint16_t)(bx - 0x1Cu));
-            wr16(actor, 4u, 0x00CDu);
-            wr16(actor, 8u, 0x001Cu);
-            wr16(actor, 0xCu, 0u);
-            wr16(actor, 0xAu, 9u);
+            wr_le_u16(actor + 2u, (uint16_t)(bx - 0x1Cu));
+            wr_le_u16(actor + 4u, 0x00CDu);
+            wr_le_u16(actor + 8u, 0x001Cu);
+            wr_le_u16(actor + 0xCu, 0u);
+            wr_le_u16(actor + 0xAu, 9u);
             objDriverCall(6);
             return;
         }
@@ -4743,9 +4733,9 @@ static void objTailType3(uint8_t *actor)
         if (cx > dx) goto coast;
     }
 land:                                                /* 1000:DAB2 */
-    wr16(actor, 2u, (uint16_t)(bx - 0x18u));
+    wr_le_u16(actor + 2u, (uint16_t)(bx - 0x18u));
     {
-        unsigned sp = rd16(actor, 0xEu);
+        unsigned sp = rd_le_u16(actor + 0xEu);
 
         if (sp >= 0x30u) { objTailCrash(actor); return; }    /* 1000:DABF */
         level_set_offsetWord((uint16_t)(sp >> 3));           /* 1000:DAC7 */
@@ -4754,9 +4744,9 @@ land:                                                /* 1000:DAB2 */
     objDriverCall(5);
     return;
 coast:                                               /* 1000:DB05 */
-    wr16(actor, 2u, (uint16_t)(rd16(actor, 2u) + dx));
-    wr16(actor, 0xEu, (uint16_t)(rd16(actor, 0xEu) + dx));
-    wr16(actor, 0xAu, (uint16_t)(dx == rd16(actor, 0xCu) ? dx : dx + 1u));
+    wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(actor + 2u) + dx));
+    wr_le_u16(actor + 0xEu, (uint16_t)(rd_le_u16(actor + 0xEu) + dx));
+    wr_le_u16(actor + 0xAu, (uint16_t)(dx == rd_le_u16(actor + 0xCu) ? dx : dx + 1u));
 }
 
 /* 1000:DB7A: does the actor's span entry exist, still marked, and un-used?
@@ -4768,9 +4758,9 @@ static int objSpanOwner(uint8_t *actor)
     for (unsigned i = 0; i < 2u; i++) {              /* AX = 1: two entries */
         uint8_t *e = (uint8_t *)objSpan[i];
 
-        if (rd16(e, 0u) != (uint16_t)(idx & 0x7FFFu)) continue;   /* 1000:DB8D */
-        if (!(rd16(e, 0x12u) & 0x8000u)) return 0;   /* 1000:DB9D */
-        if (rd16(e, 8u) != 0u) return 0;             /* 1000:DBA4 */
+        if (rd_le_u16(e + 0u) != (uint16_t)(idx & 0x7FFFu)) continue;   /* 1000:DB8D */
+        if (!(rd_le_u16(e + 0x12u) & 0x8000u)) return 0;   /* 1000:DB9D */
+        if (rd_le_u16(e + 8u) != 0u) return 0;             /* 1000:DBA4 */
         return 1;
     }
     return 0;
@@ -4779,15 +4769,15 @@ static int objSpanOwner(uint8_t *actor)
 /* 1000:DBAE: walk the actor's frame toward AX on a 3-frame hold. */
 static void objTailWalkToFrame(uint8_t *actor, unsigned frame)
 {
-    unsigned a = (uint16_t)(rd16(actor, 0xAu) - 1u);
+    unsigned a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
 
-    wr16(actor, 0xAu, a);                            /* 1000:DBB6 */
+    wr_le_u16(actor + 0xAu, a);                            /* 1000:DBB6 */
     if ((int16_t)a >= 0) return;
-    wr16(actor, 0xAu, 3u);                           /* 1000:DBBB */
-    if (rd16(actor, 4u) == frame)
-        wr16(actor, 4u, (uint16_t)(rd16(actor, 4u) + 1u));   /* 1000:DBC9 */
+    wr_le_u16(actor + 0xAu, 3u);                           /* 1000:DBBB */
+    if (rd_le_u16(actor + 4u) == frame)
+        wr_le_u16(actor + 4u, (uint16_t)(rd_le_u16(actor + 4u) + 1u));   /* 1000:DBC9 */
     else
-        wr16(actor, 4u, (uint16_t)(rd16(actor, 4u) - 1u));   /* 1000:DBC5 */
+        wr_le_u16(actor + 4u, (uint16_t)(rd_le_u16(actor + 4u) - 1u));   /* 1000:DBC5 */
 }
 
 /* 1000:DB48 / 1000:DB61 (types 9 and 10): the span's owner test; on "yes" the
@@ -4796,9 +4786,9 @@ static void objTailWalkToFrame(uint8_t *actor, unsigned frame)
 static void objTailSpanOwner(uint8_t *actor, unsigned frame, unsigned f8, unsigned bad)
 {
     if (objSpanOwner(actor)) {                       /* 1000:DB4B */
-        wr16((uint8_t *)objSpan[0], 0u, 0xFFFFu);    /* 1000:DB4D: free it */
-        wr16(actor, 4u, (uint16_t)frame);
-        wr16(actor, 8u, (uint16_t)f8);
+        wr_le_u16((uint8_t *)objSpan[0] + 0u, 0xFFFFu);    /* 1000:DB4D: free it */
+        wr_le_u16(actor + 4u, (uint16_t)frame);
+        wr_le_u16(actor + 8u, (uint16_t)f8);
         return;
     }
     objTailWalkToFrame(actor, bad);                  /* 1000:DB5C -> 0xDBAE */
@@ -4809,13 +4799,13 @@ static void objTailSpanOwner(uint8_t *actor, unsigned frame, unsigned f8, unsign
  * a `+0xE` countdown then drops it back to frame 0x10 / type 2. */
 static void objTailType16(uint8_t *actor)
 {
-    unsigned a = (uint16_t)(rd16(actor, 0xAu) - 1u);
+    unsigned a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
 
-    wr16(actor, 0xAu, a);
+    wr_le_u16(actor + 0xAu, a);
     if ((int16_t)a < 0) {                            /* 1000:DD96 */
-        unsigned f = rd16(actor, 4u);
+        unsigned f = rd_le_u16(actor + 4u);
 
-        wr16(actor, 0xAu, 0x0Au);                    /* 1000:DD98 */
+        wr_le_u16(actor + 0xAu, 0x0Au);                    /* 1000:DD98 */
         if (actor[0xCu] != 0u) {                     /* 1000:DD A0 */
             f--;
             if (f == 0x55u) {                        /* 1000:DD A7 */
@@ -4827,13 +4817,13 @@ static void objTailType16(uint8_t *actor)
             f++;
             if (f == 0x57u) actor[0xCu] = 0xFFu;     /* 1000:DDC3 */
         }
-        wr16(actor, 4u, f);                          /* 1000:DD C7 */
+        wr_le_u16(actor + 4u, f);                          /* 1000:DD C7 */
     }
-    a = (uint16_t)(rd16(actor, 0xEu) - 1u);          /* 1000:DDCA */
-    wr16(actor, 0xEu, a);
+    a = (uint16_t)(rd_le_u16(actor + 0xEu) - 1u);          /* 1000:DDCA */
+    wr_le_u16(actor + 0xEu, a);
     if ((int16_t)a < 0) {
-        wr16(actor, 4u, 0x0010u);
-        wr16(actor, 8u, 0x0002u);
+        wr_le_u16(actor + 4u, 0x0010u);
+        wr_le_u16(actor + 8u, 0x0002u);
     }
 }
 
@@ -4844,11 +4834,11 @@ static void objTailWalkCountdown(uint8_t *actor, int left)
     if (left) objWalk(actor, 1); else objWalk(actor, 0);   /* 1000:EB5C */
 
     {
-        unsigned a = (uint16_t)(rd16(actor, 0xEu) - 1u);
+        unsigned a = (uint16_t)(rd_le_u16(actor + 0xEu) - 1u);
 
-        wr16(actor, 0xEu, a);                        /* 1000:EB5F */
+        wr_le_u16(actor + 0xEu, a);                        /* 1000:EB5F */
         if ((int16_t)a < 0)
-            wr16(actor, 8u, left ? 1u : 0u);         /* 1000:EB64 / 0xEB72 */
+            wr_le_u16(actor + 8u, left ? 1u : 0u);         /* 1000:EB64 / 0xEB72 */
     }
 }
 
@@ -4861,15 +4851,15 @@ static void objTailSpecialTile(uint8_t *actor, unsigned type, int yoff, int down
 {
     unsigned cell, sub;
 
-    if (rd16(actor, 8u) != type) return;             /* 1000:E802 */
-    cell = objMapAtAbs((int)(int16_t)rd16(actor, 0u) + 8, (int)(int16_t)rd16(actor, 2u) + yoff, &sub);
+    if (rd_le_u16(actor + 8u) != type) return;             /* 1000:E802 */
+    cell = objMapAtAbs((int)(int16_t)rd_le_u16(actor + 0u) + 8, (int)(int16_t)rd_le_u16(actor + 2u) + yoff, &sub);
     if (cell == level_specialTile(0u) || cell == level_specialTile(1u)) {
         if (down) objFrameStepDown(actor, 0x23u, 0x25u);      /* 1000:E857 */
         else      objFrameStep(actor, 0x23u, 0x25u);          /* 1000:E828 */
         return;
     }
-    wr16(actor, 4u, 0x0010u);                        /* 1000:E81D */
-    wr16(actor, 8u, 0x0002u);
+    wr_le_u16(actor + 4u, 0x0010u);                        /* 1000:E81D */
+    wr_le_u16(actor + 8u, 0x0002u);
 }
 
 /* 1000:ECB7 (type 17): step the 0x6E5C frame list by one, then the shared
@@ -4879,23 +4869,23 @@ static void objTailSpecialTile(uint8_t *actor, unsigned type, int yoff, int down
  * `+4` and 0 to its `+8`. */
 static void objTailType17(uint8_t *actor)
 {
-    unsigned a = (uint16_t)(rd16(actor, 0xAu) - 1u);
+    unsigned a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
 
-    wr16(actor, 0xAu, a);                            /* 1000:ECB7 */
+    wr_le_u16(actor + 0xAu, a);                            /* 1000:ECB7 */
     if ((int16_t)a < 0) {
-        unsigned off = rd16(actor, 0xCu), di;
+        unsigned off = rd_le_u16(actor + 0xCu), di;
 
-        wr16(actor, 0xAu, 9u);
+        wr_le_u16(actor + 0xAu, 9u);
         di = 0u;                                     /* 0x6E5C + off */
         (void)di;
-        if (off < 0x1Au) wr16(actor, 4u, (uint16_t)objAnimListWord(off));
+        if (off < 0x1Au) wr_le_u16(actor + 4u, (uint16_t)objAnimListWord(off));
         if (!(objAnimListWord(off + 2u) & 0x8000u))
-            wr16(actor, 0xCu, (uint16_t)(off + 2u));
+            wr_le_u16(actor + 0xCu, (uint16_t)(off + 2u));
     }
-    wr16(actor, 4u, rd16(actor, 0xEu));              /* 1000:ECDD */
-    wr16(actor, 8u, rd16(actor, 0x10u));
-    wr16(actor, 0xAu, 0u);
-    wr16(actor, 0xCu, 0u);
+    wr_le_u16(actor + 4u, rd_le_u16(actor + 0xEu));              /* 1000:ECDD */
+    wr_le_u16(actor + 8u, rd_le_u16(actor + 0x10u));
+    wr_le_u16(actor + 0xAu, 0u);
+    wr_le_u16(actor + 0xCu, 0u);
     /* 1000:ECF1 writes [0x1F1C]'s +4 = 0x82 and +8 = 0; that pointer has no
      * ported writer (re_map.md, "the [0x1F1C] record"), so it is not stored. */
 }
@@ -4912,48 +4902,48 @@ static void objTailType29(uint8_t *actor)
     int dx, dy;
     unsigned a;
 
-    if (e && rd16(e, 8u) <= 2u) {                    /* 1000:DDE4 */
-        dx = (int)(int16_t)rd16(actor, 0u) - (int)(int16_t)rd16(e, 0u);
-        dy = (int)(int16_t)rd16(actor, 2u) - (int)(int16_t)rd16(e, 2u);
+    if (e && rd_le_u16(e + 8u) <= 2u) {                    /* 1000:DDE4 */
+        dx = (int)(int16_t)rd_le_u16(actor + 0u) - (int)(int16_t)rd_le_u16(e + 0u);
+        dy = (int)(int16_t)rd_le_u16(actor + 2u) - (int)(int16_t)rd_le_u16(e + 2u);
         if (dx < 0 && dx + 0x20 >= 0 && dy < 0 && dy + 0x20 >= 0) {
-            uint8_t *cls = objLinkRecord(rd16(actor, 0xCu));
+            uint8_t *cls = objLinkRecord(rd_le_u16(actor + 0xCu));
 
-            wr16(actor, 8u, 2u);                     /* 1000:DDFD */
-            wr16(actor, 0xAu, 0u);
+            wr_le_u16(actor + 8u, 2u);                     /* 1000:DDFD */
+            wr_le_u16(actor + 0xAu, 0u);
             if (cls) cls[6] = 0x80u;                 /* 1000:DE0A */
-            wr16(actor, 4u, 0x0010u);
-            wr16(actor, 0u, (uint16_t)(rd16(actor, 0u) + 8u));
-            wr16(actor, 2u, (uint16_t)(rd16(actor, 2u) + 8u));
+            wr_le_u16(actor + 4u, 0x0010u);
+            wr_le_u16(actor + 0u, (uint16_t)(rd_le_u16(actor + 0u) + 8u));
+            wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(actor + 2u) + 8u));
             objPlacedHumans++;                       /* 1000:DE1B: [0x3E20] */
             level_addMember();                       /* 1000:DE1F: [0x11FC] */
             objDriverCall(0xC);
             return;
         }
     }
-    a = (uint16_t)(rd16(actor, 0xAu) - 1u);          /* 1000:DE2C */
-    wr16(actor, 0xAu, a);
+    a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);          /* 1000:DE2C */
+    wr_le_u16(actor + 0xAu, a);
     if ((int16_t)a >= 0) return;
-    if (rd16(actor, 4u) == 0x00FEu) {                /* 1000:DE31 */
+    if (rd_le_u16(actor + 4u) == 0x00FEu) {                /* 1000:DE31 */
         uint8_t *cls;
 
-        wr16(actor, 4u, (uint16_t)(rd16(actor, 4u) + 1u));
-        wr16(actor, 0xAu, 0x32u);
-        cls = objLinkRecord(rd16(actor, 0xCu));
+        wr_le_u16(actor + 4u, (uint16_t)(rd_le_u16(actor + 4u) + 1u));
+        wr_le_u16(actor + 0xAu, 0x32u);
+        cls = objLinkRecord(rd_le_u16(actor + 0xCu));
         if (cls) {
-            wr16(cls, 0u, rd16(actor, 0u));
-            wr16(cls, 2u, rd16(actor, 2u));
-            wr16(cls, 0u, (uint16_t)(rd16(cls, 0u) + 0x0Fu));   /* 1000:DE60 */
-            wr16(cls, 2u, (uint16_t)(rd16(cls, 2u) - 0x0Cu));
-            wr16(cls, 4u, 0x0102u);
+            wr_le_u16(cls + 0u, rd_le_u16(actor + 0u));
+            wr_le_u16(cls + 2u, rd_le_u16(actor + 2u));
+            wr_le_u16(cls + 0u, (uint16_t)(rd_le_u16(cls + 0u) + 0x0Fu));   /* 1000:DE60 */
+            wr_le_u16(cls + 2u, (uint16_t)(rd_le_u16(cls + 2u) - 0x0Cu));
+            wr_le_u16(cls + 4u, 0x0102u);
             cls[6] = 0u;
         }
         objDriverCall(8);
         return;
     }
-    wr16(actor, 4u, (uint16_t)(rd16(actor, 4u) - 1u));      /* 1000:DE38 */
-    wr16(actor, 0xAu, 0xFAu);
+    wr_le_u16(actor + 4u, (uint16_t)(rd_le_u16(actor + 4u) - 1u));      /* 1000:DE38 */
+    wr_le_u16(actor + 0xAu, 0xFAu);
     {
-        uint8_t *cls = objLinkRecord(rd16(actor, 0xCu));
+        uint8_t *cls = objLinkRecord(rd_le_u16(actor + 0xCu));
 
         if (cls) cls[6] = 0x80u;
     }
@@ -4964,19 +4954,19 @@ static void objTailType29(uint8_t *actor)
  * stepper or the "home" form (frame from the target's +8 + 4, +0xE = 0xA). */
 static void objTailType11(uint8_t *actor)
 {
-    uint8_t *t = object_slot(rd16(actor, 0xEu));     /* [[SI+0xE]] */
+    uint8_t *t = object_slot(rd_le_u16(actor + 0xEu));     /* [[SI+0xE]] */
 
     if (!t) return;
-    if (rd16(actor, 2u) > rd16(t, 2u)) {             /* 1000:EAB8 */
+    if (rd_le_u16(actor + 2u) > rd_le_u16(t + 2u)) {             /* 1000:EAB8 */
         objFrameStep(actor, 0x52u, 0x54u);
         return;
     }
     {
-        unsigned f = rd16(t, 8u);
+        unsigned f = rd_le_u16(t + 8u);
 
-        wr16(actor, 8u, (uint16_t)(f + 4u));         /* 1000:EAC9 */
-        wr16(actor, 4u, f == 9u ? 8u : 0u);
-        wr16(actor, 0xEu, 0x000Au);                  /* 1000:EAE0 */
+        wr_le_u16(actor + 8u, (uint16_t)(f + 4u));         /* 1000:EAC9 */
+        wr_le_u16(actor + 4u, f == 9u ? 8u : 0u);
+        wr_le_u16(actor + 0xEu, 0x000Au);                  /* 1000:EAE0 */
     }
 }
 
@@ -4985,29 +4975,29 @@ static void objTailType11(uint8_t *actor)
  * the map probe under its feet decides between the down-stepper and home. */
 static void objTailType12(uint8_t *actor)
 {
-    uint8_t *e = object_slot(rd16(actor, 0xEu));
+    uint8_t *e = object_slot(rd_le_u16(actor + 0xEu));
     unsigned sum;
 
     if (!e) return;
-    sum = (unsigned)(rd16(e, 4u) + rd16(e, 6u));
-    if (rd16(actor, 2u) > sum) {                     /* 1000:EAF6 */
+    sum = (unsigned)(rd_le_u16(e + 4u) + rd_le_u16(e + 6u));
+    if (rd_le_u16(actor + 2u) > sum) {                     /* 1000:EAF6 */
         unsigned cell, sub;
-        int y = (int)(int16_t)rd16(actor, 2u) + 0x18;
+        int y = (int)(int16_t)rd_le_u16(actor + 2u) + 0x18;
         unsigned b;
 
-        cell = objMapAtAbs((int)(int16_t)rd16(actor, 0u) + 8, y, &sub);
+        cell = objMapAtAbs((int)(int16_t)rd_le_u16(actor + 0u) + 8, y, &sub);
         b = level_pageByte(cell, sub);
         if (!(b & 0x80u)) {                          /* 1000:EB4B */
             unsigned line = (unsigned)(y & ~0xFu) + b;
 
-            if (line > (unsigned)(int)(int16_t)rd16(actor, 2u)) {
+            if (line > (unsigned)(int)(int16_t)rd_le_u16(actor + 2u)) {
                 objFrameStepDown(actor, 0x52u, 0x54u);
                 return;
             }
         }
     }
-    wr16(actor, 4u, 0x0010u);                        /* 1000:EAFB */
-    wr16(actor, 8u, 0x0002u);
+    wr_le_u16(actor + 4u, 0x0010u);                        /* 1000:EAFB */
+    wr_le_u16(actor + 8u, 0x0002u);
     objFlag6fE6Set();                                   /* 1000:EB05 */
 }
 
@@ -5016,27 +5006,27 @@ static void objTailType12(uint8_t *actor)
  * record it also seeds slot 8 (0x3F05) with type 0x1A and [0x6DEA] = 0x3E8. */
 static void objTailType33(uint8_t *actor)
 {
-    unsigned a = (uint16_t)(rd16(actor, 0xAu) - 1u);
+    unsigned a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
 
-    wr16(actor, 0xAu, a);                            /* 1000:F0C9 */
+    wr_le_u16(actor + 0xAu, a);                            /* 1000:F0C9 */
     if ((int16_t)a >= 0) return;
-    wr16(actor, 0xAu, 5u);
-    wr16(actor, 4u, (uint16_t)(rd16(actor, 4u) - 1u));
-    if (rd16(actor, 4u) != 0x27u) return;            /* 1000:F0D6 */
-    wr16(actor, 0u, (uint16_t)(rd16(actor, 0u) + 8u));
-    wr16(actor, 4u, 0x0010u);
-    wr16(actor, 8u, 0x0002u);
-    wr16(actor, 0xAu, 0u);
+    wr_le_u16(actor + 0xAu, 5u);
+    wr_le_u16(actor + 4u, (uint16_t)(rd_le_u16(actor + 4u) - 1u));
+    if (rd_le_u16(actor + 4u) != 0x27u) return;            /* 1000:F0D6 */
+    wr_le_u16(actor + 0u, (uint16_t)(rd_le_u16(actor + 0u) + 8u));
+    wr_le_u16(actor + 4u, 0x0010u);
+    wr_le_u16(actor + 8u, 0x0002u);
+    wr_le_u16(actor + 0xAu, 0u);
     if ((unsigned)((actor - objArray) / OBJ_STRIDE) != objEntity) return;   /* 1000:F0F7 */
     {
         uint8_t *slot8 = object_slot(8u);            /* 0x3F05 */
 
         if (!slot8) return;
-        wr16(slot8, 0u, rd16(actor, 0u));
-        wr16(slot8, 2u, (uint16_t)(rd16(actor, 2u) - 0x1Au));
-        wr16(slot8, 6u, 0u);
-        wr16(slot8, 8u, 0x001Au);
-        wr16(slot8, 0xAu, 0x0605u);
+        wr_le_u16(slot8 + 0u, rd_le_u16(actor + 0u));
+        wr_le_u16(slot8 + 2u, (uint16_t)(rd_le_u16(actor + 2u) - 0x1Au));
+        wr_le_u16(slot8 + 6u, 0u);
+        wr_le_u16(slot8 + 8u, 0x001Au);
+        wr_le_u16(slot8 + 0xAu, 0x0605u);
         objCmdTimer = 0x03E8u;                       /* 1000:F11C */
     }
 }
@@ -5065,28 +5055,28 @@ static uint8_t *objLinkRecord(unsigned off)
  * has the same sign and is 0xA away. */
 static void objNudge(uint8_t *actor, int step)
 {
-    uint8_t *node = objLinkRecord(rd16(actor, 0xEu));
+    uint8_t *node = objLinkRecord(rd_le_u16(actor + 0xEu));
     unsigned bx;
     int cx;
 
     if (!node) return;
-    if (rd16(node, 0xAu) != 0u) return;              /* 1000:FC3C */
-    bx = (uint16_t)(rd16(actor, 0xAu) + (uint16_t)step);
+    if (rd_le_u16(node + 0xAu) != 0u) return;              /* 1000:FC3C */
+    bx = (uint16_t)(rd_le_u16(actor + 0xAu) + (uint16_t)step);
     if ((int16_t)bx < 0) {
         if (bx == (uint16_t)-9) bx = 0xFFF8u;        /* 1000:FC45 */
     } else if (bx == 9u) {
         bx = 8u;                                     /* 1000:FC4F */
     }
-    wr16(actor, 0xAu, bx);                           /* 1000:FC57 */
-    cx = (int16_t)rd16(node, 8u);
+    wr_le_u16(actor + 0xAu, bx);                           /* 1000:FC57 */
+    cx = (int16_t)rd_le_u16(node + 8u);
     if ((int16_t)bx < 0) {
-        if (cx >= 0) { wr16(node, 8u, (uint16_t)(cx + (int16_t)bx)); return; }
+        if (cx >= 0) { wr_le_u16(node + 8u, (uint16_t)(cx + (int16_t)bx)); return; }
         if (-cx >= 0xA) return;                      /* 1000:FC69 */
     } else {
-        if (cx < 0) { wr16(node, 8u, (uint16_t)(cx + (int16_t)bx)); return; }
+        if (cx < 0) { wr_le_u16(node + 8u, (uint16_t)(cx + (int16_t)bx)); return; }
         if (cx >= 0xA) return;                       /* 1000:FC78 */
     }
-    wr16(node, 8u, (uint16_t)(cx + (int16_t)bx));    /* 1000:FC7E */
+    wr_le_u16(node + 8u, (uint16_t)(cx + (int16_t)bx));    /* 1000:FC7E */
 }
 
 /* 1000:EBA0 / 1000:EB78: step the node's progress by +1 / -1 until it reaches
@@ -5094,18 +5084,18 @@ static void objNudge(uint8_t *actor, int step)
  * byte is parked at 0xC (`& 7` = 4). */
 static void objCmdPathStep(uint8_t *actor, int forward)
 {
-    uint8_t *node = objLinkRecord(rd16(actor, 0xEu));
+    uint8_t *node = objLinkRecord(rd_le_u16(actor + 0xEu));
     int v;
 
     if (!node) return;
     if ((node[7] & 7u) == 4u) return;                /* 1000:EBA6 / 0xEB7E */
-    v = (int16_t)rd16(node, 8u);
+    v = (int16_t)rd_le_u16(node + 8u);
     if (forward) {
         if (v >= 0 || -v < 0xF) { objNudge(actor, 1); return; }
     } else {
         if (v < 0 || v < 0xF) { objNudge(actor, -1); return; }
     }
-    wr16(actor, 4u, 0x004Au);                        /* 1000:EBBa / 0xEB90 */
+    wr_le_u16(actor + 4u, 0x004Au);                        /* 1000:EBBa / 0xEB90 */
     node[7] = 0x0Cu;
 }
 
@@ -5126,23 +5116,23 @@ static const uint8_t objPathScale[0x20] = {
  * with effect 2. */
 static void objPathAdvance(uint8_t *actor)
 {
-    uint8_t *node = objLinkRecord(rd16(actor, 0xEu));
+    uint8_t *node = objLinkRecord(rd_le_u16(actor + 0xEu));
     unsigned x, y, tile, fine, step;
     int ax;
 
     if (!node) return;
     if (node[7] != 0u) return;                       /* 1000:EBD3 */
-    x = (unsigned)(rd16(node, 0u) + 8u);
-    y = rd16(node, 2u);
+    x = (unsigned)(rd_le_u16(node + 0u) + 8u);
+    y = rd_le_u16(node + 2u);
     fine = x & 0xFu;
     tile = objMapAtAbs((int)x, (int)y + 0x10, NULL); /* 1000:EBEF: the map cell */
     step = 3;
     if (level_itemByte(tile, fine) & 0x80u) {        /* 1000:EC27 */
-        if (!(rd16(node, 8u) & 0x8000u)) step = 1;
-    } else if (rd16(node, 8u) & 0x8000u) {
+        if (!(rd_le_u16(node + 8u) & 0x8000u)) step = 1;
+    } else if (rd_le_u16(node + 8u) & 0x8000u) {
         step = 1;
     }
-    ax = (int16_t)rd16(node, 8u);                    /* 1000:EC43 */
+    ax = (int16_t)rd_le_u16(node + 8u);                    /* 1000:EC43 */
     if (ax < 0) {
         ax = -ax;
         if (tile == 0x3Bu) ax += 8;                  /* 1000:EC53 */
@@ -5152,9 +5142,9 @@ static void objPathAdvance(uint8_t *actor)
     ax >>= 3;
     step += (unsigned)(int8_t)objPathScale[(unsigned)ax & 0x1Fu];
     (void)tile;
-    if (rd16(node, 0xAu) != 0u) return;              /* 1000:EC72 */
-    wr16(node, 8u, (uint16_t)step);                  /* 1000:EC78 */
-    wr16(node, 0x10u, (uint16_t)y);                  /* 1000:EC7A */
+    if (rd_le_u16(node + 0xAu) != 0u) return;              /* 1000:EC72 */
+    wr_le_u16(node + 8u, (uint16_t)step);                  /* 1000:EC78 */
+    wr_le_u16(node + 0x10u, (uint16_t)y);                  /* 1000:EC7A */
     objDriverCall(2);                                /* 1000:EC7E */
 }
 
@@ -5186,48 +5176,48 @@ static void objCarryForm(uint8_t *rec, unsigned phase, int entry)
 {
     uint16_t v = (uint16_t)(0xF0u + phase);
 
-    wr16(rec, 4u, 0x0055u);                      /* 1000:DC9A */
-    wr16(rec, 8u, 0x0010u);
-    wr16(rec, 0xAu, 0u);
-    wr16(rec, 0xCu, 0u);
+    wr_le_u16(rec + 4u, 0x0055u);                      /* 1000:DC9A */
+    wr_le_u16(rec + 8u, 0x0010u);
+    wr_le_u16(rec + 0xAu, 0u);
+    wr_le_u16(rec + 0xCu, 0u);
     /* 1000:DCB0/DCBA store and then ADD into `[BP+0xE]` with no width test.  For
      * a placed record that is its last word; for a 0x0E-byte group entry it is
      * the *next* entry's first word, and for the last entry (0x6F22 + 0x70) it
      * is 0x6F92 - the span table's first word, i.e. the span's owner/free flag.
      * Both landings are reproduced, not skipped. */
     if (!entry) {
-        wr16(rec, 0xEu, v);
+        wr_le_u16(rec + 0xEu, v);
     } else if (rec + 0xEu + 1 < (uint8_t *)objRegister + sizeof objRegister) {
-        wr16(rec + 0xEu, 0u, v);
+        wr_le_u16(rec + 0xEu + 0u, v);
     } else {
-        wr16((uint8_t *)objSpan[0], 0u, v);      /* 0x6F92 */
+        wr_le_u16((uint8_t *)objSpan[0] + 0u, v);      /* 0x6F92 */
     }
     objDriverCall(8);                            /* 1000:DCBF */
 }
 
 static void objCmdType15Tail(uint8_t *actor)
 {
-    uint8_t *node = objLinkRecord(rd16(actor, 0xEu));
+    uint8_t *node = objLinkRecord(rd_le_u16(actor + 0xEu));
     int ax, bx;
     unsigned phase;
 
     if (!node) return;                           /* 1000:DC1F (DI = the node) */
-    ax = (int)rd16(node, 0u) + 8;                /* 1000:DC32 */
-    bx = (int)rd16(node, 2u) + 0x10;             /* 1000:DC34 */
+    ax = (int)rd_le_u16(node + 0u) + 8;                /* 1000:DC32 */
+    bx = (int)rd_le_u16(node + 2u) + 0x10;             /* 1000:DC34 */
     phase = objFrame & 0x3Fu;                    /* 1000:DC3D -> [0x4230] */
-    if (rd16(node, 8u) != 0u) {                  /* 1000:DC22 */
+    if (rd_le_u16(node + 8u) != 0u) {                  /* 1000:DC22 */
         for (unsigned i = 0; i < 8u; i++) {      /* 1000:DC3A: CX = 7 */
             uint8_t *r = object_slot(i);
             int d;
 
             if (!r || r == actor) continue;      /* 1000:DC4B */
-            d = (int)(int16_t)(uint16_t)(rd16(r, 2u) + 0x18u) - bx;
+            d = (int)(int16_t)(uint16_t)(rd_le_u16(r + 2u) + 0x18u) - bx;
             if (d < 0) d = -d;
             if (d > 8) continue;                 /* 1000:DC72 */
-            d = (int)(int16_t)rd16(r, 0u) - ax;
+            d = (int)(int16_t)rd_le_u16(r + 0u) - ax;
             if (d < 0) d = -d;
             if (d > 1) continue;                 /* 1000:DC83 */
-            if (rd16(r, 8u) > 2u) continue;      /* 1000:DC8A */
+            if (rd_le_u16(r + 8u) > 2u) continue;      /* 1000:DC8A */
             if ((int)i == object_player()) goto give;   /* 1000:DC91 */
             objCarryForm(r, phase, 0);           /* 1000:DC9A */
             return;
@@ -5237,11 +5227,11 @@ static void objCmdType15Tail(uint8_t *actor)
         uint8_t *e = (uint8_t *)objRegister[g];
         int d;
 
-        if (rd16(e, 0u) & 0x8000u) continue;     /* 1000:DCEC */
-        d = (int)(int16_t)(uint16_t)(rd16(e, 2u) + 0x18u) - bx;
+        if (rd_le_u16(e + 0u) & 0x8000u) continue;     /* 1000:DCEC */
+        d = (int)(int16_t)(uint16_t)(rd_le_u16(e + 2u) + 0x18u) - bx;
         if (d < 0) d = -d;
         if (d > 8) continue;
-        d = (int)(int16_t)(uint16_t)(rd16(e, 0u) + 8u) - ax;
+        d = (int)(int16_t)(uint16_t)(rd_le_u16(e + 0u) + 8u) - ax;
         if (d < 0) d = -d;
         if (d > 1) continue;                     /* 1000:DD0F */
         if ((unsigned)e[5] == (unsigned)object_player()) goto give;  /* 1000:DD27 */
@@ -5263,16 +5253,16 @@ give:                                            /* 1000:DD3C */
         slot = 8u + cls;                         /* 0x3F17 + 0x12*(cls-1) */
         if (slot >= OBJ_SLOTS) return;
         rec = objArray + slot * OBJ_STRIDE;
-        wr16(rec, 0xAu, 1u);
-        wr16(rec, 0xEu, 0xFFFFu);
+        wr_le_u16(rec + 0xAu, 1u);
+        wr_le_u16(rec + 0xEu, 0xFFFFu);
         rec[6] &= 0x7Fu;                         /* 1000:DD63 */
-        wr16(actor, 0u, rd16(rec, 0u));
-        wr16(actor, 2u, (uint16_t)(rd16(rec, 2u) - 8u));
-        wr16(actor, 4u, 0x0103u);
-        wr16(actor, 8u, 0x001Eu);
-        wr16(actor, 0xAu, 6u);
-        wr16(actor, 0xCu, 0u);
-        wr16(actor, 0xEu, 0x000Au);
+        wr_le_u16(actor + 0u, rd_le_u16(rec + 0u));
+        wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(rec + 2u) - 8u));
+        wr_le_u16(actor + 4u, 0x0103u);
+        wr_le_u16(actor + 8u, 0x001Eu);
+        wr_le_u16(actor + 0xAu, 6u);
+        wr_le_u16(actor + 0xCu, 0u);
+        wr_le_u16(actor + 0xEu, 0x000Au);
     }
 }
 
@@ -5284,8 +5274,8 @@ static void objCmdRide(uint8_t *actor, unsigned frame, unsigned xoff, unsigned b
 {
     if (!objStateIs(actor, 2u)) return;                   /* 1000:EA15 */
     if (objStackMasked()) return;                         /* 1000:EA1A */
-    wr16(actor, 4u, (uint16_t)frame);
-    wr16(actor, 0xAu, 3u);
+    wr_le_u16(actor + 4u, (uint16_t)frame);
+    wr_le_u16(actor + 0xAu, 3u);
     objSelType = bit;                                     /* 1000:EA29 / 1000:EA67 */
     objScanPoint(actor, xoff);                            /* 1000:FC81 */
 }
@@ -5300,9 +5290,9 @@ static void objCmdFrameStep(uint8_t *actor, unsigned bound, int up)
 
     if (objLat) { objCmdEnter(actor); return; }           /* 1000:ED56 */
     if (objFrameCadence(actor)) return;                   /* 1000:ED5C */
-    f = rd16(actor, 4u);
+    f = rd_le_u16(actor + 4u);
     if (f == bound) return;
-    wr16(actor, 4u, (uint16_t)(up ? f + 1u : f - 1u));
+    wr_le_u16(actor + 4u, (uint16_t)(up ? f + 1u : f - 1u));
 }
 
 /* 1000:EDB7 (and its thunks 0xF0C3 / 0xF0C6): put the record into one of its
@@ -5312,21 +5302,21 @@ static void objCmdFrameStep(uint8_t *actor, unsigned bound, int up)
  * to 0xFF (the ACTION press stays consumed). */
 static int objCmdHomeState(uint8_t *actor)
 {
-    unsigned t = rd16(actor, 8u);
+    unsigned t = rd_le_u16(actor + 8u);
 
     if (t == 0x12u || t == 0x17u || t == 0x1Fu) {
-        wr16(actor, 4u, 0u);                              /* 1000:EDD9 */
-        wr16(actor, 8u, 0u);
+        wr_le_u16(actor + 4u, 0u);                              /* 1000:EDD9 */
+        wr_le_u16(actor + 8u, 0u);
     } else if (t == 0x14u || t == 0x18u || t == 0x20u) {
-        wr16(actor, 4u, 8u);                              /* 1000:EDE5 */
-        wr16(actor, 8u, 1u);
+        wr_le_u16(actor + 4u, 8u);                              /* 1000:EDE5 */
+        wr_le_u16(actor + 8u, 1u);
     } else {
         return 0;                                         /* 1000:EDD8 */
     }
-    wr16(actor, 0xAu, 0u);                                /* 1000:EDEF */
-    wr16(actor, 0xCu, 0u);
-    wr16(actor, 0xEu, 0u);
-    wr16(actor, 0x10u, 0u);
+    wr_le_u16(actor + 0xAu, 0u);                                /* 1000:EDEF */
+    wr_le_u16(actor + 0xCu, 0u);
+    wr_le_u16(actor + 0xEu, 0u);
+    wr_le_u16(actor + 0x10u, 0u);
     objLat = 0;                                           /* 1000:EDFD */
     object_setActionLatched(1);                            /* 1000:EE01 */
     return 1;                                             /* AX = 0: converted */
@@ -5343,9 +5333,9 @@ static void objCmdTurn(uint8_t *actor)
     if (object_actionLatched()) return;                    /* 1000:EE0C */
     if (!objLat) {
         objLat = 0xFF;                                    /* 1000:EE16 */
-        wr16(actor, 0xEu, 0u);
+        wr_le_u16(actor + 0xEu, 0u);
     }
-    wr16(actor, 0xEu, (uint16_t)((rd16(actor, 0xEu) + 4u) & 0x1FFu));
+    wr_le_u16(actor + 0xEu, (uint16_t)((rd_le_u16(actor + 0xEu) + 4u) & 0x1FFu));
     if (objDebounce != 4u) objOutState = 4;               /* 1000:EE30 */
     objChargeArm = 0xFF;                                  /* 1000:EE35 */
 }
@@ -5363,36 +5353,36 @@ static void objCmdFall(uint8_t *actor, int x, int y, unsigned frame);
  * the landing pair is written back. */
 static void objCmdLeave(uint8_t *actor)
 {
-    unsigned cx = rd16(actor, 0xEu);
+    unsigned cx = rd_le_u16(actor + 0xEu);
     int ax = 4, bx = 2;
     int down = 1;
 
     objLat = 0;                                      /* 1000:EFE4 */
-    if (rd16(actor, 4u) != 0x00BBu) {                /* 1000:EFF5 */
+    if (rd_le_u16(actor + 4u) != 0x00BBu) {                /* 1000:EFF5 */
         ax = -4;
         bx = -2;
         down = 0;
     }
-    wr16(actor, 0x10u, (uint16_t)(int16_t)bx);       /* 1000:F005 */
-    wr16(actor, 0xEu, 0u);
+    wr_le_u16(actor + 0x10u, (uint16_t)(int16_t)bx);       /* 1000:F005 */
+    wr_le_u16(actor + 0xEu, 0u);
     if (cx >= 0x100u) cx = 0x1FFu - cx;              /* 1000:F00D */
     cx >>= 4;                                        /* 1000:F019 */
-    wr16(actor, 0xCu, (uint16_t)(0xFu - cx));        /* 1000:F021 */
-    wr16(actor, 0xAu, 3u);                           /* 1000:F029 */
-    wr16(actor, 8u, (uint16_t)(rd16(actor, 8u) + 2u));   /* 1000:F02E */
-    wr16(actor, 4u, (uint16_t)(rd16(actor, 4u) + 1u));   /* 1000:F032 */
+    wr_le_u16(actor + 0xCu, (uint16_t)(0xFu - cx));        /* 1000:F021 */
+    wr_le_u16(actor + 0xAu, 3u);                           /* 1000:F029 */
+    wr_le_u16(actor + 8u, (uint16_t)(rd_le_u16(actor + 8u) + 2u));   /* 1000:F02E */
+    wr_le_u16(actor + 4u, (uint16_t)(rd_le_u16(actor + 4u) + 1u));   /* 1000:F032 */
     {
-        uint16_t sx = rd16(actor, 0u), sy = rd16(actor, 2u);
+        uint16_t sx = rd_le_u16(actor + 0u), sy = rd_le_u16(actor + 2u);
 
-        wr16(actor, 0u, (uint16_t)(sx + (uint16_t)(int16_t)ax));
-        wr16(actor, 2u, (uint16_t)(sy - 4u));        /* 1000:F03C */
+        wr_le_u16(actor + 0u, (uint16_t)(sx + (uint16_t)(int16_t)ax));
+        wr_le_u16(actor + 2u, (uint16_t)(sy - 4u));        /* 1000:F03C */
         objDriverCall(2);                            /* 1000:F041 */
         objCmdFall(actor, down ? 0 : 8, down ? 0 : 1, down ? 0x10u : 0u);
-        if (rd16(actor, 0x10u) == 0u) {              /* 1000:F04A */
-            wr16(actor, 0u, sx);                     /* 1000:F051: restore */
-            wr16(actor, 2u, sy);
-            wr16(actor, 4u, (uint16_t)objSide);      /* 1000:F056: frame  */
-            wr16(actor, 8u, objSelXoff);             /* 1000:F05C: type   */
+        if (rd_le_u16(actor + 0x10u) == 0u) {              /* 1000:F04A */
+            wr_le_u16(actor + 0u, sx);                     /* 1000:F051: restore */
+            wr_le_u16(actor + 2u, sy);
+            wr_le_u16(actor + 4u, (uint16_t)objSide);      /* 1000:F056: frame  */
+            wr_le_u16(actor + 8u, objSelXoff);             /* 1000:F05C: type   */
         }
     }
 }
@@ -5402,7 +5392,7 @@ static void objCmdLeave(uint8_t *actor)
 static void objCmdTurnIdle(uint8_t *actor)
 {
     if (objLat) { objCmdLeave(actor); return; }           /* 1000:EFDC -> 0xEFE4 */
-    wr16(actor, 0xEu, 0u);
+    wr_le_u16(actor + 0xEu, 0u);
 }
 
 /* --- 1000:F6F6: the landing / bounce machine (handlers 0xF067 / 0xF078) ---
@@ -5476,16 +5466,16 @@ static void objFallMachine(uint8_t *actor)
         /* 1000:F6FB/F701: frame <- [0x4230] (objSide), type <- [0x4234]
          * (objSelXoff).  The third word [0x4238] is the item probe's x
          * offset, not the type. */
-        wr16(actor, 4u, (uint16_t)objSide);
-        wr16(actor, 8u, objSelXoff);
-        wr16(actor, 0xAu, 0u);
+        wr_le_u16(actor + 4u, (uint16_t)objSide);
+        wr_le_u16(actor + 8u, objSelXoff);
+        wr_le_u16(actor + 0xAu, 0u);
         return;
     }
-    if (rd16(actor, 0xAu) == 1u)                     /* 1000:F70D DEC / JNZ */
-        wr16(actor, 4u, (uint16_t)(rd16(actor, 4u) + 1u));
-    wr16(actor, 0xAu, (uint16_t)(rd16(actor, 0xAu) - 1u));
+    if (rd_le_u16(actor + 0xAu) == 1u)                     /* 1000:F70D DEC / JNZ */
+        wr_le_u16(actor + 4u, (uint16_t)(rd_le_u16(actor + 4u) + 1u));
+    wr_le_u16(actor + 0xAu, (uint16_t)(rd_le_u16(actor + 0xAu) - 1u));
 
-    anim = rd16(actor, 0xCu);                        /* 1000:F715 */
+    anim = rd_le_u16(actor + 0xCu);                        /* 1000:F715 */
     if (anim >= 0x18u) {
         vy = 3;                                      /* 1000:F71B */
     } else {
@@ -5494,11 +5484,11 @@ static void objFallMachine(uint8_t *actor)
         vy = objFallStep[anim];
         anim++;
     }
-    wr16(actor, 0xCu, (uint16_t)anim);               /* 1000:F728 */
-    wr16(actor, 0xEu, (uint16_t)(rd16(actor, 0xEu) + (uint16_t)(int16_t)vy));
+    wr_le_u16(actor + 0xCu, (uint16_t)anim);               /* 1000:F728 */
+    wr_le_u16(actor + 0xEu, (uint16_t)(rd_le_u16(actor + 0xEu) + (uint16_t)(int16_t)vy));
 
-    ax = (int)(int16_t)rd16(actor, 0u) + (int)(int16_t)rd16(actor, 0x10u);
-    bx = (int)(int16_t)rd16(actor, 2u) + vy;
+    ax = (int)(int16_t)rd_le_u16(actor + 0u) + (int)(int16_t)rd_le_u16(actor + 0x10u);
+    bx = (int)(int16_t)rd_le_u16(actor + 2u) + vy;
     cx = ax + 8;                                     /* 1000:F736: the probe x */
     probeY = (unsigned)(bx + 0x18);                  /* 1000:F739 */
     fine = (unsigned)cx & 0xFu;                      /* 1000:F753 */
@@ -5513,22 +5503,22 @@ static void objFallMachine(uint8_t *actor)
         if (above != 0xF1u) {
             gx -= 4u;                                /* 1000:F778 */
             if (above != 0xF2u) gx += 8u;
-            wr16(actor, 0u, (uint16_t)gx);           /* 1000:F784 */
+            wr_le_u16(actor + 0u, (uint16_t)gx);           /* 1000:F784 */
         }
-        wr16(actor, 2u, (uint16_t)(rowY - 0x1Cu));   /* 1000:F786 */
-        wr16(actor, 4u, 0x00CDu);
-        wr16(actor, 8u, 0x001Cu);
-        wr16(actor, 0xCu, 0u);
-        wr16(actor, 0xEu, 0u);
-        wr16(actor, 0xAu, 9u);
+        wr_le_u16(actor + 2u, (uint16_t)(rowY - 0x1Cu));   /* 1000:F786 */
+        wr_le_u16(actor + 4u, 0x00CDu);
+        wr_le_u16(actor + 8u, 0x001Cu);
+        wr_le_u16(actor + 0xCu, 0u);
+        wr_le_u16(actor + 0xEu, 0u);
+        wr_le_u16(actor + 0xAu, 9u);
         objDriverCall(6);                            /* 1000:F7A6 */
         return;
     }
     if (bx >= 0x128) goto place;                     /* 1000:F7AE */
     below = objMapAtAbs(cx, (int)probeY, NULL);      /* 1000:F7B9: the feet */
     page = level_pageByte(below, fine);              /* 1000:F7F3 */
-    if (rd16(actor, 0x10u) != 0u) {                  /* 1000:F7BB */
-        unsigned want = objTypeTile[rd16(actor, 8u) < 35u ? rd16(actor, 8u) : 0u];
+    if (rd_le_u16(actor + 0x10u) != 0u) {                  /* 1000:F7BB */
+        unsigned want = objTypeTile[rd_le_u16(actor + 8u) < 35u ? rd_le_u16(actor + 8u) : 0u];
 
         if (below == want) {                         /* 1000:F7CD */
             unsigned b2 = objMapAtAbs(cx, (int)probeY + 0x10, NULL);
@@ -5550,7 +5540,7 @@ static void objFallMachine(uint8_t *actor)
 zero_case:
     {                                                /* 1000:F834 */
         unsigned a2 = objMapAtAbs(cx, (int)rowY - 0x10, NULL);
-        unsigned want = objTypeTile[rd16(actor, 8u) < 35u ? rd16(actor, 8u) : 0u];
+        unsigned want = objTypeTile[rd_le_u16(actor + 8u) < 35u ? rd_le_u16(actor + 8u) : 0u];
         /* 1000:F83A/F84C park these two in [0x422C]/[0x422E] only to compare
          * them; the port compares the cells directly. */
         if (want == a2) goto land_at_y;              /* 1000:F856 */
@@ -5565,19 +5555,19 @@ snap:                                                /* 1000:F87F */
     d = -d;
     if (d > 3) goto item_word;
     bx -= d;                                         /* 1000:F89A */
-    wr16(actor, 0u, (uint16_t)ax);
-    wr16(actor, 2u, (uint16_t)bx);
+    wr_le_u16(actor + 0u, (uint16_t)ax);
+    wr_le_u16(actor + 2u, (uint16_t)bx);
     {
-        int speed = (int16_t)rd16(actor, 0xEu);
+        int speed = (int16_t)rd_le_u16(actor + 0xEu);
 
         if (speed < 0) goto land_pair;               /* 1000:F8A6 */
         if (speed >= 0x30) goto hard_landing;        /* 1000:F8AB */
         level_set_offsetWord((uint16_t)((unsigned)speed >> 3));  /* 1000:F8CE */
     }
 land_pair:                                           /* 1000:F8D2 */
-    wr16(actor, 4u, (uint16_t)objSide);              /* frame <- [0x4230] */
-    wr16(actor, 8u, objSelXoff);                     /* type  <- [0x4234] */
-    wr16(actor, 0xAu, 0u);
+    wr_le_u16(actor + 4u, (uint16_t)objSide);              /* frame <- [0x4230] */
+    wr_le_u16(actor + 8u, objSelXoff);                     /* type  <- [0x4234] */
+    wr_le_u16(actor + 0xAu, 0u);
     objDriverCall(5);
     return;
 
@@ -5591,7 +5581,7 @@ item_word:
         objSelType = item;
         lo = 0xFFFFu;
         hi = 0u;
-        if (!(rd16(actor, 0x10u) & 0x8000u)) {
+        if (!(rd_le_u16(actor + 0x10u) & 0x8000u)) {
             lo = 0u;
             hi = 0xFFFFu;
         }
@@ -5605,23 +5595,23 @@ item_word:
         if ((objSelType & mask) != 0u) goto land_at_y;   /* 1000:F964 -> F975 */
     }
 place:                                               /* 1000:F966 */
-    wr16(actor, 0u, (uint16_t)ax);
-    wr16(actor, 2u, (uint16_t)bx);
+    wr_le_u16(actor + 0u, (uint16_t)ax);
+    wr_le_u16(actor + 2u, (uint16_t)bx);
     if (bx >= 0x140) goto hard_landing;
     return;
 
 hard_landing:                                        /* 1000:F8AD */
-    wr16(actor, 0u, (uint16_t)(rd16(actor, 0u) - 8u));
-    wr16(actor, 4u, 0x0028u);
-    wr16(actor, 8u, 0x0016u);
-    wr16(actor, 0xAu, 5u);
+    wr_le_u16(actor + 0u, (uint16_t)(rd_le_u16(actor + 0u) - 8u));
+    wr_le_u16(actor + 4u, 0x0028u);
+    wr_le_u16(actor + 8u, 0x0016u);
+    wr_le_u16(actor + 0xAu, 5u);
     objDriverCall(4);
     return;
 
 land_at_y:                                           /* 1000:F975 */
-    wr16(actor, 2u, (uint16_t)bx);
-    wr16(actor, 0x10u, 0u);
-    if (rd16(actor, 0xCu) < 0x10u) wr16(actor, 0xCu, 0x0010u);
+    wr_le_u16(actor + 2u, (uint16_t)bx);
+    wr_le_u16(actor + 0x10u, 0u);
+    if (rd_le_u16(actor + 0xCu) < 0x10u) wr_le_u16(actor + 0xCu, 0x0010u);
 }
 
 /* 1000:F067 / 0xF078: the two fall-machine entries.  The first lands with
@@ -5647,9 +5637,9 @@ static void objCmdPlace(uint8_t *actor, int x, int y, unsigned frame)
 /* 1000:F0B3: the "stand" form - frame 0x10, type 2, a one-frame hold. */
 static void objCmdStand(uint8_t *actor)
 {
-    wr16(actor, 4u, 0x0010u);
-    wr16(actor, 8u, 0x0002u);
-    wr16(actor, 0xAu, 0x0001u);
+    wr_le_u16(actor + 4u, 0x0010u);
+    wr_le_u16(actor + 8u, 0x0002u);
+    wr_le_u16(actor + 0xAu, 0x0001u);
 }
 
 /* 1000:E7C0 stream_script_bytes_timed.  The dispatch's one-shot [0x6DEA]
@@ -5663,7 +5653,7 @@ static void objCmdStreamTimed(uint8_t *actor)
     if (objStreamCount != 0u) { objStreamCount--; return; }
     objStreamCount = 0u;
     p = objStreamPtr;
-    wr16(actor, 4u, p[0]);              /* MOV [SI+4], AX */
+    wr_le_u16(actor + 4u, p[0]);              /* MOV [SI+4], AX */
     objStreamCount = p[1];              /* [0x6DEC] */
     p += 2;
     if (*p == 0xFFu) p = objAnimStream; /* 1000:E7FA */
@@ -5673,7 +5663,7 @@ static void objCmdStreamTimed(uint8_t *actor)
 /* 1000:EBCA: type 15 command 8 clears the record's +0xA hold. */
 static void objCmdClearCountdown(uint8_t *actor)
 {
-    wr16(actor, 0xAu, 0u);
+    wr_le_u16(actor + 0xAu, 0u);
 }
 
 /* Test seams for the two handler bodies (the row selector's one-shot gate
@@ -5760,14 +5750,14 @@ static int objCmdCall(uint8_t *actor, unsigned addr)
 int object_commandRun(uint8_t *actor, uint8_t input)
 {
     ObjCommand c = object_commandSelect(actor, input);
-    unsigned before = rd16(actor, 8u);
+    unsigned before = rd_le_u16(actor + 8u);
     int ran = OBJ_CMD_NONE;
 
 
     if (c.handler) {
         if (!objCmdCall(actor, c.handler)) return OBJ_CMD_UNPORTED;
         ran = OBJ_CMD_HANDLER;
-        if (rd16(actor, 8u) != before) goto out;   /* 1000:E4CC */
+        if (rd_le_u16(actor + 8u) != before) goto out;   /* 1000:E4CC */
     }
     if (c.hook) objCmdSettle(actor);               /* 1000:D8BD */
     if (c.tail) {
@@ -5790,37 +5780,37 @@ out:
  * 2 span, 3 grabbed, 4 registered, -1 nothing. */
 int object_stepDown(uint8_t *actor)
 {
-    int x = (int)(int16_t)rd16(actor, 0u);
-    int y = (int)(int16_t)rd16(actor, 2u);
+    int x = (int)(int16_t)rd_le_u16(actor + 0u);
+    int y = (int)(int16_t)rd_le_u16(actor + 2u);
     unsigned sub, cell = objMapAtAbs(x + 8, y + 0x16, &sub);
 
     if (cell == level_specialTile(0u) || cell == level_specialTile(1u)) {
-        wr16(actor, 0u, (uint16_t)((x + 8) & 0xFFF0));
-        wr16(actor, 2u, (uint16_t)(y - 1));
-        wr16(actor, 4u, 0x0023u);
-        wr16(actor, 8u, 0x0004u);
-        wr16(actor, 0xAu, 0x0000u);
-        wr16(actor, 0xCu, 0x0000u);
+        wr_le_u16(actor + 0u, (uint16_t)((x + 8) & 0xFFF0));
+        wr_le_u16(actor + 2u, (uint16_t)(y - 1));
+        wr_le_u16(actor + 4u, 0x0023u);
+        wr_le_u16(actor + 8u, 0x0004u);
+        wr_le_u16(actor + 0xAu, 0x0000u);
+        wr_le_u16(actor + 0xCu, 0x0000u);
         return 1;
     }
     for (unsigned i = 0; i < 2u; i++) {
         uint16_t *s = objSpan[i];
         int sx = (int16_t)s[1], sy = (int16_t)s[2], sh = (int16_t)s[3], d;
 
-        if (rd16((uint8_t *)s, 0u) & 0x8000u) continue;
+        if (rd_le_u16((uint8_t *)s + 0u) & 0x8000u) continue;
         d = sx - (x + 8);
         if (d < 0) d = -d;
         if (d >= 8) continue;                        /* |span.x - (x+8)| < 8 */
         d = sy - y;
         if (d >= 0 && d >= 0x18) continue;           /* span.y - y < 0x18 */
         if (sy + sh < y) continue;                   /* the span covers y */
-        wr16(actor, 2u, (uint16_t)(y - 1));
-        wr16(actor, 0u, (uint16_t)(sx - 8));
-        wr16(actor, 4u, 0x0052u);
-        wr16(actor, 8u, 0x000Bu);
-        wr16(actor, 0xAu, 0x0000u);
-        wr16(actor, 0xCu, 0x0000u);
-        wr16(actor, 0xEu, (uint16_t)((uintptr_t)s - (uintptr_t)objSpan));
+        wr_le_u16(actor + 2u, (uint16_t)(y - 1));
+        wr_le_u16(actor + 0u, (uint16_t)(sx - 8));
+        wr_le_u16(actor + 4u, 0x0052u);
+        wr_le_u16(actor + 8u, 0x000Bu);
+        wr_le_u16(actor + 0xAu, 0x0000u);
+        wr_le_u16(actor + 0xCu, 0x0000u);
+        wr_le_u16(actor + 0xEu, (uint16_t)((uintptr_t)s - (uintptr_t)objSpan));
         objStackUnmark(actor);                       /* 1000:F3CA */
         return 2;
     }
@@ -5837,17 +5827,17 @@ int object_stepDown(uint8_t *actor)
  * Returns 1 tile rule, 2 span, 3 pushed, 4 nothing. */
 int object_stepUp(uint8_t *actor)
 {
-    int x = (int)(int16_t)rd16(actor, 0u);
-    int y = (int)(int16_t)rd16(actor, 2u);
+    int x = (int)(int16_t)rd_le_u16(actor + 0u);
+    int y = (int)(int16_t)rd_le_u16(actor + 2u);
     unsigned sub, cell = objMapAtAbs(x + 8, y + 0x19, &sub);
 
     if (cell == level_specialTile(0u) || cell == level_specialTile(1u)) {
-        wr16(actor, 0u, (uint16_t)((x + 8) & 0xFFF0));
-        wr16(actor, 2u, (uint16_t)(y + 1));
-        wr16(actor, 4u, 0x0025u);
-        wr16(actor, 8u, 0x0005u);
-        wr16(actor, 0xAu, 0x0000u);
-        wr16(actor, 0xCu, 0x0000u);
+        wr_le_u16(actor + 0u, (uint16_t)((x + 8) & 0xFFF0));
+        wr_le_u16(actor + 2u, (uint16_t)(y + 1));
+        wr_le_u16(actor + 4u, 0x0025u);
+        wr_le_u16(actor + 8u, 0x0005u);
+        wr_le_u16(actor + 0xAu, 0x0000u);
+        wr_le_u16(actor + 0xCu, 0x0000u);
         return 1;
     }
     for (unsigned i = 0; i < 2u; i++) {
@@ -5855,19 +5845,19 @@ int object_stepUp(uint8_t *actor)
         int sx = (int16_t)s[1], sy = (int16_t)s[2], sh = (int16_t)s[3], d;
         int line = y + 0x18;
 
-        if (rd16((uint8_t *)s, 0u) & 0x8000u) continue;
+        if (rd_le_u16((uint8_t *)s + 0u) & 0x8000u) continue;
         d = sx - (x + 8);
         if (d < 0) d = -d;
         if (d >= 0x10) continue;                     /* |span.x - (x+8)| < 0x10 */
         if (sy >= line) continue;
         if (sy + sh < line) continue;
-        wr16(actor, 2u, (uint16_t)(y + 1));
-        wr16(actor, 0u, (uint16_t)(sx - 8));
-        wr16(actor, 4u, 0x0054u);
-        wr16(actor, 8u, 0x000Cu);
-        wr16(actor, 0xAu, 0x0000u);
-        wr16(actor, 0xCu, 0x0000u);
-        wr16(actor, 0xEu, (uint16_t)((uintptr_t)s - (uintptr_t)objSpan));
+        wr_le_u16(actor + 2u, (uint16_t)(y + 1));
+        wr_le_u16(actor + 0u, (uint16_t)(sx - 8));
+        wr_le_u16(actor + 4u, 0x0054u);
+        wr_le_u16(actor + 8u, 0x000Cu);
+        wr_le_u16(actor + 0xAu, 0x0000u);
+        wr_le_u16(actor + 0xCu, 0x0000u);
+        wr_le_u16(actor + 0xEu, (uint16_t)((uintptr_t)s - (uintptr_t)objSpan));
         objStackUnmark(actor);
         return 2;
     }
@@ -5896,29 +5886,29 @@ int object_selector(uint8_t *actor, uint16_t xoff, uint16_t frame, uint16_t type
     objSelXoff = xoff;
     objSelFrame = frame;
     objSelType = type;
-    ax = (uint16_t)(objSelXoff + rd16(actor, 0u));          /* 1000:F185 */
+    ax = (uint16_t)(objSelXoff + rd_le_u16(actor + 0u));          /* 1000:F185 */
     r = object_stackPop(ax, &below, &entry);
     if (r < 0) return -1;                                  /* 1000:F18D */
     if (r == 0) {
-        if (rd16(actor, 4u) != 0x20u) {                    /* 1000:F1F2 */
-            int d = (int)(int16_t)rd16(actor, 4u) - (int)(int16_t)objSelFrame;
+        if (rd_le_u16(actor + 4u) != 0x20u) {                    /* 1000:F1F2 */
+            int d = (int)(int16_t)rd_le_u16(actor + 4u) - (int)(int16_t)objSelFrame;
 
             if (d < 0 || d >= 8) {
-                wr16(actor, 4u, objSelFrame);              /* 1000:F20C */
+                wr_le_u16(actor + 4u, objSelFrame);              /* 1000:F20C */
                 return 0;
             }
             objWalk(actor, objSelType != 0u);              /* 1000:E6FB / 0xE764 */
             return 0;
         }
-        wr16(actor, 4u, objSelFrame);                      /* 1000:F191 */
+        wr_le_u16(actor + 4u, objSelFrame);                      /* 1000:F191 */
         return 0;
     }
     if (below) {                                           /* 1000:F198 */
-        wr16(below, 2u, (uint16_t)(rd16(below, 2u) - 8u));
-        wr16(below, 4u, 0x0020u);
+        wr_le_u16(below + 2u, (uint16_t)(rd_le_u16(below + 2u) - 8u));
+        wr_le_u16(below + 4u, 0x0020u);
     }
-    wr16(actor, 4u, frame);
-    wr16(actor, 8u, type);
+    wr_le_u16(actor + 4u, frame);
+    wr_le_u16(actor + 8u, type);
     /* 1000:F1B2 also writes [0x6FE6] = 0xFF; that byte has no decoded reader. */
     {
         unsigned bit = objIndexBit((unsigned)(actor - objArray) / OBJ_STRIDE);
@@ -5932,7 +5922,7 @@ int object_selector(uint8_t *actor, uint16_t xoff, uint16_t frame, uint16_t type
         int bx = objStepProbe(actor, &cell), d;
 
         if (bx >= 0) {
-            d = bx - 0x18 - (int)(int16_t)rd16(actor, 2u);
+            d = bx - 0x18 - (int)(int16_t)rd_le_u16(actor + 2u);
             if (d < 0) d = -d;
             if (d - 0xA < 0) return 0;                 /* 1000:F1F1 */
         }
@@ -5940,7 +5930,7 @@ int object_selector(uint8_t *actor, uint16_t xoff, uint16_t frame, uint16_t type
          * level's two special tiles (field K -> [0x6F20]/[0x6F21]) the actor
          * stays put, otherwise it takes the found entry's x. */
         if (cell == level_specialTile(0u) || cell == level_specialTile(1u)) return 0;
-        if (entry) wr16(actor, 0u, rd16(entry, 0u));
+        if (entry) wr_le_u16(actor + 0u, rd_le_u16(entry + 0u));
         return 0;
     }
 }
@@ -5948,11 +5938,11 @@ int object_selector(uint8_t *actor, uint16_t xoff, uint16_t frame, uint16_t type
 /* 1000:FADA: the per-member restore inside a dissolve. */
 static void objGroupRestoreMember(uint8_t *rec)
 {
-    wr16(rec, 4u, 0x0010u);                  /* frame 0x10 */
-    wr16(rec, 8u, 0x0003u);                  /* type 3     */
-    wr16(rec, 0xAu, 0x0001u);
-    wr16(rec, 0xCu, 0x0004u);
-    wr16(rec, 0xEu, 0x0000u);
+    wr_le_u16(rec + 4u, 0x0010u);                  /* frame 0x10 */
+    wr_le_u16(rec + 8u, 0x0003u);                  /* type 3     */
+    wr_le_u16(rec + 0xAu, 0x0001u);
+    wr_le_u16(rec + 0xCu, 0x0004u);
+    wr_le_u16(rec + 0xEu, 0x0000u);
 }
 
 /* 1000:FA13 object_group_dissolve: free the entry, then give the owner (n = 0)
@@ -5979,8 +5969,8 @@ static void objGroupDissolve(uint8_t *e)
     if (n == 0u) {
         last = object_slot(bp[-1]);           /* the owner byte      */
         if (!last) return;
-        wr16(last, 4u, 0x0010u);              /* frame 0x10          */
-        wr16(last, 8u, 0x0002u);              /* type 2, a human     */
+        wr_le_u16(last + 4u, 0x0010u);              /* frame 0x10          */
+        wr_le_u16(last + 8u, 0x0002u);              /* type 2, a human     */
         return;
     }
     last = object_slot(bp[-1]);               /* n = 1: the only member */
@@ -6039,7 +6029,7 @@ static void objChargeDraw(void)
      * -> 0x3747, +0xE stepping by 4); its page is never rebuilt, so the
      * strokes stay.  The port recomposes the page every tick, so it redraws
      * the whole run - the same pixels the original accumulated (D-81). */
-    v = (unsigned)(rd16(actor, 0xEu) & 0x1FFu);
+    v = (unsigned)(rd_le_u16(actor + 0xEu) & 0x1FFu);
     statusbar_chargeBar(0u);                 /* 1000:36F7 */
     statusbar_chargeBar(2u);                 /* 1000:36FF */
     for (unsigned x = 4u; x <= v; x += 4u) statusbar_chargeBar(x);
@@ -6117,13 +6107,13 @@ void object_actionRun(void)
         if (actor == objArray + objPlayer * OBJ_STRIDE)
             (void)object_claimBegin(2u, (int)objEntity);
         else
-            objOpMarkWalk(actor, rd16(actor, 8u) ? 0u : 0x10u);
+            objOpMarkWalk(actor, rd_le_u16(actor + 8u) ? 0u : 0x10u);
         break;
     case OP_CLAIM3: (void)object_claimBegin(3u, (int)objEntity); break;
     case OP_CLAIM0: (void)object_claimBegin(0u, (int)objEntity); break;
     case OP_CLAIM1: (void)object_claimBegin(1u, (int)objEntity); break;
     case OP_TYPE_A:            /* 0x3A05 -> 0xEFA1 / 0xEFB9          */
-        if (rd16(actor, 8u) <= 2u) objOpSetState(actor, rd16(actor, 8u) ? 1u : 0u);
+        if (rd_le_u16(actor + 8u) <= 2u) objOpSetState(actor, rd_le_u16(actor + 8u) ? 1u : 0u);
         break;
     case OP_RESET:             /* 0x39CC -> 0xEA71                   */
         objOpResetSpan();
@@ -6135,12 +6125,12 @@ void object_actionRun(void)
          * (type 0) or type 0x14/frame 0x91.  The 16-bit `DI += CX` can walk
          * off the map, so both indices are bounds-checked. */
         {
-            unsigned t = rd16(actor, 8u);
+            unsigned t = rd_le_u16(actor + 8u);
             unsigned step = (t == 0u) ? 1u : 0xFFFFu;
             unsigned frame = (t == 0u) ? 0x8Cu : 0x91u;
             const uint8_t *map = level_map();
-            int col = (int16_t)rd16(actor, 0u) >> 4;
-            int row = (int16_t)rd16(actor, 2u) >> 4;
+            int col = (int16_t)rd_le_u16(actor + 0u) >> 4;
+            int row = (int16_t)rd_le_u16(actor + 2u) >> 4;
             int cell = row * 32 + col;
             int next = cell + (int)(int16_t)step;
 
@@ -6149,8 +6139,8 @@ void object_actionRun(void)
             if (!level_pageFree(map[cell])) break;
             if (next < 0 || next >= 640) break;
             if (!level_pageFree(map[next])) break;
-            wr16(actor, 8u, (uint16_t)((t == 0u) ? 0x12u : 0x14u));
-            wr16(actor, 4u, (uint16_t)frame);
+            wr_le_u16(actor + 8u, (uint16_t)((t == 0u) ? 0x12u : 0x14u));
+            wr_le_u16(actor + 4u, (uint16_t)frame);
             /* [0x6F1D] = 0 at 0xED49 (the dialog flag) — no port equivalent */
         }
         break;
@@ -6199,10 +6189,10 @@ void object_saveTable(uint8_t *dst)
 {
     if (!dst) return;
     memset(dst, 0, 0x25Fu);
-    wr16(dst, 0u, objPlacedHumans);
-    wr16(dst, 2u, objEntity);
+    wr_le_u16(dst + 0u, objPlacedHumans);
+    wr_le_u16(dst + 2u, objEntity);
     for (unsigned i = 0; i < OBJ_SLOTS; i++)
-        wr16(dst, 4u + 2u * i, (uint16_t)(0x3E75u + 0x12u * i));
+        wr_le_u16(dst + 4u + 2u * i, (uint16_t)(0x3E75u + 0x12u * i));
     for (unsigned i = 0; i < 20u; i++) dst[0x3Eu + i] = objSlotClass[i];
     dst[0x53] = (uint8_t)objLiveCount;          /* [0x3E73] */
     memcpy(dst + 0x55u, objArray, OBJ_SLOTS * OBJ_STRIDE);
@@ -6211,8 +6201,8 @@ void object_saveTable(uint8_t *dst)
 void object_loadTable(const uint8_t *src)
 {
     if (!src) return;
-    objPlacedHumans = rd16(src, 0u);
-    objEntity = rd16(src, 2u);
+    objPlacedHumans = rd_le_u16(src + 0u);
+    objEntity = rd_le_u16(src + 2u);
     if (objEntity >= OBJ_SLOTS) objEntity = 0u;
     memset(objSlotClass, 0, sizeof objSlotClass);
     for (unsigned i = 0; i < 20u; i++) objSlotClass[i] = src[0x3Eu + i];
@@ -6279,8 +6269,8 @@ void object_savePool(uint8_t *dst)
 {
     if (!dst) return;
     memset(dst, 0, 0x13CAu);
-    wr16(dst, 0u, (uint16_t)level_specialTile(0u));   /* [0x6F20] */
-    wr16(dst, 2u, (uint16_t)level_specialTile(1u));   /* [0x6F21] */
+    wr_le_u16(dst + 0u, (uint16_t)level_specialTile(0u));   /* [0x6F20] */
+    wr_le_u16(dst + 2u, (uint16_t)level_specialTile(1u));   /* [0x6F21] */
     memcpy(dst + 2u, objRegister, sizeof objRegister);
     memcpy(dst + 0x72u, objSpan, sizeof objSpan);
 }
@@ -6336,8 +6326,8 @@ static void objPendingMovesTick(void)
             {
                 uint8_t *r = object_slot(idx);
 
-                if (r && rd16(r, 4u) == 0x21u) {
-                    wr16(r, 4u, 0x22u);
+                if (r && rd_le_u16(r + 4u) == 0x21u) {
+                    wr_le_u16(r + 4u, 0x22u);
                     pendTag = 1u;
                     pendCount = 0x28u;
                     pendSlot = (uint16_t)idx;
@@ -6347,7 +6337,7 @@ static void objPendingMovesTick(void)
     } else if (pendCount-- == 0u) {
         uint8_t *r = object_slot(pendSlot);
 
-        if (r && rd16(r, 4u) == 0x22u) wr16(r, 4u, 0x21u);
+        if (r && rd_le_u16(r + 4u) == 0x22u) wr_le_u16(r + 4u, 0x21u);
         pendTag = 0u;
         pendCount = 0u;
     }
@@ -6369,7 +6359,7 @@ void object_animatorTick(void)
         unsigned len = 0, limit, c;
         uint8_t dl;
 
-        if (rd16(g, 0u) & 0x8000u) continue;
+        if (rd_le_u16(g + 0u) & 0x8000u) continue;
         while ((g[5u + len] & 0x80u) == 0) len++;
         if (len < 3u || len > 8u) continue;
         limit = 2u * (len - 1u);
@@ -6397,9 +6387,9 @@ void object_animatorTick(void)
             unsigned frame;
 
             if (!r) continue;
-            frame = rd16(r, 4u);
+            frame = rd_le_u16(r + 4u);
             if (frame < 0x20u || frame > 0x22u) continue;
-            wr16(r, 0u, (uint16_t)(rd16(g, 0u) +
+            wr_le_u16(r + 0u, (uint16_t)(rd_le_u16(g + 0u) +
                                    (uint16_t)objAnimX[len - 3u][c][len - 1u - m]));
         }
         g[4] = (uint8_t)(dl | (c & 0x0Fu));   /* 1000:D813 OR DL,CL */

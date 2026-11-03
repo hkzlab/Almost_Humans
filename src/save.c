@@ -27,6 +27,7 @@
  * The load mirrors entry:004C: a missing/short file is the original's JC
  * path (no save, the fresh game), never an abort. */
 #include "game.h"
+#include "byteorder.h"
 #include "fs/fs.h"
 #include <string.h>
 
@@ -55,19 +56,14 @@ int save_loadSlot(unsigned slot)
     return 1;
 }
 
-static uint16_t rd16(const uint8_t *p)
-{
-    return (uint16_t)(p[0] | (p[1] << 8));
-}
-
 /* level_run's tail (1000:30B4): [0x34] := 0 after the level has started —
  * a later "restart this level" takes the LEVEL board's time again. */
 void save_consume(void) { save_loaded = 0; }
 
 int save_present(void)          { return save_loaded; }
-uint16_t save_level(void)       { return rd16(save_buf + 0x00); }
-uint16_t save_time(void)        { return rd16(save_buf + 0x07); }
-unsigned save_members(void)     { return rd16(save_buf + 0x0B); }
+uint16_t save_level(void)       { return rd_le_u16(save_buf + 0x00); }
+uint16_t save_time(void)        { return rd_le_u16(save_buf + 0x07); }
+unsigned save_members(void)     { return rd_le_u16(save_buf + 0x0B); }
 const uint8_t *save_blob(void)  { return save_buf; }
 
 /* SAVE GAME (save_progress 1FE7:0000, re_formats.md §10.0): the 13-byte
@@ -80,17 +76,14 @@ int save_writeSlot(unsigned slot, unsigned level, uint16_t timeWord,
     if (slot == 0u || slot > 20u) return 0;
 
     memset(out, 0, sizeof out);
-    out[0x00] = (uint8_t)level;   out[0x01] = (uint8_t)(level >> 8);
-    out[0x02] = (uint8_t)score_totalLo();
-    out[0x03] = (uint8_t)(score_totalLo() >> 8);
-    out[0x04] = (uint8_t)score_totalHi();
-    out[0x05] = (uint8_t)(score_totalHi() >> 8);
+    wr_le_u16(out + 0x00u, (uint16_t)level);
+    wr_le_u16(out + 0x02u, score_totalLo());
+    wr_le_u16(out + 0x04u, score_totalHi());
     out[0x06] = (uint8_t)object_actionProgram();   /* [0x5B56] */
-    out[0x07] = (uint8_t)(timeWord & 0xFFu);        /* BCD sec  | min    */
-    out[0x08] = (uint8_t)(timeWord >> 8);
+    wr_le_u16(out + 0x07u, timeWord);               /* BCD sec  | min    */
     out[0x09] = (uint8_t)statusbar_tribeDigit(0u);  /* [0x5B25] */
     out[0x0A] = (uint8_t)statusbar_tribeDigit(1u);  /* [0x5B26] */
-    out[0x0B] = (uint8_t)members; out[0x0C] = (uint8_t)(members >> 8);
+    wr_le_u16(out + 0x0Bu, (uint16_t)members);
 
     object_saveTable(out + 0x000Du);          /* 0x3E20, 0x25F          */
     object_savePool(out + 0x026Cu);           /* 0x6F20, 0x13CA         */
@@ -118,7 +111,7 @@ void save_restoreState(void)
     object_loadTer(save_buf + 0x1656u);
     entity_loadFixed(save_buf + 0x167Eu);
     object_loadSpans(save_buf + 0x16F0u);
-    score_setTotal(rd16(save_buf + 0x02), rd16(save_buf + 0x04));
+    score_setTotal(rd_le_u16(save_buf + 0x02), rd_le_u16(save_buf + 0x04));
     statusbar_loadParams(save_buf + 0x17F0u);
     statusbar_setTribeDigits(save_buf[0x09], save_buf[0x0A]);
     object_actionSetProgram(save_buf[0x06]);

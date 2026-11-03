@@ -22,6 +22,7 @@
  * what the advance table's "advance ~= 2*ink + 1" encodes.
  */
 #include "game.h"
+#include "byteorder.h"
 
 /* 202F:0x1E28 — the charset (44 glyphs + the terminator). */
 static const char charset[45] =
@@ -71,7 +72,7 @@ static void blit_glyph(uint8_t *arena, int x, unsigned row, unsigned gi)
     unsigned k  = (unsigned)(x >= 0 ? x : 0) & 3u;   /* the x%4 pre-shift */
 
     for (unsigned r = 0; r < 16u; r++) {
-        uint16_t ax = glyphs[si] | ((uint16_t)glyphs[si + 1] << 8);
+        uint16_t ax = rd_le_u16(glyphs + si);
         si += 2;
         uint8_t dh = 0;
         if (k) {                               /* 4a2e..4a38 */

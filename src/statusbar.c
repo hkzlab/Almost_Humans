@@ -45,6 +45,7 @@
  * since the bar is a display overlay there and the page shows the world).
  */
 #include "game.h"
+#include "byteorder.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -390,7 +391,7 @@ static void draw_actions(uint8_t *page)
 static void odometer_tick(void)
 {
     /* the guard tests the word at [0x5B25]: both digits zero -> stop */
-    uint16_t both = (uint16_t)((td[1] << 8) | td[0]);
+    uint16_t both = rd_le_u16(td);
 
     switch (odoState) {
     case 0:

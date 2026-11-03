@@ -18,6 +18,7 @@
  * against the validated python decoder (tools/ani_lzw.py).
  */
 #include "game.h"
+#include "byteorder.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -25,17 +26,6 @@
 #define ANI_NAME "ANM\\ANI%02u.ANI"
 #define PAGE_SIZE (320u * 200u)
 #define OBJ_SEG_SIZE 65536u   /* the original decodes objects into a 64K segment */
-
-static uint16_t rd_le16(const uint8_t *p)
-{
-    return (uint16_t)(p[0] | (p[1] << 8));
-}
-
-static uint32_t rd_le32(const uint8_t *p)
-{
-    return (uint32_t)(unsigned)p[0] | ((uint32_t)(unsigned)p[1] << 8) |
-           ((uint32_t)(unsigned)p[2] << 16) | ((uint32_t)(unsigned)p[3] << 24);
-}
 
 /* --- AL expander: blit_background_data (1000:B2EB) --------------------
  *
@@ -77,7 +67,7 @@ static void scene_al_expand(const uint8_t *src, uint32_t src_size,
 
         if (cl == 0x80) {                                 /* 16-bit control word */
             if (si + 1 >= src_size) break;
-            uint16_t cw = (uint16_t)(src[si] | (src[si + 1] << 8));
+            uint16_t cw = rd_le_u16(src + si);
             si += 2;
             if (cw == 0) break;                           /* END */
             if (!(cw & 0x8000u)) {                        /* skip CW bytes */
@@ -136,7 +126,7 @@ static int ani_load(Ani *a, unsigned ani_idx)
     a->image = res_loadChunk(name, &a->image_size, &chk);
     if (!a->image) return -1;
 
-    a->table_size = rd_le32(a->image);
+    a->table_size = rd_le_u32(a->image);
     a->n_entries = a->table_size / 4;
     a->entries = malloc(a->n_entries * sizeof(uint32_t));
     if (!a->entries) {
@@ -145,7 +135,7 @@ static int ani_load(Ani *a, unsigned ani_idx)
         return -1;
     }
     for (unsigned i = 0; i < a->n_entries; i++)
-        a->entries[i] = rd_le32(a->image + i * 4u);
+        a->entries[i] = rd_le_u32(a->image + i * 4u);
     return 0;
 }
 
@@ -401,7 +391,7 @@ int scene_playLevelIntro(unsigned introIndex)
         uint16_t chk = 0;
         int script_size = ani_decode_object(&ani, 0, scriptBuf, OBJ_SEG_SIZE, &chk);
         if (script_size < 0 || chk != 0) { scene_unload(); scene_phase = SCENE_DONE; return 0; }
-        plays = (unsigned)rd_le16(scriptBuf) + 1u;
+        plays = (unsigned)rd_le_u16(scriptBuf) + 1u;
         if (2u + 768u + plays * 2u > (uint32_t)script_size) {
             scene_unload();
             scene_phase = SCENE_DONE;
@@ -808,8 +798,8 @@ static void boot_blit_record(const uint8_t *rsc, uint32_t rscSize,
         src = objBuf;
         srcSize = (uint32_t)sz;
     }
-    unsigned width = rd_le16(src);
-    unsigned height = rd_le16(src + 2);
+    unsigned width = rd_le_u16(src);
+    unsigned height = rd_le_u16(src + 2);
     const uint8_t *body = src + 4;
     uint32_t bodySize = srcSize - 4u;
     uint32_t di = dest;
@@ -838,13 +828,13 @@ static uint32_t boot_blit_group(const uint8_t *listBuf, uint32_t listSize,
     uint32_t si = listPos;
     for (;;) {                                     /* the group's records */
         if (si + 4 > listSize) break;
-        uint16_t dest = rd_le16(listBuf + si);
-        uint16_t idx  = rd_le16(listBuf + si + 2);
+        uint16_t dest = rd_le_u16(listBuf + si);
+        uint16_t idx  = rd_le_u16(listBuf + si + 2);
         si += 4;
         boot_blit_record(rsc, rscSize, entries, entryCount,
                          objBuf, idx, dest, bootListBuf, bootListSize, page);
         if (si + 2 > listSize) break;
-        if (rd_le16(listBuf + si) == 0xFFFFu) { si += 2; break; }   /* the group end */
+        if (rd_le_u16(listBuf + si) == 0xFFFFu) { si += 2; break; }   /* the group end */
     }
     return si;
 }
@@ -860,7 +850,7 @@ static uint32_t boot_seek(const uint8_t *listBuf, uint32_t listSize,
 {
     uint32_t si = listStart;
     for (unsigned g = 0; g < frame && si + 2 <= listSize; ) {
-        if (rd_le16(listBuf + si) == 0xFFFFu) { si += 2; g++; }
+        if (rd_le_u16(listBuf + si) == 0xFFFFu) { si += 2; g++; }
         else si += 4;                              /* a [dest][idx] record */
     }
     return si;
@@ -937,9 +927,9 @@ int scene_playBootIntro(void)
             return 0;
         }
         for (unsigned i = 0; i < bootEntryCount; i++)
-            bootEntries[i] = rd_le32(bootRsc + i * 4u);
+            bootEntries[i] = rd_le_u32(bootRsc + i * 4u);
         for (unsigned i = 0; i < bootGtEntryCount; i++)
-            bootGtEntries[i] = rd_le32(bootGt + i * 4u);
+            bootGtEntries[i] = rd_le_u32(bootGt + i * 4u);
 
         /* the words stash (b7df: 4160 bytes copied to 202F:0x8689 — the
          * bar's 1-bit text, consumed by the transition handler) */
@@ -986,8 +976,7 @@ int scene_playBootIntro(void)
          * 256 entries at BP=0x19 — would show the 4-19 dark reds/teals
          * instead: the wrong colours.) */
         {
-            unsigned idx = (unsigned)bootGtList[0x302u] |
-                           ((unsigned)bootGtList[0x303u] << 8);
+            unsigned idx = rd_le_u16(bootGtList + 0x302u);
             boot_gt_show(idx);
         }
         /* b26a: the boot's first fade — the fast branch ([0x627C] is set for
@@ -1012,16 +1001,14 @@ int scene_playBootIntro(void)
          * count+1 frames including the last (obj 29), whose expansion
          * wipes the assembled logo down to a small entry-8 blob; that
          * vanish-and-blob is authentic machine behavior. */
-        unsigned count = (unsigned)bootGtList[0] |
-                         ((unsigned)bootGtList[1] << 8);
+        unsigned count = rd_le_u16(bootGtList);
         if (bootGtGroup > count) {
             bootHold = 30u;                /* bf19: the 30-tick pre-bank hold */
             boot_phase = BOOT_GT_BANK_HOLD;
             return 1;
         }
         {
-            unsigned idx = (unsigned)bootGtList[0x302u + bootGtGroup * 2u] |
-                           ((unsigned)bootGtList[0x303u + bootGtGroup * 2u] << 8);
+            unsigned idx = rd_le_u16(bootGtList + 0x302u + bootGtGroup * 2u);
             if (!boot_gt_show(idx)) {
                 /* the game's b446->b2c4: a failed decode (the checksum!)
                  * unwinds play_scene_sequence — the remaining groups are

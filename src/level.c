@@ -29,6 +29,7 @@
  * alignment trailer after the map.
  */
 #include "game.h"
+#include "byteorder.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -44,11 +45,6 @@ static const uint8_t recSig[SIG_LEN] = { 0x00, 0x20, 0x00, 0x14, 0x00, 0x00 };
 
 /* The 202F:0x6287-equivalent: the intro cue state lives in script.c; the
  * level's own state: */
-static uint16_t rd_le16(const uint8_t *p)
-{
-    return (uint16_t)(p[0] | (p[1] << 8));
-}
-
 static LevelData level_data_cur;
 /* The writable map the game plays on: 1000:3138 copies the record's 640 bytes
  * to [0x1FA0], and 1000:51F9 (the 0xA9 handler) marks two cells of it.  Keeping
@@ -393,7 +389,7 @@ static uint32_t bd_walk(const uint8_t *b, uint32_t size, unsigned *bgIndex,
         if (si + 512u > size) return 0;
         uint32_t m = 0;
         for (unsigned i = 0; i < 256u; i++) {
-            uint32_t v = rd_le16(b + si + i * 2u);
+            uint32_t v = rd_le_u16(b + si + i * 2u);
             if (v > m) m = v;
         }
         if (pass == 0u) {                   /* A: the per-tile slope profiles */
@@ -412,7 +408,7 @@ static uint32_t bd_walk(const uint8_t *b, uint32_t size, unsigned *bgIndex,
     page->eBlock = b + si;                 /* E: the A9 log sprite (D points here) */
     si += 0x80u;
     if (si + 2u > size) return 0;
-    unsigned n = rd_le16(b + si);
+    unsigned n = rd_le_u16(b + si);
     page->gBlock = b + si + 2u;
     page->gCount = n;                      /* F: n; G: 3 layers x n blocks */
     si += 2u + 3u * n * 0x100u;
@@ -422,7 +418,7 @@ static uint32_t bd_walk(const uint8_t *b, uint32_t size, unsigned *bgIndex,
     si += 0x200u + 0xC0u;                  /* H + I                        */
     if (si + 2u > size) return 0;
     {
-        uint32_t skip = rd_le16(b + si);
+        uint32_t skip = rd_le_u16(b + si);
         if (si + skip + 8u > size) return 0;
         page->jBytes = b + si + skip;      /* J: the 8 bytes at 0x1E98     */
         si += skip + 8u;
@@ -432,10 +428,10 @@ static uint32_t bd_walk(const uint8_t *b, uint32_t size, unsigned *bgIndex,
     kBytes[2] = b[si + 2]; kBytes[3] = b[si + 3]; /* K2: [0x6F0B]            */
     si += 4u;
     if (si + 2u > size) return 0;
-    *bgIndex = rd_le16(b + si);            /* L                            */
+    *bgIndex = rd_le_u16(b + si);            /* L                            */
     si += 2u;
     if (si + 2u > size) return 0;
-    unsigned m = rd_le16(b + si);
+    unsigned m = rd_le_u16(b + si);
     if (si + 2u + 4u * m > size) return 0;
     *anim = b + si + 2u;                   /* M: the rotation table        */
     *animEntries = m;
@@ -526,9 +522,9 @@ static void item_masks_build(const BdPage *page)
 
     if (!pageItems || !atlas || !page->jBytes || !pageValid) return;
     page_mask_build(page->jBytes);           /* 0x1FA4 from 0x1E98's first 4   */
-    tab0 = rd_le16(pageItems);
+    tab0 = rd_le_u16(pageItems);
     for (unsigned id = 0; id <= 0xA8u; id++) {
-        unsigned off = rd_le16(pageItems + 2u * id);
+        unsigned off = rd_le_u16(pageItems + 2u * id);
 
         if (off & 0x8000u) break;                        /* 1000:55AF JS     */
         if (off == tab0) {                               /* 1000:55B7        */
@@ -538,7 +534,7 @@ static void item_masks_build(const BdPage *page)
         if ((uint32_t)off + 32u > pageItemsSize) continue;
         for (unsigned row = 0; row < 16u; row++) {
             unsigned o = off + 2u * row;
-            unsigned word = rd_le16(pageItems + o);
+            unsigned word = rd_le_u16(pageItems + o);
 
             if (word != 0u) continue;                    /* 1000:55CC JNZ    */
             word = 0u;
@@ -749,7 +745,7 @@ int level_slopeByte(unsigned id, unsigned sub)
     unsigned off;
 
     if (!slopeSize || id > 0xFFu || sub > 0xFu) return 0;
-    off = rd_le16(slopeProfiles + 2u * id);
+    off = rd_le_u16(slopeProfiles + 2u * id);
     if (off + sub >= slopeSize) return 0;
     return (int8_t)slopeProfiles[off + sub];
 }
@@ -849,11 +845,11 @@ int level_load(unsigned levelId)
             d->introIndex = h[1];
             d->goalCount = h[2];
             d->entityLife = h[3];
-            d->objectTest = rd_le16(h + 4);
+            d->objectTest = rd_le_u16(h + 4);
             d->unused06 = h[6];
-            d->timeA = rd_le16(h + 7);
-            d->timeB = rd_le16(h + 9);
-            d->timeC = rd_le16(h + 11);
+            d->timeA = rd_le_u16(h + 7);
+            d->timeB = rd_le_u16(h + 9);
+            d->timeC = rd_le_u16(h + 11);
             memcpy(d->map, image + mapOff, MAP_LEN);
             d->mapFileOff = mapOff;
 
@@ -1001,9 +997,6 @@ int level_load(unsigned levelId)
 
 /* --- load_sprite_pal's LOADING screen (1000:1DC0) ---------------------- */
 
-static unsigned ld16(const uint8_t *p) { return p[0] | ((unsigned)p[1] << 8); }
-static void st16(uint8_t *p, unsigned v) { p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); }
-
 /* load_sprite_pal's palette step (1000:1DCF..1DF2): BACKS\DICON.APL's
  * 0x180 bytes at +0x18 are the screen's DAC (entries 0..0x7F). */
 void level_loadingBegin(void)
@@ -1040,7 +1033,7 @@ void level_loadingBegin(void)
     if (!loadingBank) { loadPhase = 3; return; }
 
     memcpy(loadList, loadWalkers + 2, sizeof loadList);
-    loadEntries  = ld16(loadWalkers);
+    loadEntries  = rd_le_u16(loadWalkers);
     loadCx       = 3;                      /* particle_frame(3, 0xA0)       */
     loadReload   = 3;
     loadLeft     = 0xA0u;
@@ -1090,9 +1083,9 @@ static void load_drawOne(uint8_t *page, const uint8_t *list, unsigned entries,
 {
     for (unsigned e = 0; e < entries; e++) {
         const uint8_t *p = list + e * 10u;
-        int x = (int)ld16(p) - 0x50;
-        int y = (int)ld16(p + 2) + yoff;
-        unsigned spr = ld16(p + 8);
+        int x = (int)rd_le_u16(p) - 0x50;
+        int y = (int)rd_le_u16(p + 2) + yoff;
+        unsigned spr = rd_le_u16(p + 8);
         if (x <= lo || x >= hi) continue;             /* the screen window */
         uint32_t off = 0x400u + spr * 0x180u;
         if (off + 0x180u > loadingSize) continue;      /* the 0x25 sentinel  */
@@ -1130,9 +1123,9 @@ void level_loadingTick(void)
     if (--loadCx < 0) loadCx = loadReload;
     for (unsigned e = 0; e < loadEntries; e++) {
         uint8_t *p = loadList + e * 10u;
-        int x = (int)ld16(p), y = (int)ld16(p + 2);
-        int dx = (int)(int16_t)ld16(p + 4), dy = (int)(int16_t)ld16(p + 6);
-        unsigned spr = ld16(p + 8);
+        int x = (int)rd_le_u16(p), y = (int)rd_le_u16(p + 2);
+        int dx = (int)(int16_t)rd_le_u16(p + 4), dy = (int)(int16_t)rd_le_u16(p + 6);
+        unsigned spr = rd_le_u16(p + 8);
         x += dx;
         if (dy) {
             y += dy;
@@ -1143,7 +1136,7 @@ void level_loadingTick(void)
             if (spr == 8u) spr = 0u;
             else if (spr == 0x10u) spr = 8u;
         }
-        st16(p, (unsigned)x); st16(p + 2, (unsigned)y); st16(p + 8, spr);
+        wr_le_u16(p, (unsigned)x); wr_le_u16(p + 2, (unsigned)y); wr_le_u16(p + 8, spr);
     }
     if (page) { load_drawBackground(page); load_drawList(page); }
 
@@ -1153,9 +1146,9 @@ void level_loadingTick(void)
             memcpy(loadWalkerSnap, loadList, sizeof loadWalkerSnap);
             loadWalkerCount = loadEntries;
             for (unsigned e = 0; e < loadWalkerCount; e++)
-                st16(loadWalkerSnap + e * 10u + 8u, 0x10u); /* arms-up hold */
+                wr_le_u16(loadWalkerSnap + e * 10u + 8u, 0x10u); /* arms-up hold */
             memcpy(loadList, loadLetters + 2, sizeof loadList);
-            loadEntries = ld16(loadLetters);
+            loadEntries = rd_le_u16(loadLetters);
             loadCx = 1; loadReload = 1;       /* particle_frame(1, 0x56)   */
             loadLeft = 0x56u;
             loadPhase = 2;
@@ -1239,8 +1232,8 @@ void level_followView(void)
     int x, y, tx, ty, dx, dy;
 
     if (!rec) return;
-    x = (int16_t)(uint16_t)(rec[0] | ((uint16_t)rec[1] << 8));
-    y = (int16_t)(uint16_t)(rec[2] | ((uint16_t)rec[3] << 8));
+    x = rd_le_i16(rec);
+    y = rd_le_i16(rec + 2u);
     {
         int ox, oy;
 
@@ -1379,9 +1372,9 @@ int level_pageFree(unsigned id)
     if (!pageValid || id > 0xFFu) return 0;
     for (k = 0; k < 16u; k++)
         if (!(pageMask[id][k] & 0x80u)) return 0;    /* a byte >= 0 */
-    off = rd_le16(pageItems + 2u * id);             /* word[B + 2*id] */
+    off = rd_le_u16(pageItems + 2u * id);             /* word[B + 2*id] */
     if (off + 32u > pageItemsSize) return 0;
-    for (k = 0; k < 16u; k++) sum = (uint16_t)(sum + rd_le16(pageItems + off + 2u * k));
+    for (k = 0; k < 16u; k++) sum = (uint16_t)(sum + rd_le_u16(pageItems + off + 2u * k));
     return sum == 0u;
 }
 
@@ -1403,7 +1396,7 @@ unsigned level_itemByte(unsigned id, unsigned off)
     unsigned o;
 
     if (!pageValid || id > 0xFFu) return 0x80u;
-    o = rd_le16(pageItems + 2u * id);
+    o = rd_le_u16(pageItems + 2u * id);
     if (o + off >= pageItemsSize) return 0x80u;
     return pageItems[o + off];
 }
@@ -1413,9 +1406,9 @@ unsigned level_itemWord(unsigned id, unsigned row)
     unsigned off;
 
     if (!pageValid || id > 0xFFu || row > 0xFu) return 0xFFFFu;
-    off = rd_le16(pageItems + 2u * id);
+    off = rd_le_u16(pageItems + 2u * id);
     if (off + 32u > pageItemsSize) return 0xFFFFu;
-    return rd_le16(pageItems + off + 2u * row);
+    return rd_le_u16(pageItems + off + 2u * row);
 }
 
 /* Field K's first word, the level's two special tile ids (`[0x6F20]` and

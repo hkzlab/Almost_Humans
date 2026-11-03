@@ -71,6 +71,7 @@
  * OSystem audio contract, which the null build stubs.
  */
 #include "game.h"
+#include "byteorder.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -160,7 +161,7 @@ void party_intro_seedSlots(const uint8_t *raw)  /* the 128 B at DS:0xFA8 */
     for (unsigned i = 0; i < 8u; i++) {
         const uint8_t *r = raw + i * 16u;
         struct slot *s = &slots[i];
-        s->dst    = (uint16_t)(r[0] | (r[1] << 8));
+        s->dst    = rd_le_u16(r);
         s->count  = r[2];
         s->script = r[3];
         s->fpos   = r[4];

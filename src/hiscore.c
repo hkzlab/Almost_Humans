@@ -27,6 +27,7 @@
  * entry as 14 bytes with 0x1A -> space and 0x1B -> '.'.
  */
 #include "game.h"
+#include "byteorder.h"
 #include "fs/fs.h"
 #include <string.h>
 
@@ -78,10 +79,7 @@ static void hiscoreDefaults(void)
         uint8_t *e = hiscoreEntry(i);
         uint32_t v = hiscoreDefault[i].score;
 
-        e[0] = (uint8_t)(v & 0xFFu);
-        e[1] = (uint8_t)((v >> 8) & 0xFFu);
-        e[2] = (uint8_t)((v >> 16) & 0xFFu);
-        e[3] = (uint8_t)((v >> 24) & 0xFFu);
+        wr_le_u32(e, v);
         strncpy((char *)e + 4, hiscoreDefault[i].name, HIS_NAME - 1u);
     }
 }
@@ -141,16 +139,14 @@ uint16_t hiscore_best(unsigned level)
 {
     hiscore_init();
     if (level >= HIS_LEVELS) return 0x0999u;
-    return (uint16_t)(hiscoreTable[2u + 2u * level] |
-                      (hiscoreTable[3u + 2u * level] << 8));
+    return rd_le_u16(hiscoreTable + 2u + 2u * level);
 }
 
 void hiscore_setBest(unsigned level, uint16_t value)
 {
     hiscore_init();
     if (level >= HIS_LEVELS) return;
-    hiscoreTable[2u + 2u * level] = (uint8_t)(value & 0xFFu);
-    hiscoreTable[3u + 2u * level] = (uint8_t)(value >> 8);
+    wr_le_u16(hiscoreTable + 2u + 2u * level, value);
 }
 
 unsigned hiscore_count(void) { return HIS_TOPN; }
@@ -162,8 +158,7 @@ uint32_t hiscore_score(unsigned i)
     hiscore_init();
     if (i >= HIS_TOPN) return 0u;
     e = hiscoreEntry(i);
-    return (uint32_t)e[0] | ((uint32_t)e[1] << 8) |
-           ((uint32_t)e[2] << 16) | ((uint32_t)e[3] << 24);
+    return rd_le_u32(e);
 }
 
 const char *hiscore_name(unsigned i)
@@ -204,10 +199,7 @@ int hiscore_insert(uint32_t score, const char *name)
     {
         uint8_t *e = hiscoreEntry(pos);
 
-        e[0] = (uint8_t)(score & 0xFFu);
-        e[1] = (uint8_t)((score >> 8) & 0xFFu);
-        e[2] = (uint8_t)((score >> 16) & 0xFFu);
-        e[3] = (uint8_t)((score >> 24) & 0xFFu);
+        wr_le_u32(e, score);
         memset(e + 4, 0, HIS_NAME);
         if (name) {
             for (unsigned i = 0; i < HIS_NAME - 1u && name[i]; i++)

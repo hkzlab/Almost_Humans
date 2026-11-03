@@ -30,6 +30,7 @@
  * (the disc-0 probe) before menu_loop, so the asset loads from disc 0.
  */
 #include "game.h"
+#include "byteorder.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -156,7 +157,7 @@ void alpha_expand(const uint8_t *src, uint8_t *dst)
         unsigned si = 0, di = p * 0x4000u;
 
         for (unsigned i = 0; i < 0x1000u; i++) {
-            uint16_t bx = (uint16_t)(src[si] | (src[si + 1u] << 8));
+            uint16_t bx = rd_le_u16(src + si);
             uint8_t al = 0, ah;
 
             si += 2u;

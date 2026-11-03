@@ -61,6 +61,13 @@ target_link_libraries(test_loop PRIVATE core fs_posix)
 humansre_warnings(test_loop)
 add_test(NAME flow COMMAND test_loop)
 
+# The byteorder module's known-value check: the expected byte layouts are
+# absolute, so the same asserts prove both orders on a LE host and a BE host.
+add_executable(test_byteorder tests/test_byteorder.c)
+target_include_directories(test_byteorder PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+humansre_warnings(test_byteorder)
+add_test(NAME byteorder COMMAND test_byteorder)
+
 # The resource fixture test runs against the real game data (HUMANS.00N);
 # point HUMANS_DATA_DIR at a directory holding them.  Missing data = skip.
 set(HUMANS_DATA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../binaries/volumes/ENG"
