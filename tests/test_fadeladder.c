@@ -33,14 +33,14 @@
 
 extern const OSystem osys_null;
 
-static void dump_window(const uint8_t *dac, unsigned tick)
+static void dump_window(const uint8_t *dac, uint32_t tick)
 {
     printf("--- tick %u (active=%d):\n", tick, palette_fadeActive());
     printf("    0x78-0x7f: ");
-    for (unsigned e = 0x78u; e <= 0x7fu; e++)
+    for (uint32_t e = 0x78u; e <= 0x7fu; e++)
         printf("%02x%02x%02x ", dac[e*3u], dac[e*3u + 1u], dac[e*3u + 2u]);
     printf("\n    0x80-0x8f: ");
-    for (unsigned e = 0x80u; e <= 0x8fu; e++)
+    for (uint32_t e = 0x80u; e <= 0x8fu; e++)
         printf("%02x%02x%02x ", dac[e*3u], dac[e*3u + 1u], dac[e*3u + 2u]);
     printf("\n    0x90-0xff(head): 90=%02x%02x%02x a0=%02x%02x%02x ff=%02x%02x%02x\n",
            dac[0x90u*3u], dac[0x90u*3u + 1u], dac[0x90u*3u + 2u],
@@ -72,15 +72,15 @@ int main(int argc, char **argv)
            (const void *)party_intro_workpal(),
            (const void *)party_intro_palUpper());
     printf("fadeTarget[0..8]:  ");
-    for (unsigned i = 0; i < 9u; i++) printf("%02x ", palette_fadeTarget()[i]);
+    for (uint32_t i = 0; i < 9u; i++) printf("%02x ", palette_fadeTarget()[i]);
     printf("\nfadeTarget[360..368]: ");
-    for (unsigned i = 360u; i < 369u; i++) printf("%02x ", palette_fadeTarget()[i]);
+    for (uint32_t i = 360u; i < 369u; i++) printf("%02x ", palette_fadeTarget()[i]);
     printf("\n");
     printf("workpal[1..7]:  ");
-    for (unsigned e = 1u; e <= 7u; e++)
+    for (uint32_t e = 1u; e <= 7u; e++)
         printf("%02x%02x%02x ", palette_working()[e*3u], palette_working()[e*3u+1u], palette_working()[e*3u+2u]);
     printf("\nworkpal[120..127]: ");
-    for (unsigned e = 120u; e <= 127u; e++)
+    for (uint32_t e = 120u; e <= 127u; e++)
         printf("%02x%02x%02x ", palette_working()[e*3u], palette_working()[e*3u+1u], palette_working()[e*3u+2u]);
     printf("\n");
     InputState in;
@@ -89,7 +89,7 @@ int main(int argc, char **argv)
     /* the entry: print at the fade-in's midpoint and end (the original's
      * 35 steps at ~18 Hz = the arrival read "0x81..0x8f = navies") */
     dump_window(dac, 0u);
-    for (unsigned t = 1u; t <= 40u; t++) { palette_tick(); party_intro_tick(&in);
+    for (uint32_t t = 1u; t <= 40u; t++) { palette_tick(); party_intro_tick(&in);
         printf("e t%03u a=%d 81=%02x%02x%02x 85=%02x%02x%02x 78=%02x%02x%02x\n",
                t, palette_fadeActive(),
                dac[0x81u*3u], dac[0x81u*3u+1u], dac[0x81u*3u+2u],
@@ -100,8 +100,8 @@ int main(int argc, char **argv)
     /* drive into PH_SET1/2 and the wait: the ladder during each phase */
     uint8_t entry_dac[768];
     memcpy(entry_dac, dac, sizeof entry_dac);   /* the blues phase, settled */
-    unsigned tick = 40u, settled_grey = 0;
-    for (unsigned t = 0u; t < 900u; t++) {
+    uint32_t tick = 40u, settled_grey = 0;
+    for (uint32_t t = 0u; t < 900u; t++) {
         palette_tick();
         party_intro_tick(&in); tick++;
         printf("t%03u a=%d 81=%02x%02x%02x 82=%02x%02x%02x a0=%02x%02x%02x ff=%02x%02x%02x\n",
@@ -120,8 +120,8 @@ int main(int argc, char **argv)
 
     /* the ground-truth asserts, one per phase (re_map.md, "the party's
      * entry-palette source": the live DAC walk of 2026-10-30) */
-    int fails = 0;
-    struct { unsigned e; uint8_t r, g, b; const char *why; } blues[] = {
+    int32_t fails = 0;
+    struct { uint32_t e; uint8_t r, g, b; const char *why; } blues[] = {
         { 0x81u, 0x00u, 0x00u, 0x0bu, ".PAL[1]" },
         { 0x85u, 0x00u, 0x00u, 0x0eu, ".PAL[5]" },
         { 0x78u, 0x20u, 0x06u, 0x20u, ".PAL[120] (outside the 2b9c/2bda window)" },
@@ -130,7 +130,7 @@ int main(int argc, char **argv)
         { 0xe0u, 0x00u, 0x00u, 0x00u, ".PAL[0] (28d0's fourth replication)" },
         { 0xffu, 0x1au, 0x07u, 0x22u, ".PAL[31] (the replication discriminator)" },
     };
-    for (unsigned i = 0; i < sizeof blues / sizeof blues[0]; i++) {
+    for (uint32_t i = 0; i < sizeof blues / sizeof blues[0]; i++) {
         if (entry_dac[blues[i].e*3u] != blues[i].r || entry_dac[blues[i].e*3u+1u] != blues[i].g ||
             entry_dac[blues[i].e*3u+2u] != blues[i].b) {
             printf("FAIL: blues phase 0x%02x = %02x%02x%02x, want %s %02x%02x%02x\n",

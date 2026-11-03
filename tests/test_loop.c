@@ -27,16 +27,16 @@ static InputState make_input(void)
     return in;              /* joyBits 0 = fire released, lastKey 0 = none */
 }
 
-static int expect_state(GameFlow got, GameFlow want, unsigned tick, const char *what)
+static int32_t expect_state(GameFlow got, GameFlow want, uint32_t tick, const char *what)
 {
     if (got == want) return 0;
     fprintf(stderr, "FAIL at tick %u (%s): state %d, want %d\n",
-            tick, what, (int)got, (int)want);
+            tick, what, (int32_t)got, (int32_t)want);
     return 1;
 }
 
 /* the effect a phase belongs to: 1, 3, 2, 4 (the enum groups) */
-static unsigned effect_of(unsigned phase)
+static uint32_t effect_of(uint32_t phase)
 {
     if (phase >= ATTRACT_E1_LOAD && phase <= ATTRACT_E1_OUT) return 1u;
     if (phase >= ATTRACT_E3_LOAD && phase <= ATTRACT_E3_OUT) return 3u;
@@ -47,8 +47,8 @@ static unsigned effect_of(unsigned phase)
 
 int main(void)
 {
-    int bad = 0;
-    unsigned tick = 0;
+    int32_t bad = 0;
+    uint32_t tick = 0;
 
     /* The flow machine is tested WITHOUT game data: the attract's
      * load-failure path is what lets the cycle be probed one effect per
@@ -89,7 +89,7 @@ int main(void)
             palette_tick();               /* the ISR body's fade step */
             if (s != FLOW_ATTRACT) {
                 fprintf(stderr, "FAIL at tick %u: idle attract left the "
-                        "state (%d)\n", tick, (int)s);
+                        "state (%d)\n", tick, (int32_t)s);
                 bad = 1;
                 break;
             }
@@ -102,12 +102,12 @@ int main(void)
     {
         InputState in = make_input();
         GameFlow s = FLOW_ATTRACT;
-        unsigned seq[12];
-        unsigned n = 0, runs = 0;
-        unsigned last = 0;
+        uint32_t seq[12];
+        uint32_t n = 0, runs = 0;
+        uint32_t last = 0;
         for (tick = 0; tick < 16u && runs < 8u; tick++) {
-            unsigned ph = attract_phaseForProbe();
-            unsigned e = effect_of(ph);
+            uint32_t ph = attract_phaseForProbe();
+            uint32_t e = effect_of(ph);
             if (e && e != last) {
                 if (n < 12u) seq[n] = e;
                 n++;
@@ -120,12 +120,12 @@ int main(void)
         /* the cycle edges: 1 -> 3 -> 2 -> 4 -> 1, rotation-independent
          * (test 1's idle ticks already left the machine mid-cycle, so the
          * sequence's start is arbitrary — its structure is not) */
-        static const unsigned after[5] = { 0u, 3u, 4u, 2u, 1u };
+        static const uint32_t after[5] = { 0u, 3u, 4u, 2u, 1u };
         if (runs < 8u) {
             fprintf(stderr, "FAIL: only %u effect runs observed\n", runs);
             bad = 1;
         }
-        for (unsigned i = 0; i + 1 < 8u; i++) {
+        for (uint32_t i = 0; i + 1 < 8u; i++) {
             if (seq[i] < 1u || seq[i] > 4u || after[seq[i]] != seq[i + 1]) {
                 fprintf(stderr, "FAIL: effect order[%u] = %u -> %u, want "
                         "the 1->3->2->4 cycle\n", i, seq[i], seq[i + 1]);
@@ -145,14 +145,14 @@ int main(void)
         palette_tick();
         bad |= expect_state(s, FLOW_ATTRACT, 0, "escape: fade still running");
         InputState idle = make_input();
-        unsigned guard = 0;
+        uint32_t guard = 0;
         while (s == FLOW_ATTRACT && guard++ < 200u) {
             s = gameflow_step(s, &idle);
             palette_tick();
         }
         if (s != FLOW_MENU) {
             fprintf(stderr, "FAIL: the escape never reached MENU "
-                    "(state %d after %u ticks)\n", (int)s, guard);
+                    "(state %d after %u ticks)\n", (int32_t)s, guard);
             bad = 1;
         }
     }
@@ -181,7 +181,7 @@ int main(void)
         s = gameflow_step(s, &idle);      /* the restart + the first effect */
         palette_tick();
         bad |= expect_state(s, FLOW_ATTRACT, 0, "re-entry plays");
-        unsigned ph = attract_phaseForProbe();
+        uint32_t ph = attract_phaseForProbe();
         if (ph == ATTRACT_DONE || ph == ATTRACT_IDLE) {
             fprintf(stderr, "FAIL: the re-entry did not re-arm (phase %u)\n", ph);
             bad = 1;
@@ -189,7 +189,7 @@ int main(void)
         InputState fire = make_input(); fire.joyBits = 0x80u;
         s = gameflow_step(s, &fire);      /* escape again */
         palette_tick();
-        unsigned guard = 0;
+        uint32_t guard = 0;
         while (s == FLOW_ATTRACT && guard++ < 200u) {
             InputState idle2 = make_input();
             s = gameflow_step(s, &idle2);
@@ -204,14 +204,14 @@ int main(void)
     {
         InputState right = make_input(); right.joyBits = 0x08u;
         GameFlow s = FLOW_MENU;
-        unsigned guard = 0;
+        uint32_t guard = 0;
         do {
             s = gameflow_step(s, &right);
             palette_tick();
         } while (s == FLOW_MENU && guard++ < 400u);
         if (s != FLOW_LEVEL) {
             fprintf(stderr, "FAIL: the right-edge walk never reached LEVEL "
-                    "(state %d after %u ticks)\n", (int)s, guard);
+                    "(state %d after %u ticks)\n", (int32_t)s, guard);
             bad = 1;
         }
         s = gameflow_step(s, &right);        /* level holds */

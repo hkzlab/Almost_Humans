@@ -18,7 +18,7 @@
 static void flow_dump_ppm(const char *path, const uint8_t *page)
 {
     FILE *f = fopen(path, "wb");
-    unsigned i;
+    uint32_t i;
 
     if (!f) return;
     fprintf(f, "P6\n320 200\n255\n");
@@ -31,23 +31,23 @@ static void flow_dump_ppm(const char *path, const uint8_t *page)
 
 
 extern const OSystem osys_null;
-extern const uint8_t *osys_null_page(int which);
+extern const uint8_t *osys_null_page(int32_t which);
 extern const uint8_t *osys_null_palette(void);
 extern VideoMode osys_null_videoMode(void);
 
-static int bad;
+static int32_t bad;
 
-static void check(int ok, const char *what)
+static void check(int32_t ok, const char *what)
 {
     if (!ok) { fprintf(stderr, "FAIL %s\n", what); bad = 1; }
 }
 
 /* the record-word helpers, also used by the walk/marker blocks below */
-static unsigned tf_rd16(const uint8_t *r, unsigned o)
+static uint32_t tf_rd16(const uint8_t *r, uint32_t o)
 {
-    return (unsigned)(r[o] | (r[o + 1] << 8));
+    return (uint32_t)(r[o] | (r[o + 1] << 8));
 }
-static void tf_wr16(uint8_t *r, unsigned o, unsigned v)
+static void tf_wr16(uint8_t *r, uint32_t o, uint32_t v)
 {
     r[o] = (uint8_t)v;
     r[o + 1] = (uint8_t)(v >> 8);
@@ -83,7 +83,7 @@ int main(int argc, char **argv)
 
     /* 2. entry LAB_00CD: [0x22]++ while the 160 levels last, then COMPLETE */
     {
-        unsigned lv = 0u;
+        uint32_t lv = 0u;
         check(gameflow_afterLevel(&lv) == FLOW_LEVEL && lv == 1u,
               "level 0 -> the next level");
         lv = 158u;
@@ -100,7 +100,7 @@ int main(int argc, char **argv)
     if (level_load(0) == 0) {
         /* level_run 1000:3054 runs level_video_init's two fades (1000:3083)
          * before the loading screen (1000:3086), so drive the chain to it. */
-        for (unsigned t = 0; t < 400u && !level_loadingScreen(); t++) {
+        for (uint32_t t = 0; t < 400u && !level_loadingScreen(); t++) {
             level_begin();
             level_tick();
             palette_tick();
@@ -109,7 +109,7 @@ int main(int argc, char **argv)
         /* load_sprite_pal's fade (1000:1E33): 0x80 entries toward
          * dicon+0x18, div 0x19, before the frames */
         check(palette_fadeActive(), "the LOADING screen fades its palette in");
-        for (unsigned t = 0; t < 60u && palette_fadeActive(); t++) palette_tick();
+        for (uint32_t t = 0; t < 60u && palette_fadeActive(); t++) palette_tick();
         check(!palette_fadeActive(), "the loading fade completes");
         {
             char dp[512];
@@ -147,7 +147,7 @@ int main(int argc, char **argv)
                 }
             }
         }
-        for (unsigned t = 0; t < 0x9Fu; t++) level_loadingTick();
+        for (uint32_t t = 0; t < 0x9Fu; t++) level_loadingTick();
         check(level_loadingScreen(), "the letters phase follows");
         {
             uint32_t sz = 0;
@@ -156,7 +156,7 @@ int main(int argc, char **argv)
             FILE *f = fopen(lp, "rb");
             uint8_t *bank = NULL;
             if (f) {
-                fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET);
+                fseek(f, 0, SEEK_END); int64_t n = ftell(f); fseek(f, 0, SEEK_SET);
                 bank = malloc((size_t)n);
                 if (!bank || fread(bank, 1, (size_t)n, f) != (size_t)n) { free(bank); bank = NULL; }
                 else sz = (uint32_t)n;
@@ -166,30 +166,30 @@ int main(int argc, char **argv)
             if (bank) {
                 /* the state after one tick: the "L" at (0xB0, 0x1C) — the
                  * template's y=0x1A plus one dy step */
-                for (unsigned k = 0; k < 0x20u; k++) level_loadingTick();
+                for (uint32_t k = 0; k < 0x20u; k++) level_loadingTick();
                 const uint8_t *page = osys_null_page(0);
                 const uint8_t *L = bank + 0x400u + 0x11u * 0x180u;
-                unsigned badpx = 0;
-                for (unsigned r = 0; r < 24u; r++)
-                    for (unsigned c = 0; c < 16u; c++)
+                uint32_t badpx = 0;
+                for (uint32_t r = 0; r < 24u; r++)
+                    for (uint32_t c = 0; c < 16u; c++)
                         if (L[r * 16u + c] && page[(0x24u + r) * 320u + 0x60u + c] != L[r * 16u + c])
                             badpx++;
                 check(badpx == 0u, "the 'L' block drawn at x=0x60 (bad chars)");
                 free(bank);
             }
         }
-        for (unsigned t = 0; t < 0x60u; t++) level_loadingTick();
+        for (uint32_t t = 0; t < 0x60u; t++) level_loadingTick();
         check(!level_loadingScreen(), "the LOADING screen finishes");
         if (level_load(0) == 0 && !level_loadingScreen()) {
             /* a fresh load starts again with the chain's fades to black */
             level_begin();
-            for (unsigned t = 0; t < 400u && !level_loadingScreen(); t++) {
+            for (uint32_t t = 0; t < 400u && !level_loadingScreen(); t++) {
                 level_begin();
                 level_tick();
                 palette_tick();
             }
             check(level_loadingScreen(), "a reload restarts the screen");
-            for (unsigned t = 0; t < 0x100u; t++) level_loadingTick();
+            for (uint32_t t = 0; t < 0x100u; t++) level_loadingTick();
         }
     } else printf("skip: the level data is not on the disc\n");
 
@@ -205,10 +205,10 @@ int main(int argc, char **argv)
 
         /* 4. the start snapshot [0x1970] and level_restore's reset */
         {
-            unsigned req = level_required(), mem = level_members();
+            uint32_t req = level_required(), mem = level_members();
             const uint8_t *map = level_map();
-            unsigned counted = 0;
-            for (unsigned i = 0; i < 640u; i++) if (map[i] == 0xAAu) counted++;
+            uint32_t counted = 0;
+            for (uint32_t i = 0; i < 640u; i++) if (map[i] == 0xAAu) counted++;
             check(req == counted, "required = the map's 0xAA count");
             check(mem == 12u, "the fresh board's 12 members");
             level_restoreMembers();
@@ -251,8 +251,8 @@ int main(int argc, char **argv)
         check(level_load(0) == 0 && !level_ended(),
               "a reload clears the end trigger");
         {
-            unsigned n = level_members();
-            for (unsigned i = 0; i < n; i++) level_memberLost();
+            uint32_t n = level_members();
+            for (uint32_t i = 0; i < n; i++) level_memberLost();
             check(level_members() == 0u, "the tribe count reaches zero");
             check(level_endTest() && level_ended() && !level_outcome(),
                   "an extinct tribe ends the level as lost");
@@ -326,10 +326,10 @@ int main(int argc, char **argv)
               "the old current object's frame becomes 0x20");
         check(object_current() == 3, "the claim makes the neighbour current");
         check(object_claimActive() == 1, "the sequence starts");
-        unsigned spawned = 0;
+        uint32_t spawned = 0;
         {
-            unsigned t = 0, moved = 0;
-            int frozen = 0;
+            uint32_t t = 0, moved = 0;
+            int32_t frozen = 0;
 
             /* 1000:3B19/3B28: the sequence freezes the world and snaps the
              * window to 4 px; nothing in it writes the window (the 3D41/3DC0
@@ -352,7 +352,7 @@ int main(int argc, char **argv)
              * first, and the effect's spawns are counted from the first play
              * frame (sparkStep is PLAYING-only, like the original's frame body) */
             if (level_starting()) {
-                for (unsigned i = 0; i < 1200u && level_starting(); i++) {
+                for (uint32_t i = 0; i < 1200u && level_starting(); i++) {
                     level_begin();          /* waits for a running fade */
                     level_tick();
                     palette_tick();
@@ -360,13 +360,13 @@ int main(int argc, char **argv)
                 }
             }
             {
-                unsigned t2 = 0, seen = 0, bitOK = 1;
+                uint32_t t2 = 0, seen = 0, bitOK = 1;
 
                 /* the particles are drawn by the compose, which only runs once
                  * the start chain has finished */
                 if (level_starting()) {
                     level_begin();
-                    for (unsigned i = 0; i < 1200u && level_starting(); i++) {
+                    for (uint32_t i = 0; i < 1200u && level_starting(); i++) {
                         level_begin();          /* waits for a running fade */
                         level_tick();
                         palette_tick();
@@ -374,12 +374,12 @@ int main(int argc, char **argv)
                     }
                 }
                 while (level_sparkActive() && t2++ < 400u) {
-                    unsigned sx = 0, sy = 0, sv = 0;
+                    uint32_t sx = 0, sy = 0, sv = 0;
 
                     level_tick();
                     if (!seen && level_sparkPeek(&sx, &sy, &sv) && sv != 0u) {
-                        unsigned px = sx - level_viewX();
-                        unsigned py = sy - level_viewY();
+                        uint32_t px = sx - level_viewX();
+                        uint32_t py = sy - level_viewY();
                         const uint8_t *pg = osys_null_page(0);
 
                         if (px < 320u && py < 200u) {
@@ -417,7 +417,7 @@ int main(int argc, char **argv)
              * the end plays sound 0xC (1000:83B7) and freezes the world for
              * the 15 x 1000:8B56 waits before draw_level_text's chain. */
             if (!level_starting()) {
-                unsigned h;
+                uint32_t h;
 
                 level_requestEnd(1);
                 level_tick();
@@ -470,7 +470,7 @@ int main(int argc, char **argv)
         r[8] = 0x02;                                 /* type 2            */
         {
             /* cell = 32*((0x10+0xC)/16) + (0x20+8)/16 = 32*1 + 2 = 34 */
-            unsigned cell = level_map()[34];
+            uint32_t cell = level_map()[34];
             check(object_mapCellEquals(cell) == -1,
                   "the map cell under the record matches");
             check(object_mapCellEquals(cell + 1u) == 0, "a different cell does not");
@@ -567,14 +567,14 @@ int main(int argc, char **argv)
         /* and the level's own flow ends it as won */
         object_pendingRun();
         level_begin();
-        for (unsigned t = 0; t < 4000u && level_starting(); t++) {
+        for (uint32_t t = 0; t < 4000u && level_starting(); t++) {
             level_tick();
             palette_tick();
             if (level_loadingScreen()) level_loadingTick();
         }
         level_tick();
         /* D-48: 1000:34E6 freezes the world for 15 frames before the caption */
-        for (unsigned h = 0; h < 15u && level_endHolding(); h++) level_tick();
+        for (uint32_t h = 0; h < 15u && level_endHolding(); h++) level_tick();
         check(level_ended() && level_outcome(),
               "the pickup ends level 1 as won");
 
@@ -661,7 +661,7 @@ int main(int argc, char **argv)
 
         object_init();
         /* the level's own four placed humans, as the live game has them */
-        for (unsigned i = 0; i < 4u; i++) {
+        for (uint32_t i = 0; i < 4u; i++) {
             static const uint16_t pos[4][2] = {
                 { 48, 25 }, { 208, 25 }, { 256, 137 }, { 464, 265 }
             };
@@ -682,9 +682,9 @@ int main(int argc, char **argv)
             object_render(page, 0, 0);
             /* the first human's visible pixels must equal the measured law */
             {
-                unsigned ink = 0, wrong = 0;
-                for (unsigned row = 0; row < 24u; row++)
-                    for (unsigned col = 0; col < 16u; col++) {
+                uint32_t ink = 0, wrong = 0;
+                for (uint32_t row = 0; row < 24u; row++)
+                    for (uint32_t col = 0; col < 16u; col++) {
                         uint8_t v = bank[0x4800u + (col & 3u) * 0x60u +
                                          row * 4u + (col >> 2)];
                         uint8_t got = page[(25u + row) * 320u + 48u + col];
@@ -697,15 +697,15 @@ int main(int argc, char **argv)
             /* the non-24-row classes: the spear (frame 0x60, h 16) uses
              * block = h*4 = 0x40, at SPRITES.DAT + 0x10A0 */
             {
-                unsigned wrong = 0;
+                uint32_t wrong = 0;
                 memset(page, 0, sizeof page);
                 object_init();
                 rec = object_slot(0);
                 rec[0] = 10; rec[1] = 0; rec[2] = 10; rec[3] = 0;
                 rec[4] = 0x60; rec[6] = 0; rec[8] = 0x02;
                 object_render(page, 0, 0);
-                for (unsigned row = 0; row < 16u; row++)
-                    for (unsigned col = 0; col < 16u; col++) {
+                for (uint32_t row = 0; row < 16u; row++)
+                    for (uint32_t col = 0; col < 16u; col++) {
                         uint8_t v = bank[0x10A0u + (col & 3u) * 0x40u +
                                          row * 4u + (col >> 2)];
                         if (page[(10u + row) * 320u + 10u + col] != v) wrong++;
@@ -715,15 +715,15 @@ int main(int argc, char **argv)
                  * carried frames draw too -- and the descriptor's ybias is added
                  * to y (select_object_tile 1000:6642: ADD DX,AX) */
                 {
-                    unsigned bad2 = 0;
+                    uint32_t bad2 = 0;
                     memset(page, 0, sizeof page);
                     object_init();
                     rec = object_slot(0);
                     rec[0] = 20; rec[1] = 0; rec[2] = 20; rec[3] = 0;
                     rec[4] = 0x5D; rec[6] = 0; rec[8] = 0x02;
                     object_render(page, 0, 0);
-                    for (unsigned row = 0; row < 11u; row++)
-                        for (unsigned col = 0; col < 16u; col++) {
+                    for (uint32_t row = 0; row < 11u; row++)
+                        for (uint32_t col = 0; col < 16u; col++) {
                             uint8_t v = bank[0x0DF0u + (col & 3u) * 44u +
                                              row * 4u + (col >> 2)];
                             if (page[(22u + row) * 320u + 20u + col] != v) bad2++;
@@ -734,15 +734,15 @@ int main(int argc, char **argv)
                 /* mode 2 (1000:6C74): 32 px wide, block rows*8, row stride 8 --
                  * frame 0x2B is rows 20 at SPRITES.DAT + 0xD930 */
                 {
-                    unsigned bad3 = 0;
+                    uint32_t bad3 = 0;
                     memset(page, 0, sizeof page);
                     object_init();
                     rec = object_slot(0);
                     rec[0] = 40; rec[1] = 0; rec[2] = 40; rec[3] = 0;
                     rec[4] = 0x2B; rec[6] = 0; rec[8] = 0x02;
                     object_render(page, 0, 0);
-                    for (unsigned row = 0; row < 20u; row++)
-                        for (unsigned col = 0; col < 32u; col++) {
+                    for (uint32_t row = 0; row < 20u; row++)
+                        for (uint32_t col = 0; col < 32u; col++) {
                             uint8_t v = bank[0xD930u + (col & 3u) * 160u +
                                              row * 8u + (col >> 2)];
                             /* y + ybias: frame 0x2B carries ybias 4 */
@@ -756,7 +756,7 @@ int main(int argc, char **argv)
                  * (stack) class is drawn after the live records. */
                 {
                     static uint8_t soloA[320u * 200u], soloB[320u * 200u];
-                    unsigned contested = 0, won = 0;
+                    uint32_t contested = 0, won = 0;
 
                     object_init();
                     object_publishBank(bank, bankSize);
@@ -789,7 +789,7 @@ int main(int argc, char **argv)
                     object_setActionEntity(0u);      /* the climber */
                     memset(page, 0, sizeof page);
                     object_render(page, 0, 0);
-                    for (unsigned k = 0; k < 320u * 200u; k++) {
+                    for (uint32_t k = 0; k < 320u * 200u; k++) {
                         if (!soloA[k] || !soloB[k] || soloA[k] == soloB[k])
                             continue;
                         contested++;
@@ -800,7 +800,7 @@ int main(int argc, char **argv)
                 }
                 {
                     static uint8_t soloA[320u * 200u], soloB[320u * 200u];
-                    unsigned contaminated = 0, bad2 = 0;
+                    uint32_t contaminated = 0, bad2 = 0;
 
                     /* a type-7 member (front list) over a live record 8 */
                     object_init();
@@ -831,7 +831,7 @@ int main(int argc, char **argv)
                     rec[4] = 0x2B; rec[5] = 0; rec[6] = 0; rec[7] = 0;
                     memset(page, 0, sizeof page);
                     object_render(page, 0, 0);
-                    for (unsigned k = 0; k < 320u * 200u; k++)
+                    for (uint32_t k = 0; k < 320u * 200u; k++)
                         if (soloA[k] && soloB[k] && soloA[k] != soloB[k]) {
                             contaminated++;
                             if (page[k] != soloA[k]) bad2++;
@@ -843,7 +843,7 @@ int main(int argc, char **argv)
                  * 1000:653C moves the base draw to 1000:6610/661C, so the
                  * placed record still draws (the climbing human is visible). */
                 {
-                    unsigned ink = 0;
+                    uint32_t ink = 0;
 
                     memset(page, 0, sizeof page);
                     object_init();
@@ -851,7 +851,7 @@ int main(int argc, char **argv)
                     rec[0] = 100; rec[1] = 0; rec[2] = 100; rec[3] = 0;
                     rec[4] = 0x23; rec[6] = 0; rec[7] = 0; rec[8] = 0x02;
                     object_render(page, 0, 0);
-                    for (unsigned k = 0; k < 320u * 200u; k++)
+                    for (uint32_t k = 0; k < 320u * 200u; k++)
                         if (page[k]) ink++;
                     check(ink > 50u, "a climb frame (0x23) still draws ink");
                 }
@@ -883,22 +883,22 @@ int main(int argc, char **argv)
                     rec = object_slot(0);
                     rec[8] = 0x00; rec[9] = 0x00;
                     object_setCommandTimer(0x3E8u);   /* 1000:41A7's arm */
-                    for (unsigned i = 0; i < 1000u; i++)
+                    for (uint32_t i = 0; i < 1000u; i++)
                         (void)object_commandSelect(rec, 0x00);
                     check(rec[8] == 0x02u && rec[9] == 0x00u,
                           "the 0x6DEA one-shot expires to type 2");
                     /* D-75: with the timer at 0 the type-2 idle stream runs
                      * (0xE7C0); its first hold is 200 ticks, then frame 0x12 */
                     rec[4] = 0x10; rec[5] = 0;
-                    for (unsigned i = 0; i < 2u; i++)
+                    for (uint32_t i = 0; i < 2u; i++)
                         (void)object_commandRun(rec, 0x00u);
                     check(object_actionPending() == 0u,
                           "the type-2 stream is reached with [0x6DEA] = 0");
                     {
-                        unsigned seen = 0, i;
+                        uint32_t seen = 0, i;
 
                         for (i = 0; i < 700u; i++) {
-                            unsigned f;
+                            uint32_t f;
 
                             (void)object_commandRun(rec, 0x00u);
                             f = rec[4] | (rec[5] << 8);
@@ -961,8 +961,8 @@ int main(int argc, char **argv)
                 {
                     uint8_t *b3, *p1, *p2, *g;
                     uint8_t pal3[768];
-                    int bMin = 999, bMax = -999, mMin = 999, mMax = -999;
-                    int tMin = 999, tMax = -999;
+                    int32_t bMin = 999, bMax = -999, mMin = 999, mMax = -999;
+                    int32_t tMin = 999, tMax = -999;
 
                     memset(pal3, 0, sizeof pal3);
                     object_init();
@@ -990,17 +990,17 @@ int main(int argc, char **argv)
                     check(g != NULL && (g[4] & 0x80u) != 0u,
                           "the group entry starts from the 0xFF clear");
                     object_animatorReset();
-                    for (unsigned k = 0; k < 60u; k++) {
-                        int x;
+                    for (uint32_t k = 0; k < 60u; k++) {
+                        int32_t x;
 
                         object_tick(pal3);
-                        x = (int)(int16_t)tf_rd16(b3, 0u);
+                        x = (int32_t)(int16_t)tf_rd16(b3, 0u);
                         if (x < bMin) bMin = x;
                         if (x > bMax) bMax = x;
-                        x = (int)(int16_t)tf_rd16(p1, 0u);
+                        x = (int32_t)(int16_t)tf_rd16(p1, 0u);
                         if (x < mMin) mMin = x;
                         if (x > mMax) mMax = x;
-                        x = (int)(int16_t)tf_rd16(p2, 0u);
+                        x = (int32_t)(int16_t)tf_rd16(p2, 0u);
                         if (x < tMin) tMin = x;
                         if (x > tMax) tMax = x;
                     }
@@ -1022,8 +1022,8 @@ int main(int argc, char **argv)
                  * the entry's y, where it steps off. */
                 {
                     uint8_t *b4, *m1, *top;
-                    unsigned seen = 0;
-                    int outside = 0;
+                    uint32_t seen = 0;
+                    int32_t outside = 0;
 
                     object_init();
                     b4 = object_slot(0);
@@ -1046,11 +1046,11 @@ int main(int argc, char **argv)
                     tf_wr16(top, 4u, 0x10u); tf_wr16(top, 8u, 2u);
                     object_setActionEntity(2u);
                     check(object_stackPush(top) == 1, "the third joins the column");
-                    for (unsigned k = 0; k < 20u; k++) {
-                        unsigned f;
+                    for (uint32_t k = 0; k < 20u; k++) {
+                        uint32_t f;
 
                         (void)object_commandRun(top, 0x01u);
-                        f = (unsigned)(top[4] | (top[5] << 8));
+                        f = (uint32_t)(top[4] | (top[5] << 8));
                         if (f < 0x23u || f > 0x25u) outside = 1;
                         seen |= 1u << (f & 0x1Fu);
                     }
@@ -1264,10 +1264,10 @@ int main(int argc, char **argv)
                  * (0x92A0's page byte) and the item record's bit (0x1FD6).
                  * Scan the map for a cell that steps and one that refuses. */
                 {
-                    int stepped = 0, refused = 0, right = 0;
+                    int32_t stepped = 0, refused = 0, right = 0;
 
-                    for (unsigned y = 32u; y < 152u; y += 16u) {
-                        for (unsigned x = 16u; x < 304u; x += 16u) {
+                    for (uint32_t y = 32u; y < 152u; y += 16u) {
+                        for (uint32_t x = 16u; x < 304u; x += 16u) {
                             uint8_t *base, *top2;
                             uint16_t x0, f0, x1;
 
@@ -1302,8 +1302,8 @@ int main(int argc, char **argv)
                             }
                             check(x1 == (uint16_t)(x0 - 1u),
                                   "the left walk step moves x by one");
-                            check((unsigned)(top2[4] | (top2[5] << 8)) >= 8u &&
-                                  (unsigned)(top2[4] | (top2[5] << 8)) <= 0x000Fu,
+                            check((uint32_t)(top2[4] | (top2[5] << 8)) >= 8u &&
+                                  (uint32_t)(top2[4] | (top2[5] << 8)) <= 0x000Fu,
                                   "the left walk frame lands in 8..0xF");
                             stepped++;
                             /* the right walk (1000:E764) from the same spot:
@@ -1312,7 +1312,7 @@ int main(int argc, char **argv)
                             if (object_selector(top2, 1u, 0u, 0u) == 0 &&
                                 (uint16_t)(top2[0] | (top2[1] << 8)) ==
                                     (uint16_t)(x1 + 1u) &&
-                                (unsigned)(top2[4] | (top2[5] << 8)) <= 7u)
+                                (uint32_t)(top2[4] | (top2[5] << 8)) <= 7u)
                                 right++;
                         }
                     }
@@ -1330,7 +1330,7 @@ int main(int argc, char **argv)
                  * Both are end-to-end, through the real map and tables. */
                 {
                     uint8_t *w;
-                    unsigned i, x, y;
+                    uint32_t i, x, y;
 
                     object_init();
                     w = object_slot(0);
@@ -1384,7 +1384,7 @@ int main(int argc, char **argv)
                     object_markerTick();
                     check(tf_rd16(m, 0u) == 200u && tf_rd16(m, 2u) == 80u - 0x1Au,
                           "1000:D64F tracks the acting record");
-                    for (unsigned k = 0; k < 6u; k++) object_markerTick();
+                    for (uint32_t k = 0; k < 6u; k++) object_markerTick();
                     check(tf_rd16(m, 8u) == 0x18u,
                           "the marker's type steps 0x1A -> 0x18 (the bob)");
                     /* the lifetime: type 0x12 and a zero high byte expire */
@@ -1403,7 +1403,7 @@ int main(int argc, char **argv)
                 {
                     InputState k;
                     uint8_t *r0, *r1;
-                    unsigned cell;
+                    uint32_t cell;
 
                     memset(&k, 0, sizeof k);
                     object_init();
@@ -1486,14 +1486,14 @@ int main(int argc, char **argv)
                 {
                     const uint8_t *map = level_map();
                     uint8_t *a0, *a1;
-                    unsigned sp0 = level_specialTile(0u), sp1 = level_specialTile(1u);
-                    int found = 0, col = 0, row = 0;
-                    int tileUp = 0, tileDown = 0;
+                    uint32_t sp0 = level_specialTile(0u), sp1 = level_specialTile(1u);
+                    int32_t found = 0, col = 0, row = 0;
+                    int32_t tileUp = 0, tileDown = 0;
 
                     check(map != NULL, "level 1's map is loaded for the states");
-                    for (unsigned r = 0; r < 640u && !found; r++)
+                    for (uint32_t r = 0; r < 640u && !found; r++)
                         if (map[r] == sp0 || map[r] == sp1) {
-                            found = 1; row = (int)(r / 32u); col = (int)(r % 32u);
+                            found = 1; row = (int32_t)(r / 32u); col = (int32_t)(r % 32u);
                         }
                     if (found) {
                         object_init();
@@ -1528,8 +1528,8 @@ int main(int argc, char **argv)
                      * matching; the frame must stay inside the climb pair. */
                     if (found) {
                         uint8_t *a;
-                        unsigned seen = 0;
-                        int outside = 0;
+                        uint32_t seen = 0;
+                        int32_t outside = 0;
 
                         object_init();
                         a = object_slot(0);
@@ -1537,12 +1537,12 @@ int main(int argc, char **argv)
                         a[4] = 0x23; a[6] = 0; a[8] = 4; a[9] = 0;
                         a[0xA] = 0; a[0xB] = 0; a[0xC] = 0;
                         object_setActionEntity(0u);
-                        for (unsigned t = 0; t < 30u; t++) {
-                            unsigned f;
+                        for (uint32_t t = 0; t < 30u; t++) {
+                            uint32_t f;
 
                             a[2] = (uint8_t)(16 * row - 0xE); a[3] = 0;
                             (void)object_commandRun(a, 0x01u);
-                            f = (unsigned)(a[4] | (a[5] << 8));
+                            f = (uint32_t)(a[4] | (a[5] << 8));
                             if (f < 0x23u || f > 0x25u) outside = 1;
                             seen |= 1u << (f & 0x1Fu);
                         }
@@ -1550,7 +1550,7 @@ int main(int argc, char **argv)
                               (seen & (1u << (0x24u & 0x1Fu))) != 0u &&
                               (seen & (1u << (0x25u & 0x1Fu))) != 0u,
                               "1000:E828: the climb cycles 0x23..0x25");
-                        check(tf_rd16(a, 2u) == (unsigned)(16 * row - 0xE - 1),
+                        check(tf_rd16(a, 2u) == (uint32_t)(16 * row - 0xE - 1),
                               "1000:FD91 still moves y one px per step");
                         object_init();
                         a = object_slot(0);
@@ -1560,12 +1560,12 @@ int main(int argc, char **argv)
                         object_setActionEntity(0u);
                         outside = 0;
                         seen = 0;
-                        for (unsigned t = 0; t < 30u; t++) {
-                            unsigned f;
+                        for (uint32_t t = 0; t < 30u; t++) {
+                            uint32_t f;
 
                             a[2] = (uint8_t)(16 * row - 0x10); a[3] = 0;
                             (void)object_commandRun(a, 0x01u);
-                            f = (unsigned)(a[4] | (a[5] << 8));
+                            f = (uint32_t)(a[4] | (a[5] << 8));
                             if (f < 0x23u || f > 0x25u) outside = 1;
                             seen |= 1u << (f & 0x1Fu);
                         }
@@ -1588,9 +1588,9 @@ int main(int argc, char **argv)
                           (a0[8] | (a0[9] << 8)) == 8u,
                           "step-down registers the base (frame 0x20 / type 8)");
                     {
-                        int pushed = 0;
+                        int32_t pushed = 0;
 
-                        for (unsigned ty = 68u; ty < 76u && !pushed; ty++) {
+                        for (uint32_t ty = 68u; ty < 76u && !pushed; ty++) {
                             object_init();
                             a0 = object_slot(0);
                             a0[0] = 100; a0[1] = 0; a0[2] = 100; a0[3] = 0;
@@ -1651,9 +1651,9 @@ int main(int argc, char **argv)
                      * command 0 (input 0x01) and require that none reports an
                      * unported handler or tail. */
                     {
-                        unsigned unported = 0;
+                        uint32_t unported = 0;
 
-                        for (unsigned t = 0; t < 35u; t++) {
+                        for (uint32_t t = 0; t < 35u; t++) {
                             a1[8] = (uint8_t)t; a1[9] = 0;
                             a1[0xA] = 0; a1[0xB] = 0;
                             a1[0xE] = 0; a1[0xF] = 0;
@@ -1691,7 +1691,7 @@ int main(int argc, char **argv)
                             object_animatorTick();
                             check((p[4] | (p[5] << 8)) == 0x22u,
                                   "1000:D6B2 phase 1 raises 0x21 -> 0x22");
-                            for (unsigned i = 0; i < 0x29u; i++)
+                            for (uint32_t i = 0; i < 0x29u; i++)
                                 object_animatorTick();
                             check((p[4] | (p[5] << 8)) == 0x21u,
                                   "1000:D6B2 phase 2 restores 0x22 -> 0x21");
@@ -1721,7 +1721,7 @@ int main(int argc, char **argv)
                             m0[0] = m1[0] = m2[0] = 100;
                             m0[1] = m1[1] = m2[1] = 0;
                             object_animatorReset();
-                            for (unsigned i = 0; i < 7u; i++)
+                            for (uint32_t i = 0; i < 7u; i++)
                                 object_animatorTick();
                             check((m0[0] | (m0[1] << 8)) == 100u &&
                                   (m1[0] | (m1[1] << 8)) == 99u &&
@@ -1754,7 +1754,7 @@ int main(int argc, char **argv)
                  * behaviour 1 (frame 0xC1 / 0xC5 / 0xC9). */
                 {
                     static uint8_t m[640];
-                    unsigned n;
+                    uint32_t n;
                     uint8_t *r;
 
                     memset(m, 0, sizeof m);
@@ -1877,13 +1877,13 @@ int main(int argc, char **argv)
                  * change is the idle handler's, and the tail still runs. */
                 {
                     const uint8_t *map = level_map();
-                    unsigned sp0 = level_specialTile(0u), sp1 = level_specialTile(1u);
+                    uint32_t sp0 = level_specialTile(0u), sp1 = level_specialTile(1u);
                     uint8_t *a1;
-                    int found = 0, col = 0, row = 0;
+                    int32_t found = 0, col = 0, row = 0;
 
-                    for (unsigned r = 0; r < 640u && !found; r++)
+                    for (uint32_t r = 0; r < 640u && !found; r++)
                         if (map[r] == sp0 || map[r] == sp1) {
-                            found = 1; row = (int)(r / 32u); col = (int)(r % 32u);
+                            found = 1; row = (int32_t)(r / 32u); col = (int32_t)(r % 32u);
                         }
                     check(found != 0, "a special tile for the settle test");
                     object_init();
@@ -1906,7 +1906,7 @@ int main(int argc, char **argv)
                 }
                 /* the four placed humans again for the second-record check */
                 object_init();
-                for (unsigned i = 0; i < 4u; i++) {
+                for (uint32_t i = 0; i < 4u; i++) {
                     static const uint16_t pos[4][2] = {
                         { 48, 25 }, { 208, 25 }, { 256, 137 }, { 465, 265 }
                     };
@@ -1922,9 +1922,9 @@ int main(int argc, char **argv)
             }
             /* and the same law at the second human (208,25) */
             {
-                unsigned wrong = 0;
-                for (unsigned row = 0; row < 24u; row++)
-                    for (unsigned col = 0; col < 16u; col++) {
+                uint32_t wrong = 0;
+                for (uint32_t row = 0; row < 24u; row++)
+                    for (uint32_t col = 0; col < 16u; col++) {
                         uint8_t v = bank[0x4800u + (col & 3u) * 0x60u +
                                          row * 4u + (col >> 2)];
                         if (page[(25u + row) * 320u + 208u + col] != v) wrong++;
@@ -1962,7 +1962,7 @@ int main(int argc, char **argv)
             {
                 static uint8_t m5[640];
                 uint8_t *sp;
-                unsigned ink;
+                uint32_t ink;
 
                 memset(m5, 0, sizeof m5);
                 m5[2u * 32u + 2u] = 0xABu;              /* the spear tile */
@@ -1978,8 +1978,8 @@ int main(int argc, char **argv)
                 memset(page, 0, sizeof page);
                 object_render(page, 0, 0);
                 ink = 0;
-                for (unsigned y = 10; y < 26; y++)
-                    for (unsigned x = 10; x < 26; x++)
+                for (uint32_t y = 10; y < 26; y++)
+                    for (uint32_t x = 10; x < 26; x++)
                         if (page[y * 320u + x]) ink++;
                 check(ink == 0u,
                       "1000:6450: a taken record is not drawn by the walk");
@@ -1988,8 +1988,8 @@ int main(int argc, char **argv)
                 memset(page, 0, sizeof page);
                 object_render(page, 0, 0);
                 ink = 0;
-                for (unsigned y = 10; y < 26; y++)
-                    for (unsigned x = 10; x < 26; x++)
+                for (uint32_t y = 10; y < 26; y++)
+                    for (uint32_t x = 10; x < 26; x++)
                         if (page[y * 320u + x]) ink++;
                 check(ink != 0u,
                       "the same record draws while it is not taken");
@@ -2008,7 +2008,7 @@ int main(int argc, char **argv)
         check(!res_volumePresent(3u), "disc 3 is the missing-volume case");
         check(level_diskStatusBegin(3u) == 1, "a missing disc draws the prompt");
         check(palette_fadeActive(), "the prompt fades its palette in");
-        for (unsigned t = 0; t < 80u && palette_fadeActive(); t++) palette_tick();
+        for (uint32_t t = 0; t < 80u && palette_fadeActive(); t++) palette_tick();
         check(!palette_fadeActive(), "the prompt fade completes");
         {
             InputState k;
@@ -2100,7 +2100,7 @@ int main(int argc, char **argv)
      * record leaves the pose (type += 2, frame += 1). */
     object_init();
     if (level_load(1) == 0) {                /* level 2: positional goal */
-        unsigned ord = 0, i;
+        uint32_t ord = 0, i;
         uint8_t *actor = object_slot(0), *it = NULL;
 
         for (i = 1; i <= object_liveCount() - 8u; i++)
@@ -2119,22 +2119,22 @@ int main(int argc, char **argv)
             object_actionSetCursor(2u);
             actor[8] = 2; actor[9] = 0; actor[4] = 0x10;
             object_actionRun();                  /* op 4: the pose */
-            check((unsigned)(actor[4] | (actor[5] << 8)) == 0x00BEu,
+            check((uint32_t)(actor[4] | (actor[5] << 8)) == 0x00BEu,
                   "the throw pose is up before the release");
             /* the press frame: the fire half selects the turn; pause_toggle
              * is gated on [0x6F1D], so a posed record keeps [0x13A4] clear
              * (live trace: act 00, joy 80 while Z is held) */
             object_setActionLatched(0);
             object_commandRun(actor, 0x80u);
-            check((unsigned)(actor[0xEu] | (actor[0xFu] << 8)) == 4u,
+            check((uint32_t)(actor[0xEu] | (actor[0xFu] << 8)) == 4u,
                   "the fire press starts the aim (+0xE = 4)");
             /* the next frame: the fire is masked, the idle form releases */
             object_commandRun(actor, 0x00u);
             /* 0xEFE4 bumps type +2 / frame +1 and then runs the fall machine,
              * so the immediate result is the landing state (type 0/1), never
              * the pose again. */
-            check(!((unsigned)(actor[4] | (actor[5] << 8)) == 0x00BEu &&
-                    (unsigned)(actor[8] | (actor[9] << 8)) == 0x0018u),
+            check(!((uint32_t)(actor[4] | (actor[5] << 8)) == 0x00BEu &&
+                    (uint32_t)(actor[8] | (actor[9] << 8)) == 0x0018u),
                   "the release leaves the pose (0xEFE4)");
         }
     }
@@ -2167,7 +2167,7 @@ int main(int argc, char **argv)
      * the release (0xEFD7 -> 0xEFE4) performs the jump/throw. */
     object_init();
     if (level_load(1) == 0) {                /* level 2: positional goal */
-        unsigned ord = 0, split = 0, i;
+        uint32_t ord = 0, split = 0, i;
         uint8_t *actor = object_slot(0);
         uint8_t *it = NULL;
 
@@ -2186,8 +2186,8 @@ int main(int argc, char **argv)
             object_actionSetCursor(2u);
             actor[8] = 2; actor[9] = 0; actor[4] = 0x10;
             object_actionRun();                  /* op 4: the pose */
-            check((unsigned)(actor[4] | (actor[5] << 8)) == 0x00BEu &&
-                  (unsigned)(actor[8] | (actor[9] << 8)) == 0x0018u,
+            check((uint32_t)(actor[4] | (actor[5] << 8)) == 0x00BEu &&
+                  (uint32_t)(actor[8] | (actor[9] << 8)) == 0x0018u,
                   "the throw pose is up (frame 0xBE, type 0x18)");
             /* earlier blocks may have left the ACTION latch or the [0x6F1D]
              * sequence latch set: SPACE home-states the pose (clearing both)
@@ -2202,7 +2202,7 @@ int main(int argc, char **argv)
             split = statusbar_split();
             object_setActionLatched(0);          /* poll_input 0x85A9 */
             object_commandRun(actor, 0x02u);     /* DOWN: the turn */
-            check((unsigned)(actor[0xEu] | (actor[0xFu] << 8)) == 4u,
+            check((uint32_t)(actor[0xEu] | (actor[0xFu] << 8)) == 4u,
                   "the turn starts the charge (+0xE = 4)");
             object_pendingRun();                 /* event 4: enter the loop */
             check(object_chargeTick() == 1, "the charge loop runs");
@@ -2210,8 +2210,8 @@ int main(int argc, char **argv)
                 static const uint8_t shade[10] = {
                     0xDF, 0xE0, 0xE1, 0xE2, 0xE3, 0xE3, 0xE2, 0xE1, 0xE0, 0xDF
                 };
-                unsigned v = 4u, ax = 0x60u + (v >> 1u);
-                unsigned x = 4u * (ax >> 2) + (ax & 3u), bad = 0, r;
+                uint32_t v = 4u, ax = 0x60u + (v >> 1u);
+                uint32_t x = 4u * (ax >> 2) + (ax & 3u), bad = 0, r;
 
                 for (r = 0; r < 10u; r++)
                     if (video_page(0)[(split + 15u + r) * 320u + x] != shade[r])
@@ -2222,8 +2222,8 @@ int main(int argc, char **argv)
             object_pendingRun();
             check(object_chargeTick() == 1, "the loop keeps running");
             {
-                unsigned v = 8u, ax = 0x60u + (v >> 1u);
-                unsigned x = 4u * (ax >> 2) + (ax & 3u);
+                uint32_t v = 8u, ax = 0x60u + (v >> 1u);
+                uint32_t x = 4u * (ax >> 2) + (ax & 3u);
 
                 check(video_page(0)[(split + 15u) * 320u + x] == 0xDFu,
                       "the bar follows +0xE");
@@ -2231,12 +2231,12 @@ int main(int argc, char **argv)
             object_actionRun();                  /* the release press */
             check(object_chargeTick() == 0, "the press ends the charge");
             {
-                unsigned f0 = actor[4] | (actor[5] << 8);
-                unsigned t0 = actor[8] | (actor[9] << 8);
+                uint32_t f0 = actor[4] | (actor[5] << 8);
+                uint32_t t0 = actor[8] | (actor[9] << 8);
 
                 object_commandRun(actor, 0x01u); /* UP: 0xEFD7 */
-                check((unsigned)(actor[4] | (actor[5] << 8)) != f0 ||
-                      (unsigned)(actor[8] | (actor[9] << 8)) != t0,
+                check((uint32_t)(actor[4] | (actor[5] << 8)) != f0 ||
+                      (uint32_t)(actor[8] | (actor[9] << 8)) != t0,
                       "the release performs the jump/throw (0xEFE4)");
             }
         }
@@ -2307,7 +2307,7 @@ int main(int argc, char **argv)
         check(bank != NULL && bankSize > 0x10A0u + 0x40u,
               "SPRITES.DAT loads for the overlay test");
         if (bank) {
-            unsigned ink = 0, wrong = 0, row, col;
+            uint32_t ink = 0, wrong = 0, row, col;
 
             object_publishBank(bank, bankSize);
             /* the marker is at 440, off the 320-wide page: move the carrier and
@@ -2353,14 +2353,14 @@ int main(int argc, char **argv)
      * it (the actor turns type 0x0F, program 6 = 0x5B8A[4]), and op 6 then
      * takes the class path: 0x9D94 puts the actor back at the record's place. */
     if (level_load(12) == 0) {
-        unsigned o, ordinal = 0;
+        uint32_t o, ordinal = 0;
 
         for (o = 1; o <= object_liveCount() - 8u; o++)
             if (object_slotClass(o) == 4u) { ordinal = o; break; }
         check(ordinal != 0u, "level 13's 0xAE record takes behaviour 4");
         if (ordinal) {
             uint8_t *it = object_slot(8u + ordinal), *actor = object_slot(0);
-            unsigned ix = it[0] | (it[1] << 8), iy = it[2] | (it[3] << 8);
+            uint32_t ix = it[0] | (it[1] << 8), iy = it[2] | (it[3] << 8);
 
             check((it[0xEu] | (it[0xFu] << 8)) == 0xFFFFu,
                   "the 0xAE record carries +0xE = 0xFFFF (1000:52EB)");
@@ -2378,7 +2378,7 @@ int main(int argc, char **argv)
             object_actionRun();                  /* program 6: op 6 */
             check(actor[7] == 0u && object_slotClass(ordinal) == 0x04u,
                   "the class path clears the class and the mark");
-            check((unsigned)(actor[2] | (actor[3] << 8)) == iy - 8u,
+            check((uint32_t)(actor[2] | (actor[3] << 8)) == iy - 8u,
                   "the class path puts the actor at the record's place");
             check(object_actionProgram() == 1u && statusbar_actionGroup() == 1u,
                   "the drop puts the bar back on group 1");
@@ -2395,7 +2395,7 @@ int main(int argc, char **argv)
 
         check(cb != NULL, "level 5 has the 0xA9 background art");
         if (cb) {
-            unsigned ink = 0, bad = 0, s, row, col, i;
+            uint32_t ink = 0, bad = 0, s, row, col, i;
 
             for (i = 0; i < 0x600u; i++) if (cb[i]) ink++;
             check(ink > 300u, "the C block carries the branch art");
@@ -2403,7 +2403,7 @@ int main(int argc, char **argv)
              * non-zero C byte moves into the 0x20..0x3F art bank (BD2's raw
              * block is 0x18..0x1E). */
             {
-                unsigned out = 0;
+                uint32_t out = 0;
                 for (i = 0; i < 0x600u; i++)
                     if (cb[i] && (cb[i] < 0x20u || cb[i] > 0x3Fu)) out++;
                 check(out == 0u, "the C block carries the +0x20 art bias");
@@ -2425,7 +2425,7 @@ int main(int argc, char **argv)
             level_redrawPage();
             {
                 const uint8_t *page = video_page(0);
-                unsigned seen = 0, hit = 0;
+                uint32_t seen = 0, hit = 0;
 
                 for (s = 0; s < 2u; s++)
                     for (row = 0; row < 24u; row++)
@@ -2454,18 +2454,18 @@ int main(int argc, char **argv)
      * (2026-11-02: linear 0x1A40A). */
     if (level_load(15) == 0) {
         static uint8_t flat[320u * 200u];
-        unsigned frames[3] = { 0xC1u, 0xC5u, 0xC9u };
-        unsigned k, found = 0, water = 0;
+        uint32_t frames[3] = { 0xC1u, 0xC5u, 0xC9u };
+        uint32_t k, found = 0, water = 0;
 
         for (k = 0; k < 3u; k++) {
-            unsigned off = 0, rows = 0, i;
+            uint32_t off = 0, rows = 0, i;
 
             /* the image's own table leaves these slots blank */
             object_frameForProbe(frames[k], &off, &rows);
             if (rows != 0u) continue;
             for (i = 8u; i <= object_liveCount(); i++) {
                 uint8_t *r = object_slot(i);
-                if ((unsigned)(r[4] | (r[5] << 8)) == frames[k]) {
+                if ((uint32_t)(r[4] | (r[5] << 8)) == frames[k]) {
                     found++;
                     break;
                 }
@@ -2479,7 +2479,7 @@ int main(int argc, char **argv)
         level_redrawPage();
         {
             const uint8_t *page = video_page(0);
-            unsigned x, y;
+            uint32_t x, y;
 
             for (y = 136u; y < 152u; y++)
                 for (x = 128u; x < 176u; x++) {
@@ -2497,12 +2497,12 @@ int main(int argc, char **argv)
      * verified 2026-11-02 (log 9's +8 = 1 -> (240,276) to (240,314), +6 = 0xFF). */
     if (level_load(15) == 0) {
         uint8_t *log = NULL;
-        unsigned i, col, row;
+        uint32_t i, col, row;
 
         for (i = 8u; i <= object_liveCount(); i++) {
             uint8_t *r = object_slot(i);
 
-            if ((unsigned)(r[4] | (r[5] << 8)) == 0x33u) { log = r; break; }
+            if ((uint32_t)(r[4] | (r[5] << 8)) == 0x33u) { log = r; break; }
         }
         check(log != NULL, "level 16's first A9 log record exists");
         /* the marker pair lands one cell right of the 0xA9 */
@@ -2517,7 +2517,7 @@ int main(int argc, char **argv)
               "the 0xA9 markers sit one cell right of the tile (live)");
         if (log) {
             uint8_t *logs[5];
-            unsigned k;
+            uint32_t k;
 
             for (k = 0; k < 5u; k++) logs[k] = log + k * 0x12u;
             /* the marker pair, as 1000:DF2C leaves it */
@@ -2529,7 +2529,7 @@ int main(int argc, char **argv)
             logs[4][8] = 0xFFu;              /* log 13, the rightmost */
             logs[4][9] = 0xFFu;
             object_tick(NULL);
-            check((unsigned)(logs[4][2] | (logs[4][3] << 8)) == 0x116u &&
+            check((uint32_t)(logs[4][2] | (logs[4][3] << 8)) == 0x116u &&
                   !(logs[4][6] & 0x80u),
                   "a marked log falls 2 px on the next tick");
             /* live: after log 13 the pair reads C2/CA (DS:0x6697's table) */
@@ -2546,7 +2546,7 @@ int main(int argc, char **argv)
             /* past 0x138 the record hides itself */
             logs[4][2] = 0x38u; logs[4][3] = 0x01u;  /* y = 0x138 */
             object_tick(NULL);
-            check((unsigned)(logs[4][2] | (logs[4][3] << 8)) == 0x13Au &&
+            check((uint32_t)(logs[4][2] | (logs[4][3] << 8)) == 0x13Au &&
                   (logs[4][6] & 0x80u) != 0u,
                   "past y 0x138 the log hides itself (1000:D5E4)");
         }
@@ -2558,11 +2558,11 @@ int main(int argc, char **argv)
      * Live: E byte-identical at 0x1A388, H at 0x1A70A/0x1A80A. */
     if (level_load(15) == 0) {
         static uint8_t flat[320u * 200u];
-        static const unsigned frames[3] = { 0x33u, 0x26u, 0x27u };
+        static const uint32_t frames[3] = { 0x33u, 0x26u, 0x27u };
 
-        for (unsigned k = 0; k < 3u; k++) {
+        for (uint32_t k = 0; k < 3u; k++) {
             uint8_t *r;
-            unsigned ink = 0, i;
+            uint32_t ink = 0, i;
 
             object_init();
             memset(flat, 0, sizeof flat);
@@ -2585,7 +2585,7 @@ int main(int argc, char **argv)
      * (behaviour 1) reload their +0xA countdown on the 8-tick cadence. */
     if (level_load(15) == 0) {
         uint8_t *torch = NULL, *deco = NULL;
-        unsigned i, f0, seen = 0;
+        uint32_t i, f0, seen = 0;
 
         for (i = 8u; i <= object_liveCount(); i++) {
             uint8_t *r = object_slot(i);
@@ -2596,25 +2596,25 @@ int main(int argc, char **argv)
         check(torch != NULL && deco != NULL,
               "level 16 carries the torch and a behaviour-1 decoration");
         if (torch && deco) {
-            unsigned idx = (unsigned)((torch - object_slot(0)) / 0x12u);
+            uint32_t idx = (uint32_t)((torch - object_slot(0)) / 0x12u);
 
-            check((unsigned)(object_slotClass(idx - 8u) & 0x3Fu) == 6u,
+            check((uint32_t)(object_slotClass(idx - 8u) & 0x3Fu) == 6u,
                   "level 16's torch is behaviour 6");
             f0 = torch[4] | (torch[5] << 8);
             for (i = 0; i < 9u; i++) {
                 object_updateList();
                 object_tick(NULL);
-                seen |= 1u << (unsigned)((torch[4] | (torch[5] << 8)) - f0);
+                seen |= 1u << (uint32_t)((torch[4] | (torch[5] << 8)) - f0);
             }
             check(seen == 0x7u, "the torch walks 0x9C..0x9E (behaviour 6)");
             {
                 uint8_t *b1 = NULL;
-                unsigned j;
+                uint32_t j;
 
                 for (j = 8u; j <= object_liveCount(); j++) {
                     uint8_t *q = object_slot(j);
 
-                    if ((unsigned)(object_slotClass(j - 8u) & 0x3Fu) == 1u) {
+                    if ((uint32_t)(object_slotClass(j - 8u) & 0x3Fu) == 1u) {
                         b1 = q;
                         break;
                     }
@@ -2634,7 +2634,7 @@ int main(int argc, char **argv)
     {
         static uint8_t m[640];
         uint8_t *mover = NULL, *slot = NULL, *rec = NULL;
-        unsigned i;
+        uint32_t i;
 
         memset(m, 0, sizeof m);
         m[10 * 32 + 10] = 0xAAu;             /* a placed human  */
@@ -2644,7 +2644,7 @@ int main(int argc, char **argv)
         (void)object_loadTerrainObjects(m);
         for (i = 8u; i <= object_liveCount(); i++) {
             uint8_t *r = object_slot(i);
-            unsigned cls = object_slotClass(i - 8u) & 0x3Fu;
+            uint32_t cls = object_slotClass(i - 8u) & 0x3Fu;
 
             if (cls == 5u && !mover) mover = r;
             if (cls == 8u && !rec) rec = r;
@@ -2652,7 +2652,7 @@ int main(int argc, char **argv)
         slot = object_slot(0);
         check(mover && slot && rec, "the mover/slot/record fixtures spawn");
         if (mover && slot) {
-            unsigned keep = (unsigned)((mover - object_slot(0)) / 0x12u);
+            uint32_t keep = (uint32_t)((mover - object_slot(0)) / 0x12u);
             uint8_t *save = mover;
 
             mover[0] = 100; mover[1] = 0; mover[2] = 100; mover[3] = 0;
@@ -2673,7 +2673,7 @@ int main(int argc, char **argv)
             (void)keep;
         }
         if (mover && rec) {
-            object_setSlotClassForProbe((unsigned)((mover - object_slot(0)) / 0x12u) - 8u, 5u);
+            object_setSlotClassForProbe((uint32_t)((mover - object_slot(0)) / 0x12u) - 8u, 5u);
             mover[6] = 0; mover[7] = 0;
             mover[8] = 0xFF; mover[9] = 0xFF;
             mover[0xA] = 0; mover[0xB] = 0; mover[0xC] = 1; mover[0xD] = 0;
@@ -2695,7 +2695,7 @@ int main(int argc, char **argv)
     {
         static uint8_t m[640];
         uint8_t *rec = NULL;
-        unsigned i, f0;
+        uint32_t i, f0;
 
         memset(m, 0, sizeof m);
         m[10 * 32 + 10] = 0xB7u;
@@ -2710,7 +2710,7 @@ int main(int argc, char **argv)
         if (rec) {
             f0 = rec[4] | (rec[5] << 8);
             object_updateList();
-            check((unsigned)(rec[4] | (rec[5] << 8)) == f0 + 1u &&
+            check((uint32_t)(rec[4] | (rec[5] << 8)) == f0 + 1u &&
                   (rec[8] | (rec[9] << 8)) == 6u,
                   "the state-2 animation advances the frame (1000:C615)");
         }
@@ -2721,7 +2721,7 @@ int main(int argc, char **argv)
      * and moves x (or starts the fall via +0xA). */
     if (level_load(12) == 0) {
         uint8_t *stone = NULL;
-        unsigned i, x0, a0;
+        uint32_t i, x0, a0;
 
         for (i = 8u; i <= object_liveCount(); i++) {
             if ((object_slotClass(i - 8u) & 0x3Fu) == 4u) {
@@ -2733,11 +2733,11 @@ int main(int argc, char **argv)
         if (stone) {
             /* phase 2: set vy = 1 and check the 0x6652 curve (-4) and the
              * vy++ step (the phase-1 slope is not guaranteed on this cell) */
-            x0 = (unsigned)(stone[0] | (stone[1] << 8));
-            a0 = (unsigned)(stone[2] | (stone[3] << 8));
+            x0 = (uint32_t)(stone[0] | (stone[1] << 8));
+            a0 = (uint32_t)(stone[2] | (stone[3] << 8));
             stone[0xA] = 1; stone[0xB] = 0;
             object_updateList();
-            check((unsigned)(stone[2] | (stone[3] << 8)) != a0 &&
+            check((uint32_t)(stone[2] | (stone[3] << 8)) != a0 &&
                   (stone[0xA] | (stone[0xB] << 8)) == 2u,
                   "the behaviour-4 stone falls (1000:CEC3 phase 2)");
             (void)x0;
@@ -2775,14 +2775,14 @@ int main(int argc, char **argv)
 
         (void)object_commandRun(a, 0x80u);   /* a held frame: the fire column */
         check(!object_actionLatched() &&
-              (unsigned)(a[0xE] | (a[0xF] << 8)) == 4u &&
+              (uint32_t)(a[0xE] | (a[0xF] << 8)) == 4u &&
               object_actionPending() == 4u,
               "the fire column charges without latching (1000:EE07)");
         object_pendingRun();
         check(object_chargeTick() == 1, "the charge loop draws the bar (1000:3702)");
 
         (void)object_commandRun(a, 0x80u);   /* the next held frame */
-        check((unsigned)(a[0xE] | (a[0xF] << 8)) == 8u,
+        check((uint32_t)(a[0xE] | (a[0xF] << 8)) == 8u,
               "the charge keeps walking +0xE while ACTION is held");
         object_actionRun();                  /* 1000:3530: blocked by [0x6F1D] */
         check((a[8] | (a[9] << 8)) == 0x0018u,
@@ -2790,8 +2790,8 @@ int main(int argc, char **argv)
 
         (void)object_commandRun(a, 0x00u);   /* the release */
         {
-            unsigned t = a[8] | (a[9] << 8);
-            unsigned e = a[0xE] | (a[0xF] << 8);
+            uint32_t t = a[8] | (a[9] << 8);
+            uint32_t e = a[0xE] | (a[0xF] << 8);
 
             /* 0xEFE4 bumps the type by 2 (0x18 -> 0x1A) and runs the fall
              * machine, which may land straight into another state; the one
@@ -2821,19 +2821,19 @@ int main(int argc, char **argv)
 
         check(bank != NULL, "SPRITES.DAT loads for the frame test");
         if (bank) {
-            unsigned k;
+            uint32_t k;
             /* D-69: the four tail copies of apply_relocations (0x57EF-0x580F)
              * make 0x111/0x115/0x119/0x11D carry their source slot's
              * descriptor - verified live against DS:0x39A8 on 2026-11-02. */
             {
-                static const unsigned pairs[4][2] = {
+                static const uint32_t pairs[4][2] = {
                     { 0x10Fu, 0x111u }, { 0x113u, 0x115u },
                     { 0x117u, 0x119u }, { 0x11Bu, 0x11Du },
                 };
-                unsigned k, bad = 0;
+                uint32_t k, bad = 0;
 
                 for (k = 0; k < 4u; k++) {
-                    unsigned so = 0, sr = 0, dof = 0, dr = 0;
+                    uint32_t so = 0, sr = 0, dof = 0, dr = 0;
 
                     object_frameForProbe(pairs[k][0], &so, &sr);
                     object_frameForProbe(pairs[k][1], &dof, &dr);
@@ -2844,7 +2844,7 @@ int main(int argc, char **argv)
             }
             /* 0x11D is NOT blank: apply_relocations copies 0x11B's descriptor
              * into it (0x57EF-0x580F); 0xB8 is a genuinely empty slot. */
-            static const unsigned frames[3] = { 0x116u, 0x11Au, 0xB8u };
+            static const uint32_t frames[3] = { 0x116u, 0x11Au, 0xB8u };
             static const char *whats[3] = {
                 "frame 0x116 (the 0xB7 bush) draws",
                 "frame 0x11A (the 0xB7 bush, near a 0xB6) draws",
@@ -2853,7 +2853,7 @@ int main(int argc, char **argv)
 
             for (k = 0; k < 3u; k++) {
                 uint8_t *r;
-                unsigned ink = 0, i;
+                uint32_t ink = 0, i;
 
                 object_init();
                 object_publishBank(bank, sz);
@@ -2877,12 +2877,12 @@ int main(int argc, char **argv)
     if (level_load(132) == 0) {
         const uint8_t *bg = level_bgForProbe();
         const uint8_t *pb = level_pBlockForProbe();
-        unsigned ink = 0, bad = 0;
+        uint32_t ink = 0, bad = 0;
 
         check(bg && pb, "level 133 has the exit/igloo art");
         if (bg && pb) {
-            for (unsigned r = 0; r < 64u; r++)
-                for (unsigned c = 0; c < 64u; c++) {
+            for (uint32_t r = 0; r < 64u; r++)
+                for (uint32_t c = 0; c < 64u; c++) {
                     uint8_t v = pb[r * 64u + c];
 
                     if (!v) continue;
@@ -2900,13 +2900,13 @@ int main(int argc, char **argv)
         char name[32];
         uint32_t sz = 0;
         uint8_t *raw;
-        unsigned bad = 0;
+        uint32_t bad = 0;
 
         snprintf(name, sizeof name, "BACKS\\BG%u.RAW", level_bgIndexForProbe());
         raw = res_loadChunk(name, &sz, NULL);
         if (raw && sz == 512u * 320u + 768u) {
             const uint8_t *bg = level_bgForProbe();
-            for (unsigned i = 0; i < 512u * 320u; i++) {
+            for (uint32_t i = 0; i < 512u * 320u; i++) {
                 uint8_t v = raw[i];
                 uint8_t want = (v == 0xFFu)
                     ? (uint8_t)(0x80u + (i / 0xA00u) % 64u)
@@ -2922,11 +2922,11 @@ int main(int argc, char **argv)
     /* 7c. the corpus: every level's header intro byte gates its post-level
      * newspaper; 14 of the 160 carry one (the corpus census) */
     {
-        unsigned loaded = 0, newspapers = 0;
-        for (unsigned id = 0; id < 160u; id++) {
+        uint32_t loaded = 0, newspapers = 0;
+        for (uint32_t id = 0; id < 160u; id++) {
             if (level_load(id) != 0) continue;
             loaded++;
-            unsigned ii = level_data()->introIndex;
+            uint32_t ii = level_data()->introIndex;
             check(ii == 0xFFu || ii < 0x80u, "the header intro byte is 0xFF/0..9");
             if (gameflow_postLevelScene(1, ii) != 0xFFFFu) newspapers++;
         }
@@ -2940,11 +2940,11 @@ int main(int argc, char **argv)
      * best-time table with its 0x0999 sentinel, the NEW RECORD flag and the
      * running total the screen counts up. */
     {
-        unsigned before;
-        unsigned t1;
+        uint32_t before;
+        uint32_t t1;
 
         hiscore_reset();           /* the shipped 0x0999 table */
-        for (unsigned i = 0; i < object_staticSlots(); i++) {
+        for (uint32_t i = 0; i < object_staticSlots(); i++) {
             uint8_t *r = object_slot(i);
 
             if (r) r[6] |= 0x80u;                  /* all inactive */
@@ -2977,7 +2977,7 @@ int main(int argc, char **argv)
         check((score_totalLo() | (score_totalHi() << 16)) > t1,
               "a second level adds its terms again");
         {
-            unsigned guard = 0;
+            uint32_t guard = 0;
 
             while (score_countersRun() && guard++ < 20000u) { }
             check(guard < 20000u &&
@@ -2993,21 +2993,21 @@ int main(int argc, char **argv)
      * follows the grid's 0x1C/0x1D columns. */
     {
         uint8_t buf[600];
-        unsigned len = 0;
+        uint32_t len = 0;
         char name[16];
-        int slot;
+        int32_t slot;
 
-        for (unsigned i = 0; i < sizeof buf; i++) buf[i] = (uint8_t)i;
+        for (uint32_t i = 0; i < sizeof buf; i++) buf[i] = (uint8_t)i;
         hiscore_obfuscate(buf, sizeof buf);
         {
-            int changed = 0;
-            for (unsigned i = 0; i < sizeof buf; i++) if (buf[i] != (uint8_t)i) changed = 1;
+            int32_t changed = 0;
+            for (uint32_t i = 0; i < sizeof buf; i++) if (buf[i] != (uint8_t)i) changed = 1;
             check(changed, "1000:06DE obfuscates the table");
         }
         hiscore_obfuscate(buf, sizeof buf);
         {
-            int same = 1;
-            for (unsigned i = 0; i < sizeof buf; i++) if (buf[i] != (uint8_t)i) same = 0;
+            int32_t same = 1;
+            for (uint32_t i = 0; i < sizeof buf; i++) if (buf[i] != (uint8_t)i) same = 0;
             check(same, "1000:06DE is an involution (load and save share it)");
         }
 
@@ -3038,7 +3038,7 @@ int main(int argc, char **argv)
         check(strcmp(name, "A .") == 0, "0x1A is space and 0x1B is '.'");
         hiscore_nameApply(name, 28u, &len);
         check(strcmp(name, "A ") == 0, "0x1C deletes the last character");
-        for (unsigned i = 0; i < 20u; i++) hiscore_nameApply(name, 1u, &len);
+        for (uint32_t i = 0; i < 20u; i++) hiscore_nameApply(name, 1u, &len);
         check(len == 13u, "the buffer holds 13 characters");
         check(hiscore_nameApply(name, 29u, &len) == 1, "0x1D enters");
 
@@ -3074,11 +3074,11 @@ int main(int argc, char **argv)
      * behind the card.  level_redrawPage must replace a sentinel page. */
     {
         uint8_t *pg = (uint8_t *)osys_null_page(0);
-        unsigned changed = 0;
+        uint32_t changed = 0;
 
         memset(pg, 0x5A, 320u * 200u);
         level_redrawPage();
-        for (unsigned i = 0; i < 320u * 200u; i++) if (pg[i] != 0x5A) changed++;
+        for (uint32_t i = 0; i < 320u * 200u; i++) if (pg[i] != 0x5A) changed++;
         check(changed > 1000u,
               "1000:344C: the end page re-renders the world over the caption");
     }
@@ -3088,11 +3088,11 @@ int main(int argc, char **argv)
      * transparent).  Draw onto a sentinel page and check the law directly. */
     {
         static uint8_t page[320 * 200];
-        unsigned kept = 0, drawn = 0, other = 0;
+        uint32_t kept = 0, drawn = 0, other = 0;
 
         memset(page, 0x5A, sizeof page);
         score_drawCard(page);
-        for (unsigned i = 0; i < sizeof page; i++) {
+        for (uint32_t i = 0; i < sizeof page; i++) {
             if (page[i] == 0x5A) kept++;
             else if (page[i] >= 0xC0u) drawn++;
             else other++;
@@ -3113,16 +3113,16 @@ int main(int argc, char **argv)
      * target is that palette plus the card's 0xC0 bank. */
     {
         static uint8_t pal[768];
-        unsigned bad = 0, kept = 0;
+        uint32_t bad = 0, kept = 0;
 
-        for (unsigned i = 0; i < 256u; i++) {
+        for (uint32_t i = 0; i < 256u; i++) {
             pal[i * 3u + 0] = (uint8_t)(i & 0x3Fu);
             pal[i * 3u + 1] = (uint8_t)((i * 3u) & 0x3Fu);
             pal[i * 3u + 2] = (uint8_t)((i * 5u) & 0x3Fu);
         }
         palette_sealTriples(pal, 0u, 0x80u);
-        for (unsigned i = 0; i < 0x80u; i++) {
-            unsigned want = (77u * (i & 0x3Fu) +
+        for (uint32_t i = 0; i < 0x80u; i++) {
+            uint32_t want = (77u * (i & 0x3Fu) +
                              151u * ((i * 3u) & 0x3Fu) +
                              28u * ((i * 5u) & 0x3Fu)) >> 9;
 
@@ -3169,14 +3169,14 @@ int main(int argc, char **argv)
          * byte stored as v | 0xC0 (0x450F: 8 rows x 2 page bytes, +0x58/row). */
         {
             static uint8_t a[320 * 200], b[320 * 200];
-            unsigned ina = 0, outside = 0, low = 0, diff = 0;
+            uint32_t ina = 0, outside = 0, low = 0, diff = 0;
 
             memset(a, 0, sizeof a);
             memset(b, 0, sizeof b);
             score_drawNum3(a, 0x50u, 0x0123u, 0xB5u, 0u);
             score_drawNum3(b, 0x50u, 0x0456u, 0xB5u, 0u);
-            for (unsigned i = 0; i < sizeof a; i++) {
-                unsigned y = i / 320u, x = i % 320u;
+            for (uint32_t i = 0; i < sizeof a; i++) {
+                uint32_t y = i / 320u, x = i % 320u;
                 if (a[i]) {
                     if (y < 181u || y >= 189u || x < 104u || x >= 128u) outside++;
                     else if (a[i] < 0xC0u) low++;
@@ -3196,10 +3196,10 @@ int main(int argc, char **argv)
             memset(a, 0, sizeof a);
             score_drawNum3(a, 0xF0u, 0x0123u, 0xB5u, 0x280u);
             {
-                unsigned hit = 0;
+                uint32_t hit = 0;
 
-                for (unsigned y = 181u; y < 189u; y++)
-                    for (unsigned x = 264u; x < 288u; x++)
+                for (uint32_t y = 181u; y < 189u; y++)
+                    for (uint32_t x = 264u; x < 288u; x++)
                         if (a[y * 320u + x]) hit++;
                 check(hit != 0u, "the best time sits at px 264 with BP = 0x280");
             }
@@ -3208,7 +3208,7 @@ int main(int argc, char **argv)
         /* 1000:475D's tail + [0x1DC8] = 0x15E: once both terms are spent the
          * screen runs its own countdown and then ends by itself. */
         {
-            unsigned ticks = 0;
+            uint32_t ticks = 0;
 
             score_prepare();
             while (score_countersRun() && ticks < 100000u) ticks++;
@@ -3223,12 +3223,12 @@ int main(int argc, char **argv)
          * empty. */
         {
             static uint8_t page[320 * 200];
-            unsigned set = 0, bad = 0, top = 0, outside = 0;
+            uint32_t set = 0, bad = 0, top = 0, outside = 0;
 
             memset(page, 0, sizeof page);
             score_stampDraw(page, 1);
-            for (unsigned y = 0; y < 200u; y++)
-                for (unsigned x = 0; x < 320u; x++) {
+            for (uint32_t y = 0; y < 200u; y++)
+                for (uint32_t x = 0; x < 320u; x++) {
                     uint8_t v = page[y * 320u + x];
 
                     if (!v) continue;
@@ -3242,13 +3242,13 @@ int main(int argc, char **argv)
             /* apl\RECORD.SPR is chunky 64x24: pixel (x,y) = src[y*64+x].
              * Row 4's ink starts at x 32; its row profile is 0xFE7FFC. */
             {
-                unsigned inkRow[24] = { 0 };
-                unsigned profile = 0;
+                uint32_t inkRow[24] = { 0 };
+                uint32_t profile = 0;
 
-                for (unsigned y = 176u; y < 200u; y++)
-                    for (unsigned x = 128u; x < 192u; x++)
+                for (uint32_t y = 176u; y < 200u; y++)
+                    for (uint32_t x = 128u; x < 192u; x++)
                         if (page[y * 320u + x]) { inkRow[y - 176u] = 1; break; }
-                for (unsigned r = 0; r < 24u; r++)
+                for (uint32_t r = 0; r < 24u; r++)
                     if (inkRow[r]) profile |= (1u << r);
                 check(profile == 0x00FE7FFCu,
                       "the stamp is the sprite's chunky 64x24 row profile");
@@ -3261,17 +3261,17 @@ int main(int argc, char **argv)
              * is drawn, and the off phase copies the scratch back.  A uniform
              * cell restores exactly. */
             memset(page, 0, sizeof page);
-            for (unsigned y = 0; y < 24u; y++)
-                for (unsigned x = 0; x < 64u; x++) page[y * 320u + x] = 0x11u;
-            for (unsigned y = 176u; y < 200u; y++)
-                for (unsigned x = 128u; x < 192u; x++)
+            for (uint32_t y = 0; y < 24u; y++)
+                for (uint32_t x = 0; x < 64u; x++) page[y * 320u + x] = 0x11u;
+            for (uint32_t y = 176u; y < 200u; y++)
+                for (uint32_t x = 128u; x < 192u; x++)
                     page[y * 320u + x] = 0x5Au;
             score_stampDraw(page, 1);
             {
-                unsigned kept = 0, bad = 0;
+                uint32_t kept = 0, bad = 0;
 
-                for (unsigned y = 0; y < 24u; y++)
-                    for (unsigned x = 0; x < 64u; x++) {
+                for (uint32_t y = 0; y < 24u; y++)
+                    for (uint32_t x = 0; x < 64u; x++) {
                         if (page[y * 320u + x] == 0x11u) kept++;
                         else bad++;
                     }
@@ -3280,10 +3280,10 @@ int main(int argc, char **argv)
             }
             score_stampDraw(page, 0);
             {
-                unsigned kept = 0, other = 0;
+                uint32_t kept = 0, other = 0;
 
-                for (unsigned y = 176u; y < 200u; y++)
-                    for (unsigned x = 128u; x < 192u; x++) {
+                for (uint32_t y = 176u; y < 200u; y++)
+                    for (uint32_t x = 128u; x < 192u; x++) {
                         if (page[y * 320u + x] == 0x5Au) kept++;
                         else other++;
                     }
@@ -3295,16 +3295,16 @@ int main(int argc, char **argv)
              * blink, 1-px detail included, so a group's four pixels must
              * survive the round-trip. */
             memset(page, 0, sizeof page);
-            for (unsigned y = 176u; y < 200u; y++)
-                for (unsigned x = 128u; x < 192u; x++)
+            for (uint32_t y = 176u; y < 200u; y++)
+                for (uint32_t x = 128u; x < 192u; x++)
                     page[y * 320u + x] = (uint8_t)(0x10u + (x & 3u));
             score_stampDraw(page, 1);
             score_stampDraw(page, 0);
             {
-                unsigned kept = 0, bad = 0;
+                uint32_t kept = 0, bad = 0;
 
-                for (unsigned y = 176u; y < 200u; y++)
-                    for (unsigned x = 128u; x < 192u; x++) {
+                for (uint32_t y = 176u; y < 200u; y++)
+                    for (uint32_t x = 128u; x < 192u; x++) {
                         if (page[y * 320u + x] == (uint8_t)(0x10u + (x & 3u)))
                             kept++;
                         else bad++;
@@ -3317,15 +3317,15 @@ int main(int argc, char **argv)
         /* 1000:467A: with NEW RECORD set the 0x19-frame blink toggles; at the
          * 26th tick the phase flips once (the previous 8a prepared a record) */
         if (score_isRecord()) {
-            unsigned flips = 0;
+            uint32_t flips = 0;
 
-            for (unsigned i = 0; i < 26u; i++) if (score_blinkTick()) flips++;
+            for (uint32_t i = 0; i < 26u; i++) if (score_blinkTick()) flips++;
             check(flips == 1u, "1000:467A: the NEW RECORD blink toggles once");
         }
 
         /* 1000:4333: the screen fades in before it takes input */
         {
-            unsigned t;
+            uint32_t t;
 
             for (t = 0; t < 200u && palette_fadeActive(); t++) palette_tick();
             check(!palette_fadeActive(), "the score's fade-in completes");
@@ -3333,7 +3333,7 @@ int main(int argc, char **argv)
         check(score_tick(&k) == 1, "the score screen's first tick arms");
         check(score_tick(&k) == 1, "the score screen waits on the card");
         {
-            unsigned guard = 0;
+            uint32_t guard = 0;
 
             while (score_tick(&k) && guard++ < 5000u) palette_tick();
             check(guard < 5000u, "the score screen exits after the hold");
@@ -3345,7 +3345,7 @@ int main(int argc, char **argv)
             static uint8_t cellOn[24u * 64u], cellOff[24u * 64u];
             InputState tk;
             uint8_t *pg = video_page(0);
-            unsigned t, diff;
+            uint32_t t, diff;
 
             memset(&tk, 0, sizeof tk);
             hiscore_reset();                        /* the 0x0999 sentinels */
@@ -3361,18 +3361,18 @@ int main(int argc, char **argv)
                 (void)score_tick(&tk);
                 palette_tick();
             }
-            for (unsigned r = 0; r < 24u; r++)
-                for (unsigned x = 0; x < 64u; x++)
+            for (uint32_t r = 0; r < 24u; r++)
+                for (uint32_t x = 0; x < 64u; x++)
                     cellOn[r * 64u + x] = pg[(176u + r) * 320u + 128u + x];
             for (t = 0; t < 400u && scoreBlinkOn() == 1; t++) {
                 (void)score_tick(&tk);
                 palette_tick();
             }
-            for (unsigned r = 0; r < 24u; r++)
-                for (unsigned x = 0; x < 64u; x++)
+            for (uint32_t r = 0; r < 24u; r++)
+                for (uint32_t x = 0; x < 64u; x++)
                     cellOff[r * 64u + x] = pg[(176u + r) * 320u + 128u + x];
             diff = 0;
-            for (unsigned i = 0; i < 24u * 64u; i++)
+            for (uint32_t i = 0; i < 24u * 64u; i++)
                 if (cellOn[i] != cellOff[i]) diff++;
             check(diff != 0u,
                   "1000:4692: the off phase erases the NEW RECORD stamp");
@@ -3386,8 +3386,8 @@ int main(int argc, char **argv)
         static uint8_t pal[768];
         uint8_t *map = (uint8_t *)level_map();
         uint8_t *r = object_slot(0u);
-        unsigned cell;
-        int met = 0;
+        uint32_t cell;
+        int32_t met = 0;
 
         r[0] = 0x40u; r[1] = 0x00u;
         r[2] = 0x40u; r[3] = 0x00u;
@@ -3396,7 +3396,7 @@ int main(int argc, char **argv)
         if (map && cell + 32u < 640u) {
             map[cell] = 0x00u;                      /* the feet are not the goal */
             map[cell + 32u] = 0xA8u;                /* the row below is         */
-            for (unsigned i = 0; i < 0x8Cu + 2u; i++) {
+            for (uint32_t i = 0; i < 0x8Cu + 2u; i++) {
                 object_tick(pal);
                 if (object_lowPhaseMatch() < 0) { met = 1; break; }
             }
@@ -3404,7 +3404,7 @@ int main(int argc, char **argv)
             /* negative control: the same cell cleared never meets the goal */
             map[cell + 32u] = 0x00u;
             met = 0;
-            for (unsigned i = 0; i < 0x8Cu + 8u; i++) {
+            for (uint32_t i = 0; i < 0x8Cu + 8u; i++) {
                 object_tick(pal);
                 if (object_lowPhaseMatch() < 0) { met = 1; break; }
             }
@@ -3417,13 +3417,13 @@ int main(int argc, char **argv)
      * row, so no window ever matches: the settle gate reduces to the 0x6EBE
      * type bit.  Assert exactly that, over every type and both halves. */
     {
-        unsigned matches = 0, types = 0;
+        uint32_t matches = 0, types = 0;
 
-        for (unsigned t = 0; t < 35u; t++)
-            for (unsigned h = 0; h < 2u; h++) {
+        for (uint32_t t = 0; t < 35u; t++)
+            for (uint32_t h = 0; h < 2u; h++) {
                 types++;
-                for (int x = 0; x < 512; x += 7)
-                    for (int y = 0; y < 320; y += 11)
+                for (int32_t x = 0; x < 512; x += 7)
+                    for (int32_t y = 0; y < 320; y += 11)
                         if (object_rowWindowMatches(t, h, x, y)) matches++;
             }
         check(types == 70u && matches == 0u,
@@ -3433,7 +3433,7 @@ int main(int argc, char **argv)
     /* 7b. the rest of the type rows' handlers (DS:0x6918) */
     {
         uint8_t *a = object_slot(0u);
-        #define rd16t(r, o) ((unsigned)((r)[o] | ((r)[(o) + 1] << 8)))
+        #define rd16t(r, o) ((uint32_t)((r)[o] | ((r)[(o) + 1] << 8)))
         #define wr16t(r, o, v) ((r)[o] = (uint8_t)(v), (r)[(o) + 1] = (uint8_t)((v) >> 8))
 
         /* type 18 (0x12), input 0x06 -> normalised 0x0A -> key 0x05 -> command
@@ -3481,7 +3481,7 @@ int main(int argc, char **argv)
 
             /* 1000:F9E4 counts one tick per *frame* ([0x4103]), so the frame
              * has to advance between the calls: object_tick is what counts it. */
-            for (unsigned i = 0; i < 28u; i++) {
+            for (uint32_t i = 0; i < 28u; i++) {
                 (void)object_commandRun(a, 0x04u);   /* normalises to key 8 */
                 object_tick(pal);
             }
@@ -3537,7 +3537,7 @@ int main(int argc, char **argv)
             (void)object_commandRun(a, 0x08u);
             check(rd16t(node, 8u) == 1u && rd16t(a, 0xAu) == 1u,
                   "the nudge adds the actor's ramped +0xA to the node's +8");
-            for (unsigned i = 0; i < 4u; i++) (void)object_commandRun(a, 0x08u);
+            for (uint32_t i = 0; i < 4u; i++) (void)object_commandRun(a, 0x08u);
             check(rd16t(node, 8u) == 10u,
                   "the progress ramps 1+2+3+4 and stops at 0xA (1000:FC78)");
             (void)object_commandRun(a, 0x08u);
@@ -3714,19 +3714,19 @@ int main(int argc, char **argv)
         level_followView();
         check(level_viewX() == 4u && level_viewY() == 4u,
               "the follower moves 4 px an axis (0x5D09/0x5D21)");
-        for (unsigned i = 0; i < 16u; i++) level_followView();
+        for (uint32_t i = 0; i < 16u; i++) level_followView();
         check(level_viewX() == 0x20u && level_viewY() == 0x10u,
               "the follower settles on record - (0x88, 0x44)");
 
         rec[0] = 0x68u; rec[1] = 0x01u;             /* 0x0168: past 0xC0+0x88 */
         rec[2] = 0x04u; rec[3] = 0x01u;             /* 0x0104: past 0xA8+0x44 */
-        for (unsigned i = 0; i < 64u; i++) level_followView();
+        for (uint32_t i = 0; i < 64u; i++) level_followView();
         check(level_viewX() == 0xC0u && level_viewY() == 0xA8u,
               "the pan clamps to 512-320 px x 320-152 rows");
 
         rec[0] = 0x10u; rec[1] = 0x00u;             /* left of the anchor */
         rec[2] = 0x10u; rec[3] = 0x00u;
-        for (unsigned i = 0; i < 64u; i++) level_followView();
+        for (uint32_t i = 0; i < 64u; i++) level_followView();
         check(level_viewX() == 0u && level_viewY() == 0u,
               "a record left of the anchor pins the pan at 0");
         object_setActionEntity(0u);
@@ -3749,12 +3749,12 @@ int main(int argc, char **argv)
         level_setView(0u, 0u);
         level_set_offsetWord(0xFFFFu);      /* bit 15: the walk idles */
         level_reset_offsetWalk();
-        for (unsigned i = 0; i < 16u; i++) level_followView();
+        for (uint32_t i = 0; i < 16u; i++) level_followView();
         check(level_viewX() == 0x20u && level_viewY() == 0x10u,
               "an idle gate leaves the follower's target alone");
         /* 0xF8CE's write: a small vertical speed clears bit 15 */
         level_set_offsetWord(0x0000u);
-        for (unsigned i = 0; i < 16u; i++) level_followView();
+        for (uint32_t i = 0; i < 16u; i++) level_followView();
         check(level_viewX() == 0x21u && level_viewY() == 0x11u,
               "the cleared gate walks the pairs and shifts the camera to (1, 1)");
         check(level_offsetWord() == 0x2D91u,
@@ -3775,9 +3775,9 @@ int main(int argc, char **argv)
         memset(page, 0, sizeof page);
         object_renderTer(page, 0, 0);
         {
-            unsigned nz = 0;
+            uint32_t nz = 0;
 
-            for (unsigned i = 0; i < sizeof page; i++) if (page[i]) nz++;
+            for (uint32_t i = 0; i < sizeof page; i++) if (page[i]) nz++;
             check(nz == 0u, "a disabled slot draws nothing (1000:587F)");
         }
         /* enable slot 0: index 0 -> TER source 0x40, y offset 6, 24 rows */
@@ -3788,11 +3788,11 @@ int main(int argc, char **argv)
         memset(page, 0, sizeof page);
         object_renderTer(page, 0, 0);
         {
-            unsigned inside = 0, outside = 0;
+            uint32_t inside = 0, outside = 0;
 
-            for (unsigned y = 0; y < 200u; y++)
-                for (unsigned x = 0; x < 320u; x++) {
-                    int in = (x >= 20u && x < 52u && y >= 36u && y < 60u);
+            for (uint32_t y = 0; y < 200u; y++)
+                for (uint32_t x = 0; x < 320u; x++) {
+                    int32_t in = (x >= 20u && x < 52u && y >= 36u && y < 60u);
                     if (page[y * 320u + x]) {
                         if (in) inside++; else outside++;
                     }
@@ -3817,7 +3817,7 @@ int main(int argc, char **argv)
          * up.  Type two letters, delete one, type again, then Enter commits. */
         {
             uint32_t total = ((uint32_t)score_totalHi() << 16) | score_totalLo();
-            int found = 0;
+            int32_t found = 0;
 
             check(hiscore_qualifies(total),
                   "1000:01CD: the running total qualifies for the table");
@@ -3825,19 +3825,19 @@ int main(int argc, char **argv)
              * the key that dismisses it is not typed into the name. */
             {
                 static uint8_t page[320 * 200];
-                unsigned lit = 0;
+                uint32_t lit = 0;
 
                 memset(page, 0, sizeof page);
                 map_drawCongrats(page);
-                for (unsigned i = 0; i < 7u; i++) {
-                    unsigned y = 0x19u + 0x10u * i;
-                    unsigned n = 0;
-                    for (unsigned r = 4u; r < 14u; r++)
-                        for (unsigned x = 0; x < 320u; x++)
+                for (uint32_t i = 0; i < 7u; i++) {
+                    uint32_t y = 0x19u + 0x10u * i;
+                    uint32_t n = 0;
+                    for (uint32_t r = 4u; r < 14u; r++)
+                        for (uint32_t x = 0; x < 320u; x++)
                             if (page[(y + r) * 320u + x]) n++;
                     check(n != 0u, "1000:024B: a congratulation line is drawn");
                 }
-                for (unsigned i = 0; i < sizeof page; i++) if (page[i]) lit++;
+                for (uint32_t i = 0; i < sizeof page; i++) if (page[i]) lit++;
                 check(lit != 0u, "the congratulation page draws text");
             }
             /* 1000:0251 MOV CX,2: the page is drawn twice with a flip between.
@@ -3848,14 +3848,14 @@ int main(int argc, char **argv)
                   "1000:024B: the first congratulation pass is drawn");
             {
                 uint8_t *pg = (uint8_t *)osys_null_page(0);
-                unsigned lit = 0;
+                uint32_t lit = 0;
 
                 memset(pg, 0, 320u * 200u);
                 k.lastKey = 0;
                 check(map_tick(&k) == 1, "the flip tick keeps the page up");
                 check(map_congratsDraws() == 2u,
                       "1000:0251: the second congratulation pass is drawn");
-                for (unsigned i = 0; i < 320u * 200u; i++) if (pg[i]) lit++;
+                for (uint32_t i = 0; i < 320u * 200u; i++) if (pg[i]) lit++;
                 check(lit != 0u,
                       "the second pass redraws the page after the flip");
             }
@@ -3863,8 +3863,8 @@ int main(int argc, char **argv)
              * HIGH.BIT re-copy and the two rectangles; the ring comes up
              * after the fifth.  Drive map_tick + palette_tick together. */
             {
-                unsigned f0 = map_fadeStarts();
-                unsigned guard = 0;
+                uint32_t f0 = map_fadeStarts();
+                uint32_t guard = 0;
 
                 k.lastKey = 'Q'; map_tick(&k);   /* dismiss the page */
                 k.lastKey = 0;
@@ -3877,7 +3877,7 @@ int main(int argc, char **argv)
                 check(map_fadeStarts() - f0 == 5u,
                       "1000:028C..0307: five palette fades run in order");
                 {
-                    static const unsigned want[5][4] = {
+                    static const uint32_t want[5][4] = {
                         { 0x80u, 0x80u, 0x02u, 0x180u },
                         { 0x20u, 0x20u, 0x1Eu, 0x120u },
                         { 0x40u, 0x20u, 0x02u, 0x120u },
@@ -3885,8 +3885,8 @@ int main(int argc, char **argv)
                         { 0x20u, 0x20u, 0x46u, 0x060u },
                     };
 
-                    for (unsigned i = 0; i < 5u; i++) {
-                        unsigned f = 0, e = 0, d = 0, t = 0;
+                    for (uint32_t i = 0; i < 5u; i++) {
+                        uint32_t f = 0, e = 0, d = 0, t = 0;
 
                         check(map_fadeAt(f0 + i, &f, &e, &d, &t) &&
                               f == want[i][0] && e == want[i][1] &&
@@ -3900,7 +3900,7 @@ int main(int argc, char **argv)
             k.lastKey = 8u;  map_tick(&k);      /* delete */
             k.lastKey = 'Z'; map_tick(&k);
             k.lastKey = 13u; map_tick(&k);      /* Enter: commit */
-            for (unsigned i = 0; i < hiscore_count(); i++)
+            for (uint32_t i = 0; i < hiscore_count(); i++)
                 if (hiscore_score(i) == total && strcmp(hiscore_name(i), "QZ") == 0)
                     found = 1;
             check(found, "the typed name and the total reach the table");
@@ -3910,27 +3910,27 @@ int main(int argc, char **argv)
              * 0xA0/0x14 with blit_text_tile's 0x20 mask. */
             {
                 static uint8_t page[320 * 200];
-                static const unsigned cx[3] = { 0x20u, 0x82u, 0x102u };
+                static const uint32_t cx[3] = { 0x20u, 0x82u, 0x102u };
 
                 memset(page, 0, sizeof page);
                 map_drawList(page);
-                for (unsigned k = 0; k < 10u; k++) {
-                    unsigned y = k * 0x14u;
-                    for (unsigned c = 0; c < 3u; c++) {
-                        unsigned n = 0;
+                for (uint32_t k = 0; k < 10u; k++) {
+                    uint32_t y = k * 0x14u;
+                    for (uint32_t c = 0; c < 3u; c++) {
+                        uint32_t n = 0;
 
-                        for (unsigned r = 4u; r < 14u; r++)
-                            for (unsigned x = cx[c] - 16u; x <= cx[c] + 16u; x++)
+                        for (uint32_t r = 4u; r < 14u; r++)
+                            for (uint32_t x = cx[c] - 16u; x <= cx[c] + 16u; x++)
                                 if (page[(y + r) * 320u + x]) n++;
                         check(n != 0u,
                               "1000:0651: rank/name/score ink at the column");
                     }
                 }
                 {
-                    unsigned n = 0;
+                    uint32_t n = 0;
 
-                    for (unsigned r = 4u; r < 14u; r++)
-                        for (unsigned x = 0x80u; x <= 0xC0u; x++)
+                    for (uint32_t r = 4u; r < 14u; r++)
+                        for (uint32_t x = 0x80u; x <= 0xC0u; x++)
                             if (page[(0x14u + r) * 320u + x]) n++;
                     check(n != 0u, "1000:0518: the header is at (0xA0,0x14)");
                 }
@@ -3939,16 +3939,16 @@ int main(int argc, char **argv)
                 memset(page, 0, sizeof page);
                 map_drawName(page);
                 {
-                    unsigned low = 0, wide = 0, nameInk = 0;
+                    uint32_t low = 0, wide = 0, nameInk = 0;
 
-                    for (unsigned y = 160u; y < 200u; y++)
-                        for (unsigned x = 0; x < 320u; x++)
+                    for (uint32_t y = 160u; y < 200u; y++)
+                        for (uint32_t x = 0; x < 320u; x++)
                             if (page[y * 320u + x]) low++;
-                    for (unsigned y = 0; y < 160u; y++)
-                        for (unsigned x = 240u; x < 320u; x++)
+                    for (uint32_t y = 0; y < 160u; y++)
+                        for (uint32_t x = 240u; x < 320u; x++)
                             if (page[y * 320u + x]) wide++;
-                    for (unsigned y = 69u; y < 86u; y++)
-                        for (unsigned x = 0; x < 320u; x++)
+                    for (uint32_t y = 69u; y < 86u; y++)
+                        for (uint32_t x = 0; x < 320u; x++)
                             if (page[y * 320u + x]) nameInk++;
                     check(low == 0u && wide == 0u && nameInk != 0u,
                           "1000:0CBE: the name screen has no list and no NAME line");
@@ -3976,7 +3976,7 @@ int main(int argc, char **argv)
          * parameters - sin table at DS:0xB8, [0xB2]/[0xB0] = 157/66 (the x),
          * [0xB6]/[0xB4] = 79/62 (the y), page stride 80. */
         {
-            unsigned src, dst;
+            uint32_t src, dst;
 
             alpha_cell(0u, 0x10Eu, &src, &dst);
             check(dst == 997u && src == 16396u,
@@ -3990,17 +3990,17 @@ int main(int argc, char **argv)
         }
         {
             static uint8_t page[320 * 200];
-            unsigned in = 0, out = 0;
+            uint32_t in = 0, out = 0;
 
             memset(page, 0, sizeof page);
             alpha_drawWheel(page, 0x10Eu);
-            for (unsigned i = 0; i < sizeof page; i++) if (page[i]) in++;
+            for (uint32_t i = 0; i < sizeof page; i++) if (page[i]) in++;
             check(in != 0u, "the 30-cell letter wheel draws into the page");
             flow_dump_ppm("map_ring.ppm", page);
             memset(page, 0, sizeof page);
             alpha_drawName(page, "AB");
-            for (unsigned y = 0; y < 200u; y++)
-                for (unsigned x = 0; x < 320u; x++)
+            for (uint32_t y = 0; y < 200u; y++)
+                for (uint32_t x = 0; x < 320u; x++)
                     if (page[y * 320u + x]) {
                         if (y < 70u || y >= 90u) out++;
                     }
@@ -4010,21 +4010,21 @@ int main(int argc, char **argv)
              * 'A' cell (plane 0, x & 3 == 0) - 46 set bits in the shipped
              * sheet's 16x4-byte cell - and nothing else */
             {
-                unsigned lit = 0;
+                uint32_t lit = 0;
 
                 memset(page, 0, sizeof page);
                 alpha_drawName(page, "A");
-                for (unsigned i = 0; i < sizeof page; i++) if (page[i]) lit++;
+                for (uint32_t i = 0; i < sizeof page; i++) if (page[i]) lit++;
                 check(lit == 46u,
                       "the 'A' glyph is 46 pixels of the shipped alpha cell");
             }
 
             /* the cursor spins the ring: the selected column sits at the top */
             {
-                unsigned src, dst, top = 0xFFFFu;
+                uint32_t src, dst, top = 0xFFFFu;
 
-                for (unsigned i = 0; i < 30u; i++) {
-                    unsigned ang = (0x10Eu - 7u * 0x0Cu + i * 0x0Cu) % 0x168u;
+                for (uint32_t i = 0; i < 30u; i++) {
+                    uint32_t ang = (0x10Eu - 7u * 0x0Cu + i * 0x0Cu) % 0x168u;
 
                     alpha_cell(i, ang, &src, &dst);
                     if (dst / 80u < top) top = dst / 80u;
@@ -4056,7 +4056,7 @@ int main(int argc, char **argv)
         /* 1000:0518: the entry animation runs [0x8AE] from 0x130 to 2 - about
          * 0x12E frames - and the panel loop only starts after it. */
         {
-            unsigned guard = 0;
+            uint32_t guard = 0;
 
             k.lastKey = 0;
             while (map_panel == 0u && guard++ < 1000u) map_tick(&k);
@@ -4066,14 +4066,14 @@ int main(int argc, char **argv)
         /* 1000:05F4/0613: a panel step is 0x14 frames of one [0x8AE] unit
          * each; [0x8A2] changes only after the 0x14th. */
         {
-            unsigned before = map_boxBottom;
+            uint32_t before = map_boxBottom;
 
             k.joyBits = 0x01u;
             map_tick(&k);
             check(map_boxBottom == before && map_panel == 1u,
                   "1000:060C: the step tick only arms the 0x14-frame walk");
             k.joyBits = 0;
-            for (unsigned i = 0; i < 0x14u; i++) {
+            for (uint32_t i = 0; i < 0x14u; i++) {
                 map_tick(&k);
                 if (i + 1u < 0x14u)
                     check(map_boxBottom == before + i + 1u && map_panel == 1u,
@@ -4081,11 +4081,11 @@ int main(int argc, char **argv)
             }
             check(map_boxBottom == before + 0x14u && map_panel == 2u,
                   "1000:060C: after 0x14 frames the panel is 2");
-            for (unsigned p = 2u; p < 6u; p++) {
+            for (uint32_t p = 2u; p < 6u; p++) {
                 k.joyBits = 0x01u;
                 map_tick(&k);
                 k.joyBits = 0;
-                for (unsigned i = 0; i < 0x14u; i++) map_tick(&k);
+                for (uint32_t i = 0; i < 0x14u; i++) map_tick(&k);
             }
             check(map_panel == 6u && map_boxBottom == 2u + 5u * 0x14u,
                   "the panel stops at 6 with the frame at 2 + 5*0x14");
@@ -4093,7 +4093,7 @@ int main(int argc, char **argv)
             k.joyBits = 0x02u;
             map_tick(&k);
             k.joyBits = 0;
-            for (unsigned i = 0; i < 0x14u; i++) map_tick(&k);
+            for (uint32_t i = 0; i < 0x14u; i++) map_tick(&k);
             check(map_panel == 5u && map_boxBottom == 2u + 4u * 0x14u,
                   "1000:05ED: a down step walks the frame back over 0x14 frames");
         }
@@ -4102,18 +4102,18 @@ int main(int argc, char **argv)
          * each one row of 74 bytes built from the 4/+7/24/+9/16/+0xE runs. */
         {
             static uint8_t page[320 * 200];
-            static const unsigned want[5] = { 46u, 66u, 86u, 106u, 126u };
-            unsigned hit[5] = { 0, 0, 0, 0, 0 }, stray = 0;
-            int inBlock = 0;
+            static const uint32_t want[5] = { 46u, 66u, 86u, 106u, 126u };
+            uint32_t hit[5] = { 0, 0, 0, 0, 0 }, stray = 0;
+            int32_t inBlock = 0;
 
             memset(page, 0, sizeof page);
             map_drawBoxEdges(page, 2u);
-            for (unsigned y = 0; y < 200u; y++) {
-                unsigned n = 0;
+            for (uint32_t y = 0; y < 200u; y++) {
+                uint32_t n = 0;
 
-                for (unsigned x = 0; x < 320u; x++) if (page[y * 320u + x]) n++;
+                for (uint32_t x = 0; x < 320u; x++) if (page[y * 320u + x]) n++;
                 inBlock = 0;
-                for (unsigned k = 0; k < 5u; k++)
+                for (uint32_t k = 0; k < 5u; k++)
                     if (y >= want[k] && y < want[k] + 13u) { inBlock = 1; hit[k] += n; }
                 if (n && !inBlock) stray++;
             }
@@ -4133,7 +4133,7 @@ int main(int argc, char **argv)
     /* 9. the last four tails and the level-end probe, field by field.
      *    These run last: they free records and re-arm the bar. */
     {
-        #define R16(r, o) ((unsigned)((r)[o] | ((r)[(o) + 1] << 8)))
+        #define R16(r, o) ((uint32_t)((r)[o] | ((r)[(o) + 1] << 8)))
         #define W16(r, o, v) ((r)[o] = (uint8_t)(v), (r)[(o) + 1] = (uint8_t)((v) >> 8))
         uint8_t *spare = object_slot(5u);
         uint8_t ent[2u + 7u * 16u];        /* D-59: the +0xA entity records */

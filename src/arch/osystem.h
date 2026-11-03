@@ -63,25 +63,25 @@ typedef enum VideoMode {
  * exactly one flow step per tick; the display refresh rate must never pace
  * it (the original's ISR re-arms the PIT one-shot and re-syncs to vsync, so
  * one tick = one display period at GAME_TICK_HZ, independent of the host). */
-typedef void (*TickSyncFn)(unsigned *lastSeen);
+typedef void (*TickSyncFn)(uint32_t *lastSeen);
 
 typedef struct OSystem {
     /* --- video ------------------------------------------------------- */
     void     (*videoSetMode)(VideoMode mode);       /* every mode set (13h/X)    */
-    uint8_t *(*videoPage)(int which);               /* which: 0 or 1; 320x200x8   */
-    void     (*videoPresent)(int which);            /* the CRTC-flip equivalent   */
-    void     (*videoSetPalette)(const uint8_t *p6, unsigned first, unsigned n);
+    uint8_t *(*videoPage)(int32_t which);           /* which: 0 or 1; 320x200x8   */
+    void     (*videoPresent)(int32_t which);        /* the CRTC-flip equivalent   */
+    void     (*videoSetPalette)(const uint8_t *p6, uint32_t first, uint32_t n);
 
     /* --- input ------------------------------------------------------- */
     void     (*eventsPoll)(InputState *out);
 
     /* --- timing ------------------------------------------------------ */
-    void     (*timerStart)(unsigned ticksPerSec, TickFn tick);
+    void     (*timerStart)(uint32_t ticksPerSec, TickFn tick);
     TickSyncFn tickSync;                            /* the [0x5AC8]/[0x48BA] pair */
 
     /* --- audio ------------------------------------------------------- */
-    int      (*audioStart)(void);                   /* 0 = ok                     */
-    int      (*audioPlayTune)(unsigned id);
+    int32_t  (*audioStart)(void);                   /* 0 = ok                     */
+    int32_t  (*audioPlayTune)(uint32_t id);
     void     (*audioStop)(void);
 
     /* --- misc -------------------------------------------------------- */
@@ -90,6 +90,6 @@ typedef struct OSystem {
 
 /* Implemented by each arch/<port>/; the arch layer's main() picks one and
  * hands it to game_main(). */
-int game_main(const OSystem *osys);
+int32_t game_main(const OSystem *osys);
 
 #endif /* HUMANSRE_OSYSTEM_H */

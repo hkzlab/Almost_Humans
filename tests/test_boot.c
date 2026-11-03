@@ -34,7 +34,7 @@
 #include "compat.h"
 
 extern const OSystem osys_null;
-extern const uint8_t *osys_null_page(int which);
+extern const uint8_t *osys_null_page(int32_t which);
 extern const uint8_t *osys_null_palette(void);
 
 static uint8_t *read_file(const char *path, uint32_t *size)
@@ -42,7 +42,7 @@ static uint8_t *read_file(const char *path, uint32_t *size)
     FILE *f = fopen(path, "rb");
     if (!f) return NULL;
     fseek(f, 0, SEEK_END);
-    long n = ftell(f);
+    int64_t n = ftell(f);
     fseek(f, 0, SEEK_SET);
     uint8_t *buf = malloc((size_t)n);
     if (fread(buf, 1, (size_t)n, f) != (size_t)n) { fclose(f); free(buf); return NULL; }
@@ -55,9 +55,9 @@ static uint8_t *read_file(const char *path, uint32_t *size)
  * phases (2026-10-23) — the fade/black-hold blocks shift every offset, so
  * these no longer pin their frames.  shortcut: stale indices, recompute
  * from a traced run when the dumps are next used. */
-static const unsigned dump_ticks[] = { 281, 581, 1247, 1340, 1460 };
+static const uint32_t dump_ticks[] = { 281, 581, 1247, 1340, 1460 };
 
-static void dump_ppm(const char *dir, unsigned tick, const uint8_t *page,
+static void dump_ppm(const char *dir, uint32_t tick, const uint8_t *page,
                      const uint8_t *pal6)
 {
     char path[512];
@@ -65,9 +65,9 @@ static void dump_ppm(const char *dir, unsigned tick, const uint8_t *page,
     FILE *f = fopen(path, "wb");
     if (!f) return;
     fprintf(f, "P6\n320 200\n255\n");
-    for (unsigned i = 0; i < 320u * 200u; i++) {
+    for (uint32_t i = 0; i < 320u * 200u; i++) {
         uint8_t idx = page[i];
-        for (unsigned c = 0; c < 3; c++) {
+        for (uint32_t c = 0; c < 3; c++) {
             uint8_t v6 = pal6[idx * 3u + c];
             fputc((uint8_t)((v6 << 2) | (v6 >> 4)), f);
         }
@@ -97,7 +97,7 @@ int main(int argc, char **argv)
 
     if (compat_chdir(vol_dir)) { perror(vol_dir); return 1; }
 
-    int bad = 0;
+    int32_t bad = 0;
     scene_init(&osys_null);
     video_init(&osys_null);
     palette_init(&osys_null);
@@ -105,8 +105,8 @@ int main(int argc, char **argv)
     const char *dump_dir = argc > 3 ? argv[3] : NULL;
 
     /* 1. the intro plays until the quit cue, then reports done. */
-    unsigned ticks = 0;
-    int r;
+    uint32_t ticks = 0;
+    int32_t r;
     for (;;) {
         r = scene_playBootIntro();
         palette_tick();                        /* the ISR body's fade step */
@@ -138,8 +138,8 @@ int main(int argc, char **argv)
      * window; rows 180-199 are the bar region (check 5). */
     {
         const uint8_t *page = osys_null_page(0);
-        unsigned nz = 0;
-        for (unsigned i = 0; i < 180u * 320u; i++) if (page[i]) nz++;
+        uint32_t nz = 0;
+        for (uint32_t i = 0; i < 180u * 320u; i++) if (page[i]) nz++;
         if (nz < 56000u) {
             fprintf(stderr, "FAIL the scrolled background barely drawn (%u)\n", nz);
             bad = 1;
@@ -152,7 +152,7 @@ int main(int argc, char **argv)
      * fade-backs pin it mid-run, the bar check below pins its bank.) */
     {
         const uint8_t *pal = osys_null_palette();
-        for (unsigned i = 0; i < 768u; i++) {
+        for (uint32_t i = 0; i < 768u; i++) {
             if (pal[i] != 0) {
                 fprintf(stderr, "FAIL palette byte %u: got %02x, the outro "
                                 "fade must end black\n", i, pal[i]);
@@ -181,14 +181,14 @@ int main(int argc, char **argv)
             uint16_t chk = 0;
             uint32_t off0;
             memcpy(&off0, rsc, 4);          /* entry[0] = the list object's offset */
-            int sz = res_decode_lzw_mem(rsc, rsc_size, off0, list, sizeof list, &chk);
+            int32_t sz = res_decode_lzw_mem(rsc, rsc_size, off0, list, sizeof list, &chk);
             if (sz < 0 || chk != 0) {
                 fprintf(stderr, "FAIL intro.rsc object 0 (the list) undecodable\n");
                 bad = 1;
             } else {
                 /* walk the groups from +2 to group 384's record */
                 uint32_t si = 2;
-                unsigned g = 0;
+                uint32_t g = 0;
                 while (g < 384u && si + 2 <= (uint32_t)sz) {
                     uint16_t w = (uint16_t)(list[si] | (list[si + 1] << 8));
                     if (w == 0xFFFFu) { si += 2; g++; }
@@ -200,17 +200,17 @@ int main(int argc, char **argv)
                 } else {
                     uint16_t dest = (uint16_t)(list[si] | (list[si + 1] << 8));
                     uint16_t stored = (uint16_t)(list[si + 2] | (list[si + 3] << 8));
-                    unsigned idx = (stored + 1u) & 0xFFFFu;   /* INC AX at b95d */
+                    uint32_t idx = (stored + 1u) & 0xFFFFu;   /* INC AX at b95d */
                     uint32_t off;
                     memcpy(&off, rsc + idx * 4u, 4);
-                    int osz = res_decode_lzw_mem(rsc, rsc_size, off, obj,
+                    int32_t osz = res_decode_lzw_mem(rsc, rsc_size, off, obj,
                                                  sizeof obj, &chk);
                     if (osz < 0 || chk != 0) {
                         fprintf(stderr, "FAIL object %u undecodable\n", idx);
                         bad = 1;
                     } else {
-                        unsigned w = (unsigned)obj[0] | ((unsigned)obj[1] << 8);
-                        unsigned h = (unsigned)obj[2] | ((unsigned)obj[3] << 8);
+                        uint32_t w = (uint32_t)obj[0] | ((uint32_t)obj[1] << 8);
+                        uint32_t h = (uint32_t)obj[2] | ((uint32_t)obj[3] << 8);
                         if (dest != 25877u || w == 0u || h == 0u ||
                             4u + (uint32_t)w * h > (uint32_t)osz) {
                             fprintf(stderr, "FAIL group 384 record mismatch: dest %u, %ux%u\n",
@@ -218,14 +218,14 @@ int main(int argc, char **argv)
                             bad = 1;
                         } else {
                             const uint8_t *page = osys_null_page(0);
-                            unsigned miss = 0;
+                            uint32_t miss = 0;
                             /* the overlay blits into the pool at dest
                              * 25877 (row 80); the present composes pool
                              * rows 4-183 into the visible rows 0-179, so
                              * the page holds it 4 rows up:
                              * 25877 - 4*320 = 24597. */
-                            for (unsigned rr = 0; rr < h; rr++)
-                                for (unsigned cc = 0; cc < w; cc++) {
+                            for (uint32_t rr = 0; rr < h; rr++)
+                                for (uint32_t cc = 0; cc < w; cc++) {
                                     uint8_t b = obj[4u + rr * w + cc];
                                     if (!b) continue;
                                     uint32_t at = 24597u + rr * 320u + cc;
@@ -251,16 +251,16 @@ int main(int argc, char **argv)
      * gradient gives a strictly increasing non-zero count down the rows. */
     {
         const uint8_t *page = osys_null_page(0);
-        unsigned nz_margin = 0;
-        for (unsigned i = 180u * 320u; i < 182u * 320u; i++) if (page[i]) nz_margin++;
-        for (unsigned i = 198u * 320u; i < 200u * 320u; i++) if (page[i]) nz_margin++;
+        uint32_t nz_margin = 0;
+        for (uint32_t i = 180u * 320u; i < 182u * 320u; i++) if (page[i]) nz_margin++;
+        for (uint32_t i = 198u * 320u; i < 200u * 320u; i++) if (page[i]) nz_margin++;
         if (nz_margin) {
             fprintf(stderr, "FAIL the bar margins hold %u non-zero bytes (garbage blits)\n", nz_margin);
             bad = 1;
         }
-        int colours_ok = 1;
-        for (unsigned r = 0; r < 16u; r++) {
-            for (unsigned i = 0; i < 320u; i++) {
+        int32_t colours_ok = 1;
+        for (uint32_t r = 0; r < 16u; r++) {
+            for (uint32_t i = 0; i < 320u; i++) {
                 uint8_t v = page[(182u + r) * 320u + i];
                 if (v && v != (uint8_t)(0xE0u + r)) colours_ok = 0;
             }

@@ -50,7 +50,7 @@ static LevelData level_data_cur;
  * to [0x1FA0], and 1000:51F9 (the 0xA9 handler) marks two cells of it.  Keeping
  * the copy means the parsed record stays byte-exact (tests/test_level). */
 static uint8_t levelMapCopy[640];
-static int level_loaded;
+static int32_t level_loaded;
 static uint8_t *boxSpr;           /* apl\box.spr (the dialog tiles)      */
 static uint8_t *objBank;          /* apl\sprites.dat (the object sprites) */
 static uint8_t *entBank;          /* apl\rex.dat (the entity sprites)     */
@@ -73,14 +73,14 @@ static uint8_t *loadingBank;
 static uint32_t loadingSize;
 static uint8_t  loadList[10u * 10u];
 static uint8_t  loadWalkerSnap[10u * 10u];   /* the walkers at the letters switch */
-static unsigned loadWalkerCount;
+static uint32_t loadWalkerCount;
 static uint8_t  loadPal[768];          /* dicon+0x18: the screen's DAC    */
 static uint8_t *loadDic;               /* BACKS\DICON.APL: the preview card */
 static uint32_t loadDicSize;
-static unsigned loadEntries;
-static int      loadCx, loadReload;    /* the particle counter [0xD7A]/[0xD7C] */
-static unsigned loadLeft;              /* particle_frame's CX             */
-static int      loadPhase;             /* 0 idle, 1 walkers, 2 letters, 3 done */
+static uint32_t loadEntries;
+static int32_t  loadCx, loadReload;    /* the particle counter [0xD7A]/[0xD7C] */
+static uint32_t loadLeft;              /* particle_frame's CX             */
+static int32_t  loadPhase;             /* 0 idle, 1 walkers, 2 letters, 3 done */
 
 static const uint8_t loadWalkers[2u + 10u * 10u] = {
     0x0A, 0x00,
@@ -113,8 +113,8 @@ static const uint8_t loadLetters[2u + 8u * 10u] = {
  * per level_tick and the play loop only starts once it is done. */
 enum { LVSTART_IDLE, LVSTART_VIDEO_BASE, LVSTART_VIDEO_BAR, LVSTART_LOADING,
        LVSTART_FADE_OUT, LVSTART_WARMUP, LVSTART_FADE_IN, LVSTART_PLAYING };
-static int      startPhase = LVSTART_IDLE;
-static unsigned warmupLeft;
+static int32_t  startPhase = LVSTART_IDLE;
+static uint32_t warmupLeft;
 /* the fade-to-black target: 0x48BC, the ramp the boot leaves zeroed */
 static const uint8_t blackPal[768];
 /* level_video_init's palette state at its fades (32F4/3309): 0x14D3 holds
@@ -124,14 +124,14 @@ static const uint8_t blackPal[768];
  * first level frame off the pre-level screen's palette. */
 static uint8_t palBarOnly[768];
 static uint16_t timeLimit;        /* [0x5D31]: the difficulty's BCD pick  */
-static unsigned tribeMembers;     /* [0x11FC]: 12/10/8 by the difficulty  */
+static uint32_t tribeMembers;     /* [0x11FC]: 12/10/8 by the difficulty  */
 static const uint8_t zeroPal[768];   /* the zeroed 0x14D3 (1000:3170) */
-static unsigned viewX, viewY;
+static uint32_t viewX, viewY;
 /* [0xC]: update_world's (1000:80AD) gate.  level_fade_in sets it at 1000:336C,
  * before its eight frames; the claim clears it (1000:3B19) and restores it
  * (1000:3CAB), so the world is frozen while the claim's blocking sequence
  * runs.  Zero until the level's own chain reaches that store. */
-static int worldUpdates;
+static int32_t worldUpdates;
 /* [0x2D8E]: the follower's +-1 px offset walk enabler.  Its two writers are
  * 1000:DAC7 (the entity/collision path) and 0xF8CE (the fall machine), both
  * ported; the walk itself over 0x2D92..0x2DA2 is level_offsetWalk below. */
@@ -142,13 +142,13 @@ static const int16_t levelOffsetPairs[10] = {
     0, 0,  1, -1,  -1, 1,  -1, -1,  1, 1,
 };
 static uint16_t levelOffsetPtr = 0x2D92u;   /* [0x2D90] */
-static unsigned levelRequired;    /* [0x17FB]: the map's 0xAA count        */
-static unsigned membersAtStart;   /* [0x1970]: the members at level start  */
-static int      endRequested;     /* the play loop's exit (35D6's -1)      */
-static int      endSoundSent;     /* 1000:34E6's 0x83B7 call, once          */
-static unsigned playExitHold;     /* 1000:34E6: the 15 x 1000:8B56 waits    */
-static int      goalHit;          /* the discovery/claim win hook          */
-static int      endWon;           /* [0x138E]: 1 won, 0 extinct            */
+static uint32_t levelRequired;    /* [0x17FB]: the map's 0xAA count        */
+static uint32_t membersAtStart;   /* [0x1970]: the members at level start  */
+static int32_t  endRequested;     /* the play loop's exit (35D6's -1)      */
+static int32_t  endSoundSent;     /* 1000:34E6's 0x83B7 call, once          */
+static uint32_t playExitHold;     /* 1000:34E6: the 15 x 1000:8B56 waits    */
+static int32_t  goalHit;          /* the discovery/claim win hook          */
+static int32_t  endWon;           /* [0x138E]: 1 won, 0 extinct            */
 
 /* --- the level's visual assets (re_formats.md §3-§5) -------------------
  *
@@ -210,14 +210,14 @@ static const int8_t sparkDir[8][2] = {
     { -1, 0 }, { -1, 1 }, { 0, 1 }, { 1, 1 },
 };
 static struct { uint8_t live, value; uint16_t x, y, age; } spark[0x58];
-static unsigned sparkWrite, sparkSpawned;   /* [0x1AF8] cursor, [0x1AFC] count */
-static unsigned sparkOX, sparkOY;           /* [0x1AFE] / [0x1B00]            */
+static uint32_t sparkWrite, sparkSpawned;   /* [0x1AF8] cursor, [0x1AFC] count */
+static uint32_t sparkOX, sparkOY;           /* [0x1AFE] / [0x1B00]            */
 static uint8_t sparkShade[16][16];          /* 0x19EA, from the recipe sprite */
-static int sparkOn;
+static int32_t sparkOn;
 
 /* 1000:3E73: clear the list, take the shade table and the origin (its tail is
  * the view set the claim already does). */
-void level_sparkBegin(unsigned ox, unsigned oy, const uint8_t *shade)
+void level_sparkBegin(uint32_t ox, uint32_t oy, const uint8_t *shade)
 {
     memset(spark, 0, sizeof spark);
     if (shade) memcpy(sparkShade, shade, sizeof sparkShade);
@@ -228,12 +228,12 @@ void level_sparkBegin(unsigned ox, unsigned oy, const uint8_t *shade)
     sparkOn = 1;
 }
 
-int level_sparkActive(void) { return sparkOn; }
+int32_t level_sparkActive(void) { return sparkOn; }
 
 /* the first live slot, for the tests: writes its world position and value. */
-int level_sparkPeek(unsigned *x, unsigned *y, unsigned *value)
+int32_t level_sparkPeek(uint32_t *x, uint32_t *y, uint32_t *value)
 {
-    for (unsigned i = 0; i < 0x58u; i++)
+    for (uint32_t i = 0; i < 0x58u; i++)
         if (spark[i].live) {
             if (x) *x = spark[i].x;
             if (y) *y = spark[i].y;
@@ -248,7 +248,7 @@ int level_sparkPeek(unsigned *x, unsigned *y, unsigned *value)
  * age 0x53.  Stops when the spawns are done and nothing is live ([0x1B02]). */
 static void sparkStep(void)
 {
-    unsigned live = 0;
+    uint32_t live = 0;
 
     if (!sparkOn) return;
     if (sparkSpawned < 0x100u && !spark[sparkWrite].live) {
@@ -263,8 +263,8 @@ static void sparkStep(void)
         sparkWrite = (sparkWrite + 1u) % 0x58u;
         sparkSpawned++;
     }
-    for (unsigned i = 0; i < 0x58u; i++) {
-        unsigned d;
+    for (uint32_t i = 0; i < 0x58u; i++) {
+        uint32_t d;
 
         if (!spark[i].live) continue;
         live = 1;
@@ -280,18 +280,18 @@ static void sparkStep(void)
  * one plane, so each of the four columns gets its bit replaced. */
 static void sparkDraw(void)
 {
-    for (unsigned i = 0; i < 0x58u; i++) {
-        int sx, sy;
-        unsigned plane, addr, base;
+    for (uint32_t i = 0; i < 0x58u; i++) {
+        int32_t sx, sy;
+        uint32_t plane, addr, base;
 
         if (!spark[i].live || spark[i].value == 0u) continue;
-        sx = (int)spark[i].x - (int)viewX;
-        sy = (int)spark[i].y - (int)viewY;
-        if (sx < 0 || sx >= (int)VIEW_W || sy < 0 || sy >= (int)VIEW_H) continue;
-        plane = (unsigned)sx & 3u;
-        base = (unsigned)sx & ~3u;
-        addr = (unsigned)sy * 88u + ((unsigned)sx >> 2);
-        for (unsigned k = 0; k < 4u; k++) {
+        sx = (int32_t)spark[i].x - (int32_t)viewX;
+        sy = (int32_t)spark[i].y - (int32_t)viewY;
+        if (sx < 0 || sx >= (int32_t)VIEW_W || sy < 0 || sy >= (int32_t)VIEW_H) continue;
+        plane = (uint32_t)sx & 3u;
+        base = (uint32_t)sx & ~3u;
+        addr = (uint32_t)sy * 88u + ((uint32_t)sx >> 2);
+        for (uint32_t k = 0; k < 4u; k++) {
             uint8_t bit = (uint8_t)(((spark[i].value >> k) & 1u) << plane);
             uint8_t *px = &lvlPlane[addr][(base + k) & 3u];
 
@@ -327,17 +327,17 @@ static uint8_t bdEBlock[0x80];             /* field E: the A9 log sprite   */
 static uint8_t bdHBlock[0x200];            /* field H: frames 0x26/0x27    */
 static uint8_t slopeProfiles[0x400];       /* field A: the slope profiles  */
 static uint32_t slopeSize;
-static unsigned bdAnimFrames;              /* field F -> [0x6532]          */
-static int     bdCHave;
+static uint32_t bdAnimFrames;              /* field F -> [0x6532]          */
+static int32_t bdCHave;
 static uint8_t bdPBlock[0x1000];    /* field P: the exit/igloo art (0xB9) */
-static int     bdPHave;
-static unsigned levelBgIndex;       /* the BD page's field L (test probe) */
+static int32_t bdPHave;
+static uint32_t levelBgIndex;       /* the BD page's field L (test probe) */
 static uint8_t *pageItems;            /* field B + its record area          */
 static uint32_t pageItemsSize;
-static int pageValid;
+static int32_t pageValid;
 static uint8_t kBytes[4];             /* field K: [0x6F20], [0x6F0B]        */
 static uint8_t *animTable;
-static unsigned animCount;
+static uint32_t animCount;
 
 static void visuals_free(void)
 {
@@ -365,30 +365,30 @@ typedef struct BdPage {
     const uint8_t *jBytes;      /* field J: the 8 bytes at 0x1E98        */
     const uint8_t *rowBlock;    /* field I: 0xC0 B (the 0x80..0xBF bank) */
     const uint8_t *nList;       /* field N: count + 17-byte {id, 16}     */
-    unsigned nCount;
+    uint32_t nCount;
     const uint8_t *oList;       /* field O: count + 16 id bytes          */
-    unsigned oCount;
+    uint32_t oCount;
     const uint8_t *cBlock;      /* field C: the 0xA9 background sprites  */
     const uint8_t *eBlock;      /* field E: the 0x80-byte A9 log sprite    */
     const uint8_t *hBlock;      /* field H: the two 0x100-byte sprites     */
     const uint8_t *gBlock;      /* field G: 3 layers x n x 0x100 sprites */
-    unsigned gCount;            /* n (blocks per layer)                  */
+    uint32_t gCount;            /* n (blocks per layer)                  */
     const uint8_t *pBlock;      /* field P: the 0x1000-byte exit art     */
     uint32_t pSize;
 } BdPage;
 
-static uint32_t bd_walk(const uint8_t *b, uint32_t size, unsigned *bgIndex,
-                        const uint8_t **anim, unsigned *animEntries,
+static uint32_t bd_walk(const uint8_t *b, uint32_t size, uint32_t *bgIndex,
+                        const uint8_t **anim, uint32_t *animEntries,
                         BdPage *page)
 {
     uint32_t si = 0;
 
     /* A / B: 256-word offset tables whose largest entry is the record's
      * size sentinel; the strides 0x10 / 0x20 pad up afterwards. */
-    for (unsigned pass = 0; pass < 2u; pass++) {
+    for (uint32_t pass = 0; pass < 2u; pass++) {
         if (si + 512u > size) return 0;
         uint32_t m = 0;
-        for (unsigned i = 0; i < 256u; i++) {
+        for (uint32_t i = 0; i < 256u; i++) {
             uint32_t v = rd_le_u16(b + si + i * 2u);
             if (v > m) m = v;
         }
@@ -408,7 +408,7 @@ static uint32_t bd_walk(const uint8_t *b, uint32_t size, unsigned *bgIndex,
     page->eBlock = b + si;                 /* E: the A9 log sprite (D points here) */
     si += 0x80u;
     if (si + 2u > size) return 0;
-    unsigned n = rd_le_u16(b + si);
+    uint32_t n = rd_le_u16(b + si);
     page->gBlock = b + si + 2u;
     page->gCount = n;                      /* F: n; G: 3 layers x n blocks */
     si += 2u + 3u * n * 0x100u;
@@ -431,7 +431,7 @@ static uint32_t bd_walk(const uint8_t *b, uint32_t size, unsigned *bgIndex,
     *bgIndex = rd_le_u16(b + si);            /* L                            */
     si += 2u;
     if (si + 2u > size) return 0;
-    unsigned m = rd_le_u16(b + si);
+    uint32_t m = rd_le_u16(b + si);
     if (si + 2u + 4u * m > size) return 0;
     *anim = b + si + 2u;                   /* M: the rotation table        */
     *animEntries = m;
@@ -457,11 +457,11 @@ static uint32_t bd_walk(const uint8_t *b, uint32_t size, unsigned *bgIndex,
 /* 1000:5137: expand four mask bytes into 32 opacity flags, bit 0 first. */
 static void page_mask_build(const uint8_t *four)
 {
-    unsigned bit = 0;
+    uint32_t bit = 0;
 
     memset(pageOpacity, 0, sizeof pageOpacity);
-    for (unsigned b = 0; b < 4u; b++)
-        for (unsigned k = 0; k < 8u; k++)
+    for (uint32_t b = 0; b < 4u; b++)
+        for (uint32_t k = 0; k < 8u; k++)
             pageOpacity[bit++] = (uint8_t)((four[b] >> k) & 1u ? 0xFFu : 0u);
 }
 
@@ -476,16 +476,16 @@ static void page_table_build(const BdPage *page)
     memset(pageMask, 0xFF, sizeof pageMask);
     if (!atlas || !page->jBytes) return;
     page_mask_build(page->jBytes + 4u);
-    for (unsigned id = 0; id <= 0xA8u; id++) {
-        int blocked = 0;
+    for (uint32_t id = 0; id <= 0xA8u; id++) {
+        int32_t blocked = 0;
 
-        for (unsigned k = 0; k < page->oCount; k++)
+        for (uint32_t k = 0; k < page->oCount; k++)
             if (page->oList[1u + k] == id) { blocked = 1; break; }
         if (blocked) continue;
-        for (unsigned col = 0; col < 16u; col++) {
+        for (uint32_t col = 0; col < 16u; col++) {
             const uint8_t *tile = atlas + 0x400u + id * 0x100u;
 
-            for (unsigned row = 0; row < 16u; row++) {
+            for (uint32_t row = 0; row < 16u; row++) {
                 if (pageOpacity[tile[row * 16u + col]]) {
                     pageMask[id][col] = (uint8_t)row;
                     break;
@@ -493,7 +493,7 @@ static void page_table_build(const BdPage *page)
             }
         }
     }
-    for (unsigned k = 0; k < page->nCount; k++) {
+    for (uint32_t k = 0; k < page->nCount; k++) {
         const uint8_t *e = page->nList + 1u + 17u * k;
         memcpy(pageMask[e[0]], e + 1u, 16u);
     }
@@ -517,14 +517,14 @@ static void page_table_build(const BdPage *page)
  */
 static void item_masks_build(const BdPage *page)
 {
-    unsigned si = 0x400u;                    /* 1000:5595: ES:SI, the tiles    */
-    unsigned tab0;
+    uint32_t si = 0x400u;                    /* 1000:5595: ES:SI, the tiles    */
+    uint32_t tab0;
 
     if (!pageItems || !atlas || !page->jBytes || !pageValid) return;
     page_mask_build(page->jBytes);           /* 0x1FA4 from 0x1E98's first 4   */
     tab0 = rd_le_u16(pageItems);
-    for (unsigned id = 0; id <= 0xA8u; id++) {
-        unsigned off = rd_le_u16(pageItems + 2u * id);
+    for (uint32_t id = 0; id <= 0xA8u; id++) {
+        uint32_t off = rd_le_u16(pageItems + 2u * id);
 
         if (off & 0x8000u) break;                        /* 1000:55AF JS     */
         if (off == tab0) {                               /* 1000:55B7        */
@@ -532,13 +532,13 @@ static void item_masks_build(const BdPage *page)
             continue;
         }
         if ((uint32_t)off + 32u > pageItemsSize) continue;
-        for (unsigned row = 0; row < 16u; row++) {
-            unsigned o = off + 2u * row;
-            unsigned word = rd_le_u16(pageItems + o);
+        for (uint32_t row = 0; row < 16u; row++) {
+            uint32_t o = off + 2u * row;
+            uint32_t word = rd_le_u16(pageItems + o);
 
             if (word != 0u) continue;                    /* 1000:55CC JNZ    */
             word = 0u;
-            for (unsigned col = 0; col < 16u; col++) {   /* 1000:55D9        */
+            for (uint32_t col = 0; col < 16u; col++) {   /* 1000:55D9        */
                 uint8_t px = si < 0x400u + ATLAS_TILES * 0x100u ? atlas[si] : 0u;
 
                 si++;
@@ -551,7 +551,7 @@ static void item_masks_build(const BdPage *page)
 
 /* draw_map_digit (1000:4F22) + the BD walk: the style's defs, atlas and
  * background, all off the current disc (everything ships on HUMANS.001). */
-static int visuals_load(unsigned style)
+static int32_t visuals_load(uint32_t style)
 {
     visuals_free();
 
@@ -561,7 +561,7 @@ static int visuals_load(unsigned style)
     uint16_t chk = 0;
     uint8_t *bd = res_loadChunk(name, &bdSize, &chk);
     if (!bd) return -1;
-    unsigned bgIdx = 0, animN = 0;
+    uint32_t bgIdx = 0, animN = 0;
     const uint8_t *anim = NULL;
     BdPage page;
     memset(&page, 0, sizeof page);
@@ -573,18 +573,18 @@ static int visuals_load(unsigned style)
     memset(bdEBlock, 0, sizeof bdEBlock);
     memset(bdHBlock, 0, sizeof bdHBlock);
     if (end == bdSize && page.eBlock && page.hBlock) {
-        for (unsigned i = 0; i < sizeof bdEBlock; i++)
+        for (uint32_t i = 0; i < sizeof bdEBlock; i++)
             bdEBlock[i] = page.eBlock[i] ? (uint8_t)(page.eBlock[i] + 0x20u) : 0u;
-        for (unsigned i = 0; i < sizeof bdHBlock; i++)
+        for (uint32_t i = 0; i < sizeof bdHBlock; i++)
             bdHBlock[i] = page.hBlock[i] ? (uint8_t)(page.hBlock[i] + 0x20u) : 0u;
         object_publishDEHSprites(bdEBlock, bdHBlock);
     }
     memset(bdGBlock, 0, sizeof bdGBlock);
     if (end == bdSize && page.gBlock && page.gCount && page.gCount <= 4u) {
-        unsigned blocks = 3u * page.gCount;
+        uint32_t blocks = 3u * page.gCount;
 
         /* 1000:4D58's add_delta_nonzero(0x20) applies to every G block. */
-        for (unsigned i = 0; i < blocks * 0x100u; i++) {
+        for (uint32_t i = 0; i < blocks * 0x100u; i++) {
             uint8_t v = page.gBlock[i];
             bdGBlock[i] = v ? (uint8_t)(v + 0x20u) : 0u;
         }
@@ -605,7 +605,7 @@ static int visuals_load(unsigned style)
     if (end == bdSize && page.cBlock) {
         /* 1000:4D58-0x4D68: level_setup_screen's add_delta_nonzero(0x600,
          * 0x20) moves the C block into the 0x20..0x3F art palette. */
-        for (unsigned i = 0; i < sizeof bdCBlock; i++) {
+        for (uint32_t i = 0; i < sizeof bdCBlock; i++) {
             uint8_t v = page.cBlock[i];
             bdCBlock[i] = v ? (uint8_t)(v + 0x20u) : 0u;
         }
@@ -668,7 +668,7 @@ static int visuals_load(unsigned style)
          * chunks of 0xA00 bytes and uses 0x80 + the chunk as the fill index,
          * so the entry steps every 5 rows of the 512-wide image - exactly
          * one ramp over the 320-row world (0x80 + i / 0xA00). */
-        for (unsigned i = 0; i < WORLD_W * WORLD_H; i++) {
+        for (uint32_t i = 0; i < WORLD_W * WORLD_H; i++) {
             uint8_t v = bgImage[i];
             if (v == 0xFFu)
                 bgImage[i] = (uint8_t)(0x80u + (i / 0xA00u) % 64u);
@@ -691,23 +691,23 @@ static int visuals_load(unsigned style)
 static void level_stampExits(void)
 {
     if (!bgImage || !bdPHave) return;
-    for (unsigned row = 0; row < MAP_ROWS; row++)
-        for (unsigned col = 0; col < MAP_COLS; col++) {
-            int x, y;
+    for (uint32_t row = 0; row < MAP_ROWS; row++)
+        for (uint32_t col = 0; col < MAP_COLS; col++) {
+            int32_t x, y;
 
             if (level_data_cur.map[row * MAP_COLS + col] != 0xB9u) continue;
-            x = (int)(col * 16u);
-            y = (int)(row * 16u) - 0x30;
-            for (unsigned r = 0; r < 64u; r++)
-                for (unsigned c = 0; c < 64u; c++) {
+            x = (int32_t)(col * 16u);
+            y = (int32_t)(row * 16u) - 0x30;
+            for (uint32_t r = 0; r < 64u; r++)
+                for (uint32_t c = 0; c < 64u; c++) {
                     uint8_t v = bdPBlock[r * 64u + c];
-                    int px = x + (int)c, py = y + (int)r;
+                    int32_t px = x + (int32_t)c, py = y + (int32_t)r;
 
                     if (!v || px < 0 || py < 0 ||
-                        px >= (int)WORLD_W || py >= (int)WORLD_H) continue;
+                        px >= (int32_t)WORLD_W || py >= (int32_t)WORLD_H) continue;
                     /* level_setup_screen's add_delta_nonzero(0x1000, 0x20) pass
                      * moves the P block into the 0x20..0x3F art palette. */
-                    bgImage[py * (int)WORLD_W + px] = (uint8_t)(v + 0x20u);
+                    bgImage[py * (int32_t)WORLD_W + px] = (uint8_t)(v + 0x20u);
                 }
         }
 }
@@ -720,28 +720,28 @@ static void level_stampExits(void)
  * 1000:5FD2, so with more than one entry it reads the first record's +8/+A
  * as x/y; nothing shipped reaches that.  The page here is the flat-compose
  * window, so the view is subtracted exactly as the object passes do. */
-void level_drawBgSprites(uint8_t *page, int scrollX, int scrollY)
+void level_drawBgSprites(uint8_t *page, int32_t scrollX, int32_t scrollY)
 {
     if (!bdCHave) return;
-    for (unsigned i = 0; i < object_bgCount(); i++) {
-        unsigned x, y;
+    for (uint32_t i = 0; i < object_bgCount(); i++) {
+        uint32_t x, y;
 
         object_bgAt(i, &x, &y);
         object_blitSprite(page, bdCBlock, 24u, 32u,
-                          (int)x - scrollX, (int)y - scrollY);
+                          (int32_t)x - scrollX, (int32_t)y - scrollY);
         object_blitSprite(page, bdCBlock + 0x300u, 24u, 32u,
-                          (int)x + 0x20 - scrollX, (int)y - scrollY);
+                          (int32_t)x + 0x20 - scrollX, (int32_t)y - scrollY);
     }
 }
 
 /* the stamped background and the P block, for the exit/igloo test */
 const uint8_t *level_bgForProbe(void) { return bgImage; }
-unsigned level_animFrames(void) { return bdAnimFrames; }
+uint32_t level_animFrames(void) { return bdAnimFrames; }
 
 /* 1000:1FD4's per-tile slope profile at `sub` (signed -4..+4). */
-int level_slopeByte(unsigned id, unsigned sub)
+int32_t level_slopeByte(uint32_t id, uint32_t sub)
 {
-    unsigned off;
+    uint32_t off;
 
     if (!slopeSize || id > 0xFFu || sub > 0xFu) return 0;
     off = rd_le_u16(slopeProfiles + 2u * id);
@@ -750,9 +750,9 @@ int level_slopeByte(unsigned id, unsigned sub)
 }
 const uint8_t *level_pBlockForProbe(void) { return bdPHave ? bdPBlock : NULL; }
 const uint8_t *level_cBlockForProbe(void) { return bdCHave ? bdCBlock : NULL; }
-unsigned level_bgIndexForProbe(void) { return levelBgIndex; }
+uint32_t level_bgIndexForProbe(void) { return levelBgIndex; }
 
-int level_init(const OSystem *osys)
+int32_t level_init(const OSystem *osys)
 {
     level_osys = osys;         /* the render goes through videoSetPalette  */
     object_attachOsys(osys);   /* the ACTION machine's fatal route         */
@@ -767,7 +767,7 @@ const LevelData *level_data(void)
 /* The level text carries literal CR and tab from the authoring tool — the
  * census's _TEXT set (tools/level_census.py); rejecting them silently
  * truncates the walk (level 9 of LA.BIN is the first casualty). */
-static int isTextByte(uint8_t b)
+static int32_t isTextByte(uint8_t b)
 {
     return (b >= 0x20u && b < 0x7Fu) || b == 0x09u || b == 0x0Au || b == 0x0Du;
 }
@@ -811,11 +811,11 @@ static uint32_t recNextStart(const uint8_t *b, uint32_t size, uint32_t from)
     return 0;                                  /* no further record */
 }
 
-int level_load(unsigned levelId)
+int32_t level_load(uint32_t levelId)
 {
     if (levelId >= 160u) return -1;
 
-    unsigned disc = 1u;                        /* the L*.BIN files ship on HUMANS.001 */
+    uint32_t disc = 1u;                        /* the L*.BIN files ship on HUMANS.001 */
     res_setDisc(disc);
 
     char name[32];
@@ -828,11 +828,11 @@ int level_load(unsigned levelId)
 
     /* walk to the record levelId%10 */
     uint32_t p = 0;
-    unsigned rec = 0;
+    uint32_t rec = 0;
     LevelData *d = &level_data_cur;
     memset(d, 0, sizeof *d);
 
-    int ok = 0;
+    int32_t ok = 0;
     while (p + REC_HDR <= fileSize) {
         uint32_t mapOff = recIsStart(image, fileSize, p);
         if (mapOff == 0) break;                /* the walk: the candidates tile the file */
@@ -934,14 +934,14 @@ int level_load(unsigned levelId)
      * members replace both.  The required = the map's 0xAA-tile count
      * (load_level 1000:315F counts the first 640-byte block). */
     {
-        unsigned required = 0;
-        for (unsigned i = 0; i < MAP_LEN; i++)
+        uint32_t required = 0;
+        for (uint32_t i = 0; i < MAP_LEN; i++)
             if (d->map[i] == 0xAAu) required++;
         if (save_present()) {
             timeLimit    = save_time();
             tribeMembers = save_members();
         } else {
-            unsigned skill = frontend_option(FRONTEND_OPT_LEVEL);
+            uint32_t skill = frontend_option(FRONTEND_OPT_LEVEL);
             timeLimit    = (skill == 0u) ? d->timeA
                          : (skill == 1u) ? d->timeB : d->timeC;
             tribeMembers = (skill == 0u) ? 12u : (skill == 1u) ? 10u : 8u;
@@ -1014,7 +1014,7 @@ void level_loadingBegin(void)
      * the 'd' in "backs\dicon.apl" — the level's own preview card */
     {
         static const char letter[6] = { 'f','s','c','w','d','p' };
-        unsigned st = level_data_cur.style;
+        uint32_t st = level_data_cur.style;
         char icon[32];
         char l = (st >= 1u && st <= 6u) ? letter[st - 1u] : 'd';
         snprintf(icon, sizeof icon, "BACKS\\%cICON.APL", l);
@@ -1042,7 +1042,7 @@ void level_loadingBegin(void)
 /* level_run (1000:3054) runs level_video_init's two fades (3083) BEFORE
  * load_sprite_pal (3086), so the loading screen exists only once the chain has
  * poured the palette to black. */
-int level_loadingScreen(void)
+int32_t level_loadingScreen(void)
 {
     if (startPhase != LVSTART_LOADING) return 0;
     if (!loadPhase) level_loadingBegin();
@@ -1063,8 +1063,8 @@ static void load_drawBackground(uint8_t *page)
     memset(page, 0, 320u * 200u);
     if (loadDic && loadDicSize >= 0x400u + 80u * 56u) {
         const uint8_t *src = loadDic + 0x400u;
-        for (unsigned r = 0; r < 56u; r++) {
-            unsigned y = 0x60u + r;
+        for (uint32_t r = 0; r < 56u; r++) {
+            uint32_t y = 0x60u + r;
             if (y >= 192u) break;
             memcpy(page + y * 320u + 0x78u, src + r * 80u, 80u);
         }
@@ -1077,24 +1077,24 @@ static void load_drawBackground(uint8_t *page)
  * coordinate space; the visible 320-px window starts 0x50 pixels in
  * (x/4 - 0x14 bytes), so screen x = list x - 0x50.  The frames are the
  * 16x24 8bpp cells at bank + 0x400 + id*0x180; 0 = transparent. */
-static void load_drawOne(uint8_t *page, const uint8_t *list, unsigned entries,
-                         int lo, int hi, int yoff)
+static void load_drawOne(uint8_t *page, const uint8_t *list, uint32_t entries,
+                         int32_t lo, int32_t hi, int32_t yoff)
 {
-    for (unsigned e = 0; e < entries; e++) {
+    for (uint32_t e = 0; e < entries; e++) {
         const uint8_t *p = list + e * 10u;
-        int x = (int)rd_le_u16(p) - 0x50;
-        int y = (int)rd_le_u16(p + 2) + yoff;
-        unsigned spr = rd_le_u16(p + 8);
+        int32_t x = (int32_t)rd_le_u16(p) - 0x50;
+        int32_t y = (int32_t)rd_le_u16(p + 2) + yoff;
+        uint32_t spr = rd_le_u16(p + 8);
         if (x <= lo || x >= hi) continue;             /* the screen window */
         uint32_t off = 0x400u + spr * 0x180u;
         if (off + 0x180u > loadingSize) continue;      /* the 0x25 sentinel  */
         if (y < 0 || y + 24 > 200) continue;
-        for (unsigned r = 0; r < 24u; r++)
-            for (unsigned c = 0; c < 16u; c++) {
-                int px = x + (int)c;
+        for (uint32_t r = 0; r < 24u; r++)
+            for (uint32_t c = 0; c < 16u; c++) {
+                int32_t px = x + (int32_t)c;
                 if (px < 0 || px >= 320) continue;
                 uint8_t v = loadingBank[off + r * 16u + c];
-                if (v) page[(y + r) * 320u + (unsigned)px] = v;
+                if (v) page[(y + r) * 320u + (uint32_t)px] = v;
             }
     }
 }
@@ -1120,11 +1120,11 @@ void level_loadingTick(void)
     page = level_osys->videoPage(0);
 
     if (--loadCx < 0) loadCx = loadReload;
-    for (unsigned e = 0; e < loadEntries; e++) {
+    for (uint32_t e = 0; e < loadEntries; e++) {
         uint8_t *p = loadList + e * 10u;
-        int x = (int)rd_le_u16(p), y = (int)rd_le_u16(p + 2);
-        int dx = (int)(int16_t)rd_le_u16(p + 4), dy = (int)(int16_t)rd_le_u16(p + 6);
-        unsigned spr = rd_le_u16(p + 8);
+        int32_t x = (int32_t)rd_le_u16(p), y = (int32_t)rd_le_u16(p + 2);
+        int32_t dx = (int32_t)(int16_t)rd_le_u16(p + 4), dy = (int32_t)(int16_t)rd_le_u16(p + 6);
+        uint32_t spr = rd_le_u16(p + 8);
         x += dx;
         if (dy) {
             y += dy;
@@ -1135,7 +1135,7 @@ void level_loadingTick(void)
             if (spr == 8u) spr = 0u;
             else if (spr == 0x10u) spr = 8u;
         }
-        wr_le_u16(p, (unsigned)x); wr_le_u16(p + 2, (unsigned)y); wr_le_u16(p + 8, spr);
+        wr_le_u16(p, (uint32_t)x); wr_le_u16(p + 2, (uint32_t)y); wr_le_u16(p + 8, spr);
     }
     if (page) { load_drawBackground(page); load_drawList(page); }
 
@@ -1144,7 +1144,7 @@ void level_loadingTick(void)
             if (page) { load_drawBackground(page); load_drawList(page); }    /* the extra 1000:1EF8 draw  */
             memcpy(loadWalkerSnap, loadList, sizeof loadWalkerSnap);
             loadWalkerCount = loadEntries;
-            for (unsigned e = 0; e < loadWalkerCount; e++)
+            for (uint32_t e = 0; e < loadWalkerCount; e++)
                 wr_le_u16(loadWalkerSnap + e * 10u + 8u, 0x10u); /* arms-up hold */
             memcpy(loadList, loadLetters + 2, sizeof loadList);
             loadEntries = rd_le_u16(loadLetters);
@@ -1169,7 +1169,7 @@ void level_loadingTick(void)
  * pair (`draw_object_scaled_x1` 1000:66EC clips `x - [0x0]` against
  * [-0x10,0x140]).  The two stores are level_reset_view's (`1000:319D`), and in
  * play `level_followView` below is their only writer. */
-void level_setView(unsigned x, unsigned y)
+void level_setView(uint32_t x, uint32_t y)
 {
     viewX = x;
     viewY = y;
@@ -1179,9 +1179,9 @@ void level_setView(unsigned x, unsigned y)
  * DS:0x2D92..0x2DA4).  Outside that range the original would read whatever
  * follows in DS; the pointer cannot leave it (see the walk below), so the port
  * returns zero there (port_deviations.md D-25). */
-static void level_offsetPair(int *dx, int *dy)
+static void level_offsetPair(int32_t *dx, int32_t *dy)
 {
-    unsigned i = (unsigned)(levelOffsetPtr - 0x2D92u) / 2u;
+    uint32_t i = (uint32_t)(levelOffsetPtr - 0x2D92u) / 2u;
 
     if (i + 1u < sizeof levelOffsetPairs / sizeof levelOffsetPairs[0]) {
         *dx = levelOffsetPairs[i];
@@ -1228,13 +1228,13 @@ static void level_offsetWalk(void)
 void level_followView(void)
 {
     uint8_t *rec = object_slot(object_actionEntity());
-    int x, y, tx, ty, dx, dy;
+    int32_t x, y, tx, ty, dx, dy;
 
     if (!rec) return;
     x = rd_le_i16(rec);
     y = rd_le_i16(rec + 2u);
     {
-        int ox, oy;
+        int32_t ox, oy;
 
         level_offsetPair(&ox, &oy);                  /* 1000:5CCB/5CCD */
         x += ox;
@@ -1244,22 +1244,22 @@ void level_followView(void)
     ty = y - 0x44;
     tx = tx < 0 ? 0 : (tx > 0xC0 ? 0xC0 : tx);
     ty = ty < 0 ? 0 : (ty > 0xA8 ? 0xA8 : ty);
-    dx = tx - (int)viewX;
-    dy = ty - (int)viewY;
+    dx = tx - (int32_t)viewX;
+    dy = ty - (int32_t)viewY;
     if (dx > 4) dx = 4; else if (dx < -4) dx = -4;
     if (dy > 4) dy = 4; else if (dy < -4) dy = -4;
-    viewX = (unsigned)((int)viewX + dx);
-    viewY = (unsigned)((int)viewY + dy);
+    viewX = (uint32_t)((int32_t)viewX + dx);
+    viewY = (uint32_t)((int32_t)viewY + dy);
     level_offsetWalk();                              /* 1000:5D37 */
 }
 
-unsigned level_viewX(void) { return viewX; }
-unsigned level_viewY(void) { return viewY; }
+uint32_t level_viewX(void) { return viewX; }
+uint32_t level_viewY(void) { return viewY; }
 
 /* [0xC]: the claim clears it at its start (1000:3B19) and restores it before
  * the closing page frames (1000:3CAB). */
-void level_setUpdates(int on) { worldUpdates = on ? 1 : 0; }
-int  level_updates(void) { return worldUpdates; }
+void level_setUpdates(int32_t on) { worldUpdates = on ? 1 : 0; }
+int32_t level_updates(void) { return worldUpdates; }
 void level_set_offsetWord(uint16_t v) { levelOffsetWord = v; }
 uint16_t level_offsetWord(void) { return levelOffsetWord; }
 /* test seam: the walk's pointer back to the table's first pair */
@@ -1296,15 +1296,15 @@ void level_begin(void)
 
 /* still inside level_fade_in's chain?  game_main holds the goal page and the
  * play loop until it is done, exactly like the original's foreground block. */
-int level_starting(void)
+int32_t level_starting(void)
 {
     return level_loaded && startPhase != LVSTART_PLAYING;
 }
 
 /* --- level_run's end and the entry state machine's spine -------------- */
 
-unsigned level_required(void) { return levelRequired; }
-unsigned level_members(void)  { return tribeMembers; }
+uint32_t level_required(void) { return levelRequired; }
+uint32_t level_members(void)  { return tribeMembers; }
 /* 1000:DE1F: the join tail increments the tribe count ([0x11FC]). */
 void level_addMember(void) { if (tribeMembers < 0xFFu) tribeMembers++; }
 
@@ -1333,7 +1333,7 @@ void level_memberLost(void)
     if (tribeMembers == 0u) { endRequested = 1; endWon = 0; }
 }
 
-int level_endTest(void)
+int32_t level_endTest(void)
 {
     if (endRequested) return 1;
     if (goalHit) { level_requestEnd(1); return 1; }
@@ -1348,24 +1348,24 @@ int level_endTest(void)
     return 0;
 }
 
-void level_requestEnd(int won) { endRequested = 1; endWon = won ? 1 : 0; }
-int  level_ended(void)   { return endRequested && playExitHold == 0u; }
+void level_requestEnd(int32_t won) { endRequested = 1; endWon = won ? 1 : 0; }
+int32_t level_ended(void)   { return endRequested && playExitHold == 0u; }
 /* 1000:34E6: the play loop's exit - after the end test's negative return the
  * loop plays sound 0xC (1000:83B7) and waits 15 vsyncs (1000:8B56) on the
  * frozen world before returning to draw_level_text. */
-int  level_endHolding(void) { return playExitHold > 0u; }
+int32_t level_endHolding(void) { return playExitHold > 0u; }
 /* 1000:F66D: the goal-record tail's "no survivor" exit sets [0x138E] = 0 and
  * ends the play loop (the same state object_test_dispatch's negative return
  * produces, reached from the object machine instead). */
-void level_setEnd(int won) { endRequested = 1; endWon = won ? 1 : 0; }
-int  level_outcome(void) { return endWon; }
+void level_setEnd(int32_t won) { endRequested = 1; endWon = won ? 1 : 0; }
+int32_t level_outcome(void) { return endWon; }
 
 /* page_offset_to_ptr (1000:F123): 0 when the tile id's 16-byte page mask is
  * all-negative (every sub-cell empty) AND its 16-word item record sums to 0
  * (16-bit wrap, as DX).  The caller (op 3) bails on a non-zero return. */
-int level_pageFree(unsigned id)
+int32_t level_pageFree(uint32_t id)
 {
-    unsigned off, k;
+    uint32_t off, k;
     uint16_t sum = 0;
 
     if (!pageValid || id > 0xFFu) return 0;
@@ -1380,7 +1380,7 @@ int level_pageFree(unsigned id)
 /* The `0x92A0` page mask's byte for a tile id and sub-column: bit 7 = solid,
  * the low 7 bits are the step 1000:E389 follows.  `level_pageFree` reads the
  * same table for op 3. */
-unsigned level_pageByte(unsigned id, unsigned subcol)
+uint32_t level_pageByte(uint32_t id, uint32_t subcol)
 {
     if (!pageValid || id > 0xFFu || subcol > 0xFu) return 0x80u;
     return pageMask[id][subcol];
@@ -1390,9 +1390,9 @@ unsigned level_pageByte(unsigned id, unsigned subcol)
  * i.e. the 16-bit sub-cell occupancy mask 1000:F25F tests. 0xFFFF when absent. */
 /* The item record's raw byte at `off` from the tile's offset (1000:EC27 reads
  * one byte, not a word: the same table `level_itemWord` indexes by row). */
-unsigned level_itemByte(unsigned id, unsigned off)
+uint32_t level_itemByte(uint32_t id, uint32_t off)
 {
-    unsigned o;
+    uint32_t o;
 
     if (!pageValid || id > 0xFFu) return 0x80u;
     o = rd_le_u16(pageItems + 2u * id);
@@ -1400,9 +1400,9 @@ unsigned level_itemByte(unsigned id, unsigned off)
     return pageItems[o + off];
 }
 
-unsigned level_itemWord(unsigned id, unsigned row)
+uint32_t level_itemWord(uint32_t id, uint32_t row)
 {
-    unsigned off;
+    uint32_t off;
 
     if (!pageValid || id > 0xFFu || row > 0xFu) return 0xFFFFu;
     off = rd_le_u16(pageItems + 2u * id);
@@ -1412,13 +1412,13 @@ unsigned level_itemWord(unsigned id, unsigned row)
 
 /* Field K's first word, the level's two special tile ids (`[0x6F20]` and
  * `[0x6F21]`): the walk states compare the cell under the feet with them. */
-unsigned level_specialTile(unsigned i)
+uint32_t level_specialTile(uint32_t i)
 {
     return i < 2u ? kBytes[i] : 0xFFFFu;
 }
 
 /* The record's style byte (header +0, `[0x17EE]`): 1000:5662 tests it against 6. */
-unsigned level_style(void)
+uint32_t level_style(void)
 {
     return level_loaded ? level_data_cur.style : 0u;
 }
@@ -1469,7 +1469,7 @@ void level_endPalette(void)
 /* [0x5D31] and [0x11FC] after the LEVEL board's pick (the bar's seed; the
  * party screen reads the members too). */
 uint16_t level_timeLimit(void) { return timeLimit; }
-unsigned level_tribeMembers(void) { return tribeMembers; }
+uint32_t level_tribeMembers(void) { return tribeMembers; }
 
 /* The in-level per-tick render (draw_map_digit 1000:4F22 + draw_terrain
  * 1000:4FEF): the BG fills the 512x320 screen buffer, draw_terrain blits the
@@ -1503,14 +1503,14 @@ static void renderWorld(void)
     if (bgImage) memcpy(world, bgImage, WORLD_W * WORLD_H);
     else memset(world, 0, WORLD_W * WORLD_H);
 
-    for (unsigned r = 0; r < MAP_ROWS; r++) {
-        for (unsigned c = 0; c < MAP_COLS; c++) {
-            unsigned tile = level_data_cur.map[r * MAP_COLS + c];
+    for (uint32_t r = 0; r < MAP_ROWS; r++) {
+        for (uint32_t c = 0; c < MAP_COLS; c++) {
+            uint32_t tile = level_data_cur.map[r * MAP_COLS + c];
             if (tile >= 0xA9u) continue;
             const uint8_t *src = atlas + 0x400u + tile * 0x100u;
             uint8_t *dst = world + (r * 16u) * WORLD_W + c * 16u;
-            for (unsigned y = 0; y < 16u; y++) {
-                for (unsigned x = 0; x < 16u; x++) {
+            for (uint32_t y = 0; y < 16u; y++) {
+                for (uint32_t x = 0; x < 16u; x++) {
                     uint8_t v = src[y * 16u + x];
                     /* draw_terrain 0x502d: a zero tile byte is NOT stored -
                      * the background (BG art / 0x80 sky) stays. */
@@ -1526,32 +1526,32 @@ static void renderWorld(void)
      * ([0x1AEA]/[0x1AEC] are 1000:3DC0's *strip save* coordinate, not the
      * window: that routine copies a 64x18-byte page strip to A000:0xF000 and
      * never scrolls.) */
-    for (unsigned y = 0; y < VIEW_H; y++)
-        for (unsigned x = 0; x < VIEW_W; x++) {
-            unsigned wx = viewX + x, wy = viewY + y;
+    for (uint32_t y = 0; y < VIEW_H; y++)
+        for (uint32_t x = 0; x < VIEW_W; x++) {
+            uint32_t wx = viewX + x, wy = viewY + y;
 
             lvlPlane[y * 88u + (x >> 2)][x & 3u] =
                 (wx < WORLD_W && wy < WORLD_H) ? world[wy * WORLD_W + wx] : 0u;
         }
     if (sparkOn) sparkDraw();
     uint8_t *page = level_osys->videoPage(0);
-    for (unsigned y = 0; y < VIEW_H; y++)
-        for (unsigned x = 0; x < VIEW_W; x++)
+    for (uint32_t y = 0; y < VIEW_H; y++)
+        for (uint32_t x = 0; x < VIEW_W; x++)
             page[y * VIEW_W + x] = lvlPlane[y * 88u + (x >> 2)][x & 3u];
 
     /* the object pass (render_objects 1000:5D56): the placed records' base
      * sprites over the terrain, before the bar */
-    object_render(page, (int)viewX, (int)viewY);
+    object_render(page, (int32_t)viewX, (int32_t)viewY);
 
     /* the entity pass (render_objects 1000:5D56: 0x6421 then 0x5823) */
-    entity_render(page, (int)viewX, (int)viewY);
+    entity_render(page, (int32_t)viewX, (int32_t)viewY);
 
     /* update_object_list's tail: the two TER.DAT slots (1000:5C2F), off on
      * shipped data because 1000:4CAB disables them */
-    object_renderTer(page, (int)viewX, (int)viewY);
+    object_renderTer(page, (int32_t)viewX, (int32_t)viewY);
 
     /* render_objects' tail (1000:5F54): the 0xA9 background sprites */
-    level_drawBgSprites(page, (int)viewX, (int)viewY);
+    level_drawBgSprites(page, (int32_t)viewX, (int32_t)viewY);
 
     /* the bar over the world rows (the original's band lives below the
      * 192-row visible window via the line compare; the flat page redraws
@@ -1568,7 +1568,7 @@ void level_redrawPage(void)
     renderWorld();
 }
 
-int level_tick(void)
+int32_t level_tick(void)
 {
     if (!level_loaded) return 0;
 
@@ -1600,7 +1600,7 @@ int level_tick(void)
     /* The play loop leaves at 1000:34E6 and never calls update_world
      * (1000:80AD) again; the end caption (draw_level_text 0x33A3) only
      * renders the frozen world.  `endRequested` is that exit. */
-    int doUpdate = (startPhase == LVSTART_PLAYING && !endRequested) ? 1 : 0;
+    int32_t doUpdate = (startPhase == LVSTART_PLAYING && !endRequested) ? 1 : 0;
 
     switch (startPhase) {
     case LVSTART_IDLE:
@@ -1667,11 +1667,11 @@ int level_tick(void)
      * hook is installed only after level_fade_in's fade completes (the
      * fade chases this same buffer), so no rotation while one is running.
      * The claim also freezes it (`[0x410C] = 0xFF` at 1000:3B16). */
-    for (unsigned e = 0; e < animCount && startPhase == LVSTART_PLAYING &&
+    for (uint32_t e = 0; e < animCount && startPhase == LVSTART_PLAYING &&
                               !palette_fadeActive() &&
                               !object_claimActive(); e++) {
         uint8_t *a = animTable + 4u * e;
-        unsigned first = a[2], n = a[3];
+        uint32_t first = a[2], n = a[3];
         if (n < 2u || first + n > 256u) continue;
         a[0] = (uint8_t)(a[0] - 1u);
         if (!(a[0] & 0x80u)) continue;          /* still non-negative     */
@@ -1679,7 +1679,7 @@ int level_tick(void)
         uint8_t *p = levelPal + first * 3u;
         uint8_t last[3];
         memcpy(last, p + (n - 1u) * 3u, 3);
-        for (unsigned i = n - 1u; i > 0u; i--)
+        for (uint32_t i = n - 1u; i > 0u; i--)
             memcpy(p + i * 3u, p + (i - 1u) * 3u, 3);
         memcpy(p, last, 3);
         palette_setDac(p, first, n);
@@ -1763,22 +1763,22 @@ int level_tick(void)
  */
 enum { DISK_OFF, DISK_FADE_IN, DISK_WAIT, DISK_FADE_OUT, DISK_HOLD };
 
-static int      diskPhase = DISK_OFF;
-static unsigned diskDisc;
+static int32_t  diskPhase = DISK_OFF;
+static uint32_t diskDisc;
 static uint16_t diskHold;
 static uint8_t  diskPal[768];
 static const uint8_t diskBlack[768];
 static uint8_t *diskFont;
 
-static void disk_draw(unsigned disc)
+static void disk_draw(uint32_t disc)
 {
     uint8_t *page = video_page(0);
     memset(page, 0, VIEW_W * 200u);
 
     uint8_t *img = NULL;
     uint32_t isz = 0;
-    unsigned used = disc;
-    for (unsigned k = 0; k < 3u && !img; k++) {
+    uint32_t used = disc;
+    for (uint32_t k = 0; k < 3u && !img; k++) {
         used = (k == 0u) ? disc : (k == 1u ? 0u : (disc == 1u ? 2u : 1u));
         res_setDisc(used);
         img = res_loadChunk("APL\\DISKIMG1.DAT", &isz, NULL);
@@ -1789,8 +1789,8 @@ static void disk_draw(unsigned disc)
          * destination byte g; each byte is 8 pixels, MSB left */
         for (uint32_t g = 0; 4u * g + 3u < isz && g * 8u < VIEW_W * 200u; g++) {
             const uint8_t *q = img + 4u * g;
-            for (unsigned bit = 0; bit < 8u; bit++) {
-                unsigned px = ((q[0] >> (7u - bit)) & 1u) |
+            for (uint32_t bit = 0; bit < 8u; bit++) {
+                uint32_t px = ((q[0] >> (7u - bit)) & 1u) |
                               (((q[1] >> (7u - bit)) & 1u) << 1) |
                               (((q[2] >> (7u - bit)) & 1u) << 2) |
                               (((q[3] >> (7u - bit)) & 1u) << 3);
@@ -1812,7 +1812,7 @@ static void disk_draw(unsigned disc)
     textpage_drawLine(page, "WHEN READY", 0x98u, 0x0Fu);
 }
 
-int level_diskStatusBegin(unsigned disc)
+int32_t level_diskStatusBegin(uint32_t disc)
 {
     if (diskPhase != DISK_OFF) return 1;
     if (res_volumePresent(disc)) return 0;    /* 1000:2005: the disc is in */
@@ -1836,7 +1836,7 @@ void level_diskStatusReset(void)
     font_publish(NULL);
 }
 
-int level_diskStatusTick(const InputState *in)
+int32_t level_diskStatusTick(const InputState *in)
 {
     switch (diskPhase) {
     case DISK_FADE_IN:

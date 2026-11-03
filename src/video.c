@@ -7,7 +7,7 @@
 
 static const OSystem *video_osys;
 
-int video_init(const OSystem *osys)
+int32_t video_init(const OSystem *osys)
 {
     video_osys = osys;
     return 0;
@@ -15,7 +15,7 @@ int video_init(const OSystem *osys)
 
 void video_tick(void) {}
 
-uint8_t *video_page(int which)
+uint8_t *video_page(int32_t which)
 {
     return video_osys->videoPage(which);
 }

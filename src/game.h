@@ -17,19 +17,19 @@
 /* --- src/res.c — resource I/O (subsystem 2, re_formats.md §8) ---------
  * The volume file (named chunks), the LZW decode, the offset-based pool
  * arena standing in for the original's segment pool. */
-int  res_init(const OSystem *osys);
+int32_t res_init(const OSystem *osys);
 /* The [0xF7E] analog: the disc that name-based loads come from (0..2 =
  * HUMANS.000/.001/.002; the original opens ONE volume file built from the
  * [0xF7E] disc number and never scans across discs). */
-void     res_setDisc(unsigned disc);
+void     res_setDisc(uint32_t disc);
 /* draw_status_indicator's disc probe (1000:20CF): opens the volume file for
  * `disc` and closes it; 0 = the disc is not available. */
-int      res_volumePresent(unsigned disc);
+int32_t  res_volumePresent(uint32_t disc);
 /* The level-header intro-movie/disc index -> disc byte: the ported table
  * `202F:0x6287` (1000:AFF8's lookup; corpus-verified 10/10 — every
  * ANI<idx>.ANI ships on the disc the table names).  0xFF = no entry — the
  * analog of the original's CMP AL,0xFF/JE branch (keep the current disc). */
-unsigned res_movieDisc(unsigned idx);
+uint32_t res_movieDisc(uint32_t idx);
 /* Load a named chunk case-insensitively out of the CURRENT disc's volume
  * (the name is the relative path inside the volume, e.g. "ANM\ANI03.ANI");
  * NULL when absent — the original's CF to the INT 63 caller (the
@@ -51,20 +51,20 @@ uint8_t *res_loadChunk(const char *name, uint32_t *sizeOut, uint16_t *chkOut);
  * Writes `size` bytes to `out`, returns the decompressed size or -1.
  * *chkOut mirrors the machine's final checksum accumulator (BP) — the
  * scene-object gate tests it against 0 (1000:B444). */
-int res_decode_lzw_mem(const uint8_t *data, uint32_t data_size,
+int32_t res_decode_lzw_mem(const uint8_t *data, uint32_t data_size,
                        uint32_t off, uint8_t *out, uint32_t out_size,
                        uint16_t *chkOut);
 
 /* --- src/video.c — pages/scroll/dirty cells (subsystem 3, §5/§7) ------ */
-int  video_init(const OSystem *osys);
+int32_t video_init(const OSystem *osys);
 void video_tick(void);
-uint8_t *video_page(int which);   /* 320x200x8 page 0 or 1                    */
+uint8_t *video_page(int32_t which); /* 320x200x8 page 0 or 1                    */
 /* the mode set, forwarded to the backend (osystem.h's VideoMode): the page
  * layout never changes, only which field the display scans out. */
 void video_setMode(VideoMode mode);
 
 /* --- src/palette.c — fades/DAC (subsystem 4, §6) ---------------------- */
-int  palette_init(const OSystem *osys);
+int32_t palette_init(const OSystem *osys);
 void palette_tick(void);   /* palette_fade_step 1000:8bfd, once per tick  */
 /* palette_load_6bit (1000:8d24): the 202F:0x4BBC working palette := 768
  * 6-bit bytes.  The RAM copy only — the DAC moves through fades or
@@ -73,24 +73,24 @@ void palette_loadWorking(const uint8_t *p6);
 const uint8_t *palette_working(void);   /* the 0x4BBC buffer              */
 /* seal_triples/hash_three_bytes (1000:43C2/43D5): grey the given palette
  * entries in place, value (77R+151G+28B) >> 9. */
-void palette_sealTriples(uint8_t *p6, unsigned first, unsigned entries);
+void palette_sealTriples(uint8_t *p6, uint32_t first, uint32_t entries);
 /* set_palette_dac (1000:8CEE): an immediate DAC write (the DAC shadow is
  * kept for the next fade's current-colour read). */
-void palette_setDac(const uint8_t *p6, unsigned first, unsigned n);
+void palette_setDac(const uint8_t *p6, uint32_t first, uint32_t n);
 /* palette_build_fade (1000:8bac): fade DAC entries first..first+entries-1
  * toward `target` (its triple for `first` at target[0]) in ~div ticks;
  * poll with palette_fadeActive. */
-void palette_buildFade(unsigned first, unsigned entries, unsigned div,
+void palette_buildFade(uint32_t first, uint32_t entries, uint32_t div,
                        const uint8_t *target);
-int  palette_fadeActive(void);          /* palette_fade_active 1000:8b9a  */
+int32_t palette_fadeActive(void);       /* palette_fade_active 1000:8b9a  */
 const uint8_t *palette_dacShadow(void); /* the DAC shadow (read-only;
                                         * the off-line fade-ladder harness) */
 const uint8_t *palette_fadeTarget(void); /* the active fade's target buffer */
-unsigned palette_fadeFirst(void);        /* the active fade's first index   */
-unsigned palette_fadeComps(void);        /* the active fade's component #   */
+uint32_t palette_fadeFirst(void);        /* the active fade's first index   */
+uint32_t palette_fadeComps(void);        /* the active fade's component #   */
 
 /* --- src/font.c — glyphs/packed ASCII (subsystem 12, §9) -------------- */
-int  font_init(const OSystem *osys);
+int32_t font_init(const OSystem *osys);
 /* game_loop's publish ([0x1E1C] := the loaded apl\text.spr).  NULL clears
  * it (drawText then draws nothing) — the headless no-data case. */
 void font_publish(const uint8_t *textSpr);
@@ -99,16 +99,16 @@ void font_publish(const uint8_t *textSpr);
  * caller's [0x1E20] text arena (200 rows x 80 B, 1 bpp, 4 px per byte,
  * bit 0 = leftmost; each 2-bpp glyph pixel becomes two 1-bpp pixels, so
  * the glyph doubles horizontally) — at `row`. */
-void font_drawText(uint8_t *arena, const char *s, unsigned centreX,
-                   unsigned row);
+void font_drawText(uint8_t *arena, const char *s, uint32_t centreX,
+                   uint32_t row);
 /* draw_text's own measure: the advance-table sum (stops at CR/NUL). */
-unsigned font_textWidth(const char *s);
+uint32_t font_textWidth(const char *s);
 
 /* The shipped 202F:0x4DE top-10 (the attract's default table), for the
  * MAP/score screens' list. */
-unsigned attract_hiscoreCount(void);
-uint32_t attract_hiscoreScore(unsigned i);
-const char *attract_hiscoreName(unsigned i);
+uint32_t attract_hiscoreCount(void);
+uint32_t attract_hiscoreScore(uint32_t i);
+const char *attract_hiscoreName(uint32_t i);
 
 /* --- src/attract.c — the ATTRACT loop (game_loop 1000:131E) -------------
  *
@@ -124,7 +124,7 @@ const char *attract_hiscoreName(unsigned i);
  * documented latency deviation are in attract.c's header and
  * port_deviations.md.
  */
-int attract_init(const OSystem *osys);
+int32_t attract_init(const OSystem *osys);
 
 /* The machine's phases — public for the flow tests (the cycle-order and
  * escape assertions in tests/test_loop.c). */
@@ -141,14 +141,14 @@ typedef enum AttractPhase {
     ATTRACT_ESCAPE, ATTRACT_DONE
 } AttractPhase;
 
-int      attract_tick(const InputState *in);   /* 1 = the attract is playing */
-unsigned attract_phaseForProbe(void);          /* the tests' phase read      */
+int32_t  attract_tick(const InputState *in);   /* 1 = the attract is playing */
+uint32_t attract_phaseForProbe(void);          /* the tests' phase read      */
 
 /* Effect 4's strip probe (the 192-KB work area at [0xD76] + the rows
  * built, [0xD39]): the byte-exact fixture test compares the fill against
  * tools/attract_scroll_sim.py's dump.  Valid from the first ATTRACT_E4
  * load until the next effect begins. */
-const uint8_t *attract_stripForProbe(unsigned *rowsBuilt);
+const uint8_t *attract_stripForProbe(uint32_t *rowsBuilt);
 
 /* --- src/statusbar.c — the bottom bar (subsystem 13, §12.7) -----------
  *
@@ -160,14 +160,14 @@ const uint8_t *attract_stripForProbe(unsigned *rowsBuilt);
  * 1000:96AD: the 70-frame second, the packed-decimal countdown with the
  * odometer slides, the tribe odometer, and the per-frame stamp.
  */
-int  statusbar_init(const OSystem *osys);
+int32_t statusbar_init(const OSystem *osys);
 /* build_statusbar_layout (1000:961B) + level_start's pick: packedTimeBcd =
  * AH minutes, AL BCD seconds (the header's timeA/B/C); the tribe digits =
  * members - required (DIV/MOD 10).  Loads its own assets from the CURRENT
  * disc — the level flow's HUMANS.001 (level_load's res_setDisc); a failed
  * load leaves the bar inactive (the headless no-data case). */
-void statusbar_start(uint16_t packedTimeBcd, unsigned tribeMembers,
-                     unsigned tribeRequired);
+void statusbar_start(uint16_t packedTimeBcd, uint32_t tribeMembers,
+                     uint32_t tribeRequired);
 void statusbar_tick(void);
 /* level_video_init's palette copy (1000:32CD): panel4's own palette —
  * install at DAC entries 0xC0..0xFF (the +0xC0 bank). */
@@ -176,50 +176,50 @@ const uint8_t *statusbar_palette(void);
  * tribe counter rolls down by one (a follower joined). */
 void statusbar_armOdometer(void);
 /* [0x5E44]: the countdown reached zero (the time-up dialog's flag). */
-int  statusbar_timeUp(void);
+int32_t statusbar_timeUp(void);
 /* 1000:F5E3: [0x5B25] | [0x5B26] != 0 - the odometer is showing a count. */
-int  statusbar_tribeActive(void);
+int32_t statusbar_tribeActive(void);
 /* test seam: sets the odometer digits ([0x5B25]/[0x5B26]) that 1000:F5BC gates on. */
-void statusbar_setTribeDigits(unsigned tens, unsigned ones);
-unsigned statusbar_tribeDigit(unsigned i);   /* [0x5B25]/[0x5B26] by index */
+void statusbar_setTribeDigits(uint32_t tens, uint32_t ones);
+uint32_t statusbar_tribeDigit(uint32_t i);   /* [0x5B25]/[0x5B26] by index */
 void statusbar_saveParams(uint8_t *out);      /* the 0x5B22..0x5B29 block   */
 void statusbar_loadParams(const uint8_t *in);
-unsigned statusbar_tribeValue(void);     /* [0x5B25]*10 + [0x5B26] */
+uint32_t statusbar_tribeValue(void);     /* [0x5B25]*10 + [0x5B26] */
 /* [0x5B12]: the ticking gate (the in-level dialogs clear it). */
-void statusbar_setActive(int on);
-void statusbar_setSplit(unsigned row);
+void statusbar_setActive(int32_t on);
+void statusbar_setSplit(uint32_t row);
 /* the level end's [0x5B0A] = 0xC9 (1000:342B): stop composing the bar */
 void statusbar_hide(void);   /* [0x5B0A], 201..152 reveal */
-unsigned statusbar_split(void);
+uint32_t statusbar_split(void);
 /* [0x5B56] (1..6): the current ACTION program — draws both the program and
  * the action row's group.  object.c owns it; the bar follows. */
 /* 1000:3933's tail: advance the current action row's selected cell (the
  * 0x5B2B header's second byte) with the wrap to 1 past the count. */
 void statusbar_cycleAction(void);
 /* 1000:3747: the jump/throw charge bar, v = the acting record's +0xE. */
-void statusbar_chargeBar(unsigned v);
+void statusbar_chargeBar(uint32_t v);
 /* the group's selected-cell byte (1-based), for tests; 0 past the table. */
-unsigned statusbar_actionGroup(void);   /* [0x5B56]: the bar's current group */
+uint32_t statusbar_actionGroup(void);   /* [0x5B56]: the bar's current group */
 /* the program/group header ([0x5B2B] -> 0x5B37): {count, cursor, icon...} */
-const uint8_t *object_programHeader(unsigned group);
+const uint8_t *object_programHeader(uint32_t group);
 const uint8_t *object_actionHeader(void);
 void object_stepActionCell(void);       /* 1000:3941: SPACE steps the cursor */
-unsigned statusbar_actionCount(unsigned group);
-unsigned statusbar_actionCell(unsigned group);
+uint32_t statusbar_actionCount(uint32_t group);
+uint32_t statusbar_actionCell(uint32_t group);
 /* The countdown word for the save's +0x07: minutes<<8 | BCD seconds. */
 uint16_t statusbar_timeWord(void);
 /* the elapsed clock [0x5B0C..0E] repacked as check_highscore does (1000:42CE) */
 uint16_t statusbar_elapsedWord(void);
 
 /* --- src/scene.c — .ANI/.RSC interpreter (subsystem 11, §8.5-8.7a) ---- */
-int  scene_init(const OSystem *osys);
+int32_t scene_init(const OSystem *osys);
 /* introIndex = the level header's +0x01 byte: the intro-movie index
    (0..9; 0xFF = the level has no cutscene). */
-int  scene_playLevelIntro(unsigned introIndex);   /* the cd_file_op body   */
+int32_t scene_playLevelIntro(uint32_t introIndex); /* the cd_file_op body   */
 /* [0x627C]: boot_intro_sequence's fast mode (its only writer).  The shared
  * scene player then fades 4 palette entries div 2 instead of 0x100 div 0x19
  * and waits 1 tick per object instead of 6.  The level's .ANI runs clear. */
-void scene_setFastMode(int on);
+void scene_setFastMode(int32_t on);
 /* Force the next scene_playLevelIntro call to load its .ANI even when the
  * index equals the last one (cd_file_op always reloads; the per-tick player
  * keeps a finished intro finished otherwise). */
@@ -230,11 +230,11 @@ void scene_resetIntro(void);
  * bac.bit background — driven by the 202F:0x843C cue list.  Per-tick like
  * the level intro; plays once (a held key aborts the whole chain — every
  * stage's c0af/c0b8 wait polls via boot_abort_poll). */
-int  scene_playBootIntro(void);
+int32_t scene_playBootIntro(void);
 /* The main loop's per-tick input state; the boot's abort polls (c0c6's
  * [0x48A3] / +0x5ACE bit-7 equivalents) read this cached copy. */
 void scene_noteInput(const InputState *in);
-unsigned scene_boot_phaseForProbe(void);   /* probe: the boot machine's phase */
+uint32_t scene_boot_phaseForProbe(void);   /* probe: the boot machine's phase */
 
 /* --- src/level.c — the level definitions (subsystem 9, §2) -------------
  *
@@ -243,7 +243,7 @@ unsigned scene_boot_phaseForProbe(void);   /* probe: the boot machine's phase */
  * metadata, the 640-byte tile map (32x20).
  */
 typedef struct {
-    unsigned levelId;       /* 0..159                                    */
+    uint32_t levelId;       /* 0..159                                    */
     uint8_t  style;         /* +0x00 low: the tile style 1..6            */
     uint8_t  introIndex;    /* +0x01 high: the intro-movie index (0xFF=none) */
     uint8_t  goalCount;     /* +0x02 low: the solved-flag threshold      */
@@ -259,11 +259,11 @@ typedef struct {
     char     author[128];   /* the author text                           */
 } LevelData;
 
-int  level_init(const OSystem *osys);
-int  level_load(unsigned levelId);          /* 0..159; 0 = ok            */
+int32_t level_init(const OSystem *osys);
+int32_t level_load(uint32_t levelId);       /* 0..159; 0 = ok            */
 const LevelData *level_data(void);          /* NULL before a load        */
 const uint8_t *level_map(void);             /* == level_data()->map      */
-unsigned level_style(void);                  /* [0x17EE]: the record's style */
+uint32_t level_style(void);                  /* [0x17EE]: the record's style */
 /* the working palette 202F:0x14D3 (the fade target of the claim, the level's
  * own fades and the rotate hook) */
 const uint8_t *level_palette(void);
@@ -275,45 +275,45 @@ void level_endPalette(void);
 void level_redrawPage(void);
 /* page_offset_to_ptr (1000:F123): 1 = the tile id's page is free (the ACTION
  * op 3 gate) — the BD file's page mask + its 16-word item record. */
-int level_pageFree(unsigned id);
+int32_t level_pageFree(uint32_t id);
 /* The two level maps the walk reads: `0x92A0`'s page bytes (bit 7 = solid, the
  * low 7 bits the step, 1000:E389) and `[0x1FD6]`'s 16-word item records
  * (1000:F25F's occupancy bit). */
 /* Field K's first word: the level's two special tile ids ([0x6F20]/[0x6F21]). */
-unsigned level_specialTile(unsigned i);
-unsigned level_pageByte(unsigned id, unsigned subcol);
-unsigned level_itemWord(unsigned id, unsigned row);
-unsigned level_itemByte(unsigned id, unsigned off);
-int  level_tick(void);                      /* 1 = the level is running  */
+uint32_t level_specialTile(uint32_t i);
+uint32_t level_pageByte(uint32_t id, uint32_t subcol);
+uint32_t level_itemWord(uint32_t id, uint32_t row);
+uint32_t level_itemByte(uint32_t id, uint32_t off);
+int32_t level_tick(void);                   /* 1 = the level is running  */
 /* 1000:3DC0: the view's world origin (the CRTC start's source). */
-void level_setView(unsigned x, unsigned y);
+void level_setView(uint32_t x, uint32_t y);
 /* 1000:5CB6: the camera follows the acting record (update_world's first call,
  * 4 px/frame, clamped to the 512x320 page's pan range). */
 void level_followView(void);
 /* [0xC]: update_world's gate (set by level_fade_in 1000:336C, cleared by the
  * claim at 1000:3B19 and restored at 1000:3CAB). */
-void level_setUpdates(int on);
+void level_setUpdates(int32_t on);
 /** [0x2D8E]: the follower's +-1 px offset walk enabler (1000:DAC7 / 0xF8CE). */
 void     level_set_offsetWord(uint16_t v);
 uint16_t level_offsetWord(void);
 /* 1000:5D37's walk pointer ([0x2D90]) back to the table's first pair. */
 void     level_reset_offsetWalk(void);
-int  level_updates(void);            /* [0xC] */
-unsigned level_viewX(void);
-unsigned level_viewY(void);
+int32_t level_updates(void);         /* [0xC] */
+uint32_t level_viewX(void);
+uint32_t level_viewY(void);
 /* The claim's particles (1000:3E73/0x3FB3/0x3F4A): begin at the appended record
  * with the 16x16 shade table object.c builds from the recipe sprite. */
-void level_sparkBegin(unsigned ox, unsigned oy, const uint8_t *shade);
-int  level_sparkActive(void);
-int  level_sparkPeek(unsigned *x, unsigned *y, unsigned *value);
+void level_sparkBegin(uint32_t ox, uint32_t oy, const uint8_t *shade);
+int32_t level_sparkActive(void);
+int32_t level_sparkPeek(uint32_t *x, uint32_t *y, uint32_t *value);
 /* 1000:8526's [0x5ACE] for the play loop's command dispatch (1000:E3F6). */
 void level_noteInput(const InputState *in);
 
 /* menu_loop (1000:012A), the MAP/high-score screen after the ending.
  * START: the HIGH.BIT card + the title, key/ACTION exit; the full
  * map/cursor/score tables are the next pass. */
-int  map_begin(void);                       /* 1 = the screen is up      */
-int  map_tick(const InputState *in);        /* 1 = still up              */
+int32_t map_begin(void);                    /* 1 = the screen is up      */
+int32_t map_tick(const InputState *in);     /* 1 = still up              */
 
 /* check_highscore (1000:41AE), the score/record screen between the level's
  * end page and the post-level newspaper.  START: SCORE.BIT + the score line
@@ -321,81 +321,81 @@ int  map_tick(const InputState *in);        /* 1 = still up              */
 /* check_highscore's score terms (1000:41AE): level x members x 10 + the
  * remaining seconds x 10; a lost level is 0.  The placed-object bonuses are
  * the one term the object array (0x3E75) still owes. */
-unsigned score_levelScore(void);
+uint32_t score_levelScore(void);
 /* --- HISCORES.HUM (re_formats.md §11, menu_loop 1000:012A) ------------ */
 void     hiscore_init(void);                 /* 1000:069F: load + decrypt  */
 void     hiscore_reset(void);                /* the shipped defaults       */
 void     hiscore_reload(void);               /* re-read the file           */
-void     hiscore_obfuscate(uint8_t *p, unsigned n);  /* 1000:06DE          */
+void     hiscore_obfuscate(uint8_t *p, uint32_t n);  /* 1000:06DE          */
 void     hiscore_write(void);                /* 1000:06CC: encrypt + save  */
-uint16_t hiscore_best(unsigned level);       /* DS:0x38A + 2*level         */
-void     hiscore_setBest(unsigned level, uint16_t value);
-unsigned hiscore_count(void);                /* 10                         */
-uint32_t hiscore_score(unsigned i);          /* the top-10, descending     */
-const char *hiscore_name(unsigned i);
-int      hiscore_qualifies(uint32_t score);
-int      hiscore_insert(uint32_t score, const char *name);   /* 0x01CD    */
-int      hiscore_nameApply(char *name, unsigned column, unsigned *len);
+uint16_t hiscore_best(uint32_t level);       /* DS:0x38A + 2*level         */
+void     hiscore_setBest(uint32_t level, uint16_t value);
+uint32_t hiscore_count(void);                /* 10                         */
+uint32_t hiscore_score(uint32_t i);          /* the top-10, descending     */
+const char *hiscore_name(uint32_t i);
+int32_t  hiscore_qualifies(uint32_t score);
+int32_t  hiscore_insert(uint32_t score, const char *name);   /* 0x01CD    */
+int32_t  hiscore_nameApply(char *name, uint32_t column, uint32_t *len);
 
 /* --- the MAP screen's letter wheel (apl\alpha.spr, 1000:0705/0F93/0CBE) --- */
 void     alpha_expand(const uint8_t *src, uint8_t *dst);
-void     alpha_cell(unsigned cell, unsigned angle, unsigned *src, unsigned *dst);
-void     alpha_drawWheel(uint8_t *page, unsigned base);
+void     alpha_cell(uint32_t cell, uint32_t angle, uint32_t *src, uint32_t *dst);
+void     alpha_drawWheel(uint8_t *page, uint32_t base);
 void     alpha_drawName(uint8_t *page, const char *name);
 /* --- the MAP screen's frame (apl\band.spr, 1000:12D3/0874/07E6) --------- */
-extern unsigned map_boxBottom;               /* [0x8AE]                    */
-extern unsigned map_panel;                   /* [0x8A2]: 1..6              */
+extern uint32_t map_boxBottom;               /* [0x8AE]                    */
+extern uint32_t map_panel;                   /* [0x8A2]: 1..6              */
 void     map_bandFill(uint8_t *page);        /* 1000:12D3                  */
-void     map_drawBoxEdges(uint8_t *page, unsigned row);   /* 1000:07E6    */
+void     map_drawBoxEdges(uint8_t *page, uint32_t row);   /* 1000:07E6    */
 void     map_drawList(uint8_t *page);        /* draw_score_block 1000:0651 */
 void     map_drawCongrats(uint8_t *page);    /* 1000:021E..0266            */
-unsigned map_congratsDraws(void);            /* 1000:0251's two passes     */
-void     map_drawRect(uint8_t *page, unsigned x, unsigned y, unsigned w,
-                      unsigned h);          /* 1000:1251 outline          */
-unsigned map_transitionStep(void);           /* 0..6, 1000:028C..030A      */
-unsigned map_fadeStarts(void);               /* palette_build_fade calls   */
-int      map_fadeAt(unsigned i, unsigned *first, unsigned *entries,
-                    unsigned *div, unsigned *target);
+uint32_t map_congratsDraws(void);            /* 1000:0251's two passes     */
+void     map_drawRect(uint8_t *page, uint32_t x, uint32_t y, uint32_t w,
+                      uint32_t h);          /* 1000:1251 outline          */
+uint32_t map_transitionStep(void);           /* 0..6, 1000:028C..030A      */
+uint32_t map_fadeStarts(void);               /* palette_build_fade calls   */
+int32_t  map_fadeAt(uint32_t i, uint32_t *first, uint32_t *entries,
+                    uint32_t *div, uint32_t *target);
 void     map_drawName(uint8_t *page);        /* 1000:0CBE (ring + typed)   */
 
 /* --- check_highscore's data (1000:41B8..4352) ------------------------- */
-unsigned score_members(void);                /* [0x11FC]'s recompute      */
+uint32_t score_members(void);                /* [0x11FC]'s recompute      */
 void     score_prepare(void);                /* terms, best, NEW RECORD, totals */
-int      score_countersRun(void);            /* 1000:475D: one 10-point step */
-int      score_isRecord(void);               /* [0x1DD6]                  */
-int      score_blinkTick(void);              /* 1000:467A: 1 = phase flipped */
-int      scoreBlinkOn(void);                 /* [0x1DC4]: 1 = the stamp is up */
-void     score_stampDraw(uint8_t *page, int on);   /* 1000:46FC / 0x46A3 */
-void     score_column(uint8_t *page, uint32_t value, int x, int y, unsigned digits);
+int32_t  score_countersRun(void);            /* 1000:475D: one 10-point step */
+int32_t  score_isRecord(void);               /* [0x1DD6]                  */
+int32_t  score_blinkTick(void);              /* 1000:467A: 1 = phase flipped */
+int32_t  scoreBlinkOn(void);                 /* [0x1DC4]: 1 = the stamp is up */
+void     score_stampDraw(uint8_t *page, int32_t on); /* 1000:46FC / 0x46A3 */
+void     score_column(uint8_t *page, uint32_t value, int32_t x, int32_t y, uint32_t digits);
 void     score_drawColumns(uint8_t *page);   /* 1000:4471                 */
 void     score_drawCard(uint8_t *page);      /* 1000:4403, transparent for 0 */
-void     score_drawNum3(uint8_t *page, unsigned ax, uint16_t value,
-                        unsigned bx, unsigned bp);   /* 1000:44BB / 0x450F */
-uint16_t score_bestFor(unsigned level);      /* DS:0x38A + level*2        */
+void     score_drawNum3(uint8_t *page, uint32_t ax, uint16_t value,
+                        uint32_t bx, uint32_t bp);   /* 1000:44BB / 0x450F */
+uint16_t score_bestFor(uint32_t level);      /* DS:0x38A + level*2        */
 uint16_t score_bestTime(void);               /* [0x1E88]                  */
-unsigned score_totalLo(void), score_totalHi(void);    /* [0x592]/[0x594]   */
-void     score_setTotal(unsigned lo, unsigned hi); /* the save header's halves */
-unsigned score_shownLo(void), score_shownHi(void);    /* [0x1DD2]/[0x1DD4] */
-int  score_begin(unsigned value);           /* 1 = the screen is up      */
-int  score_tick(const InputState *in);      /* 1 = still up              */
+uint32_t score_totalLo(void), score_totalHi(void);    /* [0x592]/[0x594]   */
+void     score_setTotal(uint32_t lo, uint32_t hi); /* the save header's halves */
+uint32_t score_shownLo(void), score_shownHi(void);    /* [0x1DD2]/[0x1DD4] */
+int32_t score_begin(uint32_t value);        /* 1 = the screen is up      */
+int32_t score_tick(const InputState *in);   /* 1 = still up              */
 /* level_fade_in (1000:3334): the start chain — fade out of the pre-level
  * screen, the eight update_world frames, the fade in to the working palette,
  * then the bar's ticking gate.  level_begin arms it once; the phases advance
  * in level_tick, so level_starting() is true until the level is playable. */
 void level_begin(void);
-int  level_starting(void);
+int32_t level_starting(void);
 /* load_sprite_pal's LOADING screen (1000:1DC0): ten walkers for 0xA0 frames,
  * then the "LOADING!" letters for 0x56.  level_loadingScreen() starts it and
  * reports whether it is showing; level_loadingTick draws one frame. */
-int  level_loadingScreen(void);
+int32_t level_loadingScreen(void);
 void level_loadingTick(void);
 
 /* level_run 3060/3062: the level's required humans ([0x17FB], the map's
  * 0xAA count) against the tribe ([0x11FC]).  A tribe that is too small plays
  * the briefing's GAME OVER variant and the level is SKIPPED; [0x1809] then
  * takes entry 1000:00DC -> 002B (the restart-game path), not the next level. */
-unsigned level_required(void);
-unsigned level_members(void);
+uint32_t level_required(void);
+uint32_t level_members(void);
 void     level_addMember(void);          /* 1000:DE1F: [0x11FC]++ */
 
 /* level_restore (1000:35AF): [0x11FC] := [0x1970] — the members the level
@@ -410,37 +410,37 @@ void level_restoreMembers(void);
  * object array (0x3E75), which object.c holds; level_endTest evaluates the
  * six predicates through object_testDispatch.  level_requestEnd(1) = the
  * level was completed. */
-void level_requestEnd(int won);
+void level_requestEnd(int32_t won);
 /* draw_status_indicator (1000:1FEF): the disc probe + the "PUT THE DISK
  * INTO DRIVE n / PRESS FIRE WHEN READY" screen.  Begin returns 0 when the
  * volume is present (the normal, no-screen path); Tick returns 1 while the
  * screen is up. */
-int  level_diskStatusBegin(unsigned disc);
-int  level_diskStatusTick(const InputState *in);
+int32_t level_diskStatusBegin(uint32_t disc);
+int32_t level_diskStatusTick(const InputState *in);
 void level_diskStatusReset(void);          /* test/lifecycle: drop the screen */
 /* the level-end test (object_test_dispatch 1000:35D6's negative return).
  * level_goalReached is the win hook the discovery/claim path sets; a lost
  * tribe member decrements the live count and ends the level at zero. */
 void level_goalReached(void);
 void level_memberLost(void);
-int  level_endTest(void);
-int  level_ended(void);
-int  level_endHolding(void);
-void level_setEnd(int won);             /* 1000:F66D: [0x138E] = 0 */
-int  level_outcome(void);            /* [0x138E]: 1 won, 0 extinct */
+int32_t level_endTest(void);
+int32_t level_ended(void);
+int32_t level_endHolding(void);
+void level_setEnd(int32_t won);         /* 1000:F66D: [0x138E] = 0 */
+int32_t level_outcome(void);         /* [0x138E]: 1 won, 0 extinct */
 
 /* [0x5D31] / [0x11FC] after level_load's LEVEL-board pick: the record's
  * timeA/B/C word and the 12/10/8 starting tribe (entry 1000:009F,
  * render_level_frame 1000:9589). */
 uint16_t level_timeLimit(void);
-unsigned level_tribeMembers(void);
+uint32_t level_tribeMembers(void);
 /* the stamped background image and the BD P block, for the exit/igloo test */
 const uint8_t *level_bgForProbe(void);
 const uint8_t *level_pBlockForProbe(void);
-unsigned level_bgIndexForProbe(void);
+uint32_t level_bgIndexForProbe(void);
 const uint8_t *level_cBlockForProbe(void);
 /* render_objects' tail (1000:5F54): the 0xA9 background sprites */
-void level_drawBgSprites(uint8_t *page, int scrollX, int scrollY);
+void level_drawBgSprites(uint8_t *page, int32_t scrollX, int32_t scrollY);
 
 /* --- src/entity.c — entity table/bytecode (subsystem 10, §12) -----------
  *
@@ -450,7 +450,7 @@ void level_drawBgSprites(uint8_t *page, int scrollX, int scrollY);
  * 1 flip) so the dino paces between the two endpoints at ±1 px per tick.
  * All field meanings and the per-tick machine are in re_formats §12.6.
  */
-int  entity_init(const OSystem *osys);
+int32_t entity_init(const OSystem *osys);
 void entity_tick(void);
 /* 1000:5823 / 0x5894: the entity sprite pass over apl\rex.dat (mode 2, two
  * 0x20-px cells per entity), and the three big-endian frame-table reads it
@@ -458,7 +458,7 @@ void entity_tick(void);
 void entity_publishBank(const uint8_t *bank, uint32_t size);
 /* DEFS field G: the per-level 3-layer 0x100 sprites the frame slots 0xC1+4L+i
  * point at (level_setup_screen writes their far pointers into DS:0x3CAC). */
-void object_publishGSprites(const uint8_t *data, unsigned blocks, unsigned n);
+void object_publishGSprites(const uint8_t *data, uint32_t blocks, uint32_t n);
 /* DEFS fields E and H: the 0xA9 log sprite (frames 0x33..0x37) and the two
  * sprites the frame slots 0x26/0x27 point at. */
 void object_publishDEHSprites(const uint8_t *e, const uint8_t *h);
@@ -466,11 +466,11 @@ void object_publishDEHSprites(const uint8_t *e, const uint8_t *h);
  * sequence, wanderer). */
 void object_updateList(void);
 /* the level's [0x6532] (BD field F, 0 when absent). */
-unsigned level_animFrames(void);
+uint32_t level_animFrames(void);
 /* 1000:1FD4 field A: the per-tile signed slope profile (behaviour 4). */
-int level_slopeByte(unsigned id, unsigned sub);
-void entity_render(uint8_t *page, int scrollX, int scrollY);
-int  entity_frameInfo(unsigned a, unsigned *src, unsigned *rows, unsigned *yoff);
+int32_t level_slopeByte(uint32_t id, uint32_t sub);
+void entity_render(uint8_t *page, int32_t scrollX, int32_t scrollY);
+int32_t entity_frameInfo(uint32_t a, uint32_t *src, uint32_t *rows, uint32_t *yoff);
 
 /* One entity record: the DS layout word-for-word (+0x00..+0x0E). */
 typedef struct {
@@ -491,13 +491,13 @@ typedef struct {
  * slots keep the exe image's values).  `style` = the record's +0x00 byte
  * (the prologue's [0x17EE]); `lifeSeed` = the goal word's high byte
  * ([0x17F1] -> the +0xE seed).  0 = ok, -1 = no map. */
-int entity_spawnFromMap(const uint8_t *map, unsigned style,
-                        unsigned lifeSeed);
+int32_t entity_spawnFromMap(const uint8_t *map, uint32_t style,
+                        uint32_t lifeSeed);
 
-const Entity *entity_at(unsigned i);   /* NULL past the count */
-Entity *entity_atMut(unsigned i);      /* the 0x58D1 collision pass writes */
-int entity_spritePixel(unsigned src, unsigned rows, unsigned x, unsigned y);
-unsigned entity_count(void);
+const Entity *entity_at(uint32_t i);   /* NULL past the count */
+Entity *entity_atMut(uint32_t i);      /* the 0x58D1 collision pass writes */
+int32_t entity_spritePixel(uint32_t src, uint32_t rows, uint32_t x, uint32_t y);
+uint32_t entity_count(void);
 /* save +0x1656+0x28: [0x64C2] and the first seven 0x10-byte records. */
 void entity_saveFixed(uint8_t *dst);
 void entity_loadFixed(const uint8_t *src);
@@ -509,21 +509,21 @@ void entity_loadFixed(const uint8_t *src);
  * are object_test_dispatch's (1000:35D6): -1 = true, 0 = false.
  */
 void object_init(void);
-void     object_blitSprite(uint8_t *page, const uint8_t *src, unsigned rows,
-                           unsigned cols, int x, int y);
+void     object_blitSprite(uint8_t *page, const uint8_t *src, uint32_t rows,
+                           uint32_t cols, int32_t x, int32_t y);
 /* 1000:5C2F draw_objects_pass2: the two TER.DAT slots at DS:0x649A, disabled by
  * object_array_init (0x4CAB) through their +0x10 flag words. */
 void     object_terSlotInit(void);
-uint8_t *object_terSlotAt(unsigned i);           /* NULL past the two slots */
+uint8_t *object_terSlotAt(uint32_t i);           /* NULL past the two slots */
 void     object_publishTer(const uint8_t *bank, uint32_t size);
-void     object_renderTer(uint8_t *page, int scrollX, int scrollY);
-uint8_t *object_slot(unsigned i);        /* NULL past object_slots()      */
-unsigned object_slots(void);
-unsigned object_frameSlots(void);       /* the sprite table bound (0x11E) */
-void     object_frameForProbe(unsigned frame, unsigned *off, unsigned *rows);
+void     object_renderTer(uint8_t *page, int32_t scrollX, int32_t scrollY);
+uint8_t *object_slot(uint32_t i);        /* NULL past object_slots()      */
+uint32_t object_slots(void);
+uint32_t object_frameSlots(void);       /* the sprite table bound (0x11E) */
+void     object_frameForProbe(uint32_t frame, uint32_t *off, uint32_t *rows);
 /* the 0x32B9 background-sprite queue (1000:5F54's input) */
-unsigned object_bgCount(void);
-void     object_bgAt(unsigned i, unsigned *x, unsigned *y);
+uint32_t object_bgCount(void);
+void     object_bgAt(uint32_t i, uint32_t *x, uint32_t *y);
 /* the SAVE GAME state ranges (re_formats.md §10/§12.3): object table
  * (0x3E20, 0x25F), pools (0x6F20, 0x13CA), programs (0x5B37, 0x20),
  * TER slots (0x649A, 0x28) and the 0x6F92 copy (0x54). */
@@ -532,21 +532,21 @@ void object_savePool(uint8_t *dst);    void object_loadPool(const uint8_t *src);
 void object_savePrograms(uint8_t *dst);void object_loadPrograms(const uint8_t *src);
 void object_saveTer(uint8_t *dst);     void object_loadTer(const uint8_t *src);
 void object_saveSpans(uint8_t *dst);   void object_loadSpans(const uint8_t *src);
-int  object_current(void);               /* [0x1AF2], -1 = none           */
-void object_setCurrent(int slot);
-int  object_player(void);                /* [0x180A], -1 = none           */
-void object_setPlayer(int slot);
-int  object_noneType1d(void);            /* 1000:3640                     */
-int  object_classMatches(unsigned want); /* 1000:3659                     */
-int  object_typeEquals(unsigned type);   /* 1000:3678                     */
-int  object_entitiesFinished(void);      /* 1000:3688 (the entity table)  */
-int  object_mapCellEquals(unsigned cell); /* 1000:36AB (the map cell)     */
-unsigned object_staticSlots(void);       /* the 8 the predicates scan     */
-unsigned object_liveCount(void);         /* [0x3E73]; 9 at the level start */
-uint8_t  object_slotClass(unsigned slot);/* [0x3E5E + slot]               */
-void     object_setSlotClassForProbe(unsigned slot, uint8_t cls);
-void     object_setSlotClass(unsigned slot, unsigned cls);
-int  object_testDispatch(uint16_t mode); /* 1000:35D6: 1 = goal met       */
+int32_t object_current(void);                /* [0x1AF2], -1 = none           */
+void object_setCurrent(int32_t slot);
+int32_t object_player(void);                 /* [0x180A], -1 = none           */
+void object_setPlayer(int32_t slot);
+int32_t object_noneType1d(void);             /* 1000:3640                     */
+int32_t object_classMatches(uint32_t want);  /* 1000:3659                     */
+int32_t object_typeEquals(uint32_t type);    /* 1000:3678                     */
+int32_t object_entitiesFinished(void);       /* 1000:3688 (the entity table)  */
+int32_t object_mapCellEquals(uint32_t cell); /* 1000:36AB (the map cell)     */
+uint32_t object_staticSlots(void);           /* the 8 the predicates scan     */
+uint32_t object_liveCount(void);             /* [0x3E73]; 9 at the level start */
+uint8_t  object_slotClass(uint32_t slot);    /* [0x3E5E + slot]               */
+void     object_setSlotClassForProbe(uint32_t slot, uint8_t cls);
+void     object_setSlotClass(uint32_t slot, uint32_t cls);
+int32_t object_testDispatch(uint16_t mode);  /* 1000:35D6: 1 = goal met       */
 /* render_objects' object pass (1000:5D56 -> 0x653C): the base sprite of every
  * live record, drawn at (x - scrollX, y - scrollY). */
 void object_publishBank(const uint8_t *bank, uint32_t size);
@@ -555,12 +555,12 @@ void object_publishBank(const uint8_t *bank, uint32_t size);
  * table order (0xAA the human into the first free static slot, frame 0x10,
  * type 2; 0xAB the spear, appended, frame 0x60, +8 = 0xFFFF, behaviour 5;
  * the rest per re_map.md); returns [0x3E73]. */
-unsigned object_loadTerrainObjects(uint8_t *map);
-unsigned object_placedHumans(void);      /* [0x3E20]                       */
+uint32_t object_loadTerrainObjects(uint8_t *map);
+uint32_t object_placedHumans(void);      /* [0x3E20]                       */
 /* the map cell under a static record (0xF761 with AX = 8, BX = 0xC); the
  * score's object bonus reads it: 0xA8 -> +1000, 0xA7 -> +2000 (1000:55FA). */
-unsigned object_recordMapCell(unsigned slot);
-void object_render(uint8_t *page, int scrollX, int scrollY);
+uint32_t object_recordMapCell(uint32_t slot);
+void object_render(uint8_t *page, int32_t scrollX, int32_t scrollY);
 /* The adjacent-object op of the entity bytecode (1000:3A6A): the gate and the
  * scan around the *acting* record (`actor`, the entity's own slot), then the
  * red/white flash, the blinks, the animation, the append and the settle.
@@ -573,10 +573,10 @@ void object_render(uint8_t *page, int scrollX, int scrollY);
  * stack's push.  The handler bodies are ported except 0xE7C0 and 0xEBCA
  * (all rows are now ported). */
 typedef struct {
-    unsigned handler;
-    unsigned tail;
-    unsigned hook;      /* the row's +0xA: run 1000:D8BD before the tail */
-    unsigned command;
+    uint32_t handler;
+    uint32_t tail;
+    uint32_t hook;      /* the row's +0xA: run 1000:D8BD before the tail */
+    uint32_t command;
 } ObjCommand;
 ObjCommand object_commandSelect(uint8_t *rec, uint8_t input);
 
@@ -588,13 +588,13 @@ ObjCommand object_commandSelect(uint8_t *rec, uint8_t input);
 /* 1000:E4B0..E4F7: select and run one command for the acting record.  Only the
  * ported handlers are dispatched (the two movement states, the leaves, the snap,
  * the selector wrappers and the bare-RET tail). */
-int  object_commandRun(uint8_t *actor, uint8_t input);
+int32_t object_commandRun(uint8_t *actor, uint8_t input);
 /* handler test seams: the two bodies and the one-shot gate. */
 void object_streamCommand(uint8_t *actor);
 void object_clearCountdown(uint8_t *actor);
-void object_setCommandTimer(unsigned v);
+void object_setCommandTimer(uint32_t v);
 void object_animatorTick(void);               /* 1000:D6B2 phase 3 */
-uint8_t *object_groupAt(unsigned i);           /* 0x6F22 entry */
+uint8_t *object_groupAt(uint32_t i);           /* 0x6F22 entry */
 void object_animatorReset(void);
 
 /* The human stack (`0x6F22`, 8 entries x 0x0E: +0/+2 x/y, bit 15 = free, +4 the
@@ -606,43 +606,43 @@ void object_animatorReset(void);
  * finds the group holding a record and dissolves it).  The `0x64AD`/`0x64C1`
  * in-a-stack masks (1000:F38F/F3CA) are written by the two pushes and read by
  * the selector. */
-int  object_stackPush(uint8_t *actor);            /* 1 = a group took it      */
-int  object_stackGrab(uint8_t *actor);            /* 1 = grabbed, 0 = registered */
+int32_t object_stackPush(uint8_t *actor);         /* 1 = a group took it      */
+int32_t object_stackGrab(uint8_t *actor);         /* 1 = grabbed, 0 = registered */
 /* -1 / 0 / 1 as 1000:FDED; `*below` = the record it leaves in DI and `*entry` =
  * the 0x6F22 entry it was scanning (1000:FDF7's DX, which 1000:F223 reads). */
-int  object_stackPop(uint16_t ax, uint8_t **below, uint8_t **entry);
-int  object_stackStepOff(uint8_t *actor);         /* 1000:E860: 1/0/-1        */
-int  object_stackLeave(uint8_t *actor);           /* 1000:E8DD: 1/0/-1        */
-int  object_stackSnap(uint8_t *actor);            /* 1000:E963: 1/0           */
-int  object_stackStand(uint8_t *actor);           /* 1000:E99D: 1/0           */
+int32_t object_stackPop(uint16_t ax, uint8_t **below, uint8_t **entry);
+int32_t object_stackStepOff(uint8_t *actor);      /* 1000:E860: 1/0/-1        */
+int32_t object_stackLeave(uint8_t *actor);        /* 1000:E8DD: 1/0/-1        */
+int32_t object_stackSnap(uint8_t *actor);         /* 1000:E963: 1/0           */
+int32_t object_stackStand(uint8_t *actor);        /* 1000:E99D: 1/0           */
 /* 1000:F17C: 0 = done, -1 = nothing found.  The terrain branch is in
  * (1000:F1D7's step probe, 1000:F223's field-K special-tile test). */
-int  object_selector(uint8_t *actor, uint16_t xoff, uint16_t frame, uint16_t type);
-int  object_stackScanDissolve(unsigned recIndex); /* 1 = a group was dissolved */
+int32_t object_selector(uint8_t *actor, uint16_t xoff, uint16_t frame, uint16_t type);
+int32_t object_stackScanDissolve(uint32_t recIndex); /* 1 = a group was dissolved */
 /* 1000:FA13 object_group_dissolve, by group slot (the 0x6F22 entry the tail holds
  * in BP when it calls it). */
-void object_groupDissolveAt(unsigned slot);
+void object_groupDissolveAt(uint32_t slot);
 /* 1000:E4F8 / 1000:E609: the two movement states that feed the stack - the feet
  * cell's special tile (field K), a 0x6F92 span, else the grab / the push.
  * Codes: 1 tile rule, 2 span, 3 grabbed/pushed, 4 registered/nothing, -1 nothing. */
-int  object_stepDown(uint8_t *actor);
-int  object_stepUp(uint8_t *actor);
+int32_t object_stepDown(uint8_t *actor);
+int32_t object_stepUp(uint8_t *actor);
 /* 1000:E93D (left) / 1000:E952 (right): the selector with the wrappers' constants. */
-int  object_selectorWalk(uint8_t *actor, int right);
+int32_t object_selectorWalk(uint8_t *actor, int32_t right);
 
-int  object_claimBegin(unsigned recipe, int actor);
-int  object_claimActive(void);
+int32_t object_claimBegin(uint32_t recipe, int32_t actor);
+int32_t object_claimActive(void);
 void object_claimTick(const uint8_t *levelPal);
 /* the scan at 4E91: the first record beside `actor` (|dx| <= 0x20,
  * |dy| <= 8, type <= 2, active) or -1. */
-int  object_findNeighbour(int actor);
+int32_t object_findNeighbour(int32_t actor);
 /* one level frame of the object machine (the frame counter + the claim) */
 void object_tick(const uint8_t *levelPal);
-int  object_lowPhaseMatch(void);          /* 1000:3600: -1 when met         */
+int32_t object_lowPhaseMatch(void);       /* 1000:3600: -1 when met         */
 /* 1000:F423's window, against the type row 1000:E467 hands the hook as DI:
  * the row's own words are the "rect", so it never matches on shipped data -
  * the test asserts that over every type and both halves. */
-int  object_rowWindowMatches(unsigned type, unsigned half, int x, int y);
+int32_t object_rowWindowMatches(uint32_t type, uint32_t half, int32_t x, int32_t y);
 /* The ACTION program machine (script_op_dispatch, 1000:3979): ACTION with no
  * direction held runs the acting record's program.  The acting record is
  * [0x3E22]; object_actionRun() performs one press, object_cycleEntity(±1) is
@@ -650,85 +650,85 @@ int  object_rowWindowMatches(unsigned type, unsigned half, int x, int y);
 void object_actionRun(void);
 void object_pendingRun(void);
 /* one frame of the event-4 charge loop (1000:3702); call after the frame */
-int  object_chargeTick(void);      /* the [0x1979] dispatch, per frame */
+int32_t object_chargeTick(void);   /* the [0x1979] dispatch, per frame */
 /* the charge loop is running (1000:3702): the status bar must not repaint
  * the band/action row while it is (D-81). */
-int  object_chargeActive(void);
-int  object_cycleEntity(int step);
+int32_t object_chargeActive(void);
+int32_t object_cycleEntity(int32_t step);
 /* 1000:38C3: select record `index` (F1..F8 = scancode-0x3B), skipping a
  * disabled slot or type 0x1D.  Returns 1 when selected. */
-int  object_selectByIndex(unsigned index);
+int32_t object_selectByIndex(uint32_t index);
 /* 1000:3933 (SPACE): home-state the acting record, else step the action row's
  * selected cell.  Returns 1 (the make is consumed). */
-int  object_spaceAction(void);
-unsigned object_actionEntity(void);
+int32_t object_spaceAction(void);
+uint32_t object_actionEntity(void);
 /* level_fade_in's slot-8 init (1000:3344): frame 0x17, type 0x1A. */
 void object_levelStartRecord(void);
 /* 1000:D64F: the active-human marker (record 8) follows the acting record,
  * bobs through its type word and expires; update_world calls it every frame. */
 void object_markerTick(void);
-void object_setActionEntity(unsigned index);
-unsigned object_actionProgram(void);
-unsigned object_actionPending(void);
-void object_actionSetCursor(unsigned cursor);
-void object_actionSetProgram(unsigned index);   /* [0x5B56], 1..6        */
-unsigned object_actionFault(void);
+void object_setActionEntity(uint32_t index);
+uint32_t object_actionProgram(void);
+uint32_t object_actionPending(void);
+void object_actionSetCursor(uint32_t cursor);
+void object_actionSetProgram(uint32_t index);   /* [0x5B56], 1..6        */
+uint32_t object_actionFault(void);
 /* 1000:83B7 driver_call: the last sfx number a handler asked for (the audio
  * surface has no sfx entry until M6, so the request is only recorded). */
-unsigned object_lastSfx(void);
+uint32_t object_lastSfx(void);
 /* [0x6FE6]: the marker 1000:EAE6/0xF1B2 write (no ported reader yet). */
-int      object_flag6fE6(void);
-void     object_driverCall(unsigned n);   /* 1000:83B7 from another module */
+int32_t  object_flag6fE6(void);
+void     object_driverCall(uint32_t n);   /* 1000:83B7 from another module */
 /* [0x13A4]: the ACTION press's latch as the command handlers see it. */
-int  object_actionLatched(void);
-void object_setActionLatched(int on);              /* 7 = op 7 was dispatched */
+int32_t object_actionLatched(void);
+void object_setActionLatched(int32_t on);          /* 7 = op 7 was dispatched */
 
 /* The arch's fatal route for the op-7 halt (NULL detaches it, the tests do
  * that on purpose); level_init attaches the game's OSystem. */
 void object_attachOsys(const OSystem *osys);
 
 /* --- src/script.c — interpreter skeleton (re_scripts.md) -------------- */
-int  script_init(const OSystem *osys);
+int32_t script_init(const OSystem *osys);
 
 /* --- src/script.c — the frame-keyed cue interpreter (§8.7a) -------------
  * The boot intro's event script: 25 verbatim cues from 202F:0x843C,
  * dispatched on the exact frame (JE) through a 7-command dispatch. */
 typedef struct {
-    unsigned frame;         /* the current frame (the player advances it) */
-    unsigned groupDwell;    /* cmd 7: frames per display-list group       */
-    int      scrollOn;      /* cmd 3 on / cmd 2 off                       */
-    unsigned scrollDelta;   /* cmd 6: the scroll advance per frame        */
-    unsigned transitionIdx; /* cmd 1: run_screen_transition index         */
-    int      quit;          /* cmd 5: the quit flag                       */
-    int      done;          /* the frame target reached                   */
-    int      seekPending;   /* cmd 4 fired: the player must seek          */
-    unsigned seekFrame;     /*    ...to this frame                        */
+    uint32_t frame;         /* the current frame (the player advances it) */
+    uint32_t groupDwell;    /* cmd 7: frames per display-list group       */
+    int32_t  scrollOn;      /* cmd 3 on / cmd 2 off                       */
+    uint32_t scrollDelta;   /* cmd 6: the scroll advance per frame        */
+    uint32_t transitionIdx; /* cmd 1: run_screen_transition index         */
+    int32_t  quit;          /* cmd 5: the quit flag                       */
+    int32_t  done;          /* the frame target reached                   */
+    int32_t  seekPending;   /* cmd 4 fired: the player must seek          */
+    uint32_t seekFrame;     /*    ...to this frame                        */
     const uint16_t *cues;   /* [frame][cmd][arg] triples, verbatim        */
-    unsigned cueCount;
-    unsigned cursor;        /* the next cue to fire                       */
+    uint32_t cueCount;
+    uint32_t cursor;        /* the next cue to fire                       */
 } CueScript;
 
 /* The boot intro's verbatim cue list (25 cues, frame target 387). */
 void     script_introStart(CueScript *s);
 /* Fire every cue whose frame == `frame` (JE dispatch). */
-void     script_fire(CueScript *s, unsigned frame);
-int      script_quit(const CueScript *s);
-int      script_done(const CueScript *s);
-unsigned script_groupDwell(const CueScript *s);
-int      script_scrollOn(const CueScript *s);
-unsigned script_scrollDelta(const CueScript *s);
-unsigned script_transitionIndex(const CueScript *s);
-int      script_seekPending(const CueScript *s);
-unsigned script_seekFrame(const CueScript *s);
+void     script_fire(CueScript *s, uint32_t frame);
+int32_t  script_quit(const CueScript *s);
+int32_t  script_done(const CueScript *s);
+uint32_t script_groupDwell(const CueScript *s);
+int32_t  script_scrollOn(const CueScript *s);
+uint32_t script_scrollDelta(const CueScript *s);
+uint32_t script_transitionIndex(const CueScript *s);
+int32_t  script_seekPending(const CueScript *s);
+uint32_t script_seekFrame(const CueScript *s);
 void     script_seekDone(CueScript *s);
 
 /* --- src/audio.c — tune/sfx state machine (subsystem 7) --------------- */
-int  audio_init(const OSystem *osys);
+int32_t audio_init(const OSystem *osys);
 /* The frame web's music gate (1000:A5E8): `off` = the MUSIC board's counter
  * [0x5E5B] non-zero -> music_stop, zero -> music_resume.  One call per room
  * tick.  The M5 stub's stop/start is the whole observable (M6 adds the tune
  * handle). */
-void audio_musicGate(unsigned off);
+void audio_musicGate(uint32_t off);
 
 /* --- src/frontend.c — the front-end room (subsystem 8, §10) ------------
  *
@@ -741,13 +741,13 @@ void audio_musicGate(unsigned off);
  * name screen with a codes.bin match) — both run the exit fade first.
  * ESC stays in the room (0x5F11's act0 clears the typed name); there is
  * no key path back to the attract. */
-int  frontend_init(const OSystem *osys);
-int  frontend_tick(const InputState *in);
+int32_t frontend_init(const OSystem *osys);
+int32_t frontend_tick(const InputState *in);
 /* [0x5F09]: the code match's 1-based index = the level the room starts
  * (string i of levels\codes.bin = level i; #1 "DARWIN"; a full miss
  * leaves 161 — the original's own edge).  entry's PUSH AX/POP AX move
  * it to [0x22]; game_main does the same into its level counter. */
-unsigned frontend_selectedLevel(void);
+uint32_t frontend_selectedLevel(void);
 /* entry's JMP LAB_002B (the pause's RESTART THIS GAME): the room's setup
  * runs again; the option counters persist. */
 void frontend_restart(void);
@@ -762,9 +762,9 @@ enum {
     FRONTEND_OPT_GAME  = 2,     /* OFF/1..20: the save slot                */
     FRONTEND_OPT_ANIM  = 3      /* ON/OFF: cd_file_op off (no cutscenes)   */
 };
-unsigned frontend_option(unsigned idx);
-unsigned frontend_cellForProbe(void);   /* [0x4220]: the walk's rail node  */
-int      frontend_nameScreenForProbe(void); /* the name screen's phase      */
+uint32_t frontend_option(uint32_t idx);
+uint32_t frontend_cellForProbe(void);   /* [0x4220]: the walk's rail node  */
+int32_t  frontend_nameScreenForProbe(void); /* the name screen's phase      */
 const char *frontend_nameForProbe(void);    /* the typed name (0x61E0)      */
 
 /* --- src/party_intro.c — the level-intro party screen (subsystem 14) --
@@ -785,15 +785,15 @@ const char *frontend_nameForProbe(void);    /* the typed name (0x61E0)      */
 /* level_intro_screen 2739 (need > members): the GAME OVER briefing variant
  * (the same art; GAME OVER / YOUR TRIBE IS TOO SMALL / IN THE RACE / PRESS
  * FIRE, one key/fire exit). */
-void party_intro_setGameOver(int on);
-unsigned party_intro_score(void);            /* g_score [0x592] */
-void party_intro_setValues(unsigned level, unsigned need, unsigned members,
-                           unsigned score, const char *tribe);
-void party_intro_seedScripts(const uint8_t *bytes, unsigned len);
+void party_intro_setGameOver(int32_t on);
+uint32_t party_intro_score(void);            /* g_score [0x592] */
+void party_intro_setValues(uint32_t level, uint32_t need, uint32_t members,
+                           uint32_t score, const char *tribe);
+void party_intro_seedScripts(const uint8_t *bytes, uint32_t len);
 void party_intro_seedSlots(const uint8_t *raw);   /* the 128 B at DS:0xFA8 */
-int  party_intro_start(void);
-int  party_intro_tick(const InputState *in);
-void party_intro_formatScore(unsigned v, char *out);   /* 2b1b/2b70       */
+int32_t party_intro_start(void);
+int32_t party_intro_tick(const InputState *in);
+void party_intro_formatScore(uint32_t v, char *out);   /* 2b1b/2b70       */
 void party_intro_compose(uint8_t *page320x200); /* the law compose for the fixtures */
 const uint8_t *party_intro_workpal(void);   /* the 0x4bbc stand-in (diagnostics) */
 const uint8_t *party_intro_palUpper(void); /* 0x4d3c = 0x4bbc + 0x180 (diagnostics) */
@@ -807,22 +807,22 @@ const uint8_t *party_intro_palUpper(void); /* 0x4d3c = 0x4bbc + 0x180 (diagnosti
 void textpage_publishBox(const uint8_t *box);
 /* `text` = the block (CR-separated lines, NUL-terminated); cursorRow >= 0
  * draws the marker pair on that option row (grid = the cell pair). */
-void textpage_draw(uint8_t *page, const char *text, int cursorRow,
-                   unsigned cursorCol, int grid);
+void textpage_draw(uint8_t *page, const char *text, int32_t cursorRow,
+                   uint32_t cursorCol, int32_t grid);
 /* one centred line in a solid colour (no box underneath) — the disk prompt,
  * the score screen and the MAP's list use this. */
-void textpage_drawLine(uint8_t *page, const char *line, unsigned row,
+void textpage_drawLine(uint8_t *page, const char *line, uint32_t row,
                        uint8_t colour);
 /* draw_text's AX: the line centred on an arbitrary x. */
-void textpage_drawLineAt(uint8_t *page, const char *line, unsigned centreX,
-                         unsigned row, uint8_t colour);
+void textpage_drawLineAt(uint8_t *page, const char *line, uint32_t centreX,
+                         uint32_t row, uint8_t colour);
 /* blit_text_tile (1000:47D5) proper: `mask` OR'd into the page (the OR ALU at
  * 1000:9F76 + write mode 2).  The box text and the cutscene headline use it,
  * so their shading is the box fill tile's own EB..E4..EB ramp. */
-void textpage_drawLineMask(uint8_t *page, const char *line, unsigned row,
+void textpage_drawLineMask(uint8_t *page, const char *line, uint32_t row,
                            uint8_t mask);
-void textpage_drawLineMaskAt(uint8_t *page, const char *line, unsigned centreX,
-                             unsigned row, uint8_t mask);
+void textpage_drawLineMaskAt(uint8_t *page, const char *line, uint32_t centreX,
+                             uint32_t row, uint8_t mask);
 
 /* --- src/menu.c — the in-level dialogs (pause menu + SAVE GAME) -------
  *
@@ -835,12 +835,12 @@ void textpage_drawLineMaskAt(uint8_t *page, const char *line, unsigned centreX,
 void     menu_init(const OSystem *osys);
 void     menu_openPause(void);          /* [0x5B12] := 0, cursor 0         */
 void     menu_openTimeUp(void);         /* [0x5E44]'s 3-option block        */
-int      menu_timeUp(void);             /* the dialog currently open        */
-int      menu_active(void);             /* 1 while a dialog is up          */
-int      menu_tick(const InputState *in);   /* 1 = still up; draws         */
+int32_t  menu_timeUp(void);             /* the dialog currently open        */
+int32_t  menu_active(void);             /* 1 while a dialog is up          */
+int32_t  menu_tick(const InputState *in);   /* 1 = still up; draws         */
 void     menu_draw(void);
-int      menu_result(void);             /* the 0-based pause choice, -1    */
-unsigned menu_slot(void);               /* the grid's game number 1..20    */
+int32_t  menu_result(void);             /* the 0-based pause choice, -1    */
+uint32_t menu_slot(void);               /* the grid's game number 1..20    */
 void     menu_close(void);
 
 /* --- src/save.c — the save-game format (load side) ---------------------
@@ -850,14 +850,14 @@ void     menu_close(void);
  * path: the slot is the front-end room's RESTORE GAME counter (GAME 1..20),
  * and a hit overrides the room's level, the time limit and the tribe.
  */
-int  save_init(const OSystem *osys);
+int32_t save_init(const OSystem *osys);
 /* Load the slot (1..20; 0 = GAME OFF).  Resets the state first; returns 1
  * when the file's header was read (the original's "save present" [0x34]). */
-int  save_loadSlot(unsigned slot);
-int  save_present(void);          /* [0x34]                              */
+int32_t save_loadSlot(uint32_t slot);
+int32_t save_present(void);       /* [0x34]                              */
 uint16_t save_level(void);        /* +0x00, 1..160 -> [0x22]             */
 uint16_t save_time(void);         /* +0x07 word -> [0x5D31]              */
-unsigned save_members(void);      /* +0x0B -> [0x1970]                   */
+uint32_t save_members(void);      /* +0x0B -> [0x1970]                   */
 /* The whole 0x1800 buffer ([0x1C92]): the header and the state ranges are
  * carried verbatim (the ranges have no port consumer yet). */
 const uint8_t *save_blob(void);
@@ -868,8 +868,8 @@ void save_consume(void);
 /* SAVE GAME (save_progress 1FE7:0000): the live header and the five state
  * ranges, 0x1800 bytes; save_restoreState puts them back after level_load.
  * The +0x17F0 parameter block is the image's [0x5B22] defaults. */
-int  save_writeSlot(unsigned slot, unsigned level, uint16_t timeWord,
-                    unsigned members);
+int32_t save_writeSlot(uint32_t slot, uint32_t level, uint16_t timeWord,
+                    uint32_t members);
 
 /* --- src/game_main.c — the top-level flow (the original's main loop) --
  *
@@ -911,12 +911,12 @@ GameFlow gameflow_step(GameFlow state, const InputState *input);
 /* The level index the MENU exit chose (0-based; [0x22]-1) — the save's
  * +0x00 when a slot loaded, otherwise the room's code match.  Probe for the
  * save/restore test (the same role as attract_phaseForProbe). */
-unsigned gameflow_levelForProbe(void);
+uint32_t gameflow_levelForProbe(void);
 /* The pause menu's five 0-based results (dispatch_by_result_a167 1000:38EA);
  * returns the flow the action leaves, sets *quit for QUIT THIS GAME. */
-GameFlow gameflow_pauseAction(int choice, int *quit);
-unsigned gameflow_partyScore(void);          /* the briefing's [0x592] low word */
-int  gameflow_partyPending(void);            /* a restart leaves the party to run */
+GameFlow gameflow_pauseAction(int32_t choice, int32_t *quit);
+uint32_t gameflow_partyScore(void);          /* the briefing's [0x592] low word */
+int32_t gameflow_partyPending(void);         /* a restart leaves the party to run */
 const char *gameflow_partyTribe(void);       /* 0x1189: the level's author   */
 /* scan_id_list 1000:386E event 4: ESC opens the 0x5BBC pause block. */
 /* scan_id_list 1000:386E: the DS:0x1989 key list.  Handles ESC (the 0x5BBC
@@ -924,25 +924,25 @@ const char *gameflow_partyTribe(void);       /* 0x1189: the level's author   */
  * next record), SPACE (the action-icon step / home state) and F10 (the key
  * wait).  Returns 1 when an entry ran; a non-bit7 entry whose gate [0xC] is
  * closed returns 0 (1000:38AD). */
-int      gameflow_keyList(const InputState *in);
+int32_t  gameflow_keyList(const InputState *in);
 /* [0x5BBA]: the goal page (scroll_map 1000:9E51) is up. */
-int      gameflow_goalPageUp(void);
+int32_t  gameflow_goalPageUp(void);
 /* 1000:3954's key wait (F10) owns the input and blocks the world. */
-int      gameflow_keyWaitActive(void);
+int32_t  gameflow_keyWaitActive(void);
 /* The time-up dialog's 3 results (1000:34F9's inline dispatch): 0 restart
  * this level (level_restore), 1 restart this game (the room), 2 quit. */
-GameFlow gameflow_timeUpAction(int choice, int *quit);
-int      gameflow_restartPending(void);   /* [0x1809] = 0xFF: restart game */
+GameFlow gameflow_timeUpAction(int32_t choice, int32_t *quit);
+int32_t  gameflow_restartPending(void);   /* [0x1809] = 0xFF: restart game */
 /* entry LAB_00CD's post-level step: [0x22]++ / [0x26]-- -> the next level of
  * the 160; when they run out this returns FLOW_ATTRACT (the caller starts
  * FLOW_ENDING: scene 7 -> the disc probe -> the MAP -> the attract). */
-GameFlow gameflow_afterLevel(unsigned *levelCurrent);
+GameFlow gameflow_afterLevel(uint32_t *levelCurrent);
 /* entry 14E6/14FF and 150C/1512: the post-level newspaper index (0xFFFF =
  * none: lost, or the header byte 0xFF) and the ending scene (6 lost,
  * 7 COMPLETE). */
-unsigned gameflow_postLevelScene(int won, unsigned introIndex);
-unsigned gameflow_endingScene(int won);
+uint32_t gameflow_postLevelScene(int32_t won, uint32_t introIndex);
+uint32_t gameflow_endingScene(int32_t won);
 /* level_run 3060/3062's gate: the level's required humans vs the tribe. */
-int      gameflow_tribeTooSmall(unsigned need, unsigned members);
+int32_t  gameflow_tribeTooSmall(uint32_t need, uint32_t members);
 
 #endif /* HUMANSRE_GAME_H */

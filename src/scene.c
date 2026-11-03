@@ -112,11 +112,11 @@ typedef struct {
     uint8_t  *image;
     uint32_t  image_size;
     uint32_t  table_size;
-    unsigned  n_entries;
+    uint32_t  n_entries;
     uint32_t  *entries;        /* copy of the u32 offset table           */
 } Ani;
 
-static int ani_load(Ani *a, unsigned ani_idx)
+static int32_t ani_load(Ani *a, uint32_t ani_idx)
 {
     char name[32];
     snprintf(name, sizeof name, ANI_NAME, ani_idx);
@@ -134,7 +134,7 @@ static int ani_load(Ani *a, unsigned ani_idx)
         a->image = NULL;
         return -1;
     }
-    for (unsigned i = 0; i < a->n_entries; i++)
+    for (uint32_t i = 0; i < a->n_entries; i++)
         a->entries[i] = rd_le_u32(a->image + i * 4u);
     return 0;
 }
@@ -143,7 +143,7 @@ static int ani_load(Ani *a, unsigned ani_idx)
  * `out_size`).  Returns the decompressed size, or -1 on failure.
  * *chkOut receives the object's checksum accumulator (0 = the game's
  * scene-object test passes, 1000:B444). */
-static int ani_decode_object(const Ani *a, unsigned idx,
+static int32_t ani_decode_object(const Ani *a, uint32_t idx,
                              uint8_t *out, uint32_t out_size, uint16_t *chkOut)
 {
     if (idx >= a->n_entries) return -1;
@@ -194,12 +194,12 @@ typedef enum {
 
 static const OSystem *scene_osys;
 static ScenePhase scene_phase = SCENE_IDLE;
-static unsigned scene_level = 0xFFFFu;   /* the level the intro is for */
+static uint32_t scene_level = 0xFFFFu;   /* the level the intro is for */
 
 static uint8_t  *aniData;
 static Ani       ani;
 static uint8_t  *scriptBuf;         /* decoded script object                */
-static unsigned   plays;
+static uint32_t   plays;
 static const uint16_t *indices;     /* into scriptBuf + 2 + 768             */
 static uint8_t   *objBuf;           /* 64K segment model                    */
 static uint8_t   *scoopsBuf;
@@ -207,10 +207,10 @@ static uint32_t   scoopsSize;
 static uint8_t   *textSpr;        /* apl\text.spr — the panel's font */
 
 static uint8_t   curScene;
-static int       chainReplay;       /* 210-tick wait ends in a self-replay */
+static int32_t   chainReplay;       /* 210-tick wait ends in a self-replay */
 static uint16_t  dwellTicks;
 static uint8_t   panelPal[768];     /* daily.bit's palette (masked 6-bit) */
-static int       panelPalValid;
+static int32_t   panelPalValid;
 /* c537/c563's target: [0x48BC] is the 256x3 scratch ramp, and every writer
  * restores it to zero — clear_fade_ramp (1000:B90F) at boot, the level's
  * discovery op (1000:3A6A) on every exit (1000:3CF9/3D01), run_screen_
@@ -222,9 +222,9 @@ static const uint8_t sceneBlackPal[768];
  * reads it twice: the pre-frame palette fade is 4 entries div 2 instead of
  * 0x100 div 0x19 (1000:B263), and wait_flag_timeout waits 1 tick instead of
  * 6 per object (1000:B2D3).  The level's .ANI always runs with it clear. */
-static int sceneFast;
+static int32_t sceneFast;
 
-void scene_setFastMode(int on) { sceneFast = on ? 1u : 0u; }
+void scene_setFastMode(int32_t on) { sceneFast = on ? 1u : 0u; }
 
 /* Start a NEW cutscene on the next scene_playLevelIntro call: cd_file_op has
  * no cache of its own, so two consecutive levels with the same intro index
@@ -254,9 +254,9 @@ static void scene_quitFade(void)
 }
 static uint16_t  objWait;
 static uint16_t  chainWait;
-static unsigned  objIndex;
+static uint32_t  objIndex;
 
-int scene_init(const OSystem *osys)
+int32_t scene_init(const OSystem *osys)
 {
     scene_osys = osys;
     return 0;
@@ -269,7 +269,7 @@ int scene_init(const OSystem *osys)
  * owns (the null backend's script is call-indexed). */
 static InputState scene_lastInput;
 
-static int boot_keyState(void)
+static int32_t boot_keyState(void)
 {
     return scene_lastInput.lastKey != 0u ||
            (scene_lastInput.joyBits & 0x80u) != 0u;
@@ -280,7 +280,7 @@ void scene_noteInput(const InputState *in) { scene_lastInput = *in; }
 /* Any key or fire: the original's [0x48A3] / +0x5ACE bit-7 checks.  (The
  * level intro's skip polls — its contract predates the boot's flag-cache
  * model; the boot's waits use boot_keyState instead.) */
-static int scene_keyHeld(void)
+static int32_t scene_keyHeld(void)
 {
     InputState in;
     scene_osys->eventsPoll(&in);
@@ -300,7 +300,7 @@ static void scene_unload(void)
 
 /* Load ANI<index>.ANI + the background assets, draw the background and
  * the palette onto page 0.  Returns 0 on success. */
-static int scene_start(unsigned index, int initial)
+static int32_t scene_start(uint32_t index, int32_t initial)
 {
     scene_unload();
     curScene = (uint8_t)index;
@@ -326,7 +326,7 @@ static int scene_start(unsigned index, int initial)
          * panel's first 0x20 entries FADE in (1000:B0DA) */
         panelPalValid = dailySize >= PAGE_SIZE + 768u;
         if (panelPalValid)
-            for (unsigned i = 0; i < 768u; i++)      /* 1000:8D24's AND 0x3F */
+            for (uint32_t i = 0; i < 768u; i++)      /* 1000:8D24's AND 0x3F */
                 panelPal[i] = daily[PAGE_SIZE + i] & 0x3Fu;
         free(daily);
     }
@@ -350,7 +350,7 @@ static int scene_start(unsigned index, int initial)
              * panel's 320-byte row; taking only the 0x100 shears the
              * thumbnail 64 px left per row. */
             const uint8_t *src = scoopsBuf + srcOff;
-            for (unsigned row = 0; row < 0x38u; row++) {
+            for (uint32_t row = 0; row < 0x38u; row++) {
                 memcpy(page + 0x8270u + row * 0x140u, src, 0x40u);
                 src += 0x40u;
             }
@@ -376,7 +376,7 @@ static int scene_start(unsigned index, int initial)
     return 0;
 }
 
-int scene_playLevelIntro(unsigned introIndex)
+int32_t scene_playLevelIntro(uint32_t introIndex)
 {
     /* cd_file_op's head (1000:AFFD): the ANIMATIONS board (cell 5,
      * [0x5E79]) non-zero RETs before any file op — cutscenes are off. */
@@ -389,9 +389,9 @@ int scene_playLevelIntro(unsigned introIndex)
 
         /* the script object (entry 0): [u16 plays-1][768 palette][indices] */
         uint16_t chk = 0;
-        int script_size = ani_decode_object(&ani, 0, scriptBuf, OBJ_SEG_SIZE, &chk);
+        int32_t script_size = ani_decode_object(&ani, 0, scriptBuf, OBJ_SEG_SIZE, &chk);
         if (script_size < 0 || chk != 0) { scene_unload(); scene_phase = SCENE_DONE; return 0; }
-        plays = (unsigned)rd_le_u16(scriptBuf) + 1u;
+        plays = (uint32_t)rd_le_u16(scriptBuf) + 1u;
         if (2u + 768u + plays * 2u > (uint32_t)script_size) {
             scene_unload();
             scene_phase = SCENE_DONE;
@@ -413,7 +413,7 @@ int scene_playLevelIntro(unsigned introIndex)
 
     if (scene_phase == SCENE_DONE) return 0;
 
-    int keyHeld = scene_keyHeld();
+    int32_t keyHeld = scene_keyHeld();
 
     for (;;) {   /* instant phases resolve within one tick */
         switch (scene_phase) {
@@ -449,7 +449,7 @@ int scene_playLevelIntro(unsigned introIndex)
              * failure unwinds the whole player (B22C: JMP B2C4). */
             {
                 uint16_t chk = 0;
-                int sz = ani_decode_object(&ani, indices[0], objBuf,
+                int32_t sz = ani_decode_object(&ani, indices[0], objBuf,
                                            OBJ_SEG_SIZE, &chk);
                 if (sz < 0 || chk != 0) { scene_phase = SCENE_DONE; return 0; }
                 scene_al_expand(objBuf, (uint32_t)sz, video_page(0), PAGE_SIZE);
@@ -474,7 +474,7 @@ int scene_playLevelIntro(unsigned introIndex)
             if (objIndex >= plays) { scene_phase = SCENE_CHAIN; break; }
             {
                 uint16_t chk = 0;
-                int sz = ani_decode_object(&ani, indices[objIndex], objBuf, OBJ_SEG_SIZE, &chk);
+                int32_t sz = ani_decode_object(&ani, indices[objIndex], objBuf, OBJ_SEG_SIZE, &chk);
                 if (sz < 0 || chk != 0) {      /* place_scene_obj: JZ / abort */
                     scene_phase = SCENE_CHAIN;
                     break;
@@ -592,38 +592,38 @@ int scene_playLevelIntro(unsigned introIndex)
 
 typedef enum {
     BOOT_START,
-    BOOT_GT_PRE,        /* the boot fade-to-black wait; the list decode  */
-    BOOT_GT_FADE0,      /* group 0 shown; the 4-entry fast fade + wait   */
-    BOOT_GT_FRAME,      /* one group shown (b29b's LOOP)                 */
-    BOOT_GT_FLIP,       /* the flip-apply tick (87c7's ISR sync)         */
-    BOOT_GT_BANK_HOLD,  /* the 30-tick hold before each bank cycle       */
-    BOOT_GT_BANK_A,     /* bank fade -> gtpal+0x48 (BP=3) + wait         */
-    BOOT_GT_BANK_B,     /* bank fade -> gtpal+0x3C (BP=0x1e) + wait      */
-    BOOT_GT_LAST_F,     /* entries 0x20-0x2F -> gtpal+0x60 (BP=0x32)     */
-    BOOT_GT_HOLD,       /* the 0x1a4-tick hold                           */
-    BOOT_GT_OUT,        /* fade all -> 0x4BBC (zeroed: nothing loaded yet
+    BOOT_GT_PRE,         /* the boot fade-to-black wait; the list decode  */
+    BOOT_GT_FADE0,       /* group 0 shown; the 4-entry fast fade + wait   */
+    BOOT_GT_FRAME,       /* one group shown (b29b's LOOP)                 */
+    BOOT_GT_FLIP,        /* the flip-apply tick (87c7's ISR sync)         */
+    BOOT_GT_BANK_HOLD,   /* the 30-tick hold before each bank cycle       */
+    BOOT_GT_BANK_A,      /* bank fade -> gtpal+0x48 (BP=3) + wait         */
+    BOOT_GT_BANK_B,      /* bank fade -> gtpal+0x3C (BP=0x1e) + wait      */
+    BOOT_GT_LAST_F,      /* entries 0x20-0x2F -> gtpal+0x60 (BP=0x32)     */
+    BOOT_GT_HOLD,        /* the 0x1a4-tick hold                           */
+    BOOT_GT_OUT,         /* fade all -> 0x4BBC (zeroed: nothing loaded yet
                          * — to black), BP=0x32 (bf60)                   */
-    BOOT_ABORT,         /* c0c6 -> JMP b60a: a held key/fire unwinds the
+    BOOT_ABORT,          /* c0c6 -> JMP b60a: a held key/fire unwinds the
                          * whole boot; the final fade (div 0x23) starts   */
-    BOOT_ABORT_FADE,    /* its wait (8b8b — the non-aborting spin)       */
-    BOOT_IDI_FADE,      /* idi.bit shown; fade to its own palette        */
-    BOOT_IDI_HOLD,      /* the 0x1a4-tick hold                           */
-    BOOT_IDI_OUT,       /* fade to the zeroed ramp + wait                */
-    BOOT_FIRST_BANK,    /* bank fade (16 entries at BP=0x23) + wait      */
-    BOOT_FIRST_HOLD,    /* the 0x118-tick hold per bank                  */
-    BOOT_FIRST_LASTHOLD,/* bd50: the extra 0x118-tick hold after bank 7  */
-    BOOT_FIRST_OUT,     /* fade to the zeroed ramp (BP=0x23) + wait      */
-    BOOT_ITB_SHOW,      /* the ITB card present + its fade-in start      */
-    BOOT_CARD_FADE,     /* its wait                                      */
-    BOOT_DWELL,         /* the 280-tick initial dwell                    */
-    BOOT_FADEOUT,       /* the post-dwell fade to the zeroed ramp (b6f2) */
-    BOOT_BLACK,         /* the 0x8C-tick black hold (c0b8)               */
-    BOOT_FRAME,         /* cues + scroll + sprites + display-list blit   */
-    BOOT_WAIT,          /* the 2-tick frame wait                         */
-    BOOT_SCENE_HOLD,    /* the scene's final 0x8C-tick hold (b7a3)       */
-    BOOT_TRANS,         /* the transition's white-flash fade (b854)      */
-    BOOT_TRANS_HOLD,    /* the words redraw + 0xa-tick hold (b866-b871)  */
-    BOOT_OUTRO,         /* the scene-tail fade to black (b7a9, BP=0x1e)  */
+    BOOT_ABORT_FADE,     /* its wait (8b8b — the non-aborting spin)       */
+    BOOT_IDI_FADE,       /* idi.bit shown; fade to its own palette        */
+    BOOT_IDI_HOLD,       /* the 0x1a4-tick hold                           */
+    BOOT_IDI_OUT,        /* fade to the zeroed ramp + wait                */
+    BOOT_FIRST_BANK,     /* bank fade (16 entries at BP=0x23) + wait      */
+    BOOT_FIRST_HOLD,     /* the 0x118-tick hold per bank                  */
+    BOOT_FIRST_LASTHOLD, /* bd50: the extra 0x118-tick hold after bank 7  */
+    BOOT_FIRST_OUT,      /* fade to the zeroed ramp (BP=0x23) + wait      */
+    BOOT_ITB_SHOW,       /* the ITB card present + its fade-in start      */
+    BOOT_CARD_FADE,      /* its wait                                      */
+    BOOT_DWELL,          /* the 280-tick initial dwell                    */
+    BOOT_FADEOUT,        /* the post-dwell fade to the zeroed ramp (b6f2) */
+    BOOT_BLACK,          /* the 0x8C-tick black hold (c0b8)               */
+    BOOT_FRAME,          /* cues + scroll + sprites + display-list blit   */
+    BOOT_WAIT,           /* the 2-tick frame wait                         */
+    BOOT_SCENE_HOLD,     /* the scene's final 0x8C-tick hold (b7a3)       */
+    BOOT_TRANS,          /* the transition's white-flash fade (b854)      */
+    BOOT_TRANS_HOLD,     /* the words redraw + 0xa-tick hold (b866-b871)  */
+    BOOT_OUTRO,          /* the scene-tail fade to black (b7a9, BP=0x1e)  */
     BOOT_DONE
 } BootPhase;
 
@@ -635,45 +635,45 @@ static uint8_t  *bootTreebot;     /* intro\treebot.bit 21x59                 */
 static uint8_t  *bootApple;       /* intro\apple.spr 16x16                   */
 static uint8_t  *bootWords;       /* intro\words.bit — the bar's 1-bit text  */
 static uint8_t   boot_bar[16u * 320u];  /* the visible bar, rows 182-197     */
-static int       boot_bar_arg = -1;     /* the transition the bar holds      */
+static int32_t   boot_bar_arg = -1;     /* the transition the bar holds      */
 static uint8_t  *bootRsc;         /* intro\intro.rsc — the display list      */
 static uint32_t  bootRscSize;
 static uint32_t *bootEntries;
-static unsigned  bootEntryCount;
+static uint32_t  bootEntryCount;
 static uint8_t  *bootListBuf;     /* the decoded display-list object         */
 static uint32_t  bootListSize;    /* its decoded size                        */
 static uint8_t  *bootObj;         /* the records' decoded overlay objects    */
 static uint32_t  bootListStart;   /* 0x6FEA: the records' start              */
 static uint32_t  bootListPos;     /* [0x6468]: the current group             */
-static unsigned  bootFrame;       /* [0x6466]: the display-list group index  */
-static unsigned  bootGroupDwell;  /* [0x6460]: frames per group              */
-static unsigned  bootDwellCount;  /* [0x6462]: the group dwell countdown     */
-static unsigned  bootScrollPos;   /* [0x6473]: the horizontal scroll         */
+static uint32_t  bootFrame;       /* [0x6466]: the display-list group index  */
+static uint32_t  bootGroupDwell;  /* [0x6460]: frames per group              */
+static uint32_t  bootDwellCount;  /* [0x6462]: the group dwell countdown     */
+static uint32_t  bootScrollPos;   /* [0x6473]: the horizontal scroll         */
 static uint16_t  bootWaitTicks;
 static uint8_t   boot_ramp[768];  /* the fade-target scratch (202F:0x48BC)   */
-static unsigned  bootTransTicks;  /* the 0xa-tick words hold (b869)          */
-static unsigned  bootBankCountdown;  /* [0x644E]: the b7c0 bank-fade timer   */
+static uint32_t  bootTransTicks;  /* the 0xa-tick words hold (b869)          */
+static uint32_t  bootBankCountdown;  /* [0x644E]: the b7c0 bank-fade timer   */
 static uint8_t  *bootGt;          /* intro\gametek.rsc — the logo display list */
 static uint32_t  bootGtSize;
 static uint32_t *bootGtEntries;   /* its u32 object table                    */
-static unsigned  bootGtEntryCount;
+static uint32_t  bootGtEntryCount;
 static uint8_t  *bootGtList;      /* decoded object 0: [u16 count][768-byte  *
                                    * palette][u16 object index x count]      */
-static unsigned  bootGtGroup;     /* the group loop counter (b29b's CX)      */
-static unsigned  bootGtBank;      /* the 4-bank palette-cycle counter        */
+static uint32_t  bootGtGroup;     /* the group loop counter (b29b's CX)      */
+static uint32_t  bootGtBank;      /* the 4-bank palette-cycle counter        */
 static uint8_t  *bootItb;         /* intro\itb.bit held until its stage      */
-static unsigned  bootHold;        /* the stages' hold counters (c0b8's CX)   */
+static uint32_t  bootHold;        /* the stages' hold counters (c0b8's CX)   */
 
 /* One gametek group: place_scene_obj (1000:B3F9) decodes the object out of
  * the RSC's u32 table (the same machine as res_decode_lzw_mem — the b444
  * checksum gate) and the object's RLE stream expands over the whole page
  * (blit_background_data 1000:B2EB — scene_al_expand is that machine,
  * validated through the level-intro scenes). */
-static int boot_gt_show(unsigned idx)
+static int32_t boot_gt_show(uint32_t idx)
 {
     if (idx >= bootGtEntryCount) return 0;
     uint16_t chk = 0;
-    int sz = res_decode_lzw_mem(bootGt, bootGtSize, bootGtEntries[idx],
+    int32_t sz = res_decode_lzw_mem(bootGt, bootGtSize, bootGtEntries[idx],
                                 bootObj, OBJ_SEG_SIZE, &chk);
     if (sz < 0 || chk != 0) return 0;                    /* 1000:B444: skip */
     scene_al_expand(bootObj, (uint32_t)sz, video_page(0), 64000u);
@@ -683,7 +683,7 @@ static int boot_gt_show(unsigned idx)
 /* present_frame (1000:BDBC) for the idi/first cards: load, the file's own
  * palette into the working palette (8d24, RAM only), the image on the page.
  * The DAC moves when the caller's fade targets the working palette. */
-static int boot_card_show(const char *name)
+static int32_t boot_card_show(const char *name)
 {
     uint32_t size = 0;
     uint8_t *img = res_loadChunk(name, &size, NULL);
@@ -700,7 +700,7 @@ static int boot_card_show(const char *name)
 /* c0c6 (input_abort_check): every c0af/c0b8 wait polls the key each tick;
  * a held key or fire bit jumps b60a — the whole remaining boot (the cards,
  * the caveman scene) is skipped, the final fade runs, done. */
-static int boot_abort_poll(void)
+static int32_t boot_abort_poll(void)
 {
     if (!boot_keyState()) return 0;
     boot_phase = BOOT_ABORT;
@@ -727,8 +727,8 @@ static void boot_unload(void)
 /* blit_sprite_transparent (1000:BAA5): a width x height sprite at page
  * (worldX - scroll, pageYOff); 0 bytes are transparent; the sprite clips
  * at the page's right edge and is off-screen once X wraps. */
-static void boot_blit_sprite(const uint8_t *spr, unsigned width, unsigned height,
-                             unsigned worldX, unsigned pageYOff, uint8_t *page)
+static void boot_blit_sprite(const uint8_t *spr, uint32_t width, uint32_t height,
+                             uint32_t worldX, uint32_t pageYOff, uint8_t *page)
 {
     uint32_t x = ((uint32_t)worldX - bootScrollPos) & 0xFFFFu;
     if (x >= 320u) return;                        /* CMP AX,0x140 / JC */
@@ -736,8 +736,8 @@ static void boot_blit_sprite(const uint8_t *spr, unsigned width, unsigned height
     if (visible > width) visible = width;
     uint8_t *dst = page + pageYOff + x;
     const uint8_t *src = spr;
-    for (unsigned row = 0; row < height; row++) {
-        for (unsigned i = 0; i < visible; i++) {
+    for (uint32_t row = 0; row < height; row++) {
+        for (uint32_t i = 0; i < visible; i++) {
             uint8_t b = src[i];
             if (b) dst[i] = b;                    /* 0 = transparent */
         }
@@ -752,19 +752,19 @@ static void boot_blit_sprite(const uint8_t *spr, unsigned width, unsigned height
  * bac[row][scroll..320) then bac[row][0..scroll), in 92 two-row pairs
  * (each pair: two DX-byte copies + two BP advances; DX + BP = 320). */
 static void boot_scroll_render(uint8_t *page, const uint8_t *bac,
-                               uint32_t bacSize, unsigned scroll, unsigned destOff)
+                               uint32_t bacSize, uint32_t scroll, uint32_t destOff)
 {
-    unsigned ax = scroll % 0x140u;
-    unsigned dx, bp, si, di = destOff;
+    uint32_t ax = scroll % 0x140u;
+    uint32_t dx, bp, si, di = destOff;
     if (di != 0) { dx = 0x140u - di; bp = di; si = 0; }
     else         { dx = 0x140u - ax; bp = ax;      si = ax; }
-    for (unsigned i = 0; i < 0x5cu; i++) {        /* 92 two-row pairs */
-        for (unsigned j = 0; j < dx; j++) {
+    for (uint32_t i = 0; i < 0x5cu; i++) {        /* 92 two-row pairs */
+        for (uint32_t j = 0; j < dx; j++) {
             if (si >= bacSize || di >= PAGE_SIZE) return;
             page[di++] = bac[si++];
         }
         di += bp; si += bp;
-        for (unsigned j = 0; j < dx; j++) {
+        for (uint32_t j = 0; j < dx; j++) {
             if (si >= bacSize || di >= PAGE_SIZE) return;
             page[di++] = bac[si++];
         }
@@ -777,16 +777,16 @@ static void boot_scroll_render(uint8_t *page, const uint8_t *bac,
  * decodes to [u16 width][u16 height][bytes] and transparent-blits at
  * `dest` with the 320-byte row stride (1000:B955's inner blit). */
 static void boot_blit_record(const uint8_t *rsc, uint32_t rscSize,
-                             const uint32_t *entries, unsigned entryCount,
-                             uint8_t *objBuf, unsigned storedIdx, uint16_t dest,
+                             const uint32_t *entries, uint32_t entryCount,
+                             uint8_t *objBuf, uint32_t storedIdx, uint16_t dest,
                              const uint8_t *listObj, uint32_t listObjSize,
                              uint8_t *page)
 {
-    unsigned idx = (storedIdx + 1u) & 0xFFFFu;    /* INC AX: 16-bit wrap */
+    uint32_t idx = (storedIdx + 1u) & 0xFFFFu;    /* INC AX: 16-bit wrap */
     const uint8_t *src;
     uint32_t srcSize;
     uint16_t chk = 0;
-    int sz;
+    int32_t sz;
     if (idx == 0) {                               /* object 0: the list itself */
         src = listObj;
         srcSize = listObjSize;
@@ -798,13 +798,13 @@ static void boot_blit_record(const uint8_t *rsc, uint32_t rscSize,
         src = objBuf;
         srcSize = (uint32_t)sz;
     }
-    unsigned width = rd_le_u16(src);
-    unsigned height = rd_le_u16(src + 2);
+    uint32_t width = rd_le_u16(src);
+    uint32_t height = rd_le_u16(src + 2);
     const uint8_t *body = src + 4;
     uint32_t bodySize = srcSize - 4u;
     uint32_t di = dest;
-    for (unsigned r = 0; r < height; r++) {
-        for (unsigned i = 0; i < width && di + i < PAGE_SIZE; i++) {
+    for (uint32_t r = 0; r < height; r++) {
+        for (uint32_t i = 0; i < width && di + i < PAGE_SIZE; i++) {
             uint32_t so = (uint32_t)r * width + i;
             uint8_t b = so < bodySize ? body[so] : 0u;   /* past the object: 0 */
             if (b) page[di + i] = b;              /* 0 = transparent */
@@ -822,7 +822,7 @@ static void boot_blit_record(const uint8_t *rsc, uint32_t rscSize,
  * The objects themselves still LZW-decode out of the raw RSC's table. */
 static uint32_t boot_blit_group(const uint8_t *listBuf, uint32_t listSize,
                                 const uint8_t *rsc, uint32_t rscSize,
-                                const uint32_t *entries, unsigned entryCount,
+                                const uint32_t *entries, uint32_t entryCount,
                                 uint8_t *objBuf, uint32_t listPos, uint8_t *page)
 {
     uint32_t si = listPos;
@@ -846,10 +846,10 @@ static uint32_t boot_blit_group(const uint8_t *listBuf, uint32_t listSize,
  * against the DECODED size, not the raw RSC file.  Returns the group's
  * offset in the decoded buffer. */
 static uint32_t boot_seek(const uint8_t *listBuf, uint32_t listSize,
-                          uint32_t listStart, unsigned frame)
+                          uint32_t listStart, uint32_t frame)
 {
     uint32_t si = listStart;
-    for (unsigned g = 0; g < frame && si + 2 <= listSize; ) {
+    for (uint32_t g = 0; g < frame && si + 2 <= listSize; ) {
         if (rd_le_u16(listBuf + si) == 0xFFFFu) { si += 2; g++; }
         else si += 4;                              /* a [dest][idx] record */
     }
@@ -862,12 +862,12 @@ static uint32_t boot_seek(const uint8_t *listBuf, uint32_t listSize,
  * or black — written into the visible bar, rows 182-197, once per
  * transition; the per-frame present never touches those rows so the bar
  * persists until the next transition. */
-static void boot_bar_draw(unsigned arg)
+static void boot_bar_draw(uint32_t arg)
 {
-    for (unsigned r = 0; r < 16u; r++) {
+    for (uint32_t r = 0; r < 16u; r++) {
         uint8_t *dst = boot_bar + r * 320u;
         const uint8_t *src = bootWords + arg * 600u + r * 40u;
-        for (unsigned x = 0; x < 320u; x++) {
+        for (uint32_t x = 0; x < 320u; x++) {
             uint8_t b = src[x / 8u];
             dst[x] = ((b >> (7u - (x % 8u))) & 1u) ? (uint8_t)(0xE0u + r) : 0u;
         }
@@ -890,7 +890,7 @@ static void boot_compose_present(uint8_t *page)
     memset(page + 198u * 320u, 0, 2u * 320u);    /* rows 198-199    */
 }
 
-int scene_playBootIntro(void)
+int32_t scene_playBootIntro(void)
 {
     if (boot_phase == BOOT_DONE) { sceneFast = 0; return 0; }   /* 1000:B623 */
 
@@ -926,9 +926,9 @@ int scene_playBootIntro(void)
             boot_phase = BOOT_DONE;
             return 0;
         }
-        for (unsigned i = 0; i < bootEntryCount; i++)
+        for (uint32_t i = 0; i < bootEntryCount; i++)
             bootEntries[i] = rd_le_u32(bootRsc + i * 4u);
-        for (unsigned i = 0; i < bootGtEntryCount; i++)
+        for (uint32_t i = 0; i < bootGtEntryCount; i++)
             bootGtEntries[i] = rd_le_u32(bootGt + i * 4u);
 
         /* the words stash (b7df: 4160 bytes copied to 202F:0x8689 — the
@@ -953,7 +953,7 @@ int scene_playBootIntro(void)
         {
             uint16_t chk = 0;
             uint32_t off0 = rd_le_u32(bootGt);
-            int sz = res_decode_lzw_mem(bootGt, bootGtSize, off0,
+            int32_t sz = res_decode_lzw_mem(bootGt, bootGtSize, off0,
                                         bootGtList, OBJ_SEG_SIZE, &chk);
             if (sz < 0 || chk != 0) {
                 /* b3cc's b446->b2c4: the failed decode unwinds
@@ -975,7 +975,7 @@ int scene_playBootIntro(void)
          * 256 entries at BP=0x19 — would show the 4-19 dark reds/teals
          * instead: the wrong colours.) */
         {
-            unsigned idx = rd_le_u16(bootGtList + 0x302u);
+            uint32_t idx = rd_le_u16(bootGtList + 0x302u);
             boot_gt_show(idx);
         }
         /* b26a: the boot's first fade — the fast branch ([0x627C] is set for
@@ -1000,14 +1000,14 @@ int scene_playBootIntro(void)
          * count+1 frames including the last (obj 29), whose expansion
          * wipes the assembled logo down to a small entry-8 blob; that
          * vanish-and-blob is authentic machine behavior. */
-        unsigned count = rd_le_u16(bootGtList);
+        uint32_t count = rd_le_u16(bootGtList);
         if (bootGtGroup > count) {
             bootHold = 30u;                /* bf19: the 30-tick pre-bank hold */
             boot_phase = BOOT_GT_BANK_HOLD;
             return 1;
         }
         {
-            unsigned idx = rd_le_u16(bootGtList + 0x302u + bootGtGroup * 2u);
+            uint32_t idx = rd_le_u16(bootGtList + 0x302u + bootGtGroup * 2u);
             if (!boot_gt_show(idx)) {
                 /* the game's b446->b2c4: a failed decode (the checksum!)
                  * unwinds play_scene_sequence — the remaining groups are
@@ -1228,7 +1228,7 @@ int scene_playBootIntro(void)
          * the records start at object+2 ([0x6468] init 0x6FEA = 0x6FE8+2) */
         {
             uint16_t chk = 0;
-            int sz = res_decode_lzw_mem(bootRsc, bootRscSize, bootEntries[0],
+            int32_t sz = res_decode_lzw_mem(bootRsc, bootRscSize, bootEntries[0],
                                         bootListBuf, OBJ_SEG_SIZE, &chk);
             if (sz < 0 || chk != 0) { boot_unload(); boot_phase = BOOT_DONE; return 0; }
             bootListSize = (uint32_t)sz;
@@ -1265,9 +1265,9 @@ int scene_playBootIntro(void)
          * the white flash (the 0x48BC ramp at BP=2), then the words redraw
          * and the fade back.  It blocks the frame loop in the original. */
         {
-            unsigned ti = script_transitionIndex(&boot_script);
-            if ((int)ti != boot_bar_arg) {
-                boot_bar_arg = (int)ti;
+            uint32_t ti = script_transitionIndex(&boot_script);
+            if ((int32_t)ti != boot_bar_arg) {
+                boot_bar_arg = (int32_t)ti;
                 /* b840-b852: the white ramp — 0x3F everywhere but entry 0
                  * (bytes 0x48BC-0x48BE are never filled) and the 0xE0-0xEF
                  * bank (zeroed: the captions stay black through the flash) */
@@ -1388,7 +1388,7 @@ int scene_playBootIntro(void)
 
 /* probe hook: the boot state machine's current phase (read-only, for the
  * tests and the diagnostics) */
-unsigned scene_boot_phaseForProbe(void) { return (unsigned)boot_phase; }
+uint32_t scene_boot_phaseForProbe(void) { return (uint32_t)boot_phase; }
 
 /* probe hook: the AL expander, for the offline byte-comparisons against the
  * validated python decoder (tools/ani_lzw.py) */

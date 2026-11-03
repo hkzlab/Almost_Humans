@@ -55,11 +55,11 @@ static const uint8_t res_movieDiscTable[10] = { 2, 0, 1, 1, 2, 0, 1, 2, 2, 2 };
  * never scans the discs — the disk-screen sequence and the level headers
  * ([+0x01] through the table above) pick the number, the loaders build the
  * ONE volume-file name from it. */
-static unsigned res_currentDisc = 0;
+static uint32_t res_currentDisc = 0;
 
-void res_setDisc(unsigned disc) { res_currentDisc = disc; }
+void res_setDisc(uint32_t disc) { res_currentDisc = disc; }
 
-unsigned res_movieDisc(unsigned idx)
+uint32_t res_movieDisc(uint32_t idx)
 {
     if (idx >= sizeof res_movieDiscTable) return 0xFF;
     return res_movieDiscTable[idx];
@@ -70,7 +70,7 @@ typedef struct VolReader {
     uint32_t  pos;
 } VolReader;
 
-static int vol_sixteen(VolReader *r, uint32_t at, uint8_t *dst, unsigned n)
+static int32_t vol_sixteen(VolReader *r, uint32_t at, uint8_t *dst, uint32_t n)
 {
     uint32_t got = fs.read(r->v, at, dst, n);
     if (got != n) return -1;
@@ -97,7 +97,7 @@ typedef struct LzState {
     uint32_t    p;             /* the backward cursor (fills down)       */
     uint32_t    buf;           /* the bit buffer                         */
     uint16_t    chk;           /* the running BP (checksum) accumulator  */
-    unsigned    under;         /* cursor wrapped past 0 (scene-form CMP  */
+    uint32_t    under;         /* cursor wrapped past 0 (scene-form CMP  */
                                /*  DI,-1 -> END: the game discards the   */
                                /*  overshoot bytes and stops)            */
 } LzState;
@@ -108,12 +108,12 @@ static uint16_t vol_word_reader(void *ctx)
     return vol_word((VolReader *)ctx);
 }
 
-static unsigned lz_bit(LzState *s)
+static uint32_t lz_bit(LzState *s)
 {
-    unsigned bit = s->buf & 1u;
+    uint32_t bit = s->buf & 1u;
     s->buf >>= 1;
     if (s->buf == 0) {
-        unsigned w = s->rd(s->rd_ctx);            /* the refill delivers its bit 0 */
+        uint32_t w = s->rd(s->rd_ctx);            /* the refill delivers its bit 0 */
         s->chk ^= (uint16_t)w;                  /* every word read XORs into BP  */
         bit = w & 1u;
         s->buf = (w | 0x10000u) >> 1;
@@ -121,17 +121,17 @@ static unsigned lz_bit(LzState *s)
     return bit;
 }
 
-static unsigned lz_bits(LzState *s, unsigned n)
+static uint32_t lz_bits(LzState *s, uint32_t n)
 {
-    unsigned v = 0;
+    uint32_t v = 0;
     while (n--) v = (v << 1) | lz_bit(s);
     return v;
 }
 
-static void lz_literals(LzState *s, unsigned n)
+static void lz_literals(LzState *s, uint32_t n)
 {
     while (n--) {
-        unsigned byte = lz_bits(s, 8);   /* b4e8: the read happens FIRST */
+        uint32_t byte = lz_bits(s, 8);   /* b4e8: the read happens FIRST */
         if (s->p == 0) { s->under = 1; return; }  /* b4fd: DI == -1 -> END:
                         * the store is skipped but the read's XOR stays in
                         * BP — the aborted decode fails the checksum (the
@@ -140,11 +140,11 @@ static void lz_literals(LzState *s, unsigned n)
     }
 }
 
-static void lz_match(LzState *s, unsigned n, unsigned distbits)
+static void lz_match(LzState *s, uint32_t n, uint32_t distbits)
 {
-    unsigned d = lz_bits(s, distbits);
+    uint32_t d = lz_bits(s, distbits);
     while (n--) {
-        unsigned byte;
+        uint32_t byte;
         if (s->p == 0) { s->under = 1; return; }  /* CMP DI,-1 -> END */
         s->p -= 1;                      /* source is read after the cursor step
                                          * (the reference's `p -= 1;
@@ -171,7 +171,7 @@ static void lz_match(LzState *s, unsigned n, unsigned distbits)
  * decode_bitstream resets BP to the stream's checksum field (the 91c7 XOR
  * is dead — 91c9 MOV BP,AX overwrites it), then XORs the bit-buffer word
  * and every refill word.  Returns the block's final accumulator. */
-static uint16_t lz_block(LzState *s, unsigned clen)
+static uint16_t lz_block(LzState *s, uint32_t clen)
 {
     s->base = s->p;
     s->p += clen;
@@ -183,7 +183,7 @@ static uint16_t lz_block(LzState *s, unsigned clen)
             if (lz_bit(s) == 1) lz_match(s, 2, 8);
             else                lz_literals(s, lz_bits(s, 3) + 1);
         } else {
-            unsigned b = lz_bits(s, 2);
+            uint32_t b = lz_bits(s, 2);
             if (b == 0)      lz_match(s, 3, 9);
             else if (b == 1) lz_match(s, 4, 10);
             else if (b == 2) lz_match(s, lz_bits(s, 8) + 1, 12);
@@ -199,8 +199,8 @@ typedef struct {
     const uint8_t *d;
     uint32_t       pos;
     uint32_t       len;
-    unsigned       over;     /* a read ran past the loaded image            */
-    unsigned       ate_tail; /* the stream was consumed to the image's end  */
+    uint32_t       over;     /* a read ran past the loaded image            */
+    uint32_t       ate_tail; /* the stream was consumed to the image's end  */
 } MemRd;
 
 static uint16_t mem_word_reader(void *ctx)
@@ -217,7 +217,7 @@ static uint16_t mem_word_reader(void *ctx)
  *   [u16 decompressed_size][u16 checksum][u16 bit buffer][LZW bits]
  * Returns the decompressed size written to `out`, or -1 on failure.
  * *chkOut mirrors the machine's final BP accumulator. */
-int res_decode_lzw_mem(const uint8_t *data, uint32_t data_size,
+int32_t res_decode_lzw_mem(const uint8_t *data, uint32_t data_size,
                        uint32_t off, uint8_t *out, uint32_t out_size,
                        uint16_t *chkOut)
 {
@@ -248,7 +248,7 @@ int res_decode_lzw_mem(const uint8_t *data, uint32_t data_size,
         chk = 0xFFFFu;
     }
     if (chkOut) *chkOut = chk;
-    return (int)size;
+    return (int32_t)size;
 }
 
 /* --- the chunk directory and the block loop -------------------------- */
@@ -256,10 +256,10 @@ int res_decode_lzw_mem(const uint8_t *data, uint32_t data_size,
 /* The chunk name is uppercased and SPACE-padded to its 18 bytes in the
  * record (the live DS:0x4799 header: `MUS\LEVJ.ALB      `), so the compare
  * folds case and accepts 0 or ' ' as the pad. */
-static int name_equal(const char *req, const uint8_t *rec /* 18 bytes */)
+static int32_t name_equal(const char *req, const uint8_t *rec /* 18 bytes */)
 {
     const char *a = req;
-    for (unsigned i = 0; i < 18; i++) {
+    for (uint32_t i = 0; i < 18; i++) {
         char cb = (char)rec[i];
         if (*a == 0) return cb == 0 || cb == ' ';
         char ca = *a++;
@@ -280,7 +280,7 @@ static uint8_t *res_decodeChunk(VolReader *r, uint32_t off,
                                 const uint8_t *rec /* 0x40 bytes */,
                                 uint32_t length, uint16_t *chkOut)
 {
-    unsigned block = rd_le_u16(rec + 0x36) ? rd_le_u16(rec + 0x36) : 0x4000;
+    uint32_t block = rd_le_u16(rec + 0x36) ? rd_le_u16(rec + 0x36) : 0x4000;
     uint8_t *out = malloc(length ? length : 1);
     uint16_t acc = 0;
     if (!out) return NULL;
@@ -292,13 +292,13 @@ static uint8_t *res_decodeChunk(VolReader *r, uint32_t off,
         acc ^= flag;                           /* 1000:9193, both paths   */
         if (flag == 0) {                       /* stored raw  919f..91a7  */
             uint32_t take = (uint32_t)block < length - done ? block : length - done;
-            if (vol_sixteen(r, r->pos, out + done, (unsigned)take)) goto fail;
+            if (vol_sixteen(r, r->pos, out + done, (uint32_t)take)) goto fail;
             for (uint32_t i = 0; i < (take & ~1u); i += 2)
                 acc ^= rd_le_u16(out + done + i);
             r->pos += take;
             done += take;
         } else {                               /* LZ block               */
-            unsigned clen = vol_word(r);
+            uint32_t clen = vol_word(r);
             if (clen > length - done) goto fail;
             /* lz_block owns the cursor: p starts at the block's first
              * output byte and it advances p itself. */
@@ -326,9 +326,9 @@ uint8_t *res_loadChunk(const char *name, uint32_t *sizeOut, uint16_t *chkOut)
 
     uint8_t head[2];
     if (vol_sixteen(&r, 0, head, 2)) { fs.closeVolume(v); return NULL; }
-    unsigned count = rd_le_u16(head);
+    uint32_t count = rd_le_u16(head);
 
-    for (unsigned i = 0; i < count && !result; i++) {
+    for (uint32_t i = 0; i < count && !result; i++) {
         uint8_t rec[0x40];
         if (vol_sixteen(&r, 2u + i * 0x40u, rec, sizeof rec)) break;
         if (!name_equal(name, rec)) continue;
@@ -342,12 +342,12 @@ uint8_t *res_loadChunk(const char *name, uint32_t *sizeOut, uint16_t *chkOut)
     return result;
 }
 
-int res_init(const OSystem *osys) { (void)osys; return 0; }
+int32_t res_init(const OSystem *osys) { (void)osys; return 0; }
 
 /* the disc-presence probe: draw_status_indicator's open test (1000:20CF)
  * opens the volume file for the disc and closes it; 0 = the disc is not
  * available (the "PUT THE DISK INTO DRIVE n" screen). */
-int res_volumePresent(unsigned disc)
+int32_t res_volumePresent(uint32_t disc)
 {
     FSVolume *v = fs.openVolume(disc);
     if (!v) return 0;

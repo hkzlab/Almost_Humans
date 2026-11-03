@@ -21,9 +21,9 @@
 #include <stdio.h>
 #include <stddef.h>
 
-int resources_init(const OSystem *osys) {
+int32_t resources_init(const OSystem *osys) {
     menu_init(osys);
-    int res_init_state =
+    int32_t res_init_state =
         res_init(osys) || video_init(osys) || palette_init(osys) ||
         font_init(osys) || statusbar_init(osys) || scene_init(osys) ||
         level_init(osys) || entity_init(osys) || script_init(osys) ||
@@ -56,39 +56,39 @@ static void game_tick(void)
 /* level_run's fresh-load party state (307A) — file scope so the pause's
  * restart can suppress the party (level_restore 35AF re-enters level_start,
  * not the party path). */
-static int partyTried, partyPlaying;
+static int32_t partyTried, partyPlaying;
 /* entry LAB_00CD's level arms: levelReload re-runs the entry block for the
  * next level ([0x22]++); levelSkipped is level_run's need > members arm (the
  * level is not started); endPageUp is draw_level_text's page. */
-static int levelReload, levelSkipped, endPageUp;
+static int32_t levelReload, levelSkipped, endPageUp;
 /* the level entry's disc probe (draw_status_indicator) and the post-level
  * newspaper (cd_file_op at entry 1000:00FF, the level we just finished) */
-static int levelEnterPending, diskChecked, diskUp;
-static int postScene;
-static unsigned postSceneIdx;
+static int32_t levelEnterPending, diskChecked, diskUp;
+static int32_t postScene;
+static uint32_t postSceneIdx;
 /* check_highscore's score screen between the end page and the post-level
  * step; postPending carries the step until the screen exits */
-static int scoreUp, postPending;
+static int32_t scoreUp, postPending;
 /* [0x1809] = 0xFF: the pause/time-up "restart this game" arm (1000:390F /
  * 1000:3510), consumed by entry 1000:00C9 -> 1000:002B after the level's
  * lost-level caption and fades. */
-static int restartGame;
+static int32_t restartGame;
 /* draw_level_text (0x33A3)'s level-end transition: caption -> grey fade ->
  * 0x23 hold -> black fade -> bar park + world redraw.  check_highscore's card
  * (won) or 0x438A's exit (lost) follows. */
 enum { END_CAPTION, END_GREY_FADE, END_HOLD, END_BLACK_FADE };
-static int endPhase = END_CAPTION;
-static unsigned endHold;
+static int32_t endPhase = END_CAPTION;
+static uint32_t endHold;
 static const uint8_t endBlack[768];     /* the 0x48BC ramp: zeroed = black */
 /* the ending machine: 0 idle, 1 the 6/7 scene, 2 the disc probe, 3 the MAP */
-static int endPhase, endDiskUp;
-static unsigned endSceneIndex;
+static int32_t endPhase, endDiskUp;
+static uint32_t endSceneIndex;
 
 /* The level the walk is currently on: the menu selection feeds it
  * (frontend_selectedLevel = the matched codes.bin index, 1-based, minus
  * one — the [0x22] := [0x5F09] hand-off), and a loaded save overrides it
  * with its own +0x00 (entry:004C's POP AX). */
-static unsigned level_current = 0u;
+static uint32_t level_current = 0u;
 
 /* [0x13A4] lives in object.c (`object_actionLatched`): it is the *only*
  * ACTION latch.  poll_input's tail (1000:8598..0x85AE) masks the ACTION bit
@@ -98,27 +98,27 @@ static unsigned level_current = 0u;
  * type-row fire column keep reaching 1000:EE07 while ACTION is held (D-80). */
 
 /* [0x5BBA] != 0: the level's goal page (scroll_map 1000:9E51) is up. */
-static int goalPage;
+static int32_t goalPage;
 /* the page is being displayed (the flow is inside scroll_map's wait) - distinct
  * from goalPage, which the level's entry sets long before the page shows. */
-static int goalShowing;
+static int32_t goalShowing;
 /* scroll_map renders two frames and then polls input only; the port freezes
  * the [0xC] update gate for the page's lifetime (1 = it was ours to restore,
  * so a gate the claim already closed is left alone). */
-static int goalFrozeUpdates;
-int gameflow_goalPageUp(void) { return goalShowing; }
+static int32_t goalFrozeUpdates;
+int32_t gameflow_goalPageUp(void) { return goalShowing; }
 
 /* [0x3954] (F10, the key list's id 9): a debug wait for key-up, key-down,
  * key-up with [0x5B12] suspended.  0 idle, 1 waiting for the release, 2 for
  * the press, 3 for the release. */
-static int keyWaitStage;
-int gameflow_keyWaitActive(void) { return keyWaitStage != 0; }
+static int32_t keyWaitStage;
+int32_t gameflow_keyWaitActive(void) { return keyWaitStage != 0; }
 
 /* one tick of 1000:3954's three wait loops; returns 1 while the wait owns the
  * input. */
-static int keyWaitStep(const InputState *in)
+static int32_t keyWaitStep(const InputState *in)
 {
-    int down = in->lastKey != 0u || in->keyScan != 0u;
+    int32_t down = in->lastKey != 0u || in->keyScan != 0u;
 
     switch (keyWaitStage) {
     case 1: if (!down) keyWaitStage = 2; break;
@@ -134,13 +134,13 @@ static int keyWaitStep(const InputState *in)
 }
 
 /* [0x5E44]: the time-up dialog has been shown for this countdown. */
-static int timeoutShown;
+static int32_t timeoutShown;
 
 /* test seam: the pause/time-up RESTART THIS GAME arm set [0x1809] = 0xFF. */
-int gameflow_restartPending(void) { return restartGame; }
+int32_t gameflow_restartPending(void) { return restartGame; }
 
 /* test seam: the restart left the party screen pending (1000:3073). */
-int gameflow_partyPending(void) { return !partyTried; }
+int32_t gameflow_partyPending(void) { return !partyTried; }
 
 /* level_restore (1000:35AF): [0x11FC] := [0x1970] — the members the level
  * started with — then JMP level_start (1000:3032), which re-picks the time
@@ -164,7 +164,7 @@ static void level_restart(void)
 
 /* The briefing's YOUR SCORE IS value: the low word of [0x592]/[0x594],
  * which score_prepare maintains across levels. */
-unsigned gameflow_partyScore(void) { return score_totalLo(); }
+uint32_t gameflow_partyScore(void) { return score_totalLo(); }
 
 /* The briefing's code line (0x1189): load_level (1000:30BC) copies the level
  * record's author there (1000:312C), and level_intro_screen draws it. */
@@ -179,7 +179,7 @@ const char *gameflow_partyTribe(void)
  * (1000:1FEF) probes volume 0; only a missing volume draws its page.  Every
  * room entry (the attract exit, the pause's restart-game, the time-up
  * dialog) goes through 002B, so the probe runs once before the room loads. */
-static int roomDiscPending, roomDiscUp;
+static int32_t roomDiscPending, roomDiscUp;
 
 static GameFlow roomEnter(void)
 {
@@ -191,7 +191,7 @@ static GameFlow roomEnter(void)
 /* dispatch_by_result_a167 (1000:38EA): the pause menu's five 0-based
  * results.  Returns the flow the action leaves (FLOW_MENU for RESTART THIS
  * GAME) and sets *quit for QUIT THIS GAME. */
-GameFlow gameflow_pauseAction(int choice, int *quit)
+GameFlow gameflow_pauseAction(int32_t choice, int32_t *quit)
 {
     switch (choice) {
     case 0:                                     /* continue            */
@@ -240,19 +240,19 @@ static const uint8_t keyList[][2] = {
 
 /* 1000:386E.  Returns 1 when an entry ran (a non-bit7 entry whose gate [0xC]
  * is closed returns 0 before the dispatch, 1000:38AD). */
-int gameflow_keyList(const InputState *in)
+int32_t gameflow_keyList(const InputState *in)
 {
     if (!in) return 0;
     if (keyWaitStage) return keyWaitStep(in);          /* 1000:3954 */
     if (in->keyScan == 0u) return 0;
-    for (unsigned i = 0; i < sizeof keyList / sizeof keyList[0]; i++) {
-        unsigned id = keyList[i][1];
+    for (uint32_t i = 0; i < sizeof keyList / sizeof keyList[0]; i++) {
+        uint32_t id = keyList[i][1];
 
         if (keyList[i][0] != in->keyScan) continue;
         if (!(id & 0x80u) && !level_updates()) return 0;      /* 1000:38AD */
         switch (id & 0x7Fu) {
         case 1:                                              /* F1..F8     */
-            (void)object_selectByIndex((unsigned)in->keyScan - 0x3Bu);
+            (void)object_selectByIndex((uint32_t)in->keyScan - 0x3Bu);
             return 1;                                        /* 1000:38C3  */
         case 2: (void)object_cycleEntity(-1); return 1;      /* ','        */
         case 3: (void)object_cycleEntity(1); return 1;       /* '.'        */
@@ -273,7 +273,7 @@ int gameflow_keyList(const InputState *in)
 
 /* input_dispatch_loop 34F9's inline time-up dispatch: 0 restart this level
  * (level_restore), 1 restart this game (the room), 2 quit. */
-GameFlow gameflow_timeUpAction(int choice, int *quit)
+GameFlow gameflow_timeUpAction(int32_t choice, int32_t *quit)
 {
     switch (choice) {
     case 0:
@@ -296,7 +296,7 @@ GameFlow gameflow_timeUpAction(int choice, int *quit)
 /* entry 14E6/14FF: the post-level newspaper.  A lost level goes to the
  * ending ([0x138E]==0 at 14E6); a won one plays its header +1 index unless
  * that byte is negative (0xFF = none; cd_file_op's own CMP AL,0x80 path). */
-unsigned gameflow_postLevelScene(int won, unsigned introIndex)
+uint32_t gameflow_postLevelScene(int32_t won, uint32_t introIndex)
 {
     if (!won) return 0xFFFFu;
     if (introIndex & 0x80u) return 0xFFFFu;
@@ -305,12 +305,12 @@ unsigned gameflow_postLevelScene(int won, unsigned introIndex)
 
 /* entry 150C/1512: [0x1e]=7 when the levels run out (COMPLETE); the lost
  * path reaches 1512 with [0x1e]=6 (the restart-game arm set it at 14BE). */
-unsigned gameflow_endingScene(int won) { return won ? 7u : 6u; }
+uint32_t gameflow_endingScene(int32_t won) { return won ? 7u : 6u; }
 
 /* level_run 3060/3062: load_level leaves [0x17FB] (the humans needed) and
  * [0x11FC] (the tribe); need > members takes the briefing's GAME OVER
  * variant and the level is NOT started. */
-int gameflow_tribeTooSmall(unsigned need, unsigned members)
+int32_t gameflow_tribeTooSmall(uint32_t need, uint32_t members)
 {
     return need > members;
 }
@@ -321,7 +321,7 @@ int gameflow_tribeTooSmall(unsigned need, unsigned members)
  * scene), draw_status_indicator, menu_loop (the MAP screen), then the
  * attract.  The ending/MAP arm is game_main's FLOW_ENDING (scene 6/7, the
  * disc-0 probe, map_begin/map_tick).  Known deviations: port_deviations.md. */
-GameFlow gameflow_afterLevel(unsigned *levelCurrent)
+GameFlow gameflow_afterLevel(uint32_t *levelCurrent)
 {
     if (*levelCurrent + 1u < 160u) {
         (*levelCurrent)++;
@@ -332,7 +332,7 @@ GameFlow gameflow_afterLevel(unsigned *levelCurrent)
 
 /* --- the flow state machine ------------------------------------------ */
 
-unsigned gameflow_levelForProbe(void) { return level_current; }
+uint32_t gameflow_levelForProbe(void) { return level_current; }
 
 GameFlow gameflow_step(GameFlow state, const InputState *input)
 {
@@ -380,7 +380,7 @@ GameFlow gameflow_step(GameFlow state, const InputState *input)
          * level_load's time/members.  Slot 0 (GAME OFF) resets the state;
          * the 1..160 bound only rejects a corrupt saved id. */
         if (save_loadSlot(frontend_option(FRONTEND_OPT_GAME))) {
-            unsigned lv = save_level();
+            uint32_t lv = save_level();
             if (lv >= 1u && lv <= 160u) level_current = lv - 1u;
         }
         return FLOW_LEVEL;
@@ -412,7 +412,7 @@ static GameFlow postLevelStep(GameFlow state)
         save_loadSlot(0u);
         return roomEnter();
     }
-    unsigned cut = lv ? gameflow_postLevelScene(level_outcome(),
+    uint32_t cut = lv ? gameflow_postLevelScene(level_outcome(),
                                                 lv->introIndex) : 0xFFFFu;
     if (cut != 0xFFFFu) {
         postSceneIdx = cut;
@@ -435,7 +435,7 @@ static GameFlow postLevelStep(GameFlow state)
     return state;
 }
 
-int game_main(const OSystem *osys)
+int32_t game_main(const OSystem *osys)
 {
     // Initialize the video mode
     osys->videoSetMode(VIDEO_MODE_13H);   /* bios_set_mode_13h (1000:88fb) */
@@ -446,8 +446,8 @@ int game_main(const OSystem *osys)
     osys->timerStart(GAME_TICK_HZ, game_tick);
 
     GameFlow state = FLOW_ATTRACT, prev = FLOW_ATTRACT;
-    unsigned last_tick = 0;
-    int quitRequested = 0;
+    uint32_t last_tick = 0;
+    int32_t quitRequested = 0;
     for (;;) {
         /* the tick gate: one flow step per tick boundary, exactly like the
          * original's foreground spinning on the ISR counter [0x5AC8].  The
@@ -455,7 +455,7 @@ int game_main(const OSystem *osys)
         osys->tickSync(&last_tick);
 
         InputState input;
-        int rawFire;
+        int32_t rawFire;
 
         osys->eventsPoll(&input);
         rawFire = (input.joyBits & 0x80u) != 0;
@@ -485,7 +485,7 @@ int game_main(const OSystem *osys)
              * probe, then level_run's header/map load and the party's
              * fresh-load screen (307A).  The .ANI newspaper is NOT here: it
              * is cd_file_op at entry 00FF, after the level. */
-            int entered = 0;
+            int32_t entered = 0;
             if (prev != FLOW_LEVEL || levelReload) {
                 levelReload = 0;
                 levelEnterPending = 1;
@@ -721,7 +721,7 @@ int game_main(const OSystem *osys)
                  * runs the ACTION program.  [0x42F0] is never set in the image,
                  * so the 0xE3F9 ACTION edge is dead and the same frame's
                  * command dispatch still sees the fire half of the row. */
-                int pressed = rawFire && !object_actionLatched();
+                int32_t pressed = rawFire && !object_actionLatched();
 
                 /* the original's order (1000:34B5 -> 0x34BD): update_world
                  * runs first - the record command dispatch inside it sees the
@@ -754,7 +754,7 @@ int game_main(const OSystem *osys)
                     (void)gameflow_keyList(&input);
                 if (menu_active()) {
                     if (!menu_tick(&input)) {
-                        int wasTimeUp = menu_timeUp();
+                        int32_t wasTimeUp = menu_timeUp();
                         state = wasTimeUp
                               ? gameflow_timeUpAction(menu_result(),
                                                       &quitRequested)

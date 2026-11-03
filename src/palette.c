@@ -15,18 +15,18 @@ static uint8_t working[768];   /* 202F:0x4BBC — the working palette       */
 static uint8_t dac[768];       /* the DAC's 6-bit shadow (8bac's IN 3C9h) */
 
 /* the fade state: 202F:0x48B0/48B2/48B6/48B8 + the 0x4EBC ramp          */
-static unsigned       fadeFirst;   /* [0x48B8]: the DAC's first entry    */
-static unsigned       fadeComps;   /* [0x48B0]: components (entries * 3) */
-static const uint8_t *fadeTarget;  /* [0x48B6]: the target palette bytes */
-static int            fadeActive;  /* [0x48B4]                           */
-static uint16_t       ramp[768][2];/* [0x4EBC]: {cur<<8, delta<<8}       */
+static uint32_t       fadeFirst;    /* [0x48B8]: the DAC's first entry    */
+static uint32_t       fadeComps;    /* [0x48B0]: components (entries * 3) */
+static const uint8_t *fadeTarget;   /* [0x48B6]: the target palette bytes */
+static int32_t        fadeActive;   /* [0x48B4]                           */
+static uint16_t       ramp[768][2]; /* [0x4EBC]: {cur<<8, delta<<8}       */
 
-int palette_init(const OSystem *osys) { pal_osys = osys; return 0; }
+int32_t palette_init(const OSystem *osys) { pal_osys = osys; return 0; }
 
 /* palette_load_6bit (1000:8d24): the working palette := 768 6-bit bytes. */
 void palette_loadWorking(const uint8_t *p6)
 {
-    for (unsigned i = 0; i < 768u; i++) working[i] = p6[i] & 0x3Fu;
+    for (uint32_t i = 0; i < 768u; i++) working[i] = p6[i] & 0x3Fu;
 }
 
 const uint8_t *palette_working(void) { return working; }
@@ -38,12 +38,12 @@ const uint8_t *palette_working(void) { return working; }
  * components become it.  draw_level_text (0x33E2) seals the level palette's
  * first 0x80 entries; the attract's decode_page_in_place (0x15F5) uses the
  * same value per page byte. */
-void palette_sealTriples(uint8_t *p6, unsigned first, unsigned entries)
+void palette_sealTriples(uint8_t *p6, uint32_t first, uint32_t entries)
 {
-    for (unsigned i = 0; i < entries; i++) {
-        unsigned at = (first + i) * 3u;
-        unsigned r = p6[at], g = p6[at + 1u], b = p6[at + 2u];
-        unsigned v = (77u * r + 151u * g + 28u * b) >> 9;
+    for (uint32_t i = 0; i < entries; i++) {
+        uint32_t at = (first + i) * 3u;
+        uint32_t r = p6[at], g = p6[at + 1u], b = p6[at + 2u];
+        uint32_t v = (77u * r + 151u * g + 28u * b) >> 9;
 
         p6[at] = p6[at + 1u] = p6[at + 2u] = (uint8_t)v;
     }
@@ -51,32 +51,32 @@ void palette_sealTriples(uint8_t *p6, unsigned first, unsigned entries)
 
 /* set_palette_dac (1000:8CEE) route: an immediate DAC write that keeps the
  * shadow honest for the next fade's current-colour read. */
-void palette_setDac(const uint8_t *p6, unsigned first, unsigned n)
+void palette_setDac(const uint8_t *p6, uint32_t first, uint32_t n)
 {
-    for (unsigned i = 0; i < n * 3u; i++) dac[first * 3u + i] = p6[i] & 0x3Fu;
+    for (uint32_t i = 0; i < n * 3u; i++) dac[first * 3u + i] = p6[i] & 0x3Fu;
     pal_osys->videoSetPalette(p6, first, n);
 }
 
 /* palette_build_fade (1000:8bac): fade DAC entries first..first+entries-1
  * toward `target` (the 6-bit palette whose triple for entry `first` is
  * target[0]) in ~div ticks. */
-void palette_buildFade(unsigned first, unsigned entries, unsigned div,
+void palette_buildFade(uint32_t first, uint32_t entries, uint32_t div,
                        const uint8_t *target)
 {
     fadeFirst = first;
     fadeComps = entries * 3u;
     fadeTarget = target;
-    for (unsigned c = 0; c < fadeComps; c++) {
-        unsigned cur = dac[first * 3u + c];
-        unsigned tgt = target[c];
+    for (uint32_t c = 0; c < fadeComps; c++) {
+        uint32_t cur = dac[first * 3u + c];
+        uint32_t tgt = target[c];
         ramp[c][0] = (uint16_t)(cur << 8);
-        ramp[c][1] = (uint16_t)((((int)tgt - (int)cur) * 256) / (int)div);
+        ramp[c][1] = (uint16_t)((((int32_t)tgt - (int32_t)cur) * 256) / (int32_t)div);
     }
     fadeActive = 1;
 }
 
 /* palette_fade_active (1000:8b9a) */
-int palette_fadeActive(void) { return fadeActive; }
+int32_t palette_fadeActive(void) { return fadeActive; }
 
 /* the DAC shadow, read-only: the fade-ladder harness compares the port's
  * per-tick DAC progression against the original's live IN 3C9h reads
@@ -84,16 +84,16 @@ int palette_fadeActive(void) { return fadeActive; }
  * No engine logic lives here. */
 const uint8_t *palette_dacShadow(void) { return dac; }
 const uint8_t *palette_fadeTarget(void) { return fadeTarget; }
-unsigned palette_fadeFirst(void) { return fadeFirst; }
-unsigned palette_fadeComps(void) { return fadeComps; }
+uint32_t palette_fadeFirst(void) { return fadeFirst; }
+uint32_t palette_fadeComps(void) { return fadeComps; }
 
 /* palette_fade_step (1000:8bfd): one step per tick (the ISR body's palette
  * work, game_main's game_tick). */
 void palette_tick(void)
 {
     if (!fadeActive) return;
-    unsigned done = 0;
-    for (unsigned c = 0; c < fadeComps; c++) {
+    uint32_t done = 0;
+    for (uint32_t c = 0; c < fadeComps; c++) {
         uint16_t cur = ramp[c][0];
         uint8_t  t   = fadeTarget[c];
         uint8_t  v   = (uint8_t)(cur >> 8);
@@ -104,12 +104,12 @@ void palette_tick(void)
             if (ramp[c][1] & 0x8000u) {           /* negative delta        */
                 if (v < t) {
                     v = t;
-                    ramp[c][0] = (uint16_t)(((unsigned)t << 8) | (cur & 0xffu));
+                    ramp[c][0] = (uint16_t)(((uint32_t)t << 8) | (cur & 0xffu));
                 }
             } else {
                 if (v > t) {
                     v = t;
-                    ramp[c][0] = (uint16_t)(((unsigned)t << 8) | (cur & 0xffu));
+                    ramp[c][0] = (uint16_t)(((uint32_t)t << 8) | (cur & 0xffu));
                 }
             }
         } else {

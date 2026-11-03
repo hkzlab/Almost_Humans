@@ -88,8 +88,8 @@
 /* --- the planar space (A000, unchained, byte mode) -------------------- */
 
 static uint8_t vram[65536][4];   /* [address][plane]: 1 byte = 4 pixels   */
-static unsigned pageDraw, pageDisp;   /* [0x5AC4]/[0x5AC6] — page bases   */
-static unsigned scroll;               /* [0x0]: the front-end scroll      */
+static uint32_t pageDraw, pageDisp;   /* [0x5AC4]/[0x5AC6] — page bases   */
+static uint32_t scroll;               /* [0x0]: the front-end scroll      */
 
 /* --- the shipped tables, verbatim -------------------------------------- */
 
@@ -154,12 +154,12 @@ static uint16_t charX, charY;    /* [0x4224]/[0x4226]: the world x/y     */
 static uint16_t frame, frameCnt; /* [0x4228]/[0x422A]                    */
 static uint16_t pubX, pubY;      /* [0x5F05]/[0x5F07]: the walk origin   */
 static char     nameBuf[15];     /* 0x61E0: 14 chars + the 0x61EE NUL   */
-static unsigned codeIndex;       /* [0x5F09]: the matched code's index   */
+static uint32_t codeIndex;       /* [0x5F09]: the matched code's index   */
 static uint8_t  optCounter[4];   /* the structs' +7 byte (0x5E5B..0x5E79)
                                   * = FRONTEND_OPT_*; persists for the run */
-static int      fireLatch;        /* the action key's held-spin           */
+static int32_t  fireLatch;        /* the action key's held-spin           */
 static uint16_t slotCnt;         /* [0x619F]: the anim countdown (5)     */
-static unsigned slot;            /* [0x61A1]: the anim slot (parked 0x12)*/
+static uint32_t slot;            /* [0x61A1]: the anim slot (parked 0x12)*/
 static uint8_t  nameScreen;      /* [0x6267]: the name-screen flag       */
 
 static uint8_t *code2, *codehum, *codes;
@@ -168,12 +168,12 @@ static uint32_t code2Size, codehumSize, codesSize;
 static uint32_t codeb1Size, codeb2Size, restoreSize;
 static uint8_t  arena[16000];    /* the font arena (the [0x1E20] analog) */
 static const uint8_t ramp0[768]; /* the 0x48BC ramp: zeroed = black     */
-static unsigned splitRow = 200;  /* [0x5B0A]: the CRTC split (0x88 on the
+static uint32_t splitRow = 200;  /* [0x5B0A]: the CRTC split (0x88 on the
                                    * name screen — the fixed band below) */
 
-int frontend_init(const OSystem *osys) { (void)osys; return 0; }
+int32_t frontend_init(const OSystem *osys) { (void)osys; return 0; }
 
-unsigned frontend_selectedLevel(void) { return codeIndex; }
+uint32_t frontend_selectedLevel(void) { return codeIndex; }
 
 /* entry's JMP LAB_002B: the room's setup runs again from the top (the
  * counters persist — frontend_room_setup seeds none of them).  The next
@@ -185,22 +185,22 @@ void frontend_restart(void) { phase = FE_LOAD; fireLatch = 0; }
  * the frame web's gate), scene.c (ANIMATIONS: cd_file_op's early RET).  The
  * RESTORE GAME slot is carried out here and consumed by entry 1000:004C's
  * save load, which the port's save.c does not have yet (M6). */
-unsigned frontend_option(unsigned idx)
+uint32_t frontend_option(uint32_t idx)
 {
     return idx < 4u ? optCounter[idx] : 0u;
 }
 
 /* [0x4220] — the rail node, exposed for the option read-side test's walk
  * legs (the same role as attract_phaseForProbe). */
-unsigned frontend_cellForProbe(void) { return cell; }
+uint32_t frontend_cellForProbe(void) { return cell; }
 
 /* the name screen's phase and typed buffer, for the input-law tests */
-int frontend_nameScreenForProbe(void) { return phase == FE_NAME; }
+int32_t frontend_nameScreenForProbe(void) { return phase == FE_NAME; }
 const char *frontend_nameForProbe(void) { return nameBuf; }
 
 /* --- the VRAM primitives ---------------------------------------------- */
 
-static void put_pixel(unsigned rowBase, unsigned px, uint8_t v)
+static void put_pixel(uint32_t rowBase, uint32_t px, uint8_t v)
 {
     vram[(rowBase + (px >> 2)) & 0xFFFFu][px & 3u] = v;
 }
@@ -212,11 +212,11 @@ static void put_pixel(unsigned rowBase, unsigned px, uint8_t v)
  * loop does; only the bytes past the chunk (the original's uninitialised
  * pool) are written as zeros.  The room's 320x192 field never shows them. */
 static void planarise_rows(const uint8_t *src, uint32_t size,
-                           unsigned base, unsigned rows)
+                           uint32_t base, uint32_t rows)
 {
-    for (unsigned r = 0; r < rows; r++)
-        for (unsigned c = 0; c < 160u; c++) {
-            unsigned a = (base + r * 160u + c) & 0xFFFFu;
+    for (uint32_t r = 0; r < rows; r++)
+        for (uint32_t c = 0; c < 160u; c++) {
+            uint32_t a = (base + r * 160u + c) & 0xFFFFu;
             uint32_t off = (uint32_t)r * 640u + (uint32_t)c * 4u;
             if (off + 3u < size) {
                 vram[a][0] = src[off];
@@ -238,27 +238,27 @@ static void planarise_rows(const uint8_t *src, uint32_t size,
  * name screen's human stage both live there), unpanned.  The room is
  * double-buffered (present_page 1000:8809 swaps after showing); the name
  * screen's cursor+present double-swap cancels, so it passes 0. */
-static void compose(int swapPages)
+static void compose(int32_t swapPages)
 {
     uint8_t *page = video_page(0);
     if (page) {
-        for (unsigned y = 0; y < 200u; y++) {
+        for (uint32_t y = 0; y < 200u; y++) {
             uint8_t *d = page + y * 320u;
             if (y < splitRow) {
-                unsigned rowBase = pageDraw + y * 160u;
-                for (unsigned x = 0; x < 320u; x++) {
-                    unsigned w = scroll + x;   /* the world pixel */
+                uint32_t rowBase = pageDraw + y * 160u;
+                for (uint32_t x = 0; x < 320u; x++) {
+                    uint32_t w = scroll + x;   /* the world pixel */
                     d[x] = vram[(rowBase + (w >> 2)) & 0xFFFFu][w & 3u];
                 }
             } else {                     /* the fixed band: from vram 0 */
-                unsigned rowBase = (y - splitRow) * 160u;
-                for (unsigned x = 0; x < 320u; x++)
+                uint32_t rowBase = (y - splitRow) * 160u;
+                for (uint32_t x = 0; x < 320u; x++)
                     d[x] = vram[(rowBase + (x >> 2)) & 0xFFFFu][x & 3u];
             }
         }
     }
     if (swapPages) {
-        unsigned t = pageDraw; pageDraw = pageDisp; pageDisp = t;
+        uint32_t t = pageDraw; pageDraw = pageDisp; pageDisp = t;
     }
 }
 
@@ -287,12 +287,12 @@ static void draw_option_sprites(void)
     };
     const uint8_t *file[4] = {codeb1, codeb2, restore, codeb1};
     const uint32_t size[4] = {codeb1Size, codeb2Size, restoreSize, codeb1Size};
-    for (unsigned i = 0; i < 4u; i++) {
+    for (uint32_t i = 0; i < 4u; i++) {
         const uint8_t *src = file[i];
         if (!src) continue;
-        unsigned w = e[i].w, h = e[i].h;
-        unsigned cell = optCounter[e[i].cellIdx];
-        unsigned off = e[i].srcOff + cell * w * h;
+        uint32_t w = e[i].w, h = e[i].h;
+        uint32_t cell = optCounter[e[i].cellIdx];
+        uint32_t off = e[i].srcOff + cell * w * h;
         if (off + w * h > size[i]) continue;
         /* the stager's inner pass (A6CB..A6F5) FIRST patches the badge
          * into the LOADED code2.raw image itself — ES := [0x625D] +
@@ -303,19 +303,19 @@ static void draw_option_sprites(void)
          * transparent masks are uniform within each badge's cell group,
          * so cycling overwrites cleanly. */
         if (code2 && (uint32_t)e[i].dest * 4u < code2Size &&
-            (unsigned)e[i].dest * 4u + (h - 1u) * 640u + w < code2Size) {
-            unsigned pOff = (unsigned)e[i].dest * 4u;
-            for (unsigned r = 0; r < h; r++)
-                for (unsigned c = 0; c < w; c++) {
+            (uint32_t)e[i].dest * 4u + (h - 1u) * 640u + w < code2Size) {
+            uint32_t pOff = (uint32_t)e[i].dest * 4u;
+            for (uint32_t r = 0; r < h; r++)
+                for (uint32_t c = 0; c < w; c++) {
                     uint8_t v = src[off + r * w + c];
                     if (v) code2[pOff + r * 640u + c] = v;
                 }
         }
-        unsigned destRow = e[i].dest / 160u, destCol = e[i].dest % 160u;
+        uint32_t destRow = e[i].dest / 160u, destCol = e[i].dest % 160u;
         if (destCol * 4u + w > 640u) continue;
-        for (unsigned r = 0; r < h; r++) {
-            unsigned base = pageDraw + (destRow + r) * 160u;
-            for (unsigned c = 0; c < w; c++) {
+        for (uint32_t r = 0; r < h; r++) {
+            uint32_t base = pageDraw + (destRow + r) * 160u;
+            for (uint32_t c = 0; c < w; c++) {
                 uint8_t v = src[off + r * w + c];
                 if (v) put_pixel(base, destCol * 4u + c, v);
             }
@@ -335,11 +335,11 @@ static void draw_option_sprites(void)
 static void draw_humans(void)
 {
     if (!code2 || code2Size < 0x17C00u + 20u * 640u) return;
-    static const unsigned bankBase[2] = {0x15400u, 0x17C00u};
-    static const unsigned destRow[2] = {0u, 16u};
-    for (unsigned h = 0; h < 2u; h++) {
-        unsigned nibble = slotTab[(slot + 1u + h) % 61u] & 0x0Fu;
-        unsigned cx = 0x9Eu - nibble;             /* 0x9E - nibble */
+    static const uint32_t bankBase[2] = {0x15400u, 0x17C00u};
+    static const uint32_t destRow[2] = {0u, 16u};
+    for (uint32_t h = 0; h < 2u; h++) {
+        uint32_t nibble = slotTab[(slot + 1u + h) % 61u] & 0x0Fu;
+        uint32_t cx = 0x9Eu - nibble;             /* 0x9E - nibble */
         /* ADB6's flag pick: [0x6267] set -> DI used directly (the fixed
          * band's rows 0..19/16..35); clear -> DI += 0x5500 (page row 136)
          * + [0x5AC4] — the room screen: page rows 136..155/152..171 at the
@@ -348,25 +348,25 @@ static void draw_humans(void)
          * exactly this middle pair that turns the screen's hanging human
          * into the FOUR-human stack holding the board while the 320-px
          * window slides across the 640-px room during the pan. */
-        for (unsigned r = 0; r < 20u; r++) {
-            unsigned srcRow = bankBase[h] + r * 640u;
-            unsigned base = nameScreen
+        for (uint32_t r = 0; r < 20u; r++) {
+            uint32_t srcRow = bankBase[h] + r * 640u;
+            uint32_t base = nameScreen
                 ? (destRow[h] + r) * 160u
                 : pageDraw + (136u + destRow[h] + r) * 160u;
-            for (unsigned c = 0; c < 20u; c++) {
+            for (uint32_t c = 0; c < 20u; c++) {
                 uint8_t v = code2[srcRow + cx + c];
                 if (v) put_pixel(base, cx + c, v);
             }
         }
         if (codehum && codehumSize >= 16u * 16u) {
-            for (unsigned r = 0; r < 16u; r++) {
+            for (uint32_t r = 0; r < 16u; r++) {
                 /* the overlay's scratch offset CS:[0xaeab] is 0 for the
                  * anim draws (ada2's room draw leaves it 0) — the sprite
                  * lands at box rows 0..15, cols 2..17 (0x5F65 = base+2) */
-                unsigned base = nameScreen
+                uint32_t base = nameScreen
                     ? (destRow[h] + r) * 160u
                     : pageDraw + (136u + destRow[h] + r) * 160u;
-                for (unsigned c = 0; c < 16u; c++) {
+                for (uint32_t c = 0; c < 16u; c++) {
                     uint8_t v = codehum[r * 16u + c];
                     if (v) put_pixel(base, cx + 2u + c, v);
                 }
@@ -397,11 +397,11 @@ static void draw_name_line(void)
      * writes 40 bytes (DI +40) then skips 0x78 (120): 40+0x78 = 0xA0. */
     memset(arena, 0, 1600u);
     font_drawText(arena, nameBuf, 0x98u, 0);
-    for (unsigned r = 0; r < 10u; r++)
-        for (unsigned c = 0; c < 40u; c++) {
+    for (uint32_t r = 0; r < 10u; r++)
+        for (uint32_t c = 0; c < 40u; c++) {
             uint8_t v = arena[0x152u + r * 80u + c];
-            unsigned addr = (pageDraw + 0x38F5u + r * 0xA0u + c) & 0xFFFFu;
-            for (unsigned p = 0; p < 4u; p++)
+            uint32_t addr = (pageDraw + 0x38F5u + r * 0xA0u + c) & 0xFFFFu;
+            for (uint32_t p = 0; p < 4u; p++)
                 vram[addr][p] = (uint8_t)((vram[addr][p] & 0x7F)
                                           | ((v >> p) & 1u) << 7);
         }
@@ -422,8 +422,8 @@ static void name_reset(void)
  * 0x61EE; nameBuf[14] is that zero.) */
 static void name_addchar(uint8_t c)
 {
-    unsigned i = 0;
-    int bx = 13;
+    uint32_t i = 0;
+    int32_t bx = 13;
 
     while (nameBuf[i]) {
         bx--;
@@ -437,7 +437,7 @@ static void name_addchar(uint8_t c)
 /* menu_action_backspace (1000:AB00): erase the last char. */
 static void name_erase(void)
 {
-    int i = 13;
+    int32_t i = 13;
     while (i > 0 && nameBuf[i] == 0) i--;
     nameBuf[i] = 0;
     draw_name_line();
@@ -447,7 +447,7 @@ static void name_erase(void)
  * name; a full match returns nonzero with codeIndex = the 1-based index
  * (string i = level i); exhausted -> reset DARWIN, codeIndex = 161 (the
  * original's own edge: [0x5F09] counts past every miss). */
-static int code_match(void)
+static int32_t code_match(void)
 {
     codeIndex = 1;
     if (!codes || codesSize < 2u) {
@@ -455,7 +455,7 @@ static int code_match(void)
     }
     const char *p = (const char *)codes;
     const char *end = (const char *)codes + codesSize;
-    unsigned remaining = 160u;   /* [0x6193] = 0xA0 */
+    uint32_t remaining = 160u;   /* [0x6193] = 0xA0 */
     while (remaining-- && p < end) {
         const char *c = p, *n = nameBuf;
         while (*n && *c == *n) { c++; n++; }
@@ -493,16 +493,16 @@ static void draw_character(void)
     if (dframe < 2u || dframe > 22u) return;
     uint16_t dx = (rx < 0x108u) ? 0x108u : rx;
     const uint8_t *spr = codehum + (size_t)(dframe - 2u) * 384u;
-    for (unsigned r = 0; r < 27u; r++) {
-        unsigned srcRow = (unsigned)(ry - 1u) + r;
+    for (uint32_t r = 0; r < 27u; r++) {
+        uint32_t srcRow = (uint32_t)(ry - 1u) + r;
         /* AD78..AD7F: on the name screen ([0x6267]) the blit dest skips the
          * [0x5AC4] page add entirely (screen show holds [0x5AC4]=0 across
          * the call) and is forced to ABSOLUTE 0x820 — page rows 13..39 of
          * the fixed band, i.e. screen rows 149..175 at the char's own x:
          * the human standing on the small hill at the bottom right. */
-        unsigned base = nameScreen ? 0x820u + r * 160u
+        uint32_t base = nameScreen ? 0x820u + r * 160u
                                    : pageDraw + srcRow * 160u;
-        for (unsigned c = 0; c < 20u; c++) {
+        for (uint32_t c = 0; c < 20u; c++) {
             uint8_t v = (srcRow < 192u)
                        ? code2[srcRow * 640u + dx + c] : 0u;
             if (r >= 1u && r < 25u && c >= 2u && c < 18u) {
@@ -519,7 +519,7 @@ static void draw_character(void)
 /* set_scroll_x (1000:AA05): y >= 0x64 -> min(x-0x92, 0x140), else 0x140. */
 static void set_scroll(void)
 {
-    unsigned s = 0x140u;
+    uint32_t s = 0x140u;
     if (charY >= 0x64u) {
         s = (uint16_t)(charX - 0x92u);
         if (s >= 0x140u) s = 0x140u;
@@ -530,10 +530,10 @@ static void set_scroll(void)
 /* walk_step_horizontal (1000:A8D3) / _vertical (1000:A963), entered via
  * the presets at 0x5EBD: step = -1 left/up, +1 right/down; the frame
  * cycle and the rail-arrival tests verbatim. */
-static void walk_step(unsigned dir)
+static void walk_step(uint32_t dir)
 {
     int16_t  step = (dir == 1u || dir == 3u) ? 1 : -1;
-    unsigned high = dirCycleHigh[dir];
+    uint32_t high = dirCycleHigh[dir];
     uint16_t rail = rails[cell][dir];
     uint16_t target = rail & 0x0FFFu;
 
@@ -557,7 +557,7 @@ static void walk_step(unsigned dir)
         frameCnt--;
         if (frameCnt & 0x8000u) {
             frameCnt = 3;
-            int flip = (frame == 0x13u);
+            int32_t flip = (frame == 0x13u);
             if (!flip) {
                 frame = (uint16_t)(frame + step);
                 flip = (frame == high);
@@ -580,7 +580,7 @@ static void walk_step(unsigned dir)
 
 static void room_walk(const InputState *in)
 {
-    unsigned dir = 4;
+    uint32_t dir = 4;
     if      (in->joyBits & 0x04u) dir = 0;   /* left  — the cascade's order */
     else if (in->joyBits & 0x08u) dir = 1;   /* right                        */
     else if (in->joyBits & 0x01u) dir = 2;   /* up                           */
@@ -614,7 +614,7 @@ static void room_walk(const InputState *in)
  * original spins on the held key). */
 static void cycle_option(void)
 {
-    unsigned idx = cellOpts[cell][0], cnt = cellOpts[cell][1];
+    uint32_t idx = cellOpts[cell][0], cnt = cellOpts[cell][1];
     if (idx < 4u && cnt) {
         optCounter[idx] = (uint8_t)(optCounter[idx] + 1u);
         if (optCounter[idx] == cnt) optCounter[idx] = 0;
@@ -639,7 +639,7 @@ static void anim_frame(void)
         /* acc5..acd2: the +3 step runs only while [0x6267] is set; on the
          * room path the slot stays parked (the board-stack holds).  Either
          * way the 0 terminator wraps to slot 0. */
-        unsigned s = slot;
+        uint32_t s = slot;
         if (nameScreen) s += 3u;
         if (s >= 61u || slotTab[s] == 0u) s = 0u;   /* the terminator */
         slot = s;
@@ -733,7 +733,7 @@ static void do_load(void)
          * while the compose alternates (drawing one page only made the
          * character flicker through the fade).  The original then waits
          * on the fade with no further draws. */
-        for (unsigned f = 0; f < 2u; f++) {
+        for (uint32_t f = 0; f < 2u; f++) {
             draw_option_sprites();
             draw_character();
             draw_name_line();
@@ -746,7 +746,7 @@ static void do_load(void)
     }
 }
 
-int frontend_tick(const InputState *in)
+int32_t frontend_tick(const InputState *in)
 {
     switch (phase) {
     case FE_IDLE:

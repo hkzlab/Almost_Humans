@@ -14,17 +14,17 @@
 static SDL_Window   *win;
 static SDL_Renderer *ren;
 static SDL_Texture  *tex;
-static int           texRows = 200;      /* the texture's height = the field */
+static int32_t       texRows = 200;      /* the texture's height = the field */
 static uint8_t       pages[2][320 * 200];
 static uint32_t      lut[256];          /* the palette LUT, 6-bit expanded */
-static int           presentProbe;      /* HUMANSRE_RATE_PROBE: report the
+static int32_t       presentProbe;      /* HUMANSRE_RATE_PROBE: report the
                                          * loop/present rate every 5 s    */
 static VideoMode     vidMode = (VideoMode)-1;   /* the core's last mode set */
 
 /* The field each mode scans out (osystem.h's VideoMode): mode 13h is the
  * full 320x200 page, mode X shows only the top 192 rows — the rest of a
  * mode-X page is stale (the level's status bar ends on row 191). */
-static int modeRows(void) { return vidMode == VIDEO_MODE_X ? 192 : 200; }
+static int32_t modeRows(void) { return vidMode == VIDEO_MODE_X ? 192 : 200; }
 
 /* 6-bit -> 8-bit: the original's values are the DAC's; the expand is << 2 | >> 4 */
 static uint8_t expand6(uint8_t v) { return (uint8_t)((v << 2) | (v >> 4)); }
@@ -32,7 +32,7 @@ static uint8_t expand6(uint8_t v) { return (uint8_t)((v << 2) | (v >> 4)); }
 /* The texture is exactly the field's height: a taller texture with a
  * sub-rect would let the linear filter sample the hidden rows (visible as
  * a one-row bleed of stale pixels at the bottom edge in mode X). */
-static void vid_makeTexture(int rows)
+static void vid_makeTexture(int32_t rows)
 {
     if (tex) SDL_DestroyTexture(tex);
     tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888,
@@ -51,7 +51,7 @@ static void vid_initVideo(void)
      * blocks on the display either — the CRTC flip is latched at vsync by
      * the ISR — so a 60 Hz host display must not drag the 70 Hz flow. */
     vid_makeTexture(200);
-    for (unsigned i = 0; i < 256u; i++) lut[i] = 0xFF000000u;   /* opaque black */
+    for (uint32_t i = 0; i < 256u; i++) lut[i] = 0xFF000000u;   /* opaque black */
     presentProbe = getenv("HUMANSRE_RATE_PROBE") != NULL;
 }
 
@@ -70,14 +70,14 @@ void sdl3_videoSetMode(VideoMode mode)
             320, modeRows());
 }
 
-static uint8_t *vid_page(int which) { return pages[which & 1]; }
+static uint8_t *vid_page(int32_t which) { return pages[which & 1]; }
 
-static void vid_present(int which)
+static void vid_present(int32_t which)
 {
     const uint8_t *p = pages[which & 1];
     static uint32_t argb[320 * 200];
-    const int rows = modeRows();
-    for (int i = 0; i < 320 * rows; i++) argb[i] = lut[p[i]];
+    const int32_t rows = modeRows();
+    for (int32_t i = 0; i < 320 * rows; i++) argb[i] = lut[p[i]];
     SDL_UpdateTexture(tex, NULL, argb, 320 * 4);
     SDL_SetRenderDrawColor(ren, 0, 0, 0, 255);
     SDL_RenderClear(ren);
@@ -85,7 +85,7 @@ static void vid_present(int which)
     SDL_RenderTexture(ren, tex, NULL, &dst);
     SDL_RenderPresent(ren);
     if (presentProbe) {
-        static unsigned frames;
+        static uint32_t frames;
         static Uint64 windowStart;
         frames++;
         Uint64 now = SDL_GetPerformanceCounter();
@@ -101,13 +101,13 @@ static void vid_present(int which)
     }
 }
 
-void sdl3_videoSetPalette(const uint8_t *p6, unsigned first, unsigned n)
+void sdl3_videoSetPalette(const uint8_t *p6, uint32_t first, uint32_t n)
 {
-    for (unsigned i = 0; i < n; i++) {
+    for (uint32_t i = 0; i < n; i++) {
         uint8_t r = expand6(p6[i*3]), g = expand6(p6[i*3+1]), b = expand6(p6[i*3+2]);
         lut[first + i] = 0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
     }
 }
 
-uint8_t *sdl3_videoPage(int which) { return vid_page(which); }
-void sdl3_videoPresent(int which) { vid_present(which); }
+uint8_t *sdl3_videoPage(int32_t which) { return vid_page(which); }
+void sdl3_videoPresent(int32_t which) { vid_present(which); }

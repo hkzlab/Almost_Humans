@@ -25,13 +25,13 @@
 #include "compat.h"
 
 extern const OSystem osys_null;
-extern const uint8_t *osys_null_page(int which);
+extern const uint8_t *osys_null_page(int32_t which);
 extern const uint8_t *osys_null_palette(void);
 
 #define SAVE_LEN 0x1800u
 #define SAVE_NAME "SAVEB"
 
-static void put16(uint8_t *p, unsigned v)
+static void put16(uint8_t *p, uint32_t v)
 {
     p[0] = (uint8_t)v;
     p[1] = (uint8_t)(v >> 8);
@@ -46,9 +46,9 @@ static void dump_ppm(const char *dir, const char *name, const uint8_t *page,
     f = fopen(path, "wb");
     if (!f) return;
     fprintf(f, "P6\n320 200\n255\n");
-    for (unsigned i = 0; i < 320u * 200u; i++) {
-        unsigned idx = page[i];
-        for (unsigned c = 0; c < 3u; c++) {
+    for (uint32_t i = 0; i < 320u * 200u; i++) {
+        uint32_t idx = page[i];
+        for (uint32_t c = 0; c < 3u; c++) {
             uint8_t v6 = pal[idx * 3u + c];
             fputc((uint8_t)((v6 << 2) | (v6 >> 4)), f);
         }
@@ -60,22 +60,22 @@ static void dump_ppm(const char *dir, const char *name, const uint8_t *page,
  * byte in [0xF4,0xFB]; each of its four in-page neighbours is either text or
  * 0 (the black outline).  Counts the text and outline pixels and the number
  * of neighbours that are neither. */
-static void text_outline(const uint8_t *page, unsigned *text,
-                         unsigned *outline, unsigned *violations)
+static void text_outline(const uint8_t *page, uint32_t *text,
+                         uint32_t *outline, uint32_t *violations)
 {
-    static const int dx[4] = { 0, 0, -1, 1 }, dy[4] = { -1, 1, 0, 0 };
+    static const int32_t dx[4] = { 0, 0, -1, 1 }, dy[4] = { -1, 1, 0, 0 };
 
     *text = *outline = *violations = 0;
-    for (unsigned y = 0; y < 200u; y++)
-        for (unsigned x = 0; x < 320u; x++) {
-            unsigned i = y * 320u + x;
+    for (uint32_t y = 0; y < 200u; y++)
+        for (uint32_t x = 0; x < 320u; x++) {
+            uint32_t i = y * 320u + x;
             if (page[i] < 0xF4u || page[i] > 0xFBu) continue;
             (*text)++;
-            for (unsigned k = 0; k < 4u; k++) {
-                int nx = (int)x + dx[k], ny = (int)y + dy[k];
-                unsigned n;
+            for (uint32_t k = 0; k < 4u; k++) {
+                int32_t nx = (int32_t)x + dx[k], ny = (int32_t)y + dy[k];
+                uint32_t n;
                 if (nx < 0 || ny < 0 || nx > 319 || ny > 199) continue;
-                n = (unsigned)ny * 320u + (unsigned)nx;
+                n = (uint32_t)ny * 320u + (uint32_t)nx;
                 if (page[n] == 0u) (*outline)++;
                 else if (page[n] < 0xF4u) (*violations)++;
             }
@@ -91,17 +91,17 @@ static InputState idle(void)
 
 /* one tick with the given joy bits; the release tick afterwards makes the
  * next one a fresh press (the original waits for the key release) */
-static int press(unsigned bits)
+static int32_t press(uint32_t bits)
 {
     InputState in = idle();
     in.joyBits = bits;
-    int up = menu_tick(&in);
+    int32_t up = menu_tick(&in);
     InputState rel = idle();
     (void)menu_tick(&rel);
     return up;
 }
 
-static int open_pause(void)
+static int32_t open_pause(void)
 {
     menu_openPause();
     return menu_active();
@@ -112,7 +112,7 @@ int main(int argc, char **argv)
     const char *vol_dir = argc > 1 ? argv[1] : ".";
     const char *dump_dir = argc > 2 ? argv[2] : NULL;
     char path[512];
-    int bad = 0;
+    int32_t bad = 0;
 
     snprintf(path, sizeof path, "%s/HUMANS.000", vol_dir);
     FILE *f = fopen(path, "rb");
@@ -210,9 +210,9 @@ int main(int argc, char **argv)
     }
 
     /* 1. the pause menu: 5 rows, wrap, the 0-based result = the row */
-    for (unsigned r = 0; r < 5u; r++) {
+    for (uint32_t r = 0; r < 5u; r++) {
         if (!open_pause()) { fprintf(stderr, "FAIL the menu did not open\n"); return 1; }
-        for (unsigned i = 0; i < r; i++) (void)press(0x02u);   /* down */
+        for (uint32_t i = 0; i < r; i++) (void)press(0x02u);   /* down */
         if (r > 0u && menu_result() != -1) {
             fprintf(stderr, "FAIL the result appeared early\n");
             bad = 1;
@@ -230,7 +230,7 @@ int main(int argc, char **argv)
                 fprintf(stderr, "FAIL row %u stayed open\n", r);
                 return 1;
             }
-            if (menu_result() != (int)r) {
+            if (menu_result() != (int32_t)r) {
                 fprintf(stderr, "FAIL row %u returned %d\n", r, menu_result());
                 bad = 1;
             }
@@ -243,8 +243,8 @@ int main(int argc, char **argv)
     menu_draw();
     {
         const uint8_t *page = osys_null_page(0);
-        unsigned fill = 0, text = 0, outline = 0, violations = 0;
-        for (unsigned i = 0; i < 320u * 200u; i++)
+        uint32_t fill = 0, text = 0, outline = 0, violations = 0;
+        for (uint32_t i = 0; i < 320u * 200u; i++)
             if (page[i] == 26u) fill++;          /* BOX.SPR's fill index */
         /* the text = the fill tile's EB..E4..EB ramp | 0x10 -> F4..FB, and
          * the black outline around it (1000:9FA7 -> 9FB1) */
@@ -302,7 +302,7 @@ int main(int argc, char **argv)
     (void)press(0x80u);
     {
         const uint8_t *page = osys_null_page(0);
-        unsigned text = 0, outline = 0, violations = 0;
+        uint32_t text = 0, outline = 0, violations = 0;
         menu_draw();
         text_outline(page, &text, &outline, &violations);
         if (text < 50u || outline == 0u || violations) {
@@ -445,8 +445,8 @@ int main(int argc, char **argv)
         /* 0x3E20 */
         put16(fx + 0x0D + 0u, 5u);
         put16(fx + 0x0D + 2u, 0u);
-        for (unsigned i = 0; i < 29u; i++)
-            put16(fx + 0x0D + 4u + 2u * i, (unsigned)(0x3E75u + 0x12u * i));
+        for (uint32_t i = 0; i < 29u; i++)
+            put16(fx + 0x0D + 4u + 2u * i, (uint32_t)(0x3E75u + 0x12u * i));
         fx[0x0D + 0x3E + 1u] = 6u;                  /* class slot 1 */
         fx[0x0D + 0x53u] = 9u;                      /* [0x3E73] */
         put16(fx + 0x0D + 0x55u, 0x1234u);          /* record 0 x */
@@ -454,8 +454,8 @@ int main(int argc, char **argv)
         /* 0x6F20: groups and spans all free, then the two specials */
         memset(fx + 0x026C + 2u, 0xFF, 0x70u);
         memset(fx + 0x026C + 0x72u, 0xFF, 0x38u);
-        put16(fx + 0x026C, (unsigned)level_specialTile(0u));
-        put16(fx + 0x026C + 2u, (unsigned)level_specialTile(1u));
+        put16(fx + 0x026C, (uint32_t)level_specialTile(0u));
+        put16(fx + 0x026C + 2u, (uint32_t)level_specialTile(1u));
         /* 0x5B37 and its [0x5B56] */
         memcpy(fx + 0x1636, prog, sizeof prog);
         /* 0x649A TER slots zero, then 0x64C2 count + 7 records */
@@ -493,7 +493,7 @@ int main(int argc, char **argv)
             } else {
                 fclose(f);
                 if (memcmp(fx, got, sizeof fx) != 0) {
-                    unsigned at = 0;
+                    uint32_t at = 0;
                     while (at < sizeof fx && fx[at] == got[at]) at++;
                     fprintf(stderr, "FAIL the state fixture differs at 0x%X "
                             "(want %02x, got %02x)\n", at, fx[at], got[at]);
@@ -523,7 +523,7 @@ int main(int argc, char **argv)
     /* 5. the five actions (dispatch_by_result_a167): CONTINUE, RESTART THIS
      *    LEVEL, RESTART THIS GAME, SAVE GAME, QUIT */
     {
-        int quit = 0;
+        int32_t quit = 0;
         if (gameflow_pauseAction(0, &quit) != FLOW_LEVEL || quit) {
             fprintf(stderr, "FAIL CONTINUE\n");
             bad = 1;
@@ -598,7 +598,7 @@ int main(int argc, char **argv)
     /* 6. the time-up dialog (202F:0x5C2B): the 3-option block + the inline
      *    dispatch (0 restart this level, 1 the room, 2 quit) */
     {
-        int quit = 0;
+        int32_t quit = 0;
         menu_openTimeUp();
         if (!menu_active() || !menu_timeUp()) {
             fprintf(stderr, "FAIL the time-up dialog did not open\n");
@@ -636,7 +636,7 @@ int main(int argc, char **argv)
         (void)level_load(0);
         /* level_fade_in (1000:3334) first — the dump is the settled level */
         level_begin();
-        for (unsigned i = 0; i < 400u && level_starting(); i++) {
+        for (uint32_t i = 0; i < 400u && level_starting(); i++) {
             level_tick();
             palette_tick();
             if (level_loadingScreen()) level_loadingTick();

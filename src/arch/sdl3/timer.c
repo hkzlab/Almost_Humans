@@ -20,15 +20,15 @@
 #include <stdlib.h>
 
 static TickFn theTick;
-static unsigned theRate;
+static uint32_t theRate;
 static Uint64 tickIntervalNs;
 static SDL_AtomicInt tickCount;        /* [0x5AC8] */
 static SDL_AtomicInt running;
 
 /* The rate probe (HUMANSRE_RATE_PROBE set): reports the measured tick rate
  * every 5 s.  Verification aid for the pacing work, not a game feature. */
-static int probe;
-static unsigned probeTicks;
+static int32_t probe;
+static uint32_t probeTicks;
 static Uint64 probeWindowStartNs;
 
 static void fire_tick(void)
@@ -47,7 +47,7 @@ static void fire_tick(void)
     }
 }
 
-static int SDLCALL tickThreadFn(void *arg)
+static int32_t SDLCALL tickThreadFn(void *arg)
 {
     (void)arg;
     Uint64 next = SDL_GetTicksNS() + tickIntervalNs;
@@ -68,7 +68,7 @@ static int SDLCALL tickThreadFn(void *arg)
     return 0;
 }
 
-void sdl3_timerStart(unsigned ticksPerSec, TickFn tick)
+void sdl3_timerStart(uint32_t ticksPerSec, TickFn tick)
 {
     theTick = tick;
     theRate = ticksPerSec;
@@ -85,12 +85,12 @@ void sdl3_timerStart(unsigned ticksPerSec, TickFn tick)
     SDL_DetachThread(SDL_CreateThread(tickThreadFn, "humansre-tick", NULL));
 }
 
-void sdl3_tickSync(unsigned *lastSeen)
+void sdl3_tickSync(uint32_t *lastSeen)
 {
     for (;;) {
-        int now = SDL_GetAtomicInt(&tickCount);
-        if ((unsigned)now != *lastSeen) {
-            *lastSeen = (unsigned)now;
+        int32_t now = SDL_GetAtomicInt(&tickCount);
+        if ((uint32_t)now != *lastSeen) {
+            *lastSeen = (uint32_t)now;
             return;
         }
         SDL_Delay(1);   /* the wait_vsync-and-abort spin, sleeping */

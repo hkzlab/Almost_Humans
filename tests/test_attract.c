@@ -25,14 +25,14 @@
 #include "compat.h"
 
 extern const OSystem osys_null;
-extern const uint8_t *osys_null_page(int which);
+extern const uint8_t *osys_null_page(int32_t which);
 
 static uint8_t *read_file(const char *path, uint32_t *size)
 {
     FILE *f = fopen(path, "rb");
     if (!f) return NULL;
     fseek(f, 0, SEEK_END);
-    long n = ftell(f);
+    int64_t n = ftell(f);
     fseek(f, 0, SEEK_SET);
     uint8_t *buf = malloc((size_t)n);
     if (fread(buf, 1, (size_t)n, f) != (size_t)n) { fclose(f); free(buf); return NULL; }
@@ -41,10 +41,10 @@ static uint8_t *read_file(const char *path, uint32_t *size)
     return buf;
 }
 
-static int first_diff(const uint8_t *a, const uint8_t *b, uint32_t n)
+static int32_t first_diff(const uint8_t *a, const uint8_t *b, uint32_t n)
 {
     for (uint32_t i = 0; i < n; i++)
-        if (a[i] != b[i]) return (int)i;
+        if (a[i] != b[i]) return (int32_t)i;
     return -1;
 }
 
@@ -75,12 +75,12 @@ int main(int argc, char **argv)
         return 0;
     }
     /* the dump's frame table: u32 count, then per frame u32 row + 64000 B */
-    unsigned frame_count = 0;
+    uint32_t frame_count = 0;
     memcpy(&frame_count, ref_frames, 4);
 
     if (compat_chdir(vol_dir)) { perror(vol_dir); return 1; }
 
-    int bad = 0;
+    int32_t bad = 0;
     {
         const OSystem *os = &osys_null;
         if (res_init(os) || video_init(os) || palette_init(os) ||
@@ -93,7 +93,7 @@ int main(int argc, char **argv)
     InputState idle; memset(&idle, 0, sizeof idle);
 
     /* 1. into effect 4: effects 1, 3 and 2 play for real (~12 k ticks) */
-    unsigned guard = 0;
+    uint32_t guard = 0;
     while (attract_phaseForProbe() != ATTRACT_E4_FADEWAIT) {
         attract_tick(&idle);
         palette_tick();
@@ -106,13 +106,13 @@ int main(int argc, char **argv)
 
     /* 2. the strip, byte-exact, and the census */
     {
-        unsigned rows = 0;
+        uint32_t rows = 0;
         const uint8_t *strip = attract_stripForProbe(&rows);
         if (rows != 1579u) {
             fprintf(stderr, "FAIL: rowsBuilt %u, want 1579 (the fixture census)\n", rows);
             bad = 1;
         }
-        int at = first_diff(strip, ref_strip, strip_size);
+        int32_t at = first_diff(strip, ref_strip, strip_size);
         if (at >= 0) {
             fprintf(stderr, "FAIL: strip diff at byte %d (row %d): "
                     "%02x vs %02x\n", at, at / 80,
@@ -129,9 +129,9 @@ int main(int argc, char **argv)
     {
         const uint8_t *cursor = ref_frames + 4;
         const uint8_t *end = ref_frames + frames_size;
-        unsigned matched = 0, row = 0, total = 0;
+        uint32_t matched = 0, row = 0, total = 0;
         for (;;) {
-            unsigned ph = attract_phaseForProbe();
+            uint32_t ph = attract_phaseForProbe();
             if (ph != ATTRACT_E4_SCROLL && ph != ATTRACT_E4_FADEWAIT) break;
             attract_tick(&idle);
             palette_tick();
@@ -143,11 +143,11 @@ int main(int argc, char **argv)
             if (ph != ATTRACT_E4_SCROLL) continue;   /* still fading in */
             /* this tick presented strip row `row` */
             if (cursor + 4u <= end) {
-                unsigned want;
+                uint32_t want;
                 memcpy(&want, cursor, 4);
                 if (want == row) {
                     const uint8_t *page = osys_null_page(0);
-                    int at = first_diff(page, cursor + 4, 64000);
+                    int32_t at = first_diff(page, cursor + 4, 64000);
                     if (at >= 0) {
                         fprintf(stderr, "FAIL: frame r%u diff at pixel %d "
                                 "(y %d, x %d): %02x vs %02x\n", row, at,

@@ -33,8 +33,8 @@ int main(int argc, char **argv)
     /* play the first briefing and dismiss it with a key */
     {
         InputState in;
-        int run = 1;
-        unsigned t = 0;
+        int32_t run = 1;
+        uint32_t t = 0;
 
         memset(&in, 0, sizeof in);
         for (; t < 400u; t++) { (void)party_intro_tick(&in); palette_tick(); }

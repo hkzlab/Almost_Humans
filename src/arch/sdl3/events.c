@@ -15,9 +15,9 @@
 
 static InputState cur;
 
-static void joyBits(SDL_Keycode k, int down)
+static void joyBits(SDL_Keycode k, int32_t down)
 {
-    unsigned mask;
+    uint32_t mask;
     switch (k) {
     case SDLK_UP:      mask = 0x01u; break;
     case SDLK_DOWN:    mask = 0x02u; break;

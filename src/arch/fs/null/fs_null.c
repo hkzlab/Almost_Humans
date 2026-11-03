@@ -6,7 +6,7 @@
 #include "fs/fs.h"
 #include <stdio.h>
 
-static FSVolume *null_openVolume(unsigned disc) { (void)disc; return NULL; }
+static FSVolume *null_openVolume(uint32_t disc) { (void)disc; return NULL; }
 static void      null_closeVolume(FSVolume *v) { (void)v; }
 static uint32_t  null_volumeSize(FSVolume *v) { (void)v; return 0; }
 static uint32_t  null_read(FSVolume *v, uint32_t off, uint8_t *dst, uint32_t n)

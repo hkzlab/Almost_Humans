@@ -26,9 +26,9 @@
 #include "compat.h"
 
 extern const OSystem osys_null;
-extern const uint8_t *osys_null_page(int which);
-extern unsigned osys_null_audioStarts(void);
-extern unsigned osys_null_audioStops(void);
+extern const uint8_t *osys_null_page(int32_t which);
+extern uint32_t osys_null_audioStarts(void);
+extern uint32_t osys_null_audioStops(void);
 extern VideoMode osys_null_videoMode(void);
 
 static void tick(const InputState *in)
@@ -46,12 +46,12 @@ static InputState idle(void)
 
 /* Hold `dirBit` until the rail arrival changes the cell; one idle tick is
  * left afterwards so the rail cannot re-arm from the held key. */
-static int walk_to(unsigned dirBit, unsigned want, const char *what)
+static int32_t walk_to(uint32_t dirBit, uint32_t want, const char *what)
 {
-    unsigned start = frontend_cellForProbe();
+    uint32_t start = frontend_cellForProbe();
     InputState in = idle();
     in.joyBits = dirBit;
-    for (unsigned i = 0; i < 400u; i++) {
+    for (uint32_t i = 0; i < 400u; i++) {
         tick(&in);
         if (frontend_cellForProbe() != start) break;
     }
@@ -84,26 +84,26 @@ static void press_action(void)
  * carry the new badge).  set_scroll is 0x140 at all four cells this test
  * visits (the upper walkway y < 0x64 gives 0x140, and the floor targets
  * 466/520 clamp to it), so world x = col*4 maps to page x = col*4-0x140. */
-static int check_badge(const char *what, unsigned dest, const uint8_t *spr,
-                       uint32_t size, unsigned srcOff, unsigned w,
-                       unsigned h, unsigned cell, unsigned charX,
-                       unsigned charY)
+static int32_t check_badge(const char *what, uint32_t dest, const uint8_t *spr,
+                       uint32_t size, uint32_t srcOff, uint32_t w,
+                       uint32_t h, uint32_t cell, uint32_t charX,
+                       uint32_t charY)
 {
     const uint8_t *page = osys_null_page(0);
-    unsigned off = srcOff + cell * w * h;
-    unsigned row = dest / 160u, col = dest % 160u;
-    unsigned sx = col * 4u - 0x140u;
-    unsigned checked = 0;
+    uint32_t off = srcOff + cell * w * h;
+    uint32_t row = dest / 160u, col = dest % 160u;
+    uint32_t sx = col * 4u - 0x140u;
+    uint32_t checked = 0;
 
     if (!spr || size < off + w * h || row + h > 200u ||
         col * 4u < 0x140u || sx + w > 320u) {
         fprintf(stderr, "FAIL badge %s: geometry out of range\n", what);
         return 1;
     }
-    for (unsigned r = 0; r < h; r++)
-        for (unsigned c = 0; c < w; c++) {
+    for (uint32_t r = 0; r < h; r++)
+        for (uint32_t c = 0; c < w; c++) {
             uint8_t v = spr[off + r * w + c];
-            unsigned wx = col * 4u + c, wy = row + r;
+            uint32_t wx = col * 4u + c, wy = row + r;
             if (!v) continue;              /* nonzero-transparent */
             if (wx >= charX + 2u && wx <= charX + 17u &&
                 wy >= charY && wy <= charY + 23u) continue;   /* the walker */
@@ -137,7 +137,7 @@ int main(int argc, char **argv)
     fclose(f);
     if (compat_chdir(vol_dir)) { perror(vol_dir); return 1; }
 
-    int bad = 0;
+    int32_t bad = 0;
 
     res_init(&osys_null);
     video_init(&osys_null);
@@ -175,7 +175,7 @@ int main(int argc, char **argv)
     /* enter the room: load + the fade-in (~24 ticks), then idle */
     {
         InputState in = idle();
-        for (unsigned i = 0; i < 60u; i++) tick(&in);
+        for (uint32_t i = 0; i < 60u; i++) tick(&in);
     }
     if (osys_null_audioStarts() != 1u || osys_null_audioStops() != 0u) {
         fprintf(stderr, "FAIL MUSIC on should resume once (starts %u, "
@@ -191,13 +191,13 @@ int main(int argc, char **argv)
      * reset_display_mode's 320x192 field (1000:82C6, called at 1000:A544)
      * ends on row 191, so they are written and never shown - not blanked. */
     {
-        unsigned lit = 0;
+        uint32_t lit = 0;
 
-        for (unsigned pg = 0; pg < 2u; pg++) {
-            const uint8_t *q = osys_null_page((int)pg);
+        for (uint32_t pg = 0; pg < 2u; pg++) {
+            const uint8_t *q = osys_null_page((int32_t)pg);
 
-            for (unsigned r = 192u; r < 200u; r++)
-                for (unsigned c = 0; c < 320u; c++)
+            for (uint32_t r = 192u; r < 200u; r++)
+                for (uint32_t c = 0; c < 320u; c++)
                     if (q[r * 320u + c]) lit++;
         }
         if (!lit) {
@@ -257,7 +257,7 @@ int main(int argc, char **argv)
     }
     {
         InputState in = idle();
-        for (unsigned i = 0; i < 5u; i++) tick(&in);   /* the latch holds */
+        for (uint32_t i = 0; i < 5u; i++) tick(&in);   /* the latch holds */
     }
     if (osys_null_audioStarts() != 2u || osys_null_audioStops() != 1u) {
         fprintf(stderr, "FAIL the music latch re-called the backend\n");
@@ -277,7 +277,7 @@ int main(int argc, char **argv)
     /* the RESTORE GAME badge: restore.spr cell 1 (GAME 1), dest 0x5BBC */
     bad |= check_badge("RESTORE GAME", 0x5BBCu, rst, rstSize,
                        0u, 48u, 32u, 1u, 520u, 160u);
-    for (unsigned i = 0; i < 20u; i++) press_action();  /* 2..20, then wrap */
+    for (uint32_t i = 0; i < 20u; i++) press_action();  /* 2..20, then wrap */
     if (frontend_option(FRONTEND_OPT_GAME) != 0u) {
         fprintf(stderr, "FAIL RESTORE GAME did not wrap at 21\n");
         bad = 1;
@@ -312,7 +312,7 @@ int main(int argc, char **argv)
     bad |= walk_to(0x08u, 0u, "off the right edge");
     {
         InputState in = idle();
-        unsigned i;
+        uint32_t i;
         for (i = 0; i < 300u; i++) {
             if (!frontend_tick(&in)) { palette_tick(); break; }
             palette_tick();
@@ -341,7 +341,7 @@ int main(int argc, char **argv)
     /* --- the name screen's input law (D-56/D-57) ---------------------- */
     {
         InputState in = idle();
-        unsigned t;
+        uint32_t t;
         static const char wrong[] = "WRONG CODE";
         static const char code14[] = "FATEANDFORTUNE";
 
@@ -361,7 +361,7 @@ int main(int argc, char **argv)
                 bad = 1;
             }
             /* type a wrong code and Enter: the miss resets DARWIN */
-            for (unsigned i = 0; wrong[i]; i++) {
+            for (uint32_t i = 0; wrong[i]; i++) {
                 in = idle(); in.lastKey = (uint8_t)wrong[i]; tick(&in);
             }
             in = idle(); in.lastKey = 0x0Du; tick(&in);
@@ -387,7 +387,7 @@ int main(int argc, char **argv)
             }
             /* D-57: a 14-character code is accepted and matches level 155 */
             in = idle(); in.lastKey = 0x1Bu; tick(&in);
-            for (unsigned i = 0; code14[i]; i++) {
+            for (uint32_t i = 0; code14[i]; i++) {
                 in = idle(); in.lastKey = (uint8_t)code14[i]; tick(&in);
             }
             if (strcmp(frontend_nameForProbe(), code14) != 0) {
@@ -423,7 +423,7 @@ int main(int argc, char **argv)
         const LevelData *d = level_data();
         if (level_timeLimit() != d->timeB || d->timeB == d->timeA) {
             fprintf(stderr, "FAIL LEVEL did not pick time B (%04x, want "
-                    "%04x)\n", (unsigned)level_timeLimit(), (unsigned)d->timeB);
+                    "%04x)\n", (uint32_t)level_timeLimit(), (uint32_t)d->timeB);
             bad = 1;
         }
         if (level_tribeMembers() != 10u) {

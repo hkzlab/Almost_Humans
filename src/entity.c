@@ -70,14 +70,14 @@ static uint16_t ents[ENT_MAX][8] = {
     { 0, 0, 0, 0, 0, 0, 0, 0 },
     { 0, 0, 0, 0, 0, 0, 0, 0 },
 };
-static unsigned ent_count;    /* [0x64C2]                                */
+static uint32_t ent_count;    /* [0x64C2]                                */
 
 /* The dispatcher's shared DS words: [0x4238] = the secondary selector
  * (the movement step this tick), [0x423C] = the primary selector. */
 static uint16_t sel_secondary;  /* [0x4238]                              */
 static uint16_t sel_primary;    /* [0x423C]                              */
 
-static unsigned cur_style;      /* [0x17EE]: the level header's style    */
+static uint32_t cur_style;      /* [0x17EE]: the level header's style    */
 
 /* --- load_terrain_b's data (the exe image, byte-verified) --------------- */
 
@@ -114,12 +114,12 @@ static const uint8_t style6_flags[32] = {
  * into the original's DS neighbours — not reproducible from the map; the
  * corpus has no B3/B4 on row 19, so the port yields 0 there (the guard
  * keeps the read in bounds). */
-static int style6_y_bonus(const uint8_t *map, unsigned mapLen,
-                          unsigned matchIdx)
+static int32_t style6_y_bonus(const uint8_t *map, uint32_t mapLen,
+                          uint32_t matchIdx)
 {
     if (cur_style != 6u) return 0;
     if (matchIdx + 0x20u >= mapLen) return 0;
-    unsigned v = map[matchIdx + 0x20u];
+    uint32_t v = map[matchIdx + 0x20u];
     if (v > 0x90u) return 0;
     uint8_t flag = style6_flags[(v >> 3) & 31u];
     /* MOV AX,1 / SHL AX,CL with CL = 7-(v&7) — bit 0x80>>(v&7) */
@@ -129,9 +129,9 @@ static int style6_y_bonus(const uint8_t *map, unsigned mapLen,
 
 /* entity_append_to_array (1000:5360..5398).  Summoned per 0xB3 cell in
  * map scan order. */
-static void entity_append(const uint8_t *map, unsigned mapLen,
-                          unsigned matchIdx, unsigned cx, unsigned dx,
-                          unsigned lifeSeed)
+static void entity_append(const uint8_t *map, uint32_t mapLen,
+                          uint32_t matchIdx, uint32_t cx, uint32_t dx,
+                          uint32_t lifeSeed)
 {
     if (style6_y_bonus(map, mapLen, matchIdx)) dx += 3;   /* 1000:5698 */
 
@@ -143,7 +143,7 @@ static void entity_append(const uint8_t *map, unsigned mapLen,
         return;
     }
     uint16_t *e = ents[ent_count++];
-    unsigned dxAdj = dx + 1u - 0x30u;                     /* 5373/5376 */
+    uint32_t dxAdj = dx + 1u - 0x30u;                     /* 5373/5376 */
     e[0] = (uint16_t)cx;          /* +0 = the spawn column * 16          */
     e[1] = 0;                     /* +2 = 0 (a 0xB4 writes the far end)  */
     e[2] = 0;                     /* +4 = the dispatch index: seeded 0   */
@@ -156,13 +156,13 @@ static void entity_append(const uint8_t *map, unsigned mapLen,
 
 /* entity_find_by_id (1000:5399..53b8).  Summoned per 0xB4 cell: rewrites
  * the FIRST entity whose spawn row (+8) matches this row's x1 endpoint. */
-static void entity_find(const uint8_t *map, unsigned mapLen,
-                        unsigned matchIdx, unsigned cx, unsigned dx)
+static void entity_find(const uint8_t *map, uint32_t mapLen,
+                        uint32_t matchIdx, uint32_t cx, uint32_t dx)
 {
     if (style6_y_bonus(map, mapLen, matchIdx)) dx += 3;   /* 1000:5698 */
-    unsigned match = dx + 1u - 0x30u;                     /* 53a5/53a8 */
+    uint32_t match = dx + 1u - 0x30u;                     /* 53a5/53a8 */
 
-    for (unsigned i = 0; i < ent_count; i++) {
+    for (uint32_t i = 0; i < ent_count; i++) {
         if (ents[i][4] != (uint16_t)match) continue;      /* 53a9 */
         ents[i][1] = (uint16_t)cx;                        /* 53ae */
         return;                                           /* 53b1 */
@@ -175,7 +175,7 @@ static void entity_find(const uint8_t *map, unsigned mapLen,
  * handler invoked at each matching cell with CX = col*16, DX = row*16
  * (the SHL 4s at 51bf-51cd).  The scan is column-inner, row-outer
  * ([0x4234] = cols 0x1F..0, [0x4230] = rows 0x13..0). */
-int entity_spawnFromMap(const uint8_t *map, unsigned style, unsigned lifeSeed)
+int32_t entity_spawnFromMap(const uint8_t *map, uint32_t style, uint32_t lifeSeed)
 {
     if (!map) return -1;
 
@@ -185,15 +185,15 @@ int entity_spawnFromMap(const uint8_t *map, unsigned style, unsigned lifeSeed)
     cur_style = style;
     sel_secondary = sel_primary = 0;
 
-    for (unsigned pair = 0; pair < 25u; pair++) {
+    for (uint32_t pair = 0; pair < 25u; pair++) {
         uint8_t tile = tile_ids[pair];
 
-        for (unsigned row = 0; row < MAP_ROWS; row++) {
-            for (unsigned col = 0; col < MAP_COLS; col++) {
-                unsigned idx = row * MAP_COLS + col;
+        for (uint32_t row = 0; row < MAP_ROWS; row++) {
+            for (uint32_t col = 0; col < MAP_COLS; col++) {
+                uint32_t idx = row * MAP_COLS + col;
                 if (map[idx] != tile) continue;
-                unsigned cx = col * 16u;
-                unsigned dx = row * 16u;
+                uint32_t cx = col * 16u;
+                uint32_t dx = row * 16u;
                 switch (pair) {
                 case TILE_HANDLER_APPEND:
                     entity_append(map, MAP_COLS * MAP_ROWS, idx, cx, dx,
@@ -222,10 +222,10 @@ int entity_spawnFromMap(const uint8_t *map, unsigned style, unsigned lifeSeed)
  * record), and the tail reads past its own row - 1000:CB0E onward consumes
  * wp[5..9], which for handler 0 runs into slot 3.  The port therefore addresses
  * them flat. */
-static uint16_t entWord(unsigned slot, unsigned off, unsigned k)
+static uint16_t entWord(uint32_t slot, uint32_t off, uint32_t k)
 {
     const uint16_t *flat = &ents[0][0];
-    unsigned i = slot * 8u + off + k;
+    uint32_t i = slot * 8u + off + k;
 
     return i < ENT_MAX * 8u ? flat[i] : 0u;
 }
@@ -241,9 +241,9 @@ static const uint8_t entNoPick[0x2C] = {
 
 /* The entity's index, for the +0xA carry link (the port's stand-in for the
  * original's DS pointer 0x64C4 + 0x10*n). */
-static unsigned entIndex(const Entity *ep)
+static uint32_t entIndex(const Entity *ep)
 {
-    return (unsigned)(ep - (const Entity *)ents[0]);
+    return (uint32_t)(ep - (const Entity *)ents[0]);
 }
 
 /* 1000:CA43..CB77 - the tail's interaction pass, run on every walk-branch tick
@@ -261,23 +261,23 @@ static unsigned entIndex(const Entity *ep)
  * `+0xA` holds a DS pointer to the entity record in the original; the port has
  * no DS image, so it stores `entity index + 1` (0 = none) - the same internal
  * encoding policy the object links use. */
-static void entity_tailInteract(Entity *ep, unsigned slot, unsigned off)
+static void entity_tailInteract(Entity *ep, uint32_t slot, uint32_t off)
 {
-    unsigned w3 = entWord(slot, off, 3), w4 = entWord(slot, off, 4);
-    unsigned w5 = entWord(slot, off, 5), w6 = entWord(slot, off, 6);
-    unsigned w7 = entWord(slot, off, 7), w8 = entWord(slot, off, 8);
-    unsigned w9 = entWord(slot, off, 9);
+    uint32_t w3 = entWord(slot, off, 3), w4 = entWord(slot, off, 4);
+    uint32_t w5 = entWord(slot, off, 5), w6 = entWord(slot, off, 6);
+    uint32_t w7 = entWord(slot, off, 7), w8 = entWord(slot, off, 8);
+    uint32_t w9 = entWord(slot, off, 9);
 
-    for (unsigned i = 0; i < 8u; i++) {           /* DX = 7: the static eight */
+    for (uint32_t i = 0; i < 8u; i++) {           /* DX = 7: the static eight */
         uint8_t *rec = object_slot(i);
-        int dx, dy;
-        unsigned type;
+        int32_t dx, dy;
+        uint32_t type;
 
         if (!rec) return;
         if (rec[6] & 0x80u) continue;             /* 1000:CA6B */
-        dx = (int)(int16_t)(uint16_t)(rd_le_u16(rec + 0u) - ep->x) + (int)(int16_t)w3;
+        dx = (int32_t)(int16_t)(uint16_t)(rd_le_u16(rec + 0u) - ep->x) + (int32_t)(int16_t)w3;
         if (dx < 0 || dx > 2) continue;           /* 1000:CA8A */
-        dy = (int)(int16_t)(uint16_t)(rd_le_u16(rec + 2u) - ep->y) - 0x14;
+        dy = (int32_t)(int16_t)(uint16_t)(rd_le_u16(rec + 2u) - ep->y) - 0x14;
         if (dy < 0 || dy > 0x2C) continue;        /* 1000:CAA4 */
         type = rd_le_u16(rec + 8u);
         if (type == w4) continue;                 /* 1000:CABC */
@@ -291,7 +291,7 @@ static void entity_tailInteract(Entity *ep, unsigned slot, unsigned off)
         wr_le_u16(rec + 0xAu, (uint16_t)(0x8000u | entIndex(ep)));
         wr_le_u16(rec + 0xEu, (uint16_t)w5);           /* 1000:CB23 */
         {                                          /* 1000:CB35..CB4C */
-            unsigned idx = w6 / 2u;                /* the entity's word offset */
+            uint32_t idx = w6 / 2u;                /* the entity's word offset */
             uint16_t base = 0;
 
             if (w6 <= 0xEu && !(w6 & 1u)) base = ((const uint16_t *)ep)[idx];
@@ -304,7 +304,7 @@ static void entity_tailInteract(Entity *ep, unsigned slot, unsigned off)
     }
 }
 
-static void entity_tail(Entity *ep, unsigned slot, unsigned off, uint16_t endX)
+static void entity_tail(Entity *ep, uint32_t slot, uint32_t off, uint16_t endX)
 {
     uint16_t w0 = entWord(slot, off, 0);
     sel_primary = w0;                          /* c9c1/c9c5 */
@@ -351,14 +351,14 @@ static void entity_tail(Entity *ep, unsigned slot, unsigned off, uint16_t endX)
 static void entity_carry_anim(Entity *ep)
 {
     uint8_t *b = (uint8_t *)ep;
-    unsigned frame;
+    uint32_t frame;
 
     if ((int8_t)--b[0xAu] >= 0) return;          /* cb9e/cba2 */
     b[0xAu] = 4;                                 /* cba4 */
     {
-        unsigned sub = b[0xBu];                  /* cbaa */
+        uint32_t sub = b[0xBu];                  /* cbaa */
 
-        frame = (unsigned)(rd_le_u16(b + 0xCu) + 1u); /* cbb3: INC word [BP] */
+        frame = (uint32_t)(rd_le_u16(b + 0xCu) + 1u); /* cbb3: INC word [BP] */
         wr_le_u16(b + 0xCu, (uint16_t)frame);
         if (frame != sel_primary) return;        /* cbba */
         wr_le_u16(b + 0xCu, (uint16_t)(frame - 2u)); /* cbc0 */
@@ -398,7 +398,7 @@ static uint32_t entBankSize;
 
 /* The three table reads for one cell index; 0 = the indices are outside the
  * bank (the original would read whatever follows it in memory). */
-int entity_frameInfo(unsigned a, unsigned *src, unsigned *rows, unsigned *yoff)
+int32_t entity_frameInfo(uint32_t a, uint32_t *src, uint32_t *rows, uint32_t *yoff)
 {
     if (!entBank || 4u * a + 4u > entBankSize || 2u * a + 0x152u > entBankSize)
         return 0;
@@ -410,16 +410,16 @@ int entity_frameInfo(unsigned a, unsigned *src, unsigned *rows, unsigned *yoff)
 
 /* 1000:58D1's sprite-pixel test: the REX bank pixel at the (x,y) offset in
  * the sprite whose descriptor entity_frameInfo(a) returned. */
-int entity_spritePixel(unsigned src, unsigned rows, unsigned x, unsigned y)
+int32_t entity_spritePixel(uint32_t src, uint32_t rows, uint32_t x, uint32_t y)
 {
-    unsigned idx = src + y * 4u + (x >> 2) + (rows & 0x1Fu) * 8u * (x & 3u);
+    uint32_t idx = src + y * 4u + (x >> 2) + (rows & 0x1Fu) * 8u * (x & 3u);
 
     if (!entBank || idx >= entBankSize) return 0;
     return entBank[idx] != 0u;
 }
 
 /* the mutable entity record (the collision pass writes it). */
-Entity *entity_atMut(unsigned i)
+Entity *entity_atMut(uint32_t i)
 {
     return i < ent_count ? (Entity *)ents[i] : NULL;
 }
@@ -432,23 +432,23 @@ void entity_publishBank(const uint8_t *bank, uint32_t size)
 
 /* 1000:5823 / 0x5894: the entity pass.  Runs after the placed records
  * (render_objects 0x5D56 calls 0x6421 then 0x5823), before the bar. */
-void entity_render(uint8_t *page, int scrollX, int scrollY)
+void entity_render(uint8_t *page, int32_t scrollX, int32_t scrollY)
 {
     if (!page || !entBank) return;
-    for (unsigned i = 0; i < ent_count; i++) {
+    for (uint32_t i = 0; i < ent_count; i++) {
         const Entity *e = (const Entity *)ents[i];
-        int x = (int)(int16_t)e->x - 0xC;
-        int y = (int)(int16_t)e->y;
+        int32_t x = (int32_t)(int16_t)e->x - 0xC;
+        int32_t y = (int32_t)(int16_t)e->y;
 
         if ((int16_t)e->waypoint < 0) continue;      /* 1000:583D OR CX,CX */
-        for (unsigned k = 0; k < 2u; k++) {          /* 1000:589A + 0x58A4 */
-            unsigned a = (unsigned)(2u * e->waypoint) + k;
-            unsigned src, rows, yoff;
+        for (uint32_t k = 0; k < 2u; k++) {          /* 1000:589A + 0x58A4 */
+            uint32_t a = (uint32_t)(2u * e->waypoint) + k;
+            uint32_t src, rows, yoff;
 
             if (!entity_frameInfo(a, &src, &rows, &yoff)) break;
             if ((uint32_t)src + rows * 8u > entBankSize) break;
             object_blitSprite(page, entBank + src, rows, 32u,
-                              x - scrollX, y + (int)yoff - scrollY);
+                              x - scrollX, y + (int32_t)yoff - scrollY);
             x += 0x20;                               /* 1000:58A1 ADD AX,0x20 */
         }
     }
@@ -458,7 +458,7 @@ void entity_render(uint8_t *page, int scrollX, int scrollY)
 
 void entity_tick(void)
 {
-    for (unsigned i = 0; i < ent_count; i++) {
+    for (uint32_t i = 0; i < ent_count; i++) {
         Entity *ep = (Entity *)ents[i];
         /* c94c-c951: BX = +0, CX = +2, DX = +4 into the handler switch.
          * The handlers re-latch their fixed words EVERY call (BP is not
@@ -494,15 +494,15 @@ void entity_tick(void)
 
 /* --- the interface ------------------------------------------------------ */
 
-int entity_init(const OSystem *osys) { (void)osys; return 0; }
+int32_t entity_init(const OSystem *osys) { (void)osys; return 0; }
 
-const Entity *entity_at(unsigned i)
+const Entity *entity_at(uint32_t i)
 {
     if (i >= ent_count) return NULL;
     return (const Entity *)ents[i];
 }
 
-unsigned entity_count(void) { return ent_count; }
+uint32_t entity_count(void) { return ent_count; }
 
 /* Save +0x1656+0x28 = [0x64C2] (u16) + the first seven 0x10-byte records
  * (0x64C4..0x6534).  The original copies 0x70 bytes, i.e. slots 0..6. */
@@ -510,7 +510,7 @@ void entity_saveFixed(uint8_t *dst)
 {
     if (!dst) return;
     wr_le_u16(dst, (uint16_t)ent_count);
-    for (unsigned i = 0; i < 7u; i++)
+    for (uint32_t i = 0; i < 7u; i++)
         memcpy(dst + 2u + i * 16u, ents[i], 16u);
 }
 
@@ -519,6 +519,6 @@ void entity_loadFixed(const uint8_t *src)
     if (!src) return;
     ent_count = rd_le_u16(src);
     if (ent_count > ENT_MAX) ent_count = ENT_MAX;
-    for (unsigned i = 0; i < 7u; i++)
+    for (uint32_t i = 0; i < 7u; i++)
         memcpy(ents[i], src + 2u + i * 16u, 16u);
 }

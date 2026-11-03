@@ -32,10 +32,10 @@
 #define CUE_SCROLL     6
 #define CUE_DWELL      7
 
-int script_init(const OSystem *osys) { (void)osys; return 0; }
+int32_t script_init(const OSystem *osys) { (void)osys; return 0; }
 
 /* Wire a cue list (flattened [frame][cmd][arg] u16 triples). */
-void script_start(CueScript *s, const uint16_t *cues, unsigned cueCount)
+void script_start(CueScript *s, const uint16_t *cues, uint32_t cueCount)
 {
     memset(s, 0, sizeof *s);
     s->cues = cues;
@@ -49,7 +49,7 @@ void script_start(CueScript *s, const uint16_t *cues, unsigned cueCount)
  * it mid-scan (b92d), and the loop continues (`JMP b80d`) against the NEW
  * value — a cue whose frame the seek jumped past does not fire in this
  * pass. */
-void script_fire(CueScript *s, unsigned frame)
+void script_fire(CueScript *s, uint32_t frame)
 {
     s->frame = frame;
 
@@ -79,14 +79,14 @@ void script_fire(CueScript *s, unsigned frame)
         s->done = 1;
 }
 
-int  script_quit(const CueScript *s) { return s->quit; }
-int  script_done(const CueScript *s) { return s->done; }
-unsigned script_groupDwell(const CueScript *s) { return s->groupDwell; }
-int  script_scrollOn(const CueScript *s) { return s->scrollOn; }
-unsigned script_scrollDelta(const CueScript *s) { return s->scrollDelta; }
-unsigned script_transitionIndex(const CueScript *s) { return s->transitionIdx; }
-int  script_seekPending(const CueScript *s) { return s->seekPending; }
-unsigned script_seekFrame(const CueScript *s) { return s->seekFrame; }
+int32_t script_quit(const CueScript *s) { return s->quit; }
+int32_t script_done(const CueScript *s) { return s->done; }
+uint32_t script_groupDwell(const CueScript *s) { return s->groupDwell; }
+int32_t script_scrollOn(const CueScript *s) { return s->scrollOn; }
+uint32_t script_scrollDelta(const CueScript *s) { return s->scrollDelta; }
+uint32_t script_transitionIndex(const CueScript *s) { return s->transitionIdx; }
+int32_t script_seekPending(const CueScript *s) { return s->seekPending; }
+uint32_t script_seekFrame(const CueScript *s) { return s->seekFrame; }
 void script_seekDone(CueScript *s) { s->seekPending = 0; }
 
 /* --- intro cue list (verbatim from 202F:0x843C) ------------------------- */

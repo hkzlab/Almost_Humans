@@ -55,23 +55,23 @@ static uint16_t scoreScreenTimer;                 /* [0x1DC8]: 0x15E, the screen
                                                    * own countdown - exits when the
                                                    * sign bit sets */
 static uint16_t scoreBestTime;                    /* [0x1E88] */
-static int scoreIsRecord;                         /* [0x1DD6] */
+static int32_t scoreIsRecord;                     /* [0x1DD6] */
 static uint8_t scoreBlink = 0x19;                 /* [0x1DD7] */
-static int scoreBlinkPhase;                       /* [0x1DC4]: the RECORD's on/off */
+static int32_t scoreBlinkPhase;                   /* [0x1DC4]: the RECORD's on/off */
 
 /* 1000:41B8..41E6: the member count the score uses. */
-unsigned score_members(void)
+uint32_t score_members(void)
 {
-    unsigned n = statusbar_tribeValue();
-    unsigned live = object_liveCount();
+    uint32_t n = statusbar_tribeValue();
+    uint32_t live = object_liveCount();
 
     (void)live;
-    for (unsigned i = 0; i < object_staticSlots(); i++) {
+    for (uint32_t i = 0; i < object_staticSlots(); i++) {
         const uint8_t *r = object_slot(i);
 
         if (!r || (r[6] & 0x80u)) continue;
         {
-            unsigned ty = rd_le_u16(r + 8);
+            uint32_t ty = rd_le_u16(r + 8);
 
             if (ty == 0x1Du || ty == 0x1Eu) continue;
         }
@@ -83,19 +83,19 @@ unsigned score_members(void)
 /* 1000:41EA..4235: the level's two terms. */
 static void score_terms(void)
 {
-    unsigned levelNo = gameflow_levelForProbe() + 1u;
+    uint32_t levelNo = gameflow_levelForProbe() + 1u;
 
     scoreLevelTerm = (uint16_t)(levelNo * score_members() * 10u);
-    for (unsigned i = 0; i < object_staticSlots(); i++) {
-        unsigned cell = object_recordMapCell(i);
+    for (uint32_t i = 0; i < object_staticSlots(); i++) {
+        uint32_t cell = object_recordMapCell(i);
 
         if (cell == 0xA8u) scoreLevelTerm = (uint16_t)(scoreLevelTerm + 1000u);
         else if (cell == 0xA7u) scoreLevelTerm = (uint16_t)(scoreLevelTerm + 2000u);
     }
     {
         uint16_t t = statusbar_timeWord();
-        unsigned mins = (unsigned)(t >> 8);
-        unsigned secs = (unsigned)(((t >> 4) & 0xFu) * 10u + (t & 0xFu));
+        uint32_t mins = (uint32_t)(t >> 8);
+        uint32_t secs = (uint32_t)(((t >> 4) & 0xFu) * 10u + (t & 0xFu));
 
         scoreTimeTerm = (uint16_t)((mins * 60u + secs) * 10u);   /* 1000:429B.. */
     }
@@ -103,7 +103,7 @@ static void score_terms(void)
 
 /* 1000:42CE..4352: the best-time comparison, the NEW RECORD flag and the
  * running total. */
-void score_setTotal(unsigned lo, unsigned hi)
+void score_setTotal(uint32_t lo, uint32_t hi)
 {
     scoreTotalLo = (uint16_t)lo;
     scoreTotalHi = (uint16_t)hi;
@@ -111,9 +111,9 @@ void score_setTotal(unsigned lo, unsigned hi)
 
 void score_prepare(void)
 {
-    unsigned levelNo = gameflow_levelForProbe() + 1u;
+    uint32_t levelNo = gameflow_levelForProbe() + 1u;
     uint16_t elapsed = statusbar_elapsedWord();     /* [0x1E84] */
-    unsigned idx = levelNo;
+    uint32_t idx = levelNo;
 
     scoreLevelTerm = 0;                             /* [0x1DCA] starts at 0 */
     score_terms();
@@ -142,9 +142,9 @@ void score_prepare(void)
  * halves at 0x46A3 / 0x46FC are not ported: they copy a 16x24 mask from the
  * scratch at 0x3CA0 to the page). */
 /* the stamp's current phase ([0x1DC4]): 1 = drawn */
-int scoreBlinkOn(void) { return scoreBlinkPhase; }
+int32_t scoreBlinkOn(void) { return scoreBlinkPhase; }
 
-int score_blinkTick(void)
+int32_t score_blinkTick(void)
 {
     if (!scoreIsRecord) return 0;
     if (--scoreBlink) return 0;
@@ -154,7 +154,7 @@ int score_blinkTick(void)
 }
 
 /* 1000:475D tick_score_counters: one 10-point step of the displayed total. */
-int score_countersRun(void)
+int32_t score_countersRun(void)
 {
     if (scoreDelay) { scoreDelay--; return 1; }
     if (scoreLevelTerm) {
@@ -191,13 +191,13 @@ int score_countersRun(void)
     return (scoreScreenTimer & 0x8000u) ? 0 : 1;
 }
 
-int      score_isRecord(void) { return scoreIsRecord; }
-uint16_t score_bestFor(unsigned level) { return hiscore_best(level); }
+int32_t  score_isRecord(void) { return scoreIsRecord; }
+uint16_t score_bestFor(uint32_t level) { return hiscore_best(level); }
 uint16_t score_bestTime(void) { return scoreBestTime; }
-unsigned score_totalLo(void) { return scoreTotalLo; }
-unsigned score_totalHi(void) { return scoreTotalHi; }
-unsigned score_shownLo(void) { return scoreShownLo; }
-unsigned score_shownHi(void) { return scoreShownHi; }
+uint32_t score_totalLo(void) { return scoreTotalLo; }
+uint32_t score_totalHi(void) { return scoreTotalHi; }
+uint32_t score_shownLo(void) { return scoreShownLo; }
+uint32_t score_shownHi(void) { return scoreShownHi; }
 
 
 #define SCORE_PAGE (320u * 200u)
@@ -209,23 +209,23 @@ static uint8_t *scoreFont;
 static uint8_t *scoreDigits;      /* apl\SCORE.SPR (the 4x16 digit blocks) */
 static uint8_t *scoreRecord;      /* apl\RECORD.SPR (the NEW RECORD stamp)  */
 static uint8_t *scoreNum;         /* apl\SCORENUM.SPR (20 slots of 0x40)    */
-static int scorePhase;
-static int scoreArmed;
-static int scoreArmFade;   /* the entry fade is still running */
+static int32_t scorePhase;
+static int32_t scoreArmed;
+static int32_t scoreArmFade; /* the entry fade is still running */
 static uint16_t scoreHold;
 
 /* check_highscore's score terms (1000:41AE).  [0x1F41] = the level number
  * (1-based, the same value draw_level_text prints), [0x11FC] = the members. */
-unsigned score_levelScore(void)
+uint32_t score_levelScore(void)
 {
     uint16_t t;
-    unsigned mins, secs, remaining, levelNo, bonus;
+    uint32_t mins, secs, remaining, levelNo, bonus;
 
     if (!level_outcome()) return 0u;         /* 55B3: a lost level adds none */
 
     t = statusbar_timeWord();                /* [0x5B19/1A/1B] */
-    mins = (unsigned)(t >> 8);
-    secs = (unsigned)(((t >> 4) & 0xFu) * 10u + (t & 0xFu));
+    mins = (uint32_t)(t >> 8);
+    secs = (uint32_t)(((t >> 4) & 0xFu) * 10u + (t & 0xFu));
     remaining = mins * 60u + secs;
 
     levelNo = gameflow_levelForProbe() + 1u; /* [0x1F41] */
@@ -234,8 +234,8 @@ unsigned score_levelScore(void)
     bonus = levelNo * score_members() * 10u + remaining * 10u;
 
     /* 55FA..5635: the eight static records' cells, 0xA8 (+1000) / 0xA7 (+2000) */
-    for (unsigned i = 0; i < object_staticSlots(); i++) {
-        unsigned cell = object_recordMapCell(i);
+    for (uint32_t i = 0; i < object_staticSlots(); i++) {
+        uint32_t cell = object_recordMapCell(i);
         if (cell == 0xA8u) bonus += 1000u;
         else if (cell == 0xA7u) bonus += 2000u;
     }
@@ -287,17 +287,17 @@ unsigned score_levelScore(void)
  * back to all four - left the card behind the stamp as 4-px blocks. */
 static uint8_t stampUnder[24u * 64u];
 
-void score_stampDraw(uint8_t *page, int on)
+void score_stampDraw(uint8_t *page, int32_t on)
 {
-    unsigned r, j;
+    uint32_t r, j;
 
     if (!page) return;
     if (!on) {
         /* 1000:46A3: A000:0000 -> the cell. */
         for (r = 0; r < 24u; r++)
             for (j = 0; j < 64u; j++) {
-                unsigned py = STAMP_ROW + r;
-                unsigned px = STAMP_COL * 4u + j;
+                uint32_t py = STAMP_ROW + r;
+                uint32_t px = STAMP_COL * 4u + j;
 
                 if (py >= 200u || px >= 320u) continue;
                 page[py * 320u + px] = stampUnder[r * 64u + j];
@@ -307,8 +307,8 @@ void score_stampDraw(uint8_t *page, int on)
     /* 1000:4697: the cell -> A000:0000, then draw the sprite. */
     for (r = 0; r < 24u; r++)
         for (j = 0; j < 64u; j++) {
-            unsigned py = STAMP_ROW + r;
-            unsigned px = STAMP_COL * 4u + j;
+            uint32_t py = STAMP_ROW + r;
+            uint32_t px = STAMP_COL * 4u + j;
 
             stampUnder[r * 64u + j] =
                 (py < 200u && px < 320u) ? page[py * 320u + px] : 0u;
@@ -318,9 +318,9 @@ void score_stampDraw(uint8_t *page, int on)
      * A zero byte leaves the saved underlay alone. */
     for (r = 0; r < 24u; r++)
         for (j = 0; j < 64u; j++) {
-            unsigned v = scoreRecord ? scoreRecord[r * 64u + j] : 0u;
-            unsigned py = STAMP_ROW + r;
-            unsigned px = STAMP_COL * 4u + j;
+            uint32_t v = scoreRecord ? scoreRecord[r * 64u + j] : 0u;
+            uint32_t py = STAMP_ROW + r;
+            uint32_t px = STAMP_COL * 4u + j;
 
             if (!v || py >= 200u || px >= 320u) continue;
             page[py * 320u + px] = (uint8_t)(v + 0xC0u);
@@ -340,7 +340,7 @@ void score_stampDraw(uint8_t *page, int on)
  * in 4-address (16 px) steps; the value is divided by 10000 first, then by 10,
  * and an exhausted value keeps drawing block 0 (zero-padded).
  */
-static void score_digitBlock(uint8_t *page, unsigned digit, int x, int y)
+static void score_digitBlock(uint8_t *page, uint32_t digit, int32_t x, int32_t y)
 {
     const uint8_t *src;
 
@@ -351,24 +351,24 @@ static void score_digitBlock(uint8_t *page, unsigned digit, int x, int y)
      * quarter p: the glyph is a 16x16 chunky image stored plane-major,
      * pixel 4k+p = src[p*64 + r*4 + k].  The runtime OR of 0xC0 into the
      * sheet (0x4278) biases the colour, and every byte is stored (opaque). */
-    for (unsigned r = 0; r < 16u; r++)
-        for (unsigned px = 0; px < 16u; px++) {
+    for (uint32_t r = 0; r < 16u; r++)
+        for (uint32_t px = 0; px < 16u; px++) {
             uint8_t v = (uint8_t)(src[(px & 3u) * 64u + r * 4u + (px >> 2)] | 0xC0u);
-            int dx = x + (int)px;
-            int dy = y + (int)r;
+            int32_t dx = x + (int32_t)px;
+            int32_t dy = y + (int32_t)r;
 
             if (dx >= 0 && dx < 320 && dy >= 0 && dy < 200)
-                page[(unsigned)dy * 320u + (unsigned)dx] = v;
+                page[(uint32_t)dy * 320u + (uint32_t)dx] = v;
         }
 }
 
-void score_column(uint8_t *page, uint32_t value, int x, int y, unsigned digits)
+void score_column(uint8_t *page, uint32_t value, int32_t x, int32_t y, uint32_t digits)
 {
-    unsigned d = digits;
+    uint32_t d = digits;
 
     if (!d) return;
-    for (unsigned i = 0; i < d; i++) {
-        score_digitBlock(page, (unsigned)(value % 10u), x + (int)(4u * (d - 1u - i)) * 4,
+    for (uint32_t i = 0; i < d; i++) {
+        score_digitBlock(page, (uint32_t)(value % 10u), x + (int32_t)(4u * (d - 1u - i)) * 4,
                          y);
         value /= 10u;
     }
@@ -405,20 +405,20 @@ void score_drawColumns(uint8_t *page)
  * time `[0x1E88]` with `BP = 0x280` (slots 10..19) - one page address = 4 px,
  * so the digits sit at row 181, px 104..127 and px 264..287.
  */
-static void score_numBlock(uint8_t *page, unsigned digit, unsigned bp, unsigned off)
+static void score_numBlock(uint8_t *page, uint32_t digit, uint32_t bp, uint32_t off)
 {
-    unsigned row = off / 88u, col = off % 88u;
-    unsigned px = col * 4u;                  /* one address = 4 px */
+    uint32_t row = off / 88u, col = off % 88u;
+    uint32_t px = col * 4u;                  /* one address = 4 px */
 
     if (!page || !scoreNum || digit > 19u || row >= 200u) return;
     /* 1000:450F: 8 rows x 2 addresses.  Pass p takes src[slot + r*8 + p] and
      * src[slot + r*8 + 4 + p], so pixel x of the row is src[r*8 + x]: the
      * slot is a chunky 8x8 image, stored as v | 0xC0. */
-    for (unsigned r = 0; r < 8u; r++) {
-        unsigned y = row + r;
+    for (uint32_t r = 0; r < 8u; r++) {
+        uint32_t y = row + r;
 
         if (y >= 200u) break;
-        for (unsigned x = 0; x < 8u; x++) {
+        for (uint32_t x = 0; x < 8u; x++) {
             if (px + x >= 320u) continue;
             page[y * 320u + px + x] =
                 (uint8_t)(scoreNum[digit * 0x40u + bp + r * 8u + x] | 0xC0u);
@@ -426,13 +426,13 @@ static void score_numBlock(uint8_t *page, unsigned digit, unsigned bp, unsigned 
     }
 }
 
-void score_drawNum3(uint8_t *page, unsigned ax, uint16_t value, unsigned bx, unsigned bp)
+void score_drawNum3(uint8_t *page, uint32_t ax, uint16_t value, uint32_t bx, uint32_t bp)
 {
-    unsigned off = bx * 88u + (ax >> 2);
+    uint32_t off = bx * 88u + (ax >> 2);
 
-    score_numBlock(page, (unsigned)((value >> 8) & 0x0Fu), bp, off + 6u);
-    score_numBlock(page, (unsigned)((value >> 4) & 0x0Fu), bp, off + 8u);
-    score_numBlock(page, (unsigned)(value & 0x0Fu),        bp, off + 10u);
+    score_numBlock(page, (uint32_t)((value >> 8) & 0x0Fu), bp, off + 6u);
+    score_numBlock(page, (uint32_t)((value >> 4) & 0x0Fu), bp, off + 8u);
+    score_numBlock(page, (uint32_t)(value & 0x0Fu),        bp, off + 10u);
 }
 
 
@@ -448,14 +448,14 @@ void score_drawCard(uint8_t *page)
     /* 1000:4403: SI walks the chunky 320-byte row at stride 4 (one byte per
      * plane pass) and DI is the 4-px page group, so pixel 4j+p = src[4j+p]:
      * a plain 1:1 copy.  A zero byte is LEFT ALONE (the level caption). */
-    for (unsigned i = 0; i < 320u * 200u; i++) {
-        unsigned v = scoreBit[i];
+    for (uint32_t i = 0; i < 320u * 200u; i++) {
+        uint32_t v = scoreBit[i];
 
         if (v) page[i] = (uint8_t)(v + 0xC0u);
     }
 }
 
-int score_begin(unsigned value)
+int32_t score_begin(uint32_t value)
 {
     if (scorePhase != SCORE_OFF) return 1;
 
@@ -528,7 +528,7 @@ int score_begin(unsigned value)
     return 1;
 }
 
-int score_tick(const InputState *in)
+int32_t score_tick(const InputState *in)
 {
     static const uint8_t black[768];
     switch (scorePhase) {
@@ -543,7 +543,7 @@ int score_tick(const InputState *in)
         if (!scoreArmed) { scoreArmed = 1; return 1; }
         {
             uint8_t *page = video_page(0);
-            int alive;
+            int32_t alive;
 
             /* tick_score_counters (1000:475D): draw_score_columns, blink_tick,
              * then one 10-point step.  The drawing happens every frame. */
@@ -552,7 +552,7 @@ int score_tick(const InputState *in)
              * phase's handler - 1000:46A3 restores the cell (off), 1000:46FC
              * saves it and draws the sprite (on).  Both halves run. */
             {
-                int was = scoreBlinkOn();
+                int32_t was = scoreBlinkOn();
 
                 (void)score_blinkTick();
                 if (page && scoreBlinkOn() != was)

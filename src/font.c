@@ -39,22 +39,22 @@ static const uint8_t advance[45] = {
  * game_loop prologue and the front-end later; blit_glyph's only source). */
 static const uint8_t *glyphs;
 
-int font_init(const OSystem *osys) { (void)osys; return 0; }
+int32_t font_init(const OSystem *osys) { (void)osys; return 0; }
 
 void font_publish(const uint8_t *textSpr) { glyphs = textSpr; }
 
 /* The charset lookup: the match index, or 44 (the terminator slot) when
  * the character is not in the table (draw_text's scan stops there). */
-static unsigned charset_index(uint8_t c)
+static uint32_t charset_index(uint8_t c)
 {
-    for (unsigned i = 0; i < 44u; i++)
+    for (uint32_t i = 0; i < 44u; i++)
         if ((uint8_t)charset[i] == c) return i;
     return 44u;
 }
 
 /* The nibble scatter's net effect (the 4x SHL/RCR + 4x SHR of 1000:4a3c,
  * and the 4x SHR/RCL of 1000:4a5b): the nibble, 4-bit-reversed. */
-static uint8_t rev4(unsigned v)
+static uint8_t rev4(uint32_t v)
 {
     v &= 0xFu;
     return (uint8_t)(((v & 1u) << 3) | ((v >> 1) & 1u) << 2 |
@@ -63,21 +63,21 @@ static uint8_t rev4(unsigned v)
 
 /* blit_glyph (1000:49FC) — one 16-row glyph into the arena.  `x` is the
  * screen-pixel column (the doubled scale), `row` the arena row (0..199). */
-static void blit_glyph(uint8_t *arena, int x, unsigned row, unsigned gi)
+static void blit_glyph(uint8_t *arena, int32_t x, uint32_t row, uint32_t gi)
 {
     if (!glyphs) return;
 
-    unsigned di = row * 80u + (unsigned)((x >= 0 ? x : 0) >> 2);
-    unsigned si = gi * 32u;                    /* the glyph stride (SHL CX,1 x5) */
-    unsigned k  = (unsigned)(x >= 0 ? x : 0) & 3u;   /* the x%4 pre-shift */
+    uint32_t di = row * 80u + (uint32_t)((x >= 0 ? x : 0) >> 2);
+    uint32_t si = gi * 32u;                    /* the glyph stride (SHL CX,1 x5) */
+    uint32_t k  = (uint32_t)(x >= 0 ? x : 0) & 3u;   /* the x%4 pre-shift */
 
-    for (unsigned r = 0; r < 16u; r++) {
+    for (uint32_t r = 0; r < 16u; r++) {
         uint16_t ax = rd_le_u16(glyphs + si);
         si += 2;
         uint8_t dh = 0;
         if (k) {                               /* 4a2e..4a38 */
             ax = (uint16_t)((ax >> 8) | (ax << 8));        /* XCHG AL,AH */
-            for (unsigned i = 0; i < k; i++) {
+            for (uint32_t i = 0; i < k; i++) {
                 uint8_t cf = (uint8_t)(ax & 1u);
                 ax = (uint16_t)(ax >> 1);
                 dh = (uint8_t)((dh >> 1) | (cf << 7));     /* RCR DH,1 */
@@ -103,10 +103,10 @@ static void blit_glyph(uint8_t *arena, int x, unsigned row, unsigned gi)
 
 /* draw_text's own measure: the sum of the advance table (the same walk
  * draw_text does before centring).  STOPs at CR/NUL, like draw_text. */
-unsigned font_textWidth(const char *s)
+uint32_t font_textWidth(const char *s)
 {
-    unsigned w = 0;
-    for (const unsigned char *p = (const unsigned char *)s;
+    uint32_t w = 0;
+    for (const uint8_t *p = (const uint8_t *)s;
          *p && *p != 0x0Du; p++)
         w += advance[charset_index(*p)];
     return w;
@@ -115,21 +115,21 @@ unsigned font_textWidth(const char *s)
 /* draw_text (1000:4989): centre `s` on centreX and blit it at arena row
  * `row`.  Unknown characters advance by the terminator slot but draw
  * nothing (the two search loops' no-match paths). */
-void font_drawText(uint8_t *arena, const char *s, unsigned centreX,
-                   unsigned row)
+void font_drawText(uint8_t *arena, const char *s, uint32_t centreX,
+                   uint32_t row)
 {
     if (!glyphs || !arena) return;
 
-    unsigned width = 0;
-    for (const unsigned char *p = (const unsigned char *)s;
+    uint32_t width = 0;
+    for (const uint8_t *p = (const uint8_t *)s;
          *p && *p != 0x0Du; p++)
         width += advance[charset_index(*p)];
 
-    int x = (int)centreX - (int)(width >> 1);
+    int32_t x = (int32_t)centreX - (int32_t)(width >> 1);
 
-    for (const unsigned char *p = (const unsigned char *)s;
+    for (const uint8_t *p = (const uint8_t *)s;
          *p && *p != 0x0Du; p++) {
-        unsigned gi = charset_index(*p);
+        uint32_t gi = charset_index(*p);
         if (gi == 44u) continue;               /* no glyph: skip, no advance */
         blit_glyph(arena, x, row, gi);
         x += advance[gi];

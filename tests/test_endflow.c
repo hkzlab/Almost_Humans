@@ -22,16 +22,16 @@
 #include "compat.h"
 
 extern const OSystem osys_null;
-extern void osys_null_inputScript(const InputState *states, unsigned n);
+extern void osys_null_inputScript(const InputState *states, uint32_t n);
 extern const uint8_t *osys_null_palette(void);
-extern void osys_null_onPresent(void (*fn)(unsigned poll));
+extern void osys_null_onPresent(void (*fn)(uint32_t poll));
 
 enum { FORCE_POLL = 7900u, SCRIPT_N = 9000u };
 
-static int outcome;
-static int greySeen, blackSeen, cardSeen, seenCardAfterBlack;
+static int32_t outcome;
+static int32_t greySeen, blackSeen, cardSeen, seenCardAfterBlack;
 
-static void hook(unsigned poll)
+static void hook(uint32_t poll)
 {
     const uint8_t *pal = osys_null_palette();
 
@@ -39,7 +39,7 @@ static void hook(unsigned poll)
         /* mode 2 = the pause menu's RESTART THIS GAME (1000:390F), which must
          * run the lost-level caption and fades before the restart */
         if (outcome == 2) {
-            int q = 0;
+            int32_t q = 0;
             (void)gameflow_pauseAction(2, &q);
         } else {
             level_requestEnd(outcome);
@@ -48,9 +48,9 @@ static void hook(unsigned poll)
     if (poll < FORCE_POLL) return;
 
     {
-        unsigned grey = 1, nz = 0, black = 1;
+        uint32_t grey = 1, nz = 0, black = 1;
 
-        for (unsigned e = 0; e < 0x80u; e++) {
+        for (uint32_t e = 0; e < 0x80u; e++) {
             if (!(pal[e * 3u] == pal[e * 3u + 1u] &&
                   pal[e * 3u] == pal[e * 3u + 2u])) grey = 0;
             if (pal[e * 3u]) nz = 1;
@@ -61,7 +61,7 @@ static void hook(unsigned poll)
             pal[0x81 * 3u] == 0x3C && pal[0x81 * 3u + 1u] == 0x26)
             greySeen = 1;
 
-        for (unsigned i = 0; i < 768u; i++) if (pal[i]) black = 0;
+        for (uint32_t i = 0; i < 768u; i++) if (pal[i]) black = 0;
         if (black) blackSeen = 1;
 
         /* the card bank: reblit copies SCORE.BIT+0xFA00 (entry 0 = 00 20 3C) */
@@ -79,7 +79,7 @@ int main(int argc, char **argv)
     char path[512];
     FILE *f;
     static InputState script[SCRIPT_N];
-    int bad = 0;
+    int32_t bad = 0;
 
     outcome = argc > 2 ? atoi(argv[2]) : 1;
 
@@ -97,10 +97,10 @@ int main(int argc, char **argv)
      * FORCE_POLL and dismiss the caption. */
     memset(script, 0, sizeof script);
     script[6600].joyBits = 0x80u;
-    for (unsigned i = 6700; i <= 6950u; i++) script[i].joyBits = 0x08u;
+    for (uint32_t i = 6700; i <= 6950u; i++) script[i].joyBits = 0x08u;
     script[7150].lastKey = 1u;
-    for (unsigned i = 7250u; i <= 7700u; i++) script[i].lastKey = 1u;
-    for (unsigned i = FORCE_POLL + 50u; i <= FORCE_POLL + 160u; i++)
+    for (uint32_t i = 7250u; i <= 7700u; i++) script[i].lastKey = 1u;
+    for (uint32_t i = FORCE_POLL + 50u; i <= FORCE_POLL + 160u; i++)
         script[i].lastKey = 1u;              /* the caption's key */
     script[SCRIPT_N - 1].quit = 1u;
 

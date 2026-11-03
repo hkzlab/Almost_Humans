@@ -134,22 +134,22 @@ struct slot {                          /* 16 B at [0x11fe]:0xFA8 + 0x10*i    */
 static struct slot slots[8];
 
 #define SCRIPT_COUNT 7
-struct script { unsigned len; const uint8_t *b; };
+struct script { uint32_t len; const uint8_t *b; };
 static struct script scripts[SCRIPT_COUNT];
 
 static uint8_t *scriptStore;           /* the seeded bodies (memcpy'd)       */
 
 
-void party_intro_seedScripts(const uint8_t *bytes, unsigned len)
+void party_intro_seedScripts(const uint8_t *bytes, uint32_t len)
 {
     /* the [live] pointer table: the DS offsets into the first body 0x1036 */
-    unsigned offs[SCRIPT_COUNT] = { 0x1036u, 0x103bu, 0x1044u, 0x1047u,
+    uint32_t offs[SCRIPT_COUNT] = { 0x1036u, 0x103bu, 0x1044u, 0x1047u,
                                     0x104eu, 0x1053u, 0x105cu };
     free(scriptStore);
     scriptStore = (uint8_t *)malloc(len ? len : 1u);
     if (scriptStore) memcpy(scriptStore, bytes, len);
-    for (unsigned i = 0; i < SCRIPT_COUNT; i++) {
-        unsigned rel = (offs[i] >= 0x1036u) ? (offs[i] - 0x1036u) : 0u;
+    for (uint32_t i = 0; i < SCRIPT_COUNT; i++) {
+        uint32_t rel = (offs[i] >= 0x1036u) ? (offs[i] - 0x1036u) : 0u;
         scripts[i].len = (rel < len) ? (len - rel) : 0u;
         scripts[i].b   = scriptStore ? (scriptStore + rel) : NULL;
     }
@@ -158,7 +158,7 @@ void party_intro_seedScripts(const uint8_t *bytes, unsigned len)
 void party_intro_seedSlots(const uint8_t *raw)  /* the 128 B at DS:0xFA8 */
 {
     if (!raw) { memset(slots, 0, sizeof slots); return; }
-    for (unsigned i = 0; i < 8u; i++) {
+    for (uint32_t i = 0; i < 8u; i++) {
         const uint8_t *r = raw + i * 16u;
         struct slot *s = &slots[i];
         s->dst    = rd_le_u16(r);
@@ -204,13 +204,13 @@ static void seed_slots_live(void)
 
 /* === 2b1b format_score + 2b70 ================================================ */
 
-void party_intro_formatScore(unsigned v, char *out)
+void party_intro_formatScore(uint32_t v, char *out)
 {
-    static const unsigned divs[8] = { 100000000u, 10000000u, 1000000u,
+    static const uint32_t divs[8] = { 100000000u, 10000000u, 1000000u,
                                       100000u, 10000u, 1000u, 100u, 10u };
-    unsigned sig = 0;                              /* 2b70's DI           */
-    for (unsigned i = 0; i < 8u; i++) {
-        unsigned q = v / divs[i];                  /* the 2b72 subcount   */
+    uint32_t sig = 0;                              /* 2b70's DI           */
+    for (uint32_t i = 0; i < 8u; i++) {
+        uint32_t q = v / divs[i];                  /* the 2b72 subcount   */
         if (q != 0) { *out++ = (char)('0' + q); sig = 0x30u; }
         else if (sig != 0) { *out++ = '0'; }
         v %= divs[i];
@@ -224,12 +224,12 @@ void party_intro_formatScore(unsigned v, char *out)
  * tail is untouched, and a number wider than the field spills into it —
  * both exactly as the original does (its "HUMANS TO COMPLETE" and
  * " MEMBERS!" tails survive the patch). */
-static char *put_number(char *dst, unsigned v)
+static char *put_number(char *dst, uint32_t v)
 {
     char buf[10];
-    unsigned n = 0;
+    uint32_t n = 0;
     do { buf[n++] = (char)('0' + v % 10u); v /= 10u; } while (v && n < 10u);
-    for (unsigned i = 0; i < n; i++) dst[i] = buf[n - 1u - i];
+    for (uint32_t i = 0; i < n; i++) dst[i] = buf[n - 1u - i];
     return dst + n;                        /* the formatter's SI          */
 }
 
@@ -257,12 +257,12 @@ static void flip_page(void)            /* 87f8                                */
 }
 
 /* 2ed7 deplanarise_intro_page: the .BIT rows plane-baked at pitch 88 +8 */
-static void bake_page(const uint8_t *bit, unsigned pagebase)
+static void bake_page(const uint8_t *bit, uint32_t pagebase)
 {
-    for (unsigned r = 0; r < 200u; r++) {
-        unsigned a = pagebase + 8u + r * 88u;
+    for (uint32_t r = 0; r < 200u; r++) {
+        uint32_t a = pagebase + 8u + r * 88u;
         const uint8_t *s = bit + r * 320u;
-        for (unsigned c = 0; c < 80u; c++) {
+        for (uint32_t c = 0; c < 80u; c++) {
             vram[a + c][0] = s[c * 4u + 0u];
             vram[a + c][1] = s[c * 4u + 1u];
             vram[a + c][2] = s[c * 4u + 2u];
@@ -272,42 +272,42 @@ static void bake_page(const uint8_t *bit, unsigned pagebase)
 }
 
 /* 2c1d draw_intro_frame — the closed funnel */
-static void band_stamp(unsigned pagebase)
+static void band_stamp(uint32_t pagebase)
 {
-    for (unsigned row = 0; row < 68u; row++) {
-        unsigned m = rampTbl[row + 16u];    /* 2c1d's OUT 3CF = CS:0x2E0E+row */
-        unsigned a = pagebase + 0x6E8u + row * 88u;
+    for (uint32_t row = 0; row < 68u; row++) {
+        uint32_t m = rampTbl[row + 16u];    /* 2c1d's OUT 3CF = CS:0x2E0E+row */
+        uint32_t a = pagebase + 0x6E8u + row * 88u;
         const uint8_t *src = canvas + 0x640u + row * 80u;
-        for (unsigned k = 0; k < 80u; k++) {
+        for (uint32_t k = 0; k < 80u; k++) {
             uint8_t c = src[k];                 /* LODSB [BX+0x640+80+k]      */
-            for (unsigned p = 0; p < 4u; p++) {
-                unsigned spread = (((c >> p) & 1u) != 0u) ? m : 0u;
+            for (uint32_t p = 0; p < 4u; p++) {
+                uint32_t spread = (((c >> p) & 1u) != 0u) ? m : 0u;
                 uint8_t pre = vram[a + k][p];
                 vram[a + k][p] =
-                   (uint8_t)(((pre & (unsigned)(~m & 0xFFu)) | spread) & 0xFFu);
+                   (uint8_t)(((pre & (uint32_t)(~m & 0xFFu)) | spread) & 0xFFu);
             }
         }
     }
 }
 
 /* 29d9 blit_slot_colour_block: 24 rows × 4 bytes; frame clamps 0x1C */
-static void blit_slot(unsigned frame)
+static void blit_slot(uint32_t frame)
 {
     if (frame > 0x1Cu) frame = 0x1Cu;
     const uint8_t *s = sheet + frame * 96u;
-    unsigned di = (unsigned)stampDest + (unsigned)pageDraw + 8u;
+    uint32_t di = (uint32_t)stampDest + (uint32_t)pageDraw + 8u;
     enum { MASK = 0x40u };             /* 28e9's 299b(AH=0x40) live pin */
-    for (unsigned r = 0; r < 24u; r++) {
-        for (unsigned w = 0; w < 4u; w++) {
+    for (uint32_t r = 0; r < 24u; r++) {
+        for (uint32_t w = 0; w < 4u; w++) {
             uint8_t c = s[r * 4u + w];
             /* write mode 2 reads AL's bits 0..3 only — the sheet's nibble
              * is the plane value itself; no palette bias applies to the
              * byte (the +0xC0 story lives in the palette table, not here). */
-            for (unsigned p = 0; p < 4u; p++) {
-                unsigned spread = (((c >> p) & 1u) != 0u) ? MASK : 0u;
+            for (uint32_t p = 0; p < 4u; p++) {
+                uint32_t spread = (((c >> p) & 1u) != 0u) ? MASK : 0u;
                 uint8_t pre = vram[di + w][p];
                 vram[di + w][p] =
-                   (uint8_t)(((pre & (unsigned)(~MASK & 0xFFu)) | spread) & 0xFFu);
+                   (uint8_t)(((pre & (uint32_t)(~MASK & 0xFFu)) | spread) & 0xFFu);
             }
         }
         di += 88u;                     /* 4 written + ADD DI,0x54 = 88      */
@@ -322,22 +322,22 @@ static void marquee(void)
     marqHold--;                                /* 2a4c: DEC first, then test */
     if (marqHold == 0u) { marqHold = 5u; marqCell = (marqCell + 1u) % 0xCu; }
 
-    unsigned cell = marqCell, ph = marqPhase;
-    unsigned v = cell * 4u + (ph & 3u);        /* 2a76..2a83 */
-    unsigned src = v * 320u;                   /* 2a85..2a8d: v*256 + v*64   */
+    uint32_t cell = marqCell, ph = marqPhase;
+    uint32_t v = cell * 4u + (ph & 3u);        /* 2a76..2a83 */
+    uint32_t src = v * 320u;                   /* 2a85..2a8d: v*256 + v*64   */
 
-    unsigned dhi = 0x2260u + ph / 4u;          /* 2a8f..2a95 + the page add  */
+    uint32_t dhi = 0x2260u + ph / 4u;          /* 2a8f..2a95 + the page add  */
 
     enum { MASK = 0x40u };             /* 28e9's 299b(AH=0x40) covers 2a3a  */
-    for (unsigned r = 0; r < 32u; r++) {
-        unsigned di = (unsigned)pageDraw + dhi + r * 88u;
-        for (unsigned k = 0; k < 10u; k++) {
+    for (uint32_t r = 0; r < 32u; r++) {
+        uint32_t di = (uint32_t)pageDraw + dhi + r * 88u;
+        for (uint32_t k = 0; k < 10u; k++) {
             uint8_t c = strip[src + r * 10u + k];  /* 5 LODSW = 10 B/row    */
-            for (unsigned p = 0; p < 4u; p++) {
-                unsigned spread = (((c >> p) & 1u) != 0u) ? MASK : 0u;
+            for (uint32_t p = 0; p < 4u; p++) {
+                uint32_t spread = (((c >> p) & 1u) != 0u) ? MASK : 0u;
                 uint8_t pre = vram[di + k][p];
                 vram[di + k][p] =
-                   (uint8_t)(((pre & (unsigned)(~MASK & 0xFFu)) | spread) & 0xFFu);
+                   (uint8_t)(((pre & (uint32_t)(~MASK & 0xFFu)) | spread) & 0xFFu);
             }
         }
     }
@@ -346,12 +346,12 @@ static void marquee(void)
 /* 28e9 animate_entities — verbatim: every tick, per slot */
 static void anim_entities(void)
 {
-    for (unsigned i = 0; i < 8u; i++) {
+    for (uint32_t i = 0; i < 8u; i++) {
         struct slot *s = &slots[i];
         uint8_t dl = 0;
         s->count--;
         if (s->count == 0u) { s->count = 8u; dl = 1u; }    /* 2909..2912 */
-        for (unsigned pass = 0; pass < 40u; pass++) {      /* the 2914 walk */
+        for (uint32_t pass = 0; pass < 40u; pass++) {      /* the 2914 walk */
             if (s->script == 0u || s->script > SCRIPT_COUNT) break;
             const struct script *sc = &scripts[s->script - 1u];
             if (sc->b == NULL || sc->len == 0u) break;
@@ -363,7 +363,7 @@ static void anim_entities(void)
                 blit_slot(dh);
                 break;                                     /* 295f: next slot */
             }
-            unsigned cl = ((unsigned)s->loopc + 1u) % 10u; /* 292f..293b */
+            uint32_t cl = ((uint32_t)s->loopc + 1u) % 10u; /* 292f..293b */
             s->loopc = (uint8_t)cl;
             s->script = s->sub[cl];                        /* the sub-list ids */
             s->fpos = 0u;                                  /* 294a, redo 2914 */
@@ -379,7 +379,7 @@ static void anim_entities(void)
  * per-call 28e9 animates the slots/marquee and flips, but the TEXT does
  * not reach the display until the next 2C1D (inside 2b9c/2bda) — the
  * original's "all text fades in together at the first band redraw". */
-static void draw_text_ramped(const char *s, unsigned centreX, unsigned row)
+static void draw_text_ramped(const char *s, uint32_t centreX, uint32_t row)
 {
     memcpy(rampTbl + row, ramp10, 10u);    /* 2e94: the ramp slides with the
                                             * row param — CS:0x2DFE + row */
@@ -393,7 +393,7 @@ static void draw_text_ramped(const char *s, unsigned centreX, unsigned row)
  * upper half). */
 static void copy_palette(void)
 {
-    for (unsigned p = 0; p < 4u; p++)
+    for (uint32_t p = 0; p < 4u; p++)
         memcpy(palUpper + p * 0x60u, workpal, 0x60u);
 }
 
@@ -419,19 +419,19 @@ enum {
     PH_EXITWAIT, PH_PRESENT, PH_DONE           /* 2711..272b             */
 };
 
-static unsigned phase = PH_FADEWAIT;   /* the machine phase                   */
-static unsigned step;                  /* the in-phase op counter             */
-static unsigned waitLeft;              /* 297f's AX                           */
-static int      keyCaught;             /* the JNS's source                    */
-static unsigned presentLeft;           /* 835a's 0x4B cycles                  */
-static unsigned swapNext;              /* the 2bda's tail's next phase        */
-static int      gameOverMode;          /* level_intro_screen 2739's variant   */
+static uint32_t phase = PH_FADEWAIT;   /* the machine phase                   */
+static uint32_t step;                  /* the in-phase op counter             */
+static uint32_t waitLeft;              /* 297f's AX                           */
+static int32_t  keyCaught;             /* the JNS's source                    */
+static uint32_t presentLeft;           /* 835a's 0x4B cycles                  */
+static uint32_t swapNext;              /* the 2bda's tail's next phase        */
+static int32_t  gameOverMode;          /* level_intro_screen 2739's variant   */
 
 /* 2bda's internal split: its own fade-wait (2bec..2bf2), THEN the 0xE0
  * mask reset (2bf4) + clear + band redraws (2c01..2c1c) — the tail is
  * what wipes the previous text and re-bakes the canvas-empty band. */
 enum { SW_FADEWAIT = 0, SW_TAIL };
-static unsigned swPhase = SW_FADEWAIT;
+static uint32_t swPhase = SW_FADEWAIT;
 
 /* 2bda fade_and_animate — verbatim phase-split: 2bda runs [28d0]; builds
  * the window fade; THEN BLOCKS ON ITS OWN FADE ({28e9; 8b9a; JC} at
@@ -441,7 +441,7 @@ static unsigned swPhase = SW_FADEWAIT;
  * completion — the original's "text fades in at the next set" rhythm:
  * every 2c1d renders the canvas under the fade state CURRENT AT THAT
  * MOMENT, and the holds are the built fades' converged end-states. */
-static void swap_begin(unsigned next)
+static void swap_begin(uint32_t next)
 {
     copy_palette();                                 /* 2bda (28d0)          */
     palette_buildFade(0x80u, 0x80u, 0x28u, palUpper);
@@ -453,19 +453,19 @@ static void swap_begin(unsigned next)
 /* === the asset prep ========================================================== */
 
 /* 27eb expand_nibbles_to_bytes */
-static int expand_nibbles(const uint8_t *src, uint32_t n, uint8_t *dst)
+static int32_t expand_nibbles(const uint8_t *src, uint32_t n, uint8_t *dst)
 {
     if (n < 0x570u) return 0;
-    unsigned di = 0;
-    for (unsigned i = 0; i < 0x570u; i++) {
+    uint32_t di = 0;
+    for (uint32_t i = 0; i < 0x570u; i++) {
         uint8_t al = src[i], ah = al;
-        for (unsigned t = 0; t < 4u; t++) {
+        for (uint32_t t = 0; t < 4u; t++) {
             uint8_t cf = ah & 1u;
             ah >>= 1;
             al = (uint8_t)(((al << 1) | cf) & 0xFFu);
         }
         dst[di + 1u] = al & 0xFu;
-        for (unsigned t = 0; t < 4u; t++) {
+        for (uint32_t t = 0; t < 4u; t++) {
             uint8_t cf = ah & 1u;
             ah >>= 1;
             al = (uint8_t)(((al << 1) | cf) & 0xFFu);
@@ -479,27 +479,27 @@ static int expand_nibbles(const uint8_t *src, uint32_t n, uint8_t *dst)
 /* 28c2 shift_right_1 */
 static void shift_right1(uint8_t *d)
 {
-    unsigned c = 0;
-    for (unsigned i = 0; i < 0xA0u; i++) {
-        unsigned c2 = d[i] & 1u;
+    uint32_t c = 0;
+    for (uint32_t i = 0; i < 0xA0u; i++) {
+        uint32_t c2 = d[i] & 1u;
         d[i] = (uint8_t)(((d[i] >> 1) | (c << 7)) & 0xFFu);
         c = c2;
     }
 }
 
 /* 288d expand_pixels into ES:DI */
-static void expand_pixels(const uint8_t *src, unsigned *dip)
+static void expand_pixels(const uint8_t *src, uint32_t *dip)
 {
-    unsigned di = *dip;
-    for (unsigned i = 0; i < 0xA0u; i++) {
+    uint32_t di = *dip;
+    for (uint32_t i = 0; i < 0xA0u; i++) {
         uint8_t al = src[i], ah = al;
-        for (unsigned t = 0; t < 4u; t++) {
+        for (uint32_t t = 0; t < 4u; t++) {
             uint8_t cf = ah & 1u;
             ah >>= 1;
             al = (uint8_t)(((al << 1) | cf) & 0xFFu);
         }
         strip[di + 1u] = al & 0xFu;
-        for (unsigned t = 0; t < 4u; t++) {
+        for (uint32_t t = 0; t < 4u; t++) {
             uint8_t cf = ah & 1u;
             ah >>= 1;
             al = (uint8_t)(((al << 1) | cf) & 0xFFu);
@@ -513,13 +513,13 @@ static void expand_pixels(const uint8_t *src, unsigned *dip)
 /* 283e rescale_bitmap_rows */
 static void rescale_rows(const uint8_t *src)
 {
-    unsigned di = 0;
-    for (unsigned g = 0; g < 12u; g++) {
+    uint32_t di = 0;
+    for (uint32_t g = 0; g < 12u; g++) {
         uint8_t work[0xA0u];
         memcpy(work, src + g * 0xA0u, 0xA0u);
-        for (unsigned t = 0; t < 4u; t++) shift_right1(work);
+        for (uint32_t t = 0; t < 4u; t++) shift_right1(work);
         expand_pixels(work, &di);
-        for (unsigned k = 0; k < 4u; k++) {
+        for (uint32_t k = 0; k < 4u; k++) {
             shift_right1(work);
             if (k < 3u) expand_pixels(work, &di);
         }
@@ -528,8 +528,8 @@ static void rescale_rows(const uint8_t *src)
 
 /* === the API ================================================================= */
 
-void party_intro_setValues(unsigned level, unsigned need, unsigned members,
-                           unsigned score, const char *tribe)
+void party_intro_setValues(uint32_t level, uint32_t need, uint32_t members,
+                           uint32_t score, const char *tribe)
 {
     g_level = (uint16_t)level; g_need = (uint16_t)need;
     g_members = (uint16_t)members; g_score = (uint16_t)score;
@@ -546,8 +546,8 @@ void party_intro_setValues(unsigned level, unsigned need, unsigned members,
     memcpy(s_fire,  "PRESS FIRE TO START LEVEL....", 30);
 }
 
-void party_intro_setGameOver(int on) { gameOverMode = on ? 1 : 0; }
-unsigned party_intro_score(void) { return g_score; }
+void party_intro_setGameOver(int32_t on) { gameOverMode = on ? 1 : 0; }
+uint32_t party_intro_score(void) { return g_score; }
 
 static uint8_t *load(const char *name)
 {
@@ -561,7 +561,7 @@ static uint8_t *load(const char *name)
 const uint8_t *party_intro_workpal(void) { return workpal; }
 const uint8_t *party_intro_palUpper(void) { return palUpper; }
 
-int party_intro_start(void)
+int32_t party_intro_start(void)
 {
     char name[24]; uint8_t *b;
 
@@ -589,13 +589,13 @@ int party_intro_start(void)
 
     b = load("APL\\PARTY.SPR");                /* 2570                    */
     if (!b) return 0;
-    { int ok = expand_nibbles(b, 0x570u, sheet); free(b); if (!ok) return 0; }
+    { int32_t ok = expand_nibbles(b, 0x570u, sheet); free(b); if (!ok) return 0; }
 
     b = load("APL\\BIRDY.SPR");                /* 257c                    */
     if (!b) return 0;
     rescale_rows(b); free(b);
 
-    { unsigned d = (unsigned)(g_level & 7u) + 1u;      /* 2519: '1'+(lvl&7) */
+    { uint32_t d = (uint32_t)(g_level & 7u) + 1u;      /* 2519: '1'+(lvl&7) */
       sprintf(name, "LBM\\PARTY%u.PAL", d); }
     b = load(name);                            /* 2588                    */
     if (!b) return 0;
@@ -627,10 +627,10 @@ int party_intro_start(void)
 
 /* the game_main hook's per-tick compose into the flat page (the attract's
  * contract: the tick draws, videoPresent(0) shows) */
-int party_intro_tick(const InputState *in)
+int32_t party_intro_tick(const InputState *in)
 {
-    int fire = (int)(in->joyBits & 0x80u);
-    int anyk = (int)(in->lastKey != 0u);
+    int32_t fire = (int32_t)(in->joyBits & 0x80u);
+    int32_t anyk = (int32_t)(in->lastKey != 0u);
 
     switch (phase) {
     case PH_FADEWAIT:
@@ -704,7 +704,7 @@ int party_intro_tick(const InputState *in)
         if (fire || anyk) { keyCaught = 1; waitLeft = 0u; }
         else if (waitLeft) waitLeft--;
         if (!waitLeft) {
-            if (keyCaught) swap_begin((unsigned)-1);   /* 270b          */
+            if (keyCaught) swap_begin((uint32_t)-1);   /* 270b          */
             else swap_begin(PH_SET2);
         }
         break;
@@ -735,7 +735,7 @@ int party_intro_tick(const InputState *in)
         if (fire || anyk) { keyCaught = 1; waitLeft = 0u; }
         else if (waitLeft) waitLeft--;
         if (!waitLeft) {
-            if (keyCaught) swap_begin((unsigned)-1);   /* 270b          */
+            if (keyCaught) swap_begin((uint32_t)-1);   /* 270b          */
             else swap_begin(PH_SET1);
         }
         break;
@@ -753,7 +753,7 @@ int party_intro_tick(const InputState *in)
             step = 1u;
         }
         anim_entities();
-        if (fire || anyk) swap_begin((unsigned)-1);
+        if (fire || anyk) swap_begin((uint32_t)-1);
         break;
 
     case PH_EXITWAIT:                         /* 2720: {28e9; 8b9a; JC}  */
@@ -774,11 +774,11 @@ int party_intro_tick(const InputState *in)
     {
         uint8_t *pg = video_page(0);
         if (pg) {
-            unsigned base = pageDisp;
-            for (unsigned y = 0; y < 200u; y++) {
-                unsigned row = ((base + 8u + y * 88u) & 0xFFFFu);
+            uint32_t base = pageDisp;
+            for (uint32_t y = 0; y < 200u; y++) {
+                uint32_t row = ((base + 8u + y * 88u) & 0xFFFFu);
                 uint8_t *d = pg + y * 320u;
-                for (unsigned x = 0; x < 320u; x++)
+                for (uint32_t x = 0; x < 320u; x++)
                     d[x] = vram[(row + (x >> 2)) & 0xFFFFu][x & 3u];
             }
         }
@@ -793,11 +793,11 @@ int party_intro_tick(const InputState *in)
  * page (pageDisp — the just-flipped bake target). */
 void party_intro_compose(uint8_t *pg)
 {
-    unsigned base = (unsigned)pageDisp + 8u;
-    for (unsigned y = 0; y < 200u; y++) {
-        unsigned row = (base + y * 88u) & 0xFFFFu;
+    uint32_t base = (uint32_t)pageDisp + 8u;
+    for (uint32_t y = 0; y < 200u; y++) {
+        uint32_t row = (base + y * 88u) & 0xFFFFu;
         uint8_t *d = pg + y * 320u;
-        for (unsigned x = 0; x < 320u; x++)
+        for (uint32_t x = 0; x < 320u; x++)
             d[x] = vram[(row + (x >> 2)) & 0xFFFFu][x & 3u];
     }
 }

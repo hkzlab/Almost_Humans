@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <stdio.h>
 
-static FSVolume *posix_openVolume(unsigned disc)
+static FSVolume *posix_openVolume(uint32_t disc)
 {
     char name[32];
     snprintf(name, sizeof name, "HUMANS.%03u", disc % 1000u);
@@ -24,6 +24,7 @@ static uint32_t posix_volumeSize(FSVolume *v)
 
 static uint32_t posix_read(FSVolume *v, uint32_t off, uint8_t *dst, uint32_t n)
 {
+    /* long is fseek's parameter type, not a host-dependent integer here. */
     if (fseek((FILE *)v, (long)off, SEEK_SET)) return 0;
     return (uint32_t)fread(dst, 1, n, (FILE *)v);
 }

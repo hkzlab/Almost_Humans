@@ -3,9 +3,9 @@
 #include "game.h"
 
 static const OSystem *au_osys;
-static int musicActive;      /* [0x40BB]: the latch music_resume raises   */
+static int32_t musicActive;  /* [0x40BB]: the latch music_resume raises   */
 
-int audio_init(const OSystem *osys) { au_osys = osys; return 0; }
+int32_t audio_init(const OSystem *osys) { au_osys = osys; return 0; }
 
 /* The room frame's gate (1000:A5E8): the MUSIC board's counter [0x5E5B]
  * non-zero -> music_stop (1000:8389: clear the latch, silence the tune);
@@ -14,7 +14,7 @@ int audio_init(const OSystem *osys) { au_osys = osys; return 0; }
  * original resumes [0x5AF0]'s tune, the port can only start the driver.
  * The latch gates the calls to the transitions (the original re-sends
  * cmd 6 every frame while a handle is live — no handle here). */
-void audio_musicGate(unsigned off)
+void audio_musicGate(uint32_t off)
 {
     if (!au_osys) return;          /* the module set without audio_init */
     if (off) {

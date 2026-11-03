@@ -57,7 +57,7 @@
 /* [0x5B0A]: the bar's first screen row.  The original's line-compare reveal
  * starts at 201 (hidden) and the INT 8 hook 1000:331E decrements it to 0x98
  * (152) over 48 ticks; crtc_set_scroll sets the line compare to 2*row-1. */
-static unsigned barSplit = 152u;
+static uint32_t barSplit = 152u;
 
 static const OSystem *sb_osys;
 static uint8_t *strip;        /* the four-plane panel strip                */
@@ -65,13 +65,13 @@ static uint8_t *panel4;       /* LBM\PANEL4.BIT (the art + the palette)   */
 static uint32_t p4Size;       /* its length: the charge bar reads 0x3EE0+  */
 static uint8_t *icons3;       /* APL\ICONS3.SPR: 12 x 16x24 (0x180 each)  */
 
-static int active;            /* [0x5B12]: the bar's ticking gate         */
+static int32_t active;        /* [0x5B12]: the bar's ticking gate         */
 /* The bar is a display overlay in the original (CRTC line compare); the
  * port composes it into the page, so [0x5B0A] beyond the screen has to mean
  * "do not compose".  draw_level_text (0x342B) parks it at 0xC9 for the level
  * end, and blit_bitmap_planes re-renders the world over those rows. */
-static int barHidden;
-static int timeUp;            /* [0x5E44]: the countdown reached zero     */
+static int32_t barHidden;
+static int32_t timeUp;        /* [0x5E44]: the countdown reached zero     */
 
 /* the countdown: values [0x5B19..1B], phases [0x5B1C/1E/20], slides
  * [0x5B16..18] — indices 0 = minutes, 1 = seconds-tens, 2 = seconds-ones */
@@ -94,16 +94,16 @@ static uint16_t tdPhase[2];
 static uint8_t odoState;
 static uint8_t odoSlide[2];
 /* 1000:F5E3: the "anything collected" test ([0x5B25] | [0x5B26] != 0). */
-int statusbar_tribeActive(void) { return (td[0] | td[1]) != 0; }
+int32_t statusbar_tribeActive(void) { return (td[0] | td[1]) != 0; }
 /* The two digits as the number the check_highscore arithmetic reads (1000:41B8:
  * `[0x5B25]*10 + [0x5B26]`). */
-unsigned statusbar_tribeValue(void) { return (unsigned)td[0] * 10u + td[1]; }
-unsigned statusbar_tribeDigit(unsigned i) { return td[i & 1u]; }
+uint32_t statusbar_tribeValue(void) { return (uint32_t)td[0] * 10u + td[1]; }
+uint32_t statusbar_tribeDigit(uint32_t i) { return td[i & 1u]; }
 /* The odometer's digits are [0x5B25]/[0x5B26]; the game only writes them through
  * statusbar_start (members - required) and the roll animation.  This setter is
  * a test seam for the object machine's level-end probe, whose two branches key
  * on that word. */
-void statusbar_setTribeDigits(unsigned tens, unsigned ones)
+void statusbar_setTribeDigits(uint32_t tens, uint32_t ones)
 {
     td[0] = (uint8_t)(tens % 10u);
     td[1] = (uint8_t)(ones % 10u);
@@ -136,7 +136,7 @@ void statusbar_loadParams(const uint8_t *in)
     tdPhase[1] = in[7];
 }
 
-int statusbar_init(const OSystem *osys) { sb_osys = osys; return 0; }
+int32_t statusbar_init(const OSystem *osys) { sb_osys = osys; return 0; }
 
 /* The mark x positions: the five destinations 0x6E2/0x6E6/0x6E8/0x728/0x72A
  * are bar row 20's bytes 2/6/8/72/74 at the 88-byte pitch; the flat page's
@@ -155,12 +155,12 @@ static void stamp_marks(uint8_t *page)
     const uint16_t ph[5] = {
         cdPhase[0], cdPhase[1], cdPhase[2], tdPhase[0], tdPhase[1]
     };
-    for (unsigned m = 0; m < 5u; m++) {
-        unsigned base = 4u * (unsigned)(ph[m] + markBias[m]);
-        for (unsigned r = 0; r < 8u; r++) {
-            unsigned at = barSplit + 20u + r;
+    for (uint32_t m = 0; m < 5u; m++) {
+        uint32_t base = 4u * (uint32_t)(ph[m] + markBias[m]);
+        for (uint32_t r = 0; r < 8u; r++) {
+            uint32_t at = barSplit + 20u + r;
             if (at >= 200u) continue;
-            for (unsigned j = 0; j < 8u; j++)
+            for (uint32_t j = 0; j < 8u; j++)
                 page[at * 320u + markX[m] + j] =
                     (uint8_t)(0xC0u | strip[base + 8u * r + j]);
         }
@@ -175,14 +175,14 @@ static void stamp_marks(uint8_t *page)
  * rows 182..197). */
 static void draw_band(uint8_t *page)
 {
-    for (unsigned y = 0; y < BAR_ROWS; y++) {
-        unsigned at = barSplit + y;
+    for (uint32_t y = 0; y < BAR_ROWS; y++) {
+        uint32_t at = barSplit + y;
         uint8_t *dst;
         const uint8_t *src = panel4 + y * 320u;
 
         if (at >= 200u) continue;
         dst = page + at * 320u;
-        for (unsigned x = 0; x < 320u; x++)
+        for (uint32_t x = 0; x < 320u; x++)
             dst[x] = (uint8_t)(0xC0u | src[x]);
     }
 }
@@ -235,24 +235,24 @@ static const uint8_t actionGold[40] = {   /* 202F:0x5B57 */
  *    at band row 10, column `24 + (len >> 2)`, plane `len & 3`.
  *
  * The port is per-pixel, so a planar byte becomes the pixel `4*col + plane`. */
-void statusbar_chargeBar(unsigned v)
+void statusbar_chargeBar(uint32_t v)
 {
     static const uint8_t shade[10] = {
         0xDF, 0xE0, 0xE1, 0xE2, 0xE3, 0xE3, 0xE2, 0xE1, 0xE0, 0xDF
     };
     uint8_t *page = sb_osys ? sb_osys->videoPage(0) : NULL;
-    unsigned i, r;
+    uint32_t i, r;
 
     if (!page || !panel4) return;              /* no bar art: nothing to draw */
     if (v < 0x100u) {
-        unsigned ax = 0x60u + (v >> 1);        /* 0x372E's `SHR AX,1`        */
-        unsigned col = ax >> 2, p = ax & 3u;
+        uint32_t ax = 0x60u + (v >> 1);        /* 0x372E's `SHR AX,1`        */
+        uint32_t col = ax >> 2, p = ax & 3u;
 
         for (i = 0; i < 2u; i++) {             /* 0x376D: CX = 2 passes      */
-            unsigned x = 4u * col + p;
+            uint32_t x = 4u * col + p;
 
             for (r = 0; r < 10u; r++) {
-                unsigned y = barSplit + 15u + r;
+                uint32_t y = barSplit + 15u + r;
 
                 if (x < 320u && y < 200u) page[y * 320u + x] = shade[r];
             }
@@ -261,16 +261,16 @@ void statusbar_chargeBar(unsigned v)
         return;
     }
     {
-        unsigned len = (0x1FFu - v) >> 1;      /* 0x3726-0x372E              */
-        unsigned col = 24u + (len >> 2), p = len & 3u;
-        unsigned src = 0x3EE0u + len;
+        uint32_t len = (0x1FFu - v) >> 1;      /* 0x3726-0x372E              */
+        uint32_t col = 24u + (len >> 2), p = len & 3u;
+        uint32_t src = 0x3EE0u + len;
 
         if (src + 0x140u * 15u + 4u > p4Size) return;   /* past the art     */
         for (i = 0; i < 2u; i++) {
-            unsigned x = 4u * col + p;
+            uint32_t x = 4u * col + p;
 
             for (r = 0; r < 15u; r++) {
-                unsigned y = barSplit + 10u + r;
+                uint32_t y = barSplit + 10u + r;
                 uint8_t a = panel4[src + r * 0x140u + i];
                 uint8_t b = panel4[src + r * 0x140u + i + 4u];
 
@@ -291,35 +291,35 @@ void statusbar_cycleAction(void)
 }
 
 /* [0x5B56] itself, for the tests: the group the bar's next draw uses. */
-unsigned statusbar_actionGroup(void) { return object_actionProgram(); }
+uint32_t statusbar_actionGroup(void) { return object_actionProgram(); }
 
 /* the group's icon count (its header's first byte), for the tests. */
-unsigned statusbar_actionCount(unsigned group)
+uint32_t statusbar_actionCount(uint32_t group)
 {
     const uint8_t *h = object_programHeader(group);
 
-    return h ? (unsigned)h[0] : 0u;
+    return h ? (uint32_t)h[0] : 0u;
 }
 
 /* the group's selected-cell byte, for the tests (0 past the table). */
-unsigned statusbar_actionCell(unsigned group)
+uint32_t statusbar_actionCell(uint32_t group)
 {
     const uint8_t *h = object_programHeader(group);
 
-    return h ? (unsigned)h[1] : 0u;
+    return h ? (uint32_t)h[1] : 0u;
 }
 
 /* 0xAFFE: one frame pixel — the mask byte when it is non-zero, else the
  * destination shaded by `d` and clamped to the bar bank. */
-static void frame_px(uint8_t *page, unsigned x, unsigned y, int d,
+static void frame_px(uint8_t *page, uint32_t x, uint32_t y, int32_t d,
                      uint8_t mask)
 {
-    unsigned at;
-    int v;
+    uint32_t at;
+    int32_t v;
     if (x >= 320u || y >= 200u) return;
     at = y * 320u + x;
     if (mask) { page[at] = mask; return; }
-    v = (int)page[at] + d;
+    v = (int32_t)page[at] + d;
     if (v >= 0xD0) v = 0xCF;
     if (v < 0xC0) v = 0xC0;
     page[at] = (uint8_t)v;
@@ -330,10 +330,10 @@ static void frame_px(uint8_t *page, unsigned x, unsigned y, int d,
  * INC SI per row); a horizontal run re-uses one byte for the whole edge
  * (0xAFF5 loops without touching SI), and the bottom edge reads the byte at
  * base+h because BX was stepped by the height first (0xAFAE). */
-static void frame_box(uint8_t *page, unsigned x, unsigned y, unsigned w,
-                      unsigned h, const uint8_t *mask, unsigned base)
+static void frame_box(uint8_t *page, uint32_t x, uint32_t y, uint32_t w,
+                      uint32_t h, const uint8_t *mask, uint32_t base)
 {
-    unsigned i;
+    uint32_t i;
     uint8_t top = mask ? mask[base] : 0u;
     uint8_t bottom = mask ? mask[base + h] : 0u;
 
@@ -345,14 +345,14 @@ static void frame_box(uint8_t *page, unsigned x, unsigned y, unsigned w,
         frame_px(page, x + w, y + i, -4, mask ? mask[base + i] : 0u);
 }
 
-static void draw_actionIcon(uint8_t *page, unsigned x, unsigned y,
-                            unsigned cell)
+static void draw_actionIcon(uint8_t *page, uint32_t x, uint32_t y,
+                            uint32_t cell)
 {
     const uint8_t *src;
     if (!icons3 || cell >= 12u) return;
     src = icons3 + cell * 0x180u;
-    for (unsigned r = 0; r < 24u; r++)
-        for (unsigned c = 0; c < 16u; c++) {
+    for (uint32_t r = 0; r < 24u; r++)
+        for (uint32_t c = 0; c < 16u; c++) {
             uint8_t v = src[r * 16u + c];
             if (!v) continue;
             if (x + c < 320u && y + r < 200u)
@@ -363,22 +363,22 @@ static void draw_actionIcon(uint8_t *page, unsigned x, unsigned y,
 static void draw_actions(uint8_t *page)
 {
     const uint8_t *g = object_actionHeader();
-    unsigned count;
+    uint32_t count;
 
     if (!g) return;                        /* [0x5B56] is 1..6, see 1000:32DC */
     count = g[0];
-    unsigned span = count * 23u + (count - 1u) * 12u;
-    unsigned x = (0x140u - span) / 2u;
-    unsigned y = barSplit + 5u;
+    uint32_t span = count * 23u + (count - 1u) * 12u;
+    uint32_t x = (0x140u - span) / 2u;
+    uint32_t y = barSplit + 5u;
 
-    for (unsigned i = 0; i + 1u < count + 1u && i < 4u; i++) {
+    for (uint32_t i = 0; i + 1u < count + 1u && i < 4u; i++) {
         frame_box(page, x, y, 23u, 31u, NULL, 0u);
         /* 1000:990A: the gold 21x29 inner frame sits on the cell the header's
          * second byte counts down to - the cell `g[1] - 1`, not always the
          * first (SPACE steps that byte, 1000:3933). */
-        if (g[1] != 0u && i == (unsigned)(g[1] - 1u))
+        if (g[1] != 0u && i == (uint32_t)(g[1] - 1u))
             frame_box(page, x + 1u, y + 1u, 21u, 29u, actionGold, 6u);
-        draw_actionIcon(page, x + 4u, y + 4u, (unsigned)(g[i + 2u] - 1u));
+        draw_actionIcon(page, x + 4u, y + 4u, (uint32_t)(g[i + 2u] - 1u));
         x += 4u + 0x1Fu;      /* the icon's +4 is never undone (0xAD6A/7C) */
     }
 }
@@ -492,7 +492,7 @@ void statusbar_tick(void)
     draw_actions(page);
 
     if (active) {
-        int died = 0;
+        int32_t died = 0;
 
         odometer_tick();
 
@@ -522,8 +522,8 @@ void statusbar_tick(void)
  * both counts: the members start at 12/10/8 by difficulty (entry
  * 1000:00B1) and the required = the map's 0xAA-tile count (load_level
  * 1000:315F). */
-void statusbar_start(uint16_t packedTimeBcd, unsigned tribeMembers,
-                     unsigned tribeRequired)
+void statusbar_start(uint16_t packedTimeBcd, uint32_t tribeMembers,
+                     uint32_t tribeRequired)
 {
     uint32_t n1Size = 0, n2Size = 0, i3Size = 0;
     uint16_t chk = 0;
@@ -604,12 +604,12 @@ void statusbar_armOdometer(void)
     odoState = 0xFF;
 }
 
-int statusbar_timeUp(void) { return timeUp; }
+int32_t statusbar_timeUp(void) { return timeUp; }
 
 /* [0x5B12]: the ticking gate.  The in-level dialogs clear it (A167's head)
  * and restore it on return; the band keeps drawing while it is clear. */
-void statusbar_setActive(int on) { active = on ? 1 : 0; }
-void statusbar_setSplit(unsigned row)
+void statusbar_setActive(int32_t on) { active = on ? 1 : 0; }
+void statusbar_setSplit(uint32_t row)
 {
     barSplit = row > 200u ? 200u : row;
     barHidden = 0;                     /* an explicit split re-composes it */
@@ -618,22 +618,22 @@ void statusbar_setSplit(unsigned row)
  * not composed; the level's ISR hook (0x331E) is already uninstalled, so it
  * stays hidden. */
 void statusbar_hide(void) { barHidden = 1; barSplit = 0xC9u; }
-unsigned statusbar_split(void) { return barSplit; }
+uint32_t statusbar_split(void) { return barSplit; }
 
 /* The countdown word the save writes at +0x07: minutes << 8 | BCD seconds
  * (the original's [0x5B19] and [0x5B1A]*16 + [0x5B1B]). */
 uint16_t statusbar_timeWord(void)
 {
-    return (uint16_t)(((unsigned)cd[0] << 8) |
-                      (((unsigned)cd[1] & 0x0Fu) << 4) |
-                      ((unsigned)cd[2] & 0x0Fu));
+    return (uint16_t)(((uint32_t)cd[0] << 8) |
+                      (((uint32_t)cd[1] & 0x0Fu) << 4) |
+                      ((uint32_t)cd[2] & 0x0Fu));
 }
 
 /* [0x1E84] after check_highscore's repack (1000:42CE): the *elapsed* clock as
  * minutes<<8 | tens<<4 | ones — the value the per-level best compares. */
 uint16_t statusbar_elapsedWord(void)
 {
-    return (uint16_t)(((unsigned)elapsed[2] << 8) |
-                      (((unsigned)elapsed[1] & 0x0Fu) << 4) |
-                      ((unsigned)elapsed[0] & 0x0Fu));
+    return (uint16_t)(((uint32_t)elapsed[2] << 8) |
+                      (((uint32_t)elapsed[1] & 0x0Fu) << 4) |
+                      ((uint32_t)elapsed[0] & 0x0Fu));
 }

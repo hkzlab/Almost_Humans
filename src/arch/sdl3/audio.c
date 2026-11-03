@@ -4,6 +4,6 @@
 #include "osystem.h"
 #include <SDL3/SDL.h>
 
-int sdl3_audioStart(void) { SDL_Log("audio: stub (M5)"); return 0; }
-int sdl3_audioPlayTune(unsigned id) { (void)id; return 0; }
+int32_t sdl3_audioStart(void) { SDL_Log("audio: stub (M5)"); return 0; }
+int32_t sdl3_audioPlayTune(uint32_t id) { (void)id; return 0; }
 void sdl3_audioStop(void) {}

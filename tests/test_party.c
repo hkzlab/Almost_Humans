@@ -14,6 +14,7 @@
  * the extracted LBM/PARTY1.BIT rows byte-for-byte.
  */
 #include "game.h"
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,7 +28,7 @@ static uint8_t *read_file(const char *path, uint32_t *size)
     FILE *f = fopen(path, "rb");
     if (!f) return NULL;
     fseek(f, 0, SEEK_END);
-    long n = ftell(f);
+    int64_t n = ftell(f);
     fseek(f, 0, SEEK_SET);
     uint8_t *buf = (uint8_t *)malloc((size_t)n);
     if (fread(buf, 1, (size_t)n, f) != (size_t)n) { fclose(f); free(buf); return NULL; }
@@ -80,9 +81,9 @@ int main(int argc, char **argv)
 
     vgapage = video_page(0);
 
-    long bitdiffs = 0, bankdiffs = 0;
-    for (unsigned y = 0; y < 200u; y++)
-        for (unsigned x = 0; x < 320u; x++) {
+    int64_t bitdiffs = 0, bankdiffs = 0;
+    for (uint32_t y = 0; y < 200u; y++)
+        for (uint32_t x = 0; x < 320u; x++) {
             if (page[y * 320u + x] != bit[y * 320u + x]) bitdiffs++;
             if (vgapage && vgapage[y * 320u + x] != bit[y * 320u + x])
                 bankdiffs++;
@@ -91,15 +92,15 @@ int main(int argc, char **argv)
     if (bitdiffs == 0)
         printf("PARTY: law OK — the composed page = the .BIT 320x200 verbatim\n");
     else {
-        unsigned first = (unsigned)-1;
-        for (unsigned i = 0; i < 64000u && first == (unsigned)-1; i++)
+        uint32_t first = (uint32_t)-1;
+        for (uint32_t i = 0; i < 64000u && first == (uint32_t)-1; i++)
             if (page[i] != bit[i]) first = i;
-        printf("PARTY: FAIL %ld/~64000 diffs, first at byte %u (%02x != %02x)\n",
+        printf("PARTY: FAIL %" PRId64 "/~64000 diffs, first at byte %u (%02x != %02x)\n",
                bitdiffs, first, page[first], bit[first]);
         free(bit); free(page); return 1;
     }
     if (vgapage)
-        printf("PARTY: video_page(0) path diffs: %ld\n", bankdiffs);
+        printf("PARTY: video_page(0) path diffs: %" PRId64 "\n", bankdiffs);
 
     /* D-18: the briefing's score is the live [0x592] low word, not 0. */
     score_setTotal(0x1234u, 1u);

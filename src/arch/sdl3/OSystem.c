@@ -12,15 +12,15 @@
 #endif
 
 void sdl3_videoSetMode(VideoMode mode);
-uint8_t *sdl3_videoPage(int which);
-void sdl3_videoPresent(int which);
-void sdl3_videoSetPalette(const uint8_t *p6, unsigned first, unsigned n);
+uint8_t *sdl3_videoPage(int32_t which);
+void sdl3_videoPresent(int32_t which);
+void sdl3_videoSetPalette(const uint8_t *p6, uint32_t first, uint32_t n);
 void sdl3_eventsInit(void);
 void sdl3_eventsPoll(InputState *out);
-void sdl3_timerStart(unsigned ticksPerSec, TickFn tick);
-void sdl3_tickSync(unsigned *lastSeen);
-int  sdl3_audioStart(void);
-int  sdl3_audioPlayTune(unsigned id);
+void sdl3_timerStart(uint32_t ticksPerSec, TickFn tick);
+void sdl3_tickSync(uint32_t *lastSeen);
+int32_t sdl3_audioStart(void);
+int32_t sdl3_audioPlayTune(uint32_t id);
 void sdl3_audioStop(void);
 
 static void fatal(const char *msg)
@@ -65,7 +65,7 @@ int main(int argc, char **argv)
     sdl3_eventsInit();
 
     // Hand over to game code
-    int r = game_main(&osys_sdl3);
+    int32_t r = game_main(&osys_sdl3);
 
     // Time to go
     SDL_Quit();

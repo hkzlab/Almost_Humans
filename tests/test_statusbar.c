@@ -25,7 +25,7 @@
 #include "compat.h"
 
 extern const OSystem osys_null;
-extern const uint8_t *osys_null_page(int which);
+extern const uint8_t *osys_null_page(int32_t which);
 extern const uint8_t *osys_null_palette(void);
 
 #define BAR_Y 152u
@@ -40,7 +40,7 @@ static uint8_t icons3[4608];                /* APL\ICONS3.SPR, 12 x 0x180 */
 static uint8_t *read_file(const char *path, uint32_t *size)
 {
     FILE *f = fopen(path, "rb");
-    long n;
+    int64_t n;
     uint8_t *b;
     if (!f) return NULL;
     fseek(f, 0, SEEK_END);
@@ -53,7 +53,7 @@ static uint8_t *read_file(const char *path, uint32_t *size)
     return b;
 }
 
-static int load_fixtures(const char *fix_dir)
+static int32_t load_fixtures(const char *fix_dir)
 {
     char path[512];
     uint32_t n1s = 0, n2s = 0, p4s = 0, i3s = 0;
@@ -82,25 +82,25 @@ static int load_fixtures(const char *fix_dir)
 }
 
 /* the model: mark m's 8x8 glyph at phase ph (+ the atlas bias) */
-static void model_mark(uint8_t *page, unsigned m, unsigned phase)
+static void model_mark(uint8_t *page, uint32_t m, uint32_t phase)
 {
-    unsigned base = 4u * (phase + MARK_BIAS(m));
-    for (unsigned r = 0; r < 8u; r++)
-        for (unsigned j = 0; j < 8u; j++)
+    uint32_t base = 4u * (phase + MARK_BIAS(m));
+    for (uint32_t r = 0; r < 8u; r++)
+        for (uint32_t j = 0; j < 8u; j++)
             page[(MARK_Y + r) * 320u + MARK_X(m) + j] =
                 (uint8_t)(0xC0u | strip[base + 8u * r + j]);
 }
 
 static void model_band(uint8_t *page)
 {
-    for (unsigned y = 0; y < 40u; y++)
-        for (unsigned x = 0; x < 320u; x++)
+    for (uint32_t y = 0; y < 40u; y++)
+        for (uint32_t x = 0; x < 320u; x++)
             page[(BAR_Y + y) * 320u + x] = (uint8_t)(0xC0u | panel4[y * 320u + x]);
 }
 
 /* the five phases: M, S-tens (+0xC0 at stamp time), S-ones, tribe tens,
  * tribe ones */
-static void model_phases(uint8_t *out, unsigned packed, unsigned diff)
+static void model_phases(uint8_t *out, uint32_t packed, uint32_t diff)
 {
     out[0] = (uint8_t)(((packed >> 8) + 1u) * 16u);
     out[1] = (uint8_t)((((packed >> 4) & 0xFu) + 1u) * 16u);
@@ -113,7 +113,7 @@ static void model_page(uint8_t *page, const uint8_t *ph)
 {
     memset(page, 0, 320u * 200u);
     model_band(page);
-    for (unsigned m = 0; m < 5u; m++) model_mark(page, m, ph[m]);
+    for (uint32_t m = 0; m < 5u; m++) model_mark(page, m, ph[m]);
 }
 
 /* The action row (the two icon slots at the bar's centre) is a fixed overlay
@@ -122,11 +122,11 @@ static void model_page(uint8_t *page, const uint8_t *ph)
 #define ACTION_X0 128u
 #define ACTION_X1 192u
 
-static int diff_rows(const char *what, const uint8_t *page, const uint8_t *model)
+static int32_t diff_rows(const char *what, const uint8_t *page, const uint8_t *model)
 {
-    unsigned bad = 0;
-    for (unsigned y = BAR_Y; y < BAR_Y + 40u; y++)
-        for (unsigned x = 0; x < 320u; x++) {
+    uint32_t bad = 0;
+    for (uint32_t y = BAR_Y; y < BAR_Y + 40u; y++)
+        for (uint32_t x = 0; x < 320u; x++) {
             if (x >= ACTION_X0 && x < ACTION_X1) continue;
             if (page[y * 320u + x] != model[y * 320u + x]) {
                 if (bad < 4)
@@ -144,15 +144,15 @@ static int diff_rows(const char *what, const uint8_t *page, const uint8_t *model
  * (x+4, bar row 9) inside a 23x31 embossed slot, with the gold 0x5B57 ramp
  * frame on slot 0 only.  The slot x = (0x140-(2*23+12))/2 = 131, the pitch
  * 4+0x1F = 35. */
-static int check_actions(const uint8_t *page)
+static int32_t check_actions(const uint8_t *page)
 {
-    static const unsigned cell[2] = { 1u, 0u };
-    static const unsigned cx[2] = { 131u + 4u, 131u + 35u + 4u };
-    unsigned bad = 0;
-    for (unsigned i = 0; i < 2u; i++) {
-        unsigned matched = 0;
-        for (unsigned r = 0; r < 24u; r++)
-            for (unsigned c = 0; c < 16u; c++) {
+    static const uint32_t cell[2] = { 1u, 0u };
+    static const uint32_t cx[2] = { 131u + 4u, 131u + 35u + 4u };
+    uint32_t bad = 0;
+    for (uint32_t i = 0; i < 2u; i++) {
+        uint32_t matched = 0;
+        for (uint32_t r = 0; r < 24u; r++)
+            for (uint32_t c = 0; c < 16u; c++) {
                 uint8_t v = icons3[cell[i] * 0x180u + r * 16u + c];
                 if (!v) continue;
                 if (page[(BAR_Y + 9u + r) * 320u + cx[i] + c] ==
@@ -175,7 +175,7 @@ static int check_actions(const uint8_t *page)
                 page[(BAR_Y + 35u) * 320u + 132u]);
         bad = 1;
     }
-    for (unsigned r = 0; r < 29u; r++) {          /* 0x5B57[6+r] */
+    for (uint32_t r = 0; r < 29u; r++) {          /* 0x5B57[6+r] */
         uint8_t want = (r <= 13u) ? (uint8_t)(0xD6u + r)
                                   : (uint8_t)(0xE3u - (r - 14u));
         if (page[(BAR_Y + 6u + r) * 320u + 132u] != want) {
@@ -187,7 +187,7 @@ static int check_actions(const uint8_t *page)
         }
     }
     /* slot 1 is plain: no gold in its frame */
-    for (unsigned r = 0; r < 31u; r++) {
+    for (uint32_t r = 0; r < 31u; r++) {
         uint8_t v = page[(BAR_Y + 5u + r) * 320u + 131u + 35u];
         if (v >= 0xD0u && v <= 0xE3u) {
             fprintf(stderr, "FAIL slot 1 carries the gold highlight\n");
@@ -207,9 +207,9 @@ static void dump_ppm(const char *dir, const char *name, const uint8_t *page,
     f = fopen(path, "wb");
     if (!f) return;
     fprintf(f, "P6\n320 200\n255\n");
-    for (unsigned i = 0; i < 320u * 200u; i++) {
-        unsigned idx = page[i];
-        for (unsigned c = 0; c < 3u; c++) {
+    for (uint32_t i = 0; i < 320u * 200u; i++) {
+        uint32_t idx = page[i];
+        for (uint32_t c = 0; c < 3u; c++) {
             uint8_t v6 = pal[idx * 3u + c];
             fputc((uint8_t)((v6 << 2) | (v6 >> 4)), f);
         }
@@ -225,7 +225,7 @@ int main(int argc, char **argv)
     char path[512];
     char fix_abs[512];
     FILE *f;
-    int bad = 0;
+    int32_t bad = 0;
     uint8_t model[320u * 200u];
     uint8_t ph[5];
     const uint8_t *page;
@@ -260,7 +260,7 @@ int main(int argc, char **argv)
     statusbar_start(0x0600, 12u, 4u);
     /* 1000:3040/331E: [0x5B0A] starts at 0xC9 and decrements to 0x98. */
     {
-        unsigned i;
+        uint32_t i;
 
         if (statusbar_split() != 0xC9u) {
             fprintf(stderr, "FAIL 1000:3040: split starts at %u, want 0xC9\n",
@@ -292,7 +292,7 @@ int main(int argc, char **argv)
      * card's palette). */
     {
         uint8_t *pg2 = (uint8_t *)osys_null_page(0);
-        unsigned nz = 0;
+        uint32_t nz = 0;
 
         memset(pg2, 0x5A, 320u * 200u);
         statusbar_hide();
@@ -302,7 +302,7 @@ int main(int argc, char **argv)
             bad = 1;
         }
         statusbar_tick();
-        for (unsigned i = 0; i < 320u * 200u; i++)
+        for (uint32_t i = 0; i < 320u * 200u; i++)
             if (pg2[i] != 0x5A) nz++;
         if (nz != 0u) {
             fprintf(stderr, "FAIL 1000:342B: the hidden bar wrote %u bytes\n", nz);
@@ -334,7 +334,7 @@ int main(int argc, char **argv)
     /* 2. the first second rolls 6:00 -> 5:59.  On the tick that fires the
      * second the roll-start phases are stamped (the ones at 0xB0 = the
      * blank above '9'); 16 frames later the slides have settled. */
-    for (unsigned i = 0; i < 69u; i++) statusbar_tick();
+    for (uint32_t i = 0; i < 69u; i++) statusbar_tick();
     statusbar_tick();                       /* tick 70: the second fires AND
                                                the slide divider (seeded 2,
                                                advancing every 2nd tick)
@@ -344,7 +344,7 @@ int main(int argc, char **argv)
     ph[2] = 0xAE;                          /* sec-ones: 0xB0 -> 0xA0        */
     model_page(model, ph);
     bad |= diff_rows("the roll-start stamp (t=70)", page, model);
-    for (unsigned i = 0; i < 16u; i++) statusbar_tick();
+    for (uint32_t i = 0; i < 16u; i++) statusbar_tick();
     ph[0] = 0x60;                          /* 5            */
     ph[1] = 0x60;                          /* 5            */
     ph[2] = 0xA0;                          /* 9            */
@@ -360,7 +360,7 @@ int main(int argc, char **argv)
     ph[4] = 0x90;                          /* ones: still the '8' cell     */
     model_page(model, ph);
     bad |= diff_rows("the odometer roll start", page, model);
-    for (unsigned i = 0; i < 8u; i++) statusbar_tick();
+    for (uint32_t i = 0; i < 8u; i++) statusbar_tick();
     ph[4] = 0x80;                          /* 7            */
     model_page(model, ph);
     bad |= diff_rows("the odometer settled (7)", page, model);
@@ -370,7 +370,7 @@ int main(int argc, char **argv)
     statusbar_start(0x0000, 12u, 4u);
     statusbar_setSplit(152u);
     statusbar_setActive(1);
-    for (unsigned i = 0; i < 70u; i++) statusbar_tick();
+    for (uint32_t i = 0; i < 70u; i++) statusbar_tick();
     if (!statusbar_timeUp()) {
         fprintf(stderr, "FAIL the 0:00 seed did not time out\n");
         bad = 1;
@@ -381,7 +381,7 @@ int main(int argc, char **argv)
     ph[3] = 0x10; ph[4] = 0x90;            /* the re-seeded pair "08"      */
     model_page(model, ph);
     bad |= diff_rows("the time-up freeze", page, model);
-    for (unsigned i = 0; i < 10u; i++) statusbar_tick();
+    for (uint32_t i = 0; i < 10u; i++) statusbar_tick();
     bad |= diff_rows("the time-up still frozen", page, model);
 
     /* 4b. the elapsed clock [0x5B0C..0E] (1000:96C6): one step per second,
@@ -394,13 +394,13 @@ int main(int argc, char **argv)
         fprintf(stderr, "FAIL the elapsed clock does not start at 0:00\n");
         bad = 1;
     }
-    for (unsigned i = 0; i < 70u * 65u; i++) statusbar_tick();   /* 1:05 */
+    for (uint32_t i = 0; i < 70u * 65u; i++) statusbar_tick();   /* 1:05 */
     if (statusbar_elapsedWord() != 0x0105u) {
         fprintf(stderr, "FAIL 65 s of elapsed clock read %04x, want 0105\n",
                 statusbar_elapsedWord());
         bad = 1;
     }
-    for (unsigned i = 0; i < 70u * 55u; i++) statusbar_tick();   /* 2:00 */
+    for (uint32_t i = 0; i < 70u * 55u; i++) statusbar_tick();   /* 2:00 */
     if (statusbar_elapsedWord() != 0x0200u) {
         fprintf(stderr, "FAIL 120 s of elapsed clock read %04x, want 0200\n",
                 statusbar_elapsedWord());
@@ -416,14 +416,14 @@ int main(int argc, char **argv)
     }
     {
         const LevelData *d = level_data();
-        unsigned required = 0;
-        for (unsigned i = 0; i < 640u; i++)
+        uint32_t required = 0;
+        for (uint32_t i = 0; i < 640u; i++)
             if (d->map[i] == 0xAAu) required++;
         /* level_fade_in (1000:3334) first: the bar's ticking gate [0x5B12]
          * only closes when the start chain has finished, so the countdown
          * does not run during the fade. */
         level_begin();
-        for (unsigned i = 0; i < 400u && level_starting(); i++) {
+        for (uint32_t i = 0; i < 400u && level_starting(); i++) {
             level_tick();
             palette_tick();
             if (level_loadingScreen()) level_loadingTick();
@@ -438,12 +438,12 @@ int main(int argc, char **argv)
         }
         if (dump_dir) {
             /* level_fade_in completes at ~50 palette ticks (div 0x32) */
-            for (unsigned i = 0; i < 60u; i++) palette_tick();
+            for (uint32_t i = 0; i < 60u; i++) palette_tick();
             dump_ppm(dump_dir, "statusbar_port_t0", page, osys_null_palette());
-            for (unsigned i = 0; i < 90u; i++) { level_tick(); palette_tick(); }
+            for (uint32_t i = 0; i < 90u; i++) { level_tick(); palette_tick(); }
             dump_ppm(dump_dir, "statusbar_port_t90", page, osys_null_palette());
             /* t90: one second rolled — recompute the settled phases      */
-            for (unsigned i = 0; i < 16u; i++) { level_tick(); palette_tick(); }
+            for (uint32_t i = 0; i < 16u; i++) { level_tick(); palette_tick(); }
             dump_ppm(dump_dir, "statusbar_port_t106", page, osys_null_palette());
         }
     }
@@ -455,8 +455,8 @@ int main(int argc, char **argv)
      * wraps back to 1. */
     {
         const uint8_t *pg = osys_null_page(0);
-        unsigned gold0 = (BAR_Y + 6u) * 320u + 132u;          /* slot 0, +1 */
-        unsigned gold1 = (BAR_Y + 6u) * 320u + 167u;          /* slot 1, +1 */
+        uint32_t gold0 = (BAR_Y + 6u) * 320u + 132u;          /* slot 0, +1 */
+        uint32_t gold1 = (BAR_Y + 6u) * 320u + 167u;          /* slot 1, +1 */
 
         statusbar_cycleAction();                              /* 1 -> 2 */
         statusbar_tick();
@@ -482,7 +482,7 @@ int main(int argc, char **argv)
     {
         const uint8_t *pg = osys_null_page(0);
         uint8_t *a;
-        unsigned c1 = 0, c2 = 0;
+        uint32_t c1 = 0, c2 = 0;
 
         object_init();
         a = object_slot(0);
@@ -496,9 +496,9 @@ int main(int argc, char **argv)
         object_actionRun();                  /* the wind-up */
         object_setActionLatched(0);          /* its release */
 
-#define BAR_SHADE() ({ unsigned _n = 0; \
-        for (unsigned _y = 160u; _y < 180u; _y++) \
-            for (unsigned _x = 0; _x < 320u; _x++) { \
+#define BAR_SHADE() ({ uint32_t _n = 0; \
+        for (uint32_t _y = 160u; _y < 180u; _y++) \
+            for (uint32_t _x = 0; _x < 320u; _x++) { \
                 uint8_t _v = pg[_y * 320u + _x]; \
                 if (_v >= 0xDFu && _v <= 0xE3u) _n++; } _n; })
         (void)object_commandRun(a, 0x80u);   /* a held frame */
@@ -508,7 +508,7 @@ int main(int argc, char **argv)
             bad = 1;
         }
         c1 = BAR_SHADE();
-        for (unsigned k = 0; k < 2u; k++) {  /* +0xE -> 8, 0xC */
+        for (uint32_t k = 0; k < 2u; k++) {  /* +0xE -> 8, 0xC */
             (void)object_commandRun(a, 0x80u);
             object_pendingRun();
             (void)object_chargeTick();

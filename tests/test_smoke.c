@@ -16,17 +16,17 @@
 #include "compat.h"
 
 extern const OSystem osys_null;
-extern void osys_null_inputScript(const InputState *states, unsigned n);
-extern const uint8_t *osys_null_page(int which);
+extern void osys_null_inputScript(const InputState *states, uint32_t n);
+extern const uint8_t *osys_null_page(int32_t which);
 extern const uint8_t *osys_null_palette(void);
-extern unsigned osys_null_pollCount(void);
+extern uint32_t osys_null_pollCount(void);
 
 static uint8_t *read_file(const char *path, uint32_t *size)
 {
     FILE *f = fopen(path, "rb");
     if (!f) return NULL;
     fseek(f, 0, SEEK_END);
-    long n = ftell(f);
+    int64_t n = ftell(f);
     fseek(f, 0, SEEK_SET);
     uint8_t *buf = malloc((size_t)n);
     if (fread(buf, 1, (size_t)n, f) != (size_t)n) { fclose(f); free(buf); return NULL; }
@@ -41,7 +41,7 @@ enum { SCRIPT_N = 8700 };
  * at the flow's milestones, so the room -> party -> .ANI -> level relay can
  * be looked at instead of guessed. */
 static const char *dump_dir;
-static unsigned dumped;
+static uint32_t dumped;
 
 static void dump_ppm(const char *name, const uint8_t *page)
 {
@@ -51,11 +51,11 @@ static void dump_ppm(const char *name, const uint8_t *page)
     if (!f) return;
     fprintf(f, "P6\n320 200\n255\n");
     const uint8_t *pal = osys_null_palette();
-    for (unsigned i = 0; i < 64000u; i++) {
-        unsigned v = page[i];
-        unsigned char rgb[3] = { (unsigned char)(pal[v*3] << 2),
-                                 (unsigned char)(pal[v*3+1] << 2),
-                                 (unsigned char)(pal[v*3+2] << 2) };
+    for (uint32_t i = 0; i < 64000u; i++) {
+        uint32_t v = page[i];
+        uint8_t rgb[3] = { (uint8_t)(pal[v*3] << 2),
+                                 (uint8_t)(pal[v*3+1] << 2),
+                                 (uint8_t)(pal[v*3+2] << 2) };
         fwrite(rgb, 1, 3, f);
     }
     fclose(f);
@@ -64,7 +64,7 @@ static void dump_ppm(const char *name, const uint8_t *page)
 
 /* the milestones: the room's exit, the party, the LOADING screen and the
  * level's first play frames (the goal page is dismissed by the held key) */
-static const unsigned dumpAt[] = { 6600, 6900, 6930, 7100, 7300, 7500, 7650,
+static const uint32_t dumpAt[] = { 6600, 6900, 6930, 7100, 7300, 7500, 7650,
                                    7800, 7900, 8100, 8300, 8600 };
 static const char *dumpName[] = { "flow_6600_room", "flow_6900_roomexit",
                                   "flow_6930_party_a", "flow_7100_party_b",
@@ -74,21 +74,21 @@ static const char *dumpName[] = { "flow_6600_room", "flow_6900_roomexit",
                                   "flow_8300_level_e", "flow_8600_level_f" };
 #define DUMP_N (sizeof dumpAt / sizeof dumpAt[0])
 
-extern void osys_null_onPresent(void (*fn)(unsigned poll));
+extern void osys_null_onPresent(void (*fn)(uint32_t poll));
 
-static int sawPause;
+static int32_t sawPause;
 /* the goal page (scroll_map 1000:9E51): the actor must not move while it is
  * up even with a direction held, and the page must be seen at all */
-static int sawGoal, goalMoved, goalTicks, goalX;
+static int32_t sawGoal, goalMoved, goalTicks, goalX;
 
-static void present_hook(unsigned poll)
+static void present_hook(uint32_t poll)
 {
     /* D-15: the ESC at 8000 must have the pause block up on the next present;
      * the Enter at 8050 selects CONTINUE and closes it. */
     if (poll >= 8001u && poll <= 8051u && menu_active()) sawPause = 1;
     if (gameflow_goalPageUp()) {
         uint8_t *a = object_slot(object_actionEntity());
-        int x = a ? (int)(int16_t)(a[0] | (a[1] << 8)) : -1;
+        int32_t x = a ? (int32_t)(int16_t)(a[0] | (a[1] << 8)) : -1;
 
         if (!sawGoal) { sawGoal = 1; goalX = x; }
         else if (x != goalX) goalMoved = 1;
@@ -118,7 +118,7 @@ int main(int argc, char **argv)
 
     if (compat_chdir(vol_dir)) { perror(vol_dir); return 1; }
 
-    int bad = 0;
+    int32_t bad = 0;
 
     /* the input script (per eventsPoll call):
      *   0..6599    idle     — the boot intro plays (~5887 ticks: the
@@ -145,7 +145,7 @@ int main(int argc, char **argv)
     /* the attract cycle runs from the boot's end (~5887) until the fire
      * at 6600 escapes it; the room then walks right off the edge */
     script[6600].joyBits = 0x80u;         /* the attract escape */
-    for (unsigned i = 6700; i <= 6950u; i++)
+    for (uint32_t i = 6700; i <= 6950u; i++)
         script[i].joyBits = 0x08u;         /* hold RIGHT: the room's confirm */
     /* the party pre-screen (t≈6912..7571, per the probe's timeline): its
      * wait fires [0x48A3]-shaped aborts exactly like the original's
@@ -155,7 +155,7 @@ int main(int argc, char **argv)
      * (no key) while the page is up: scroll_map (1000:9E51) polls input only,
      * so the actor must stay put; the key at 7695 dismisses the page and the
      * play loop follows. */
-    for (unsigned i = 7200u; i <= 7690u; i++) script[i].joyBits = 0x08u;
+    for (uint32_t i = 7200u; i <= 7690u; i++) script[i].joyBits = 0x08u;
     script[7695].lastKey = 1u;
     /* D-15: ESC opens the pause block in the play loop; Enter on row 0
      * (CONTINUE) closes it again. */
@@ -211,8 +211,8 @@ int main(int argc, char **argv)
      * cavemen at (48,24) (208,24) (256,136)) */
     {
         const uint8_t *page = osys_null_page(0);
-        unsigned nz = 0;
-        for (unsigned i = 0; i < 58880u; i++) if (page[i]) nz++;
+        uint32_t nz = 0;
+        for (uint32_t i = 0; i < 58880u; i++) if (page[i]) nz++;
         /* the BG now shows through the tiles' zero bytes (draw_terrain
          * 0x502d skips them) and its 0xFF fill is the 0x80..0xBF bank, so the
          * whole 184-row window is populated. */
@@ -249,15 +249,15 @@ int main(int argc, char **argv)
             const uint8_t *pal = osys_null_palette();
             const uint8_t *want[5] = { sp + 0x18, bs + 0x18,
                                        bg4 + 163840u, NULL, p4 + 0xFA00u };
-            unsigned off[5] = { 0u, 0x60u, 0xC0u, 0x180u, 0x240u };
-            unsigned len[5] = { 0x60u, 0x60u, 0xC0u, 0xC0u, 0xC0u };
+            uint32_t off[5] = { 0u, 0x60u, 0xC0u, 0x180u, 0x240u };
+            uint32_t len[5] = { 0x60u, 0x60u, 0xC0u, 0xC0u, 0xC0u };
             /* the BG block's entries 0x71..0x74 are the level's animated
              * range (BD3's field M: one rotation every 4 ticks), so they are
              * compared below as a rotation of the file's four entries; every
              * other byte is exact. */
-            const unsigned animLo = 0x93u, animHi = 0x9Fu;   /* in the block */
-            for (unsigned r = 0; r < 5u; r++)
-                for (unsigned i = 0; i < len[r]; i++) {
+            const uint32_t animLo = 0x93u, animHi = 0x9Fu;   /* in the block */
+            for (uint32_t r = 0; r < 5u; r++)
+                for (uint32_t i = 0; i < len[r]; i++) {
                     if (r == 2u && i >= animLo && i < animHi) continue;
                     uint8_t w = want[r] ? want[r][i] : 0u;
                     if (pal[off[r] + i] != w) {
@@ -269,11 +269,11 @@ int main(int argc, char **argv)
                 }
             {
                 const uint8_t *f = want[2] + animLo;        /* the 4 entries */
-                unsigned rot = 0;
-                for (unsigned k = 0; k < 4u && !rot; k++) {
-                    unsigned ok = 1;
-                    for (unsigned i = 0; i < 4u; i++)
-                        for (unsigned c = 0; c < 3u; c++)
+                uint32_t rot = 0;
+                for (uint32_t k = 0; k < 4u && !rot; k++) {
+                    uint32_t ok = 1;
+                    for (uint32_t i = 0; i < 4u; i++)
+                        for (uint32_t c = 0; c < 3u; c++)
                             ok &= pal[0xC0u + animLo + i * 3u + c] ==
                                   f[((i + 4u - k) % 4u) * 3u + c];
                     rot = ok;

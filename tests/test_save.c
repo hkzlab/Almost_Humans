@@ -28,7 +28,7 @@ extern const OSystem osys_null;
 #define SAVE_LEN 0x1800u
 #define SAVE_NAME "SAVEB"
 
-static void put16(uint8_t *p, unsigned v)
+static void put16(uint8_t *p, uint32_t v)
 {
     p[0] = (uint8_t)v;
     p[1] = (uint8_t)(v >> 8);
@@ -41,7 +41,7 @@ static InputState idle(void)
     return in;
 }
 
-static int tick(GameFlow *s, const InputState *in)
+static int32_t tick(GameFlow *s, const InputState *in)
 {
     *s = gameflow_step(*s, in);
     palette_tick();                 /* game_tick's ISR body */
@@ -50,12 +50,12 @@ static int tick(GameFlow *s, const InputState *in)
 
 /* Hold `dirBit` until the rail arrival changes the cell (or the room hands
  * over to LEVEL).  One idle tick afterwards so the rail cannot re-arm. */
-static int walk_to(GameFlow *s, unsigned dirBit, unsigned want, const char *what)
+static int32_t walk_to(GameFlow *s, uint32_t dirBit, uint32_t want, const char *what)
 {
-    unsigned start = frontend_cellForProbe();
+    uint32_t start = frontend_cellForProbe();
     InputState in = idle();
     in.joyBits = dirBit;
-    for (unsigned i = 0; i < 400u; i++) {
+    for (uint32_t i = 0; i < 400u; i++) {
         if (tick(s, &in)) return 0;             /* the room exited */
         if (frontend_cellForProbe() != start) break;
     }
@@ -69,11 +69,11 @@ static int walk_to(GameFlow *s, unsigned dirBit, unsigned want, const char *what
     return 0;
 }
 
-static int press_action(GameFlow *s)
+static int32_t press_action(GameFlow *s)
 {
     InputState in = idle();
     in.joyBits = 0x80u;
-    int over = tick(s, &in);
+    int32_t over = tick(s, &in);
     InputState rel = idle();
     return over | tick(s, &rel);
 }
@@ -82,7 +82,7 @@ int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";
     char path[512];
-    int bad = 0;
+    int32_t bad = 0;
 
     /* the fixture: header + two recognisable blob bytes */
     static uint8_t fx[SAVE_LEN];
@@ -134,7 +134,7 @@ int main(int argc, char **argv)
     GameFlow s = FLOW_MENU;
     {
         InputState in = idle();
-        for (unsigned i = 0; i < 60u; i++) (void)tick(&s, &in);
+        for (uint32_t i = 0; i < 60u; i++) (void)tick(&s, &in);
     }
     if (s != FLOW_MENU) {
         fprintf(stderr, "FAIL the room did not come up\n");
@@ -151,7 +151,7 @@ int main(int argc, char **argv)
     bad |= walk_to(&s, 0x08u, 0u, "off the right edge");
     {
         InputState in = idle();
-        unsigned guard = 0;
+        uint32_t guard = 0;
         while (s == FLOW_MENU && guard++ < 300u) (void)tick(&s, &in);
     }
     if (s != FLOW_LEVEL) {
@@ -180,7 +180,7 @@ int main(int argc, char **argv)
         /* render_level_frame 1000:959E: the save's word, not the board pick */
         if (level_timeLimit() != 0x0549u) {
             fprintf(stderr, "FAIL the save's time was not picked (0x%04x)\n",
-                    (unsigned)level_timeLimit());
+                    (uint32_t)level_timeLimit());
             bad = 1;
         }
         if (level_tribeMembers() != 7u) {
@@ -215,7 +215,7 @@ int main(int argc, char **argv)
         if (level_timeLimit() != d->timeA || level_tribeMembers() != 12u) {
             fprintf(stderr, "FAIL the fresh pick is not the board's "
                     "(time 0x%04x, members %u)\n",
-                    (unsigned)level_timeLimit(), level_tribeMembers());
+                    (uint32_t)level_timeLimit(), level_tribeMembers());
             bad = 1;
         }
     }

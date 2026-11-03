@@ -13,9 +13,9 @@ static void dump_ppm(const char *path, const uint8_t *page, const uint8_t *pal6)
     FILE *f = fopen(path, "wb");
     if (!f) { fprintf(stderr, "dump_ppm: cannot open %s\n", path); return; }
     fprintf(f, "P6\n320 200\n255\n");
-    for (unsigned i = 0; i < 320u * 200u; i++) {
+    for (uint32_t i = 0; i < 320u * 200u; i++) {
         uint8_t idx = page[i];
-        for (unsigned c = 0; c < 3; c++) {
+        for (uint32_t c = 0; c < 3; c++) {
             uint8_t v6 = pal6[idx * 3u + c];
             fputc((uint8_t)((v6 << 2) | (v6 >> 4)), f);
         }
@@ -40,7 +40,7 @@ int main(int argc, char **argv)
     frontend_init(&osys_null);
 
     InputState in = {0, 0, 0};
-    unsigned t;
+    uint32_t t;
     /* load + fade-in (~35 ticks, stepped by palette_tick) */
     for (t = 0; t < 2000; t++) {
         palette_tick();
@@ -49,10 +49,10 @@ int main(int argc, char **argv)
     }
     /* hold LEFT until the pan ends and the name screen settles */
     in.joyBits = 0x04;
-    unsigned zeros = 0;
+    uint32_t zeros = 0;
     for (t = 0; t < 4000; t++) {
         palette_tick();
-        int r = frontend_tick(&in);
+        int32_t r = frontend_tick(&in);
         if (!r) zeros++;
         if (t > 300) in.joyBits = 0x00;      /* stop walking: the pan may still run */
         if (t % 500 == 0) {
@@ -64,8 +64,8 @@ int main(int argc, char **argv)
     }
     const uint8_t *pal = palette_working();
     const uint8_t *pg = video_page(0);
-    unsigned nz = 0;
-    for (unsigned i = 0; i < 320u*200u; i++) if (pg[i]) nz++;
+    uint32_t nz = 0;
+    for (uint32_t i = 0; i < 320u*200u; i++) if (pg[i]) nz++;
     fprintf(stderr, "zeros=%u fadeActive=%d pageNZ=%u pal[0x33]=%02x %02x %02x pal[0xB3]=%02x %02x %02x\n", zeros,
             palette_fadeActive(), nz, pal[0x33*3], pal[0x33*3+1], pal[0x33*3+2],
             pal[0xB3*3], pal[0xB3*3+1], pal[0xB3*3+2]);

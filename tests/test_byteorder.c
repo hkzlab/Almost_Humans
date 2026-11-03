@@ -6,9 +6,9 @@
 #include "byteorder.h"
 #include <stdio.h>
 
-static int bad;
+static int32_t bad;
 
-static void check(int ok, const char *what)
+static void check(int32_t ok, const char *what)
 {
     if (!ok) { fprintf(stderr, "FAIL %s\n", what); bad = 1; }
 }

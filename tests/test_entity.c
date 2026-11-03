@@ -25,6 +25,7 @@
  * Missing volumes = skip.
  */
 #include "game.h"
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,12 +33,12 @@
 
 extern const OSystem osys_null;
 
-static int bad;
+static int32_t bad;
 
-static void failf(const char *what, unsigned id, long got, long want)
+static void failf(const char *what, uint32_t id, int64_t got, int64_t want)
 {
-    fprintf(stderr, "FAIL level %u: %s = %ld, want %ld\n", id, what,
-            got, want);
+    fprintf(stderr, "FAIL level %" PRIu32 ": %s = %" PRId64 ", want %" PRId64 "\n",
+            id, what, got, want);
     bad = 1;
 }
 
@@ -51,20 +52,20 @@ static const uint8_t style6_flags[32] = {
     0x80, 0x01, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
-static unsigned prologue_bonus(const LevelData *d, unsigned matchIdx)
+static uint32_t prologue_bonus(const LevelData *d, uint32_t matchIdx)
 {
     if (d->style != 6u) return 0;
     if (matchIdx + 0x20u >= 640u) return 0;
-    unsigned v = d->map[matchIdx + 0x20u];
+    uint32_t v = d->map[matchIdx + 0x20u];
     if (v > 0x90u) return 0;
     if ((style6_flags[(v >> 3) & 31u] >> (7u - (v & 7u))) & 1u) return 1;
     return 0;
 }
 
-static unsigned count_tiles(const uint8_t *map, unsigned tile)
+static uint32_t count_tiles(const uint8_t *map, uint32_t tile)
 {
-    unsigned n = 0;
-    for (unsigned i = 0; i < 640u; i++)
+    uint32_t n = 0;
+    for (uint32_t i = 0; i < 640u; i++)
         if (map[i] == tile) n++;
     return n;
 }
@@ -105,7 +106,7 @@ int main(int argc, char **argv)
     if (d->entityLife != 1u) failf("goal high byte", 10u, d->entityLife, 1);
     entity_spawnFromMap(level_map(), d->style, d->entityLife);
     if (entity_count() != 1u)
-        failf("entity count", 10u, (long)entity_count(), 1);
+        failf("entity count", 10u, (int64_t)entity_count(), 1);
 
     const Entity *e = entity_at(0);
     if (e) {
@@ -126,8 +127,8 @@ int main(int argc, char **argv)
      * endpoint.  First leg = 80 ticks up (x reaches 400 on tick 79 zero
      * based), the second = 80 ticks down. */
     {
-        unsigned lastX = e->x;
-        for (unsigned t = 0; t < 170u; t++) {
+        uint32_t lastX = e->x;
+        for (uint32_t t = 0; t < 170u; t++) {
             entity_tick();
             const Entity *p = entity_at(0);
             if (p->handler > 1u) {
@@ -155,7 +156,7 @@ int main(int argc, char **argv)
      * offset is 0 (so the data starts at 0x1C0), with its y offset and row
      * count.  The bank is published by level_load (1000:4F82). */
     {
-        unsigned src = 0, rows = 0, yoff = 0;
+        uint32_t src = 0, rows = 0, yoff = 0;
 
         if (entity_frameInfo(0u, &src, &rows, &yoff)) {
             if (src != 0x1C0u) failf("frame 0's source (block 0 + 0x1C0)", 10u, src, 0x1C0);
@@ -164,7 +165,7 @@ int main(int argc, char **argv)
             if (yoff > 64u) failf("frame 0's y offset", 10u, yoff, 25);
             /* the next cell of the same animation is a different block */
             {
-                unsigned s1 = 0, r1 = 0, o1 = 0;
+                uint32_t s1 = 0, r1 = 0, o1 = 0;
 
                 if (!entity_frameInfo(1u, &s1, &r1, &o1) || s1 == src)
                     failf("frame 1's source differs", 10u, s1, src);
@@ -190,7 +191,7 @@ int main(int argc, char **argv)
         bank[4 * 1 + 3] = 0x40;                 /* cell 1: block offset 0x40 */
         bank[0xE2] = 0; bank[0xE3] = 6;
         bank[0x152] = 0; bank[0x153] = 2;
-        for (unsigned i = 0; i < 0x40; i++) {   /* the two frames' bytes */
+        for (uint32_t i = 0; i < 0x40; i++) {   /* the two frames' bytes */
             bank[0x1C0 + i] = (uint8_t)(0x10u + i);
             bank[0x200 + i] = (uint8_t)(0x80u + i);
         }
@@ -224,7 +225,7 @@ int main(int argc, char **argv)
         uint8_t *rec = object_slot(0u);
 
         if (p && rec && p->handler == 0u) {
-            unsigned ex = p->x, ey = p->y;
+            uint32_t ex = p->x, ey = p->y;
 
             memset(rec, 0, 0x12u);
             rec[0] = (uint8_t)(ex + 36u); rec[1] = (uint8_t)((ex + 36u) >> 8);
@@ -247,7 +248,7 @@ int main(int argc, char **argv)
              * counter and hands the entity back to its walk handler (3's base
              * is 0). */
             {
-                unsigned t = 0;
+                uint32_t t = 0;
 
                 while (entity_at(0)->handler == 3u && t++ < 4000u) entity_tick();
                 if (entity_at(0)->handler != 0u)
@@ -268,7 +269,7 @@ int main(int argc, char **argv)
     {
         uint8_t *cr;
         uint8_t params[8];
-        unsigned t, type;
+        uint32_t t, type;
 
         (void)level_load(10u);
         entity_spawnFromMap(level_map(), level_data()->style,
@@ -277,7 +278,7 @@ int main(int argc, char **argv)
         cr = object_slot(0u);
         {
             const Entity *p = entity_at(0u);
-            unsigned px = p ? p->x : 320u, py = p ? p->y : 193u;
+            uint32_t px = p ? p->x : 320u, py = p ? p->y : 193u;
 
             memset(cr, 0, 0x12u);
             cr[0] = (uint8_t)(px + 36u); cr[1] = (uint8_t)((px + 36u) >> 8);
@@ -291,12 +292,12 @@ int main(int argc, char **argv)
             failf("D-59: the pick-up", 10u, cr[8], 0x22);
         statusbar_setTribeDigits(1u, 2u);      /* the bar shows 12 */
         for (t = 0; t < 4000u; t++) {
-            type = (unsigned)(cr[8] | (cr[9] << 8));
+            type = (uint32_t)(cr[8] | (cr[9] << 8));
             if (type == 0x21u) break;
             entity_tick();                     /* the game's order: world first */
             (void)object_commandRun(cr, 0u);
         }
-        type = (unsigned)(cr[8] | (cr[9] << 8));
+        type = (uint32_t)(cr[8] | (cr[9] << 8));
         if (type != 0x21u)
             failf("D-59: the carried human is consumed", 10u, type, 0x21);
         statusbar_saveParams(params);
@@ -310,13 +311,13 @@ int main(int argc, char **argv)
      * world behind the end caption is frozen even though level_tick is still
      * called for the redraw. */
     {
-        unsigned x0, x1;
+        uint32_t x0, x1;
 
         (void)level_load(10u);
         entity_spawnFromMap(level_map(), level_data()->style,
                             level_data()->entityLife);
         level_begin();
-        for (unsigned t = 0; t < 3000u && level_starting(); t++) {
+        for (uint32_t t = 0; t < 3000u && level_starting(); t++) {
             if (level_loadingScreen()) level_loadingTick();
             else level_tick();
             palette_tick();
@@ -333,7 +334,7 @@ int main(int argc, char **argv)
 
             level_setEnd(0);               /* the pause's RESTART THIS GAME */
             x0 = entity_at(0u)->x;
-            for (unsigned t = 0; t < 10u; t++) {
+            for (uint32_t t = 0; t < 10u; t++) {
                 level_tick();              /* the caption's per-tick call */
                 palette_tick();
             }
@@ -345,7 +346,7 @@ int main(int argc, char **argv)
 
     /* 4. the whole corpus: count == #B3, the spawn fields (the prologue
      * included), and a 4-tick walk inside each record's window. */
-    for (unsigned id = 0; id < 160u; id++) {
+    for (uint32_t id = 0; id < 160u; id++) {
         if (level_load(id) != 0) {
             fprintf(stderr, "FAIL level %u: load\n", id);
             return 1;
@@ -353,18 +354,18 @@ int main(int argc, char **argv)
         const LevelData *lv = level_data();
         entity_spawnFromMap(level_map(), lv->style, lv->entityLife);
 
-        unsigned want = count_tiles(lv->map, 0xB3u);
+        uint32_t want = count_tiles(lv->map, 0xB3u);
         if (entity_count() != want)
-            failf("count", id, (long)entity_count(), want);
+            failf("count", id, (int64_t)entity_count(), want);
 
         /* per entity, in spawn (row-major) order: x0 == x == the tile's
          * col*16, y = r*16 (+ the prologue) - 0x30 + 1, and the hold/life
          * seeds.  x1 = the window row's last-scanned 0xB4 (the finder
          * fires per B4 cell; the row-menu scan leaves the max column). */
-        unsigned k = 0;
-        for (unsigned r = 0; r < 20u; r++) {
-            unsigned rowFirst = k;
-            for (unsigned c = 0; c < 32u; c++) {
+        uint32_t k = 0;
+        for (uint32_t r = 0; r < 20u; r++) {
+            uint32_t rowFirst = k;
+            for (uint32_t c = 0; c < 32u; c++) {
                 if (lv->map[r * 32u + c] != 0xB3u) continue;
                 const Entity *pe = entity_at(k);
                 if (!pe) { failf("missing record", id, k, want); break; }
@@ -374,7 +375,7 @@ int main(int argc, char **argv)
                     /* the prologue reads the cell below (matchIdx+0x20)
                      * and grants +3 px; y is a 16-bit word — rows 0..2
                      * wrap negative */
-                    unsigned bonus = prologue_bonus(lv, r * 32u + c);
+                    uint32_t bonus = prologue_bonus(lv, r * 32u + c);
                     uint16_t yWant =
                         (uint16_t)(r * 16u + 3u * bonus - 0x30u + 1u);
                     if (pe->y != yWant) failf("y", id, pe->y, yWant);
@@ -388,8 +389,8 @@ int main(int argc, char **argv)
              * wins), applied to the FIRST entity appended on the row
              * (the finder's first y match) */
             if (rowFirst < k) {
-                unsigned b4c = 32u;
-                for (unsigned c = 0; c < 32u; c++)
+                uint32_t b4c = 32u;
+                for (uint32_t c = 0; c < 32u; c++)
                     if (lv->map[r * 32u + c] == 0xB4u) b4c = c;
                 if (b4c < 32u) {
                     const Entity *pe = entity_at(rowFirst);
@@ -397,7 +398,7 @@ int main(int argc, char **argv)
                      * B4 cell's computed row word (prologue included);
                      * a prologue mismatch leaves the join unset in the
                      * original too */
-                    unsigned bonus = prologue_bonus(lv, r * 32u + b4c);
+                    uint32_t bonus = prologue_bonus(lv, r * 32u + b4c);
                     uint16_t yWant =
                         (uint16_t)(r * 16u + 3u * bonus - 0x30u + 1u);
                     if (pe->y == yWant && pe->x1 != b4c * 16u)
@@ -409,9 +410,9 @@ int main(int argc, char **argv)
         /* a 4-tick walk: every record steps -/+1 px per tick from its
          * x0 toward x1 (handler 0 = +1 toward x1; with a 0/400-joined
          * window it stays inside).  No reachable handler != 0/1. */
-        for (unsigned t = 0; t < 4u; t++) {
+        for (uint32_t t = 0; t < 4u; t++) {
             entity_tick();
-            for (unsigned i = 0; i < entity_count(); i++) {
+            for (uint32_t i = 0; i < entity_count(); i++) {
                 const Entity *pe = entity_at(i);
                 if (pe->handler > 1u) {
                     fprintf(stderr, "FAIL level %u: +4 = %u\n", id,
@@ -437,7 +438,7 @@ int main(int argc, char **argv)
     entity_spawnFromMap(level_map(), level_data()->style,
                         level_data()->entityLife);
     if (entity_count() != 0u)
-        failf("la#1 count", 0u, (long)entity_count(), 0);
+        failf("la#1 count", 0u, (int64_t)entity_count(), 0);
 
     if (!bad)
         printf("entity tests: OK (the lb#1 spawn fields, the 0xB4 join, "

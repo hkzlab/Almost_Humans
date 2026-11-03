@@ -35,19 +35,19 @@
 #define SAVE_HDR 0x0Du           /* the 13-byte header               */
 
 static uint8_t save_buf[SAVE_LEN];   /* the [0x1C92] buffer          */
-static int     save_loaded;          /* [0x34]: a save is present    */
+static int32_t save_loaded;          /* [0x34]: a save is present    */
 
-int save_init(const OSystem *osys) { (void)osys; return 0; }
+int32_t save_init(const OSystem *osys) { (void)osys; return 0; }
 
 /* entry:004C: slot 1..20 -> the letter 'A'+(n-1); 0 = GAME OFF.  Resets the
  * state first, so a failed/absent slot leaves the fresh-game path. */
-int save_loadSlot(unsigned slot)
+int32_t save_loadSlot(uint32_t slot)
 {
     save_loaded = 0;
     memset(save_buf, 0, sizeof save_buf);
     if (slot == 0u || slot > 20u) return 0;
 
-    FSSave *f = fs.openSave((char)('A' + (int)slot - 1));
+    FSSave *f = fs.openSave((char)('A' + (int32_t)slot - 1));
     if (!f) return 0;                        /* the JC path */
     uint32_t got = fs.saveRead(f, 0, save_buf, SAVE_LEN);
     fs.closeSave(f);
@@ -60,16 +60,16 @@ int save_loadSlot(unsigned slot)
  * a later "restart this level" takes the LEVEL board's time again. */
 void save_consume(void) { save_loaded = 0; }
 
-int save_present(void)          { return save_loaded; }
+int32_t save_present(void)          { return save_loaded; }
 uint16_t save_level(void)       { return rd_le_u16(save_buf + 0x00); }
 uint16_t save_time(void)        { return rd_le_u16(save_buf + 0x07); }
-unsigned save_members(void)     { return rd_le_u16(save_buf + 0x0B); }
+uint32_t save_members(void)     { return rd_le_u16(save_buf + 0x0B); }
 const uint8_t *save_blob(void)  { return save_buf; }
 
 /* SAVE GAME (save_progress 1FE7:0000, re_formats.md §10.0): the 13-byte
  * header from the port's live state + the five state ranges. */
-int save_writeSlot(unsigned slot, unsigned level, uint16_t timeWord,
-                   unsigned members)
+int32_t save_writeSlot(uint32_t slot, uint32_t level, uint16_t timeWord,
+                   uint32_t members)
 {
     static uint8_t out[SAVE_LEN];
 
@@ -93,7 +93,7 @@ int save_writeSlot(unsigned slot, unsigned level, uint16_t timeWord,
     object_saveSpans(out + 0x16F0u);          /* 0x6F92, 0x54           */
     statusbar_saveParams(out + 0x17F0u);      /* [0x5B22], 8            */
 
-    FSSave *f = fs.createSave((char)('A' + (int)slot - 1));
+    FSSave *f = fs.createSave((char)('A' + (int32_t)slot - 1));
     if (!f) return 0;
     uint32_t put = fs.saveWrite(f, 0, out, SAVE_LEN);
     fs.closeSave(f);

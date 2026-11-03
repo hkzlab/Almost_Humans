@@ -38,7 +38,7 @@
 #define HIS_TABLE   (2u + HIS_LEVELS * 2u + 18u + HIS_TOPN * HIS_ENTRY)
 
 static uint8_t hiscoreTable[HIS_TABLE];
-static int hiscoreLoaded;
+static int32_t hiscoreLoaded;
 
 /* the shipped defaults (the image's DS:0x4DE block): what a fresh boot shows
  * before any HISCORES.HUM exists */
@@ -50,15 +50,15 @@ static const struct { uint32_t score; const char *name; } hiscoreDefault[10] = {
     {20000u,  "SIMON HIRST"},   {10000u, "CRAIG MASSEY"}
 };
 
-static uint8_t *hiscoreEntry(unsigned i) { return hiscoreTable + 0x154u + i * HIS_ENTRY; }
+static uint8_t *hiscoreEntry(uint32_t i) { return hiscoreTable + 0x154u + i * HIS_ENTRY; }
 
 /* 1000:06DE crypt_table_38a — the involution, same routine for both
  * directions: [di] ^= bl; bl = rol8(bl,1) + 3. */
-void hiscore_obfuscate(uint8_t *p, unsigned n)
+void hiscore_obfuscate(uint8_t *p, uint32_t n)
 {
     uint8_t key = 0x47u;
 
-    for (unsigned i = 0; i < n; i++) {
+    for (uint32_t i = 0; i < n; i++) {
         p[i] ^= key;
         key = (uint8_t)(((uint8_t)((key << 1) | (key >> 7))) + 3u);
     }
@@ -71,9 +71,9 @@ static void hiscoreDefaults(void)
 {
     memset(hiscoreTable, 0, sizeof hiscoreTable);
     wr_le_u16(hiscoreTable, 0x0999u);                  /* [0x38A] = 0x0999 */
-    for (unsigned n = 1; n < HIS_LEVELS; n++)
+    for (uint32_t n = 1; n < HIS_LEVELS; n++)
         wr_le_u16(hiscoreTable + 2u + 2u * n, 0x0999u);
-    for (unsigned i = 0; i < HIS_TOPN; i++) {
+    for (uint32_t i = 0; i < HIS_TOPN; i++) {
         uint8_t *e = hiscoreEntry(i);
         uint32_t v = hiscoreDefault[i].score;
 
@@ -133,23 +133,23 @@ void hiscore_write(void)
 }
 
 /* the per-level best as `1000:42E9` reads it: level N's u16 at 0x38A + 2*N */
-uint16_t hiscore_best(unsigned level)
+uint16_t hiscore_best(uint32_t level)
 {
     hiscore_init();
     if (level >= HIS_LEVELS) return 0x0999u;
     return rd_le_u16(hiscoreTable + 2u + 2u * level);
 }
 
-void hiscore_setBest(unsigned level, uint16_t value)
+void hiscore_setBest(uint32_t level, uint16_t value)
 {
     hiscore_init();
     if (level >= HIS_LEVELS) return;
     wr_le_u16(hiscoreTable + 2u + 2u * level, value);
 }
 
-unsigned hiscore_count(void) { return HIS_TOPN; }
+uint32_t hiscore_count(void) { return HIS_TOPN; }
 
-uint32_t hiscore_score(unsigned i)
+uint32_t hiscore_score(uint32_t i)
 {
     const uint8_t *e;
 
@@ -159,7 +159,7 @@ uint32_t hiscore_score(unsigned i)
     return rd_le_u32(e);
 }
 
-const char *hiscore_name(unsigned i)
+const char *hiscore_name(uint32_t i)
 {
     hiscore_init();
     return i < HIS_TOPN ? (const char *)hiscoreEntry(i) + 4 : "";
@@ -175,24 +175,24 @@ static char hiscore_char(char c)
 
 /* 1000:01CD: does the score make the table?  The walk only gives up when the
  * candidate is BELOW the last entry, so an equal score still displaces it. */
-int hiscore_qualifies(uint32_t score)
+int32_t hiscore_qualifies(uint32_t score)
 {
     return score >= hiscore_score(HIS_TOPN - 1u);
 }
 
 /* 1000:01CD..0x0230: insert, shifting 18-byte entries down one slot.  Returns
  * the slot taken, or -1 when the score beats none of the ten. */
-int hiscore_insert(uint32_t score, const char *name)
+int32_t hiscore_insert(uint32_t score, const char *name)
 {
-    unsigned pos = 0;
-    int took = -1;
+    uint32_t pos = 0;
+    int32_t took = -1;
 
     hiscore_init();
-    for (int k = (int)HIS_TOPN - 1; k >= 0; k--) {
-        if (score < hiscore_score((unsigned)k)) { pos = (unsigned)k + 1u; break; }
+    for (int32_t k = (int32_t)HIS_TOPN - 1; k >= 0; k--) {
+        if (score < hiscore_score((uint32_t)k)) { pos = (uint32_t)k + 1u; break; }
     }
     if (pos >= HIS_TOPN) return -1;              /* the last entry still wins */
-    for (unsigned j = HIS_TOPN - 1u; j > pos; j--)
+    for (uint32_t j = HIS_TOPN - 1u; j > pos; j--)
         memmove(hiscoreEntry(j), hiscoreEntry(j - 1u), HIS_ENTRY);
     {
         uint8_t *e = hiscoreEntry(pos);
@@ -200,11 +200,11 @@ int hiscore_insert(uint32_t score, const char *name)
         wr_le_u32(e, score);
         memset(e + 4, 0, HIS_NAME);
         if (name) {
-            for (unsigned i = 0; i < HIS_NAME - 1u && name[i]; i++)
+            for (uint32_t i = 0; i < HIS_NAME - 1u && name[i]; i++)
                 e[4u + i] = (uint8_t)hiscore_char(name[i]);
         }
     }
-    took = (int)pos;
+    took = (int32_t)pos;
     hiscore_write();
     return took;
 }
@@ -216,9 +216,9 @@ int hiscore_insert(uint32_t score, const char *name)
  * confirms.  The buffer holds at most 13 characters (DS:0x757, the copy at
  * commit time is 14 bytes).  A keystroke outside the grid is ignored.
  */
-int hiscore_nameApply(char *name, unsigned column, unsigned *len)
+int32_t hiscore_nameApply(char *name, uint32_t column, uint32_t *len)
 {
-    unsigned n = *len;
+    uint32_t n = *len;
 
     if (n > 13u) n = 13u;
     name[n] = '\0';

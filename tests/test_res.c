@@ -22,7 +22,7 @@
 #include "compat.h"
 #include <limits.h>
 
-static int data_missing(const char *dir)
+static int32_t data_missing(const char *dir)
 {
     char path[512];
     snprintf(path, sizeof path, "%s/HUMANS.000", dir);
@@ -37,7 +37,7 @@ static uint8_t *read_file(const char *path, uint32_t *size)
     FILE *f = fopen(path, "rb");
     if (!f) return NULL;
     fseek(f, 0, SEEK_END);
-    long n = ftell(f);
+    int64_t n = ftell(f);
     fseek(f, 0, SEEK_SET);
     uint8_t *buf = malloc((size_t)n);
     if (fread(buf, 1, (size_t)n, f) != (size_t)n) { fclose(f); free(buf); return NULL; }
@@ -46,7 +46,7 @@ static uint8_t *read_file(const char *path, uint32_t *size)
     return buf;
 }
 
-static int check_chunk(const char *name, unsigned disc, const char *expect_path,
+static int32_t check_chunk(const char *name, uint32_t disc, const char *expect_path,
                        uint16_t want_chk)
 {
     uint32_t expect_size = 0;
@@ -59,7 +59,7 @@ static int check_chunk(const char *name, unsigned disc, const char *expect_path,
     uint32_t got_size = 0;
     uint16_t got_chk = 0;
     uint8_t *got = res_loadChunk(name, &got_size, &got_chk);
-    int bad = 1;
+    int32_t bad = 1;
     if (!got) {
         fprintf(stderr, "FAIL %s: res_loadChunk returned NULL\n", name);
     } else if (got_size != expect_size) {
@@ -96,7 +96,7 @@ int main(int argc, char **argv)
     }
     if (compat_chdir(vol_dir)) { perror(vol_dir); return 1; }
 
-    int bad = 0;
+    int32_t bad = 0;
     char path[512];
 
     /* The ANI disc table, corpus-verified 10/10 (see res.c): ANI03 -> 1. */

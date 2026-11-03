@@ -19,7 +19,7 @@
 #include "compat.h"
 
 extern const OSystem osys_null;
-extern const uint8_t *osys_null_page(int which);
+extern const uint8_t *osys_null_page(int32_t which);
 extern const uint8_t *osys_null_palette(void);
 
 static uint8_t *file_image;
@@ -32,7 +32,7 @@ static uint8_t *read_fixture(const char *fix_dir, const char *rel,
     FILE *f = fopen(path, "rb");
     if (!f) return NULL;
     fseek(f, 0, SEEK_END);
-    long n = ftell(f);
+    int64_t n = ftell(f);
     fseek(f, 0, SEEK_SET);
     uint8_t *b = malloc((size_t)n);
     if (!b || fread(b, 1, (size_t)n, f) != (size_t)n) {
@@ -43,7 +43,7 @@ static uint8_t *read_fixture(const char *fix_dir, const char *rel,
     return b;
 }
 
-static int load_fixture(const char *fix_dir, unsigned fileIdx)
+static int32_t load_fixture(const char *fix_dir, uint32_t fileIdx)
 {
     char path[512];
     snprintf(path, sizeof path, "%s/HUMANS.001/LEVELS/L%c.BIN",
@@ -51,7 +51,7 @@ static int load_fixture(const char *fix_dir, unsigned fileIdx)
     FILE *f = fopen(path, "rb");
     if (!f) return -1;
     fseek(f, 0, SEEK_END);
-    long n = ftell(f);
+    int64_t n = ftell(f);
     fseek(f, 0, SEEK_SET);
     free(file_image);
     file_image = malloc((size_t)n);
@@ -84,16 +84,16 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    int bad = 0;
+    int32_t bad = 0;
     scene_init(&osys_null);
     video_init(&osys_null);
     palette_init(&osys_null);
     level_init(&osys_null);
 
     /* 1. all 160 levels load and the census distributions hold. */
-    unsigned intro_hist[8] = { 0 };   /* 00,01,02,03,04,05,09,FF */
-    unsigned style_hist[6] = { 0 };
-    for (unsigned id = 0; id < 160u; id++) {
+    uint32_t intro_hist[8] = { 0 };   /* 00,01,02,03,04,05,09,FF */
+    uint32_t style_hist[6] = { 0 };
+    for (uint32_t id = 0; id < 160u; id++) {
         if (level_load(id) != 0) {
             fprintf(stderr, "FAIL level %u: load failed\n", id);
             return 1;
@@ -115,7 +115,7 @@ int main(int argc, char **argv)
             fprintf(stderr, "FAIL level %u: time A minutes %u\n", id, d->timeA >> 8);
             bad = 1;
         }
-        unsigned slot;
+        uint32_t slot;
         switch (d->introIndex) {
         case 0x00u: slot = 0; break;
         case 0x01u: slot = 1; break;
@@ -134,16 +134,16 @@ int main(int argc, char **argv)
         style_hist[d->style - 1u]++;
     }
     {
-        static const unsigned want_intro[8] = { 1, 4, 1, 3, 1, 1, 3, 146 };
-        static const unsigned want_style[6] = { 26, 26, 27, 28, 26, 27 };
-        for (unsigned i = 0; i < 8u; i++) {
+        static const uint32_t want_intro[8] = { 1, 4, 1, 3, 1, 1, 3, 146 };
+        static const uint32_t want_style[6] = { 26, 26, 27, 28, 26, 27 };
+        for (uint32_t i = 0; i < 8u; i++) {
             if (intro_hist[i] != want_intro[i]) {
                 fprintf(stderr, "FAIL intro hist [%u]: %u, want %u\n",
                         i, intro_hist[i], want_intro[i]);
                 bad = 1;
             }
         }
-        for (unsigned i = 0; i < 6u; i++) {
+        for (uint32_t i = 0; i < 6u; i++) {
             if (style_hist[i] != want_style[i]) {
                 fprintf(stderr, "FAIL style hist [%u]: %u, want %u\n",
                         i, style_hist[i], want_style[i]);
@@ -156,14 +156,14 @@ int main(int argc, char **argv)
      * the fixture file at the offsets computed from the parsed strings
      * (the record 0 starts at the file offset 0; the map offset = 13 +
      * len(goal)+1 + len(author)+1 + 8). */
-    for (unsigned fileIdx = 0; fileIdx < 10u; fileIdx++) {
+    for (uint32_t fileIdx = 0; fileIdx < 10u; fileIdx++) {
         if (load_fixture(fix_abs, fileIdx) != 0) {
             fprintf(stderr, "FAIL L%c.BIN fixture unreadable\n", 'A' + fileIdx);
             bad = 1;
             continue;
         }
-        for (unsigned rec = 0; rec < 10u; rec++) {
-            unsigned id = fileIdx * 10u + rec;
+        for (uint32_t rec = 0; rec < 10u; rec++) {
+            uint32_t id = fileIdx * 10u + rec;
             level_load(id);
             const LevelData *d = level_data();
             uint32_t mapOff = d->mapFileOff;
@@ -231,10 +231,10 @@ int main(int argc, char **argv)
              * is checked at that instant too: the bar's rows are the same
              * bytes they are in the playable frame. */
             uint8_t barAtBlack[0xC0], barRowsAtBlack[40 * 320], barFirst[0xC0];
-            int haveBlack = 0, barStable = 1, barLit = 0;
-            int loadingSeen = 0, loadingDone = 0, barHaveFirst = 0;
-            unsigned loadingFrames = 0;
-            for (unsigned i = 0; i < 4000u && level_starting(); i++) {
+            int32_t haveBlack = 0, barStable = 1, barLit = 0;
+            int32_t loadingSeen = 0, loadingDone = 0, barHaveFirst = 0;
+            uint32_t loadingFrames = 0;
+            for (uint32_t i = 0; i < 4000u && level_starting(); i++) {
                 level_tick();
                 palette_tick();
                 if (level_loadingScreen()) { loadingSeen = 1; level_loadingTick(); }
@@ -249,8 +249,8 @@ int main(int argc, char **argv)
                     const uint8_t *dd = osys_null_palette();
                     double tsum = 0.0, bsum = 0.0;
 
-                    for (unsigned y = 0; y < 200u; y++) {
-                        for (unsigned x = 0; x < 320u; x++) {
+                    for (uint32_t y = 0; y < 200u; y++) {
+                        for (uint32_t x = 0; x < 320u; x++) {
                             const uint8_t *c = dd + 3u * pp[y * 320u + x];
                             double l = (299.0 * c[0] + 587.0 * c[1] + 114.0 * c[2]) / 1000.0;
 
@@ -270,9 +270,9 @@ int main(int argc, char **argv)
                 }
                 {
                     const uint8_t *d = osys_null_palette();
-                    unsigned topMax = 0;
+                    uint32_t topMax = 0;
 
-                    for (unsigned c = 0; c < 0xC0u * 3u; c++)
+                    for (uint32_t c = 0; c < 0xC0u * 3u; c++)
                         if (d[c] > topMax) topMax = d[c];
                     /* only the fade-OUT (1000:3334), i.e. after the loading:
                      * the video init's own fade to black (1000:32F4) covers all
@@ -295,7 +295,7 @@ int main(int argc, char **argv)
                     }
                 }
             }
-            for (unsigned k = 0; k < sizeof barAtBlack; k++)
+            for (uint32_t k = 0; k < sizeof barAtBlack; k++)
                 if (barAtBlack[k]) { barLit = 1; break; }
             if (!haveBlack) {
                 fprintf(stderr, "FAIL the fade-out never brought 0..0xBF to black\n");
@@ -315,7 +315,7 @@ int main(int argc, char **argv)
              * 0xC0..0xFF constant and lit. */
             const uint8_t *page = osys_null_page(0);
             uint32_t sum = 0, nz = 0;
-            for (unsigned i = 0; i < 64000u; i++) {
+            for (uint32_t i = 0; i < 64000u; i++) {
                 sum += page[i];
                 if (page[i]) nz++;
             }
@@ -357,8 +357,8 @@ int main(int argc, char **argv)
             {
                 uint32_t h = 2166136261u;
 
-                for (unsigned id = 0; id < 256u; id++)
-                    for (unsigned c = 0; c < 16u; c++) {
+                for (uint32_t id = 0; id < 256u; id++)
+                    for (uint32_t c = 0; c < 16u; c++) {
                         h ^= level_pageByte(id, c);
                         h *= 16777619u;
                     }
@@ -377,9 +377,9 @@ int main(int argc, char **argv)
             {
                 uint32_t h = 2166136261u;
 
-                for (unsigned id = 0; id <= 0xA8u; id++)
-                    for (unsigned row = 0; row < 16u; row++) {
-                        unsigned w = level_itemWord(id, row);
+                for (uint32_t id = 0; id <= 0xA8u; id++)
+                    for (uint32_t row = 0; row < 16u; row++) {
+                        uint32_t w = level_itemWord(id, row);
 
                         h = (h ^ (w & 0xFFu)) * 16777619u;
                         h = (h ^ (w >> 8)) * 16777619u;
@@ -389,7 +389,7 @@ int main(int argc, char **argv)
                     bad = 1;
                 }
             }
-            for (unsigned i = 0; i < 200u && palette_fadeActive(); i++)
+            for (uint32_t i = 0; i < 200u && palette_fadeActive(); i++)
                 palette_tick();                 /* level_fade_in */
             const uint8_t *pal = osys_null_palette();
             uint32_t n = 0;
@@ -404,10 +404,10 @@ int main(int argc, char **argv)
                 const uint8_t *want[5] = {
                     sp + 0x18, bs + 0x18, bg + 163840u, NULL, p4 + 0xFA00u
                 };
-                unsigned off[5] = { 0u, 0x60u, 0xC0u, 0x180u, 0x240u };
-                unsigned len[5] = { 0x60u, 0x60u, 0xC0u, 0xC0u, 0xC0u };
-                for (unsigned r = 0; r < 5u; r++)
-                    for (unsigned i = 0; i < len[r]; i++) {
+                uint32_t off[5] = { 0u, 0x60u, 0xC0u, 0x180u, 0x240u };
+                uint32_t len[5] = { 0x60u, 0x60u, 0xC0u, 0xC0u, 0xC0u };
+                for (uint32_t r = 0; r < 5u; r++)
+                    for (uint32_t i = 0; i < len[r]; i++) {
                         uint8_t w = want[r] ? want[r][i] : 0u;
                         if (pal[off[r] + i] != w) {
                             fprintf(stderr, "FAIL palette 0x%X: got %02x want "
@@ -427,18 +427,18 @@ int main(int argc, char **argv)
             {
                 InputState in;
                 uint8_t *m = object_slot(object_actionEntity());
-                int x0 = (int)(int16_t)(m[0] | (m[1] << 8));
+                int32_t x0 = (int32_t)(int16_t)(m[0] | (m[1] << 8));
 
                 memset(&in, 0, sizeof in);
                 in.joyBits = 0x08u;                 /* right */
-                for (unsigned t = 0; t < 6u; t++) {
+                for (uint32_t t = 0; t < 6u; t++) {
                     level_noteInput(&in);
                     level_tick();
                     palette_tick();
                 }
                 {
-                    int x1 = (int)(int16_t)(m[0] | (m[1] << 8));
-                    unsigned ty = (unsigned)(m[8] | (m[9] << 8));
+                    int32_t x1 = (int32_t)(int16_t)(m[0] | (m[1] << 8));
+                    uint32_t ty = (uint32_t)(m[8] | (m[9] << 8));
 
                     if (x1 < x0 + 4 || ty > 2u) {
                         fprintf(stderr, "FAIL the record did not walk: "
@@ -469,10 +469,10 @@ int main(int argc, char **argv)
                 level_tick();
                 {
                     const uint8_t *p1 = osys_null_page(0);
-                    unsigned sample = 0, diffs = 0;
+                    uint32_t sample = 0, diffs = 0;
 
-                    for (unsigned y = 0; y + 8u < 140u; y += 3u)
-                        for (unsigned x = 0; x + 16u < 320u; x += 3u) {
+                    for (uint32_t y = 0; y + 8u < 140u; y += 3u)
+                        for (uint32_t x = 0; x + 16u < 320u; x += 3u) {
                             sample++;
                             if (p1[y * 320u + x] !=
                                 before[(y + 8u) * 320u + x + 16u]) diffs++;
@@ -495,11 +495,11 @@ int main(int argc, char **argv)
              * one's — and re-sends them to the DAC. */
             {
                 uint8_t before[4][3];
-                for (unsigned i = 0; i < 4u; i++)
+                for (uint32_t i = 0; i < 4u; i++)
                     memcpy(before[i], pal + (0x71u + i) * 3u, 3);
-                for (unsigned t = 0; t < 4u; t++) level_tick();
+                for (uint32_t t = 0; t < 4u; t++) level_tick();
                 const uint8_t *now = osys_null_palette();
-                for (unsigned i = 0; i < 4u; i++)
+                for (uint32_t i = 0; i < 4u; i++)
                     if (memcmp(now + (0x71u + i) * 3u,
                                before[(i + 3u) % 4u], 3) != 0) {
                         fprintf(stderr, "FAIL palette rotation: entry 0x71+%u "
@@ -517,7 +517,7 @@ int main(int argc, char **argv)
         bad = 1;
     } else {
         level_begin();                             /* its own start chain */
-        for (unsigned i = 0; i < 400u && level_starting(); i++) {
+        for (uint32_t i = 0; i < 400u && level_starting(); i++) {
             level_tick();
             palette_tick();
             if (level_loadingScreen()) level_loadingTick();
@@ -525,7 +525,7 @@ int main(int argc, char **argv)
         const uint8_t *pal = osys_null_palette();
         uint8_t before[12];
         memcpy(before, pal + 0x71u * 3u, 12);
-        for (unsigned t = 0; t < 8u; t++) level_tick();
+        for (uint32_t t = 0; t < 8u; t++) level_tick();
         if (memcmp(osys_null_palette() + 0x71u * 3u, before, 12) != 0) {
             fprintf(stderr, "FAIL level 3 (empty field M) rotated its palette\n");
             bad = 1;
@@ -543,13 +543,13 @@ int main(int argc, char **argv)
         fprintf(stderr, "FAIL level 15 reload for the torch\n");
         bad = 1;
     } else {
-        int found = 0;
+        int32_t found = 0;
 
         if (level_data()->style != 6u) {
             fprintf(stderr, "FAIL level 15 is not style 6\n");
             bad = 1;
         }
-        for (unsigned i = 0; i < object_slots(); i++) {
+        for (uint32_t i = 0; i < object_slots(); i++) {
             uint8_t *r = object_slot(i);
 
             if (!r) continue;
