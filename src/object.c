@@ -1704,6 +1704,9 @@ uint8_t object_slotClass(uint32_t slot) { return objClassByteAt(slot); }
 
 uint8_t *object_linkForProbe(uint32_t off) { return objLinkRecord(off); }
 
+uint8_t *object_spanAtForProbe(uint32_t i)
+{ return i < 2u ? (uint8_t *)objSpan[i] : NULL; }
+
 /* the throw's 0x5BA4 word and a recipe's parameter, for the tests */
 int32_t object_throwDxForProbe(uint32_t type)
 { return type < 0x22u ? (int16_t)objThrowDxWord[type] : 0; }
@@ -5537,6 +5540,14 @@ static void objPlaceAt(uint8_t *actor)
     wr_le_u16(actor + 8u, objSelFrame);
 }
 
+/* 1000:FD7B: the span's +0x12 flag is 0xFFFF when d equals the entry's
+ * frame, 0 below it and 1 above it. */
+uint16_t object_spanFlagForProbe(int32_t d, uint32_t frame)
+{
+    if (d == (int32_t)frame) return 0xFFFFu;
+    return d < (int32_t)frame ? 0u : 1u;
+}
+
 /* 1000:FC81: the point scan.  Runs only on even frames (on odd ones it just
  * clears the ACTION latch).  From (xoff + record.x, record.y + 0x10) it walks
  * the map down a row at a time until a cell's page byte is a surface (bit 7
@@ -5606,8 +5617,8 @@ static void objScanPoint(uint8_t *actor, uint32_t xoff)
         wr_le_u16(span + 0xAu, rd_le_u16(span + 2u));
         wr_le_u16(span + 0xCu, (uint16_t)top);
     }
-    wr_le_u16(span + 0x12u, 0xFFFFu); /* 1000:FD7B */
-    wr_le_u16(span + 0x12u, (uint16_t)(d < (int32_t)objSelFrame ? 1 : 0));
+    wr_le_u16(span + 0x12u, object_spanFlagForProbe(
+                                d, (uint32_t)objSelFrame)); /* 1000:FD7B */
 }
 
 /* 1000:FAF4: the neighbour pass.  For every appended record whose class slot is
@@ -6106,29 +6117,42 @@ coast: /* 1000:DB05 */
               (uint16_t)(dx == rd_le_u16(actor + 0xCu) ? dx : dx + 1u));
 }
 
-/* 1000:DB7A: does the actor's span entry exist, still marked, and un-used?
- * Returns 1 when the original's ZF is set (the "yes" of `JNZ` at the callers). */
-static int32_t objSpanOwner(uint8_t *actor)
+/* 1000:DB7A: find the actor's span entry.  Returns the matched entry (even
+ * when a gate fails, because the original leaves it in DI for the walk) and
+ * sets `yes` when the gates at DB9D/DBA4 also pass.  No match returns NULL
+ * (the original's DI is then past the two entries, i.e. the zero word). */
+static uint8_t *objSpanOwner(uint8_t *actor, int32_t *yes)
 {
     uint32_t idx = (uint32_t)((actor - objArray) / OBJ_STRIDE);
+    uint8_t *found = NULL;
 
+    *yes = 0;
     for (uint32_t i = 0; i < 2u; i++) { /* AX = 1: two entries */
         uint8_t *e = (uint8_t *)objSpan[i];
 
         if (rd_le_u16(e + 0u) != (uint16_t)(idx & 0x7FFFu))
             continue; /* 1000:DB8D */
-        if (!(rd_le_u16(e + 0x12u) & 0x8000u)) return 0; /* 1000:DB9D */
-        if (rd_le_u16(e + 8u) != 0u) return 0; /* 1000:DBA4 */
-        return 1;
+        found = e;
+        if (!(rd_le_u16(e + 0x12u) & 0x8000u)) return found; /* 1000:DB9D */
+        if (rd_le_u16(e + 8u) != 0u) return found; /* 1000:DBA4 */
+        *yes = 1;
+        return found;
     }
-    return 0;
+    return found;
 }
 
-/* 1000:DBAE: walk the actor's frame toward AX on a 3-frame hold. */
-static void objTailWalkToFrame(uint8_t *actor, uint32_t frame)
+/* 1000:DBAE: walk the actor's frame toward AX on a 3-frame hold.  The span's
+ * height (+6) equal to its fall distance (+8) holds the frame; a NULL span is
+ * the original's past-the-table DI, which reads as two zero words. */
+static void objTailWalkToFrame(uint8_t *actor, uint32_t frame,
+                               const uint8_t *span)
 {
-    uint32_t a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
+    uint32_t a;
+    uint16_t height = span ? rd_le_u16(span + 6u) : 0u;
+    uint16_t dist = span ? rd_le_u16(span + 8u) : 0u;
 
+    if (height == dist) return; /* 1000:DBAE..0xDBCC */
+    a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
     wr_le_u16(actor + 0xAu, a); /* 1000:DBB6 */
     if ((int16_t)a >= 0) return;
     wr_le_u16(actor + 0xAu, 3u); /* 1000:DBBB */
@@ -6141,18 +6165,21 @@ static void objTailWalkToFrame(uint8_t *actor, uint32_t frame)
 }
 
 /* 1000:DB48 / 1000:DB61 (types 9 and 10): the span's owner test; on "yes" the
- * acting record is reset (frame/type 0/0 or 8/1), otherwise it walks toward
- * 0xAB / 0xAD. */
+ * matched entry is freed and the acting record is reset (frame/type 0/0 or
+ * 8/1), otherwise it walks toward 0xAB / 0xAD. */
 static void objTailSpanOwner(uint8_t *actor, uint32_t frame, uint32_t f8,
                              uint32_t bad)
 {
-    if (objSpanOwner(actor)) { /* 1000:DB4B */
-        wr_le_u16((uint8_t *)objSpan[0] + 0u, 0xFFFFu); /* 1000:DB4D: free it */
+    int32_t yes;
+    uint8_t *span = objSpanOwner(actor, &yes);
+
+    if (yes) { /* 1000:DB4B */
+        wr_le_u16(span + 0u, 0xFFFFu); /* 1000:DB4D: free the matched entry */
         wr_le_u16(actor + 4u, (uint16_t)frame);
         wr_le_u16(actor + 8u, (uint16_t)f8);
         return;
     }
-    objTailWalkToFrame(actor, bad); /* 1000:DB5C -> 0xDBAE */
+    objTailWalkToFrame(actor, bad, span); /* 1000:DB5C -> 0xDBAE */
 }
 
 /* 1000:DD93 (type 16): a 10-frame stepper that walks the frame through

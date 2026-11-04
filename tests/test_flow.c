@@ -4600,6 +4600,59 @@ int main(int argc, char **argv)
             check(bb != NULL && rd16t(bb, 8u) == 3u * 32u + 4u,
                   "the 0xBB record stores its own map cell (D-123)");
         }
+
+        /* D-152/D-155/D-118: the span flag, the height==distance hold and the
+         * matched-entry free. */
+        {
+            uint8_t *a = object_slot(0);
+            uint8_t *s0 = object_spanAtForProbe(0);
+            uint8_t *s1 = object_spanAtForProbe(1);
+
+            check(object_spanFlagForProbe(5, 5u) == 0xFFFFu &&
+                      object_spanFlagForProbe(6, 5u) == 1u &&
+                      object_spanFlagForProbe(4, 5u) == 0u,
+                  "the span flag is 0xFFFF/1/0 (D-152)");
+            object_init();
+            object_setActionEntity(0u);
+            a = object_slot(0);
+            s0 = object_spanAtForProbe(0);
+            s1 = object_spanAtForProbe(1);
+            a[8] = 9u; /* type 9 -> the 0xDB48 tail */
+            wr16t(a, 4u, 0x60u);
+            /* D-118: only the second entry is owned; it must be the freed one */
+            memset(s0, 0, 0x1Cu);
+            memset(s1, 0, 0x1Cu);
+            wr16t(s0, 0u, 0x1234u);
+            wr16t(s1, 0u, 0u); /* actor index 0 */
+            wr16t(s1, 0x12u, 0xFFFFu);
+            wr16t(s1, 8u, 0u);
+            (void)object_commandRun(a, 0x01u);
+            check(rd16t(s1, 0u) == 0xFFFFu && rd16t(s0, 0u) == 0x1234u &&
+                      rd16t(a, 4u) == 0u && rd16t(a, 8u) == 0u,
+                  "the owner reset frees the matched span entry (D-118)");
+            /* D-155: a matched but gated entry with height == distance holds */
+            object_init();
+            a = object_slot(0);
+            s0 = object_spanAtForProbe(0);
+            object_setActionEntity(0u);
+            a[8] = 9u;
+            wr16t(a, 4u, 0x60u);
+            wr16t(a, 0xAu, 7u);
+            memset(s0, 0, 0x1Cu);
+            wr16t(s0, 0u, 0u);
+            wr16t(s0, 0x12u, 0u); /* gate fails -> DBAE */
+            wr16t(s0, 6u, 5u);
+            wr16t(s0, 8u, 5u);
+            (void)object_commandRun(a, 0x01u);
+            check(rd16t(a, 4u) == 0x60u && rd16t(a, 0xAu) == 7u &&
+                      rd16t(s0, 0u) == 0u,
+                  "the span height == distance holds the frame (D-155)");
+            wr16t(s0, 8u, 3u); /* now the step runs */
+            wr16t(a, 0xAu, 0u);
+            (void)object_commandRun(a, 0x01u);
+            check(rd16t(a, 4u) == 0x5Fu && rd16t(a, 0xAu) == 3u,
+                  "a differing span height lets the 3-beat step run (D-155)");
+        }
         object_init();
 
         /* 1000:DD3C, the give exit: when the record in the window is the

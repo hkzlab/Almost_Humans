@@ -91,6 +91,8 @@ uint32_t object_staticSlots(void); /* the 8 the predicates scan     */
 uint32_t object_liveCount(void); /* [0x3E73]; 9 at the level start */
 uint8_t object_slotClass(uint32_t slot); /* [0x3E5E + slot]               */
 uint8_t *object_linkForProbe(uint32_t off); /* the +0xE/+0xC link encoding */
+uint8_t *object_spanAtForProbe(uint32_t i); /* the 0x6F92 span entry      */
+uint16_t object_spanFlagForProbe(int32_t d, uint32_t frame);
 int32_t object_throwDxForProbe(uint32_t type); /* word[0x5BA4 + 2*type]  */
 uint16_t object_recipeParamForProbe(uint32_t recipe, uint32_t k);
 uint16_t object_pendOffForProbe(uint32_t i); /* the 0x67FF step table  */
