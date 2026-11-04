@@ -575,7 +575,8 @@ int main(int argc, char **argv)
                   object_throwDxForProbe(2u) == 0 &&
                   (uint32_t)object_throwDxForProbe(5u) == 0x6000u &&
                   (uint16_t)object_throwDxForProbe(6u) == 0x969Cu &&
-                  object_throwDxForProbe(0x0Fu) == 0x2045,
+                  object_throwDxForProbe(0x0Fu) == 0x2045 &&
+                  object_throwDxForProbe(0x80u) == 0x4249,
               "the throw reads the words past 0x5BA4 (D-161)");
         /* D-162: the fourth recipe's params are 0/0/0xFFFF/0xFFFF. */
         check(object_recipeParamForProbe(3u, 0u) == 0u &&
