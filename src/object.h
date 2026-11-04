@@ -96,6 +96,7 @@ uint16_t object_pendOffForProbe(uint32_t i); /* the 0x67FF step table  */
 uint16_t object_pendWaitForProbe(uint32_t i); /* and its waits         */
 uint8_t object_dsTail5105(uint32_t off); /* 0x5105..0x5114 (objCmdEnter)  */
 uint8_t object_dsTailProbe(uint32_t addr); /* the DS record window        */
+void object_dsWriteForProbe(uint32_t addr, uint8_t value);
 void object_setSlotClassForProbe(uint32_t slot, uint8_t cls);
 void object_setSlotClass(uint32_t slot, uint32_t cls);
 uint8_t object_behStateForProbe(uint32_t beh); /* DS:0x6EB6 window       */

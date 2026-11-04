@@ -568,6 +568,11 @@ uint8_t object_dsTail5105(uint32_t off) { return objDsByte(0x5105u + off); }
 
 /* the DS image's byte at an original address, for the tests */
 uint8_t object_dsTailProbe(uint32_t addr) { return objDsByte(addr); }
+void object_dsWriteForProbe(uint32_t addr, uint8_t value)
+{
+    addr &= 0xFFFFu;
+    if (addr < OBJ_DS_LEN) objDsImage[addr] = value;
+}
 
 /* The four shipped recipes (202F:0x19BA, 12 bytes each): [uses][behaviour]
  * then the sprite word and the four parameter words, re-armed to one use
