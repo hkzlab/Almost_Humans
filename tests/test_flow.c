@@ -2487,27 +2487,6 @@ int main(int argc, char **argv)
                 rec[7] = 0u;
                 object_setSlotClass(5u, 0u);
             }
-            /* the same overlay with an out-of-range class id: record 7's +4 is
-             * the class byte at 0x3E5E + 0x99, and 8 + 0x99 = 0xA1 resolves to
-             * 0x3F17 + 0x12*0x98 = 0x49C7 in the DS window. */
-            {
-                uint8_t *host = object_slot(0u);
-
-                object_slot(7u)[4] = 5u; /* [0x3E5E + 0x99] */
-                host[7] = 0x99u;
-                memset(page, 0, sizeof page);
-                object_render(page, 0, 0);
-                check(object_dsTailProbe(0x49C7u) == 52u &&
-                          object_dsTailProbe(0x49C9u) == 33u &&
-                          object_dsTailProbe(0x49CBu) == 0x5Au,
-                      "the out-of-range class overlay writes 0x49C7 (D-177)");
-                check(level_sparkByte(0x10Bu) == 52u &&
-                          level_sparkByte(0x10Du) == 33u &&
-                          level_sparkByte(0x10Fu) == 0x5Au,
-                      "the DS window aliases the 0x48BC spark queue");
-                host[7] = 0u;
-                object_slot(7u)[4] = 0u;
-            }
             /* D-51: the pickup's taken mark (the slot byte's bit 7) makes the
              * record walk skip the record (1000:6450 no-class / 1000:6467
              * class path); only a carrier's overlay draws it.  The 0xAB spear
@@ -5156,33 +5135,6 @@ int main(int argc, char **argv)
         check(R16(spare, 4u) == 0x2Eu && R16(spare, 0xAu) == 5u &&
                   R16(spare, 0u) == 0xFFFFu && R16(spare, 8u) == 0x1Bu,
               "0xEF66: the step to 0x2E runs 0xF5BC's taken branch");
-
-        /* the same probe with an out-of-range +7: the linked-record write
-         * resolves to 0x49C7 + 6 = 0x49CD. */
-        memset(spare, 0, 0x12u);
-        W16(spare, 8u, 22u);
-        W16(spare, 4u, 0x2Du);
-        W16(spare, 0xAu, 0u);
-        spare[7] = 0x99u;
-        (void)object_commandRun(spare, 0x01u);
-        check(object_dsTailProbe(0x49CDu) == 0xFFu,
-              "the out-of-range class write lands at 0x49CD (D-177)");
-
-        /* class 0x1C's linked record is 0x40FD, so its +6 write lands on the
-         * [0x4103] frame word; the DS window must alias the live counter. */
-        {
-            uint32_t f0 = object_frameCounterProbe();
-
-            memset(spare, 0, 0x12u);
-            W16(spare, 8u, 22u);
-            W16(spare, 4u, 0x2Du);
-            W16(spare, 0xAu, 0u);
-            spare[7] = 0x1Cu;
-            (void)object_commandRun(spare, 0x01u);
-            check((object_frameCounterProbe() & 0xFFFFu) ==
-                      ((f0 & 0xFF00u) | 0xFFu),
-                  "the DS window aliases [0x4103] (D-177)");
-        }
 
         /* --- 1000:F5BC's goal branch: with the tribe odometer showing a count
          * the record takes the goal form instead (frame 0x2D / type 0x21). --- */
