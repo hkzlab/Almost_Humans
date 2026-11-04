@@ -1607,7 +1607,10 @@ static const int8_t objFallStep[0x19] = {
 };
 /* 0x6EF2..0x6F14: the feet-cell comparison byte, indexed by the *type* (the
  * code reads 0x6F0B + (type - 0x19), which for types 0..0x18 wraps back into
- * 0x6EF3's tail; the flat table below is the same bytes). */
+ * 0x6EF3's tail; the flat table below is the same bytes).  Entries 0x19/0x1A
+ * are the image's pre-load bytes only: `level_setup_screen` writes the level's
+ * field-K second word over 0x6F0B/0x6F0C (1000:4E99), so those two are read
+ * through `objTypeTileByte` instead. */
 static const uint8_t objTypeTile[35] = {
     0x96, 0xFE, 0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x02,
@@ -3093,7 +3096,10 @@ static int32_t objLandProbe(int16_t ax, int16_t bx, int16_t *cxOut)
     } else if (page == 0) { /* 1000:E304 */
         uint32_t above = objMapBufferByte((int32_t)(si - 0x20u));
 
-        if (above == level_specialTile(0u) || above == level_specialTile(1u)) {
+        /* 1000:E30E/E314 compare against the field-K *second* word
+         * ([0x6F0B]/[0x6F0C]), unlike the settle and the step states, which
+         * read the first ([0x6F20]/[0x6F21]). */
+        if (above == level_specialTile(2u) || above == level_specialTile(3u)) {
             page = 0;
         } else {
             int32_t up = (int32_t)(int8_t)(uint8_t)level_pageByte(above, sub);
@@ -6820,10 +6826,21 @@ static void objCmdTurnIdle(uint8_t *actor)
     wr_le_u16(actor + 0xEu, 0u);
 }
 
+/* 1000:F7C3/F83E: `byte[0x6F0B + (type - 0x19)]` = `byte[0x6EF2 + type]`.
+ * Types 0x19/0x1A select bytes 0x6F0B/0x6F0C, which `level_setup_screen`
+ * (1000:4E99) overwrites with the level's field-K second word; the rest of the
+ * window is the image's static bytes. */
+static uint32_t objTypeTileByte(uint32_t type)
+{
+    if (type == 0x19u) return level_specialTile(2u); /* [0x6F0B] */
+    if (type == 0x1Au) return level_specialTile(3u); /* [0x6F0C] */
+    return objTypeTile[type < 35u ? type : 0u];
+}
+
 static void objFallMachine(uint8_t *actor)
 {
-    int32_t ax, bx, cx, d;
-    uint32_t rowY, fine, page, item, mask, lo, hi;
+    int32_t ax, bx, col, d;
+    uint32_t row, fine, page, item, mask, lo, hi;
     uint32_t probeY, above, below;
     uint32_t anim;
     int32_t vy;
@@ -6842,6 +6859,10 @@ static void objFallMachine(uint8_t *actor)
     wr_le_u16(actor + 0xAu, (uint16_t)(rd_le_u16(actor + 0xAu) - 1u));
 
     anim = rd_le_u16(actor + 0xCu); /* 1000:F715 */
+    /* 1000:F71B is `CMP AX,0x18 / JZ`: only the exact 0x18 takes the flat 3.
+     * The counter stops there (1000:F727 increments to 0x18 at most), so `>=`
+     * is equivalent for every reachable value; a crafted save can store more,
+     * where the original reads past the 0x6EF3 table (D-101). */
     if (anim >= 0x18u) {
         vy = 3; /* 1000:F71B */
     } else {
@@ -6857,13 +6878,13 @@ static void objFallMachine(uint8_t *actor)
     ax = (int32_t)(int16_t)rd_le_u16(actor + 0u) +
          (int32_t)(int16_t)rd_le_u16(actor + 0x10u);
     bx = (int32_t)(int16_t)rd_le_u16(actor + 2u) + vy;
-    cx = ax + 8; /* 1000:F736: the probe x */
+    col = ax + 8; /* 1000:F736/F73C: the probe x (DX = y, CX keeps the row) */
     probeY = (uint32_t)(bx + 0x18); /* 1000:F739 */
-    fine = (uint32_t)cx & 0xFu; /* 1000:F753 */
-    rowY = probeY & ~0xFu; /* 1000:F758: CX = the row */
+    fine = (uint32_t)col & 0xFu; /* 1000:F753 */
+    row = probeY & ~0xFu; /* 1000:F758: CX is the row word */
 
     above =
-        objMapAtAbs(cx, (int32_t)rowY - 0x10, NULL); /* 1000:F761: [DI-0x20] */
+        objMapAtAbs(col, (int32_t)row - 0x10, NULL); /* 1000:F761: [DI-0x20] */
     if (above >= 0xF0u) { /* 1000:F766 */
         /* 1000:F772: AX is the record.x + [+0x10] captured at 1000:F736, not
          * the probe x in CX (`ADD AX,8` then `AND AX,0xFFF0`). */
@@ -6874,7 +6895,7 @@ static void objFallMachine(uint8_t *actor)
             if (above != 0xF2u) gx += 8u;
             wr_le_u16(actor + 0u, (uint16_t)gx); /* 1000:F784 */
         }
-        wr_le_u16(actor + 2u, (uint16_t)(rowY - 0x1Cu)); /* 1000:F786 */
+        wr_le_u16(actor + 2u, (uint16_t)(row - 0x1Cu)); /* 1000:F786 */
         wr_le_u16(actor + 4u, 0x00CDu);
         wr_le_u16(actor + 8u, 0x001Cu);
         wr_le_u16(actor + 0xCu, 0u);
@@ -6884,46 +6905,43 @@ static void objFallMachine(uint8_t *actor)
         return;
     }
     if (bx >= 0x128) goto place; /* 1000:F7AE */
-    below = objMapAtAbs(cx, (int32_t)probeY, NULL); /* 1000:F7B9: the feet */
+    below = objMapAtAbs(col, (int32_t)probeY, NULL); /* 1000:F7B9: the feet */
     page = level_pageByte(below, fine); /* 1000:F7F3 */
     if (rd_le_u16(actor + 0x10u) != 0u) { /* 1000:F7BB */
-        uint32_t want =
-            objTypeTile[rd_le_u16(actor + 8u) < 35u ? rd_le_u16(actor + 8u)
-                                                    : 0u];
+        uint32_t want = objTypeTileByte(rd_le_u16(actor + 8u));
 
         if (below == want) { /* 1000:F7CD */
-            uint32_t b2 = objMapAtAbs(cx, (int32_t)probeY + 0x10, NULL);
+            /* 1000:F7D7: `[DI+0x20]` is the cell one row below the feet, in
+             * the same column, through the same `BP` (0x92A0 + fine). */
+            uint32_t b2 = objMapAtAbs(col, (int32_t)row + 0x10, NULL);
 
-            if (level_pageByte(b2, 0u) == 0u) goto land_at_y; /* 1000:F7EE */
+            if (level_pageByte(b2, fine) == 0u) goto land_at_y; /* 1000:F7EE */
         }
     }
     if (page == 0u) goto zero_case; /* 1000:F80A */
     if (page & 0x80u) { /* 1000:F80C JNS */
-        uint32_t b2;
-
-        cx += 0x10; /* 1000:F80E */
-        b2 = objMapAtAbs(cx, (int32_t)probeY + 0x10, NULL);
-        page = level_pageByte(b2, fine);
+        row += 0x10; /* 1000:F80E: `ADD CX,0x10` moves the ROW, not the probe
+                      * x; the cell read at 1000:F813 is `[DI+0x20]` - the
+                      * same column, one row down. */
+        page = level_pageByte(objMapAtAbs(col, (int32_t)row, NULL), fine);
         if (page & 0x80u) goto item_word; /* 1000:F82F -> F8EC */
     }
     goto snap; /* 1000:F832 -> F87F */
 
 zero_case:
     { /* 1000:F834 */
-        uint32_t a2 = objMapAtAbs(cx, (int32_t)rowY - 0x10, NULL);
-        uint32_t want =
-            objTypeTile[rd_le_u16(actor + 8u) < 35u ? rd_le_u16(actor + 8u)
-                                                    : 0u];
+        uint32_t a2 = objMapAtAbs(col, (int32_t)row - 0x10, NULL);
+        uint32_t want = objTypeTileByte(rd_le_u16(actor + 8u));
         /* 1000:F83A/F84C park these two in [0x422C]/[0x422E] only to compare
          * them; the port compares the cells directly. */
         if (want == a2) goto land_at_y; /* 1000:F856 */
         if (level_pageByte(a2, fine) & 0x80u) goto snap;
-        cx -= 0x10; /* 1000:F86F */
+        row -= 0x10; /* 1000:F86F: the row word, for the snap's `d` */
         page = level_pageByte(a2, fine);
     }
 snap: /* 1000:F87F */
     objSelType = (uint16_t)(int16_t)(int8_t)(uint8_t)page;
-    d = (int32_t)(rowY + (uint32_t)(int16_t)(int8_t)(uint8_t)page) - 0x18 - bx;
+    d = (int32_t)(row + (uint32_t)(int16_t)(int8_t)(uint8_t)page) - 0x18 - bx;
     if (d >= 0) goto item_word; /* 1000:F891 */
     d = -d;
     if (d > 3) goto item_word;
@@ -6958,7 +6976,9 @@ item_word:
             lo = 0u;
             hi = 0xFFFFu;
         }
-        for (uint32_t i = 0; i < fine; i++) { /* 1000:F952 */
+        /* 1000:F90B/F950: the shift count is `(x + +0x10 + [0x4238]) & 0xF` -
+         * the *item* probe's sub-column, not the actor probe's `fine`. */
+        for (uint32_t i = 0; i < ((uint32_t)px & 0xFu); i++) { /* 1000:F952 */
             uint32_t carry = lo & 1u;
 
             lo >>= 1;

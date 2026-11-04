@@ -69,6 +69,48 @@ static void tf_wr16(uint8_t *r, uint32_t o, uint32_t v)
     r[o + 1] = (uint8_t)(v >> 8);
 }
 
+/* D-86: one full-charge leap from (x, y) on the loaded level - 64 held frames
+ * of the fire column (1000:EE07) then the release (1000:EFD7 -> 0xEFE4) - and
+ * the leftmost x / smallest y it reaches before the leap state (type 0x1A)
+ * ends.  The caller must set the level up (object_init + the action row). */
+static void tf_leap(int32_t x, int32_t y, uint32_t *minx, uint32_t *apex,
+                    uint32_t *endType, uint32_t *endFrame)
+{
+    uint8_t *a;
+
+    object_init();
+    object_setActionEntity(0u);
+    object_actionSetProgram(2u);
+    object_actionSetCursor(2u); /* program 2, cell 2 = icon 4 */
+    object_setActionLatched(0);
+    object_setSlotClass(1u, 5u);
+    a = object_slot(0);
+    tf_wr16(a, 0u, (uint32_t)x);
+    tf_wr16(a, 2u, (uint32_t)y);
+    tf_wr16(a, 4u, 0xBEu);
+    tf_wr16(a, 8u, 0x18u);
+    tf_wr16(a, 0xAu, 0u);
+    tf_wr16(a, 0xCu, 0u);
+    tf_wr16(a, 0xEu, 0u);
+    tf_wr16(a, 0x10u, 0u);
+    a[7] = 9u; /* the spear */
+    for (uint32_t t = 0; t < 64u; t++) {
+        (void)object_commandRun(a, 0x80u);
+        object_tick(level_palette());
+    }
+    *minx = 0xFFFFu;
+    *apex = 0xFFFFu;
+    for (uint32_t t = 0; t < 40u; t++) {
+        (void)object_commandRun(a, 0x00u);
+        object_tick(level_palette());
+        if (tf_rd16(a, 0u) < *minx) *minx = tf_rd16(a, 0u);
+        if (tf_rd16(a, 2u) < *apex) *apex = tf_rd16(a, 2u);
+        if (tf_rd16(a, 8u) != 0x1Au) break;
+    }
+    *endType = tf_rd16(a, 8u);
+    *endFrame = tf_rd16(a, 4u);
+}
+
 int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";
@@ -5633,6 +5675,33 @@ int main(int argc, char **argv)
         object_loadTable(tbl);
         check(object_slotClass(20u) == 0x5Au,
               "the restore loads the class byte at 0x3E72");
+    }
+
+    /* D-86: the charged leap.  A full-charge release must travel; the three
+     * landing probes of `objFallMachine` read the cell one row below in the
+     * SAME column (1000:F7D7/F813/F86F move the row word `CX`, not the probe
+     * x), the item mask shifts by the item probe's own sub-column
+     * (1000:F90B/F950), and the feet-cell "want" byte of the leap types
+     * 0x19/0x1A is the level's field-K second word (1000:4E99 writes
+     * [0x6F0B]), not the image's pre-load bytes. */
+    if (level_load(15) == 0) { /* level 16, BAD TASTE */
+        uint32_t minx, apex, ty, fr;
+
+        check(level_specialTile(2u) == 0x86u && level_specialTile(3u) == 0x83u,
+              "level 16's field-K second word is the 0x6F0B pair (1000:4E99)");
+        /* D-85's live trace: (467,168) -> (411,168), apex y 155. */
+        tf_leap(467, 168, &minx, &apex, &ty, &fr);
+        check(minx == 411u, "the full-charge leap reaches x = 411 (D-85 live)");
+        check(apex == 155u, "the leap's apex is y = 155 (D-85 live)");
+        check(ty == 1u && fr == 8u,
+              "the leap lands standing, frame 8 / type 1 (D-85 live)");
+        /* the water hole: row 19's tiles F0/F1/F2 span x 320..367 and the
+         * walkable rim has a 16-px opening at x 336..351, so a leftward leap
+         * from the right rim must clear the water and land on the far side. */
+        tf_leap(366, 268, &minx, &apex, &ty, &fr);
+        check(minx <= 320u,
+              "the leap crosses level 16's water hole (x <= 320, D-86)");
+        check(ty == 1u, "the water-hole leap lands standing, not drowning");
     }
 
     if (bad) {

@@ -1572,9 +1572,11 @@ uint32_t level_itemWord(uint32_t id, uint32_t row)
     return rd_le_u16(pageItems + off + 2u * row);
 }
 
-/* Field K's first word, the level's two special tile ids (`[0x6F20]` and
- * `[0x6F21]`): the walk states compare the cell under the feet with them. */
-uint32_t level_specialTile(uint32_t i) { return i < 2u ? kBytes[i] : 0xFFFFu; }
+/* Field K, the level's four special tile ids: `[0x6F20]`/`[0x6F21]` (the walk
+ * states compare the cell under the feet with them) and the second word
+ * `[0x6F0B]`/`[0x6F0C]` (`1000:4E99`, which the fall machine's `1000:F7CD`
+ * type compare indexes with `type - 0x19`, and `1000:E30E` reads directly). */
+uint32_t level_specialTile(uint32_t i) { return i < 4u ? kBytes[i] : 0xFFFFu; }
 
 /* The record's style byte (header +0, `[0x17EE]`): 1000:5662 tests it against 6. */
 uint32_t level_style(void) { return level_loaded ? level_data_cur.style : 0u; }

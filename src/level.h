@@ -49,7 +49,8 @@ int32_t level_pageFree(uint32_t id);
 /* The two level maps the walk reads: `0x92A0`'s page bytes (bit 7 = solid, the
  * low 7 bits the step, 1000:E389) and `[0x1FD6]`'s 16-word item records
  * (1000:F25F's occupancy bit). */
-/* Field K's first word: the level's two special tile ids ([0x6F20]/[0x6F21]). */
+/* Field K, both words: i = 0/1 are the first word's two tile ids
+ * ([0x6F20]/[0x6F21]), i = 2/3 the second word's ([0x6F0B]/[0x6F0C]). */
 uint32_t level_specialTile(uint32_t i);
 uint32_t level_pageByte(uint32_t id, uint32_t subcol);
 uint32_t level_itemWord(uint32_t id, uint32_t row);
