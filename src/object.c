@@ -5181,17 +5181,31 @@ static int32_t objLandY(int32_t x, int32_t y, uint32_t *cellOut)
     *cellOut = id;
     if (!(b & 0x80u)) {
         if (b != 0u) return row + (int32_t)(int8_t)b;
-        *cellOut =
-            objMapAtAbs(x, row - 0x10, &sub); /* 1000:E3BA: the row above */
-        b = level_pageByte(*cellOut, sub);
-        if (b & 0x80u) return row; /* 1000:E3CA, AX = 0 */
+        uint32_t above =
+            objMapAtAbs(x, row - 0x10, &sub); /* 1000:E3BA, DI unmoved */
+        b = level_pageByte(above, sub);
+        if (b & 0x80u) {
+            *cellOut = id; /* 1000:E3CA: DI is still the point's cell */
+            return row; /* AX = 0 */
+        }
+        *cellOut = above;
         return row - 0x10 + (int32_t)(int8_t)b;
     }
-    *cellOut = objMapAtAbs(x, row + 0x10, &sub); /* 1000:E3E7: the row below */
-    b = level_pageByte(*cellOut, sub);
-    if (b & 0x80u) return -1; /* 1000:E3F1 */
+    {
+        uint32_t below =
+            objMapAtAbs(x, row + 0x10, &sub); /* 1000:E3E7, DI unmoved */
+        b = level_pageByte(below, sub);
+        if (b & 0x80u) {
+            *cellOut = id; /* 1000:E3F1: DI is still the point's cell */
+            return -1;
+        }
+        *cellOut = below;
+    }
     return row + 0x10 + (int32_t)(int8_t)b;
 }
+
+int32_t object_landYForProbe(int32_t x, int32_t y, uint32_t *cellOut)
+{ return objLandY(x, y, cellOut); }
 
 /* 1000:E389 from the actor: the cell ahead (x + 8, y + 0x18). */
 static int32_t objStepProbeAt(const uint8_t *actor, int32_t dx, int32_t dy,

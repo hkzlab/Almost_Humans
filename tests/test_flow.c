@@ -4478,6 +4478,45 @@ int main(int argc, char **argv)
                   "type 11 homing uses the span owner record (D-117)");
         }
 
+        /* D-150: a solid neighbour leaves cellOut on the point's tile. */
+        {
+            uint8_t *m = (uint8_t *)level_map();
+            uint32_t solidA = 0x100u, solidB = 0x100u, zero = 0x100u;
+            uint32_t got = 0xFFFFu, i;
+            uint8_t oldPoint = 0, oldAbove = 0, oldBelow = 0;
+            int32_t r;
+
+            for (i = 0; i < 256u; i++) {
+                uint32_t b = level_pageByte(i, 4u);
+
+                if (zero == 0x100u && b == 0u) zero = i;
+                if (b & 0x80u) {
+                    if (solidA == 0x100u) solidA = i;
+                    else if (i != solidA) solidB = i;
+                }
+            }
+            check(m != NULL && solidB < 0x100u && zero < 0x100u,
+                  "the D-150 tiles exist");
+            if (m && solidB < 0x100u) {
+                oldPoint = m[102];
+                oldAbove = m[70];
+                oldBelow = m[134];
+                m[102] = (uint8_t)zero;
+                m[70] = (uint8_t)solidA;
+                r = object_landYForProbe(100, 0x30, &got);
+                check(r == 0x30 && got == zero,
+                      "a solid row above keeps the point tile (D-150)");
+                m[102] = (uint8_t)solidA;
+                m[134] = (uint8_t)solidB;
+                r = object_landYForProbe(100, 0x30, &got);
+                check(r == -1 && got == solidA,
+                      "a solid row below keeps the point tile (D-150)");
+                m[102] = oldPoint;
+                m[70] = oldAbove;
+                m[134] = oldBelow;
+            }
+        }
+
         /* 1000:DC1F, the type-15 rows' tail: a placed record inside the node's
          * window (|dy| <= 8 of node.y + 0x10, |dx| <= 1 of node.x + 8, type
          * <= 2) becomes the carried form (frame 0x55, type 0x10, +0xE =
