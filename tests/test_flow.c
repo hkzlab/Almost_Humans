@@ -330,6 +330,23 @@ int main(int argc, char **argv)
         check(object_classMatches(0x15u) == 0, "its class is 0");
         object_setActionEntity(0u);
 
+        /* D-175: `[0x3E5E + rec[+7]]` is a byte of the data segment, not the
+         * 0x40-byte class array.  0x3E5E + 0x15 = 0x3E73 (the live count),
+         * 0x3E5E + 0x99 = 0x3EF7 (record 7's +4). */
+        {
+            uint8_t *a = object_slot(0), *w = object_slot(7u);
+
+            a[7] = 0x15u;
+            check(object_classMatches(object_liveCount() & 0x3Fu) == -1,
+                  "class byte 0x15 reads the live count (0x3E73)");
+            a[7] = 0x99u;
+            w[4] = 0x05u;
+            check(object_classMatches(5u) == -1,
+                  "class byte 0x99 reads record 7's +4 (0x3EF7)");
+            w[4] = 0u;
+            a[7] = 0u;
+        }
+
         /* out of the window on either axis, inactive, or type >= 3: no claim */
         r[8] = 0x03;
         check(object_findNeighbour(0) == -1, "a type >= 3 record is skipped");
@@ -4940,7 +4957,8 @@ int main(int argc, char **argv)
         }
         /* 1000:07E6: the five frame rows, at rows 46/66/86/106/126 (the
          * 0xE66/0x14A6/0x1AE6/0x2126/0x2766 offsets on an 80-byte stride),
-         * each one row of 74 bytes built from the 4/+7/24/+9/16/+0xE runs. */
+         * each a 14-row band built from the 4/+7/31/+9/15/+0xE runs (the
+         * advance per row is 4+7+31+9+15+0xE = 80, one mode-X row). */
         {
             static uint8_t page[320 * 200];
             static const uint32_t want[5] = { 46u, 66u, 86u, 106u, 126u };
@@ -4956,14 +4974,14 @@ int main(int argc, char **argv)
                     if (page[y * 320u + x]) n++;
                 inBlock = 0;
                 for (uint32_t k = 0; k < 5u; k++)
-                    if (y >= want[k] && y < want[k] + 13u) {
+                    if (y >= want[k] && y < want[k] + 14u) {
                         inBlock = 1;
                         hit[k] += n;
                     }
                 if (n && !inBlock) stray++;
             }
             check(stray == 0u,
-                  "the frame blocks land at rows 46/66/86/106/126 (+13) only");
+                  "the frame blocks land at rows 46/66/86/106/126 (+14) only");
             check(hit[0] && hit[1] && hit[2] && hit[3] && hit[4],
                   "all five frame blocks are drawn");
             check(hit[3] >= hit[4],
@@ -5208,6 +5226,8 @@ int main(int argc, char **argv)
         p[13] = 0u;
         p[14] = 0u;
         p[15] = 0u;
+        p[16] = 0x77u; /* 0xD4D4 escapes 0xCEC3 before its writeback */
+        p[17] = 0x77u;
         t[0] = 100u;
         t[1] = 0u;
         t[2] = 100u;
@@ -5224,6 +5244,8 @@ int main(int argc, char **argv)
         check((t[4] | (t[5] << 8)) == 0xCDu && (t[8] | (t[9] << 8)) == 0x1Cu &&
                   (t[10] | (t[11] << 8)) == 9u && p[6] == 0xFFu,
               "1000:D41B's water branch writes the drown state (D-97)");
+        check(p[16] == 0x77u && p[17] == 0x77u,
+              "1000:D4D4's ADD SP,2/RET leaves 1000:CEC3 (D-176)");
     }
     if (level_load(0) == 0) {
         uint8_t *p = object_slot(9), *t = object_slot(0);
@@ -5251,6 +5273,29 @@ int main(int argc, char **argv)
         object_updateList();
         check((t[4] | (t[5] << 8)) == 0x50u,
               "1000:D162 dispatches the 0x666B hit op (D-99)");
+    }
+
+    /* D-104/D-144: the class block is 0x3E5E..0x3E72 (21 bytes); the terrain
+     * walk clears 0x3E5F..0x3E72 only. */
+    {
+        static uint8_t flat[640];
+        static uint8_t tbl[0x25F];
+
+        object_init();
+        object_setSlotClass(0u, 0xAAu);
+        object_setSlotClass(20u, 0x5Au);
+        (void)object_loadTerrainObjects(flat);
+        check(object_slotClass(0u) == 0xAAu && object_slotClass(20u) == 0u,
+              "1000:5175 clears 0x3E5F..0x3E72, not 0x3E5E (D-104)");
+        object_setSlotClass(0u, 0u);
+        object_setSlotClass(20u, 0x5Au);
+        object_saveTable(tbl);
+        check(tbl[0x3Eu + 20u] == 0x5Au,
+              "the save carries the class byte at 0x3E72 (D-144)");
+        object_setSlotClass(20u, 0u);
+        object_loadTable(tbl);
+        check(object_slotClass(20u) == 0x5Au,
+              "the restore loads the class byte at 0x3E72");
     }
 
     if (bad) {

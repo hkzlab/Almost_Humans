@@ -366,11 +366,11 @@ void map_bandFill(uint8_t *page)
     }
 }
 
-/* 1000:0874 vga_blit_row: 14 x (4 / +7 / 24 / +9 / 16 / +0xE) MOVSB runs. */
+/* 1000:0874 vga_blit_row: 14 x (4 / +7 / 31 / +9 / 15 / +0xE) MOVSB runs. */
 static void map_blitRow(uint8_t *page, uint32_t dstByte, uint32_t srcByte,
                         uint32_t mask)
 {
-    static const uint32_t runs[3] = { 4u, 24u, 16u };
+    static const uint32_t runs[3] = { 4u, 31u, 15u };
     static const uint32_t gaps[3] = { 7u, 9u, 0x0Eu };
     uint32_t d = dstByte, s = srcByte;
 

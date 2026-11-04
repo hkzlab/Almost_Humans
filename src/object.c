@@ -460,6 +460,40 @@ static const uint8_t objAnimStream[] = {
  * writes the behaviour id at `[0x3E5F + n]`, i.e. slot (n+1). */
 static uint8_t objSlotClass[0x40];
 
+/* The original's `[0x3E5E + b]` is not an array: it is a byte window of the
+ * data segment - the 21 class bytes 0x3E5E..0x3E72, the live-count word at
+ * 0x3E73/0x3E74, then the 29 0x12-byte records at 0x3E75.  A record's `+7` is
+ * that byte index (1000:3659, 0x4147, 0xF2CF read it directly; 0x653C, 0x9D5D,
+ * 0xF603 and 0xDD3C reach it as 0x3E5F + cls - 1), and the byte can be any
+ * value a record carries (1000:D12B writes 0x99), so the accessors map the
+ * whole window instead of indexing objSlotClass past its end. */
+static uint8_t objClassByteAt(uint32_t b)
+{
+    b &= 0xFFu;
+    if (b < 0x15u) return objSlotClass[b]; /* 0x3E5E..0x3E72 */
+    if (b == 0x15u) return (uint8_t)objLiveCount; /* 0x3E73 */
+    if (b == 0x16u) return (uint8_t)(objLiveCount >> 8); /* 0x3E74 */
+    return objArray[b - 0x17u]; /* 0x3E75.., b <= 0xFF */
+}
+
+static void objClassByteSet(uint32_t b, uint8_t value)
+{
+    b &= 0xFFu;
+    if (b < 0x15u) {
+        objSlotClass[b] = value;
+        return;
+    }
+    if (b == 0x15u) {
+        objLiveCount = (objLiveCount & ~0xFFu) | value;
+        return;
+    }
+    if (b == 0x16u) {
+        objLiveCount = (objLiveCount & ~0xFF00u) | ((uint32_t)value << 8);
+        return;
+    }
+    objArray[b - 0x17u] = value;
+}
+
 /* The four shipped recipes (202F:0x19BA, 12 bytes each): [uses][behaviour]
  * then the sprite word and the four parameter words, re-armed to one use
  * every level start (level_setup 1000:31C3). */
@@ -1642,8 +1676,7 @@ uint32_t object_slots(void) { return OBJ_SLOTS; }
 
 uint32_t object_liveCount(void) { return objLiveCount; }
 
-uint8_t object_slotClass(uint32_t slot)
-{ return slot < sizeof objSlotClass ? objSlotClass[slot] : 0u; }
+uint8_t object_slotClass(uint32_t slot) { return objClassByteAt(slot); }
 /* the tests' setter for [0x3E5E + slot] (the behaviour bytes). */
 void object_setSlotClassForProbe(uint32_t slot, uint8_t cls)
 {
@@ -1703,7 +1736,7 @@ int32_t object_classMatches(uint32_t want)
 
     b = objActor()[7u];
     if (!b) return 0;
-    return ((objSlotClass[b] & 0x3Fu) == (uint8_t)want) ? -1 : 0;
+    return ((objClassByteAt(b) & 0x3Fu) == (uint8_t)want) ? -1 : 0;
 }
 
 /* 1000:3678 — the current record's type equals the test's word. */
@@ -2415,7 +2448,7 @@ uint32_t object_loadTerrainObjects(uint8_t *map)
 {
     if (!map) return objLiveCount;
     objLiveCount = OBJ_LIVE0; /* 1000:516F */
-    memset(objSlotClass, 0, 20u); /* 1000:5175: 0x14 bytes */
+    memset(objSlotClass + 1u, 0, 20u); /* 1000:5175: 0x3E5F..0x3E72 */
     for (uint32_t t = 0; t < 25u; t++) {
         uint8_t tile = objTiles[t];
         /* all 25 tiles' bodies are ported (re_map.md has each one's
@@ -2600,13 +2633,9 @@ static void objDrawClassOverlay(uint8_t *page, int32_t scrollX, int32_t scrollY,
     uint8_t *carried;
 
     if (!cls) return;
-    /* The original indexes 0x3E5F + (cls-1) with no range test, so a class id
-     * above the table reads whatever follows it in DS; the port bounds it. */
-    if (cls > sizeof objSlotClass) return;
-    /* 1000:6570: CX = rec[+7]; SUB CX,1; SI = 0x3E5F + CX, i.e. the slot at
-     * 0x3E5E + class - objSlotClass is based at 0x3E5E (the predicate
-     * 1000:3659 reads 0x3E5E + AX and the port reads objSlotClass[b]). */
-    col = objClsCol[objSlotClass[cls] & 0x3Fu]; /* 1000:657F */
+    /* 1000:6570: CX = rec[+7]; SUB CX,1; SI = 0x3E5F + CX, i.e. the byte at
+     * 0x3E5E + class. */
+    col = objClsCol[objClassByteAt(cls) & 0x3Fu]; /* 1000:657F */
     if (!col) return;
     frame = rd_le_u16(rec + 4u);
     /* 1000:65A7: `draw_object_cell` enters the class branch whenever the
@@ -3216,7 +3245,7 @@ static void objMoverPassRecords(uint8_t *r, int32_t ax, int32_t bx)
         int32_t dx, dy;
 
         if (i < OBJ_LIVE0 + 1u) continue;
-        if ((*beh & 0x3Fu) != 8u) continue;
+        if (*beh != 8u) continue; /* 1000:5A41 compares the whole byte */
         dx = (int16_t)rd_le_u16(t + 0u) - ax;
         if (!(dx < 0 && dx + 0x10 >= 0)) continue; /* 1000:5A55/0x5A5D */
         dy = (int16_t)rd_le_u16(t + 2u) - bx;
@@ -3231,7 +3260,7 @@ static void objMoverPassRecords(uint8_t *r, int32_t ax, int32_t bx)
             wr_le_u16(t + 0xAu, 6u);
             cls = t[7];
             if (cls) {
-                objSlotClass[cls] = 0u;
+                objClassByteSet(cls, 0u); /* 0x3E5F + cls - 1 */
                 if (cls >= 1u && OBJ_LIVE0 + cls <= objLiveCount)
                     objArray[(OBJ_LIVE0 + cls) * OBJ_STRIDE + 6] = 0xFFu;
             }
@@ -3332,7 +3361,7 @@ static void objMoverPassPlaced(uint8_t *r, int32_t ax, int32_t bx)
         r[6] = 0xFFu;
         cls = slot[7];
         if (cls) {
-            objSlotClass[cls] = 0u;
+            objClassByteSet(cls, 0u); /* 0x3E5F + cls - 1 */
             if (cls >= 1u && OBJ_LIVE0 + cls <= objLiveCount)
                 objArray[(OBJ_LIVE0 + cls) * OBJ_STRIDE + 6] = 0xFFu;
         }
@@ -3551,7 +3580,7 @@ static void objStack8Land(uint8_t *r, uint32_t bx, int32_t ax, int32_t bx2,
         uint32_t cls = r[7];
 
         r[7] = 0u;
-        if (cls) objSlotClass[cls] &= 0x3Fu;
+        if (cls) objClassByteSet(cls, objClassByteAt(cls) & 0x3Fu);
         if (cls >= 1u && OBJ_LIVE0 + cls <= objLiveCount) {
             uint8_t *t = objArray + (OBJ_LIVE0 + cls) * OBJ_STRIDE;
 
@@ -3634,8 +3663,16 @@ static int32_t objProjCull(int32_t vx, int32_t x)
 
 /* 1000:D41B advance_position_snap_row: BX/CX are deltas added to the scratch
  * position [0x4238]/[0x423C]; the routine snaps the row, applies the tile's
- * page byte and the water/drown rule.  On success AO = [0x423C]; on failure
- * -1 (the caller's SF). */
+ * page byte and the water/drown rule.  On success AX = [0x423C]; on failure
+ * -1 (the caller's SF).
+ *
+ * The water arm (0xD4D4) and the off-page `>= 0x160` arm (0xD5D2) end
+ * `POP DI; POP BP; ADD SP,2; RET`.  Both callers leave their own return
+ * address on top of the stack (0xCEC3 pushes nothing before these calls and
+ * 0xD34E pops its four registers first), so the `ADD SP,2` skips d41b's
+ * return address and RET returns one level up: the rest of the immediate
+ * caller is abandoned.  It is not a corrupt return and the stack
+ * balance is the normal one.  -2 signals that early-out to the callers. */
 static int32_t objProjAdvance(uint8_t *r, int16_t bx, int16_t cx)
 {
     uint32_t idx, sub;
@@ -3650,9 +3687,7 @@ static int32_t objProjAdvance(uint8_t *r, int16_t bx, int16_t cx)
     idx = 2u * (uint16_t)objScanY + ((uint16_t)objScanX >> 4);
     tile = (uint8_t)objMapBufferByte((int32_t)(idx - 0x20u));
     if (tile >= 0xF0u && tile <= 0xF2u) { /* 1000:D46F: the water branch */
-        /* The listing ends this path `ADD SP,2; RET`, which discards two
-         * bytes that were never pushed; port_deviations.md D-176 models the
-         * return as the failure arm rather than the corrupt return. */
+        /* 0xD4D4: POP DI / POP BP / ADD SP,2 / RET - the early-out above. */
         *objActClass = 0u;
         r[6] = 0xFFu;
         {
@@ -3671,7 +3706,7 @@ static int32_t objProjAdvance(uint8_t *r, int16_t bx, int16_t cx)
             }
         }
         objDriverCall(6);
-        return -1;
+        return -2; /* 0xD4D4: return one level up */
     }
     page = (int32_t)(int8_t)(uint8_t)level_pageByte(
         objMapBufferByte((int32_t)idx), sub); /* 1000:D4DA */
@@ -3716,6 +3751,8 @@ offpage:
             wr_le_u16(t + 0xAu, 5u);
             objDriverCall(4);
         }
+        objScanY = -1;
+        return -2; /* 0xD5D2: return one level up */
     }
     objScanY = -1;
     return -1;
@@ -3920,7 +3957,12 @@ static void objWalkProjectile(uint8_t *r, uint32_t idx)
         }
         vx = (int16_t)objProjCull(vx, x); /* 1000:CFC3 */
         objScanX = 8;
-        if (objProjAdvance(r, x, y) < 0) goto failed;
+        {
+            int32_t rc = objProjAdvance(r, x, y);
+
+            if (rc == -2) return; /* 0xD4D4/0xD5D2: leave 1000:CEC3 */
+            if (rc < 0) goto failed;
+        }
         cxreg = objScanY; /* 1000:CFD1 */
         objScanX = 0;
         objScanY = 0xC;
@@ -3955,7 +3997,12 @@ static void objWalkProjectile(uint8_t *r, uint32_t idx)
         cxreg = y;
         if (curve >= 0) { /* 1000:D069 */
             objScanX = 8;
-            if (objProjAdvance(r, x, y) < 0) goto tail135;
+            {
+                int32_t rc = objProjAdvance(r, x, y);
+
+                if (rc == -2) return; /* 0xD4D4/0xD5D2: leave 1000:CEC3 */
+                if (rc < 0) goto tail135;
+            }
             if (objScanY > y) goto tail135;
             {
                 int16_t prev = (int16_t)rd_le_u16(r + 0x10u);
@@ -4449,7 +4496,7 @@ static void objResolveSprite(uint32_t index)
     if (r[7]) {
         /* 0x1C76 is 8 bytes (the "\humans\" path string follows it); its
          * [8] = 0x5C gives program 0x5D, out of 1..6 like the bound's 0xFF. */
-        uint32_t b = objSlotClass[r[7]] & 0x3Fu;
+        uint32_t b = objClassByteAt(r[7]) & 0x3Fu;
 
         prog = b < 8u ? objBehProgram[b] : 0xFFu;
     }
@@ -4514,7 +4561,7 @@ static int32_t objStateIs(uint8_t *actor, uint32_t state)
 {
     uint32_t b = actor[7u];
     if (!b) return 0;
-    return (objBehState[objSlotClass[b] & 0x3Fu] == state);
+    return (objBehState[objClassByteAt(b) & 0x3Fu] == state);
 }
 
 /* 0xF989 (object_record_walk): the live record with slot 3 (behaviour 3) that
@@ -4530,7 +4577,7 @@ static int32_t objRecordWalk(uint8_t *actor, uint32_t step)
         uint8_t *r = objArray + (OBJ_LIVE0 + 1u + k) * OBJ_STRIDE;
         int32_t dx, dy;
 
-        if ((objSlotClass[1u + k] & 0x3Fu) != 3u) continue;
+        if (objSlotClass[1u + k] != 3u) continue; /* 1000:F99F, whole byte */
         if (r[6] & 0x80u) continue;
         if (rd_le_u16(r + 8u) == 2u) continue;
         dx = (int16_t)rd_le_u16(r + 0u) - bx;
@@ -5582,16 +5629,15 @@ static void objCmdEnter(uint8_t *actor)
 
     idx = actor[7]; /* 1000:EEB8: the 1-based class */
     actor[7] = 0u;
-    /* The original converts the class with `DEC DX` (DX = cls-1) and does no
-     * range test: for a class byte of 0 the factor is 0xFFFF, `MUL DL` uses
-     * only 0xFF, and the writes land at 0x3F17 + 0x11EE = 0x5105 (+8), i.e. on
-     * 0x510D..0x5114 - DS data the port has no image of.  The bound below is
-     * port_deviations.md D-24:
-     * the one unavoidable deviation in this routine: it keeps the port from
-     * writing through a pointer it cannot resolve, and the branch only runs for
-     * a record whose class byte is 0 or above the table. */
-    if (idx && idx < sizeof objSlotClass && 8u + idx < OBJ_SLOTS) {
-        objSlotClass[idx] &= 0x3Fu; /* 0x3E5F + idx - 1 */
+    /* The class byte write is `AND [0x3E5E + idx], 0x3F` (idx 0 reaches
+     * 0x3E5E through the `DEC DX` wrap).  The record write converts the class
+     * with `DEC DX` / `MUL DL` and does no range test: for a class byte of 0
+     * the factor is 0xFFFF, `MUL DL` uses only 0xFF, and the writes land at
+     * 0x3F17 + 0x11EE = 0x5105 (+8), i.e. on 0x510D..0x5114 - DS data the port
+     * has no image of.  That record write is bounded, the one deviation left
+     * in this routine (port_deviations.md D-24). */
+    objClassByteSet(idx, objClassByteAt(idx) & 0x3Fu); /* 0x3E5F + idx - 1 */
+    if (idx && 8u + idx < OBJ_SLOTS) {
         rec = objArray + (8u + idx) * OBJ_STRIDE; /* 0x3F17 + 0x12*(idx-1) */
         wr_le_u16(rec + 8u, 0xFFFFu); /* 1000:EED5 */
         wr_le_u16(rec + 0xAu, 0u);
@@ -5665,7 +5711,7 @@ static void objLevelEndProbe(uint8_t *actor, int32_t bx)
     if (t[7]) { /* 1000:F603 */
         uint32_t cls = t[7];
 
-        if (cls < sizeof objSlotClass) objSlotClass[cls] = 0u;
+        objClassByteSet(cls, 0u); /* 0x3E5F + cls - 1 */
         if (8u + cls < OBJ_SLOTS) objArray[(8u + cls) * OBJ_STRIDE + 6] = 0xFFu;
         t[7] = 0u;
     }
@@ -6509,7 +6555,8 @@ give: /* 1000:DD3C */
 
         actor[7] = 0u;
         if (!cls) return;
-        if (cls < sizeof objSlotClass) objSlotClass[cls] &= 0x7Fu;
+        objClassByteSet(cls,
+                        objClassByteAt(cls) & 0x7Fu); /* 0x3E5F + cls - 1 */
         slot = 8u + cls; /* 0x3F17 + 0x12*(cls-1) */
         if (slot >= OBJ_SLOTS) return;
         rec = objArray + slot * OBJ_STRIDE;
@@ -7427,8 +7474,8 @@ void object_saveTable(uint8_t *dst)
     wr_le_u16(dst + 2u, objEntity);
     for (uint32_t i = 0; i < OBJ_SLOTS; i++)
         wr_le_u16(dst + 4u + 2u * i, (uint16_t)(0x3E75u + 0x12u * i));
-    for (uint32_t i = 0; i < 20u; i++) dst[0x3Eu + i] = objSlotClass[i];
-    dst[0x53] = (uint8_t)objLiveCount; /* [0x3E73] */
+    for (uint32_t i = 0; i < 21u; i++) dst[0x3Eu + i] = objSlotClass[i];
+    wr_le_u16(dst + 0x53u, (uint16_t)objLiveCount); /* [0x3E73] word */
     memcpy(dst + 0x55u, objArray, OBJ_SLOTS * OBJ_STRIDE);
 }
 
@@ -7439,8 +7486,8 @@ void object_loadTable(const uint8_t *src)
     objEntity = rd_le_u16(src + 2u);
     if (objEntity >= OBJ_SLOTS) objEntity = 0u;
     memset(objSlotClass, 0, sizeof objSlotClass);
-    for (uint32_t i = 0; i < 20u; i++) objSlotClass[i] = src[0x3Eu + i];
-    objLiveCount = src[0x53];
+    for (uint32_t i = 0; i < 21u; i++) objSlotClass[i] = src[0x3Eu + i];
+    objLiveCount = rd_le_u16(src + 0x53u); /* [0x3E73] word */
     if (objLiveCount > OBJ_SLOTS) objLiveCount = OBJ_SLOTS;
     memcpy(objArray, src + 0x55u, OBJ_SLOTS * OBJ_STRIDE);
 }
