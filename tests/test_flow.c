@@ -578,6 +578,15 @@ int main(int argc, char **argv)
                   object_throwDxForProbe(0x0Fu) == 0x2045 &&
                   object_throwDxForProbe(0x80u) == 0x4249,
               "the throw reads the words past 0x5BA4 (D-161)");
+        /* a malformed type that wraps onto the bridged 0x48BC queue:
+         * 0x5BA4 + 2*0x768C = 0x48BC, so the word must be the live queue
+         * bytes, not the image's zeros. */
+        level_sparkSetByte(0u, 0x34u);
+        level_sparkSetByte(1u, 0x12u);
+        check((uint16_t)object_throwDxForProbe(0x768Cu) == 0x1234u,
+              "the throw word reads the live 0x48BC queue (D-179 bridge)");
+        level_sparkSetByte(0u, 0u);
+        level_sparkSetByte(1u, 0u);
         /* D-162: the fourth recipe's params are 0/0/0xFFFF/0xFFFF. */
         check(object_recipeParamForProbe(3u, 0u) == 0u &&
                   object_recipeParamForProbe(3u, 1u) == 0u &&
