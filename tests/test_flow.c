@@ -2300,22 +2300,33 @@ int main(int argc, char **argv)
                                   "0xB7 appends two records");
                             check(
                                 (object_slot(9)[4] |
-                                 (object_slot(9)[5] << 8)) == 0x0116u &&
+                                 (object_slot(9)[5] << 8)) == 0x00D4u &&
                                     (object_slot(9)[6] |
                                      (object_slot(9)[7] << 8)) == 0x0200u &&
                                     (object_slot(9)[0xA] |
-                                     (object_slot(9)[0xB] << 8)) == 2u,
-                                "0xB7: frame 0x116, class (count-6)<<8, +0xA = 2");
+                                     (object_slot(9)[0xB] << 8)) == 0u,
+                                "0xB7 with no 0xB6: frame 0xD4, class (count-6)<<8, +0xA = 0");
                             check(
                                 (object_slot(10)[4] |
                                  (object_slot(10)[5] << 8)) == 0u &&
                                     object_slotClass(1u) == 8u &&
                                     object_slotClass(2u) == 0x85u,
                                 "0xB7: behaviour 8 then an empty record with 0x85");
-                            /* a 0xB6 within four columns either side: frame 0x11A */
+                            /* left neighbour (cell -3): frame 0x116, +0xA += 2 */
                             memset(m4, 0, sizeof m4);
                             m4[2u * 32u + 5u] = 0xB7u;
                             m4[2u * 32u + 2u] = 0xB6u;
+                            object_init();
+                            (void)object_loadTerrainObjects(m4);
+                            check((object_slot(10)[4] |
+                                   (object_slot(10)[5] << 8)) == 0x0116u &&
+                                      (object_slot(10)[0xA] |
+                                       (object_slot(10)[0xB] << 8)) == 2u,
+                                  "0xB7's left 0xB6: frame 0x116 and +0xA = 2");
+                            /* right neighbour (cell +2): frame 0x11A, +0xA += 3 */
+                            memset(m4, 0, sizeof m4);
+                            m4[2u * 32u + 5u] = 0xB7u;
+                            m4[2u * 32u + 7u] = 0xB6u;
                             object_init();
                             (void)object_loadTerrainObjects(m4);
                             check(
@@ -2323,7 +2334,19 @@ int main(int argc, char **argv)
                                  (object_slot(10)[5] << 8)) == 0x011Au &&
                                     (object_slot(10)[0xA] |
                                      (object_slot(10)[0xB] << 8)) == 3u,
-                                "0xB7 beside a 0xB6: frame 0x11A and +0xA = 3");
+                                "0xB7's right 0xB6: frame 0x11A and +0xA = 3");
+                            /* both groups: the left test wins */
+                            memset(m4, 0, sizeof m4);
+                            m4[2u * 32u + 5u] = 0xB7u;
+                            m4[2u * 32u + 2u] = 0xB6u;
+                            m4[2u * 32u + 7u] = 0xB6u;
+                            object_init();
+                            (void)object_loadTerrainObjects(m4);
+                            check((object_slot(11)[4] |
+                                   (object_slot(11)[5] << 8)) == 0x0116u &&
+                                      (object_slot(11)[0xA] |
+                                       (object_slot(11)[0xB] << 8)) == 2u,
+                                  "0xB7's left 0xB6 wins over the right one");
                             /* 0xBB / 0xC1: two more appends (0x26 / 0x100) */
                             memset(m4, 0, sizeof m4);
                             m4[1u * 32u + 1u] = 0xBBu;
@@ -3390,6 +3413,8 @@ int main(int argc, char **argv)
         }
         check(rec != NULL, "the 0xB7 behaviour-8 record spawns");
         if (rec) {
+            rec[0xA] = 2u; /* exercise the state-2 animation directly */
+            rec[0xB] = 0u;
             f0 = rec[4] | (rec[5] << 8);
             object_updateList();
             check((uint32_t)(rec[4] | (rec[5] << 8)) == f0 + 1u &&

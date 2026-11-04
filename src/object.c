@@ -2293,37 +2293,41 @@ static void objSpawnB6(uint32_t col, uint32_t row)
 }
 
 /* 1000:53FD (0xB7): TWO appended records; the first carries the only computed
- * class (`+6 = (count - 6) << 8`), frame 0x11A when a 0xB6 tile sits within four
- * columns either side, else 0x116, behaviour 8; the second is empty, behaviour
- * 0x85. */
+ * class (`+6 = (count - 6) << 8`), behaviour 8, and the 0xB6 neighbour patch:
+ * cells -5..-2 -> frame 0x116 / +0xA += 2, cells 0..+3 -> 0x11A / +3, none ->
+ * the initial 0xD4 / 0.  The left group is tested first.  The second record is
+ * empty, behaviour 0x85. */
 static void objSpawnB7(const uint8_t *map, uint32_t col, uint32_t row)
 {
     uint8_t *r;
     uint32_t cell;
-    int32_t nearB6 = 0;
+    int32_t variant = 0; /* 0 none, 1 left, 2 right */
 
     if (objLiveCount + 2u >= OBJ_SLOTS) return;
     r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
     cell = row * OBJ_COLS + col;
     if (map) {
-        static const int32_t off[8] = { -5, -4, -3, -2, 0, 1, 2, 3 };
+        static const int32_t left[4] = { -5, -4, -3, -2 };
+        static const int32_t right[4] = { 0, 1, 2, 3 };
 
-        for (uint32_t k = 0; k < 8u; k++) {
-            int64_t c = (int64_t)cell + off[k];
+        for (uint32_t k = 0; k < 4u && !variant; k++) {
+            int64_t c = (int64_t)cell + left[k];
 
-            if (c >= 0 && c < 640 && map[c] == 0xB6u) {
-                nearB6 = 1;
-                break;
-            }
+            if (c >= 0 && c < 640 && map[c] == 0xB6u) variant = 1;
+        }
+        for (uint32_t k = 0; k < 4u && !variant; k++) {
+            int64_t c = (int64_t)cell + right[k];
+
+            if (c >= 0 && c < 640 && map[c] == 0xB6u) variant = 2;
         }
     }
     wr_le_u16(r + 0u, (uint16_t)(col * 16u));
     wr_le_u16(r + 2u,
               (uint16_t)(row * 16u + objStyleNudge(NULL, col, row) - 8u));
-    wr_le_u16(r + 4u, nearB6 ? 0x011Au : 0x0116u);
+    wr_le_u16(r + 4u, variant ? (variant == 1u ? 0x0116u : 0x011Au) : 0x00D4u);
     wr_le_u16(r + 6u, (uint16_t)(((objLiveCount - 6u) << 8) & 0xFF00u));
     wr_le_u16(r + 8u, 0x0000u);
-    wr_le_u16(r + 0xAu, nearB6 ? 3u : 2u);
+    wr_le_u16(r + 0xAu, variant == 1u ? 2u : (variant == 2u ? 3u : 0u));
     objSlotClass[objLiveCount - 7u] = 8u;
     objLiveCount++;
     r = objArray + (objLiveCount + 1u) * OBJ_STRIDE;
