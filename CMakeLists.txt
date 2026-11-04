@@ -42,7 +42,6 @@ add_library(core STATIC
     src/hiscore.c
     src/entity.c
     src/object.c
-    src/object_ds.c
     src/script.c
     src/audio.c
     src/frontend.c

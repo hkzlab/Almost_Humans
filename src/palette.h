@@ -24,8 +24,6 @@ void palette_setDac(const uint8_t *p6, uint32_t first, uint32_t n);
 void palette_buildFade(uint32_t first, uint32_t entries, uint32_t div,
                        const uint8_t *target);
 int32_t palette_fadeActive(void);       /* palette_fade_active 1000:8b9a  */
-uint8_t palette_fadeFlag(void);         /* the [0x48B4] byte             */
-void palette_fadeFlagSet(uint8_t v);
 const uint8_t *palette_dacShadow(void); /* the DAC shadow (read-only;
                                         * the off-line fade-ladder harness) */
 const uint8_t *palette_fadeTarget(void); /* the active fade's target buffer */

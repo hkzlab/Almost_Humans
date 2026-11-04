@@ -38,7 +38,6 @@
 #include "statusbar.h"
 #include "textpage.h"
 #include "video.h"
-#include "object_ds.h"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -149,32 +148,8 @@ int32_t resources_init(const OSystem *osys)
         attract_init(osys);
 
     if (res_init_state) osys->fatalError("module init failed");
-    /* install_interrupt_vectors' INT 66h entry (1000:8E21) */
-    objDsImage[0x415A] = 0x17u;
-    objDsImage[0x415B] = 0x95u;
 
     return res_init_state;
-}
-
-/* The keyboard ISR's DS bytes: [0x48A3] the last key, the [0x42B7+sc]
- * pressed table, and the five binding codes [0x5B01..0x5B05].  The port's
- * backend supplies the events; this keeps the DS bytes live and lets a wild
- * write to the table/bindings set a direction bit. */
-static void input_dsApply(InputState *in)
-{
-    uint8_t bits = 0;
-    uint32_t i;
-
-    if (in->keyScan) objDsImage[0x42B7u + in->keyScan] = 0xFFu;
-    objDsImage[0x48A3] = in->lastKey;
-    in->lastKey = objDsImage[0x48A3];
-    for (i = 0; i < 5u; i++) {
-        uint8_t c = objDsImage[0x5B01u + i];
-
-        if (c && (objDsImage[0x42B7u + c] | objDsImage[0x42B7u + (c & 0x7Fu)]))
-            bits |= (uint8_t)(1u << i);
-    }
-    in->joyBits |= bits;
 }
 
 /* The ISR body: the fixed per-tick work, in the original's order (the flip
@@ -504,7 +479,6 @@ int32_t game_main(const OSystem *osys)
         int32_t rawFire;
 
         osys->eventsPoll(&input);
-        input_dsApply(&input); /* keep [0x48A3]/[0x42B7..] live */
         rawFire = (input.joyBits & 0x80u) != 0;
         /* 1000:8598-0x85AE (poll_input's tail): while [0x13A4] is set the
          * fire bit is masked out of [0x5ACE]; the release clears the latch
@@ -521,8 +495,7 @@ int32_t game_main(const OSystem *osys)
          * boot chain runs once at power-on); then gameflow_step runs the
          * real attract cycle — game_loop's four effects — until the exit */
         if (state == FLOW_ATTRACT && scene_playBootIntro()) {
-            osys->videoPresent(
-                video_dsPresentPage()); /* the intro's rendered frame */
+            osys->videoPresent(0); /* the intro's rendered frame */
             prev = state;
             continue;
         }
@@ -851,15 +824,10 @@ int32_t game_main(const OSystem *osys)
          * the drawn page (the in-level page flip lands with the level
          * rendering) */
     present:
-        osys->videoPresent(video_dsPresentPage());
+        osys->videoPresent(0);
         prev = state;
     }
 
-    /* 1000:8DD6's exit tail does `CALL [0x415A]`; the port cannot jump to an
-     * arbitrary DOS address, so a vector other than the installed 0x9517 is
-     * treated as the fatal corruption it would be on the original. */
-    if ((objDsImage[0x415A] | ((uint16_t)objDsImage[0x415B] << 8)) != 0x9517u)
-        osys->fatalError("HUMANS: exit vector corrupted");
     osys->audioStop();
     return 0;
 }

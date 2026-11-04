@@ -84,10 +84,6 @@ void palette_buildFade(uint32_t first, uint32_t entries, uint32_t div,
 /* palette_fade_active (1000:8b9a) */
 int32_t palette_fadeActive(void) { return fadeActive; }
 
-/* the [0x48B4] byte, for the DS image's live-range bridge */
-uint8_t palette_fadeFlag(void) { return fadeActive ? 1u : 0u; }
-void palette_fadeFlagSet(uint8_t v) { fadeActive = v ? 1 : 0; }
-
 /* the DAC shadow, read-only: the fade-ladder harness compares the port's
  * per-tick DAC progression against the original's live IN 3C9h reads
  * (2026-10-30: window 0x80+n <- buffer entry n, verified in the hardware).

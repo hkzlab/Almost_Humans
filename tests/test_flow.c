@@ -575,48 +575,8 @@ int main(int argc, char **argv)
                   object_throwDxForProbe(2u) == 0 &&
                   (uint32_t)object_throwDxForProbe(5u) == 0x6000u &&
                   (uint16_t)object_throwDxForProbe(6u) == 0x969Cu &&
-                  object_throwDxForProbe(0x0Fu) == 0x2045 &&
-                  object_throwDxForProbe(0x80u) == 0x4249,
+                  object_throwDxForProbe(0x0Fu) == 0x2045,
               "the throw reads the words past 0x5BA4 (D-161)");
-        /* a malformed type that wraps onto the bridged 0x48BC queue:
-         * 0x5BA4 + 2*0x768C = 0x48BC, so the word must be the live queue
-         * bytes, not the image's zeros. */
-        level_sparkSetByte(0u, 0x34u);
-        level_sparkSetByte(1u, 0x12u);
-        check((uint16_t)object_throwDxForProbe(0x768Cu) == 0x1234u,
-              "the throw word reads the live 0x48BC queue (D-179 bridge)");
-        level_sparkSetByte(0u, 0u);
-        level_sparkSetByte(1u, 0u);
-        /* the remaining live ranges are the same image bytes, consumed by
-         * video_dsPresentPage and the input/exit paths: a malformed type can
-         * wrap onto each. */
-        object_dsWriteForProbe(0x4106u, 0x12u);
-        object_dsWriteForProbe(0x4107u, 0x34u);
-        check((uint16_t)object_throwDxForProbe(0x72B1u) == 0x3412u,
-              "the throw word reads the live page state (D-179)");
-        object_dsWriteForProbe(0x4105u, 1u);
-        object_dsWriteForProbe(0x410Au, 0x5Au);
-        check(video_dsPresentPage() == 1 &&
-                  object_dsTailProbe(0x4108u) == 0x12u &&
-                  object_dsTailProbe(0x4109u) == 0x34u &&
-                  object_dsTailProbe(0x410Bu) == 0x5Au,
-              "the present path consumes [0x4105..0x410B]");
-        object_dsWriteForProbe(0x48A3u, 0x5Au);
-        check((uint16_t)object_throwDxForProbe(0x767Fu) >> 8 == 0x5Au,
-              "the throw word reads the live last key (D-179)");
-        object_dsWriteForProbe(0x415Au, 0x17u);
-        object_dsWriteForProbe(0x415Bu, 0x95u);
-        check((uint16_t)object_throwDxForProbe(0x72DBu) == 0x9517u,
-              "the throw word reads the live exit vector (D-179)");
-        object_dsWriteForProbe(0x42B7u, 0x7Eu);
-        check((uint16_t)object_throwDxForProbe(0x7389u) >> 8 == 0x7Eu,
-              "the throw word reads the live keyboard table (D-179)");
-        for (uint32_t a = 0x4105u; a <= 0x410Bu; a++)
-            object_dsWriteForProbe(a, 0u);
-        object_dsWriteForProbe(0x48A3u, 0u);
-        object_dsWriteForProbe(0x415Au, 0x17u);
-        object_dsWriteForProbe(0x415Bu, 0x95u);
-        object_dsWriteForProbe(0x42B7u, 0u);
         /* D-162: the fourth recipe's params are 0/0/0xFFFF/0xFFFF. */
         check(object_recipeParamForProbe(3u, 0u) == 0u &&
                   object_recipeParamForProbe(3u, 1u) == 0u &&
