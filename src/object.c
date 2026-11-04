@@ -927,7 +927,8 @@ static const uint8_t objRecipes[4][12] = {
       0 }, /* op 12 -> behaviour 7 */
     { 1, 6, 0x00, 0x9C, 0xFF, 0xFF, 0, 0, 0, 0, 0,
       0 }, /* AX=2, never fired    */
-    { 1, 4, 0x00, 0x38, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0 }, /* op 10 */
+    { 1, 4, 0x00, 0x38, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF },
+    /* op 10: the image's 01 04 00 38 00 00 00 00 ff ff ff ff */
 };
 static uint8_t objUses[4]; /* the live copy of [DI+0] */
 
@@ -1603,7 +1604,16 @@ static const uint8_t objBehCollideProg[8] = {
  * the actor's type (0 -> +8, 1 -> -8, everything else 0) and DS:0x5BAA the
  * frame by behaviour (5 -> 0x60, 6 -> 0x9C, 7 -> 0x96). */
 static const uint8_t objBehClassIdx[8] = { 0xFF, 0xFF, 0xFF, 0xFF, 0, 1, 1, 1 };
-static const int8_t objThrowDx[8] = { 8, -8, 0, 0, 0, 0, 0, 0 };
+/* 0x5BA4's words as the original's unbounded `word [0x5BA4 + 2*type]` sees
+ * them.  Only types 0..2 are the real table; 3..11 run through the 0x5BAA
+ * frame table and 12..0x21 through the pause text.  The game's type writers
+ * stop at 0x21; a malformed save can exceed it (D-179). */
+static const uint16_t objThrowDxWord[0x22] = {
+    0x0008, 0xFFF8, 0x0000, 0x0000, 0x0000, 0x6000, 0x969C, 0x0000, 0x0000,
+    0x0000, 0x0000, 0x0000, 0x5005, 0x454C, 0x5341, 0x2045, 0x4553, 0x454C,
+    0x5443, 0x5920, 0x554F, 0x2052, 0x504F, 0x4954, 0x4E4F, 0x0D0D, 0x4F43,
+    0x544E, 0x4E49, 0x4555, 0x5420, 0x4948, 0x2053, 0x454C,
+};
 static const uint8_t objDropFrame[8] = { 0x00, 0x00, 0x00, 0x00,
                                          0x00, 0x60, 0x9C, 0x96 };
 
@@ -2068,13 +2078,18 @@ static uint8_t objProgramRegion[0x20];
 
 /* 0x67FF: the pending-move (offset, divider) table; the word after each
  * entry is the next offset, so 0xFFFF ends the run and resets the cursor. */
-static const uint16_t pendOff[17] = {
-    1, 2, 3, 5, 2, 3, 5, 6, 2, 1, 2, 3, 2, 3, 4, 5, 0xFFFF,
+static const uint16_t pendOff[18] = {
+    1, 2, 3, 5, 2, 3, 5, 6, 2, 1, 2, 3, 2, 3, 4, 5, 2, 0xFFFF,
 };
-static const uint16_t pendWait[16] = {
-    0x28, 0x14, 0x0F, 0x05, 0x0A, 0x14, 0x1E, 0x19,
-    0x08, 0x0C, 0x0F, 0x12, 0x32, 0x17, 0x3C, 0x0A,
+static const uint16_t pendWait[17] = {
+    0x28, 0x14, 0x0F, 0x05, 0x0A, 0x14, 0x1E, 0x19, 0x08,
+    0x0C, 0x0F, 0x12, 0x32, 0x17, 0x3C, 0x0A, 0x04,
 };
+
+uint16_t object_pendOffForProbe(uint32_t i)
+{ return i < sizeof pendOff / sizeof pendOff[0] ? pendOff[i] : 0u; }
+uint16_t object_pendWaitForProbe(uint32_t i)
+{ return i < sizeof pendWait / sizeof pendWait[0] ? pendWait[i] : 0u; }
 
 /* [0x5B56] is shared with the status bar (its action row's group), so every
  * write goes through here. */
@@ -2137,6 +2152,15 @@ uint32_t object_slots(void) { return OBJ_SLOTS; }
 uint32_t object_liveCount(void) { return objLiveCount; }
 
 uint8_t object_slotClass(uint32_t slot) { return objClassByteAt(slot); }
+
+/* the throw's 0x5BA4 word and a recipe's parameter, for the tests */
+int32_t object_throwDxForProbe(uint32_t type)
+{ return type < 0x22u ? (int16_t)objThrowDxWord[type] : 0; }
+uint16_t object_recipeParamForProbe(uint32_t recipe, uint32_t k)
+{
+    return recipe < 4u && k < 4u ? rd_le_u16(objRecipes[recipe] + 4u + 2u * k)
+                                 : 0u;
+}
 /* the tests' setter for [0x3E5E + slot] (the behaviour bytes). */
 void object_setSlotClassForProbe(uint32_t slot, uint8_t cls)
 {
@@ -2414,6 +2438,8 @@ int32_t object_claimBegin(uint32_t recipe, int32_t actor)
 }
 
 int32_t object_claimActive(void) { return claimPhase != CLAIM_OFF; }
+
+int32_t object_claimPanActive(void) { return claimPhase == CLAIM_PAN; }
 
 /* One frame of the sequence; the fades advance through `palette_tick`, which
  * the level's own tick drives.  Every `palette_fadeActive()` wait below is the
@@ -4650,6 +4676,25 @@ void object_tick(const uint8_t *levelPal)
     objBgTick();
 }
 
+/* update_world's two tails (1000:80CC/0x80CF): the pending-move animator and
+ * the bg-log settle.  level_tick runs them only inside its [0xC] gate. */
+static uint32_t objWorldTicks;
+void object_worldTick(void)
+{
+    objWorldTicks++;
+    object_animatorTick();
+    objBgTick();
+}
+uint32_t object_worldTicksProbe(void) { return objWorldTicks; }
+
+/* The claim's own frame: [0x4103] advances on every page flip, and the claim
+ * sequence runs while update_world is frozen (D-163). */
+void object_claimFrame(const uint8_t *levelPal)
+{
+    objFrame++;
+    object_claimTick(levelPal);
+}
+
 uint32_t object_actionEntity(void) { return objEntity; }
 
 /* 1000:3344..336C (level_fade_in): slot 8 (`0x3F05`) takes frame 0x17, type 0x1A,
@@ -4857,8 +4902,9 @@ static void objClassThrow(uint8_t *actor, uint8_t *found, uint32_t cls)
 
     actor[7] = 0u; /* 1000:9DF1 */
     objClassByteSet(cls, objClassByteAt(cls) & 0x7Fu);
-    wr_le_u16(found + 0u, (uint16_t)(rd_le_u16(actor + 0u) +
-                                     (type < 8u ? objThrowDx[type] : 0)));
+    wr_le_u16(found + 0u,
+              (uint16_t)(rd_le_u16(actor + 0u) +
+                         (type < 0x22u ? (int16_t)objThrowDxWord[type] : 0)));
     wr_le_u16(found + 2u, (uint16_t)(rd_le_u16(actor + 2u) + 8u));
     wr_le_u16(found + 4u, beh < 8u ? objDropFrame[beh] : 0u);
     wr_le_u16(found + 6u, 0u);
@@ -8057,7 +8103,7 @@ static void objPendingMovesTick(void)
 
     if (pendTag == 0u) {
         if (pendDiv-- > 0) return;
-        if (pendCursor / 4u < 16u && placed != 0u) {
+        if (pendCursor / 4u < 17u && placed != 0u) {
             uint32_t idx = pendIndex + pendOff[pendCursor / 4u];
 
             while (idx >= placed) idx -= placed;

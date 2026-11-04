@@ -576,6 +576,50 @@ int main(int argc, char **argv)
         }
     }
 
+    /* D-163: the claim sequence never calls update_world, even after
+     * 1000:3CAB sets [0xC] = 0xFF.  level_tick must keep the animator/bg
+     * tails out until the sequence is off. */
+    {
+        uint8_t *a, *n;
+        uint32_t ticks;
+
+        object_init();
+        object_setPlayer(0);
+        object_setActionEntity(0u);
+        a = object_slot(0);
+        n = object_slot(3);
+        a[0] = 0x00;
+        a[1] = 0x01;
+        a[2] = 0x80;
+        a[3] = 0x00;
+        a[6] = 0x00;
+        a[8] = 0x02;
+        n[0] = 0x20;
+        n[1] = 0x01;
+        n[2] = 0x88;
+        n[3] = 0x00;
+        n[6] = 0x00;
+        n[8] = 0x02;
+        if (object_claimBegin(0u, 0) != 3) {
+            fprintf(stderr, "FAIL the D-163 claim did not start\n");
+            bad = 1;
+        } else {
+            level_setUpdates(1); /* 1000:3CAB's [0xC] = 0xFF */
+            ticks = object_worldTicksProbe();
+            for (uint32_t t = 0; t < 4u; t++) level_tick();
+            if (object_worldTicksProbe() != ticks) {
+                fprintf(stderr,
+                        "FAIL update_world ran during a claim (D-163)\n");
+                bad = 1;
+            }
+            for (uint32_t t = 0; t < 20000u && object_claimActive(); t++) {
+                level_tick();
+                palette_tick();
+            }
+        }
+        object_init();
+    }
+
     /* The placed decorations' spawn snap (1000:5639 -> map_get 1000:E389).
      * Level 15 ("BAD TASTE", style 6) has the torch (0xAD, frame 0x9C) at
      * col 17/row 11.  The nudge (0x5662) only feeds the probe's y, which
@@ -608,6 +652,22 @@ int main(int argc, char **argv)
         }
         if (!found) {
             fprintf(stderr, "FAIL level 15 has no torch record\n");
+            bad = 1;
+        }
+    }
+
+    /* D-121: 1000:3D5E recolours every page byte below 0x80 to 0x1E. */
+    {
+        uint8_t *page = video_page(0);
+
+        page[0] = 0x00;
+        page[1] = 0x7F;
+        page[2] = 0x80;
+        page[3] = 0xFF;
+        level_claimRecolour();
+        if (page[0] != 0x1Eu || page[1] != 0x1Eu || page[2] != 0x80u ||
+            page[3] != 0xFFu) {
+            fprintf(stderr, "FAIL the claim recolour (D-121)\n");
             bad = 1;
         }
     }

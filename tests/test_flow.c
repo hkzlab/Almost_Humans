@@ -568,6 +568,27 @@ int main(int argc, char **argv)
               "the spear's frame 0x60 and +8 = 0xFFFF");
         check(object_slotClass(1u) == 5u,
               "its behaviour 5 lands in class slot 1");
+        /* D-161: the unbounded word[0x5BA4 + 2*type] read: the real entries
+         * 0..2, the 0x5BAA frame table 5/6, and type 0x0F in the pause text. */
+        check(object_throwDxForProbe(0u) == 8 &&
+                  object_throwDxForProbe(1u) == -8 &&
+                  object_throwDxForProbe(2u) == 0 &&
+                  (uint32_t)object_throwDxForProbe(5u) == 0x6000u &&
+                  (uint16_t)object_throwDxForProbe(6u) == 0x969Cu &&
+                  object_throwDxForProbe(0x0Fu) == 0x2045,
+              "the throw reads the words past 0x5BA4 (D-161)");
+        /* D-162: the fourth recipe's params are 0/0/0xFFFF/0xFFFF. */
+        check(object_recipeParamForProbe(3u, 0u) == 0u &&
+                  object_recipeParamForProbe(3u, 1u) == 0u &&
+                  object_recipeParamForProbe(3u, 2u) == 0xFFFFu &&
+                  object_recipeParamForProbe(3u, 3u) == 0xFFFFu,
+              "recipe 3's two 0xFFFF words are p3/p4 (D-162)");
+        /* D-103: the pending-move table has 17 real pairs; the last is (2,4)
+         * before the 0xFFFF sentinel. */
+        check(object_pendOffForProbe(16u) == 2u &&
+                  object_pendOffForProbe(17u) == 0xFFFFu &&
+                  object_pendWaitForProbe(16u) == 4u,
+              "the pending-move table has 17 real pairs (D-103)");
     }
 
     /* 6c2. the ACTION program machine (script_op_dispatch 1000:3979): level 1's

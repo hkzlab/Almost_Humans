@@ -41,6 +41,7 @@ void level_endPalette(void);
 /* draw_level_text 0x344C/0x3450: re-render the world page (blit_bitmap_planes
  * + render_objects), erasing the caption before check_highscore's card. */
 void level_redrawPage(void);
+void level_claimRecolour(void); /* 1000:3D5E: page bytes < 0x80 -> 0x1E */
 /* page_offset_to_ptr (1000:F123): 1 = the tile id's page is free (the ACTION
  * op 3 gate) — the BD file's page mask + its 16-word item record. */
 int32_t level_pageFree(uint32_t id);

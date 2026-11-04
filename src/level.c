@@ -1682,6 +1682,18 @@ void level_redrawPage(void)
     renderWorld();
 }
 
+/* 1000:3D5E: the claim's pan frames recolour every page byte below 0x80 to
+ * 0x1E before the present (the original's four plane passes are one flat page
+ * here). */
+void level_claimRecolour(void)
+{
+    uint8_t *page = video_page(0);
+
+    if (!page) return;
+    for (uint32_t i = 0; i < VIEW_W * 200u; i++)
+        if (page[i] < 0x80u) page[i] = 0x1Eu;
+}
+
 int32_t level_tick(void)
 {
     if (!level_loaded) return 0;
@@ -1813,17 +1825,17 @@ int32_t level_tick(void)
          * its eight frames, and the claim holds it at 0. */
         uint8_t *actor = object_slot(object_actionEntity());
 
-        if (worldUpdates) {
+        if (worldUpdates && !object_claimActive()) {
             level_followView(); /* 1000:5CB6, first in update_world */
             if (actor) (void)object_commandRun(actor, levelJoy);
             object_updateList(); /* 1000:C295, 1000:80BD            */
             entity_tick(); /* 1000:C93C, inside the [0xC] gate */
             object_markerTick(); /* 1000:D64F, after the dispatch */
+            object_worldTick(); /* 1000:80CC/0x80CF, update_world's tails */
         }
-        object_tick(level_palette()); /* the claim's phase machine: blocking
-                                           * in the original, so not gated here;
-                                           * its animator/bg half should be —
-                                           * port_deviations.md D-163 */
+        /* The claim's own frames only: the original sequence never calls
+         * update_world, even after 1000:3CAB sets [0xC] = 0xFF. */
+        object_claimFrame(level_palette());
     }
 
     /* The world is not drawn during level_video_init's two component fades
@@ -1845,6 +1857,8 @@ int32_t level_tick(void)
     }
 
     renderWorld();
+    if (object_claimPanActive()) /* 1000:3D5E's recolour on both pan frames */
+        level_claimRecolour();
 
     /* the pending-event dispatch ([0x1979] -> CS:0x197B) and, when event 4 is
      * running, its per-frame share (1000:3702): the world frame has run, so

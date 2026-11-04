@@ -90,6 +90,10 @@ int32_t object_mapCellEquals(uint32_t cell); /* 1000:36AB (the map cell)     */
 uint32_t object_staticSlots(void); /* the 8 the predicates scan     */
 uint32_t object_liveCount(void); /* [0x3E73]; 9 at the level start */
 uint8_t object_slotClass(uint32_t slot); /* [0x3E5E + slot]               */
+int32_t object_throwDxForProbe(uint32_t type); /* word[0x5BA4 + 2*type]  */
+uint16_t object_recipeParamForProbe(uint32_t recipe, uint32_t k);
+uint16_t object_pendOffForProbe(uint32_t i); /* the 0x67FF step table  */
+uint16_t object_pendWaitForProbe(uint32_t i); /* and its waits         */
 uint8_t object_dsTail5105(uint32_t off); /* 0x5105..0x5114 (objCmdEnter)  */
 uint8_t object_dsTailProbe(uint32_t addr); /* the DS record window        */
 void object_setSlotClassForProbe(uint32_t slot, uint8_t cls);
@@ -160,12 +164,18 @@ int32_t object_selectorWalk(uint8_t *actor, int32_t right);
 
 int32_t object_claimBegin(uint32_t recipe, int32_t actor);
 int32_t object_claimActive(void);
+int32_t object_claimPanActive(void); /* the 1000:3D04 recolour frames */
 void object_claimTick(const uint8_t *levelPal);
 /* the scan at 4E91: the first record beside `actor` (|dx| <= 0x20,
  * |dy| <= 8, type <= 2, active) or -1. */
 int32_t object_findNeighbour(int32_t actor);
 /* one level frame of the object machine (the frame counter + the claim) */
 void object_tick(const uint8_t *levelPal);
+/* update_world's animator/bg tails (1000:80CC/0x80CF) and the claim's own
+ * frame (frame counter + claim), separately for level_tick's [0xC] gate. */
+void object_worldTick(void);
+uint32_t object_worldTicksProbe(void);
+void object_claimFrame(const uint8_t *levelPal);
 int32_t object_lowPhaseMatch(void); /* 1000:3600: -1 when met         */
 /* 1000:F423's window, against the type row 1000:E467 hands the hook as DI:
  * the row's own words are the "rect", so it never matches on shipped data -
