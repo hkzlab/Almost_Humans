@@ -5697,8 +5697,10 @@ int main(int argc, char **argv)
               "the leap lands standing, frame 8 / type 1 (D-85 live)");
         /* the water hole: row 19's tiles F0/F1/F2 span x 320..367 and the
          * walkable rim has a 16-px opening at x 336..351, so a leftward leap
-         * from the right rim must clear the water and land on the far side. */
-        tf_leap(366, 268, &minx, &apex, &ty, &fr);
+         * from the right rim must clear the water and land on the far side.
+         * A record standing at x = 366 sits at y = 264 (the rim's surface,
+         * 288, minus the 0x18 of 1000:F75B's feet line). */
+        tf_leap(366, 264, &minx, &apex, &ty, &fr);
         check(minx <= 320u,
               "the leap crosses level 16's water hole (x <= 320, D-86)");
         check(ty == 1u, "the water-hole leap lands standing, not drowning");
