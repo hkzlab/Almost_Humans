@@ -494,6 +494,15 @@ static void objClassByteSet(uint32_t b, uint8_t value)
     objArray[b - 0x17u] = value;
 }
 
+/* 1000:EEB8's class-0 record write.  `DEC DX` wraps to 0xFFFF, `MUL DL`
+ * uses 0xFF, so the record base is 0x3F17 + 0x12*0xFF = 0x5105 and the
+ * +8..+0xE writes land on 0x510D..0x5114.  No image instruction references
+ * that range; the bytes are kept so the write is part of the state. */
+static uint8_t objDsTail5105[0x10]; /* 0x5105..0x5114 */
+
+uint8_t object_dsTail5105(uint32_t off)
+{ return off < sizeof objDsTail5105 ? objDsTail5105[off] : 0u; }
+
 /* The four shipped recipes (202F:0x19BA, 12 bytes each): [uses][behaviour]
  * then the sprite word and the four parameter words, re-armed to one use
  * every level start (level_setup 1000:31C3). */
@@ -5633,12 +5642,16 @@ static void objCmdEnter(uint8_t *actor)
      * 0x3E5E through the `DEC DX` wrap).  The record write converts the class
      * with `DEC DX` / `MUL DL` and does no range test: for a class byte of 0
      * the factor is 0xFFFF, `MUL DL` uses only 0xFF, and the writes land at
-     * 0x3F17 + 0x11EE = 0x5105 (+8), i.e. on 0x510D..0x5114 - DS data the port
-     * has no image of.  That record write is bounded, the one deviation left
-     * in this routine (port_deviations.md D-24). */
+     * 0x3F17 + 0x11EE = 0x5105 (+8), i.e. on 0x510D..0x5114. */
     objClassByteSet(idx, objClassByteAt(idx) & 0x3Fu); /* 0x3E5F + idx - 1 */
-    if (idx && 8u + idx < OBJ_SLOTS) {
+    if (idx == 0u) { /* the reachable out-of-range case: record base 0x5105 */
+        rec = objDsTail5105;
+    } else if (8u + idx < OBJ_SLOTS) {
         rec = objArray + (8u + idx) * OBJ_STRIDE; /* 0x3F17 + 0x12*(idx-1) */
+    } else {
+        rec = NULL; /* malformed class: the bound is D-101 */
+    }
+    if (rec) {
         wr_le_u16(rec + 8u, 0xFFFFu); /* 1000:EED5 */
         wr_le_u16(rec + 0xAu, 0u);
         wr_le_u16(rec + 0xCu, objPtX); /* 1000:EEE5 */

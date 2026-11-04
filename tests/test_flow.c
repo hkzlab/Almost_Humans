@@ -4176,6 +4176,7 @@ int main(int argc, char **argv)
               "the turn advances the direction counter by 4");
 
         /* input 0x01 -> half 0, command 0 -> index 39 (1000:EE3B): the door */
+        a[7] = 0u; /* class 0: 1000:EEB8's `DEC DX`/`MUL DL` lands at 0x5105 */
         wr16t(a, 4u, 0x8Cu);
         check(object_commandRun(a, 0x01u) != OBJ_CMD_UNPORTED,
               "the latched latch runs the enter-the-building sequence");
@@ -4183,6 +4184,13 @@ int main(int argc, char **argv)
               "the door vector 0 sets frame 0 / type 0");
         check(object_lastSfx() == 3u, "the entry plays effect 3 (1000:EEF2)");
         check(!object_actionLatched(), "the entry releases the latch");
+        check(
+            object_dsTail5105(8u) == 0xFFu && object_dsTail5105(9u) == 0xFFu &&
+                object_dsTail5105(10u) == 0u && object_dsTail5105(11u) == 0u &&
+                object_dsTail5105(12u) == 3u && object_dsTail5105(13u) == 0u &&
+                object_dsTail5105(14u) == 0xFBu &&
+                object_dsTail5105(15u) == 0xFFu,
+            "the class-0 door write lands at 0x510D..0x5114 (D-24)");
 
         /* the `0x6E76` door table's rows 1/2 (frames 0x8D/0x8E): the image's
          * y words are -7 and -9.  The class byte is 1, so the placed record is

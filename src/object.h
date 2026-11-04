@@ -89,6 +89,7 @@ int32_t object_mapCellEquals(uint32_t cell); /* 1000:36AB (the map cell)     */
 uint32_t object_staticSlots(void); /* the 8 the predicates scan     */
 uint32_t object_liveCount(void); /* [0x3E73]; 9 at the level start */
 uint8_t object_slotClass(uint32_t slot); /* [0x3E5E + slot]               */
+uint8_t object_dsTail5105(uint32_t off); /* 0x5105..0x5114 (objCmdEnter)  */
 void object_setSlotClassForProbe(uint32_t slot, uint8_t cls);
 void object_setSlotClass(uint32_t slot, uint32_t cls);
 uint8_t object_behStateForProbe(uint32_t beh); /* DS:0x6EB6 window       */
