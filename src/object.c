@@ -6344,13 +6344,23 @@ static void objTailType29(uint8_t *actor)
     }
 }
 
-/* 1000:EAAC (type 11): the record's +0xE is an index into the 0x3E24 record
- * pointer table; compare the target's y with ours, then either the 0x52/0x54
- * stepper or the "home" form (frame from the target's +8 + 4, +0xE = 0xA). */
+/* 1000:EAAC (type 11): the record's +0xE is the 0x6F92 span entry; its word 0
+ * is the owner record, resolved through the 0x3E24 pointer table.  Compare the
+ * owner's y with ours, then either the 0x52/0x54 stepper or the "home" form
+ * (type = the owner's +8 + 4, frame 8 only for type 9, +0xE = 0xA). */
+static uint8_t *objSpanEntry(uint32_t off)
+{
+    if (off >= sizeof objSpan) return NULL;
+    return (uint8_t *)objSpan + off;
+}
+
 static void objTailType11(uint8_t *actor)
 {
-    uint8_t *t = object_slot(rd_le_u16(actor + 0xEu)); /* [[SI+0xE]] */
+    uint8_t *span = objSpanEntry(rd_le_u16(actor + 0xEu));
+    uint8_t *t;
 
+    if (!span) return;
+    t = object_slot(rd_le_u16(span + 0u)); /* the span's owner */
     if (!t) return;
     if (rd_le_u16(actor + 2u) > rd_le_u16(t + 2u)) { /* 1000:EAB8 */
         objFrameStep(actor, 0x52u, 0x54u);
@@ -6365,17 +6375,17 @@ static void objTailType11(uint8_t *actor)
     }
 }
 
-/* 1000:EAE6 (type 12): the same table entry; when the span's end
- * (`[t+4] + [t+6]`) is at or above the record's y it is home (frame 0x10,
+/* 1000:EAE6 (type 12): the same span entry; when the span's end
+ * (`span+4` + `span+6`) is at or above the record's y it is home (frame 0x10,
  * type 2, [0x6FE6] = 0xFF), otherwise the map probe under its feet decides
  * between the down-stepper and home. */
 static void objTailType12(uint8_t *actor)
 {
-    uint8_t *e = object_slot(rd_le_u16(actor + 0xEu));
+    uint8_t *span = objSpanEntry(rd_le_u16(actor + 0xEu));
     uint32_t sum, ry = rd_le_u16(actor + 2u);
 
-    if (!e) return;
-    sum = (uint32_t)(rd_le_u16(e + 4u) + rd_le_u16(e + 6u));
+    if (!span) return;
+    sum = (uint32_t)(rd_le_u16(span + 4u) + rd_le_u16(span + 6u));
     if (sum > ry) { /* 1000:EAF6: span end below the record */
         uint32_t cell, sub;
         int32_t y = (int32_t)(int16_t)ry + 0x18;
@@ -7258,10 +7268,8 @@ int32_t object_selector(uint8_t *actor, uint16_t xoff, uint16_t frame,
             int32_t d = (int32_t)(int16_t)rd_le_u16(actor + 4u) -
                         (int32_t)(int16_t)objSelFrame;
 
-            if (d < 0 || d >= 8) {
+            if (d < 0 || d >= 8)
                 wr_le_u16(actor + 4u, objSelFrame); /* 1000:F20C */
-                return 0;
-            }
             objWalk(actor, objSelType != 0u); /* 1000:E6FB / 0xE764 */
             return 0;
         }

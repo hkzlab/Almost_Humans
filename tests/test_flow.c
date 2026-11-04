@@ -1587,9 +1587,11 @@ int main(int argc, char **argv)
                         uint16_t x0 = (uint16_t)(top[0] | (top[1] << 8));
 
                         check(object_selector(top, 1u, 8u, 1u) == 0 &&
-                                  (top[4] | (top[5] << 8)) == 0x0008u &&
-                                  (uint16_t)(top[0] | (top[1] << 8)) == x0,
-                              "a far target only writes the frame (1000:F20C)");
+                                  (top[4] | (top[5] << 8)) == 0x0009u &&
+                                  (uint16_t)(top[0] | (top[1] << 8)) ==
+                                      (uint16_t)(x0 - 1u),
+                              "a far target resets the frame, then walks "
+                              "(1000:F20C -> F212)");
                     }
                     /* in the stack pose the selector is a plain frame write */
                     check(object_stackSnap(top) == 1,
@@ -4400,7 +4402,7 @@ int main(int argc, char **argv)
          * end `[node+4]+[node+6]` vs the record's y, then the page byte and
          * the surface line vs the probe line `y + 0x18`. */
         {
-            uint8_t *node = object_slot(1u);
+            uint8_t *span = object_spanAtForProbe(0u);
             uint8_t *m = (uint8_t *)level_map();
             uint32_t solid = 0x100u, open = 0x100u, old = 0u, t;
 
@@ -4412,9 +4414,9 @@ int main(int argc, char **argv)
             check(m != NULL && solid < 0x100u && open < 0x100u,
                   "the type-12 probe tiles are in the page table");
             if (m && solid < 0x100u && open < 0x100u) {
-                memset(node, 0, 0x12u);
+                memset(span, 0, 0x1Cu);
                 wr16t(a, 0u, 100u);
-                wr16t(a, 0xEu, 1u); /* the type-12 tail reads slot 1 directly */
+                wr16t(a, 0xEu, 0u); /* the type-12 tail reads span entry 0 */
                 wr16t(a, 0xAu, 4u); /* the step countdown does not expire */
                 old = m[102]; /* row 3 (y = 0x38), col 6 */
                 m[102] = (uint8_t)solid;
@@ -4423,8 +4425,8 @@ int main(int argc, char **argv)
                 wr16t(a, 2u, 0x30u);
                 wr16t(a, 4u, 0x20u);
                 wr16t(a, 8u, 0x0Cu);
-                wr16t(node, 4u, 0x10u);
-                wr16t(node, 6u, 0u);
+                wr16t(span, 4u, 0x10u);
+                wr16t(span, 6u, 0u);
                 (void)object_commandRun(a, 0u);
                 check(
                     rd16t(a, 2u) == 0x30u && rd16t(a, 4u) == 0x10u &&
@@ -4434,8 +4436,8 @@ int main(int argc, char **argv)
                 wr16t(a, 2u, 0x20u);
                 wr16t(a, 4u, 0x20u);
                 wr16t(a, 8u, 0x0Cu);
-                wr16t(node, 4u, 0x30u);
-                wr16t(node, 6u, 0x20u);
+                wr16t(span, 4u, 0x30u);
+                wr16t(span, 6u, 0x20u);
                 (void)object_commandRun(a, 0u);
                 check(
                     rd16t(a, 2u) == 0x21u && rd16t(a, 4u) == 0x20u &&
@@ -4453,6 +4455,27 @@ int main(int argc, char **argv)
                       "type 12: the surface is compared with the probe line");
                 m[102] = (uint8_t)old;
             }
+        }
+
+        /* D-117: type 11 reads the span's word 0 as the owner record. */
+        {
+            uint8_t *span = object_spanAtForProbe(0u);
+            uint8_t *owner = object_slot(3u);
+
+            memset(span, 0, 0x1Cu);
+            wr16t(span, 0u, 3u); /* the span's owner record */
+            memset(owner, 0, 0x12u);
+            wr16t(owner, 2u, 200u);
+            wr16t(owner, 8u, 9u);
+            wr16t(a, 0u, 100u);
+            wr16t(a, 2u, 100u);
+            wr16t(a, 4u, 0x20u);
+            wr16t(a, 8u, 0x0Bu); /* type 11 */
+            wr16t(a, 0xEu, 0u); /* span entry 0 */
+            (void)object_commandRun(a, 0u);
+            check(rd16t(a, 4u) == 8u && rd16t(a, 8u) == 0x0Du &&
+                      rd16t(a, 0xEu) == 0x0Au,
+                  "type 11 homing uses the span owner record (D-117)");
         }
 
         /* 1000:DC1F, the type-15 rows' tail: a placed record inside the node's
