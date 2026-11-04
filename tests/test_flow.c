@@ -4396,6 +4396,46 @@ int main(int argc, char **argv)
                   "the advance stores the node's y at +0x10");
             check(rd16t(node, 8u) == 5u && rd16t(node, 0xAu) != 0u,
                   "the advance stores its step at +0xA, not in +8 (1000:EC78)");
+
+            /* D-110: the EC27 sign is field A (the slope), not field B (the
+             * item record).  Find a tile/sub where the two signs differ,
+             * place it under the node and check the step the slope selects. */
+            {
+                uint8_t *map = (uint8_t *)level_map();
+                uint32_t t, sub, tile = 0x100u, x = 0, cell = 0;
+                int32_t slope = 0;
+
+                for (t = 0; t < 256u && tile == 0x100u; t++)
+                    for (sub = 0; sub < 16u; sub++) {
+                        int32_t s = level_slopeByte(t, sub);
+
+                        if ((uint32_t)(s & 0x80) !=
+                            (level_itemByte(t, sub) & 0x80u)) {
+                            tile = t;
+                            x = 100u + ((sub + 16u - 12u) & 0xFu);
+                            cell = 7u * 32u + (x >> 4);
+                            slope = s;
+                            break;
+                        }
+                    }
+                check(map != NULL && tile < 0x100u,
+                      "the D-110 slope/item sign pair exists");
+                if (map && tile < 0x100u) {
+                    uint8_t old = map[cell];
+                    uint32_t want = ((slope & 0x80) ? 1u : 3u) + 3u;
+
+                    map[cell] = (uint8_t)tile;
+                    node[7] = 0u;
+                    memset(node, 0, 0x12u);
+                    wr16t(node, 0u, x);
+                    wr16t(node, 2u, 100u);
+                    wr16t(node, 8u, 0u);
+                    (void)object_commandRun(a, 0x89u);
+                    check(rd16t(node, 0xAu) == want,
+                          "the path advance tests the slope sign (D-110)");
+                    map[cell] = old;
+                }
+            }
         }
 
         /* the type-12 tail's three-way choice (1000:EAE6): the span

@@ -6552,7 +6552,7 @@ static void objPathAdvance(uint8_t *actor)
     tile = objMapAtAbs((int32_t)x, (int32_t)y + 0x10,
                        NULL); /* 1000:EBEF: the map cell */
     step = 3;
-    if (level_itemByte(tile, fine) & 0x80u) { /* 1000:EC27 */
+    if (level_slopeByte(tile, fine) & 0x80u) { /* 1000:EC27, field A */
         if (!(rd_le_u16(node + 8u) & 0x8000u)) step = 1;
     } else if (rd_le_u16(node + 8u) & 0x8000u) {
         step = 1;
