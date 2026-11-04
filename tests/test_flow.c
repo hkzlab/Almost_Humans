@@ -596,6 +596,57 @@ int main(int argc, char **argv)
               "op 4 sets the fixed state (frame 0xBB, type 0x17)");
         object_actionSetCursor(1u);
 
+        /* 6c2b. D-160 (closed 2026-11-04): the 0x6EB6 read window is 21
+         * entries in the image (behaviours 5/6/7 -> 1/3/2, 8 -> 0x0F, 9 ->
+         * 0xFF, 10..15 -> 0xC2/0x1D/0xA0/0, 16..20 -> 1) and the original
+         * reads straight on into the 0/1 tables after it (0x6ECB is
+         * objTypeOverlaps[8]), so the port keeps all 0x40 bytes. */
+        {
+            static const uint8_t want[0x15] = {
+                0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01, 0x03,
+                0x02, 0x0F, 0xFF, 0xC2, 0x1D, 0xA0, 0x00,
+                0x00, 0x00, 0x01, 0x01, 0x01, 0x01, 0x01,
+            };
+            uint32_t i, bad = 0u;
+
+            for (i = 0; i < 0x15u; i++)
+                if (object_behStateForProbe(i) != want[i]) bad++;
+            check(bad == 0u, "0x6EB6: the 21 state entries are the image's");
+            check(object_behStateForProbe(8u) == 0x0Fu &&
+                      object_behStateForProbe(16u) == 0x01u &&
+                      object_behStateForProbe(20u) == 0x01u,
+                  "0x6EB6: behaviours 8 and 16..20 are in the window");
+            check(object_behStateForProbe(0x15u) == 0x00u &&
+                      object_behStateForProbe(0x16u) == 0x01u,
+                  "0x6EB6: the window continues into objTypeOverlaps[8..]");
+        }
+        /* the same table through op 4 (1000:EFA1's `objStateIs(actor, 1)`):
+         * behaviour 16's state is 1, so the pose is applied; behaviour 13's
+         * is 0, so it is not.  (Before D-160's fix both read past the 8-byte
+         * array into whatever followed.) */
+        object_setSlotClass(1u, 16u);
+        actor[4] = 0x10;
+        actor[5] = 0;
+        actor[8] = 0;
+        actor[9] = 0;
+        object_actionSetCursor(5u);
+        object_actionRun();
+        check((actor[4] | (actor[5] << 8)) == 0x00BBu &&
+                  (actor[8] | (actor[9] << 8)) == 0x0017u,
+              "op 4 applies for behaviour 16 (state 1)");
+        object_setSlotClass(1u, 13u);
+        actor[4] = 0x10;
+        actor[5] = 0;
+        actor[8] = 0;
+        actor[9] = 0;
+        object_actionSetCursor(5u);
+        object_actionRun();
+        check((actor[4] | (actor[5] << 8)) == 0x0010u &&
+                  (actor[8] | (actor[9] << 8)) == 0x0000u,
+              "op 4 does not apply for behaviour 13 (state 0)");
+        object_actionSetCursor(1u);
+        object_setSlotClass(1u, 0x85u); /* the spear's taken mark back   */
+
         /* op 7 (0x39CF) is dispatched when a cursor > 1 selects it (program 3,
          * prog[2+1] = 0x07): it records the fault and touches nothing.  The
          * osys is detached for this block because the game attaches the arch's

@@ -1041,8 +1041,19 @@ static uint8_t objPrograms[6][12] = {
  * direction the collision pass dispatches on).  DS:0x5B8A is the collision
  * pass's own program id: on success it becomes `[0x5B56]` at 1000:9CEB
  * (`CL = [0x423C]`), which is both the ACTION program index and the status
- * bar's action-row group header.  Only 4..7 are reachable - 0x5B81 marks
- * 0..3 with bit 7 and 1000:9C9C skips them. */
+ * bar's action-row group header.
+ *
+ * All four maps below are **8 bytes in the image** (0x1C76/0x5B81/0x5B8A/
+ * 0x5B97; 0x1C76 is followed by the "\humans\" string), indexed with the
+ * 0..0x3F behaviour.  The spawns write 0/1/2/3/5/8/9 (and the 0xB7 tile's
+ * empty record 0x85, whose `&0x3F` is 5), so 8/9 are the only values past
+ * the table that occur; the image's bytes there are 0x5C (program), 0xFF/
+ * 0xFF (direction), 0xFF/0xF0 (collide program) and 0xFF/0x94 (class
+ * index), i.e. an out-of-range program id (ignored), skip, return, return —
+ * exactly what the bound `beh < 8 ? table[beh] : 0xFF` reproduces.  The
+ * 10..0x3F values read whatever follows those tables in the image
+ * (e.g. 0x5B81[13..15] = 6/2/4) and no writer produces them.
+ * 0x5B81 marks 0..3 with bit 7 and 1000:9C9C skips them. */
 static const uint8_t objBehProgram[8] = { 0, 0, 0, 0, 5, 1, 3, 2 };
 static const uint8_t objBehDir[8] = { 0xFF, 0xFF, 0xFF, 0xFF, 0, 1, 1, 1 };
 static const uint8_t objBehCollideProg[8] = {
@@ -1058,9 +1069,22 @@ static const uint8_t objDropFrame[8] = { 0x00, 0x00, 0x00, 0x00,
                                          0x00, 0x60, 0x9C, 0x96 };
 
 /* DS:0x6EB6 — the per-behaviour *state* byte `test_class_against_6eb6`
- * (0xF2CF) gates on: behaviours 5/6/7 -> 1/3/2, everything else 0xFF (never
- * matches a code). */
-static const uint8_t objBehState[8] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 1, 3, 2 };
+ * (0xF2CF) gates on: `MOV BL,[BX+0x3E5E] / AND BL,0x3F / CMP AL,[BX+0x6EB6]`
+ * with BX = the behaviour (0..0x3F).  The table proper is 21 bytes —
+ * behaviours 5/6/7 -> 1/3/2, 8 -> 0x0F, 9 -> 0xFF, 10..15 -> 0xC2/0x1D/0xA0/
+ * 0x00, and 16..20 -> 1 — and the original reads straight on into the next
+ * tables (0x6ECB is `objTypeOverlaps[8]`, then the 0/1 run that follows), so
+ * the port keeps the whole 64-byte read window verbatim instead of bounding
+ * the index (port_deviations.md used to carry the 21-vs-8 truncation as
+ * D-160; closed 2026-11-04, re_history.md). */
+static const uint8_t objBehState[0x40] = {
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01, 0x03, 0x02, 0x0F, 0xFF, 0xC2,
+    0x1D, 0xA0, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00,
+    0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x01,
+    0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x60, 0x9C, 0x96, 0xFE, 0xFE, 0xFF,
+};
 
 /* DS:0x6908, DS:0x698A, DS:0x6918 — the command dispatch's three tables
  * (1000:E3F6), copied verbatim from the image (file offset = DS offset + 0x106F0):
@@ -1585,6 +1609,11 @@ void object_setSlotClass(uint32_t slot, uint32_t cls)
 {
     if (slot < sizeof objSlotClass) objSlotClass[slot] = (uint8_t)cls;
 }
+
+/* the 0x6EB6 read window, for the tests (D-160's closure): behaviour -> the
+ * state byte `test_class_against_6eb6` compares against. */
+uint8_t object_behStateForProbe(uint32_t beh)
+{ return objBehState[beh & 0x3Fu]; }
 
 int32_t object_current(void) { return objCurrent; }
 
@@ -3865,7 +3894,11 @@ static void objOpCollide(uint8_t *actor)
         if (*slot & 0x80u) continue;
         if (found[6] & 0x80u) continue;
         beh = (uint32_t)(*slot & 0x3Fu);
-        dir = objBehDir[beh];
+        /* 0x5B81 is 8 bytes; behaviours 8/9 (the 0xB7 stack record and the
+         * 0xBB marker) read 0xFF/0xFF there, i.e. "skip" - see the table
+         * comment.  10..63 read the tables that follow in the image and
+         * never occur. */
+        dir = beh < 8u ? objBehDir[beh] : 0xFFu;
         if (dir & 0x80u) continue;
         dx = (int16_t)rd_le_u16(found + 0u) - ax;
         if (dx < 0) dx = -dx; /* SUB/NEG, then < 0x10 */
@@ -3877,8 +3910,10 @@ static void objOpCollide(uint8_t *actor)
         } else if (!objTakeFound(actor, found, slot, ordinal)) continue;
         /* the tail at 1000:9CD9: [0x5B56] = [0x423C] = 0x5B8A[behaviour],
          * which is the ACTION program and the bar's action-row group; a
-         * negative id leaves all three writes undone (1000:9CDF). */
-        prog = objBehCollideProg[beh];
+         * negative id leaves all three writes undone (1000:9CDF).
+         * 0x5B8A[8]/[9] = 0xFF/0xF0 in the image, so the bound is the same
+         * "negative id" return. */
+        prog = beh < 8u ? objBehCollideProg[beh] : 0xFFu;
         if (prog & 0x80u) return;
         objPending = 5u; /* [0x1979] = 5 */
         objCursor = 1u; /* [0x1988] = 1 */
@@ -3897,7 +3932,13 @@ static void objResolveSprite(uint32_t index)
     if (rd_le_u16(cur + 8u) == 2u)
         wr_le_u16(cur + 4u, 0x0010u); /* the previous record */
     objEntity = index;
-    if (r[7]) prog = objBehProgram[objSlotClass[r[7]] & 0x3Fu];
+    if (r[7]) {
+        /* 0x1C76 is 8 bytes (the "\humans\" path string follows it); its
+         * [8] = 0x5C gives program 0x5D, out of 1..6 like the bound's 0xFF. */
+        uint32_t b = objSlotClass[r[7]] & 0x3Fu;
+
+        prog = b < 8u ? objBehProgram[b] : 0xFFu;
+    }
     if (index == (uint32_t)objPlayer) prog = 4u;
     objSetProgramIndex(prog + 1u);
     objPending = 1u;
