@@ -18,6 +18,8 @@ uint32_t hiscore_score(uint32_t i); /* the top-10, descending     */
 const char *hiscore_name(uint32_t i);
 int32_t hiscore_qualifies(uint32_t score);
 int32_t hiscore_insert(uint32_t score, const char *name); /* 0x01CD    */
+/* `name` must have one writable byte before name[0]: an empty delete writes
+ * the original's 0x756 byte (a duplicate would take the headroom). */
 int32_t hiscore_nameApply(char *name, uint32_t column, uint32_t *len);
 
 #endif /* HUMANSRE_HISCORE_H */

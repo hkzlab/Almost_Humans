@@ -672,7 +672,7 @@ int32_t game_main(const OSystem *osys)
                 } else if (!palette_fadeActive()) { /* END_BLACK_FADE */
                     /* 0x342B/0x344C: park the split, re-render the world. */
                     statusbar_hide();
-                    level_redrawPage();
+                    level_endRedrawPage(); /* 0x3437: the 0x78 clamp */
                     endPhase = END_CAPTION;
                     endPageUp = 0;
                     if (!level_outcome()) {

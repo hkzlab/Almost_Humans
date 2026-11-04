@@ -1682,6 +1682,15 @@ void level_redrawPage(void)
     renderWorld();
 }
 
+/* draw_level_text 1000:3437: the end page clamps [0x2] to 0x78 before its two
+ * page frames; the clamped value persists in the original's view. */
+void level_endRedrawPage(void)
+{
+    if (!level_loaded || !level_osys) return;
+    if (level_viewY() > 0x78u) level_setView(level_viewX(), 0x78u);
+    renderWorld();
+}
+
 /* 1000:3D5E: the claim's pan frames recolour every page byte below 0x80 to
  * 0x1E before the present (the original's four plane passes are one flat page
  * here). */

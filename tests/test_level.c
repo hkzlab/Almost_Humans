@@ -656,6 +656,16 @@ int main(int argc, char **argv)
         }
     }
 
+    /* D-157: draw_level_text clamps [0x2] to 0x78 before its page frames. */
+    level_setView(0u, 0xA8u);
+    level_endRedrawPage();
+    if (level_viewY() != 0x78u) {
+        fprintf(stderr, "FAIL the end page view clamp: y = %u\n",
+                level_viewY());
+        bad = 1;
+    }
+    level_setView(0u, 0u);
+
     /* D-121: 1000:3D5E recolours every page byte below 0x80 to 0x1E. */
     {
         uint8_t *page = video_page(0);

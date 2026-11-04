@@ -85,7 +85,8 @@ static int32_t mapUp;
 static int32_t mapArmed;  /* the first tick ignores the key that skipped the
                            * ending cutscene */
 static int32_t mapPhase;
-static char mapName[NAME_MAX + 1u];
+static char mapNameStore[NAME_MAX + 2u];
+static char *mapName = mapNameStore + 1u; /* one byte for 0x756's delete */
 static uint32_t mapNameLen;
 static uint32_t mapCol;
 /* 1000:05F4/0613: a panel step is 0x14 frames, one [0x8AE] unit per frame. */

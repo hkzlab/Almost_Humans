@@ -6532,32 +6532,18 @@ static void objPathAdvance(uint8_t *actor)
  * (frame 0x103, type 0x1E, `+0xA` = 6, `+0xE` = 0xA).
  *
  * The group pass walks the eight `0x6F22` entries: an active entry within the
- * same window has its first member (`byte[+5]`) resolved to a record, which is
- * dissolved through `1000:FA13` before the entry itself takes the carried form.
- * The original writes that form into the entry's `+0xE`, which is the *next*
- * entry's first word (and past the table for the last one); the port stores
- * everything inside the entry and skips that one word, noted below.
+ * same window has its first member (`byte[+5]`) resolved to a placed record,
+ * which is dissolved through `1000:FA13`; the original preserves that record
+ * in BP and writes the carried form into it (`1000:DD2D PUSH DI / CALL 0xFA13
+ * / POP BP`), not into the entry.
  */
-static void objCarryForm(uint8_t *rec, uint32_t phase, int32_t entry)
+static void objCarryForm(uint8_t *rec, uint32_t phase)
 {
-    uint16_t v = (uint16_t)(0xF0u + phase);
-
     wr_le_u16(rec + 4u, 0x0055u); /* 1000:DC9A */
     wr_le_u16(rec + 8u, 0x0010u);
     wr_le_u16(rec + 0xAu, 0u);
     wr_le_u16(rec + 0xCu, 0u);
-    /* 1000:DCB0/DCBA store and then ADD into `[BP+0xE]` with no width test.  For
-     * a placed record that is its last word; for a 0x0E-byte group entry it is
-     * the *next* entry's first word, and for the last entry (0x6F22 + 0x70) it
-     * is 0x6F92 - the span table's first word, i.e. the span's owner/free flag.
-     * Both landings are reproduced, not skipped. */
-    if (!entry) {
-        wr_le_u16(rec + 0xEu, v);
-    } else if (rec + 0xEu + 1 < (uint8_t *)objRegister + sizeof objRegister) {
-        wr_le_u16(rec + 0xEu + 0u, v);
-    } else {
-        wr_le_u16((uint8_t *)objSpan[0] + 0u, v); /* 0x6F92 */
-    }
+    wr_le_u16(rec + 0xEu, (uint16_t)(0xF0u + phase)); /* 1000:DCB0 */
     objDriverCall(8); /* 1000:DCBF */
 }
 
@@ -6585,7 +6571,7 @@ static void objCmdType15Tail(uint8_t *actor)
             if (d > 1) continue; /* 1000:DC83 */
             if (rd_le_u16(r + 8u) > 2u) continue; /* 1000:DC8A */
             if ((int32_t)i == object_player()) goto give; /* 1000:DC91 */
-            objCarryForm(r, phase, 0); /* 1000:DC9A */
+            objCarryForm(r, phase); /* 1000:DC9A */
             return;
         }
     }
@@ -6602,8 +6588,13 @@ static void objCmdType15Tail(uint8_t *actor)
         if (d > 1) continue; /* 1000:DD0F */
         if ((uint32_t)e[5] == (uint32_t)object_player())
             goto give; /* 1000:DD27 */
-        object_groupDissolveAt(g); /* 1000:DD2E */
-        objCarryForm(e, phase, 1); /* 1000:DC9A with BP = the entry */
+        {
+            uint8_t *placed = object_slot(e[5]);
+
+            if (!placed) continue;
+            object_groupDissolveAt(g); /* 1000:DD2E */
+            objCarryForm(placed, phase); /* 1000:DC9A with BP = the record */
+        }
         return;
     }
     return;
@@ -7293,13 +7284,17 @@ static void objGroupRestoreMember(uint8_t *rec)
  * BX = n, so its loop runs `n - 1` times after the first member: n calls in
  * all, one per member.
  *
- * The original's n >= 1 paths then fall into `1000:FAA4`, which stores
- * `y -= 8`, frame 0x10, type 2 on the last member (it becomes a standing
- * human).  The port does not, so the member keeps the type-3 faller state -
- * port_deviations.md D-93. */
+ * The n >= 1 paths then fall into `1000:FAA4`, which stores `y -= 8`,
+ * frame 0x10, type 2 on the last member (it becomes a standing human). */
 void object_groupDissolveAt(uint32_t slot)
 {
     if (slot < 8u) objGroupDissolve((uint8_t *)objRegister[slot]);
+}
+
+static void objGroupClearList(uint8_t *e)
+{
+    for (uint32_t i = 0; i < 5u; i++) /* 1000:FAC1/FAC4: five words */
+        wr_le_u16(e + 4u + 2u * i, 0xFFFFu);
 }
 
 static void objGroupDissolve(uint8_t *e)
@@ -7308,25 +7303,33 @@ static void objGroupDissolve(uint8_t *e)
     uint32_t n;
     uint8_t *last; /* the topmost list byte's record */
 
-    e[0] = 0xFF;
-    e[1] = 0xFF; /* +0/+2 = 0xFFFF: free */
+    wr_le_u16(e + 0u, 0xFFFFu); /* 1000:FA16 */
+    wr_le_u16(e + 2u, 0xFFFFu); /* 1000:FA1C */
     bp = e + 5;
     while (!(bp[0] & 0x80u)) bp++; /* past the terminator */
     n = (uint32_t)(bp - (e + 5)) - 1u; /* list length - 1     */
     if (n == 0u) {
         last = object_slot(bp[-1]); /* the owner byte      */
-        if (!last) return;
-        wr_le_u16(last + 4u, 0x0010u); /* frame 0x10          */
-        wr_le_u16(last + 8u, 0x0002u); /* type 2, a human     */
+        if (last) {
+            wr_le_u16(last + 4u, 0x0010u); /* frame 0x10          */
+            wr_le_u16(last + 8u, 0x0002u); /* type 2, a human     */
+        }
+        objGroupClearList(e); /* 1000:FABF */
         return;
     }
     last = object_slot(bp[-1]); /* n = 1: the only member */
-    if (!last) return;
-    objGroupRestoreMember(last);
-    for (uint32_t k = 1u; k < n; k++) { /* the members below it */
-        uint8_t *m = object_slot(bp[-1 - (int32_t)k]);
-        if (m) objGroupRestoreMember(m);
+    if (last) {
+        objGroupRestoreMember(last);
+        for (uint32_t k = 1u; k < n; k++) { /* the members below it */
+            uint8_t *m = object_slot(bp[-1 - (int32_t)k]);
+            if (m) objGroupRestoreMember(m);
+        }
+        /* 1000:FAA4: the last list record becomes a standing human 8 px up. */
+        wr_le_u16(last + 2u, (uint16_t)(rd_le_u16(last + 2u) - 8u));
+        wr_le_u16(last + 4u, 0x0010u);
+        wr_le_u16(last + 8u, 0x0002u);
     }
+    objGroupClearList(e); /* 1000:FABF */
 }
 
 /* 1000:F453 scan_groups_for_record: the first 0x6F22 entry whose member list

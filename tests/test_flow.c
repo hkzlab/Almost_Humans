@@ -1215,9 +1215,10 @@ int main(int argc, char **argv)
                     check(
                         object_stackScanDissolve(1u) == 1,
                         "the scan finds and dissolves the group holding rec 1");
-                    check((top[4] | (top[5] << 8)) == 0x0010u &&
-                              (top[8] | (top[9] << 8)) == 0x0003u,
-                          "n = 1 dissolves the member to frame 0x10 / type 3");
+                    check(
+                        (top[4] | (top[5] << 8)) == 0x0010u &&
+                            (top[8] | (top[9] << 8)) == 0x0002u,
+                        "n = 1 dissolves the member to the FAA4 standing form");
                     check((base[4] | (base[5] << 8)) == 0x0020u,
                           "the base is untouched by an n = 1 dissolve");
                 }
@@ -3700,7 +3701,8 @@ int main(int argc, char **argv)
     {
         uint8_t buf[600];
         uint32_t len = 0;
-        char name[16];
+        char nameBuf[17];
+        char *name = nameBuf + 1; /* one byte before name[0] (0x756) */
         int32_t slot;
 
         for (uint32_t i = 0; i < sizeof buf; i++) buf[i] = (uint8_t)i;
@@ -3739,6 +3741,7 @@ int main(int argc, char **argv)
 
         /* the name grid: 0..0x19 = A..Z, 0x1A = space, 0x1B = '.', 0x1C =
          * delete, 0x1D = enter; 13 characters at most */
+        nameBuf[0] = 0;
         name[0] = 0;
         check(hiscore_nameApply(name, 0u, &len) == 0 && len == 1u &&
                   name[0] == 'A',
@@ -3750,6 +3753,19 @@ int main(int argc, char **argv)
         check(strcmp(name, "A ") == 0, "0x1C deletes the last character");
         for (uint32_t i = 0; i < 20u; i++) hiscore_nameApply(name, 1u, &len);
         check(len == 13u, "the buffer holds 13 characters");
+        {
+            char kept = name[11];
+
+            hiscore_nameApply(name, 0u, &len);
+            check(len == 13u && name[12] == 'A' && name[11] == kept,
+                  "a full buffer overwrites the last glyph (1000:044F)");
+        }
+        len = 0;
+        name[0] = 0;
+        name[-1] = 0x5A;
+        hiscore_nameApply(name, 28u, &len);
+        check(len == 0u && name[-1] == 0,
+              "an empty delete writes 0x756 (1000:046C)");
         check(hiscore_nameApply(name, 29u, &len) == 1, "0x1D enters");
 
         /* the file round-trip: insert writes HISCORES.HUM encrypted, and a
@@ -4447,6 +4463,66 @@ int main(int argc, char **argv)
             check(object_lastSfx() == 8u, "the carried form plays effect 8");
             memset(target, 0, 0x12u);
             memset(node, 0, 0x12u);
+        }
+
+        /* the same tail through the 0x6F22 group pass: the entry's first
+         * member (e[5]) names the placed record, and the carry form must land
+         * on that record (1000:DD2D's PUSH DI / CALL 0xFA13 / POP BP), not on
+         * the entry. */
+        {
+            uint8_t *node = object_slot(1u);
+            uint8_t *target = object_slot(4u);
+            uint8_t *grp = object_groupAt(0u);
+
+            wr16t(a, 8u, 0x0Fu);
+            wr16t(a, 0xEu, 1u * 0x12u + 4u); /* the link to slot 1 */
+            memset(node, 0, 0x12u);
+            wr16t(node, 0u, 100u);
+            wr16t(node, 2u, 100u);
+            wr16t(node, 8u, 1u);
+            memset(target, 0, 0x12u);
+            wr16t(target, 0u, 108u);
+            wr16t(target, 2u, 92u);
+            wr16t(target, 8u, 1u);
+            memset(grp, 0, 0x0Eu);
+            wr16t(grp, 0u, 108u);
+            wr16t(grp, 2u, 92u);
+            grp[5] = 4u; /* the placed record */
+            grp[6] = 0x80u; /* the member-list terminator */
+            check(object_commandRun(a, 0x01u) == OBJ_CMD_TAIL,
+                  "the group pass reaches the type-15 tail");
+            check(rd16t(target, 4u) == 0x55u && rd16t(target, 8u) == 0x10u,
+                  "the group carry writes the placed record (D-158)");
+            memset(target, 0, 0x12u);
+            memset(node, 0, 0x12u);
+            memset(grp, 0, 0x0Eu);
+        }
+
+        /* D-153/D-93: the dissolve clears +0/+2 and the five list words, and
+         * the last member takes the FAA4 tail (y -= 8, frame 0x10, type 2). */
+        {
+            uint8_t *e = object_groupAt(0u);
+            uint8_t *last = object_slot(5u);
+
+            memset(e, 0, 0x0Eu);
+            wr16t(e, 2u, 0x1234u);
+            e[5] = 4u;
+            e[6] = 5u;
+            e[7] = 0x80u;
+            memset(last, 0, 0x12u);
+            wr16t(last, 2u, 100u);
+            wr16t(last, 4u, 0x60u);
+            wr16t(last, 8u, 3u);
+            object_groupDissolveAt(0u);
+            check((e[1] & 0x80u) && rd16t(e, 2u) == 0xFFFFu &&
+                      rd16t(e, 4u) == 0xFFFFu && rd16t(e, 6u) == 0xFFFFu &&
+                      rd16t(e, 8u) == 0xFFFFu && rd16t(e, 0xAu) == 0xFFFFu &&
+                      rd16t(e, 0xCu) == 0xFFFFu,
+                  "the group dissolve clears +0/+2 and +4..+0xD (D-153)");
+            check(rd16t(last, 2u) == 92u && rd16t(last, 4u) == 0x10u &&
+                      rd16t(last, 8u) == 2u,
+                  "the last group member takes the FAA4 tail (D-93)");
+            memset(last, 0, 0x12u);
         }
 
         /* 1000:DD3C, the give exit: when the record in the window is the

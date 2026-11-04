@@ -222,31 +222,43 @@ int32_t hiscore_insert(uint32_t score, const char *name)
  * confirms.  The buffer holds at most 13 characters (DS:0x757, the copy at
  * commit time is 14 bytes).  A keystroke outside the grid is ignored.
  */
+static void namePut(char *name, uint32_t *len, char c)
+{
+    uint32_t n = *len;
+
+    if (n > 13u) n = 13u;
+    if (n < 13u) {
+        name[n] = c;
+        name[++n] = '\0';
+    } else {
+        name[12] = c; /* 1000:044F/0x0450: a full buffer overwrites index 12 */
+    }
+    *len = n;
+}
+
 int32_t hiscore_nameApply(char *name, uint32_t column, uint32_t *len)
 {
     uint32_t n = *len;
 
     if (n > 13u) n = 13u;
     name[n] = '\0';
+    *len = n;
     if (column < 0x1Au) {
-        if (n < 13u) {
-            name[n++] = (char)('A' + column);
-            name[n] = '\0';
-        }
-        *len = n;
+        namePut(name, len, (char)('A' + column));
         return 0;
     }
     if (column == 0x1Au || column == 0x1Bu) {
-        if (n < 13u) {
-            name[n++] = column == 0x1Au ? ' ' : '.';
-            name[n] = '\0';
-        }
-        *len = n;
+        namePut(name, len, column == 0x1Au ? ' ' : '.');
         return 0;
     }
     if (column == 0x1Cu) { /* delete the last char */
-        if (n) n--;
-        name[n] = '\0';
+        n = *len;
+        if (n) {
+            n--;
+            name[n] = '\0';
+        } else {
+            name[-1] = '\0'; /* 1000:046C: 0x757 - 2 = 0x756 */
+        }
         *len = n;
         return 0;
     }
