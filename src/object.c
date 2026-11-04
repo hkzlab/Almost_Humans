@@ -935,6 +935,43 @@ static uint8_t objUses[4]; /* the live copy of [DI+0] */
 static uint32_t objFrame;
 static uint32_t lowPhaseCount; /* [0x1976]: 0x8C = 140 */
 
+/* The DS window is the image's bytes, but two ranges inside it are live port
+ * state: the 0x48BC cell queue (`spark[]`, 0x2C0 bytes, same 8-byte layout) and
+ * the [0x4103] frame word.  A wild record access can overlap either, so the
+ * bytes are copied in before the access and back out after it. */
+#define OBJ_DS_SPARK     0x48BCu
+#define OBJ_DS_SPARK_LEN 0x2C0u
+#define OBJ_DS_FRAME     0x4103u
+
+static int objTailIsRecord(const uint8_t *rec)
+{ return rec >= objDsTail && rec < objDsTail + OBJ_DS_TAIL_LEN; }
+
+static int objTailEnter(const uint8_t *rec)
+{
+    uint8_t *q, *f;
+    uint32_t i;
+
+    if (!objTailIsRecord(rec)) return 0;
+    q = objDsTailAt(OBJ_DS_SPARK);
+    for (i = 0; i < OBJ_DS_SPARK_LEN; i++) q[i] = level_sparkByte(i);
+    f = objDsTailAt(OBJ_DS_FRAME);
+    f[0] = (uint8_t)objFrame;
+    f[1] = (uint8_t)(objFrame >> 8);
+    return 1;
+}
+
+static void objTailLeave(int tail)
+{
+    uint8_t *q, *f;
+    uint32_t i;
+
+    if (!tail) return;
+    q = objDsTailAt(OBJ_DS_SPARK);
+    for (i = 0; i < OBJ_DS_SPARK_LEN; i++) level_sparkSetByte(i, q[i]);
+    f = objDsTailAt(OBJ_DS_FRAME);
+    objFrame = (objFrame & ~0xFFFFu) | (uint32_t)f[0] | ((uint32_t)f[1] << 8);
+}
+
 static int32_t claimPhase = CLAIM_OFF;
 static int32_t claimNeighbour = -1;
 static uint32_t claimBehav, claimSprite;
@@ -2919,6 +2956,8 @@ uint32_t object_loadTerrainObjects(uint8_t *map)
 
 uint32_t object_frameSlots(void) { return OBJ_FRAME_SLOTS; }
 
+uint32_t object_frameCounterProbe(void) { return objFrame; }
+
 /* one sprite-table entry, for the tests (the D-69 tail copies). */
 void object_frameForProbe(uint32_t frame, uint32_t *off, uint32_t *rows)
 {
@@ -3072,7 +3111,10 @@ static void objDrawClassOverlay(uint8_t *page, int32_t scrollX, int32_t scrollY,
     x = rd_le_u16(rec + 0u);
     y = rd_le_u16(rec + 2u);
     if (e[2]) { /* 1000:65E4 */
+        int tail;
+
         carried = objRecordForClass(cls); /* 0x3F17 + 0x12*(cls-1) */
+        tail = objTailEnter(carried);
         wr_le_u16(carried + 0u,
                   (uint16_t)(x + (uint16_t)(int16_t)(int8_t)e[0]));
         wr_le_u16(carried + 2u,
@@ -3081,6 +3123,7 @@ static void objDrawClassOverlay(uint8_t *page, int32_t scrollX, int32_t scrollY,
         objBlitFrame(page, e[2],
                      (int32_t)(int16_t)rd_le_u16(carried + 0u) - scrollX,
                      (int32_t)(int16_t)rd_le_u16(carried + 2u) - scrollY);
+        objTailLeave(tail);
     }
     if (e[3]) /* 1000:6605 */
         objBlitFrame(page, e[3], (int32_t)(int16_t)x - scrollX,
@@ -3681,8 +3724,13 @@ static void objMoverPassRecords(uint8_t *r, int32_t ax, int32_t bx)
             wr_le_u16(t + 0xAu, 6u);
             cls = t[7];
             if (cls) {
+                uint8_t *linked = objRecordForClass(cls);
+                int tail;
+
                 objClassByteSet(cls, 0u); /* 0x3E5F + cls - 1 */
-                objRecordForClass(cls)[6] = 0xFFu; /* 0x3F17 + 0x12*(cls-1) */
+                tail = objTailEnter(linked);
+                linked[6] = 0xFFu; /* 0x3F17 + 0x12*(cls-1) */
+                objTailLeave(tail);
             }
             *beh = 0u;
             r[6] = 0xFFu;
@@ -3781,8 +3829,13 @@ static void objMoverPassPlaced(uint8_t *r, int32_t ax, int32_t bx)
         r[6] = 0xFFu;
         cls = slot[7];
         if (cls) {
+            uint8_t *linked = objRecordForClass(cls);
+            int tail;
+
             objClassByteSet(cls, 0u); /* 0x3E5F + cls - 1 */
-            objRecordForClass(cls)[6] = 0xFFu; /* 0x3F17 + 0x12*(cls-1) */
+            tail = objTailEnter(linked);
+            linked[6] = 0xFFu; /* 0x3F17 + 0x12*(cls-1) */
+            objTailLeave(tail);
         }
         wr_le_u16(slot + 0u, (uint16_t)(rd_le_u16(slot + 0u) - 8u));
         wr_le_u16(slot + 4u, 0x0028u);
@@ -4001,12 +4054,14 @@ static void objStack8Land(uint8_t *r, uint32_t bx, int32_t ax, int32_t bx2,
         r[7] = 0u;
         if (cls) {
             uint8_t *t = objRecordForClass(cls);
+            int tail = objTailEnter(t);
 
             objClassByteSet(cls, objClassByteAt(cls) & 0x3Fu);
             wr_le_u16(t + 8u, 0xFFFFu);
             wr_le_u16(t + 0xAu, 0u);
             wr_le_u16(t + 0xCu, (uint16_t)ax);
             wr_le_u16(t + 0xEu, (uint16_t)bx2);
+            objTailLeave(tail);
         }
         objDriverCall(3);
     }
@@ -4832,8 +4887,13 @@ static void objOpClassPath(uint8_t *actor)
     beh = (uint32_t)(objClassByteAt(cls) & 0x3Fu); /* 1000:9D60 */
     idx = beh < 8u ? objBehClassIdx[beh] : 0xFFu; /* 1000:9D76 */
     if (idx & 0x80u) return; /* 1000:9D7C */
-    if (idx == 0u) objClassDrop(actor, found, cls);
-    else objClassThrow(actor, found, cls);
+    {
+        int tail = objTailEnter(found);
+
+        if (idx == 0u) objClassDrop(actor, found, cls);
+        else objClassThrow(actor, found, cls);
+        objTailLeave(tail);
+    }
     objPending = 5u; /* 1000:9D84 */
     objCursor = 1u; /* 1000:9D89 */
     objSetProgramIndex(1u); /* 1000:9D8E */
@@ -6126,9 +6186,14 @@ static void objLevelEndProbe(uint8_t *actor, int32_t bx)
     wr_le_u16(t + 8u, 0x001Bu);
     if (t[7]) { /* 1000:F603 */
         uint32_t cls = t[7];
+        uint8_t *linked;
+        int tail;
 
         objClassByteSet(cls, 0u); /* 0x3E5F + cls - 1 */
-        objRecordForClass(cls)[6] = 0xFFu; /* 0x3F17 + 0x12*(cls-1) */
+        linked = objRecordForClass(cls); /* 0x3F17 + 0x12*(cls-1) */
+        tail = objTailEnter(linked);
+        linked[6] = 0xFFu;
+        objTailLeave(tail);
         t[7] = 0u;
     }
     if (idx != objEntity) return; /* 1000:F627 */
@@ -6973,11 +7038,16 @@ give: /* 1000:DD3C */
         objClassByteSet(cls,
                         objClassByteAt(cls) & 0x7Fu); /* 0x3E5F + cls - 1 */
         rec = objRecordForClass(cls); /* 0x3F17 + 0x12*(cls-1) */
-        wr_le_u16(rec + 0xAu, 1u);
-        wr_le_u16(rec + 0xEu, 0xFFFFu);
-        rec[6] &= 0x7Fu; /* 1000:DD63 */
-        wr_le_u16(actor + 0u, rd_le_u16(rec + 0u));
-        wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(rec + 2u) - 8u));
+        {
+            int tail = objTailEnter(rec);
+
+            wr_le_u16(rec + 0xAu, 1u);
+            wr_le_u16(rec + 0xEu, 0xFFFFu);
+            rec[6] &= 0x7Fu; /* 1000:DD63 */
+            wr_le_u16(actor + 0u, rd_le_u16(rec + 0u));
+            wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(rec + 2u) - 8u));
+            objTailLeave(tail);
+        }
         wr_le_u16(actor + 4u, 0x0103u);
         wr_le_u16(actor + 8u, 0x001Eu);
         wr_le_u16(actor + 0xAu, 6u);

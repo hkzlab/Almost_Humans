@@ -60,6 +60,7 @@ void object_renderTer(uint8_t *page, int32_t scrollX, int32_t scrollY);
 uint8_t *object_slot(uint32_t i); /* NULL past object_slots()      */
 uint32_t object_slots(void);
 uint32_t object_frameSlots(void); /* the sprite table bound (0x11E) */
+uint32_t object_frameCounterProbe(void); /* [0x4103] */
 void object_frameForProbe(uint32_t frame, uint32_t *off, uint32_t *rows);
 /* the 0x32B9 background-sprite queue (1000:5F54's input) */
 uint32_t object_bgCount(void);

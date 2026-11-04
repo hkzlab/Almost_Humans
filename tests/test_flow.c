@@ -2480,6 +2480,10 @@ int main(int argc, char **argv)
                           object_dsTailProbe(0x49C9u) == 33u &&
                           object_dsTailProbe(0x49CBu) == 0x5Au,
                       "the out-of-range class overlay writes 0x49C7 (D-177)");
+                check(level_sparkByte(0x10Bu) == 52u &&
+                          level_sparkByte(0x10Du) == 33u &&
+                          level_sparkByte(0x10Fu) == 0x5Au,
+                      "the DS window aliases the 0x48BC spark queue");
                 host[7] = 0u;
                 object_slot(7u)[4] = 0u;
             }
@@ -5142,6 +5146,22 @@ int main(int argc, char **argv)
         (void)object_commandRun(spare, 0x01u);
         check(object_dsTailProbe(0x49CDu) == 0xFFu,
               "the out-of-range class write lands at 0x49CD (D-177)");
+
+        /* class 0x1C's linked record is 0x40FD, so its +6 write lands on the
+         * [0x4103] frame word; the DS window must alias the live counter. */
+        {
+            uint32_t f0 = object_frameCounterProbe();
+
+            memset(spare, 0, 0x12u);
+            W16(spare, 8u, 22u);
+            W16(spare, 4u, 0x2Du);
+            W16(spare, 0xAu, 0u);
+            spare[7] = 0x1Cu;
+            (void)object_commandRun(spare, 0x01u);
+            check((object_frameCounterProbe() & 0xFFFFu) ==
+                      ((f0 & 0xFF00u) | 0xFFu),
+                  "the DS window aliases [0x4103] (D-177)");
+        }
 
         /* --- 1000:F5BC's goal branch: with the tribe odometer showing a count
          * the record takes the goal form instead (frame 0x2D / type 0x21). --- */

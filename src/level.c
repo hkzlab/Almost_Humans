@@ -384,6 +384,15 @@ void level_sparkBegin(uint32_t ox, uint32_t oy, const uint8_t *shade)
 
 int32_t level_sparkActive(void) { return sparkOn; }
 
+/* the same queue bytes the original keeps at 0x48BC, for object.c's DS window */
+uint8_t level_sparkByte(uint32_t off)
+{ return off < sizeof spark ? ((const uint8_t *)spark)[off] : 0u; }
+
+void level_sparkSetByte(uint32_t off, uint8_t value)
+{
+    if (off < sizeof spark) ((uint8_t *)spark)[off] = value;
+}
+
 /* the first live slot, for the tests: writes its world position and value. */
 int32_t level_sparkPeek(uint32_t *x, uint32_t *y, uint32_t *value)
 {

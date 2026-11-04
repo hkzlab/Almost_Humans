@@ -74,6 +74,10 @@ uint32_t level_viewY(void);
 void level_sparkBegin(uint32_t ox, uint32_t oy, const uint8_t *shade);
 int32_t level_sparkActive(void);
 int32_t level_sparkPeek(uint32_t *x, uint32_t *y, uint32_t *value);
+/* the 0x48BC queue as the original's 0x2C0-byte window, for object.c's DS
+ * record model (offset 0 = 0x48BC). */
+uint8_t level_sparkByte(uint32_t off);
+void level_sparkSetByte(uint32_t off, uint8_t value);
 /* 1000:8526's [0x5ACE] for the play loop's command dispatch (1000:E3F6). */
 void level_noteInput(const InputState *in);
 /* level_fade_in (1000:3334): the start chain — fade out of the pre-level
