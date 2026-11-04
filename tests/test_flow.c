@@ -4109,6 +4109,50 @@ int main(int argc, char **argv)
         check(object_lastSfx() == 3u, "the entry plays effect 3 (1000:EEF2)");
         check(!object_actionLatched(), "the entry releases the latch");
 
+        /* the `0x6E76` door table's rows 1/2 (frames 0x8D/0x8E): the image's
+         * y words are -7 and -9.  The class byte is 1, so the placed record is
+         * slot 8 + cls = 9 and its class byte is [0x3E5E + 1]. */
+        {
+            uint8_t *placed = object_slot(9u);
+            static const int16_t doorY[2] = { -7, -9 };
+
+            for (uint32_t k = 0; k < 2u; k++) {
+                object_setSlotClassForProbe(1u, 0xFFu);
+                memset(placed, 0, 0x12u);
+                wr16t(a, 8u, 0x12u);
+                wr16t(a, 4u, 0x8Cu);
+                wr16t(a, 0xEu, 0u);
+                a[7] = 1u;
+                /* the turn re-arms [0x6F1D] */
+                (void)object_commandRun(a, 0x81u);
+                wr16t(a, 4u, (uint16_t)(0x8Du + k));
+                (void)object_commandRun(a, 0x01u);
+                check((int16_t)rd16t(placed, 0xEu) == doorY[k] &&
+                          rd16t(placed, 0xCu) == (uint32_t)(2u - k),
+                      "the door table's row matches 0x6E76");
+                check(object_slotClass(1u) == 0x3Fu && placed[8] == 0xFFu,
+                      "the door masks the class byte and marks slot 8+cls");
+            }
+        }
+
+        /* the type-17 9-beat (1000:ECB7): a live beat returns at 1000:ECBB's
+         * JNS without the restore; the expiry runs it. */
+        wr16t(a, 8u, 0x11u);
+        wr16t(a, 4u, 0x30u);
+        wr16t(a, 0xAu, 5u);
+        wr16t(a, 0xCu, 0u);
+        wr16t(a, 0xEu, 0x111u);
+        wr16t(a, 0x10u, 0x222u);
+        (void)object_commandRun(a, 0u);
+        check(rd16t(a, 0xAu) == 4u && rd16t(a, 4u) == 0x30u &&
+                  rd16t(a, 8u) == 0x11u,
+              "a live 9-beat keeps the frame and type (1000:ECBB)");
+        wr16t(a, 0xAu, 0u);
+        (void)object_commandRun(a, 0u);
+        check(rd16t(a, 4u) == 0x111u && rd16t(a, 8u) == 0x222u &&
+                  rd16t(a, 0xAu) == 0u && rd16t(a, 0xCu) == 0u,
+              "the expiry restores frame/type from +0xE/+0x10 (1000:ECDD)");
+
         /* type 18 command 6 -> index 33 (1000:ED4F): the frame nudge toward
          * 0x8E, one step per 25 frames */
         wr16t(a, 8u, 0x12u);
@@ -4193,14 +4237,77 @@ int main(int argc, char **argv)
             check(rd16t(a, 4u) == 0x4Au && node[7] == 0x0Cu,
                   "reaching +-0xF sets frame 0x4A and parks the node");
             /* 1000:EBD0 (type 15 half-1 command 1): the advance writes the
-             * node's y at +0x10 and its scaled progress at +8 */
+             * node's y at +0x10 and its scaled step at +0xA (the listing's
+             * `ADD DI,2` at 1000:EC45), leaving the progress word at +8 */
             node[7] = 0u;
             memset(node, 0, 0x12u);
             wr16t(node, 0u, 100u);
             wr16t(node, 2u, 100u);
+            wr16t(node, 8u, 5u); /* a live progress word */
             (void)object_commandRun(a, 0x89u);
             check(rd16t(node, 0x10u) == 100u,
                   "the advance stores the node's y at +0x10");
+            check(rd16t(node, 8u) == 5u && rd16t(node, 0xAu) != 0u,
+                  "the advance stores its step at +0xA, not in +8 (1000:EC78)");
+        }
+
+        /* the type-12 tail's three-way choice (1000:EAE6): the span
+         * end `[node+4]+[node+6]` vs the record's y, then the page byte and
+         * the surface line vs the probe line `y + 0x18`. */
+        {
+            uint8_t *node = object_slot(1u);
+            uint8_t *m = (uint8_t *)level_map();
+            uint32_t solid = 0x100u, open = 0x100u, old = 0u, t;
+
+            for (t = 0; t < 256u; t++) {
+                uint32_t b = level_pageByte(t, 12u); /* sub = 108 & 0xF */
+                if ((b & 0x80u) && solid == 0x100u) solid = t;
+                if (!(b & 0x80u) && open == 0x100u) open = t;
+            }
+            check(m != NULL && solid < 0x100u && open < 0x100u,
+                  "the type-12 probe tiles are in the page table");
+            if (m && solid < 0x100u && open < 0x100u) {
+                memset(node, 0, 0x12u);
+                wr16t(a, 0u, 100u);
+                wr16t(a, 0xEu, 1u); /* the type-12 tail reads slot 1 directly */
+                wr16t(a, 0xAu, 4u); /* the step countdown does not expire */
+                old = m[102]; /* row 3 (y = 0x38), col 6 */
+                m[102] = (uint8_t)solid;
+                /* (a) the span end 0x10 is above the record's y 0x30: home,
+                 * even though the cell under the probe is solid */
+                wr16t(a, 2u, 0x30u);
+                wr16t(a, 4u, 0x20u);
+                wr16t(a, 8u, 0x0Cu);
+                wr16t(node, 4u, 0x10u);
+                wr16t(node, 6u, 0u);
+                (void)object_commandRun(a, 0u);
+                check(
+                    rd16t(a, 2u) == 0x30u && rd16t(a, 4u) == 0x10u &&
+                        rd16t(a, 8u) == 2u,
+                    "type 12: a span end above the record is home (1000:EAF9)");
+                /* (b) below the record, a solid page byte: the stepper */
+                wr16t(a, 2u, 0x20u);
+                wr16t(a, 4u, 0x20u);
+                wr16t(a, 8u, 0x0Cu);
+                wr16t(node, 4u, 0x30u);
+                wr16t(node, 6u, 0x20u);
+                (void)object_commandRun(a, 0u);
+                check(
+                    rd16t(a, 2u) == 0x21u && rd16t(a, 4u) == 0x20u &&
+                        rd16t(a, 8u) == 0x0Cu,
+                    "type 12: a solid cell takes the down-stepper (1000:EB4B)");
+                /* (c) below the record, the surface line inside the 0x18 band:
+                 * home against the probe line, not against the record's y */
+                wr16t(a, 2u, 0x20u);
+                wr16t(a, 4u, 0x20u);
+                wr16t(a, 8u, 0x0Cu);
+                m[102] = (uint8_t)open;
+                (void)object_commandRun(a, 0u);
+                check(rd16t(a, 2u) == 0x20u && rd16t(a, 4u) == 0x10u &&
+                          rd16t(a, 8u) == 2u,
+                      "type 12: the surface is compared with the probe line");
+                m[102] = (uint8_t)old;
+            }
         }
 
         /* 1000:DC1F, the type-15 rows' tail: a placed record inside the node's

@@ -1811,10 +1811,9 @@ int32_t object_claimBegin(uint32_t recipe, int32_t actor)
     rec = objArray + n * OBJ_STRIDE;
     cls = rec[7u];
     if (cls) { /* 1000:3AE2..1000:3B00 */
-        uint32_t slot = cls - 1u;
-        objSlotClass[cls] = 0u; /* 0x3E5F + slot */
-        live = objArray + (OBJ_LIVE0 + slot) * OBJ_STRIDE;
-        wr_le_u16(live + 6u, 0xFFFFu); /* 0x3F17 + 0x12*slot */
+        objSlotClass[cls] = 0u; /* 0x3E5F + cls - 1 */
+        live = objArray + (OBJ_LIVE0 + cls) * OBJ_STRIDE;
+        wr_le_u16(live + 6u, 0xFFFFu); /* 0x3F17 + 0x12*(cls-1) */
     }
     object_setCurrent(n); /* 1000:3B03 */
     wr_le_u16(rec + 4u, 0x0103u); /* 1000:3B07 */
@@ -5003,7 +5002,7 @@ static void objCmdEnter(uint8_t *actor)
 {
     static const int16_t doors[8][4] = {
         /* 0x6E76: dx, y, frame, type */
-        { 3, -5, 0, 0 }, { 2, -9, 0, 0 },  { 1, -7, 0, 0 },  { 0, 0, 0, 0 },
+        { 3, -5, 0, 0 }, { 2, -7, 0, 0 },  { 1, -9, 0, 0 },  { 0, 0, 0, 0 },
         { 0, 0, 0, 0 },  { -3, -5, 8, 1 }, { -2, -7, 8, 1 }, { -1, -9, 8, 1 },
     };
     uint32_t ax, idx, dx;
@@ -5026,20 +5025,19 @@ static void objCmdEnter(uint8_t *actor)
     wr_le_u16(actor + 8u, (uint16_t)doors[dx][3]);
     wr_le_u16(actor + 0xAu, 0u);
 
-    idx = actor[7]; /* 1000:EEB8 */
+    idx = actor[7]; /* 1000:EEB8: the 1-based class */
     actor[7] = 0u;
-    /* The original multiplies the decremented slot byte by 0x12 with no range
-     * test: for a class byte of 0 the factor is 0xFFFF, `MUL DL` uses only
-     * 0xFF, and the writes land at 0x3F17 + 0x11EE = 0x5105 (+8), i.e. on
+    /* The original converts the class with `DEC DX` (DX = cls-1) and does no
+     * range test: for a class byte of 0 the factor is 0xFFFF, `MUL DL` uses
+     * only 0xFF, and the writes land at 0x3F17 + 0x11EE = 0x5105 (+8), i.e. on
      * 0x510D..0x5114 - DS data the port has no image of.  The bound below is
- * port_deviations.md D-24:
+     * port_deviations.md D-24:
      * the one unavoidable deviation in this routine: it keeps the port from
      * writing through a pointer it cannot resolve, and the branch only runs for
      * a record whose class byte is 0 or above the table. */
-    if (idx && idx - 1u < sizeof objSlotClass && 8u + idx - 1u < OBJ_SLOTS) {
-        idx--;
-        objSlotClass[idx] &= 0x3Fu; /* 0x3E5E + idx */
-        rec = objArray + (8u + idx) * OBJ_STRIDE; /* 0x3F17 + 0x12*idx */
+    if (idx && idx < sizeof objSlotClass && 8u + idx < OBJ_SLOTS) {
+        objSlotClass[idx] &= 0x3Fu; /* 0x3E5F + idx - 1 */
+        rec = objArray + (8u + idx) * OBJ_STRIDE; /* 0x3F17 + 0x12*(idx-1) */
         wr_le_u16(rec + 8u, 0xFFFFu); /* 1000:EED5 */
         wr_le_u16(rec + 0xAu, 0u);
         wr_le_u16(rec + 0xCu, objPtX); /* 1000:EEE5 */
@@ -5112,9 +5110,8 @@ static void objLevelEndProbe(uint8_t *actor, int32_t bx)
     if (t[7]) { /* 1000:F603 */
         uint32_t cls = t[7];
 
-        if (cls - 1u < sizeof objSlotClass) objSlotClass[cls - 1u] = 0u;
-        if (8u + cls - 1u < OBJ_SLOTS)
-            objArray[(8u + cls - 1u) * OBJ_STRIDE + 6] = 0xFFu;
+        if (cls < sizeof objSlotClass) objSlotClass[cls] = 0u;
+        if (8u + cls < OBJ_SLOTS) objArray[(8u + cls) * OBJ_STRIDE + 6] = 0xFFu;
         t[7] = 0u;
     }
     if (idx != objEntity) return; /* 1000:F627 */
@@ -5560,22 +5557,23 @@ static void objTailSpecialTile(uint8_t *actor, uint32_t type, int32_t yoff,
     wr_le_u16(actor + 8u, 0x0002u);
 }
 
-/* 1000:ECB7 (type 17): step the 0x6E5C frame list by one, then the shared
- * "restore home" block - which the listing runs on BOTH paths (the `ADD +0xC`
- * at 0xECD8 falls straight into 0xECDD), so the frame/type are always taken
- * from `+0xE`/`+0x10`, `+0xA`/`+0xC` are cleared and `[0x1F1C]` gets 0x82 to its
- * `+4` and 0 to its `+8`. */
+/* 1000:ECB7 (type 17): step the 0x6E5C frame list by one.  While the 9-beat
+ * has not expired (`1000:ECBB JNS 0xECDC`) the routine returns at the bare
+ * `RET`; when it has, the frame list advances and the shared "restore home"
+ * block runs - the `ADD +0xC` at 0xECD8 falls straight into 0xECDD, so both
+ * branches of the expiry reach it: the frame/type come from `+0xE`/`+0x10`,
+ * `+0xA`/`+0xC` are cleared and `[0x1F1C]` gets 0x82 to its `+4` and 0 to its
+ * `+8`. */
 static void objTailType17(uint8_t *actor)
 {
     uint32_t a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
 
     wr_le_u16(actor + 0xAu, a); /* 1000:ECB7 */
-    if ((int16_t)a < 0) {
-        uint32_t off = rd_le_u16(actor + 0xCu), di;
+    if ((int16_t)a >= 0) return; /* 1000:ECBB JNS 0xECDC */
+    {
+        uint32_t off = rd_le_u16(actor + 0xCu);
 
         wr_le_u16(actor + 0xAu, 9u);
-        di = 0u; /* 0x6E5C + off */
-        (void)di;
         if (off < 0x1Au) wr_le_u16(actor + 4u, (uint16_t)objAnimListWord(off));
         if (!(objAnimListWord(off + 2u) & 0x8000u))
             wr_le_u16(actor + 0xCu, (uint16_t)(off + 2u));
@@ -5671,31 +5669,31 @@ static void objTailType11(uint8_t *actor)
     }
 }
 
-/* 1000:EAE6 (type 12): the same table entry; if the record's y is at or below
- * `[t+4] + [t+6]` it is home (frame 0x10, type 2, [0x6FE6] = 0xFF), otherwise
- * the map probe under its feet decides between the down-stepper and home. */
+/* 1000:EAE6 (type 12): the same table entry; when the span's end
+ * (`[t+4] + [t+6]`) is at or above the record's y it is home (frame 0x10,
+ * type 2, [0x6FE6] = 0xFF), otherwise the map probe under its feet decides
+ * between the down-stepper and home. */
 static void objTailType12(uint8_t *actor)
 {
     uint8_t *e = object_slot(rd_le_u16(actor + 0xEu));
-    uint32_t sum;
+    uint32_t sum, ry = rd_le_u16(actor + 2u);
 
     if (!e) return;
     sum = (uint32_t)(rd_le_u16(e + 4u) + rd_le_u16(e + 6u));
-    if (rd_le_u16(actor + 2u) > sum) { /* 1000:EAF6 */
+    if (sum > ry) { /* 1000:EAF6: span end below the record */
         uint32_t cell, sub;
-        int32_t y = (int32_t)(int16_t)rd_le_u16(actor + 2u) + 0x18;
+        int32_t y = (int32_t)(int16_t)ry + 0x18;
         uint32_t b;
 
         cell =
             objMapAtAbs((int32_t)(int16_t)rd_le_u16(actor + 0u) + 8, y, &sub);
         b = level_pageByte(cell, sub);
-        if (!(b & 0x80u)) { /* 1000:EB4B */
-            uint32_t line = (uint32_t)(y & ~0xFu) + b;
-
-            if (line > (uint32_t)(int32_t)(int16_t)rd_le_u16(actor + 2u)) {
-                objFrameStepDown(actor, 0x52u, 0x54u);
-                return;
-            }
+        /* 1000:EB4B: a solid page byte takes the stepper; otherwise the
+         * surface line 1000:EB4D is tested against the probe line `y`. */
+        if ((b & 0x80u) ||
+            (uint16_t)(((uint16_t)y & 0xFFF0u) + b) > (uint16_t)y) {
+            objFrameStepDown(actor, 0x52u, 0x54u);
+            return;
         }
     }
     wr_le_u16(actor + 4u, 0x0010u); /* 1000:EAFB */
@@ -5818,7 +5816,7 @@ static void objCmdPathStep(uint8_t *actor, int32_t forward)
  * (node.x + 8, node.y + 0x10), reads the item byte for the fine x (bit 7 picks
  * the 1/3 step, `word[node+8]`'s sign the other case), scales |progress| >> 3
  * through 0x6E3C (the 0x3B / 0x30 cells add 8 first), and - only while the
- * node's `+0xA` is 0 - stores the result at `+8` and the node's y at `+0x10`,
+ * node's `+0xA` is 0 - stores the result at `+0xA` and the node's y at `+0x10`,
  * with effect 2. */
 static void objPathAdvance(uint8_t *actor)
 {
@@ -5850,7 +5848,7 @@ static void objPathAdvance(uint8_t *actor)
     step += (uint32_t)(int8_t)objPathScale[(uint32_t)ax & 0x1Fu];
     (void)tile;
     if (rd_le_u16(node + 0xAu) != 0u) return; /* 1000:EC72 */
-    wr_le_u16(node + 8u, (uint16_t)step); /* 1000:EC78 */
+    wr_le_u16(node + 0xAu, (uint16_t)step); /* 1000:EC78 (DI = node+0xA) */
     wr_le_u16(node + 0x10u, (uint16_t)y); /* 1000:EC7A */
     objDriverCall(2); /* 1000:EC7E */
 }
