@@ -4525,6 +4525,58 @@ int main(int argc, char **argv)
             memset(last, 0, 0x12u);
         }
 
+        /* D-156: the 0xB6 record's +0xC link is the *next* live record, in
+         * the same `record - objArray + 4` encoding objLinkRecord expects. */
+        {
+            static uint8_t b6map[640];
+            uint8_t *b6 = NULL, *next;
+
+            memset(b6map, 0, sizeof b6map);
+            b6map[0] = 0xB6u;
+            object_init();
+            check(object_loadTerrainObjects(b6map) == 9u,
+                  "the 0xB6 tile increments the live count");
+            for (uint32_t i = 0; i < 8u; i++)
+                if (rd16t(object_slot(i), 8u) == 0x1Du) b6 = object_slot(i);
+            check(b6 != NULL, "the 0xB6 static record exists");
+            next = object_linkForProbe(rd16t(b6, 0xCu));
+            check(next == object_slot(9u),
+                  "the 0xB6 link resolves the next live record (D-156)");
+            wr16t(b6, 0xAu, 0u);
+            wr16t(b6, 4u, 0xFEu);
+            b6[6] = 0u;
+            next[6] = 0x5Au;
+            check(object_commandRun(b6, 0x01u) == OBJ_CMD_TAIL,
+                  "the 0xB6 type-29 tail runs");
+            check(rd16t(next, 4u) == 0x102u &&
+                      rd16t(next, 0u) == (uint16_t)(rd16t(b6, 0u) + 0x0Fu) &&
+                      rd16t(next, 2u) == (uint16_t)(rd16t(b6, 2u) - 0x0Cu) &&
+                      next[6] == 0u,
+                  "the type-29 tail writes the linked record (D-156)");
+        }
+
+        /* D-123: the 0xB8/0xBB spawns store the matched map cell itself. */
+        {
+            static uint8_t m[640];
+            uint8_t *b8 = NULL, *bb = NULL;
+
+            memset(m, 0, sizeof m);
+            m[2u * 32u + 3u] = 0xB8u;
+            m[3u * 32u + 4u] = 0xBBu;
+            object_init();
+            (void)object_loadTerrainObjects(m);
+            for (uint32_t i = 0; i <= object_liveCount(); i++) {
+                uint8_t *r = object_slot(i);
+                if (rd16t(r, 4u) == 0x00AFu) b8 = r;
+                if (rd16t(r, 4u) == 0x0026u) bb = r;
+            }
+            check(b8 != NULL && rd16t(b8, 0xEu) == 2u * 32u + 3u,
+                  "the 0xB8 record stores its own map cell (D-123)");
+            check(bb != NULL && rd16t(bb, 8u) == 3u * 32u + 4u,
+                  "the 0xBB record stores its own map cell (D-123)");
+        }
+        object_init();
+
         /* 1000:DD3C, the give exit: when the record in the window is the
          * player's, the actor's class slot is freed and the actor is re-framed
          * at that class's placed record (frame 0x103, type 0x1E, +0xA = 6). */

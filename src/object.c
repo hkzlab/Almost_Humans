@@ -1702,6 +1702,8 @@ uint32_t object_liveCount(void) { return objLiveCount; }
 
 uint8_t object_slotClass(uint32_t slot) { return objClassByteAt(slot); }
 
+uint8_t *object_linkForProbe(uint32_t off) { return objLinkRecord(off); }
+
 /* the throw's 0x5BA4 word and a recipe's parameter, for the tests */
 int32_t object_throwDxForProbe(uint32_t type)
 { return type < 0x22u ? (int16_t)objThrowDxWord[type] : 0; }
@@ -2178,7 +2180,7 @@ static void objSpawnBB(uint32_t col, uint32_t row)
     wr_le_u16(r + 2u, (uint16_t)(row * 16u + objStyleNudge(NULL, col, row)));
     wr_le_u16(r + 4u, 0x0026u);
     wr_le_u16(r + 6u, 0x0000u);
-    wr_le_u16(r + 8u, (uint16_t)(row * OBJ_COLS + col - 1u));
+    wr_le_u16(r + 8u, (uint16_t)(row * OBJ_COLS + col));
     objSlotClass[objLiveCount - 7u] = 9u;
     objLiveCount++;
 }
@@ -2267,7 +2269,8 @@ static void objWritePair(uint32_t tile, uint32_t x, uint32_t y)
 
 /* 1000:53BA (0xB6): a placed object in the first *static* slot - frame 0xFE,
  * type 0x1D, +0xA = 0xFA, +0xC = the record-area pointer - yet the live count
- * still grows.  The pointer is stored as the record-area offset here. */
+ * still grows.  The pointer is the next live record, stored in the same
+ * `record - objArray + 4` form as the other links. */
 static void objSpawnB6(uint32_t col, uint32_t row)
 {
     for (uint32_t i = 0; i < OBJ_STATIC; i++) {
@@ -2281,8 +2284,8 @@ static void objSpawnB6(uint32_t col, uint32_t row)
         wr_le_u16(r + 6u, 0x0000u);
         wr_le_u16(r + 8u, 0x001Du);
         wr_le_u16(r + 0xAu, 0x00FAu);
-        wr_le_u16(r + 0xCu,
-                  (uint16_t)(((objLiveCount + 1u) * OBJ_STRIDE) & 0xFFFFu));
+        wr_le_u16(r + 0xCu, (uint16_t)(((objLiveCount + 1u) * OBJ_STRIDE + 4u) &
+                                       0xFFFFu));
         objSlotClass[objLiveCount - 7u] = 0u;
         objLiveCount++;
         return;
@@ -2345,7 +2348,7 @@ static void objSpawnB8(uint32_t col, uint32_t row)
     wr_le_u16(r + 8u, 0x0000u);
     wr_le_u16(r + 0xAu, 0x0000u);
     wr_le_u16(r + 0xCu, 0x0000u);
-    wr_le_u16(r + 0xEu, (uint16_t)(row * OBJ_COLS + col - 1u));
+    wr_le_u16(r + 0xEu, (uint16_t)(row * OBJ_COLS + col));
     objSlotClass[objLiveCount - 7u] = 3u;
     objLiveCount++;
 }
