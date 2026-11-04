@@ -3211,6 +3211,13 @@ int main(int argc, char **argv)
                 seen |= 1u << (uint32_t)((torch[4] | (torch[5] << 8)) - f0);
             }
             check(seen == 0x7u, "the torch walks 0x9C..0x9E (behaviour 6)");
+            /* D-88: 1000:E039's settle landed the torch on its two-pixel step:
+             * y 177 -> 178 (the live record's value, D-76) with +0xA/+0xE
+             * cleared, so the frame walk above is not interrupted. */
+            check((torch[2] | (torch[3] << 8)) == 178u &&
+                      (torch[10] | (torch[11] << 8)) == 0u &&
+                      (torch[14] | (torch[15] << 8)) == 0u,
+                  "1000:E039 settles the torch at y = 178 (D-88)");
             {
                 uint8_t *b1 = NULL;
                 uint32_t j;
@@ -5102,6 +5109,148 @@ int main(int argc, char **argv)
               "0xF5BC: the armed odometer takes the goal form at [0x4220] - 8");
 #undef R16
 #undef W16
+    }
+
+    /* 7b12b. D-88: the behaviour-5 stepper now runs 1000:E039 (the mover's
+     * move scan).  Level 1's spear, vx = 4, on the free cell (22,1): the scan
+     * adds +0xC to x and 1000:CDF4 picks frame 0x5C.  (-0x10,+1) picks 0x64 -
+     * the original's 8*f([+0xE]) + f([+0xC]) (D-116).  vx = -100 at x = 0 puts
+     * the projection off the page and 1000:E27A hides the record and clears its
+     * class byte. */
+    if (level_load(0) == 0) {
+        uint8_t *sp = NULL;
+        uint32_t i, k;
+
+        for (i = 8u; i <= object_liveCount(); i++) {
+            if ((object_slotClass(i - 8u) & 0x3Fu) == 5u) {
+                sp = object_slot(i);
+                break;
+            }
+        }
+        check(sp != NULL, "level 1's spear is behaviour 5");
+        if (sp) {
+            sp[0] = 0x60u;
+            sp[1] = 0x01u;
+            sp[2] = 16u;
+            sp[3] = 0u;
+            sp[4] = 0x58u;
+            sp[5] = 0u;
+            sp[8] = 0xFFu;
+            sp[9] = 0xFFu;
+            sp[10] = 0u;
+            sp[11] = 0u;
+            sp[12] = 4u;
+            sp[13] = 0u;
+            sp[14] = 0u;
+            sp[15] = 0u;
+            /* the stepper runs on odd [0x4103]; two rounds cover both parities
+             * and leave the frame counter where the next test expects it */
+            for (k = 0; k < 2u; k++) {
+                object_tick(NULL);
+                object_updateList();
+            }
+            check(
+                (sp[0] | (sp[1] << 8)) == 356u &&
+                    (sp[4] | (sp[5] << 8)) == 0x5Cu,
+                "1000:E039 moves the spear by its +0xC and 0xCDF4 picks 0x5C");
+            sp[4] = 0x58u;
+            sp[5] = 0u;
+            sp[12] = 0xF0u;
+            sp[13] = 0xFFu;
+            sp[14] = 1u;
+            sp[15] = 0u;
+            for (k = 0; k < 2u; k++) {
+                object_tick(NULL);
+                object_updateList();
+            }
+            check((sp[4] | (sp[5] << 8)) == 0x64u,
+                  "0xCDF4 indexes 8*f([+0xE]) + f([+0xC]) (D-116)");
+            sp[0] = 0u;
+            sp[1] = 0u;
+            sp[2] = 16u;
+            sp[3] = 0u;
+            sp[4] = 0x58u;
+            sp[5] = 0u;
+            sp[8] = 0xFFu;
+            sp[9] = 0xFFu;
+            sp[12] = 0x9Cu;
+            sp[13] = 0xFFu;
+            sp[14] = 0u;
+            sp[15] = 0u;
+            for (k = 0; k < 2u; k++) {
+                object_tick(NULL);
+                object_updateList();
+            }
+            check(sp[6] == 0xFFu && object_slotClass(1u) == 0u,
+                  "1000:E039 kills an off-page mover (1000:E27A)");
+        }
+    }
+
+    /* 7b12c. D-97/D-99: 1000:D41B's water branch and the 0x666B op dispatch.
+     * Level 3's water tile 0xF0 at (14,17) makes a projectile whose projected
+     * cell is (14,18) take the drown arm: the target gets frame 0xCD, +8 =
+     * 0x1C, +0xA = 9, and the projectile is hidden.  Then a projectile with a
+     * live target and vx = 0 dispatches 0x666B's op 1 (0x1000:D2AE), which sets
+     * the hit record's frame to 0x50 through 1000:D23F. */
+    if (level_load(2) == 0) {
+        uint8_t *p = object_slot(9), *t = object_slot(0);
+
+        object_setSlotClass(1u, 4u);
+        p[0] = 0xE0u;
+        p[1] = 0u;
+        p[2] = 0x18u;
+        p[3] = 0x01u;
+        p[4] = 0x38u;
+        p[5] = 0u;
+        p[6] = 0u;
+        p[8] = p[9] = p[10] = p[11] = p[16] = p[17] = 0u;
+        p[12] = 5u;
+        p[13] = 0u;
+        p[14] = 0u;
+        p[15] = 0u;
+        t[0] = 100u;
+        t[1] = 0u;
+        t[2] = 100u;
+        t[3] = 0u;
+        t[4] = 0x10u;
+        t[5] = 0u;
+        t[6] = 0u;
+        t[7] = 0u;
+        t[8] = 2u;
+        t[9] = 0u;
+        t[10] = 0u;
+        t[11] = 0u;
+        object_updateList();
+        check((t[4] | (t[5] << 8)) == 0xCDu && (t[8] | (t[9] << 8)) == 0x1Cu &&
+                  (t[10] | (t[11] << 8)) == 9u && p[6] == 0xFFu,
+              "1000:D41B's water branch writes the drown state (D-97)");
+    }
+    if (level_load(0) == 0) {
+        uint8_t *p = object_slot(9), *t = object_slot(0);
+
+        object_setSlotClass(1u, 4u);
+        p[0] = 16u;
+        p[1] = 0u;
+        p[2] = 48u;
+        p[3] = 0u;
+        p[4] = 0x38u;
+        p[5] = 0u;
+        p[6] = 0u;
+        p[7] = 0u;
+        p[8] = p[9] = 0u;
+        p[10] = 0x10u;
+        p[11] = 0u;
+        p[12] = 5u;
+        p[13] = 0u;
+        p[14] = 0u;
+        p[15] = 0u;
+        p[16] = 48u;
+        p[17] = 0u;
+        t[4] = 0x10u;
+        t[5] = 0u;
+        object_updateList();
+        check((t[4] | (t[5] << 8)) == 0x50u,
+              "1000:D162 dispatches the 0x666B hit op (D-99)");
     }
 
     if (bad) {
