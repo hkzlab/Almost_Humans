@@ -100,6 +100,7 @@ void level_loadingTick(void);
  * the briefing's GAME OVER variant and the level is SKIPPED; [0x1809] then
  * takes entry 1000:00DC -> 002B (the restart-game path), not the next level. */
 uint32_t level_required(void);
+uint32_t level_goalCount(void); /* [0x17F0]: the goal scan's threshold */
 uint32_t level_members(void);
 void level_addMember(void); /* 1000:DE1F: [0x11FC]++ */
 

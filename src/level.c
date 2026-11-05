@@ -235,6 +235,24 @@ static int32_t endSoundSent; /* 1000:34E6's 0x83B7 call, once          */
 static uint32_t playExitHold; /* 1000:34E6: the 15 x 1000:8B56 waits    */
 static int32_t goalHit; /* the discovery/claim win hook          */
 static int32_t endWon; /* [0x138E]: 1 won, 0 extinct            */
+/* [0x2D8C]: the follower's record override while menu_flag_tick's goal pan
+ * runs (a pointer in the original); -1 = 0, the acting record. */
+static int32_t goalFollowRecord = -1;
+/* menu_flag_tick's own state (1000:3540): the original blocks in it, running
+ * update_world until the view stops, then 0x23 frames, then raising [0x6531]
+ * and 0x1E more.  Every one of those is a presented frame, so the port runs
+ * one per level tick. */
+enum {
+    GOALPAN_NONE = 0,
+    GOALPAN_TRACK,
+    GOALPAN_HOLD,
+    GOALPAN_TAIL,
+    GOALPAN_DONE
+};
+static int32_t goalPanState;
+static uint32_t goalPanLeft;
+static uint32_t goalPanViewX, goalPanViewY;
+static uint8_t goalPanJoy; /* [0x5ACE] frozen: the pan never polls again */
 /* The chained screen the original draws into: one byte = 4 pixels, 88 bytes per
  * row (352 px, of which the visible window is 320 — that slack is what lets the
  * CRTC start sit on a 4-px column boundary, 1000:3DC0's `y*88 + x/4`). */
@@ -1114,6 +1132,11 @@ int32_t level_load(uint32_t levelId)
     playExitHold = 0;
     endWon = 1;
     goalHit = 0;
+    /* the goal flag/pan and its follow override ([0x6530]/[0x6531]/[0x2D8C]):
+     * 1000:3540's state is rebuilt by the level's own scan */
+    goalFollowRecord = -1;
+    goalPanState = GOALPAN_NONE;
+    goalPanLeft = 0;
     level_loaded = 1;
     return 0;
 }
@@ -1354,7 +1377,8 @@ static void level_offsetWalk(void)
 /* 1000:5CB6 — the first call of `update_world` (`1000:80AD`), guarded there by
  * `[0xC] != 0`: the camera follows the **acting record** (`get_object_ptr`,
  * `1000:79F4`, walks the 29-word table at `0x3E24` with `[0x3E22]`, i.e.
- * `object_slot(object_actionEntity())`).
+ * `object_slot(object_actionEntity())`), or the record `[0x2D8C]` names while
+ * menu_flag_tick's goal pan holds it (`1000:5CB9..5CC0`).
  *
  *   target = record + the offset pair at `[0x2D90]` - (0x88, 0x44)
  *   clamped to the pan range: 0xC0 = 512-320 px, 0xA8 = 320-152 rows (the
@@ -1369,7 +1393,9 @@ static void level_offsetWalk(void)
  * compose reads the window directly, which is the same visible result. */
 void level_followView(void)
 {
-    uint8_t *rec = object_slot(object_actionEntity());
+    uint8_t *rec =
+        object_slot(goalFollowRecord >= 0 ? (uint32_t)goalFollowRecord
+                                          : object_actionEntity());
     int32_t x, y, tx, ty, dx, dy;
 
     if (!rec) return;
@@ -1399,6 +1425,84 @@ void level_followView(void)
 
 uint32_t level_viewX(void) { return viewX; }
 uint32_t level_viewY(void) { return viewY; }
+
+/* --- menu_flag_tick (1000:3540): the goal pan -------------------------
+ *
+ * input_dispatch_loop calls it before scroll_map/update_world.  When the goal
+ * scan has raised [0x6530] and the pan has not run, the original finds the
+ * first of the 20 live records whose class byte is 9, stores its pointer in
+ * [0x2D8C] (the follower's override), then blocks: update_world until the view
+ * stops moving, then 0x23 more frames, then [0x6531] = 0xFF, then 0x1E more,
+ * then [0x2D8C] = 0.  When [0x6530] falls it only clears [0x6531].
+ *
+ * The port advances one of those update_world frames per level tick (the tick's
+ * own world update is that frame), so the pan is presented for the same number
+ * of frames as the original's blocking loop.  The input word is frozen for the
+ * same reason: the original polls only once per outer frame, and it is blocked
+ * inside the pan for all of them.
+ */
+static int32_t level_goalPanRunning(void)
+{
+    return goalPanState == GOALPAN_TRACK || goalPanState == GOALPAN_HOLD ||
+           goalPanState == GOALPAN_TAIL;
+}
+
+static void level_goalPanTick(void)
+{
+    if (!object_goalFlag()) { /* 1000:35A2 */
+        if (goalPanState != GOALPAN_NONE) {
+            object_setMarkerMode(0); /* 1000:35A9 */
+            goalFollowRecord = -1;
+            goalPanState = GOALPAN_NONE;
+        }
+        return;
+    }
+    if (goalPanState == GOALPAN_NONE) { /* 1000:354E */
+        for (uint32_t i = 0; i < 20u; i++) {
+            if (object_slotClass(1u + i) == 9u) {
+                goalFollowRecord = (int32_t)(9u + i);
+                break;
+            }
+        }
+        if (goalFollowRecord < 0) { /* 1000:3563: no goal record, no pan */
+            goalPanState = GOALPAN_DONE;
+            return;
+        }
+        goalPanJoy = levelJoy; /* the pan does not poll again */
+        goalPanState = GOALPAN_TRACK;
+    } else if (goalPanState == GOALPAN_TRACK) {
+        goalPanViewX = viewX; /* 1000:3568 */
+        goalPanViewY = viewY;
+    }
+}
+
+/* the pan's accounting, after the tick's update_world (= one of the original's
+ * nested frames). */
+static void level_goalPanAfter(void)
+{
+    switch (goalPanState) {
+    case GOALPAN_TRACK: /* 1000:3576: the view stopped moving */
+        if (viewX == goalPanViewX && viewY == goalPanViewY) {
+            goalPanState = GOALPAN_HOLD;
+            goalPanLeft = 0x23u;
+        }
+        break;
+    case GOALPAN_HOLD: /* 1000:3582's LOOP CX = 0x23 */
+        if (--goalPanLeft == 0u) {
+            object_setMarkerMode(1); /* 1000:358C */
+            goalPanState = GOALPAN_TAIL;
+            goalPanLeft = 0x1Eu;
+        }
+        break;
+    case GOALPAN_TAIL: /* 1000:3591's LOOP CX = 0x1E */
+        if (--goalPanLeft == 0u) {
+            goalFollowRecord = -1; /* 1000:359B */
+            goalPanState = GOALPAN_DONE;
+        }
+        break;
+    default: break;
+    }
+}
 
 /* [0xC]: the claim clears it at its start (1000:3B19) and restores it before
  * the closing page frames (1000:3CAB). */
@@ -1444,6 +1548,9 @@ int32_t level_starting(void)
 
 /* --- level_run's end and the entry state machine's spine -------------- */
 uint32_t level_required(void) { return levelRequired; }
+/* [0x17F0]: the level header's +0x02 low byte, the goal scan's threshold. */
+uint32_t level_goalCount(void)
+{ return level_loaded ? level_data_cur.goalCount : 0u; }
 uint32_t level_members(void) { return tribeMembers; }
 /* 1000:DE1F: the join tail increments the tribe count ([0x11FC]). */
 void level_addMember(void)
@@ -1715,17 +1822,6 @@ int32_t level_tick(void)
         return 1;
     }
 
-    /* input_dispatch_loop 1000:34B8's object_test_dispatch call, after the
-     * world tick: a negative return ends the play loop */
-    if (startPhase == LVSTART_PLAYING) {
-        (void)level_endTest();
-        if (endRequested && !endSoundSent) { /* 1000:34E6 */
-            object_driverCall(0x0Cu); /* 1000:83B7 with AX = 0xC */
-            endSoundSent = 1;
-            playExitHold = 0x0Fu; /* MOV CX,0xF / LOOP 8B56 */
-        }
-    }
-
     if (!world || !level_osys) return 1;
 
     /* level_fade_in (1000:3334) — the chain: the fade-out waits for its
@@ -1736,7 +1832,10 @@ int32_t level_tick(void)
     /* The play loop leaves at 1000:34E6 and never calls update_world
      * (1000:80AD) again; the end caption (draw_level_text 0x33A3) only
      * renders the frozen world.  `endRequested` is that exit. */
-    int32_t doUpdate = (startPhase == LVSTART_PLAYING && !endRequested) ? 1 : 0;
+    int32_t doUpdate = (startPhase == LVSTART_PLAYING &&
+                        (!endRequested || level_goalPanRunning()))
+                           ? 1
+                           : 0;
 
     switch (startPhase) {
     case LVSTART_IDLE: level_begin(); break;
@@ -1836,12 +1935,18 @@ int32_t level_tick(void)
         uint8_t *actor = object_slot(object_actionEntity());
 
         if (worldUpdates && !object_claimActive()) {
+            level_goalPanTick(); /* 1000:3540, before update_world */
             level_followView(); /* 1000:5CB6, first in update_world */
-            if (actor) (void)object_commandRun(actor, levelJoy);
+            if (actor)
+                (void)object_commandRun(
+                    actor, level_goalPanRunning() ? goalPanJoy : levelJoy);
             object_updateList(); /* 1000:C295, 1000:80BD            */
             entity_tick(); /* 1000:C93C, inside the [0xC] gate */
+            object_goalScan(); /* 1000:C2CE, the goal count        */
             object_markerTick(); /* 1000:D64F, after the dispatch */
             object_worldTick(); /* 1000:80CC/0x80CF, update_world's tails */
+            object_rowPass(); /* 1000:D860, the static records. rows */
+            level_goalPanAfter(); /* the frame the pan just ran     */
         }
         /* The claim's own frames only: the original sequence never calls
          * update_world, even after 1000:3CAB sets [0xC] = 0xFF. */
@@ -1875,6 +1980,18 @@ int32_t level_tick(void)
      * redraw the jump/throw bar at the record's new +0xE */
     object_pendingRun();
     (void)object_chargeTick();
+
+    /* input_dispatch_loop 1000:34B8's object_test_dispatch call, after the
+     * world tick: a negative return ends the play loop.  menu_flag_tick's pan
+     * blocks the outer loop, so the test cannot run while it is up. */
+    if (startPhase == LVSTART_PLAYING && !level_goalPanRunning()) {
+        (void)level_endTest();
+        if (endRequested && !endSoundSent) { /* 1000:34E6 */
+            object_driverCall(0x0Cu); /* 1000:83B7 with AX = 0xC */
+            endSoundSent = 1;
+            playExitHold = 0x0Fu; /* MOV CX,0xF / LOOP 8B56 */
+        }
+    }
 
     /* the colours are the working palette 202F:0x14D3, built in level_load
      * and faded in by the first tick above (re_map.md "The level's working

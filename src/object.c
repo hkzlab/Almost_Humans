@@ -327,6 +327,13 @@ static const OSystem *objOsys; /* the fatal halt's route (osystem.h)   */
 static uint16_t objRegister[8][7]; /* 0x6F22: 8 x 0xE (clear is 0x70 bytes at
                                           * 0x60F4; op 1 walks AX = 7..0), bit15 = free */
 static uint16_t objSpan[2][14]; /* 0x6F92, 2 x 0x1C: {id, .. +6, +8, +0x12} */
+/* The row each span stripe starts at.  The original has no field for it: the
+ * stripe's already-painted pixels are the page, and 1000:5D65 redraws from
+ * them (the 0x2DB0 area only holds the saved background).  The port rebuilds
+ * the page every frame, so it keeps the seed row here. */
+static uint16_t objSpanTop[2];
+/* [0x6530]: count_tile_collisions' level-complete flag (1000:C438). */
+static uint8_t objGoalFlag;
 static int32_t objAnimDiv; /* [0x66B1]: the 6-tick divider */
 /* 0x67F1's pending-move chain: tag, phase-2 countdown, slot, phase-1
  * divider/index/cursor into the 0x67FF (offset, divider) table. */
@@ -1116,6 +1123,11 @@ static const int8_t objProjCurve[25] = {
 /* 0x6531: cmd 9's mode flag (zero in the image; the port keeps it too). */
 static uint8_t objMarkerMode;
 
+/* [0x6531]: menu_flag_tick (1000:3540) raises it after the goal pan's hold
+ * and clears it when [0x6530] falls; 1000:C541's mode arm reads it. */
+void object_setMarkerMode(int32_t on) { objMarkerMode = on ? 1u : 0u; }
+int32_t object_markerMode(void) { return objMarkerMode; }
+
 /* the six programs at 0x5B37..0x5B53 (202F image, 12 bytes each). */
 static uint8_t objPrograms[6][12] = {
     { 0x02, 0x01, 0x02, 0x01, 0x04, 0x01, 0x03, 0x04, 0x05, 0x06, 0x04, 0x01 },
@@ -1690,6 +1702,8 @@ void object_init(void)
     objFault = 0u;
     memset(objRegister, 0xFF, sizeof objRegister); /* 0x6F22, all free  */
     memset(objSpan, 0xFF, sizeof objSpan); /* 0x6F92: 0x38 bytes at 0x60FF */
+    memset(objSpanTop, 0, sizeof objSpanTop);
+    objGoalFlag = 0u; /* [0x6530] */
     for (uint32_t i = 0; i < 4u; i++) objUses[i] = objRecipes[i][0];
     object_terSlotInit(); /* 1000:4CC3/4CC6: both slots off */
 }
@@ -1709,6 +1723,13 @@ uint8_t *object_linkForProbe(uint32_t off) { return objLinkRecord(off); }
 
 uint8_t *object_spanAtForProbe(uint32_t i)
 { return i < 2u ? (uint8_t *)objSpan[i] : NULL; }
+
+/* test seam: the stripe's seed row, which 1000:FC81 sets when it seeds a new
+ * entry (`+6 == 0`, 1000:FD6C). */
+void object_spanSeedForProbe(uint32_t i, uint32_t top)
+{
+    if (i < 2u) objSpanTop[i] = (uint16_t)top;
+}
 
 /* the throw's 0x5BA4 word and a recipe's parameter, for the tests */
 int32_t object_throwDxForProbe(uint32_t type)
@@ -2790,6 +2811,86 @@ static void objPartition(uint8_t *back, uint32_t *nb, uint8_t *front,
     *nf = f;
 }
 
+/* 1000:5D65 object_update_loop: the two handled-object slots ([0x6F92]).
+ *
+ * A non-free entry draws a two-pixel-wide vertical stripe of colour 0x18 from
+ * the row its `map_move_test` (1000:FC81) seeded it at down to its current top
+ * (+0xC).  The original paints onto the page and keeps the covered background
+ * in the entry's 0x280-byte area at 0x2DB0 (`blit_object_pixel` 1000:5E0F
+ * re-writes the saved bytes, `blit_object_pixel2` 1000:5E5D saves and paints
+ * 0x18), so the stripe survives between frames; the port rebuilds the page
+ * every frame and redraws it from `objSpanTop`.
+ *
+ * The counters: 1000:5DD1 grows the stripe up to four rows an odd frame (the
+ * `[0x4103] & 1` test at 5DD4) while +0xC and +6 advance together, stopping
+ * when +6 reaches +8; 1000:5D9D retracts it the same way while +6 falls back
+ * to 0.  Either end writes +0x12 = 0xFFFF.  A finished stripe keeps its
+ * pixels: 1000:5D8C only stops *touching* them, it never erases them.
+ *
+ * Two pixels: the write goes to planes p and p+1 (`p = x & 3`) of the same
+ * 4-pixel group, i.e. pixels x and x+1 - except p == 3, where the mask wraps
+ * and the pointer steps on, which is the same two pixels.
+ */
+static void objSpanDraw(uint8_t *page, int32_t scrollX, int32_t scrollY)
+{
+    for (uint32_t i = 0; i < 2u; i++) {
+        uint8_t *e = (uint8_t *)objSpan[i];
+        uint32_t state, cur, len, tgt, x, seed;
+
+        if (rd_le_u16(e + 0u) & 0x8000u) continue; /* 1000:5D71: free  */
+        wr_le_u16(e + 0xEu, rd_le_u16(e + 0x6u)); /* 1000:5D86: +0xE */
+        state = rd_le_u16(e + 0x12u);
+        cur = rd_le_u16(e + 0xCu);
+        len = rd_le_u16(e + 0x6u);
+        tgt = rd_le_u16(e + 0x8u);
+        if (state <= 1u && (objFrame & 1u)) {
+            uint32_t e13 = rd_le_u16(e + 0xEu);
+            int32_t stop = 0;
+
+            for (uint32_t k = 0; k < 4u && !stop; k++) {
+                if (state != 0u) { /* growing (1000:5DCE) */
+                    cur = (uint16_t)(cur + 1u);
+                    len = (uint16_t)(len + 1u);
+                    if (len == tgt) { /* 1000:5DE2 */
+                        state = 0xFFFFu;
+                        break;
+                    }
+                    e13 = (uint16_t)(e13 + 1u);
+                    if (e13 == tgt) stop = 1; /* 1000:5DED */
+                } else { /* retracting (1000:5D9D) */
+                    cur = (uint16_t)(cur - 1u);
+                    len = (uint16_t)(len - 1u);
+                    if ((int16_t)len < 0) { /* 1000:5DAE -> 5DBB */
+                        len = 0u;
+                        state = 0xFFFFu;
+                        stop = 1;
+                    } else {
+                        e13 = (uint16_t)(e13 - 1u);
+                        if ((int16_t)e13 < 0) stop = 1;
+                    }
+                }
+            }
+            wr_le_u16(e + 0xEu, (uint16_t)e13);
+            wr_le_u16(e + 0xCu, (uint16_t)cur);
+            wr_le_u16(e + 0x6u, (uint16_t)len);
+            wr_le_u16(e + 0x12u, (uint16_t)state);
+        }
+        seed = objSpanTop[i];
+        x = rd_le_u16(e + 0xAu);
+        for (int32_t row = (int32_t)(int16_t)seed; row < (int32_t)(int16_t)cur;
+             row++) {
+            int32_t px = (int32_t)x - scrollX;
+            int32_t py = row - scrollY;
+
+            if (py < 0 || py >= 200) continue;
+            if (px >= 0 && px < 320)
+                page[(uint32_t)py * 320u + (uint32_t)px] = 0x18u;
+            if (px + 1 >= 0 && px + 1 < 320)
+                page[(uint32_t)py * 320u + (uint32_t)(px + 1)] = 0x18u;
+        }
+    }
+}
+
 /* render_objects' object pass (1000:5D56 -> draw_object_group 1000:6421):
  * the 0x650C list, then scan_object_rows (slots 8..[0x3E73]), then the
  * 0x651E list. */
@@ -2799,9 +2900,9 @@ void object_render(uint8_t *page, int32_t scrollX, int32_t scrollY)
     uint32_t nb = 0, nf = 0;
 
     if (!page || !objBank) return;
-    /* render_objects (1000:5D56) also calls 1000:5D65, which draws and
-     * animates the two [0x6F92] handled-object entries; the port draws only
-     * the array records - port_deviations.md D-90. */
+    /* render_objects (1000:5D56) also calls 1000:5D65, the two handled-object
+     * slots' stripe pass, before the records. */
+    objSpanDraw(page, scrollX, scrollY);
 
     objPartition(back, &nb, front, &nf); /* 1000:C23C */
 
@@ -2884,6 +2985,96 @@ int32_t object_testDispatch(uint16_t mode)
     default: return 0;
     }
 }
+
+/* --- 1000:C2CE count_tile_collisions: the goal scan --------------------
+ *
+ * update_world's seventh call (1000:80C6), inside the [0xC] gate: clear
+ * [0x6530], count the enabled static records standing on the goal tile 0xBA,
+ * add the command-4 live records (twice when their +0xE has bit 15 clear),
+ * and raise [0x6530] when the count is non-zero and reaches the level header's
+ * goal byte [0x17F0].  menu_flag_tick (1000:3540) is the flag's only reader.
+ */
+
+/* 0x6549: the five-byte id exclusion mask (nothing writes it). */
+static const uint8_t objGoalMask[5] = { 0x1F, 0x99, 0x02, 0x1C, 0x20 };
+
+/* the 0xBA test's map address: 32*((y + 0xC) & 0xFFF0)/16 + (x + 8)/16, the
+ * 16-bit adds wrapping as the original's do. */
+static uint32_t objGoalCellIndex(uint32_t x, uint32_t y)
+{
+    uint32_t yy = (uint32_t)(uint16_t)(y + 0x0Cu);
+    uint32_t xx = (uint32_t)(uint16_t)(x + 8u);
+
+    return 32u * ((yy & 0xFFF0u) >> 4) + (xx >> 4);
+}
+
+void object_goalScan(void)
+{
+    uint32_t count = 0;
+
+    objGoalFlag = 0; /* 1000:C2CE */
+
+    for (uint32_t i = 0; i < OBJ_STATIC; i++) {
+        uint8_t *r = objArray + i * OBJ_STRIDE;
+        uint32_t x, y, type;
+
+        if (r[6] & 0x80u) continue; /* 1000:C2E7 */
+        x = rd_le_u16(r + 0u);
+        y = rd_le_u16(r + 2u);
+        type = rd_le_u16(r + 8u);
+        if (type == 8u) { /* 1000:C2F7 -> C300: a group base's own point */
+            int32_t found = -1;
+
+            for (uint32_t g = 0; g < 8u; g++) { /* 1000:C319 */
+                uint8_t *e = (uint8_t *)objRegister[g];
+                uint8_t *p;
+
+                if (rd_le_u16(e + 0u) & 0x8000u) continue; /* 1000:C32B */
+                p = e + 5;
+                for (;;) { /* 1000:C339 */
+                    if (*p == (uint8_t)i) {
+                        found = (int32_t)g;
+                        break;
+                    }
+                    p++;
+                    if (*p & 0x80u) break; /* 1000:C347 */
+                }
+                if (found < 0) continue;
+                x = rd_le_u16(e + 0u); /* 1000:C325 */
+                y = rd_le_u16(e + 2u); /* 1000:C31E */
+                break;
+            }
+            if (found < 0) continue; /* 1000:C35B: next record */
+        } else {
+            /* 1000:C389 test_goal_cell_occupancy: the id's mask bit skips. */
+            uint32_t bit;
+
+            if (type >= 40u) continue; /* the mask read is past its table */
+            bit = 1u << (7u - (type & 7u));
+            if (objGoalMask[type >> 3] & bit) continue; /* 1000:C3A5 */
+        }
+        if (objMapBufferByte((int32_t)objGoalCellIndex(x, y)) == 0xBAu)
+            count++; /* 1000:C386 */
+    }
+
+    /* 1000:C3D6: the live records whose behaviour byte is 4. */
+    for (uint32_t k = 0; OBJ_LIVE0 + 1u + k <= objLiveCount; k++) {
+        uint8_t *r = objArray + (OBJ_LIVE0 + 1u + k) * OBJ_STRIDE;
+
+        if (r[6] & 0x80u) continue; /* 1000:C3F1 */
+        if ((objSlotClass[1u + k] & 0x3Fu) != 4u) continue; /* 1000:C3FC */
+        if (objMapBufferByte((int32_t)objGoalCellIndex(
+                rd_le_u16(r + 0u), rd_le_u16(r + 2u))) != 0xBAu)
+            continue; /* 1000:C417 */
+        count++;
+        if (!(rd_le_u16(r + 0xEu) & 0x8000u)) count++; /* 1000:C421 */
+    }
+
+    /* 1000:C434: a non-zero count that reaches the level's goal byte. */
+    if (count != 0u && count >= level_goalCount()) objGoalFlag = 0xFFu;
+}
+
+int32_t object_goalFlag(void) { return objGoalFlag != 0u; }
 
 /* 1000:D5E4: the per-frame 0x32B9 pass over the 0xA9 log records.  A record
  * whose +8 the settle's 0xDF2C poked (the tables 0x689E/0x68BE write 0xFF at
@@ -5636,6 +5827,7 @@ static void objScanPoint(uint8_t *actor, uint32_t xoff)
         wr_le_u16(span + 6u, 0u);
         wr_le_u16(span + 0xAu, rd_le_u16(span + 2u));
         wr_le_u16(span + 0xCu, (uint16_t)top);
+        objSpanTop[((uint16_t *)span - objSpan[0]) / 14u] = (uint16_t)top;
     }
     wr_le_u16(span + 0x12u, object_spanFlagForProbe(
                                 d, (uint32_t)objSelFrame)); /* 1000:FD7B */
@@ -7150,10 +7342,9 @@ static int32_t objCmdCall(uint8_t *actor, uint32_t addr)
  * (1000:E4CC); otherwise the row's +0xA hook (1000:D8BD, the terrain settle)
  * and then the tail handler run.
  *
- * This is the ACTING record's path only.  The original also runs every static
- * record's hook+tail each frame from `collision_scan` (`1000:D860`, the last
- * call of `update_world`); the port does not, and that is port_deviations.md
- * D-89. */
+ * This is the ACTING record's path.  Every other static record runs its row
+ * from `object_rowPass` (`collision_scan` `1000:D860`, the last call of
+ * `update_world`), which the port runs after `object_worldTick`. */
 int32_t object_commandRun(uint8_t *actor, uint8_t input)
 {
     ObjCommand c = object_commandSelect(actor, input);
@@ -7178,6 +7369,34 @@ out:
         objCursor = objOutStateHi;
     }
     return ran;
+}
+
+/* 1000:D860 collision_scan: update_world's last call (1000:80D5), the
+ * per-frame row pass over the eight static records.  The acting record is
+ * skipped (it ran its row through 1000:E4B0 already); every other record whose
+ * x is not 0xFFFF runs its type row's +0xA settle hook (1000:D8BD) and then the
+ * row's +0xC tail - the *first* half of the row, with no input-bit-7
+ * selection.  `CALL word ptr [0x6845]` is unconditional, but every shipped
+ * row's tail is a real handler (the common one is the bare RET 0xD9C7). */
+void object_rowPass(void)
+{
+    uint8_t *actor = objActor();
+
+    for (uint32_t i = 0; i < OBJ_STATIC; i++) {
+        uint8_t *r = objArray + i * OBJ_STRIDE;
+        const uint8_t *row;
+        uint32_t type, tail;
+
+        if (r == actor) continue; /* 1000:D86D */
+        if (rd_le_u16(r + 0u) == 0xFFFFu) continue; /* 1000:D873 */
+        type = rd_le_u16(r + 8u);
+        if (type >= 35u) continue; /* the original reads past 0x698A */
+        row = objCmdRows[type];
+        objRowOfs = 32u * type; /* 1000:D894: DI = the row */
+        if (row[0xAu]) objCmdSettle(r); /* 1000:D89F */
+        tail = rd_le_u16(row + 0xCu);
+        if (tail) (void)objCmdCall(r, tail); /* 1000:D8A8 */
+    }
 }
 
 /* 1000:E4F8 (handler 1): the **step-down** state.  The cell at the feet
@@ -7685,11 +7904,22 @@ void object_savePool(uint8_t *dst)
     memcpy(dst + 0x72u, objSpan, sizeof objSpan);
 }
 
+/* The stripe's pixels live on the page in the original and the page is not part
+ * of any save block, so a restore starts the stripe empty: the port puts its
+ * seed row at the entry's current top (1000:5D65 then draws nothing until the
+ * next +0xC step). */
+static void objSpanTopReset(void)
+{
+    for (uint32_t i = 0; i < 2u; i++)
+        objSpanTop[i] = rd_le_u16((uint8_t *)objSpan[i] + 0xCu);
+}
+
 void object_loadPool(const uint8_t *src)
 {
     if (!src) return;
     memcpy(objRegister, src + 2u, sizeof objRegister);
     memcpy(objSpan, src + 0x72u, sizeof objSpan);
+    objSpanTopReset();
 }
 
 /* 0x6F92..0x6FE6's second copy: the two spans, then zero. */
@@ -7704,6 +7934,7 @@ void object_loadSpans(const uint8_t *src)
 {
     if (!src) return;
     memcpy(objSpan, src, sizeof objSpan);
+    objSpanTopReset();
 }
 
 /* 1000:D6B2 phases 1/2: walk the pending-move table, raising a record's

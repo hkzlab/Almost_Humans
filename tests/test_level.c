@@ -376,7 +376,12 @@ int main(int argc, char **argv)
              * sum moved when the 0x92A0 page table was built correctly
              * (draw_terrain2 1000:505C): the placed records now settle and
              * walk on the real heights. */
-            if (sum != 5743109u || nz != 64000u) {
+            /* The three placed humans now settle through `collision_scan`
+             * (1000:D860, D-89): the tile walk leaves them at row*16-7 and
+             * their type-2 row hook (0xFF) runs the settle every frame, which
+             * lands them one pixel higher at row*16-8 (24/136/264).  This run
+             * pins sum 5742629. */
+            if (sum != 5742629u || nz != 64000u) {
                 fprintf(stderr, "FAIL level 0 page: sum %u nz %u\n", sum, nz);
                 bad = 1;
             }
@@ -654,6 +659,203 @@ int main(int argc, char **argv)
             fprintf(stderr, "FAIL level 15 has no torch record\n");
             bad = 1;
         }
+    }
+
+    /* --- D-89: the static records' per-frame row pass (1000:D860) ---------
+     * The placed humans' type-2 row carries the settle hook (0xFF), so the
+     * row pass lands them on the surface every frame: the tile walk's
+     * row*16-7 becomes row*16-8 once the world runs.  The acting record (0)
+     * gets the same value from its own command path (1000:E4B0), so the two
+     * paths must agree; the free slots (x = 0xFFFF) must be skipped. */
+    {
+        static const uint32_t wantY[4] = { 24u, 24u, 136u, 264u };
+        level_load(0);
+        level_begin();
+        for (uint32_t i = 0; i < 4000u && level_starting(); i++) {
+            level_tick();
+            palette_tick();
+            if (level_loadingScreen()) level_loadingTick();
+        }
+        for (uint32_t i = 0; i < 4u; i++) {
+            const uint8_t *r = object_slot(i);
+            uint32_t y = (uint32_t)(r[2] | (r[3] << 8));
+
+            if (y != wantY[i]) {
+                fprintf(stderr, "FAIL D-89: record %u y = %u, want %u\n", i, y,
+                        wantY[i]);
+                bad = 1;
+            }
+        }
+        for (uint32_t i = 4u; i < 8u; i++) {
+            const uint8_t *r = object_slot(i);
+            if (r[0] != 0xFFu || r[1] != 0xFFu) {
+                fprintf(stderr, "FAIL D-89: free slot %u was touched\n", i);
+                bad = 1;
+            }
+        }
+    }
+
+    /* --- D-95: the goal scan (1000:C2CE) and the goal pan (1000:3540) ----- */
+    if (level_load(6) == 0) {
+        /* the map's one 0xBA cell is (28, 17); the class-9 live records are
+         * 14/15/16 at (400, 0/16/32).  A type-0x18 record has no settle hook
+         * and a bare RETURN tail, so it stays on the cell. */
+        level_begin();
+        for (uint32_t i = 0; i < 4000u && level_starting(); i++) {
+            level_tick();
+            palette_tick();
+            if (level_loadingScreen()) level_loadingTick();
+        }
+        object_goalScan();
+        if (object_goalFlag()) {
+            fprintf(stderr, "FAIL D-95: the goal flag is set with nothing on "
+                            "the 0xBA cell\n");
+            bad = 1;
+        }
+        {
+            uint8_t *r = object_slot(4);
+
+            r[0] = 0xC0u; /* x = 448 -> (448+8)/16 = 28 */
+            r[1] = 0x01u;
+            r[2] = 0x08u; /* y = 264 -> (264+12)/16 = 17 */
+            r[3] = 0x01u;
+            r[4] = 0x10u; /* frame */
+            r[5] = 0x00u;
+            r[6] = 0x00u; /* active */
+            r[7] = 0x00u;
+            r[8] = 0x18u; /* type 0x18: no row hook, a bare-RET tail */
+            r[9] = 0x00u;
+        }
+        object_goalScan();
+        if (!object_goalFlag()) {
+            fprintf(stderr, "FAIL D-95: a record on the 0xBA cell does not "
+                            "reach the level's goal byte\n");
+            bad = 1;
+        }
+        /* 0x6549 excludes id 3 (mask byte 0 = 0x1F) */
+        object_slot(4)[8] = 0x03u;
+        object_goalScan();
+        if (object_goalFlag()) {
+            fprintf(stderr, "FAIL D-95: a 0x6549-excluded id was counted\n");
+            bad = 1;
+        }
+        object_slot(4)[8] = 0x18u;
+
+        /* the pan: the follower leaves the acting record and converges on the
+         * first class-9 record.  Records 14/15 carry a row tail that would
+         * move them, so the pan is pointed at 16 (type 0x59, no row) at
+         * (400, 32): the window clamps to (0xC0, 0). */
+        object_setSlotClassForProbe(5u, 0u); /* record 14 */
+        object_setSlotClassForProbe(6u, 0u); /* record 15 */
+        {
+            uint32_t t, markerAt = 0xFFFFFFFFu, doneAt = 0xFFFFFFFFu;
+            uint32_t holdX = 0xFFFFFFFFu, holdY = 0xFFFFFFFFu;
+
+            for (t = 0; t < 400u && !object_markerMode(); t++) {
+                level_tick();
+                palette_tick();
+            }
+            markerAt = t;
+            holdX = level_viewX();
+            holdY = level_viewY();
+            /* the tail clears [0x2D8C]; the follower then leaves the goal
+             * window, which is the pan's end */
+            for (; t < 400u && level_viewX() == holdX; t++) {
+                level_tick();
+                palette_tick();
+            }
+            doneAt = t;
+            if (holdX != 0xC0u || holdY != 0x00u) {
+                fprintf(stderr, "FAIL D-95: the pan held at (%u, %u)\n", holdX,
+                        holdY);
+                bad = 1;
+            }
+            if (markerAt == 0xFFFFFFFFu) {
+                fprintf(stderr, "FAIL D-95: the pan never raised [0x6531]\n");
+                bad = 1;
+            } else if (markerAt < 0x23u) {
+                fprintf(stderr,
+                        "FAIL D-95: the hold is %u frames, want >= 0x23\n",
+                        markerAt);
+                bad = 1;
+            }
+            if (doneAt > 399u || doneAt < markerAt + 0x1Eu) {
+                fprintf(stderr,
+                        "FAIL D-95: the tail is %u frames, want "
+                        "0x1E\n",
+                        doneAt - markerAt);
+                bad = 1;
+            }
+        }
+        /* the flag falls -> [0x6531] is cleared again (1000:35A2) */
+        object_slot(4)[0] = 0xFFu;
+        object_slot(4)[1] = 0xFFu;
+        object_goalScan();
+        level_tick();
+        if (object_markerMode()) {
+            fprintf(stderr, "FAIL D-95: [0x6531] survived the goal flag\n");
+            bad = 1;
+        }
+    }
+
+    /* --- D-90: the handled-object slots' stripe (1000:5D65) ---------------- */
+    {
+        static uint8_t page[320 * 200];
+        uint16_t *s = (uint16_t *)object_spanAtForProbe(0);
+        uint32_t x = 300u, seed = 100u;
+
+        memset(page, 0, sizeof page);
+        memset(s, 0, 28u);
+        s[0] = 0u; /* a live record index: not free */
+        s[3] = 0u; /* +6: the length */
+        s[4] = 8u; /* +8: the target */
+        s[5] = (uint16_t)x; /* +0xA: the stripe's x */
+        s[6] = (uint16_t)seed; /* +0xC: one past the drawn rows */
+        s[9] = 1u; /* +0x12: growing */
+        object_spanSeedForProbe(0u, seed);
+        while ((object_frameCounterProbe() & 1u) != 0u)
+            object_tick(level_palette()); /* an even frame: no animation */
+        object_render(page, 0, 0);
+        if (page[seed * 320u + x] == 0x18u) {
+            fprintf(stderr, "FAIL D-90: a zero-length stripe drew\n");
+            bad = 1;
+        }
+        /* one odd frame grows it four rows (1000:5DD1's DX = 3 loop); the
+         * animation runs in the draw pass, so the odd frame must render */
+        object_tick(level_palette());
+        memset(page, 0, sizeof page);
+        object_render(page, 0, 0);
+        if (page[seed * 320u + x] != 0x18u ||
+            page[(seed + 1u) * 320u + x + 1u] != 0x18u ||
+            page[(seed + 3u) * 320u + x] != 0x18u ||
+            page[(seed + 4u) * 320u + x] == 0x18u) {
+            fprintf(stderr, "FAIL D-90: the span stripe is not drawn\n");
+            bad = 1;
+        }
+        /* the next odd frame reaches +8 and finishes (1000:5DE2) */
+        object_tick(level_palette());
+        object_tick(level_palette());
+        memset(page, 0, sizeof page);
+        object_render(page, 0, 0);
+        if (page[(seed + 7u) * 320u + x] != 0x18u || s[9] != 0xFFFFu) {
+            fprintf(stderr, "FAIL D-90: the stripe did not grow to +8\n");
+            bad = 1;
+        }
+        /* released (1000:EA71): +8 = 0 and state 0 retract it */
+        s[4] = 0u;
+        s[9] = 0u;
+        for (uint32_t i = 0; i < 3u; i++) {
+            object_tick(level_palette()); /* even: no animation */
+            object_tick(level_palette()); /* odd */
+            memset(page, 0, sizeof page);
+            object_render(page, 0, 0);
+        }
+        if (page[seed * 320u + x] == 0x18u) {
+            fprintf(stderr, "FAIL D-90: the released stripe did not retract\n");
+            bad = 1;
+        }
+        memset(s, 0xFF, 28u); /* free it again */
+        object_spanSeedForProbe(0u, 0u);
     }
 
     /* D-157: draw_level_text clamps [0x2] to 0x78 before its page frames. */

@@ -47,6 +47,15 @@ void object_publishDEHSprites(const uint8_t *e, const uint8_t *h);
 /* 1000:C295 update_list: the placed records' behaviour walk (torch, stepper,
  * sequence, wanderer). */
 void object_updateList(void);
+/* 1000:C2CE count_tile_collisions: the goal scan; sets [0x6530] when the count
+ * of records standing on a 0xBA tile reaches the level's goal byte. */
+void object_goalScan(void);
+int32_t object_goalFlag(void); /* [0x6530] */
+/* 1000:D860 collision_scan: the static records' per-frame row pass. */
+void object_rowPass(void);
+/* [0x6531], menu_flag_tick's mode flag (the marker's 1000:C541 arm). */
+void object_setMarkerMode(int32_t on);
+int32_t object_markerMode(void);
 
 void object_init(void);
 void object_blitSprite(uint8_t *page, const uint8_t *src, uint32_t rows,
@@ -92,6 +101,7 @@ uint32_t object_liveCount(void); /* [0x3E73]; 9 at the level start */
 uint8_t object_slotClass(uint32_t slot); /* [0x3E5E + slot]               */
 uint8_t *object_linkForProbe(uint32_t off); /* the +0xE/+0xC link encoding */
 uint8_t *object_spanAtForProbe(uint32_t i); /* the 0x6F92 span entry      */
+void object_spanSeedForProbe(uint32_t i, uint32_t top); /* its seed row   */
 int32_t object_landYForProbe(int32_t x, int32_t y, uint32_t *cellOut);
 uint16_t object_spanFlagForProbe(int32_t d, uint32_t frame);
 int32_t object_throwDxForProbe(uint32_t type); /* word[0x5BA4 + 2*type]  */
