@@ -36,7 +36,7 @@ typedef struct {
 
 /* The program header `1000:98F8` resolves for a raw id: the six word pointers
  * at `202F:0x5B2B` select the overlapping runs at 0x5B37..0x5B53, read as
- * {count, cursor, icon...}.  An id outside 1..6 is bounded (D-194). */
+ * {count, cursor, icon...}.  An id outside 1..6 is bounded (D-186). */
 const uint8_t *object_program_header(uint32_t group);
 const uint8_t *object_action_header(void);
 uint8_t object_action_byte(uint32_t k); /* one header byte, 0 past the region */

@@ -67,6 +67,9 @@ static const OSystem *_sb_osys;
 static uint8_t *_strip; /* the four-plane panel _strip                */
 static uint8_t *_panel4; /* LBM\PANEL4.BIT (the art + the palette)   */
 static uint32_t _p4_size; /* its length: the charge bar reads 0x3EE0+  */
+/* shift_screen_up's +0x3200 staging (1000:99D8): panel4's first 0xC800
+ * bytes, +0xC0 tagged, with the charge trough drawn in by statusbar_charge_begin. */
+static uint8_t _stage[0xC800];
 static uint8_t *_icons3; /* APL\ICONS3.SPR: 12 x 16x24 (0x180 each)  */
 
 static int32_t _active; /* [0x5B12]: the bar's ticking gate         */
@@ -134,7 +137,7 @@ static const uint16_t _mark_bias[5] = { 0, 0xC0, 0, 0, 0 };
  * reads those bytes back through the same header for every draw, step and
  * dispatch (`object_action_byte`), so the highlighted cell and the executed op
  * cannot drift apart.  An id outside 1..6 has no header and draws no action
- * row (D-194). */
+ * row (D-186). */
 static const uint8_t _action_gold[40] = {
     /* 202F:0x5B57 */
     0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 0xD8, 0xD9,
@@ -290,9 +293,11 @@ static void _draw_band(uint8_t *page)
  *    (wrapping into the next byte column) for the second of the two passes
  *    (`0x376D: CX = 2`).
  *  - `+0xE` >= 0x100 (0x37C3): the folded length `len = (0x1FF - v) >> 1`
- *    selects a 2-px-wide, 15-row slice of **_panel4's own art** at
- *    `0x3EE0 + len` (source rows 0x140 apart, the two pixels 4 apart), placed
- *    at band row 10, column `24 + (len >> 2)`, plane `len & 3`.
+ *    selects a 2-px-wide, 15-row slice of the **staged** band art at
+ *    `0x3EE0 + len` in the +0x3200 staging (1000:99D8 copies panel4's first
+ *    0xC800 bytes there), i.e. panel4's `0xCE0 + len` with the +0xC0 tag
+ *    (source rows 0x140 apart, the two pixels 4 apart), placed at band row
+ *    10, column `24 + (len >> 2)`, plane `len & 3`.
  *
  * The port is per-pixel, so a planar byte becomes the pixel `4*col + plane`.
  *
@@ -328,16 +333,18 @@ void statusbar_charge_bar(uint32_t v)
     {
         uint32_t len = (0x1FFu - v) >> 1; /* 0x3726-0x372E              */
         uint32_t col = 24u + (len >> 2), p = len & 3u;
-        uint32_t src = 0x3EE0u + len;
+        /* 0x3EE0 in the +0x3200 staging = staged panel4 0xCE0 (the trough
+         * is already in it, so the inset slices carry the trough edges). */
+        uint32_t src = 0x0CE0u + len;
 
-        if (src + 0x140u * 15u + 4u > _p4_size) return; /* past the art     */
+        if (src + 0x140u * 15u + 4u > sizeof _stage) return; /* past the art */
         for (i = 0; i < 2u; i++) {
             uint32_t x = 4u * col + p;
 
             for (r = 0; r < 15u; r++) {
                 uint32_t y = _bar_split + 10u + r;
-                uint8_t a = _panel4[src + r * 0x140u + i];
-                uint8_t b = _panel4[src + r * 0x140u + i + 4u];
+                uint8_t a = _stage[src + r * 0x140u + i];
+                uint8_t b = _stage[src + r * 0x140u + i + 4u];
 
                 if (x < 320u && y < 200u) page[y * 320u + x] = a;
                 if (x + 4u < 320u && y < 200u) page[y * 320u + x + 4u] = b;
@@ -474,7 +481,7 @@ static void _draw_action_icon(uint8_t *page, uint32_t x, uint32_t y,
  */
 static void _draw_actions(uint8_t *page)
 {
-    /* An id outside 1..6 has no header (D-194): the original resolves a
+    /* An id outside 1..6 has no header (D-186): the original resolves a
      * garbage pointer and draws from it, the port leaves the row blank. */
     if (!object_action_header()) return;
     /* Every step is a 16-bit word operation: the span/x below reproduce
@@ -536,6 +543,11 @@ void statusbar_charge_begin(void)
     if (!page || !_panel4) return;
     _draw_band_slice(page);
     _frame_box(page, 0x5Fu, _bar_split + 0x0Cu, 0x82u, 0x0Fu, NULL, 0u);
+    /* 1000:99D8's staging + the 0x9B7D trough: the second-half art at
+     * 0x3EE0+len reads the staged trough, not clean panel4. */
+    for (uint32_t i = 0; i < sizeof _stage; i++)
+        _stage[i] = (uint8_t)(0xC0u | _panel4[i]);
+    _frame_box(_stage, 0x5Fu, 0x0Cu, 0x82u, 0x0Fu, NULL, 0u);
 }
 
 /** @brief 1000:3738's exit: `0x98F8`/`0x990A` restore the clean band slice and

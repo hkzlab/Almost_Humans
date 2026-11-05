@@ -1745,7 +1745,7 @@ static void _obj_set_program_index(uint32_t index)
 
 /** @brief 1000:98F8's header for a raw id: the six table words at 0x5B2B point
  * into `_obj_program_region`, so the header is the 12 bytes at that run.  An
- * id outside 1..6 is bounded here (D-194).
+ * id outside 1..6 is bounded here (D-186).
  *
  * @param id the raw id
  * @return the header, or NULL outside 1..6
@@ -5377,7 +5377,7 @@ uint32_t object_action_program(void) { return _obj_program_id(); }
 
 /** @brief The program header `1000:98F8` resolves for `group`: the six table
  * words at `0x5B2B` select the overlapping runs at `0x5B37..0x5B53`.  An id
- * outside 1..6 is bounded (D-194).
+ * outside 1..6 is bounded (D-186).
  *
  * @param group the raw program id
  * @return the 12-byte header, or NULL outside 1..6
@@ -5428,7 +5428,7 @@ void object_step_action_cell(void)
     uint8_t *p = _obj_program_slot(_obj_program_id());
     uint8_t cursor;
 
-    if (!p) return; /* D-194 */
+    if (!p) return; /* D-186 */
     cursor = (uint8_t)(p[1] + 1u);
     /* 1000:3941..0x394D: INC the cursor, wrap to 1 when it passes the count
      * (a count of 0 leaves the wrap's `CMP 0,cursor / JNC` to set 1). */
@@ -5438,7 +5438,7 @@ void object_step_action_cell(void)
 
 /** @brief [0x5B56] (a raw byte), for tests and for a program restored from a
  * save.  The shipped writers produce 1..6; the collision tail can store the
- * shared scratch byte (any value; an out-of-table id is bounded, D-194).
+ * shared scratch byte (any value; an out-of-table id is bounded, D-186).
  *
  * @param index the index
  */
@@ -5454,7 +5454,7 @@ void object_action_set_cursor(uint32_t cursor)
     uint8_t *p = _obj_program_slot(_obj_program_id());
 
     _obj_cursor = cursor;
-    if (p) p[1] = (uint8_t)cursor; /* D-194 */
+    if (p) p[1] = (uint8_t)cursor; /* D-186 */
 }
 /**
  * @brief Accessor: the pending event.
@@ -9466,7 +9466,7 @@ void object_pending_run(void)
     case 5u: { /* 1000:382D */
         uint8_t *p = _obj_program_slot(_obj_program_id());
 
-        if (p) p[1] = (uint8_t)_obj_cursor; /* D-194 */
+        if (p) p[1] = (uint8_t)_obj_cursor; /* D-186 */
         _obj_debounce = 0u; /* 1000:3839: MOV word [0x1979],0 */
         break;
     }
@@ -9519,7 +9519,7 @@ void object_action_run(void)
      * column stops arming [0x1987]. */
     if (_obj_lat) return;
     object_set_action_latched(1);
-    if (!p) return; /* D-194: nothing to dispatch */
+    if (!p) return; /* D-186: nothing to dispatch */
 
     uint8_t *actor = _obj_array + _obj_entity * OBJ_STRIDE;
     /* 1000:3987: cursor = [SI+1] (after the two INCs), op = [SI+1+cursor]. */

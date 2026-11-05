@@ -3119,17 +3119,17 @@ int main(int argc, char **argv)
                "a bit-7 stale programme id skips the tail (1000:9CDF)");
 
         /* the raw id is stored; ids 1..6 resolve their table runs, anything
-         * else has no header (D-194) */
+         * else has no header (D-186) */
         object_init();
         object_action_set_program(0u);
-        _check(object_action_program_si() == 0u, "id 0 has no header (D-194)");
+        _check(object_action_program_si() == 0u, "id 0 has no header (D-186)");
         object_action_set_program(1u);
         _check(object_action_program_si() == 0x5B37u,
                "id 1 resolves to the table's first run");
 
         /* an out-of-table stale id (0x10, what a walk leaves in [0x423C]) is
          * stored raw (D-185) but has no header: no DS read, no draw and no op
-         * (D-194: the DS image is gone, out-of-table ids are bounded). */
+         * (D-186: the DS image is gone, out-of-table ids are bounded). */
         object_init();
         object_load_terrain_objects(map);
         a = object_slot(0);
@@ -3146,7 +3146,7 @@ int main(int argc, char **argv)
                "an out-of-table stale id is stored raw (1000:9CEB)");
         _check(object_action_program_si() == 0u &&
                    object_action_byte(0u) == 0u && object_action_byte(1u) == 0u,
-               "an out-of-table id has no header (D-194)");
+               "an out-of-table id has no header (D-186)");
         _check(statusbar_action_count(0x10u) == 0u &&
                    statusbar_action_cell(0x10u) == 0u,
                "the bar draws no out-of-table header");
@@ -3157,7 +3157,7 @@ int main(int argc, char **argv)
                "an out-of-table id survives the press paths");
 
         /* event 5's store needs a header: an id outside 1..6 writes nothing
-         * (D-194) */
+         * (D-186) */
         object_init();
         object_load_terrain_objects(map);
         a = object_slot(0);
@@ -3174,12 +3174,12 @@ int main(int argc, char **argv)
         _check(object_action_program() == 9u &&
                    object_action_program_si() == 0u &&
                    object_action_byte(1u) == 0u,
-               "id 9 has no header (D-194)");
+               "id 9 has no header (D-186)");
         object_pending_run(); /* 1000:382D has no [SI+1] to write */
         _check(object_action_byte(1u) == 0u,
                "event 5 leaves an out-of-table id alone");
 
-        /* an out-of-table header dispatches nothing (D-194) */
+        /* an out-of-table header dispatches nothing (D-186) */
         object_init();
         object_load_terrain_objects(map);
         a = object_slot(0);
@@ -3191,7 +3191,7 @@ int main(int argc, char **argv)
         object_set_action_latched(0);
         object_action_run();
         _check(rd_le_u16(a + 4u) == 0x10u && rd_le_u16(a + 8u) == 0u,
-               "an out-of-table header dispatches no op (D-194)");
+               "an out-of-table header dispatches no op (D-186)");
         object_action_set_program(1u);
 
         /* the save's +0x06 byte is the raw [0x5B56] (re_formats.md) */
@@ -5042,6 +5042,61 @@ int main(int argc, char **argv)
                 }
             }
             _check(!met, "with neither cell the goal is not met");
+        }
+    }
+
+    /* D-196: objectTest mode 0 is pred_type_low_phase_match (1000:3600), not
+     * "no test"; level_end_test must run it.  Level 2 (ANDIE PANDY) has
+     * objectTest 0 and its 0xA8 goal at cell 629 (col 21, row 19). */
+    if (level_load(1) == 0) {
+        uint8_t *r = object_slot(0u);
+        int32_t ended = 0;
+        uint32_t i;
+
+        object_init();
+        object_set_action_entity(0u);
+        r[0] = 0x48u; /* 328 */
+        r[1] = 0x01u;
+        r[2] = 0x24u; /* 292 */
+        r[3] = 0x01u;
+        r[4] = 0x10u;
+        r[6] = 0u;
+        r[8] = 0x02u;
+        r[9] = 0u;
+        _check(level_map()[629] == 0xA8u,
+               "level 2 carries the 0xA8 goal at cell 629");
+        for (i = 0; i < 0x8Cu + 8u; i++) {
+            object_tick(level_palette());
+            if (level_end_test()) {
+                ended = 1;
+                break;
+            }
+        }
+        _check(ended && level_outcome(),
+               "mode 0's 0xA8 goal ends level 2 (D-196)");
+
+        /* negative control: the same frames off the 0xA8 tile do not end it */
+        if (level_load(1) == 0) {
+            ended = 0;
+            object_init();
+            object_set_action_entity(0u);
+            r = object_slot(0u);
+            r[0] = 0x40u;
+            r[1] = 0u;
+            r[2] = 0x40u;
+            r[3] = 0u;
+            r[4] = 0x10u;
+            r[6] = 0u;
+            r[8] = 0x02u;
+            r[9] = 0u;
+            for (i = 0; i < 0x8Cu + 8u; i++) {
+                object_tick(level_palette());
+                if (level_end_test()) {
+                    ended = 1;
+                    break;
+                }
+            }
+            _check(!ended, "off the 0xA8 tile level 2 does not end");
         }
     }
 

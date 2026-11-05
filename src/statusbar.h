@@ -46,7 +46,7 @@ void statusbar_set_split(uint32_t row);
 void statusbar_hide(void); /* [0x5B0A], 201..152 reveal */
 uint32_t statusbar_split(void);
 /* [0x5B56]: the current ACTION program — a raw byte; draws both the program
- * and the action row's group.  An id outside 1..6 has no header (D-194).
+ * and the action row's group.  An id outside 1..6 has no header (D-186).
  * object.c owns it; the bar follows. */
 /* 1000:3933's tail: advance the current action row's selected cell (the
  * 0x5B2B header's second byte) with the wrap to 1 past the count. */

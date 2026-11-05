@@ -1867,9 +1867,10 @@ int32_t level_end_test(void)
         return 1;
     }
     /* object_test_dispatch (1000:35D6): the level record's +0x04 word is the
-     * goal test.  A level with no test byte (0x0000) relies on the hook. */
-    if (_level_loaded && _level_data_cur.objectTest &&
-        object_test_dispatch(_level_data_cur.objectTest)) {
+     * goal test.  It is dispatched unconditionally (1000:34B8), and mode 0 is
+     * `pred_type_low_phase_match` (1000:3600), not "no test": 128/160 shipped
+     * levels use it (level 2's 0xA8 goal included). */
+    if (_level_loaded && object_test_dispatch(_level_data_cur.objectTest)) {
         level_request_end(1);
         return 1;
     }

@@ -683,7 +683,89 @@ int main(int argc, char **argv)
         }
     }
 
-    /* an id outside 1..6 has no header in the port (D-194): the original
+    /* D-195: the second-half bar reads the +0x3200 staging at 0x3EE0, i.e.
+     * panel4's 0xCE0 with the +0xC0 tag — not panel4's zeroed 0x3EE0. */
+    {
+        const uint8_t *pg = osys_null_page(0);
+        uint8_t *a;
+        uint32_t v = 0;
+
+        object_init();
+        a = object_slot(0);
+        object_set_action_entity(0u);
+        object_action_set_program(2u);
+        object_action_set_cursor(2u);
+        object_set_action_latched(0);
+        object_set_slot_class(1u, 5u);
+        a[7] = 1u;
+        a[8] = 1u;
+        a[9] = 0u;
+        object_action_run();
+        object_set_action_latched(0);
+        (void)object_command_run(a, 0x80u);
+        object_pending_run();
+        (void)object_charge_tick();
+        for (uint32_t k = 0; k < 70u; k++) {
+            (void)object_command_run(a, 0x80u);
+            object_pending_run();
+            (void)object_charge_tick();
+            v = (uint32_t)(a[0xE] | ((uint32_t)a[0xF] << 8)) & 0x1FFu;
+            if (v >= 0x104u) break;
+        }
+        if (v < 0x104u) {
+            fprintf(stderr, "FAIL D-195: the charge did not reach 0x104\n");
+            bad = 1;
+        } else {
+            uint32_t len = (0x1FFu - v) >> 1;
+            uint32_t col = 24u + (len >> 2), p = len & 3u;
+            uint32_t x = 4u * col + p;
+            uint8_t raw = _panel4[0xCE0u + len];
+            uint8_t want = (uint8_t)(0xC0u | raw);
+            uint8_t got = pg[(BAR_Y + 10u) * 320u + x];
+
+            if (raw == 0u) {
+                fprintf(stderr, "FAIL D-195: the test slice is blank\n");
+                bad = 1;
+            }
+            if (got != want) {
+                fprintf(stderr,
+                        "FAIL D-195: second-half slice %02x, want %02x "
+                        "(panel4 0xCE0)\n",
+                        got, want);
+                bad = 1;
+            }
+            if (got == 0x00u) {
+                fprintf(stderr,
+                        "FAIL D-195: the slice used the zeroed 0x3EE0 art\n");
+                bad = 1;
+            }
+            /* D-197: the staged source carries the trough's top edge (row 12)
+             * and the clean art one row above it. */
+            {
+                uint8_t band12 = (uint8_t)(0xC0u | _panel4[12u * 320u + x]);
+                uint8_t trough = band12 >= 0xD4u ? 0xCFu
+                                 : band12 < 0xC4u ? 0xC0u
+                                                  : (uint8_t)(band12 - 4u);
+                uint8_t art11 = (uint8_t)(0xC0u | _panel4[11u * 320u + x]);
+
+                if (pg[(BAR_Y + 12u) * 320u + x] != trough) {
+                    fprintf(stderr,
+                            "FAIL D-197: the bar erased the trough top edge "
+                            "(%02x, want %02x)\n",
+                            pg[(BAR_Y + 12u) * 320u + x], trough);
+                    bad = 1;
+                }
+                if (pg[(BAR_Y + 11u) * 320u + x] != art11) {
+                    fprintf(stderr,
+                            "FAIL D-197: the row above the trough is not the "
+                            "clean art\n");
+                    bad = 1;
+                }
+            }
+        }
+    }
+
+    /* an id outside 1..6 has no header in the port (D-186): the original
      * resolves a garbage pointer and draws 0x38 off-screen slots; the port
      * draws no action row, so the band stays clean. */
     {
