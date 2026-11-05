@@ -9,7 +9,7 @@
  * Missing data = skip with a notice (test_res's contract).
  *
  * The drive: the values are level A's ([live] need 4 / members 12 / score 0
- * / DARWIN), res_setDisc(1), party_intro_setValues + start, then the
+ * / DARWIN), res_set_disc(1), party_intro_set_values + start, then the
  * party_intro_tick's first compose window.  The check: the composed page vs
  * the extracted LBM/PARTY1.BIT rows byte-for-byte.
  */
@@ -28,11 +28,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-extern VideoMode osys_null_videoMode(void);
+extern VideoMode osys_null_video_mode(void);
 
-extern const OSystem osys_null;
+extern const OSystem g_osys_null;
 
-static uint8_t *read_file(const char *path, uint32_t *size)
+static uint8_t *_read_file(const char *path, uint32_t *size)
 {
     FILE *f = fopen(path, "rb");
     if (!f) return NULL;
@@ -57,8 +57,8 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    if (res_init(&osys_null) || palette_init(&osys_null) ||
-        font_init(&osys_null) || video_init(&osys_null)) {
+    if (res_init(&g_osys_null) || palette_init(&g_osys_null) ||
+        font_init(&g_osys_null) || video_init(&g_osys_null)) {
         printf("PARTY: init failed\n");
         return 1;
     }
@@ -69,24 +69,24 @@ int main(int argc, char **argv)
 
     /* the fixture: the extracted .BIT (the memset-free reference) */
     snprintf(path, sizeof path, "%s/LBM/PARTY1.BIT", argv[2]);
-    bit = read_file(path, &sz);
+    bit = _read_file(path, &sz);
     if (!bit || sz < 64000u) {
         printf("PARTY: SKIP (no fixture at %s)\n", path);
         free(bit);
         return 0;
     }
 
-    res_setDisc(1);                          /* the level disc HUMANS.001 */
+    res_set_disc(1);                          /* the level disc HUMANS.001 */
 
     /* level A's [live] values */
-    party_intro_setValues(1u, 4u, 12u, 0u, "DARWIN");
+    party_intro_set_values(1u, 4u, 12u, 0u, "DARWIN");
     if (!party_intro_start()) {
         printf("PARTY: SKIP (the load path returned 0 — no volume data)\n");
         free(bit);
         return 0;
     }
     /* level_intro_screen (1000:2508) leaves the 320x192 mode-X field */
-    if (osys_null_videoMode() != VIDEO_MODE_X) {
+    if (osys_null_video_mode() != VIDEO_MODE_X) {
         printf("PARTY: FAIL the party did not set the mode-X field\n");
         free(bit);
         return 1;
@@ -131,8 +131,8 @@ int main(int argc, char **argv)
         printf("PARTY: video_page(0) path diffs: %" PRId64 "\n", bankdiffs);
 
     /* D-18: the briefing's score is the live [0x592] low word, not 0. */
-    score_setTotal(0x1234u, 1u);
-    party_intro_setValues(1u, 4u, 12u, gameflow_partyScore(), "DARWIN");
+    score_set_total(0x1234u, 1u);
+    party_intro_set_values(1u, 4u, 12u, gameflow_party_score(), "DARWIN");
     if (party_intro_score() != 0x1234u) {
         printf("PARTY: FAIL the briefing score is %u, want 0x1234\n",
                party_intro_score());
@@ -142,7 +142,7 @@ int main(int argc, char **argv)
     }
     {
         char out[8];
-        party_intro_formatScore(party_intro_score(), out);
+        party_intro_format_score(party_intro_score(), out);
         if (strcmp(out, "1234") != 0) {
             printf("PARTY: FAIL the score digits are '%s'\n", out);
             free(bit);

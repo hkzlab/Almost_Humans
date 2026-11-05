@@ -66,7 +66,7 @@ struct MapFade {
 /* 1000:024B..1000:0266: the qualifying page`s seven lines at DS:0x7BB..0x85C
  * (verbatim, from the image), drawn at x=0xA0, y=0x19 + 0x10*line with
  * blit_text_tile`s 0x20 mask. */
-static const char *const mapCongrats[7] = {
+static const char *const _map_congrats[7] = {
     "WELL DONE!",
     "YOUR TRIBE HAS EVOLVED TO BECOME",
     "ONE OF THE TEN MOST ADVANCED IN",
@@ -76,30 +76,30 @@ static const char *const mapCongrats[7] = {
     "THE TEN MOST CIVILISED TRIBES!",
 };
 
-static uint8_t *mapHigh;
-static uint32_t mapHighSize;
-static uint8_t *mapFont;
-static uint8_t *alphaPacked;     /* apl\alpha.spr, the 4bpp sheet        */
-static uint8_t *alphaSheet;      /* its 4-plane expansion (64 KB)         */
-static int32_t mapUp;
-static int32_t mapArmed;  /* the first tick ignores the key that skipped the
+static uint8_t *_map_high;
+static uint32_t _map_high_size;
+static uint8_t *_map_font;
+static uint8_t *_alpha_packed;     /* apl\alpha.spr, the 4bpp sheet        */
+static uint8_t *_alpha_sheet;      /* its 4-plane expansion (64 KB)         */
+static int32_t _map_up;
+static int32_t _map_armed;  /* the first tick ignores the key that skipped the
                            * ending cutscene */
-static int32_t mapPhase;
-static char mapNameStore[NAME_MAX + 2u];
-static char *mapName = mapNameStore + 1u; /* one byte for 0x756's delete */
-static uint32_t mapNameLen;
-static uint32_t mapCol;
+static int32_t _map_phase;
+static char _map_name_store[NAME_MAX + 2u];
+static char *_map_name = _map_name_store + 1u; /* one byte for 0x756's delete */
+static uint32_t _map_name_len;
+static uint32_t _map_col;
 /* 1000:05F4/0613: a panel step is 0x14 frames, one [0x8AE] unit per frame. */
-static int32_t mapStep;      /* frames left in the current step */
-static int32_t mapStepDir;   /* +1 = up (0x060C), -1 = down (0x05ED) */
+static int32_t _map_step; /* frames left in the current step */
+static int32_t _map_step_dir; /* +1 = up (0x060C), -1 = down (0x05ED) */
 /* 1000:0251's MOV CX,2 loop: the congratulation page is drawn twice, with
  * flip_page_swap (1000:87C7) between.  The port presents once per tick, so
  * the main loop's present after each map_tick is the flip equivalent. */
-static uint32_t mapCongratsDraws;
+static uint32_t _map_congrats_draws;
 /* 1000:028C..030A: the name-entry transition's fade/rectangle steps. */
-static uint32_t mapTrans;        /* 0..6; 6 = the ring is up */
-static uint32_t mapFadeStarts;   /* the palette_build_fade calls made */
-static struct MapFade mapFadeLog[8];
+static uint32_t _map_trans; /* 0..6; 6 = the ring is up */
+static uint32_t _map_fade_starts; /* the palette_build_fade calls made */
+static struct MapFade _map_fade_log[8];
 
 /* --- the letter wheel: ALPHA.SPR + rotate_spinner_cell -------------------
  *
@@ -133,7 +133,7 @@ static struct MapFade mapFadeLog[8];
  */
 
 /* the 360-entry Q14 sine table at DS:0xB8 (the image's exact values) */
-static const int16_t alphaSin[360] = {
+static const int16_t _alpha_sin[360] = {
     0,      286,    572,    857,    1143,   1428,   1713,   1997,   2280,
     2563,   2845,   3126,   3406,   3686,   3964,   4240,   4516,   4790,
     5063,   5334,   5604,   5872,   6138,   6402,   6664,   6924,   7182,
@@ -209,13 +209,13 @@ static const int16_t alphaSin[360] = {
  * group a row writes.  The row positions, the run structure, the masks, the
  * source offsets and the animation are the listing's.
  */
-static uint8_t *bandSheet; /* apl\band.spr: 304 rows x 80 bytes      */
+static uint8_t *_band_sheet; /* apl\band.spr: 304 rows x 80 bytes      */
 
-uint32_t map_boxBottom; /* [0x8AE]                                */
-uint32_t map_panel; /* [0x8A2]: 1..6                          */
+uint32_t g_map_box_bottom; /* [0x8AE]                                */
+uint32_t g_map_panel; /* [0x8A2]: 1..6                          */
 
-static uint32_t mapScore(void)
-{ return ((uint32_t)score_totalHi() << 16) | score_totalLo(); }
+static uint32_t _map_score(void)
+{ return ((uint32_t)score_total_hi() << 16) | score_total_lo(); }
 
 /* 1000:0705 expand_nibbles_4plane: the packed 4bpp sheet into four planes of
  * 0x4000 bytes (a literal port of the bit twiddling). */
@@ -266,11 +266,11 @@ void alpha_expand(const uint8_t *src, uint8_t *dst)
  * CX + (sin[a] * DX) >> 14, with the negative half's extra `- DX*4` (the
  * listing's asymmetry, kept).  The 14 is the 14 `SHR DX,1`/`RCR AX,1` pairs
  * at 0x11B7..0x11ED and 0x11FC..0x1232. */
-static uint32_t alpha_rot(uint32_t angle, uint32_t cx, uint32_t dx,
-                          int32_t plus90)
+static uint32_t _alpha_rot(uint32_t angle, uint32_t cx, uint32_t dx,
+                           int32_t plus90)
 {
     uint32_t a = ((uint32_t)((int32_t)angle + (plus90 ? 0x5Au : 0)) % 0x168u);
-    int16_t v = alphaSin[a];
+    int16_t v = _alpha_sin[a];
     uint32_t p = (uint32_t)(uint16_t)v * (uint16_t)dx;
     uint32_t r = (uint32_t)((cx + (uint16_t)(p >> 14)) & 0xFFFFu);
 
@@ -283,8 +283,8 @@ static uint32_t alpha_rot(uint32_t angle, uint32_t cx, uint32_t dx,
  * and the `+0xF0` adds three rows. */
 void alpha_cell(uint32_t cell, uint32_t angle, uint32_t *src, uint32_t *dst)
 {
-    uint32_t bp = (alpha_rot(angle, 0x9Du, 0x42u, 1) - 8u) & 0xFFFFu;
-    uint32_t c2 = (alpha_rot(angle, 0x4Fu, 0x3Eu, 0) - 8u) & 0xFFFFu;
+    uint32_t bp = (_alpha_rot(angle, 0x9Du, 0x42u, 1) - 8u) & 0xFFFFu;
+    uint32_t c2 = (_alpha_rot(angle, 0x4Fu, 0x3Eu, 0) - 8u) & 0xFFFFu;
 
     *dst = (c2 * 80u + 240u + (bp >> 2)) & 0xFFFFu;
     *src = (cell * 0x40u + 0x0Cu + (bp & 3u) * 0x4000u) & 0xFFFFu;
@@ -293,13 +293,13 @@ void alpha_cell(uint32_t cell, uint32_t angle, uint32_t *src, uint32_t *dst)
 /* one 16x4-byte cell at page byte `dst`.  The four plane passes write the same
  * bytes to all four planes, so a byte's four bits are the four pixels of its
  * group: bit k set -> the pixel is 0x0F, clear -> untouched (transparent). */
-static void alpha_blitCell(uint8_t *page, uint32_t src, uint32_t dst)
+static void _alpha_blit_cell(uint8_t *page, uint32_t src, uint32_t dst)
 {
     for (uint32_t r = 0; r < 16u; r++) {
         uint32_t at = (dst + r * 80u) & 0xFFFFu;
 
         for (uint32_t c = 0; c < 4u; c++) {
-            uint32_t v = alphaSheet[(src + r * 4u + c) & 0xFFFFu];
+            uint32_t v = _alpha_sheet[(src + r * 4u + c) & 0xFFFFu];
             uint32_t px = (at % 80u) * 4u + c * 4u;
             uint32_t py = at / 80u;
 
@@ -310,14 +310,14 @@ static void alpha_blitCell(uint8_t *page, uint32_t src, uint32_t dst)
     }
 }
 
-void alpha_drawWheel(uint8_t *page, uint32_t base)
+void alpha_draw_wheel(uint8_t *page, uint32_t base)
 {
-    if (!page || !alphaSheet) return;
+    if (!page || !_alpha_sheet) return;
     for (uint32_t i = 0; i < 30u; i++) {
         uint32_t src, dst;
 
         alpha_cell(i, (base + i * 0x0Cu) % 0x168u, &src, &dst);
-        alpha_blitCell(page, src, dst);
+        _alpha_blit_cell(page, src, dst);
     }
 }
 
@@ -325,12 +325,12 @@ void alpha_drawWheel(uint8_t *page, uint32_t base)
  * 9 px apart, x centred as `-8 - ((len*9 - 1)/2 - 0xA0)`, each glyph drawn
  * through queue_dirty_job (0x0F8F): dest = y*80 + 0xF0 + x/4, source =
  * column*0x40 + 0xC + (x&3)*0x4000. */
-void alpha_drawName(uint8_t *page, const char *name)
+void alpha_draw_name(uint8_t *page, const char *name)
 {
     uint32_t len = 0, x;
 
     while (name && name[len]) len++;
-    if (!page || !alphaSheet || !len) return;
+    if (!page || !_alpha_sheet || !len) return;
     x = (uint32_t)(-8 - (int32_t)(((int32_t)(len * 9u) - 1) / 2 - 0xA0));
     for (uint32_t i = 0; i < len; i++) {
         uint32_t c = (uint8_t)name[i];
@@ -343,23 +343,23 @@ void alpha_drawName(uint8_t *page, const char *name)
             x += 9u;
             continue;
         }
-        alpha_blitCell(page, col * 0x40u + 0x0Cu + (x & 3u) * 0x4000u,
-                       0x45u * 80u + 0xF0u + (x >> 2));
+        _alpha_blit_cell(page, col * 0x40u + 0x0Cu + (x & 3u) * 0x4000u,
+                         0x45u * 80u + 0xF0u + (x >> 2));
         x += 9u;
     }
 }
 
 /* 1000:12D3: the 1:1 band copy (6080 bytes, four plane passes, source stride
  * 4).  The output is the 76-row band at the page origin. */
-void map_bandFill(uint8_t *page)
+void map_band_fill(uint8_t *page)
 {
-    if (!page || !bandSheet) return;
+    if (!page || !_band_sheet) return;
     for (uint32_t i = 0; i < 6080u; i++) {
         uint32_t row = i / 80u, col = i % 80u;
 
         if (row >= 76u) break;
         for (uint32_t p = 0; p < 4u; p++) {
-            uint32_t v = bandSheet[(i * 4u + p) & 0xFFFFu];
+            uint32_t v = _band_sheet[(i * 4u + p) & 0xFFFFu];
 
             for (uint32_t j = 0; j < 4u; j++)
                 if ((v >> j) & 1u) page[row * 320u + col * 4u + j] = 0x0Fu;
@@ -368,8 +368,8 @@ void map_bandFill(uint8_t *page)
 }
 
 /* 1000:0874 vga_blit_row: 14 x (4 / +7 / 31 / +9 / 15 / +0xE) MOVSB runs. */
-static void map_blitRow(uint8_t *page, uint32_t dstByte, uint32_t srcByte,
-                        uint32_t mask)
+static void _map_blit_row(uint8_t *page, uint32_t dstByte, uint32_t srcByte,
+                          uint32_t mask)
 {
     static const uint32_t runs[3] = { 4u, 31u, 15u };
     static const uint32_t gaps[3] = { 7u, 9u, 0x0Eu };
@@ -378,7 +378,7 @@ static void map_blitRow(uint8_t *page, uint32_t dstByte, uint32_t srcByte,
     for (uint32_t iter = 0; iter < 14u; iter++) {
         for (uint32_t k = 0; k < 3u; k++) {
             for (uint32_t n = 0; n < runs[k]; n++) {
-                uint32_t v = bandSheet[(s % 24320u)];
+                uint32_t v = _band_sheet[(s % 24320u)];
                 uint32_t row = (d / 80u), col = (d % 80u);
 
                 if (row < 200u) {
@@ -396,16 +396,16 @@ static void map_blitRow(uint8_t *page, uint32_t dstByte, uint32_t srcByte,
 }
 
 /* 1000:07E6: the five frame rows from sheet row `[0x8AE]`. */
-void map_drawBoxEdges(uint8_t *page, uint32_t row)
+void map_draw_box_edges(uint8_t *page, uint32_t row)
 {
     static const uint32_t dstByte[5] = { 0xE66u, 0x14A6u, 0x1AE6u, 0x2126u,
                                          0x2766u };
     static const uint32_t mask[5] = { 0xA0u, 0xB0u, 0xE0u, 0xF0u, 0x30u };
     uint32_t src = row * 80u + 6u;
 
-    if (!page || !bandSheet) return;
+    if (!page || !_band_sheet) return;
     for (uint32_t i = 0; i < 5u; i++) {
-        map_blitRow(page, dstByte[i], src, mask[i]);
+        _map_blit_row(page, dstByte[i], src, mask[i]);
         src += 0x640u; /* ADD SI,0x640 */
     }
 }
@@ -413,37 +413,38 @@ void map_drawBoxEdges(uint8_t *page, uint32_t row)
 /* draw_score_block (1000:0651): the rank is centred at x=0x20, the name at
  * x=0x82, the 32-bit score at x=0x102, row pitch [0x36]=0x14 from base
  * [0x38]=0; the header is blit_text_tile at x=0xA0, y=0x14. */
-void map_drawList(uint8_t *page)
+void map_draw_list(uint8_t *page)
 {
     uint32_t row = 0u;
 
-    textpage_drawLineMaskAt(page, "THE TOP TEN TRIBES", 0xA0u, 0x14u, 0x20u);
+    textpage_draw_line_mask_at(page, "THE TOP TEN TRIBES", 0xA0u, 0x14u, 0x20u);
     for (uint32_t i = 0; i < hiscore_count(); i++) {
         char buf[24];
 
         snprintf(buf, sizeof buf, "%u", i + 1u);
-        textpage_drawLineMaskAt(page, buf, 0x20u, row, 0x0Fu);
-        textpage_drawLineMaskAt(page, hiscore_name(i), 0x82u, row, 0x0Fu);
+        textpage_draw_line_mask_at(page, buf, 0x20u, row, 0x0Fu);
+        textpage_draw_line_mask_at(page, hiscore_name(i), 0x82u, row, 0x0Fu);
         snprintf(buf, sizeof buf, "%" PRIu32, hiscore_score(i));
-        textpage_drawLineMaskAt(page, buf, 0x102u, row, 0x0Fu);
+        textpage_draw_line_mask_at(page, buf, 0x102u, row, 0x0Fu);
         row += 0x14u;
     }
 }
 
 /* 1000:021E..1000:0266: the seven-line congratulation page. */
-void map_drawCongrats(uint8_t *page)
+void map_draw_congrats(uint8_t *page)
 {
     for (uint32_t i = 0; i < 7u; i++)
-        textpage_drawLineMaskAt(page, mapCongrats[i], 0xA0u, 0x19u + 0x10u * i,
-                                0x20u);
+        textpage_draw_line_mask_at(page, _map_congrats[i], 0xA0u,
+                                   0x19u + 0x10u * i, 0x20u);
 }
 
 /* Test/probe seam: 1 after the first draw, 2 after the flip's redraw. */
-uint32_t map_congratsDraws(void) { return mapCongratsDraws; }
+uint32_t map_congrats_draws(void) { return _map_congrats_draws; }
 
 /* 1000:1251: a rectangle outline in the flat page.  The top edge ORs 0x40,
  * the left and bottom 0x50, the right 0x40 (1000:1263..1298). */
-void map_drawRect(uint8_t *page, uint32_t x, uint32_t y, uint32_t w, uint32_t h)
+void map_draw_rect(uint8_t *page, uint32_t x, uint32_t y, uint32_t w,
+                   uint32_t h)
 {
     if (!page) return;
     for (uint32_t i = 0; i < w; i++) {
@@ -456,231 +457,232 @@ void map_drawRect(uint8_t *page, uint32_t x, uint32_t y, uint32_t w, uint32_t h)
     }
 }
 
-uint32_t map_transitionStep(void) { return mapTrans; }
-uint32_t map_fadeStarts(void) { return mapFadeStarts; }
-int32_t map_fadeAt(uint32_t i, uint32_t *first, uint32_t *entries,
-                   uint32_t *div, uint32_t *target)
+uint32_t map_transition_step(void) { return _map_trans; }
+uint32_t map_fade_starts(void) { return _map_fade_starts; }
+int32_t map_fade_at(uint32_t i, uint32_t *first, uint32_t *entries,
+                    uint32_t *div, uint32_t *target)
 {
-    if (i >= mapFadeStarts || i >= 8u) return 0;
-    if (first) *first = mapFadeLog[i].first;
-    if (entries) *entries = mapFadeLog[i].entries;
-    if (div) *div = mapFadeLog[i].div;
-    if (target) *target = mapFadeLog[i].target;
+    if (i >= _map_fade_starts || i >= 8u) return 0;
+    if (first) *first = _map_fade_log[i].first;
+    if (entries) *entries = _map_fade_log[i].entries;
+    if (div) *div = _map_fade_log[i].div;
+    if (target) *target = _map_fade_log[i].target;
     return 1;
 }
 
 /* 1000:0273/028C/029B/02AD/02BF/02F5/0307: palette_build_fade with the
  * working palette's offset as the target (0x4BBC + N). */
-static void map_buildFade(uint32_t first, uint32_t entries, uint32_t div,
-                          uint32_t targetOff)
+static void _map_build_fade(uint32_t first, uint32_t entries, uint32_t div,
+                            uint32_t targetOff)
 {
-    palette_buildFade(first, entries, div, palette_working() + targetOff);
-    if (mapFadeStarts < 8u) {
-        mapFadeLog[mapFadeStarts].first = first;
-        mapFadeLog[mapFadeStarts].entries = entries;
-        mapFadeLog[mapFadeStarts].div = div;
-        mapFadeLog[mapFadeStarts].target = targetOff;
+    palette_build_fade(first, entries, div, palette_working() + targetOff);
+    if (_map_fade_starts < 8u) {
+        _map_fade_log[_map_fade_starts].first = first;
+        _map_fade_log[_map_fade_starts].entries = entries;
+        _map_fade_log[_map_fade_starts].div = div;
+        _map_fade_log[_map_fade_starts].target = targetOff;
     }
-    mapFadeStarts++;
+    _map_fade_starts++;
 }
 
-void map_drawName(uint8_t *page)
+void map_draw_name(uint8_t *page)
 {
     /* 1000:0CBE: the 30-cell ring from apl\alpha.spr, then the typed name in
      * the same glyph cells (row 0x45, 9 px apart).  The original draws no
      * `NAME:` label and no top-ten list on this screen. */
-    alpha_drawWheel(page, (uint32_t)(0x10Eu - mapCol * 0x0Cu) % 0x168u);
-    alpha_drawName(page, mapName);
+    alpha_draw_wheel(page, (uint32_t)(0x10Eu - _map_col * 0x0Cu) % 0x168u);
+    alpha_draw_name(page, _map_name);
 }
 
 /* 1000:02C5 / 1000:0B85: the page is reset to HIGH.BIT whenever the screen
  * changes (the congratulations page is not left under the name ring). */
-static void map_pageReset(uint8_t *page)
+static void _map_page_reset(uint8_t *page)
 {
     memset(page, 0, MAP_PAGE);
-    if (mapHigh)
-        memcpy(page, mapHigh, mapHighSize < MAP_PAGE ? mapHighSize : MAP_PAGE);
+    if (_map_high)
+        memcpy(page, _map_high,
+               _map_high_size < MAP_PAGE ? _map_high_size : MAP_PAGE);
 }
 
 /* the whole screen: the band layer (1000:12D3), the card, then the state's
  * own art and the box frame (1000:07E6). */
-static void map_redraw(void)
+static void _map_redraw(void)
 {
     uint8_t *page = video_page(0);
 
     if (!page) return;
-    if (mapPhase == MAP_CONGRATS) map_drawCongrats(page);
-    else if (mapPhase == MAP_NAME) map_drawName(page);
-    else if (mapPhase == MAP_LIST) map_drawList(page);
-    if (mapPhase == MAP_LIST) map_drawBoxEdges(page, map_boxBottom);
+    if (_map_phase == MAP_CONGRATS) map_draw_congrats(page);
+    else if (_map_phase == MAP_NAME) map_draw_name(page);
+    else if (_map_phase == MAP_LIST) map_draw_list(page);
+    if (_map_phase == MAP_LIST) map_draw_box_edges(page, g_map_box_bottom);
 }
 
 int32_t map_begin(void)
 {
-    if (mapUp) return 1;
+    if (_map_up) return 1;
 
-    res_setDisc(0u); /* entry 0x151A [0xF7E]=0 */
-    mapHigh = res_loadChunk("LBM\\HIGH.BIT", &mapHighSize, NULL);
+    res_set_disc(0u); /* entry 0x151A [0xF7E]=0 */
+    _map_high = res_load_chunk("LBM\\HIGH.BIT", &_map_high_size, NULL);
     uint8_t *page = video_page(0);
-    map_pageReset(page);
-    if (mapHigh && mapHighSize >= MAP_PAGE + 768u) {
-        palette_loadWorking(mapHigh + MAP_PAGE); /* 1000:01C3/8D24 */
-        palette_setDac(mapHigh + MAP_PAGE, 0, 256);
+    _map_page_reset(page);
+    if (_map_high && _map_high_size >= MAP_PAGE + 768u) {
+        palette_load_working(_map_high + MAP_PAGE); /* 1000:01C3/8D24 */
+        palette_set_dac(_map_high + MAP_PAGE, 0, 256);
     }
 
-    mapFont = res_loadChunk("APL\\TEXT.SPR", NULL, NULL);
-    font_publish(mapFont);
+    _map_font = res_load_chunk("APL\\TEXT.SPR", NULL, NULL);
+    font_publish(_map_font);
 
     /* 1000:01A2..0x01AB: apl\alpha.spr expanded 4bpp -> four planes */
-    free(alphaPacked);
-    alphaPacked = NULL;
-    free(alphaSheet);
-    alphaSheet = NULL;
-    alphaPacked = res_loadChunk("APL\\ALPHA.SPR", NULL, NULL);
-    if (alphaPacked) {
-        alphaSheet = calloc(1, 65536u);
-        if (alphaSheet) alpha_expand(alphaPacked, alphaSheet);
+    free(_alpha_packed);
+    _alpha_packed = NULL;
+    free(_alpha_sheet);
+    _alpha_sheet = NULL;
+    _alpha_packed = res_load_chunk("APL\\ALPHA.SPR", NULL, NULL);
+    if (_alpha_packed) {
+        _alpha_sheet = calloc(1, 65536u);
+        if (_alpha_sheet) alpha_expand(_alpha_packed, _alpha_sheet);
     }
     /* 1000:01B7: apl\band.spr, the frame's 304 x 80 sheet */
-    free(bandSheet);
-    bandSheet = NULL;
-    bandSheet = res_loadChunk("APL\\BAND.SPR", NULL, NULL);
+    free(_band_sheet);
+    _band_sheet = NULL;
+    _band_sheet = res_load_chunk("APL\\BAND.SPR", NULL, NULL);
 
     /* 1000:01CD: the running total is offered to the table.  A qualifying one
      * opens the name entry first, then the list. */
-    mapName[0] = 0;
-    mapNameLen = 0u;
-    mapCol = 0u;
-    map_boxBottom = 0x130u; /* 1000:0518's [0x8AE] */
-    map_panel = 0u; /* 0 = the entry animation */
-    mapStep = 0;
-    mapStepDir = 0;
+    _map_name[0] = 0;
+    _map_name_len = 0u;
+    _map_col = 0u;
+    g_map_box_bottom = 0x130u; /* 1000:0518's [0x8AE] */
+    g_map_panel = 0u; /* 0 = the entry animation */
+    _map_step = 0;
+    _map_step_dir = 0;
     /* 1000:01CD: a total that beats none leaves via 0x062B without the list;
      * a qualifying one gets the congratulation page, then the name entry. */
-    mapPhase = hiscore_qualifies(mapScore()) ? MAP_CONGRATS : MAP_EXIT;
-    map_bandFill(page); /* 1000:12D3 */
-    if (mapPhase == MAP_CONGRATS) mapCongratsDraws = 1;
-    map_redraw(); /* 1000:024B: first pass */
+    _map_phase = hiscore_qualifies(_map_score()) ? MAP_CONGRATS : MAP_EXIT;
+    map_band_fill(page); /* 1000:12D3 */
+    if (_map_phase == MAP_CONGRATS) _map_congrats_draws = 1;
+    _map_redraw(); /* 1000:024B: first pass */
 
-    mapUp = 1;
-    mapArmed = 0;
+    _map_up = 1;
+    _map_armed = 0;
     return 1;
 }
 
 /* 1000:040B: one grid column applied to the 13-character buffer. */
-static void map_apply(uint32_t column)
+static void _map_apply(uint32_t column)
 {
     uint8_t *page;
 
-    if (hiscore_nameApply(mapName, column, &mapNameLen)) {
+    if (hiscore_name_apply(_map_name, column, &_map_name_len)) {
         /* 0x1D: commit the 14-byte name and insert */
-        hiscore_insert(mapScore(), mapName);
-        mapPhase = MAP_LIST;
+        hiscore_insert(_map_score(), _map_name);
+        _map_phase = MAP_LIST;
     }
     page = video_page(0);
     if (!page) return;
-    map_pageReset(page);
-    if (mapPhase == MAP_NAME) map_drawName(page);
-    else if (mapPhase == MAP_LIST) map_drawList(page);
+    _map_page_reset(page);
+    if (_map_phase == MAP_NAME) map_draw_name(page);
+    else if (_map_phase == MAP_LIST) map_draw_list(page);
 }
 
 int32_t map_tick(const InputState *in)
 {
-    if (!mapUp) return 0;
-    if (!mapArmed) {
-        mapArmed = 1;
+    if (!_map_up) return 0;
+    if (!_map_armed) {
+        _map_armed = 1;
         return 1;
     }
 
-    if (mapPhase == MAP_EXIT) {
-        mapUp = 0; /* 1000:062B: fade/save, no list */
+    if (_map_phase == MAP_EXIT) {
+        _map_up = 0; /* 1000:062B: fade/save, no list */
         hiscore_write();
-        free(mapHigh);
-        mapHigh = NULL;
-        free(mapFont);
-        mapFont = NULL;
-        free(alphaPacked);
-        alphaPacked = NULL;
-        free(alphaSheet);
-        alphaSheet = NULL;
-        free(bandSheet);
-        bandSheet = NULL;
+        free(_map_high);
+        _map_high = NULL;
+        free(_map_font);
+        _map_font = NULL;
+        free(_alpha_packed);
+        _alpha_packed = NULL;
+        free(_alpha_sheet);
+        _alpha_sheet = NULL;
+        free(_band_sheet);
+        _band_sheet = NULL;
         font_publish(NULL);
         return 0;
     }
-    if (mapPhase == MAP_CONGRATS) {
-        if (mapCongratsDraws < 2u) {
+    if (_map_phase == MAP_CONGRATS) {
+        if (_map_congrats_draws < 2u) {
             /* 1000:0251's second iteration; the present at the end of this
              * tick is flip_page_swap's equivalent in the one-page tick model. */
-            mapCongratsDraws++;
-            map_redraw();
-            if (mapCongratsDraws == 2u)
-                map_buildFade(0u, 0x40u, 0x28u, 0u); /* 1000:0273 */
+            _map_congrats_draws++;
+            _map_redraw();
+            if (_map_congrats_draws == 2u)
+                _map_build_fade(0u, 0x40u, 0x28u, 0u); /* 1000:0273 */
             return 1;
         }
         if (in->lastKey || (in->joyBits & 0x80u)) {
-            mapPhase = MAP_NAME_FADE; /* 1000:0285: the key wait */
-            mapTrans = 0;
+            _map_phase = MAP_NAME_FADE; /* 1000:0285: the key wait */
+            _map_trans = 0;
         }
         return 1;
     }
-    if (mapPhase == MAP_NAME_FADE) {
+    if (_map_phase == MAP_NAME_FADE) {
         /* The order is 1000:028C..030A: wait the congrats fade, then three
          * fades, the HIGH.BIT re-copy + two rectangles, then two more fades. */
-        switch (mapTrans) {
+        switch (_map_trans) {
         case 0:
-            if (palette_fadeActive()) return 1;
-            map_buildFade(0x80u, 0x80u, 2u, 0x180u); /* 1000:028F */
-            mapTrans = 1;
+            if (palette_fade_active()) return 1;
+            _map_build_fade(0x80u, 0x80u, 2u, 0x180u); /* 1000:028F */
+            _map_trans = 1;
             return 1;
         case 1:
-            if (palette_fadeActive()) return 1;
-            map_buildFade(0x20u, 0x20u, 0x1Eu, 0x120u); /* 1000:02A1 */
-            mapTrans = 2;
+            if (palette_fade_active()) return 1;
+            _map_build_fade(0x20u, 0x20u, 0x1Eu, 0x120u); /* 1000:02A1 */
+            _map_trans = 2;
             return 1;
         case 2:
-            if (palette_fadeActive()) return 1;
-            map_buildFade(0x40u, 0x20u, 2u, 0x120u); /* 1000:02B3 */
-            mapTrans = 3;
+            if (palette_fade_active()) return 1;
+            _map_build_fade(0x40u, 0x20u, 2u, 0x120u); /* 1000:02B3 */
+            _map_trans = 3;
             return 1;
         case 3: {
             uint8_t *page = video_page(0);
 
-            if (palette_fadeActive()) return 1;
+            if (palette_fade_active()) return 1;
             if (page) {
-                map_pageReset(page); /* 1000:02C5 */
-                map_drawRect(page, 0x95u, 9u, 0xFu, 0xFu); /* 1000:02C8 */
-                map_drawRect(page, 0x60u, 0x45u, 0x77u, 0xFu); /* 1000:02D7 */
+                _map_page_reset(page); /* 1000:02C5 */
+                map_draw_rect(page, 0x95u, 9u, 0xFu, 0xFu); /* 1000:02C8 */
+                map_draw_rect(page, 0x60u, 0x45u, 0x77u, 0xFu); /* 1000:02D7 */
             }
-            map_buildFade(0x40u, 0x20u, 0x1Eu, 0xC0u); /* 1000:02E9 */
-            mapTrans = 4;
+            _map_build_fade(0x40u, 0x20u, 0x1Eu, 0xC0u); /* 1000:02E9 */
+            _map_trans = 4;
             return 1;
         }
         case 4:
-            if (palette_fadeActive()) return 1;
+            if (palette_fade_active()) return 1;
             /* 1000:02FB/0307: the last fade starts and the ring goes up
              * without waiting for it (1000:030A clears [0x5AC8] and falls in). */
-            map_buildFade(0x20u, 0x20u, 0x46u, 0x60u);
-            mapTrans = 6;
-            mapPhase = MAP_NAME;
-            map_redraw();
+            _map_build_fade(0x20u, 0x20u, 0x46u, 0x60u);
+            _map_trans = 6;
+            _map_phase = MAP_NAME;
+            _map_redraw();
             return 1;
-        default: mapPhase = MAP_NAME; return 1;
+        default: _map_phase = MAP_NAME; return 1;
         }
     }
 
-    if (mapPhase == MAP_NAME) {
+    if (_map_phase == MAP_NAME) {
         uint32_t column = 0xFFu;
 
         if (in->joyBits & 0x04u) { /* left  */
-            mapCol = (mapCol + GRID_CELLS - 1u) % GRID_CELLS;
+            _map_col = (_map_col + GRID_CELLS - 1u) % GRID_CELLS;
             return 1;
         }
         if (in->joyBits & 0x08u) { /* right */
-            mapCol = (mapCol + 1u) % GRID_CELLS;
+            _map_col = (_map_col + 1u) % GRID_CELLS;
             return 1;
         }
-        if (in->joyBits & 0x80u) column = mapCol; /* fire selects the cell */
+        if (in->joyBits & 0x80u) column = _map_col; /* fire selects the cell */
         if (in->lastKey) {
             uint32_t c = in->lastKey;
 
@@ -691,60 +693,61 @@ int32_t map_tick(const InputState *in)
             else if (c == 8u || c == 0x7Fu) column = 0x1Cu; /* delete */
             else if (c == 13u || c == 10u) column = 0x1Du; /* enter  */
         }
-        if (column != 0xFFu) map_apply(column);
+        if (column != 0xFFu) _map_apply(column);
         return 1;
     }
 
     /* 1000:0518's entry animation: [0x8AE] runs from 0x130 down to 2, one step
      * per frame, so the five frame rows unroll; [0x8A2] becomes 1 when it ends
      * and the panel loop (0x05B9) takes over. */
-    if (map_panel == 0u) {
-        map_redraw(); /* 1000:05A5: draw, wait, then SUB */
-        if (map_boxBottom > 2u) map_boxBottom--;
-        else map_panel = 1u;
+    if (g_map_panel == 0u) {
+        _map_redraw(); /* 1000:05A5: draw, wait, then SUB */
+        if (g_map_box_bottom > 2u) g_map_box_bottom--;
+        else g_map_panel = 1u;
         return 1;
     }
     /* 1000:05F4/0613: a panel step is 0x14 frames long, not instant.  Each
      * frame draws the frame and moves [0x8AE] by one; [0x8A2] changes only
      * after the 0x14th.  Up (bit 0x01) adds 1, down (bit 0x02) subtracts 1. */
-    if (mapStep > 0) {
-        map_redraw(); /* 1000:05F8: draw, wait, then ADD/SUB */
-        map_boxBottom = (uint32_t)((int32_t)map_boxBottom + mapStepDir);
-        if (--mapStep == 0)
-            map_panel = (uint32_t)((int32_t)map_panel + mapStepDir);
+    if (_map_step > 0) {
+        _map_redraw(); /* 1000:05F8: draw, wait, then ADD/SUB */
+        g_map_box_bottom =
+            (uint32_t)((int32_t)g_map_box_bottom + _map_step_dir);
+        if (--_map_step == 0)
+            g_map_panel = (uint32_t)((int32_t)g_map_panel + _map_step_dir);
         return 1;
     }
     if (in->joyBits & 0x01u) {
-        if (map_panel < 6u) {
-            mapStep = 0x14;
-            mapStepDir = 1;
+        if (g_map_panel < 6u) {
+            _map_step = 0x14;
+            _map_step_dir = 1;
         }
-        map_redraw();
+        _map_redraw();
         return 1;
     }
     if (in->joyBits & 0x02u) {
-        if (map_panel > 1u) {
-            mapStep = 0x14;
-            mapStepDir = -1;
+        if (g_map_panel > 1u) {
+            _map_step = 0x14;
+            _map_step_dir = -1;
         }
-        map_redraw();
+        _map_redraw();
         return 1;
     }
 
     if (in->lastKey || (in->joyBits & 0x80u)) {
-        mapUp = 0;
+        _map_up = 0;
         hiscore_write(); /* 1000:062B decrypt_region_38a: the table is saved
                               * when menu_loop is left */
-        free(mapHigh);
-        mapHigh = NULL;
-        free(mapFont);
-        mapFont = NULL;
-        free(alphaPacked);
-        alphaPacked = NULL;
-        free(alphaSheet);
-        alphaSheet = NULL;
-        free(bandSheet);
-        bandSheet = NULL;
+        free(_map_high);
+        _map_high = NULL;
+        free(_map_font);
+        _map_font = NULL;
+        free(_alpha_packed);
+        _alpha_packed = NULL;
+        free(_alpha_sheet);
+        _alpha_sheet = NULL;
+        free(_band_sheet);
+        _band_sheet = NULL;
         font_publish(NULL);
         return 0;
     }

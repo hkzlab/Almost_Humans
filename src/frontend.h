@@ -17,8 +17,8 @@
 /* The four option counters — the descriptor tables' +7 bytes at
  * 202F:0x5E5B/0x5E65/0x5E6F/0x5E79, where the badge's frame IS the
  * setting.  The read side uses this accessor: level.c takes LEVEL, the room
- * hands MUSIC to audio_musicGate, scene.c takes ANIMATIONS, and game_main
- * hands the RESTORE GAME slot to save_loadSlot (entry 1000:004C's load). */
+ * hands MUSIC to audio_music_gate, scene.c takes ANIMATIONS, and game_main
+ * hands the RESTORE GAME slot to save_load_slot (entry 1000:004C's load). */
 enum {
     FRONTEND_OPT_MUSIC = 0, /* ON/OFF: the frame web's music gate      */
     FRONTEND_OPT_LEVEL = 1, /* EASY/NORMAL/HARD: time A/B/C, 12/10/8    */
@@ -32,13 +32,13 @@ int32_t frontend_tick(const InputState *in);
  * (string i of levels\codes.bin = level i; #1 "DARWIN"; a full miss
  * leaves 161 — the original's own edge).  entry's PUSH AX/POP AX move
  * it to [0x22]; game_main does the same into its level counter. */
-uint32_t frontend_selectedLevel(void);
+uint32_t frontend_selected_level(void);
 /* entry's JMP LAB_002B (the pause's RESTART THIS GAME): the room's setup
  * runs again; the option counters persist. */
 void frontend_restart(void);
 uint32_t frontend_option(uint32_t idx);
-uint32_t frontend_cellForProbe(void); /* [0x4220]: the walk's rail node  */
-int32_t frontend_nameScreenForProbe(void); /* the name screen's phase      */
-const char *frontend_nameForProbe(void); /* the typed name (0x61E0)      */
+uint32_t frontend_cell_for_probe(void); /* [0x4220]: the walk's rail node  */
+int32_t frontend_name_screen_for_probe(void); /* the name screen's phase      */
+const char *frontend_name_for_probe(void); /* the typed name (0x61E0)      */
 
 #endif /* HUMANSRE_FRONTEND_H */

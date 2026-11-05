@@ -5,14 +5,14 @@
 
 #include <SDL3/SDL.h>
 
-int32_t sdl3_audioStart(void)
+int32_t sdl3_audio_start(void)
 {
     SDL_Log("audio: stub (M5)");
     return 0;
 }
-int32_t sdl3_audioPlayTune(uint32_t id)
+int32_t sdl3_audio_play_tune(uint32_t id)
 {
     (void)id;
     return 0;
 }
-void sdl3_audioStop(void) {}
+void sdl3_audio_stop(void) {}

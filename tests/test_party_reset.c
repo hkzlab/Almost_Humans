@@ -17,7 +17,7 @@
 #include <stdio.h>
 #include <string.h>
 
-extern const OSystem osys_null;
+extern const OSystem g_osys_null;
 
 int main(int argc, char **argv)
 {
@@ -27,13 +27,13 @@ int main(int argc, char **argv)
         perror(vol_dir);
         return 1;
     }
-    if (res_init(&osys_null) || palette_init(&osys_null) ||
-        font_init(&osys_null) || video_init(&osys_null)) {
+    if (res_init(&g_osys_null) || palette_init(&g_osys_null) ||
+        font_init(&g_osys_null) || video_init(&g_osys_null)) {
         printf("PARTY_RESET: init failed\n");
         return 1;
     }
-    res_setDisc(1u);                      /* the party art's volume */
-    party_intro_setValues(1u, 4u, 12u, 0u, "DARWIN");
+    res_set_disc(1u);                      /* the party art's volume */
+    party_intro_set_values(1u, 4u, 12u, 0u, "DARWIN");
     if (!party_intro_start()) {
         printf("PARTY_RESET: skip (no party data)\n");
         return 0;
@@ -64,7 +64,7 @@ int main(int argc, char **argv)
     }
 
     /* the next level's briefing: its first tick must still run */
-    party_intro_setValues(2u, 4u, 12u, 0u, "DARWIN");
+    party_intro_set_values(2u, 4u, 12u, 0u, "DARWIN");
     if (!party_intro_start()) {
         printf("PARTY_RESET: FAIL the second briefing did not start\n");
         return 1;

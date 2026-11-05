@@ -37,11 +37,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-extern const OSystem osys_null;
+extern const OSystem g_osys_null;
 
-static void dump_window(const uint8_t *dac, uint32_t tick)
+static void _dump_window(const uint8_t *dac, uint32_t tick)
 {
-    printf("--- tick %u (active=%d):\n", tick, palette_fadeActive());
+    printf("--- tick %u (active=%d):\n", tick, palette_fade_active());
     printf("    0x78-0x7f: ");
     for (uint32_t e = 0x78u; e <= 0x7fu; e++)
         printf("%02x%02x%02x ", dac[e * 3u], dac[e * 3u + 1u],
@@ -66,29 +66,29 @@ int main(int argc, char **argv)
     }
     (void)argv;
 
-    if (res_init(&osys_null) || palette_init(&osys_null) ||
-        font_init(&osys_null) || video_init(&osys_null)) {
+    if (res_init(&g_osys_null) || palette_init(&g_osys_null) ||
+        font_init(&g_osys_null) || video_init(&g_osys_null)) {
         printf("FADELADDER: init failed\n");
         return 1;
     }
-    res_setDisc(1);
-    party_intro_setValues(1u, 4u, 12u, 0u, "DARWIN");
+    res_set_disc(1);
+    party_intro_set_values(1u, 4u, 12u, 0u, "DARWIN");
     if (!party_intro_start()) {
         printf("FADELADDER: SKIP (no data)\n");
         return 0;
     }
 
-    const uint8_t *dac = palette_dacShadow();
+    const uint8_t *dac = palette_dac_shadow();
     printf("fade: first=%u comps=%u tgt=%p workpal=%p palUpper=%p\n",
-           palette_fadeFirst(), palette_fadeComps(),
-           (const void *)palette_fadeTarget(),
+           palette_fade_first(), palette_fade_comps(),
+           (const void *)palette_fade_target(),
            (const void *)party_intro_workpal(),
-           (const void *)party_intro_palUpper());
+           (const void *)party_intro_pal_upper());
     printf("fadeTarget[0..8]:  ");
-    for (uint32_t i = 0; i < 9u; i++) printf("%02x ", palette_fadeTarget()[i]);
+    for (uint32_t i = 0; i < 9u; i++) printf("%02x ", palette_fade_target()[i]);
     printf("\nfadeTarget[360..368]: ");
     for (uint32_t i = 360u; i < 369u; i++)
-        printf("%02x ", palette_fadeTarget()[i]);
+        printf("%02x ", palette_fade_target()[i]);
     printf("\n");
     printf("workpal[1..7]:  ");
     for (uint32_t e = 1u; e <= 7u; e++)
@@ -104,12 +104,12 @@ int main(int argc, char **argv)
 
     /* the entry: print at the fade-in's midpoint and end (the original's
      * 35 steps at ~18 Hz = the arrival read "0x81..0x8f = navies") */
-    dump_window(dac, 0u);
+    _dump_window(dac, 0u);
     for (uint32_t t = 1u; t <= 40u; t++) {
         palette_tick();
         party_intro_tick(&in);
         printf("e t%03u a=%d 81=%02x%02x%02x 85=%02x%02x%02x 78=%02x%02x%02x\n",
-               t, palette_fadeActive(), dac[0x81u * 3u], dac[0x81u * 3u + 1u],
+               t, palette_fade_active(), dac[0x81u * 3u], dac[0x81u * 3u + 1u],
                dac[0x81u * 3u + 2u], dac[0x85u * 3u], dac[0x85u * 3u + 1u],
                dac[0x85u * 3u + 2u], dac[0x78u * 3u], dac[0x78u * 3u + 1u],
                dac[0x78u * 3u + 2u]);
@@ -125,19 +125,19 @@ int main(int argc, char **argv)
         tick++;
         printf(
             "t%03u a=%d 81=%02x%02x%02x 82=%02x%02x%02x a0=%02x%02x%02x ff=%02x%02x%02x\n",
-            tick, palette_fadeActive(), dac[0x81u * 3u], dac[0x81u * 3u + 1u],
+            tick, palette_fade_active(), dac[0x81u * 3u], dac[0x81u * 3u + 1u],
             dac[0x81u * 3u + 2u], dac[0x82u * 3u], dac[0x82u * 3u + 1u],
             dac[0x82u * 3u + 2u], dac[0xa0u * 3u], dac[0xa0u * 3u + 1u],
             dac[0xa0u * 3u + 2u], dac[0xffu * 3u], dac[0xffu * 3u + 1u],
             dac[0xffu * 3u + 2u]);
-        if (palette_fadeActive() && dac[0x81u * 3u] == 0x22u &&
+        if (palette_fade_active() && dac[0x81u * 3u] == 0x22u &&
             dac[0x81u * 3u + 1u] == 0x22u && dac[0x81u * 3u + 2u] == 0x22u &&
             dac[0x8fu * 3u] == 0x22u && dac[0x9fu * 3u] == 0x22u &&
             dac[0xa0u * 3u] == 0u && dac[0xc0u * 3u] == 0u &&
             dac[0xe0u * 3u] == 0u && dac[0xffu * 3u] == 0x3au)
             settled_grey = 1;
     }
-    dump_window(dac, 940u);
+    _dump_window(dac, 940u);
 
     /* the ground-truth asserts, one per phase (re_map.md, "the party's
      * entry-palette source": the live DAC walk of 2026-10-30) */

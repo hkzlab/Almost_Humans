@@ -8,8 +8,8 @@
  *       reads: a cell's opaque pixels must equal the page's);
  *   (c) the value reaches its consumer — LEVEL -> the record's time B and
  *       the 10-member tribe (entry 1000:009F / render_level_frame 1000:958C);
- *       MUSIC -> the frame web's gate (audio_musicGate 1000:A5E8) stopping
- *       and resuming the backend; ANIMATIONS -> scene_playLevelIntro's
+ *       MUSIC -> the frame web's gate (audio_music_gate 1000:A5E8) stopping
+ *       and resuming the backend; ANIMATIONS -> scene_play_level_intro's
  *       early RET (cd_file_op 1000:AFFD); RESTORE GAME -> carried out of the
  *       room (its reader, entry 1000:004C, is the M6 save load).
  *
@@ -36,56 +36,56 @@
 #include <string.h>
 
 extern const uint8_t *osys_null_page(int32_t which);
-extern uint32_t osys_null_audioStarts(void);
-extern uint32_t osys_null_audioStops(void);
-extern VideoMode osys_null_videoMode(void);
+extern uint32_t osys_null_audio_starts(void);
+extern uint32_t osys_null_audio_stops(void);
+extern VideoMode osys_null_video_mode(void);
 
-extern const OSystem osys_null;
+extern const OSystem g_osys_null;
 
-static void tick(const InputState *in)
+static void _tick(const InputState *in)
 {
     frontend_tick(in);
     palette_tick();                 /* game_tick's ISR body */
 }
 
-static InputState idle(void)
+static InputState _idle(void)
 {
     InputState in;
     memset(&in, 0, sizeof in);
     return in;
 }
 
-/* Hold `dirBit` until the rail arrival changes the cell; one idle tick is
+/* Hold `dirBit` until the rail arrival changes the cell; one _idle _tick is
  * left afterwards so the rail cannot re-arm from the held key. */
-static int32_t walk_to(uint32_t dirBit, uint32_t want, const char *what)
+static int32_t _walk_to(uint32_t dirBit, uint32_t want, const char *what)
 {
-    uint32_t start = frontend_cellForProbe();
-    InputState in = idle();
+    uint32_t start = frontend_cell_for_probe();
+    InputState in = _idle();
     in.joyBits = dirBit;
     for (uint32_t i = 0; i < 400u; i++) {
-        tick(&in);
-        if (frontend_cellForProbe() != start) break;
+        _tick(&in);
+        if (frontend_cell_for_probe() != start) break;
     }
-    if (frontend_cellForProbe() != want) {
+    if (frontend_cell_for_probe() != want) {
         fprintf(stderr, "FAIL walk %s: cell %u, want %u\n", what,
-                frontend_cellForProbe(), want);
+                frontend_cell_for_probe(), want);
         return 1;
     }
-    InputState rel = idle();
-    tick(&rel);
+    InputState rel = _idle();
+    _tick(&rel);
     return 0;
 }
 
 /* One ACTION press + release (the original spins on the held key; the port
- * latches one cycle per press).  The release tick is the next frame web's
+ * latches one cycle per press).  The release _tick is the next frame web's
  * pass, so the music gate sees the new counter there. */
-static void press_action(void)
+static void _press_action(void)
 {
-    InputState in = idle();
+    InputState in = _idle();
     in.joyBits = 0x80u;
-    tick(&in);
-    InputState rel = idle();
-    tick(&rel);
+    _tick(&in);
+    InputState rel = _idle();
+    _tick(&rel);
 }
 
 /* (b): the shipped cell's opaque pixels must be on the composed page at the
@@ -95,10 +95,10 @@ static void press_action(void)
  * carry the new badge).  set_scroll is 0x140 at all four cells this test
  * visits (the upper walkway y < 0x64 gives 0x140, and the floor targets
  * 466/520 clamp to it), so world x = col*4 maps to page x = col*4-0x140. */
-static int32_t check_badge(const char *what, uint32_t dest, const uint8_t *spr,
-                           uint32_t size, uint32_t srcOff, uint32_t w,
-                           uint32_t h, uint32_t cell, uint32_t charX,
-                           uint32_t charY)
+static int32_t _check_badge(const char *what, uint32_t dest, const uint8_t *spr,
+                            uint32_t size, uint32_t srcOff, uint32_t w,
+                            uint32_t h, uint32_t cell, uint32_t charX,
+                            uint32_t charY)
 {
     const uint8_t *page = osys_null_page(0);
     uint32_t off = srcOff + cell * w * h;
@@ -155,21 +155,21 @@ int main(int argc, char **argv)
 
     int32_t bad = 0;
 
-    res_init(&osys_null);
-    video_init(&osys_null);
-    palette_init(&osys_null);
-    font_init(&osys_null);
-    audio_init(&osys_null);
-    statusbar_init(&osys_null);
-    level_init(&osys_null);
-    scene_init(&osys_null);
-    frontend_init(&osys_null);
+    res_init(&g_osys_null);
+    video_init(&g_osys_null);
+    palette_init(&g_osys_null);
+    font_init(&g_osys_null);
+    audio_init(&g_osys_null);
+    statusbar_init(&g_osys_null);
+    level_init(&g_osys_null);
+    scene_init(&g_osys_null);
+    frontend_init(&g_osys_null);
 
     /* the shipped badge art (the same chunks the placer reads, from disc 0) */
     uint32_t cb1Size = 0, cb2Size = 0, rstSize = 0;
-    uint8_t *cb1 = res_loadChunk("APL\\CODEB1.SPR", &cb1Size, NULL);
-    uint8_t *cb2 = res_loadChunk("APL\\CODEB2.SPR", &cb2Size, NULL);
-    uint8_t *rst = res_loadChunk("APL\\RESTORE.SPR", &rstSize, NULL);
+    uint8_t *cb1 = res_load_chunk("APL\\CODEB1.SPR", &cb1Size, NULL);
+    uint8_t *cb2 = res_load_chunk("APL\\CODEB2.SPR", &cb2Size, NULL);
+    uint8_t *rst = res_load_chunk("APL\\RESTORE.SPR", &rstSize, NULL);
     if (!cb1 || !cb2 || !rst || cb1Size != 4u * 48u * 32u ||
         cb2Size != 3u * 80u * 32u || rstSize != 21u * 48u * 32u) {
         fprintf(stderr, "FAIL badge assets unreadable\n");
@@ -180,26 +180,26 @@ int main(int argc, char **argv)
      * the room so the value is still 0; the scene then stays mid-play and
      * the post-room call below is a pure gate check.) */
     if (frontend_option(FRONTEND_OPT_ANIM) != 0u ||
-        scene_playLevelIntro(0) != 1) {
+        scene_play_level_intro(0) != 1) {
         fprintf(stderr, "FAIL the level intro did not start with "
                         "ANIMATIONS on\n");
         bad = 1;
     }
-    res_setDisc(0u);           /* the room's assets ship on disc 0 */
+    res_set_disc(0u);           /* the room's assets ship on disc 0 */
 
-    /* enter the room: load + the fade-in (~24 ticks), then idle */
+    /* enter the room: load + the fade-in (~24 ticks), then _idle */
     {
-        InputState in = idle();
-        for (uint32_t i = 0; i < 60u; i++) tick(&in);
+        InputState in = _idle();
+        for (uint32_t i = 0; i < 60u; i++) _tick(&in);
     }
-    if (osys_null_audioStarts() != 1u || osys_null_audioStops() != 0u) {
+    if (osys_null_audio_starts() != 1u || osys_null_audio_stops() != 0u) {
         fprintf(stderr,
                 "FAIL MUSIC on should resume once (starts %u, "
                 "stops %u)\n",
-                osys_null_audioStarts(), osys_null_audioStops());
+                osys_null_audio_starts(), osys_null_audio_stops());
         bad = 1;
     }
-    if (osys_null_videoMode() != VIDEO_MODE_X) {
+    if (osys_null_video_mode() != VIDEO_MODE_X) {
         fprintf(stderr, "FAIL the room did not set the mode-X field\n");
         bad = 1;
     }
@@ -225,112 +225,112 @@ int main(int argc, char **argv)
     }
 
     /* --- LEVEL: cell 2 (EASY/NORMAL/HARD = 3 states) ------------------- */
-    bad |= walk_to(0x01u, 1u, "up to the walkway");
-    bad |= walk_to(0x04u, 2u, "left to LEVEL");
+    bad |= _walk_to(0x01u, 1u, "up to the walkway");
+    bad |= _walk_to(0x04u, 2u, "left to LEVEL");
     if (frontend_option(FRONTEND_OPT_LEVEL) != 0u) {
         fprintf(stderr, "FAIL LEVEL starts at %u, want 0\n",
                 frontend_option(FRONTEND_OPT_LEVEL));
         bad = 1;
     }
-    press_action();
+    _press_action();
     if (frontend_option(FRONTEND_OPT_LEVEL) != 1u) {
         fprintf(stderr, "FAIL LEVEL did not advance to 1\n");
         bad = 1;
     }
     /* the LEVEL badge: codeb2, dest 0x1C80, 80x32, cell 1 (NORMAL) */
-    bad |= check_badge("LEVEL", 0x1C80u, cb2, cb2Size, 0u, 80u, 32u, 1u, 400u,
-                       55u);
-    press_action();
-    press_action();                     /* 2 then the wrap to 0 */
+    bad |= _check_badge("LEVEL", 0x1C80u, cb2, cb2Size, 0u, 80u, 32u, 1u, 400u,
+                        55u);
+    _press_action();
+    _press_action();                     /* 2 then the wrap to 0 */
     if (frontend_option(FRONTEND_OPT_LEVEL) != 0u) {
         fprintf(stderr, "FAIL LEVEL did not wrap at 3\n");
         bad = 1;
     }
-    press_action();                     /* leave it on NORMAL for the level */
+    _press_action(); /* leave it on NORMAL for the level */
 
     /* --- MUSIC: cell 3 (ON/OFF = 2 states) ----------------------------- */
-    bad |= walk_to(0x04u, 3u, "left to MUSIC");
-    press_action(); /* 0 -> 1: OFF */
+    bad |= _walk_to(0x04u, 3u, "left to MUSIC");
+    _press_action(); /* 0 -> 1: OFF */
     if (frontend_option(FRONTEND_OPT_MUSIC) != 1u) {
         fprintf(stderr, "FAIL MUSIC did not advance to 1\n");
         bad = 1;
     }
-    if (osys_null_audioStops() != 1u || osys_null_audioStarts() != 1u) {
+    if (osys_null_audio_stops() != 1u || osys_null_audio_starts() != 1u) {
         fprintf(stderr,
                 "FAIL MUSIC off did not stop the backend (starts "
                 "%u, stops %u)\n",
-                osys_null_audioStarts(), osys_null_audioStops());
+                osys_null_audio_starts(), osys_null_audio_stops());
         bad = 1;
     }
     /* the MUSIC badge: codeb1 cell 1 (OFF), dest 0x1D14, 48x32 */
-    bad |= check_badge("MUSIC", 0x1D14u, cb1, cb1Size, 0u, 48u, 32u, 1u, 362u,
-                       55u);
-    press_action(); /* 1 -> 0: the wrap; resume */
+    bad |= _check_badge("MUSIC", 0x1D14u, cb1, cb1Size, 0u, 48u, 32u, 1u, 362u,
+                        55u);
+    _press_action(); /* 1 -> 0: the wrap; resume */
     if (frontend_option(FRONTEND_OPT_MUSIC) != 0u ||
-        osys_null_audioStarts() != 2u) {
+        osys_null_audio_starts() != 2u) {
         fprintf(stderr,
                 "FAIL MUSIC did not wrap/resume (counter %u, "
                 "starts %u)\n",
-                frontend_option(FRONTEND_OPT_MUSIC), osys_null_audioStarts());
+                frontend_option(FRONTEND_OPT_MUSIC), osys_null_audio_starts());
         bad = 1;
     }
     {
-        InputState in = idle();
-        for (uint32_t i = 0; i < 5u; i++) tick(&in); /* the latch holds */
+        InputState in = _idle();
+        for (uint32_t i = 0; i < 5u; i++) _tick(&in); /* the latch holds */
     }
-    if (osys_null_audioStarts() != 2u || osys_null_audioStops() != 1u) {
+    if (osys_null_audio_starts() != 2u || osys_null_audio_stops() != 1u) {
         fprintf(stderr, "FAIL the music latch re-called the backend\n");
         bad = 1;
     }
 
     /* --- on to RESTORE GAME: cell 6 (OFF/1..20 = 21 states) ----------- */
-    bad |= walk_to(0x08u, 2u, "right back to LEVEL");
-    bad |= walk_to(0x08u, 1u, "right to the floor rail");
-    bad |= walk_to(0x02u, 0u, "down to the floor");
-    bad |= walk_to(0x08u, 6u, "right to RESTORE GAME");
-    press_action(); /* 0 -> 1 */
+    bad |= _walk_to(0x08u, 2u, "right back to LEVEL");
+    bad |= _walk_to(0x08u, 1u, "right to the floor rail");
+    bad |= _walk_to(0x02u, 0u, "down to the floor");
+    bad |= _walk_to(0x08u, 6u, "right to RESTORE GAME");
+    _press_action(); /* 0 -> 1 */
     if (frontend_option(FRONTEND_OPT_GAME) != 1u) {
         fprintf(stderr, "FAIL RESTORE GAME did not advance to 1\n");
         bad = 1;
     }
     /* the RESTORE GAME badge: restore.spr cell 1 (GAME 1), dest 0x5BBC */
-    bad |= check_badge("RESTORE GAME", 0x5BBCu, rst, rstSize, 0u, 48u, 32u, 1u,
-                       520u, 160u);
-    for (uint32_t i = 0; i < 20u; i++) press_action(); /* 2..20, then wrap */
+    bad |= _check_badge("RESTORE GAME", 0x5BBCu, rst, rstSize, 0u, 48u, 32u, 1u,
+                        520u, 160u);
+    for (uint32_t i = 0; i < 20u; i++) _press_action(); /* 2..20, then wrap */
     if (frontend_option(FRONTEND_OPT_GAME) != 0u) {
         fprintf(stderr, "FAIL RESTORE GAME did not wrap at 21\n");
         bad = 1;
     }
-    press_action(); /* leave GAME 1 for the exit */
+    _press_action(); /* leave GAME 1 for the exit */
 
     /* --- ANIMATIONS: cell 5 (ON/OFF = 2 states) ----------------------- */
-    bad |= walk_to(0x04u, 0u, "left to the floor start");
-    bad |= walk_to(0x01u, 1u, "up to the walkway");
-    bad |= walk_to(0x01u, 4u, "up to the top rail");
-    bad |= walk_to(0x08u, 5u, "right to ANIMATIONS");
-    press_action(); /* 0 -> 1: OFF */
+    bad |= _walk_to(0x04u, 0u, "left to the floor start");
+    bad |= _walk_to(0x01u, 1u, "up to the walkway");
+    bad |= _walk_to(0x01u, 4u, "up to the top rail");
+    bad |= _walk_to(0x08u, 5u, "right to ANIMATIONS");
+    _press_action(); /* 0 -> 1: OFF */
     if (frontend_option(FRONTEND_OPT_ANIM) != 1u) {
         fprintf(stderr, "FAIL ANIMATIONS did not advance to 1\n");
         bad = 1;
     }
     /* the ANIMATIONS badge: codeb1 cells 2..3 at srcOff 0xC00, cell 1 = OFF */
-    bad |= check_badge("ANIMATIONS", 0x0F88u, cb1, cb1Size, 0x0C00u, 48u, 32u,
-                       1u, 539u, 32u);
-    press_action(); /* 1 -> 0: the wrap */
+    bad |= _check_badge("ANIMATIONS", 0x0F88u, cb1, cb1Size, 0x0C00u, 48u, 32u,
+                        1u, 539u, 32u);
+    _press_action(); /* 1 -> 0: the wrap */
     if (frontend_option(FRONTEND_OPT_ANIM) != 0u) {
         fprintf(stderr, "FAIL ANIMATIONS did not wrap at 2\n");
         bad = 1;
     }
-    press_action(); /* leave it OFF for the cutscene gate */
+    _press_action(); /* leave it OFF for the cutscene gate */
 
     /* --- exit: walk off the right edge, carrying the settings out ----- */
-    bad |= walk_to(0x04u, 4u, "left off the top rail");
-    bad |= walk_to(0x02u, 1u, "down to the walkway");
-    bad |= walk_to(0x02u, 0u, "down to the floor");
-    bad |= walk_to(0x08u, 6u, "right to the exit rail");
-    bad |= walk_to(0x08u, 0u, "off the right edge");
+    bad |= _walk_to(0x04u, 4u, "left off the top rail");
+    bad |= _walk_to(0x02u, 1u, "down to the walkway");
+    bad |= _walk_to(0x02u, 0u, "down to the floor");
+    bad |= _walk_to(0x08u, 6u, "right to the exit rail");
+    bad |= _walk_to(0x08u, 0u, "off the right edge");
     {
-        InputState in = idle();
+        InputState in = _idle();
         uint32_t i;
         for (i = 0; i < 300u; i++) {
             if (!frontend_tick(&in)) {
@@ -348,10 +348,10 @@ int main(int argc, char **argv)
     /* attract_exit 1000:13E9 -> entry LAB_002B: after the attract (also the
      * one after the ending) the room's setup runs again.  frontend_restart
      * is that re-entry; without it the stale exit phase hands straight back
-     * to the level.  The room must accept a tick again. */
+     * to the level.  The room must accept a _tick again. */
     frontend_restart();
     {
-        InputState rin = idle();
+        InputState rin = _idle();
 
         if (!frontend_tick(&rin) || !frontend_tick(&rin)) {
             fprintf(stderr, "FAIL the room did not re-enter after the attract "
@@ -362,7 +362,7 @@ int main(int argc, char **argv)
 
     /* --- the name screen's input law (D-56/D-57) ---------------------- */
     {
-        InputState in = idle();
+        InputState in = _idle();
         uint32_t t;
         static const char wrong[] = "WRONG CODE";
         static const char code14[] = "FATEANDFORTUNE";
@@ -370,76 +370,77 @@ int main(int argc, char **argv)
         /* hold left: the rail takes the character to x=0x108, then the pan
          * runs the scroll to 0 and the name screen opens */
         in.joyBits = 0x04u;
-        for (t = 0; t < 800u && !frontend_nameScreenForProbe(); t++) tick(&in);
-        in = idle();
-        tick(&in); /* release the walk */
-        if (!frontend_nameScreenForProbe()) {
+        for (t = 0; t < 800u && !frontend_name_screen_for_probe(); t++)
+            _tick(&in);
+        in = _idle();
+        _tick(&in); /* release the walk */
+        if (!frontend_name_screen_for_probe()) {
             fprintf(stderr, "FAIL the name screen did not open\n");
             bad = 1;
         } else {
             /* ESC clears the seeded DARWIN */
-            in = idle();
+            in = _idle();
             in.lastKey = 0x1Bu;
-            tick(&in);
-            if (strcmp(frontend_nameForProbe(), "") != 0) {
+            _tick(&in);
+            if (strcmp(frontend_name_for_probe(), "") != 0) {
                 fprintf(stderr, "FAIL ESC did not clear the name\n");
                 bad = 1;
             }
             /* type a wrong code and Enter: the miss resets DARWIN */
             for (uint32_t i = 0; wrong[i]; i++) {
-                in = idle();
+                in = _idle();
                 in.lastKey = (uint8_t)wrong[i];
-                tick(&in);
+                _tick(&in);
             }
-            in = idle();
+            in = _idle();
             in.lastKey = 0x0Du;
-            tick(&in);
-            if (strcmp(frontend_nameForProbe(), "DARWIN") != 0) {
+            _tick(&in);
+            if (strcmp(frontend_name_for_probe(), "DARWIN") != 0) {
                 fprintf(stderr, "FAIL the miss reset is '%s'\n",
-                        frontend_nameForProbe());
+                        frontend_name_for_probe());
                 bad = 1;
             }
             /* D-56: the tail is zeroed; one Backspace erases the visible N */
-            in = idle();
+            in = _idle();
             in.lastKey = 0x0Eu;
-            tick(&in);
-            if (strcmp(frontend_nameForProbe(), "DARWI") != 0) {
+            _tick(&in);
+            if (strcmp(frontend_name_for_probe(), "DARWI") != 0) {
                 fprintf(stderr, "FAIL the first Backspace left '%s'\n",
-                        frontend_nameForProbe());
+                        frontend_name_for_probe());
                 bad = 1;
             }
             /* D-56: typing after a miss must not expose a stale tail */
-            in = idle();
+            in = _idle();
             in.lastKey = 0x0Du;
-            tick(&in); /* DARWI -> miss */
-            in = idle();
+            _tick(&in); /* DARWI -> miss */
+            in = _idle();
             in.lastKey = 'X';
-            tick(&in);
-            if (strcmp(frontend_nameForProbe(), "DARWINX") != 0) {
+            _tick(&in);
+            if (strcmp(frontend_name_for_probe(), "DARWINX") != 0) {
                 fprintf(stderr, "FAIL post-miss typing gave '%s'\n",
-                        frontend_nameForProbe());
+                        frontend_name_for_probe());
                 bad = 1;
             }
             /* D-57: a 14-character code is accepted and matches level 155 */
-            in = idle();
+            in = _idle();
             in.lastKey = 0x1Bu;
-            tick(&in);
+            _tick(&in);
             for (uint32_t i = 0; code14[i]; i++) {
-                in = idle();
+                in = _idle();
                 in.lastKey = (uint8_t)code14[i];
-                tick(&in);
+                _tick(&in);
             }
-            if (strcmp(frontend_nameForProbe(), code14) != 0) {
+            if (strcmp(frontend_name_for_probe(), code14) != 0) {
                 fprintf(stderr, "FAIL the 14-char code reads '%s'\n",
-                        frontend_nameForProbe());
+                        frontend_name_for_probe());
                 bad = 1;
             }
-            in = idle();
+            in = _idle();
             in.lastKey = 0x0Du;
-            tick(&in);
-            if (frontend_selectedLevel() != 155u) {
+            _tick(&in);
+            if (frontend_selected_level() != 155u) {
                 fprintf(stderr, "FAIL FATEANDFORTUNE matched level %u\n",
-                        frontend_selectedLevel());
+                        frontend_selected_level());
                 bad = 1;
             }
         }
@@ -464,22 +465,22 @@ int main(int argc, char **argv)
     }
     {
         const LevelData *d = level_data();
-        if (level_timeLimit() != d->timeB || d->timeB == d->timeA) {
+        if (level_time_limit() != d->timeB || d->timeB == d->timeA) {
             fprintf(stderr,
                     "FAIL LEVEL did not pick time B (%04x, want "
                     "%04x)\n",
-                    (uint32_t)level_timeLimit(), (uint32_t)d->timeB);
+                    (uint32_t)level_time_limit(), (uint32_t)d->timeB);
             bad = 1;
         }
-        if (level_tribeMembers() != 10u) {
+        if (level_tribe_members() != 10u) {
             fprintf(stderr, "FAIL LEVEL did not pick 10 members (got %u)\n",
-                    level_tribeMembers());
+                    level_tribe_members());
             bad = 1;
         }
     }
 
     /* --- (c) ANIMATIONS -> cd_file_op's early RET --------------------- */
-    if (scene_playLevelIntro(0) != 0) {
+    if (scene_play_level_intro(0) != 0) {
         fprintf(stderr, "FAIL ANIMATIONS off did not stop the cutscene\n");
         bad = 1;
     }

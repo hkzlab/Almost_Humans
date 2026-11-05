@@ -13,9 +13,9 @@
 #include "osystem.h"
 
 void menu_init(const OSystem *osys);
-void menu_openPause(void); /* [0x5B12] := 0, cursor 0         */
-void menu_openTimeUp(void); /* [0x5E44]'s 3-option block        */
-int32_t menu_timeUp(void); /* the dialog currently open        */
+void menu_open_pause(void); /* [0x5B12] := 0, cursor 0         */
+void menu_open_time_up(void); /* [0x5E44]'s 3-option block        */
+int32_t menu_time_up(void); /* the dialog currently open        */
 int32_t menu_active(void); /* 1 while a dialog is up          */
 int32_t menu_tick(const InputState *in); /* 1 = still up; draws         */
 void menu_draw(void);

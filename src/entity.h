@@ -29,10 +29,10 @@ void entity_tick(void);
 /* 1000:5823 / 0x5894: the entity sprite pass over apl\rex.dat (mode 2, two
  * 0x20-px cells per entity), and the three big-endian frame-table reads it
  * uses (1000:58A5).  Returns 1 when the index is inside the bank. */
-void entity_publishBank(const uint8_t *bank, uint32_t size);
+void entity_publish_bank(const uint8_t *bank, uint32_t size);
 void entity_render(uint8_t *page, int32_t scrollX, int32_t scrollY);
-int32_t entity_frameInfo(uint32_t a, uint32_t *src, uint32_t *rows,
-                         uint32_t *yoff);
+int32_t entity_frame_info(uint32_t a, uint32_t *src, uint32_t *rows,
+                          uint32_t *yoff);
 
 /* load_terrain_b (1000:5168): the 25-pair map walk in table order, one
  * handler call per matching cell (CX = col*16, DX = row*16; the spawn's
@@ -41,15 +41,16 @@ int32_t entity_frameInfo(uint32_t a, uint32_t *src, uint32_t *rows,
  * slots keep the exe image's values).  `style` = the record's +0x00 byte
  * (the prologue's [0x17EE]); `lifeSeed` = the goal word's high byte
  * ([0x17F1] -> the +0xE seed).  0 = ok, -1 = no map. */
-int32_t entity_spawnFromMap(const uint8_t *map, uint32_t style,
-                            uint32_t lifeSeed);
+int32_t entity_spawn_from_map(const uint8_t *map, uint32_t style,
+                              uint32_t lifeSeed);
 
 const Entity *entity_at(uint32_t i); /* NULL past the count */
-Entity *entity_atMut(uint32_t i); /* the 0x58D1 collision pass writes */
-int32_t entity_spritePixel(uint32_t src, uint32_t rows, uint32_t x, uint32_t y);
+Entity *entity_at_mut(uint32_t i); /* the 0x58D1 collision pass writes */
+int32_t entity_sprite_pixel(uint32_t src, uint32_t rows, uint32_t x,
+                            uint32_t y);
 uint32_t entity_count(void);
 /* save +0x1656+0x28: [0x64C2] and the first seven 0x10-byte records. */
-void entity_saveFixed(uint8_t *dst);
-void entity_loadFixed(const uint8_t *src);
+void entity_save_fixed(uint8_t *dst);
+void entity_load_fixed(const uint8_t *src);
 
 #endif /* HUMANSRE_ENTITY_H */

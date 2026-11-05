@@ -14,9 +14,9 @@ void font_publish(const uint8_t *textSpr);
  * caller's [0x1E20] text arena (200 rows x 80 B, 1 bpp, 4 px per byte,
  * bit 0 = leftmost; each 2-bpp glyph pixel becomes two 1-bpp pixels, so
  * the glyph doubles horizontally) — at `row`. */
-void font_drawText(uint8_t *arena, const char *s, uint32_t centreX,
-                   uint32_t row);
+void font_draw_text(uint8_t *arena, const char *s, uint32_t centreX,
+                    uint32_t row);
 /* draw_text's own measure: the advance-table sum (stops at CR/NUL). */
-uint32_t font_textWidth(const char *s);
+uint32_t font_text_width(const char *s);
 
 #endif /* HUMANSRE_FONT_H */

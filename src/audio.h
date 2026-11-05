@@ -10,6 +10,6 @@ int32_t audio_init(const OSystem *osys);
  * [0x5E5B] non-zero -> music_stop, zero -> music_resume.  One call per room
  * tick.  The M5 stub's stop/start is the whole observable (M6 adds the tune
  * handle). */
-void audio_musicGate(uint32_t off);
+void audio_music_gate(uint32_t off);
 
 #endif /* HUMANSRE_AUDIO_H */

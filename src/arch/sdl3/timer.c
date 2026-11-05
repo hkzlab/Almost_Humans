@@ -20,79 +20,79 @@
 #include <SDL3/SDL.h>
 #include <stdlib.h>
 
-static TickFn theTick;
-static uint32_t theRate;
-static Uint64 tickIntervalNs;
-static SDL_AtomicInt tickCount;        /* [0x5AC8] */
-static SDL_AtomicInt running;
+static TickFn _the_tick;
+static uint32_t _the_rate;
+static Uint64 _tick_interval_ns;
+static SDL_AtomicInt _tick_count;        /* [0x5AC8] */
+static SDL_AtomicInt _running;
 
-/* The rate probe (HUMANSRE_RATE_PROBE set): reports the measured tick rate
+/* The rate _probe (HUMANSRE_RATE_PROBE set): reports the measured tick rate
  * every 5 s.  Verification aid for the pacing work, not a game feature. */
-static int32_t probe;
-static uint32_t probeTicks;
-static Uint64 probeWindowStartNs;
+static int32_t _probe;
+static uint32_t _probe_ticks;
+static Uint64 _probe_window_start_ns;
 
-static void fire_tick(void)
+static void _fire_tick(void)
 {
-    SDL_AddAtomicInt(&tickCount, 1); /* the ISR's INC [0x5AC8] (1000:8AA4) */
-    theTick();
-    if (probe) {
-        probeTicks++;
+    SDL_AddAtomicInt(&_tick_count, 1); /* the ISR's INC [0x5AC8] (1000:8AA4) */
+    _the_tick();
+    if (_probe) {
+        _probe_ticks++;
         Uint64 now = SDL_GetTicksNS();
-        if (now - probeWindowStartNs >= 5000000000ull) {
-            double s = (double)(now - probeWindowStartNs) / 1e9;
-            SDL_Log("tick rate: %.2f Hz (target %u)", (double)probeTicks / s,
-                    theRate);
-            probeTicks = 0;
-            probeWindowStartNs = now;
+        if (now - _probe_window_start_ns >= 5000000000ull) {
+            double s = (double)(now - _probe_window_start_ns) / 1e9;
+            SDL_Log("tick rate: %.2f Hz (target %u)", (double)_probe_ticks / s,
+                    _the_rate);
+            _probe_ticks = 0;
+            _probe_window_start_ns = now;
         }
     }
 }
 
-static int32_t SDLCALL tickThreadFn(void *arg)
+static int32_t SDLCALL _tick_thread_fn(void *arg)
 {
     (void)arg;
-    Uint64 next = SDL_GetTicksNS() + tickIntervalNs;
-    while (SDL_GetAtomicInt(&running)) {
+    Uint64 next = SDL_GetTicksNS() + _tick_interval_ns;
+    while (SDL_GetAtomicInt(&_running)) {
         /* the hybrid wait: sleep while the boundary is far, spin the
          * last ~2 ms where the OS granularity would show */
-        for (;;) {
+        while (1) {
             Sint64 remain = (Sint64)next - (Sint64)SDL_GetTicksNS();
             if (remain <= 0) break;
             if (remain > 2000000)
                 SDL_Delay((Uint32)((remain - 1000000) / 1000000));
         }
-        fire_tick();
-        next += tickIntervalNs;
+        _fire_tick();
+        next += _tick_interval_ns;
         /* a stall (debugger, heavy frame) must not burst ticks to catch up:
          * the original's delta-spin semantics drop missed boundaries */
         if ((Sint64)(SDL_GetTicksNS() - next) > 0)
-            next = SDL_GetTicksNS() + tickIntervalNs;
+            next = SDL_GetTicksNS() + _tick_interval_ns;
     }
     return 0;
 }
 
-void sdl3_timerStart(uint32_t ticksPerSec, TickFn tick)
+void sdl3_timer_start(uint32_t ticksPerSec, TickFn tick)
 {
-    theTick = tick;
-    theRate = ticksPerSec;
-    tickIntervalNs = 1000000000ull / ticksPerSec; /* 14285714.29 at 70: the
+    _the_tick = tick;
+    _the_rate = ticksPerSec;
+    _tick_interval_ns = 1000000000ull / ticksPerSec; /* 14285714.29 at 70: the
                                                     * constant errs 0.3 ns/tick,
                                                     * no accumulation */
-    SDL_SetAtomicInt(&tickCount, 0);
-    probe = getenv("HUMANSRE_RATE_PROBE") != NULL;
-    probeTicks = 0;
-    probeWindowStartNs = SDL_GetTicksNS();
-    SDL_SetAtomicInt(&running, 1);
+    SDL_SetAtomicInt(&_tick_count, 0);
+    _probe = getenv("HUMANSRE_RATE_PROBE") != NULL;
+    _probe_ticks = 0;
+    _probe_window_start_ns = SDL_GetTicksNS();
+    SDL_SetAtomicInt(&_running, 1);
     /* the thread lives until process exit (the original's ISR is likewise
      * installed for the session; there is no timerStop in the interface) */
-    SDL_DetachThread(SDL_CreateThread(tickThreadFn, "humansre-tick", NULL));
+    SDL_DetachThread(SDL_CreateThread(_tick_thread_fn, "humansre-tick", NULL));
 }
 
-void sdl3_tickSync(uint32_t *lastSeen)
+void sdl3_tick_sync(uint32_t *lastSeen)
 {
-    for (;;) {
-        int32_t now = SDL_GetAtomicInt(&tickCount);
+    while (1) {
+        int32_t now = SDL_GetAtomicInt(&_tick_count);
         if ((uint32_t)now != *lastSeen) {
             *lastSeen = (uint32_t)now;
             return;

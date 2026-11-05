@@ -1,4 +1,4 @@
-/* test_res.c — res_loadChunk against the real volume files.
+/* test_res.c — res_load_chunk against the real volume files.
  *
  * Byte-exact fixture test: the expected bytes are the extracted resource
  * files themselves (documented byte-identical to the game's loaded image,
@@ -8,7 +8,7 @@
  * data present = fail.
  *
  * The disc follows the original: the level-intro index picks the disc
- * through the ported table res_movieDisc (202F:0x6287) and the front end
+ * through the ported table res_movie_disc (202F:0x6287) and the front end
  * runs on disc 0 ([0xF7E] = 0 in attract mode, live-verified).
  *
  * The resource-level checksum values (chkOut) are asserted against the
@@ -23,7 +23,7 @@
 #include <string.h>
 #include <limits.h>
 
-static int32_t data_missing(const char *dir)
+static int32_t _data_missing(const char *dir)
 {
     char path[512];
     snprintf(path, sizeof path, "%s/HUMANS.000", dir);
@@ -33,7 +33,7 @@ static int32_t data_missing(const char *dir)
     return 0;
 }
 
-static uint8_t *read_file(const char *path, uint32_t *size)
+static uint8_t *_read_file(const char *path, uint32_t *size)
 {
     FILE *f = fopen(path, "rb");
     if (!f) return NULL;
@@ -51,22 +51,22 @@ static uint8_t *read_file(const char *path, uint32_t *size)
     return buf;
 }
 
-static int32_t check_chunk(const char *name, uint32_t disc,
-                           const char *expect_path, uint16_t want_chk)
+static int32_t _check_chunk(const char *name, uint32_t disc,
+                            const char *expect_path, uint16_t want_chk)
 {
     uint32_t expect_size = 0;
-    uint8_t *expect = read_file(expect_path, &expect_size);
+    uint8_t *expect = _read_file(expect_path, &expect_size);
     if (!expect) {
         fprintf(stderr, "FAIL fixture unreadable: %s\n", expect_path);
         return 1;
     }
-    res_setDisc(disc);
+    res_set_disc(disc);
     uint32_t got_size = 0;
     uint16_t got_chk = 0;
-    uint8_t *got = res_loadChunk(name, &got_size, &got_chk);
+    uint8_t *got = res_load_chunk(name, &got_size, &got_chk);
     int32_t bad = 1;
     if (!got) {
-        fprintf(stderr, "FAIL %s: res_loadChunk returned NULL\n", name);
+        fprintf(stderr, "FAIL %s: res_load_chunk returned NULL\n", name);
     } else if (got_size != expect_size) {
         fprintf(stderr, "FAIL %s: size %u, want %u\n", name, got_size,
                 expect_size);
@@ -91,7 +91,7 @@ int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : "."; /* HUMANS.00N        */
     const char *fix_dir = argc > 2 ? argv[2] : vol_dir; /* the extracted tree */
-    if (data_missing(vol_dir)) {
+    if (_data_missing(vol_dir)) {
         printf("skip: no volume files at %s (fixture data absent)\n", vol_dir);
         return 0;
     }
@@ -111,34 +111,34 @@ int main(int argc, char **argv)
     char path[512];
 
     /* The ANI disc table, corpus-verified 10/10 (see res.c): ANI03 -> 1. */
-    if (res_movieDisc(0) != 2 || res_movieDisc(1) != 0 ||
-        res_movieDisc(3) != 1 || res_movieDisc(9) != 2 ||
-        res_movieDisc(10) != 0xFF) {
-        fprintf(stderr, "FAIL res_movieDisc table\n");
+    if (res_movie_disc(0) != 2 || res_movie_disc(1) != 0 ||
+        res_movie_disc(3) != 1 || res_movie_disc(9) != 2 ||
+        res_movie_disc(10) != 0xFF) {
+        fprintf(stderr, "FAIL res_movie_disc table\n");
         bad = 1;
     }
     snprintf(path, sizeof path, "%s/HUMANS.001/ANM/ANI03.ANI", fix_abs);
-    bad |= check_chunk("ANM\\ANI03.ANI", res_movieDisc(3), path, 0x3c3f);
+    bad |= _check_chunk("ANM\\ANI03.ANI", res_movie_disc(3), path, 0x3c3f);
 
     /* The front end loads the intro assets from disc 0. */
     snprintf(path, sizeof path, "%s/HUMANS.000/INTRO/ITB.BIT", fix_abs);
-    bad |= check_chunk("INTRO\\ITB.BIT", 0, path, 0x2adb);
+    bad |= _check_chunk("INTRO\\ITB.BIT", 0, path, 0x2adb);
 
     /* Case-insensitive lookup mirrors the original's name comparison. */
-    bad |= check_chunk("intro\\itb.bit", 0, path, 0x2adb);
+    bad |= _check_chunk("intro\\itb.bit", 0, path, 0x2adb);
 
     /* A resource that is not on the CURRENT disc must fail — the scan is
      * gone, the original never crosses discs (re_map.md [0xF7E]). */
-    res_setDisc(1);
+    res_set_disc(1);
     uint32_t sz = 0;
-    if (res_loadChunk("INTRO\\ITB.BIT", &sz, NULL) != NULL) {
+    if (res_load_chunk("INTRO\\ITB.BIT", &sz, NULL) != NULL) {
         fprintf(stderr, "FAIL wrong-disc load must return NULL\n");
         bad |= 1;
     } else {
         printf("ok INTRO\\ITB.BIT on disc 1 -> NULL (no cross-disc scan)\n");
     }
 
-    if (res_loadChunk("ANM\\NOPE.ANI", &sz, NULL) != NULL || sz != 0) {
+    if (res_load_chunk("ANM\\NOPE.ANI", &sz, NULL) != NULL || sz != 0) {
         fprintf(stderr, "FAIL missing name should return NULL\n");
         bad |= 1;
     } else {

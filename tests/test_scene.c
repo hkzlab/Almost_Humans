@@ -1,7 +1,7 @@
 /* test_scene.c — the per-tick level-intro player against the real ANI data.
  *
  * Level 0 -> disc 2 (the ported 0x6287 table) -> ANI00.ANI.  The intro is
- * driven one tick per scene_playLevelIntro call: 210-tick dwell, then 35
+ * driven one tick per scene_play_level_intro call: 210-tick dwell, then 35
  * script entries (6 ticks each) AL-expanded onto page 0, then the chain
  * wait.  The final page must match a reference playback produced by the
  * validated python decoder (tools/ani_lzw.py) run over the same order on
@@ -25,9 +25,9 @@ extern void osys_null_inject(const InputState *in);
 extern const uint8_t *osys_null_page(int32_t which);
 extern const uint8_t *osys_null_palette(void);
 
-extern const OSystem osys_null;
+extern const OSystem g_osys_null;
 
-static uint32_t xor16(const uint8_t *p, uint32_t n)
+static uint32_t _xor16(const uint8_t *p, uint32_t n)
 {
     uint32_t v = 0;
     for (uint32_t i = 0; i + 1 < n; i += 2)
@@ -35,7 +35,7 @@ static uint32_t xor16(const uint8_t *p, uint32_t n)
     return v;
 }
 
-static uint8_t *read_file(const char *path, uint32_t *size)
+static uint8_t *_read_file(const char *path, uint32_t *size)
 {
     FILE *f = fopen(path, "rb");
     if (!f) return NULL;
@@ -57,14 +57,14 @@ static uint8_t *read_file(const char *path, uint32_t *size)
  * the 210-tick dwell and the 0x20-entry black fade all run before the
  * prologue frame lands, and every fade is stepped by palette_tick (the
  * ISR's).  Returns 1 once the page has changed from the panel. */
-static int32_t scene_to_firstFrame(uint32_t idx)
+static int32_t _scene_to_first_frame(uint32_t idx)
 {
     static uint8_t panel[64000];
-    if (scene_playLevelIntro(idx) != 1) return 0;
+    if (scene_play_level_intro(idx) != 1) return 0;
     memcpy(panel, osys_null_page(0), sizeof panel);
     for (uint32_t t = 0; t < 400u; t++) {
         palette_tick();
-        if (scene_playLevelIntro(idx) != 1) return 0;
+        if (scene_play_level_intro(idx) != 1) return 0;
         if (memcmp(panel, osys_null_page(0), sizeof panel) != 0) return 1;
     }
     return 0;
@@ -96,9 +96,9 @@ int main(int argc, char **argv)
     }
 
     int32_t bad = 0;
-    scene_init(&osys_null);
-    video_init(&osys_null);
-    palette_init(&osys_null);
+    scene_init(&g_osys_null);
+    video_init(&g_osys_null);
+    palette_init(&g_osys_null);
 
     /* 1. the intro plays: dwell (210) + 34 objects (6 ticks each) — well
      * past that, every call still returns 1 (the scene-0 chain replays).
@@ -114,22 +114,22 @@ int main(int argc, char **argv)
     {
         snprintf(path, sizeof path, "%s/HUMANS.002/LBM/DAILY.BIT", fix_abs);
         uint32_t psz = 0;
-        uint8_t *df = read_file(path, &psz);
+        uint8_t *df = _read_file(path, &psz);
         if (df && psz >= 64000u + 768u) {
-            if (scene_playLevelIntro(0) != 1) {
+            if (scene_play_level_intro(0) != 1) {
                 fprintf(stderr, "FAIL the scene did not start\n");
                 bad = 1;
-            } else if (!palette_fadeActive()) {
+            } else if (!palette_fade_active()) {
                 fprintf(stderr, "FAIL the panel fade-in did not start\n");
                 bad = 1;
             } else {
                 uint32_t t = 0;
-                while (palette_fadeActive() && t < 100u) {
+                while (palette_fade_active() && t < 100u) {
                     palette_tick();
                     t++;
                 }
                 const uint8_t *pal = osys_null_palette();
-                if (palette_fadeActive()) {
+                if (palette_fade_active()) {
                     fprintf(stderr, "FAIL the panel fade-in never finished\n");
                     bad = 1;
                 } else if (memcmp(pal, df + 64000u, 0x60u) != 0) {
@@ -161,10 +161,10 @@ int main(int argc, char **argv)
     {
         uint32_t dailySize = 0, scoopSize = 0;
         snprintf(path, sizeof path, "%s/HUMANS.002/LBM/DAILY.BIT", fix_abs);
-        uint8_t *daily = read_file(path, &dailySize);
+        uint8_t *daily = _read_file(path, &dailySize);
         snprintf(path, sizeof path, "%s/HUMANS.002/APL/SCOOPS.APL", fix_abs);
-        uint8_t *scoop = read_file(path, &scoopSize);
-        if (scene_playLevelIntro(0) != 1) {
+        uint8_t *scoop = _read_file(path, &scoopSize);
+        if (scene_play_level_intro(0) != 1) {
             fprintf(stderr, "FAIL the scene did not start\n");
             bad = 1;
         } else if (!daily || dailySize < 64000u || !scoop ||
@@ -228,21 +228,21 @@ int main(int argc, char **argv)
      * frame. */
     {
         uint32_t guard = 0;
-        while (!palette_fadeActive() && guard < 300u) {
+        while (!palette_fade_active() && guard < 300u) {
             palette_tick();
-            if (scene_playLevelIntro(0) != 1) {
+            if (scene_play_level_intro(0) != 1) {
                 fprintf(stderr, "FAIL intro ended before the panel "
                                 "fade-out\n");
                 return 1;
             }
             guard++;
         }
-        if (!palette_fadeActive()) {
+        if (!palette_fade_active()) {
             fprintf(stderr, "FAIL the panel fade-out to black never started\n");
             bad = 1;
         } else {
             uint32_t t = 0;
-            while (palette_fadeActive() && t < 100u) {
+            while (palette_fade_active() && t < 100u) {
                 palette_tick();
                 t++;
             }
@@ -271,7 +271,7 @@ int main(int argc, char **argv)
         while (memcmp(panelPage, osys_null_page(0), sizeof panelPage) == 0 &&
                guard < 400u) {
             palette_tick();
-            if (scene_playLevelIntro(0) != 1) {
+            if (scene_play_level_intro(0) != 1) {
                 fprintf(stderr, "FAIL intro ended while waiting for the "
                                 "first frame\n");
                 return 1;
@@ -282,7 +282,7 @@ int main(int argc, char **argv)
             fprintf(stderr, "FAIL the first frame is not drawn before the "
                             "palette fade (the panel is still on screen)\n");
             bad = 1;
-        } else if (!palette_fadeActive()) {
+        } else if (!palette_fade_active()) {
             fprintf(stderr, "FAIL the script palette fade did not start with "
                             "the first frame\n");
             bad = 1;
@@ -303,7 +303,7 @@ int main(int argc, char **argv)
             uint32_t h = 0;
 
             palette_tick();             /* the ISR body's fade step */
-            if (scene_playLevelIntro(0) != 1) {
+            if (scene_play_level_intro(0) != 1) {
                 fprintf(stderr, "FAIL intro ended early at tick %u\n", t);
                 return 1;
             }
@@ -323,12 +323,12 @@ int main(int argc, char **argv)
      * over the zeroed page). */
     {
         const uint8_t *page = osys_null_page(0);
-        uint32_t x = xor16(page, 320u * 200u);
+        uint32_t x = _xor16(page, 320u * 200u);
         uint32_t sum = 0;
         for (uint32_t i = 0; i < 320u * 200u; i++) sum += page[i];
         sum &= 0xFFFFu;
         if (x != 0xbb97u) {
-            fprintf(stderr, "FAIL page xor16=%#06x, want 0xbb97\n", x);
+            fprintf(stderr, "FAIL page _xor16=%#06x, want 0xbb97\n", x);
             bad = 1;
         }
         if (sum != 0xfea4u) {
@@ -343,7 +343,7 @@ int main(int argc, char **argv)
     {
         uint32_t pal_size = 0;
         snprintf(path, sizeof path, "%s/HUMANS.002/LBM/DAILY.BIT", fix_abs);
-        uint8_t *daily = read_file(path, &pal_size);
+        uint8_t *daily = _read_file(path, &pal_size);
         if (!daily || pal_size < 64000u + 768u) {
             fprintf(stderr, "FAIL daily.bit fixture unreadable\n");
             bad = 1;
@@ -374,7 +374,7 @@ int main(int argc, char **argv)
         memset(&k, 0, sizeof k);
         k.lastKey = 1;
         osys_null_inject(&k);
-        if (scene_playLevelIntro(0) != 1) {
+        if (scene_play_level_intro(0) != 1) {
             fprintf(stderr, "FAIL the key did not start the fade-out\n");
             bad = 1;
         } else {
@@ -382,7 +382,7 @@ int main(int argc, char **argv)
             int32_t r = 1;
             while (r == 1 && t < 100u) {
                 palette_tick();
-                r = scene_playLevelIntro(0);
+                r = scene_play_level_intro(0);
                 t++;
             }
             if (r != 0) {
@@ -404,7 +404,7 @@ int main(int argc, char **argv)
     }
 
     /* 5. after finishing, the same level stays finished. */
-    if (scene_playLevelIntro(0) != 0) {
+    if (scene_play_level_intro(0) != 0) {
         fprintf(stderr, "FAIL finished intro replayed\n");
         bad = 1;
     }
@@ -416,8 +416,8 @@ int main(int argc, char **argv)
         InputState idle;
         memset(&idle, 0, sizeof idle);
         osys_null_inject(&idle);
-        scene_resetIntro();
-        if (scene_playLevelIntro(0) != 1) {
+        scene_reset_intro();
+        if (scene_play_level_intro(0) != 1) {
             fprintf(stderr, "FAIL a reset did not restart the cutscene\n");
             bad = 1;
         }
@@ -426,7 +426,7 @@ int main(int argc, char **argv)
             memset(&k, 0, sizeof k);
             k.lastKey = 1;
             osys_null_inject(&k);
-            (void)scene_playLevelIntro(0);
+            (void)scene_play_level_intro(0);
         }
         osys_null_inject(&idle);
     }
@@ -445,15 +445,15 @@ int main(int argc, char **argv)
         osys_null_inject(&idle);
         for (uint32_t k = 0; k < 2u; k++) {
             uint32_t idx = k ? 2u : 1u;
-            scene_setFastMode(k ? 0 : 1);
-            if (!scene_to_firstFrame(idx)) {
+            scene_set_fast_mode(k ? 0 : 1);
+            if (!_scene_to_first_frame(idx)) {
                 fprintf(stderr, "FAIL scene %u never reached its frames\n",
                         idx);
                 bad = 1;
                 continue;
             }
             uint32_t t = 0;
-            while (palette_fadeActive() && t < 100u) {
+            while (palette_fade_active() && t < 100u) {
                 palette_tick();
                 t++;
             }
@@ -461,13 +461,13 @@ int main(int argc, char **argv)
             /* one object's wait: the page moves when the next frame lands.
              * The call after the fade plays object 0 (it sets objWait), so
              * consume it first: the 0->1 frame boundary is not a wait. */
-            (void)scene_playLevelIntro(idx);
+            (void)scene_play_level_intro(idx);
             {
                 static uint8_t before[64000], after[64000];
                 memcpy(before, osys_null_page(0), sizeof before);
                 uint32_t w = 0;
                 for (; w < 12u; w++) {
-                    (void)scene_playLevelIntro(idx);
+                    (void)scene_play_level_intro(idx);
                     memcpy(after, osys_null_page(0), sizeof after);
                     if (memcmp(before, after, sizeof before) != 0) {
                         w++;
@@ -477,7 +477,7 @@ int main(int argc, char **argv)
                 waitTicks[k] = w;
             }
         }
-        scene_setFastMode(0);
+        scene_set_fast_mode(0);
         /* measured: the fade 3 vs 27 ticks, one object's wait 2 vs 7 (the
          * 1-vs-6 wait is the asm's; the extra tick is the flip boundary) */
         if (!(fadeTicks[0] + 6u < fadeTicks[1])) {
@@ -493,8 +493,8 @@ int main(int argc, char **argv)
     }
 
     /* 6. an out-of-range level index reports no cutscene. */
-    if (scene_playLevelIntro(0xFFu) != 0) {
-        fprintf(stderr, "FAIL scene_playLevelIntro(0xFF) should return 0\n");
+    if (scene_play_level_intro(0xFFu) != 0) {
+        fprintf(stderr, "FAIL scene_play_level_intro(0xFF) should return 0\n");
         bad = 1;
     }
 
@@ -513,8 +513,8 @@ int main(int argc, char **argv)
         memset(&key, 0, sizeof key);
         key.lastKey = 1;
         osys_null_inject(&idle);
-        scene_resetIntro();
-        if (scene_playLevelIntro(6) != 1) {
+        scene_reset_intro();
+        if (scene_play_level_intro(6) != 1) {
             fprintf(stderr, "FAIL the ending scene did not start\n");
             bad = 1;
         } else {
@@ -522,7 +522,7 @@ int main(int argc, char **argv)
 
             for (t = 0; t < 3000u; t++) {
                 palette_tick();
-                if (scene_playLevelIntro(6) != 1) break;
+                if (scene_play_level_intro(6) != 1) break;
                 h = 0;
                 for (uint32_t i = 0; i + 1 < 320u * 200u; i += 2)
                     h ^= (uint32_t)(osys_null_page(0)[i] |
@@ -541,14 +541,14 @@ int main(int argc, char **argv)
                 bad = 1;
             }
             osys_null_inject(&key);
-            if (scene_playLevelIntro(6) != 1) {
+            if (scene_play_level_intro(6) != 1) {
                 fprintf(stderr, "FAIL the key did not start the quit fade\n");
                 bad = 1;
             } else {
                 int32_t r = 1;
                 for (t = 0; t < 200u && r == 1; t++) {
                     palette_tick();
-                    r = scene_playLevelIntro(6);
+                    r = scene_play_level_intro(6);
                 }
                 if (r != 0) {
                     fprintf(stderr, "FAIL the key did not end the ending\n");

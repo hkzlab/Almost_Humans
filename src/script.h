@@ -26,17 +26,17 @@ typedef struct {
 int32_t script_init(const OSystem *osys);
 
 /* The boot intro's verbatim cue list (25 cues, frame target 387). */
-void script_introStart(CueScript *s);
+void script_intro_start(CueScript *s);
 /* Fire every cue whose frame == `frame` (JE dispatch). */
 void script_fire(CueScript *s, uint32_t frame);
 int32_t script_quit(const CueScript *s);
 int32_t script_done(const CueScript *s);
-uint32_t script_groupDwell(const CueScript *s);
-int32_t script_scrollOn(const CueScript *s);
-uint32_t script_scrollDelta(const CueScript *s);
-uint32_t script_transitionIndex(const CueScript *s);
-int32_t script_seekPending(const CueScript *s);
-uint32_t script_seekFrame(const CueScript *s);
-void script_seekDone(CueScript *s);
+uint32_t script_group_dwell(const CueScript *s);
+int32_t script_scroll_on(const CueScript *s);
+uint32_t script_scroll_delta(const CueScript *s);
+uint32_t script_transition_index(const CueScript *s);
+int32_t script_seek_pending(const CueScript *s);
+uint32_t script_seek_frame(const CueScript *s);
+void script_seek_done(CueScript *s);
 
 #endif /* HUMANSRE_SCRIPT_H */

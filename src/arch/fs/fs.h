@@ -60,6 +60,6 @@ typedef struct FSModule {
 } FSModule;
 
 /* The selected module, defined by exactly one fs_*.c that the build links. */
-extern const FSModule fs;
+extern const FSModule g_fs;
 
 #endif /* HUMANSRE_FS_H */

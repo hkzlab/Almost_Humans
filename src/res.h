@@ -11,15 +11,15 @@ int32_t res_init(const OSystem *osys);
 /* The [0xF7E] analog: the disc that name-based loads come from (0..2 =
  * HUMANS.000/.001/.002; the original opens ONE volume file built from the
  * [0xF7E] disc number and never scans across discs). */
-void res_setDisc(uint32_t disc);
+void res_set_disc(uint32_t disc);
 /* draw_status_indicator's disc probe (1000:20CF): opens the volume file for
  * `disc` and closes it; 0 = the disc is not available. */
-int32_t res_volumePresent(uint32_t disc);
+int32_t res_volume_present(uint32_t disc);
 /* The level-header intro-movie/disc index -> disc byte: the ported table
  * `202F:0x6287` (1000:AFF8's lookup; corpus-verified 10/10 — every
  * ANI<idx>.ANI ships on the disc the table names).  0xFF = no entry — the
  * analog of the original's CMP AL,0xFF/JE branch (keep the current disc). */
-uint32_t res_movieDisc(uint32_t idx);
+uint32_t res_movie_disc(uint32_t idx);
 /* Load a named chunk case-insensitively out of the CURRENT disc's volume
  * (the name is the relative path inside the volume, e.g. "ANM\ANI03.ANI");
  * NULL when absent — the original's CF to the INT 63 caller (the
@@ -35,7 +35,7 @@ uint32_t res_movieDisc(uint32_t idx);
  * levels\CODES.BIN loads live through the same machine.  The gate verified
  * against 0 is the scene-object one (1000:B444) and belongs to the scene
  * player. */
-uint8_t *res_loadChunk(const char *name, uint32_t *sizeOut, uint16_t *chkOut);
+uint8_t *res_load_chunk(const char *name, uint32_t *sizeOut, uint16_t *chkOut);
 /* Decode one LZW object straight out of a memory buffer (an .ANI's chunk
  * image): [u16 decompressed_size][u16 checksum][u16 bit buffer][LZW bits].
  * Writes `size` bytes to `out`, returns the decompressed size or -1.

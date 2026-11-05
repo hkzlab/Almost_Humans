@@ -32,9 +32,9 @@
 
 extern const uint8_t *osys_null_page(int32_t which);
 
-extern const OSystem osys_null;
+extern const OSystem g_osys_null;
 
-static uint8_t *read_file(const char *path, uint32_t *size)
+static uint8_t *_read_file(const char *path, uint32_t *size)
 {
     FILE *f = fopen(path, "rb");
     if (!f) return NULL;
@@ -52,7 +52,7 @@ static uint8_t *read_file(const char *path, uint32_t *size)
     return buf;
 }
 
-static int32_t first_diff(const uint8_t *a, const uint8_t *b, uint32_t n)
+static int32_t _first_diff(const uint8_t *a, const uint8_t *b, uint32_t n)
 {
     for (uint32_t i = 0; i < n; i++)
         if (a[i] != b[i]) return (int32_t)i;
@@ -74,10 +74,10 @@ int main(int argc, char **argv)
     fclose(f);
     snprintf(path, sizeof path, "%s/e4_strip.bin", ref_dir);
     uint32_t strip_size = 0;
-    uint8_t *ref_strip = read_file(path, &strip_size);
+    uint8_t *ref_strip = _read_file(path, &strip_size);
     snprintf(path, sizeof path, "%s/e4_frames.bin", ref_dir);
     uint32_t frames_size = 0;
-    uint8_t *ref_frames = read_file(path, &frames_size);
+    uint8_t *ref_frames = _read_file(path, &frames_size);
     if (!ref_strip || strip_size != 196608u || !ref_frames ||
         frames_size < 4u) {
         printf(
@@ -98,7 +98,7 @@ int main(int argc, char **argv)
 
     int32_t bad = 0;
     {
-        const OSystem *os = &osys_null;
+        const OSystem *os = &g_osys_null;
         if (res_init(os) || video_init(os) || palette_init(os) ||
             font_init(os) || attract_init(os)) {
             fprintf(stderr, "FAIL: module init\n");
@@ -111,13 +111,13 @@ int main(int argc, char **argv)
 
     /* 1. into effect 4: effects 1, 3 and 2 play for real (~12 k ticks) */
     uint32_t guard = 0;
-    while (attract_phaseForProbe() != ATTRACT_E4_FADEWAIT) {
+    while (attract_phase_for_probe() != ATTRACT_E4_FADEWAIT) {
         attract_tick(&idle);
         palette_tick();
         if (++guard > 60000u) {
             fprintf(stderr,
                     "FAIL: never reached effect 4 (tick %u, phase %u)\n", guard,
-                    attract_phaseForProbe());
+                    attract_phase_for_probe());
             return 1;
         }
     }
@@ -125,14 +125,14 @@ int main(int argc, char **argv)
     /* 2. the strip, byte-exact, and the census */
     {
         uint32_t rows = 0;
-        const uint8_t *strip = attract_stripForProbe(&rows);
+        const uint8_t *strip = attract_strip_for_probe(&rows);
         if (rows != 1579u) {
             fprintf(stderr,
                     "FAIL: rowsBuilt %u, want 1579 (the fixture census)\n",
                     rows);
             bad = 1;
         }
-        int32_t at = first_diff(strip, ref_strip, strip_size);
+        int32_t at = _first_diff(strip, ref_strip, strip_size);
         if (at >= 0) {
             fprintf(stderr,
                     "FAIL: strip diff at byte %d (row %d): "
@@ -151,8 +151,8 @@ int main(int argc, char **argv)
         const uint8_t *cursor = ref_frames + 4;
         const uint8_t *end = ref_frames + frames_size;
         uint32_t matched = 0, row = 0, total = 0;
-        for (;;) {
-            uint32_t ph = attract_phaseForProbe();
+        while (1) {
+            uint32_t ph = attract_phase_for_probe();
             if (ph != ATTRACT_E4_SCROLL && ph != ATTRACT_E4_FADEWAIT) break;
             attract_tick(&idle);
             palette_tick();
@@ -168,7 +168,7 @@ int main(int argc, char **argv)
                 memcpy(&want, cursor, 4);
                 if (want == row) {
                     const uint8_t *page = osys_null_page(0);
-                    int32_t at = first_diff(page, cursor + 4, 64000);
+                    int32_t at = _first_diff(page, cursor + 4, 64000);
                     if (at >= 0) {
                         fprintf(stderr,
                                 "FAIL: frame r%u diff at pixel %d "
@@ -201,7 +201,7 @@ int main(int argc, char **argv)
     /* 4. the natural end: the tail fade, then the cycle into effect 1 */
     {
         guard = 0;
-        while (attract_phaseForProbe() == ATTRACT_E4_OUT) {
+        while (attract_phase_for_probe() == ATTRACT_E4_OUT) {
             attract_tick(&idle);
             palette_tick();
             if (++guard > 1000u) {
@@ -210,11 +210,11 @@ int main(int argc, char **argv)
                 break;
             }
         }
-        if (attract_phaseForProbe() != ATTRACT_E1_LOAD) {
+        if (attract_phase_for_probe() != ATTRACT_E1_LOAD) {
             fprintf(stderr,
                     "FAIL: after effect 4 the cycle must re-enter "
                     "effect 1 (phase %u)\n",
-                    attract_phaseForProbe());
+                    attract_phase_for_probe());
             bad = 1;
         } else if (!bad) {
             printf("ok tail: the fade completed and the cycle continued\n");

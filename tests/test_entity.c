@@ -38,38 +38,38 @@
 #include <stdlib.h>
 #include <string.h>
 
-extern const OSystem osys_null;
+extern const OSystem g_osys_null;
 
-static int32_t bad;
+static int32_t _bad;
 
 /* style_handler_prologue (1000:5662), replicated: style 6 + the cell
  * directly below the match (matchIdx + 0x20; the original's +0x1F runs
  * off its +1-moved cursor), <= 0x90, the 0x1F20 flag bit 0x80>>(v&7)
  * => +3 px.  Row 19 reads past the map copy: no shipped B3/B4 there. */
-static const uint8_t style6_flags[32] = {
+static const uint8_t _style6_flags[32] = {
     0x00, 0x00, 0x00, 0x00, 0x07, 0xFE, 0x00, 0x07, 0xE0, 0x00, 0x02,
     0x02, 0x00, 0x03, 0xC3, 0x81, 0x80, 0x01, 0x80, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
-static void failf(const char *what, uint32_t id, int64_t got, int64_t want)
+static void _failf(const char *what, uint32_t id, int64_t got, int64_t want)
 {
     fprintf(stderr,
             "FAIL level %" PRIu32 ": %s = %" PRId64 ", want %" PRId64 "\n", id,
             what, got, want);
-    bad = 1;
+    _bad = 1;
 }
-static uint32_t prologue_bonus(const LevelData *d, uint32_t matchIdx)
+static uint32_t _prologue_bonus(const LevelData *d, uint32_t matchIdx)
 {
     if (d->style != 6u) return 0;
     if (matchIdx + 0x20u >= 640u) return 0;
     uint32_t v = d->map[matchIdx + 0x20u];
     if (v > 0x90u) return 0;
-    if ((style6_flags[(v >> 3) & 31u] >> (7u - (v & 7u))) & 1u) return 1;
+    if ((_style6_flags[(v >> 3) & 31u] >> (7u - (v & 7u))) & 1u) return 1;
     return 0;
 }
 
-static uint32_t count_tiles(const uint8_t *map, uint32_t tile)
+static uint32_t _count_tiles(const uint8_t *map, uint32_t tile)
 {
     uint32_t n = 0;
     for (uint32_t i = 0; i < 640u; i++)
@@ -102,10 +102,10 @@ int main(int argc, char **argv)
     }
     (void)fix_abs;
 
-    entity_init(&osys_null);
-    video_init(&osys_null);
-    palette_init(&osys_null);
-    level_init(&osys_null);
+    entity_init(&g_osys_null);
+    video_init(&g_osys_null);
+    palette_init(&g_osys_null);
+    level_init(&g_osys_null);
 
     /* 1+2. lb#1: the exact spawn fields and the 0xB4 join. */
     if (level_load(10u) != 0) {
@@ -113,22 +113,22 @@ int main(int argc, char **argv)
         return 1;
     }
     const LevelData *d = level_data();
-    if (d->entityLife != 1u) failf("goal high byte", 10u, d->entityLife, 1);
-    entity_spawnFromMap(level_map(), d->style, d->entityLife);
+    if (d->entityLife != 1u) _failf("goal high byte", 10u, d->entityLife, 1);
+    entity_spawn_from_map(level_map(), d->style, d->entityLife);
     if (entity_count() != 1u)
-        failf("entity count", 10u, (int64_t)entity_count(), 1);
+        _failf("entity count", 10u, (int64_t)entity_count(), 1);
 
     const Entity *e = entity_at(0);
     if (e) {
-        if (e->x0 != 320u) failf("+0 (endpoint A)", 10u, e->x0, 320);
-        if (e->x != 320u) failf("+6 (spawn x)", 10u, e->x, 320);
-        if (e->y != 193u) failf("+8 (spawn y)", 10u, e->y, 193);
-        if (e->hold != 3u) failf("+A (hold seed)", 10u, e->hold, 3);
-        if (e->waypoint != 0u) failf("+C (waypoint)", 10u, e->waypoint, 0);
-        if (e->life != 1u) failf("+E (goal high)", 10u, e->life, 1);
-        if (e->handler != 0u) failf("+4 (dispatch)", 10u, e->handler, 0);
+        if (e->x0 != 320u) _failf("+0 (endpoint A)", 10u, e->x0, 320);
+        if (e->x != 320u) _failf("+6 (spawn x)", 10u, e->x, 320);
+        if (e->y != 193u) _failf("+8 (spawn y)", 10u, e->y, 193);
+        if (e->hold != 3u) _failf("+A (hold seed)", 10u, e->hold, 3);
+        if (e->waypoint != 0u) _failf("+C (waypoint)", 10u, e->waypoint, 0);
+        if (e->life != 1u) _failf("+E (goal high)", 10u, e->life, 1);
+        if (e->handler != 0u) _failf("+4 (dispatch)", 10u, e->handler, 0);
         /* the 0xB4 join lands before any tick: x1 = 400 */
-        if (e->x1 != 400u) failf("+2 (endpoint B)", 10u, e->x1, 400);
+        if (e->x1 != 400u) _failf("+2 (endpoint B)", 10u, e->x1, 400);
     }
 
     /* 3. the walk: a constant +/-1 px step; the flip only at the exact
@@ -142,19 +142,19 @@ int main(int argc, char **argv)
             if (p->handler > 1u) {
                 fprintf(stderr, "FAIL tick %u: +4 = %u (0/1 only)\n", t,
                         p->handler);
-                bad = 1;
+                _bad = 1;
                 break;
             }
             if (p->x != lastX - 1u && p->x != lastX + 1u) {
                 fprintf(stderr, "FAIL tick %u: x %u -> %u (not a 1px step)\n",
                         t, lastX, p->x);
-                bad = 1;
+                _bad = 1;
                 break;
             }
             if (p->x == 400u && p->handler == 1u && t != 79u)
-                failf("up flip tick", 10u, t, 79);
+                _failf("up flip tick", 10u, t, 79);
             if (p->x == 320u && p->handler == 0u && t != 159u)
-                failf("down flip tick", 10u, t, 159);
+                _failf("down flip tick", 10u, t, 159);
             lastX = p->x;
         }
     }
@@ -166,22 +166,22 @@ int main(int argc, char **argv)
     {
         uint32_t src = 0, rows = 0, yoff = 0;
 
-        if (entity_frameInfo(0u, &src, &rows, &yoff)) {
+        if (entity_frame_info(0u, &src, &rows, &yoff)) {
             if (src != 0x1C0u)
-                failf("frame 0's source (block 0 + 0x1C0)", 10u, src, 0x1C0);
+                _failf("frame 0's source (block 0 + 0x1C0)", 10u, src, 0x1C0);
             if (rows < 32u || rows > 48u)
-                failf("frame 0's row count (a sane sprite)", 10u, rows, 39);
-            if (yoff > 64u) failf("frame 0's y offset", 10u, yoff, 25);
+                _failf("frame 0's row count (a sane sprite)", 10u, rows, 39);
+            if (yoff > 64u) _failf("frame 0's y offset", 10u, yoff, 25);
             /* the next cell of the same animation is a different block */
             {
                 uint32_t s1 = 0, r1 = 0, o1 = 0;
 
-                if (!entity_frameInfo(1u, &s1, &r1, &o1) || s1 == src)
-                    failf("frame 1's source differs", 10u, s1, src);
+                if (!entity_frame_info(1u, &s1, &r1, &o1) || s1 == src)
+                    _failf("frame 1's source differs", 10u, s1, src);
             }
         } else {
             fprintf(stderr, "FAIL the rex.dat frame tables did not read\n");
-            bad = 1;
+            _bad = 1;
         }
     }
 
@@ -208,7 +208,7 @@ int main(int argc, char **argv)
             bank[0x1C0 + i] = (uint8_t)(0x10u + i);
             bank[0x200 + i] = (uint8_t)(0x80u + i);
         }
-        entity_publishBank(bank, sizeof bank);
+        entity_publish_bank(bank, sizeof bank);
         e8 = (uint8_t *)entity_at(0u); /* mutate the live record */
         if (e8) {
             e8[6] = 100;
@@ -221,16 +221,16 @@ int main(int argc, char **argv)
             entity_render(page, 0, 0);
             /* cell 0 at (100-12, 50+5) = (88, 55), block = 2 rows * 8 */
             if (page[55 * 320 + 88] != bank[0x1C0])
-                failf("cell 0's first pixel", 10u, page[55 * 320 + 88],
-                      bank[0x1C0]);
+                _failf("cell 0's first pixel", 10u, page[55 * 320 + 88],
+                       bank[0x1C0]);
             /* col 31, row 1: block 3 of 4 -> 3*16 + 8 + 7 = 63 */
             if (page[(55 + 1) * 320 + 88 + 31] != bank[0x1C0 + 63])
-                failf("cell 0's last pixel (block = rows*8)", 10u,
-                      page[(55 + 1) * 320 + 88 + 31], bank[0x1C0 + 63]);
+                _failf("cell 0's last pixel (block = rows*8)", 10u,
+                       page[(55 + 1) * 320 + 88 + 31], bank[0x1C0 + 63]);
             /* cell 1 at x + 0x20, y + 6, from block 0x40 */
             if (page[(50 + 6) * 320 + 88 + 0x20] != bank[0x200])
-                failf("cell 1's first pixel", 10u, page[(50 + 6) * 320 + 120],
-                      bank[0x200]);
+                _failf("cell 1's first pixel", 10u, page[(50 + 6) * 320 + 120],
+                       bank[0x200]);
         }
     }
 
@@ -254,17 +254,17 @@ int main(int argc, char **argv)
             rec[8] = 0x01u; /* type 1: pickable (0x6EC3 = 0) */
             entity_tick();
             if ((rec[8] | (rec[9] << 8)) != 0x22u)
-                failf("the pick-up's type", 10u, rec[8], 0x22);
+                _failf("the pick-up's type", 10u, rec[8], 0x22);
             /* D-59: the +0xA link is the entity, tagged (0x8000 | index) */
             if ((rec[10] | (rec[11] << 8)) != 0x8000u)
-                failf("the entity link at +0xA", 10u, rec[10], 0x8000);
+                _failf("the entity link at +0xA", 10u, rec[10], 0x8000);
             if (entity_at(0)->handler != 3u)
-                failf("the carry handler", 10u, entity_at(0)->handler, 3);
+                _failf("the carry handler", 10u, entity_at(0)->handler, 3);
             if (entity_at(0)->hold != 0xA032u)
-                failf("the carry hold", 10u, entity_at(0)->hold, 0xA032);
+                _failf("the carry hold", 10u, entity_at(0)->hold, 0xA032);
             if (entity_at(0)->waypoint != 8u)
-                failf("the carry waypoint (wp[9])", 10u, entity_at(0)->waypoint,
-                      8);
+                _failf("the carry waypoint (wp[9])", 10u,
+                       entity_at(0)->waypoint, 8);
             /* 1000:CB99: the carry animation runs the hold/sub-step/frame
              * counter and hands the entity back to its walk handler (3's base
              * is 0). */
@@ -274,11 +274,11 @@ int main(int argc, char **argv)
                 while (entity_at(0)->handler == 3u && t++ < 4000u)
                     entity_tick();
                 if (entity_at(0)->handler != 0u)
-                    failf("the carry animation returns to handler 0", 10u,
-                          entity_at(0)->handler, 0);
+                    _failf("the carry animation returns to handler 0", 10u,
+                           entity_at(0)->handler, 0);
                 if (entity_at(0)->hold != 0u)
-                    failf("the carry animation clears the hold", 10u,
-                          entity_at(0)->hold, 0);
+                    _failf("the carry animation clears the hold", 10u,
+                           entity_at(0)->hold, 0);
             }
         }
     }
@@ -294,8 +294,8 @@ int main(int argc, char **argv)
         uint32_t t, type;
 
         (void)level_load(10u);
-        entity_spawnFromMap(level_map(), level_data()->style,
-                            level_data()->entityLife);
+        entity_spawn_from_map(level_map(), level_data()->style,
+                              level_data()->entityLife);
         object_init();
         cr = object_slot(0u);
         {
@@ -310,25 +310,25 @@ int main(int argc, char **argv)
             cr[4] = 0x10u;
             cr[8] = 0x01u;
         }
-        object_setActionEntity(0u);
+        object_set_action_entity(0u);
         entity_tick();
         if ((cr[8] | (cr[9] << 8)) != 0x22u)
-            failf("D-59: the pick-up", 10u, cr[8], 0x22);
-        statusbar_setTribeDigits(1u, 2u); /* the bar shows 12 */
+            _failf("D-59: the pick-up", 10u, cr[8], 0x22);
+        statusbar_set_tribe_digits(1u, 2u); /* the bar shows 12 */
         for (t = 0; t < 4000u; t++) {
             type = (uint32_t)(cr[8] | (cr[9] << 8));
             if (type == 0x21u) break;
             entity_tick(); /* the game's order: world first */
-            (void)object_commandRun(cr, 0u);
+            (void)object_command_run(cr, 0u);
         }
         type = (uint32_t)(cr[8] | (cr[9] << 8));
         if (type != 0x21u)
-            failf("D-59: the carried human is consumed", 10u, type, 0x21);
-        statusbar_saveParams(params);
+            _failf("D-59: the carried human is consumed", 10u, type, 0x21);
+        statusbar_save_params(params);
         if (params[0] != 0xFFu)
-            failf("D-59: the loss arms the odometer", 10u, params[0], 0xFF);
+            _failf("D-59: the loss arms the odometer", 10u, params[0], 0xFF);
         if ((cr[4] | (cr[5] << 8)) != 0x2Du)
-            failf("D-59: the lost marker's frame", 10u, cr[4], 0x2D);
+            _failf("D-59: the lost marker's frame", 10u, cr[4], 0x2D);
     }
 
     /* 3d. D-60: the play loop's exit stops update_world (1000:34E6), so the
@@ -338,25 +338,25 @@ int main(int argc, char **argv)
         uint32_t x0, x1;
 
         (void)level_load(10u);
-        entity_spawnFromMap(level_map(), level_data()->style,
-                            level_data()->entityLife);
+        entity_spawn_from_map(level_map(), level_data()->style,
+                              level_data()->entityLife);
         level_begin();
         for (uint32_t t = 0; t < 3000u && level_starting(); t++) {
-            if (level_loadingScreen()) level_loadingTick();
+            if (level_loading_screen()) level_loading_tick();
             else level_tick();
             palette_tick();
         }
         if (level_starting()) {
             fprintf(stderr, "FAIL the level never reached play\n");
-            bad = 1;
+            _bad = 1;
         } else {
             x0 = entity_at(0u)->x;
             level_tick();
             palette_tick();
             x1 = entity_at(0u)->x;
-            if (x1 == x0) failf("the playing world moves", 10u, x1, x0 + 1);
+            if (x1 == x0) _failf("the playing world moves", 10u, x1, x0 + 1);
 
-            level_setEnd(0); /* the pause's RESTART THIS GAME */
+            level_set_end(0); /* the pause's RESTART THIS GAME */
             x0 = entity_at(0u)->x;
             for (uint32_t t = 0; t < 10u; t++) {
                 level_tick(); /* the caption's per-tick call */
@@ -364,7 +364,7 @@ int main(int argc, char **argv)
             }
             x1 = entity_at(0u)->x;
             if (x1 != x0)
-                failf("the end caption freezes the world", 10u, x1, x0);
+                _failf("the end caption freezes the world", 10u, x1, x0);
         }
     }
 
@@ -376,11 +376,11 @@ int main(int argc, char **argv)
             return 1;
         }
         const LevelData *lv = level_data();
-        entity_spawnFromMap(level_map(), lv->style, lv->entityLife);
+        entity_spawn_from_map(level_map(), lv->style, lv->entityLife);
 
-        uint32_t want = count_tiles(lv->map, 0xB3u);
+        uint32_t want = _count_tiles(lv->map, 0xB3u);
         if (entity_count() != want)
-            failf("count", id, (int64_t)entity_count(), want);
+            _failf("count", id, (int64_t)entity_count(), want);
 
         /* per entity, in spawn (row-major) order: x0 == x == the tile's
          * col*16, y = r*16 (+ the prologue) - 0x30 + 1, and the hold/life
@@ -393,23 +393,23 @@ int main(int argc, char **argv)
                 if (lv->map[r * 32u + c] != 0xB3u) continue;
                 const Entity *pe = entity_at(k);
                 if (!pe) {
-                    failf("missing record", id, k, want);
+                    _failf("missing record", id, k, want);
                     break;
                 }
-                if (pe->x0 != c * 16u) failf("x0", id, pe->x0, c * 16u);
-                if (pe->x != pe->x0) failf("x == x0", id, pe->x, pe->x0);
+                if (pe->x0 != c * 16u) _failf("x0", id, pe->x0, c * 16u);
+                if (pe->x != pe->x0) _failf("x == x0", id, pe->x, pe->x0);
                 {
                     /* the prologue reads the cell below (matchIdx+0x20)
                      * and grants +3 px; y is a 16-bit word — rows 0..2
                      * wrap negative */
-                    uint32_t bonus = prologue_bonus(lv, r * 32u + c);
+                    uint32_t bonus = _prologue_bonus(lv, r * 32u + c);
                     uint16_t yWant =
                         (uint16_t)(r * 16u + 3u * bonus - 0x30u + 1u);
-                    if (pe->y != yWant) failf("y", id, pe->y, yWant);
+                    if (pe->y != yWant) _failf("y", id, pe->y, yWant);
                 }
-                if (pe->hold != 3u) failf("hold", id, pe->hold, 3);
+                if (pe->hold != 3u) _failf("hold", id, pe->hold, 3);
                 if (pe->life != lv->entityLife)
-                    failf("life", id, pe->life, lv->entityLife);
+                    _failf("life", id, pe->life, lv->entityLife);
                 k++;
             }
             /* x1 joins: the B4 cells of this row (scan order: max col
@@ -425,11 +425,11 @@ int main(int argc, char **argv)
                      * B4 cell's computed row word (prologue included);
                      * a prologue mismatch leaves the join unset in the
                      * original too */
-                    uint32_t bonus = prologue_bonus(lv, r * 32u + b4c);
+                    uint32_t bonus = _prologue_bonus(lv, r * 32u + b4c);
                     uint16_t yWant =
                         (uint16_t)(r * 16u + 3u * bonus - 0x30u + 1u);
                     if (pe->y == yWant && pe->x1 != b4c * 16u)
-                        failf("x1 (B4 join)", id, pe->x1, b4c * 16u);
+                        _failf("x1 (B4 join)", id, pe->x1, b4c * 16u);
                 }
             }
         }
@@ -444,14 +444,14 @@ int main(int argc, char **argv)
                 if (pe->handler > 1u) {
                     fprintf(stderr, "FAIL level %u: +4 = %u\n", id,
                             pe->handler);
-                    bad = 1;
+                    _bad = 1;
                 }
                 /* handler 0 steps +1; x1 = 0 windows walk up freely (the
                  * un-joined walker — the original does the same) */
                 if (pe->x < pe->x0 || pe->x > pe->x0 + 4u) {
                     fprintf(stderr, "FAIL level %u: x %u out of window\n", id,
                             pe->x);
-                    bad = 1;
+                    _bad = 1;
                 }
             }
         }
@@ -462,10 +462,10 @@ int main(int argc, char **argv)
         fprintf(stderr, "FAIL level 0 load\n");
         return 1;
     }
-    entity_spawnFromMap(level_map(), level_data()->style,
-                        level_data()->entityLife);
+    entity_spawn_from_map(level_map(), level_data()->style,
+                          level_data()->entityLife);
     if (entity_count() != 0u)
-        failf("la#1 count", 0u, (int64_t)entity_count(), 0);
+        _failf("la#1 count", 0u, (int64_t)entity_count(), 0);
 
     /* 6. handler 4 (1000:C998): the mover collision's life word drives it, and
      * the hold counts down every tick; the tick that takes the hold negative
@@ -474,9 +474,9 @@ int main(int argc, char **argv)
     if (level_load(10u) == 0) {
         Entity *p;
 
-        entity_spawnFromMap(level_map(), level_data()->style,
-                            level_data()->entityLife);
-        p = entity_atMut(0u);
+        entity_spawn_from_map(level_map(), level_data()->style,
+                              level_data()->entityLife);
+        p = entity_at_mut(0u);
         if (p) {
             uint16_t wp = p->waypoint;
 
@@ -484,23 +484,23 @@ int main(int argc, char **argv)
             p->hold = 9u;
             entity_tick();
             if (p->handler != 4u)
-                failf("handler 4 holds while the hold lasts", 10u, p->handler,
-                      4);
+                _failf("handler 4 holds while the hold lasts", 10u, p->handler,
+                       4);
             p->hold = 0u; /* 1000:C99D's DEC wraps it to 0xFFFF */
             entity_tick();
             if (p->handler != 5u)
-                failf("the hold's expiry", 10u, p->handler, 5);
+                _failf("the hold's expiry", 10u, p->handler, 5);
             if (p->waypoint != (uint16_t)(wp + 1u))
-                failf("the expiry bumps the waypoint", 10u, p->waypoint,
-                      (int64_t)wp + 1);
+                _failf("the expiry bumps the waypoint", 10u, p->waypoint,
+                       (int64_t)wp + 1);
             entity_tick();
             if (p->handler != 5u)
-                failf("handler 5 is the bare RET", 10u, p->handler, 5);
+                _failf("handler 5 is the bare RET", 10u, p->handler, 5);
         }
     }
 
-    if (!bad)
+    if (!_bad)
         printf("entity tests: OK (the lb#1 spawn fields, the 0xB4 join, "
                "the exact-flip walk, the 160-level census)\n");
-    return bad;
+    return _bad;
 }

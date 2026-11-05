@@ -49,19 +49,19 @@ typedef enum AttractPhase {
 
 /* The shipped 202F:0x4DE top-10 (the attract's default table), for the
  * MAP/score screens' list. */
-uint32_t attract_hiscoreCount(void);
-uint32_t attract_hiscoreScore(uint32_t i);
-const char *attract_hiscoreName(uint32_t i);
+uint32_t attract_hiscore_count(void);
+uint32_t attract_hiscore_score(uint32_t i);
+const char *attract_hiscore_name(uint32_t i);
 
 int32_t attract_init(const OSystem *osys);
 
 int32_t attract_tick(const InputState *in); /* 1 = the attract is playing */
-uint32_t attract_phaseForProbe(void); /* the tests' phase read      */
+uint32_t attract_phase_for_probe(void); /* the tests' phase read      */
 
 /* Effect 4's strip probe (the 192-KB work area at [0xD76] + the rows
  * built, [0xD39]): the byte-exact fixture test compares the fill against
  * tools/attract_scroll_sim.py's dump.  Valid from the first ATTRACT_E4
  * load until the next effect begins. */
-const uint8_t *attract_stripForProbe(uint32_t *rowsBuilt);
+const uint8_t *attract_strip_for_probe(uint32_t *rowsBuilt);
 
 #endif /* HUMANSRE_ATTRACT_H */

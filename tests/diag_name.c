@@ -11,13 +11,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-extern const OSystem osys_null;
+extern const OSystem g_osys_null;
 
-static void dump_ppm(const char *path, const uint8_t *page, const uint8_t *pal6)
+static void _dump_ppm(const char *path, const uint8_t *page,
+                      const uint8_t *pal6)
 {
     FILE *f = fopen(path, "wb");
     if (!f) {
-        fprintf(stderr, "dump_ppm: cannot open %s\n", path);
+        fprintf(stderr, "_dump_ppm: cannot open %s\n", path);
         return;
     }
     fprintf(f, "P6\n320 200\n255\n");
@@ -48,10 +49,10 @@ int main(int argc, char **argv)
     }
     fclose(f);
 
-    video_init(&osys_null);
-    palette_init(&osys_null);
-    font_init(&osys_null);
-    frontend_init(&osys_null);
+    video_init(&g_osys_null);
+    palette_init(&g_osys_null);
+    font_init(&g_osys_null);
+    frontend_init(&g_osys_null);
 
     InputState in = { 0, 0, 0 };
     uint32_t t;
@@ -73,7 +74,7 @@ int main(int argc, char **argv)
         if (t % 500 == 0) {
             char ppath[512];
             snprintf(ppath, sizeof ppath, "%s/probe_%04u.ppm", out_dir, t);
-            dump_ppm(ppath, video_page(0), palette_working());
+            _dump_ppm(ppath, video_page(0), palette_working());
         }
         if (t > 1500) break;
     }
@@ -85,7 +86,7 @@ int main(int argc, char **argv)
     fprintf(
         stderr,
         "zeros=%u fadeActive=%d pageNZ=%u pal[0x33]=%02x %02x %02x pal[0xB3]=%02x %02x %02x\n",
-        zeros, palette_fadeActive(), nz, pal[0x33 * 3], pal[0x33 * 3 + 1],
+        zeros, palette_fade_active(), nz, pal[0x33 * 3], pal[0x33 * 3 + 1],
         pal[0x33 * 3 + 2], pal[0xB3 * 3], pal[0xB3 * 3 + 1], pal[0xB3 * 3 + 2]);
     in.joyBits = 0;
     for (t = 0; t < 30; t++) {
@@ -94,7 +95,7 @@ int main(int argc, char **argv)
     }
 
     snprintf(path, sizeof path, "%s/frame_name.ppm", out_dir);
-    dump_ppm(path, video_page(0), pal);
+    _dump_ppm(path, video_page(0), pal);
     printf("dumped\n");
     return 0;
 }

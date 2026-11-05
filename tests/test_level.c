@@ -27,12 +27,12 @@
 extern const uint8_t *osys_null_page(int32_t which);
 extern const uint8_t *osys_null_palette(void);
 
-extern const OSystem osys_null;
+extern const OSystem g_osys_null;
 
-static uint8_t *file_image;
+static uint8_t *_file_image;
 
-static uint8_t *read_fixture(const char *fix_dir, const char *rel,
-                             uint32_t *size)
+static uint8_t *_read_fixture(const char *fix_dir, const char *rel,
+                              uint32_t *size)
 {
     char path[512];
     snprintf(path, sizeof path, "%s/%s", fix_dir, rel);
@@ -52,7 +52,7 @@ static uint8_t *read_fixture(const char *fix_dir, const char *rel,
     return b;
 }
 
-static int32_t load_fixture(const char *fix_dir, uint32_t fileIdx)
+static int32_t _load_fixture(const char *fix_dir, uint32_t fileIdx)
 {
     char path[512];
     snprintf(path, sizeof path, "%s/HUMANS.001/LEVELS/L%c.BIN", fix_dir,
@@ -62,12 +62,12 @@ static int32_t load_fixture(const char *fix_dir, uint32_t fileIdx)
     fseek(f, 0, SEEK_END);
     int64_t n = ftell(f);
     fseek(f, 0, SEEK_SET);
-    free(file_image);
-    file_image = malloc((size_t)n);
-    if (fread(file_image, 1, (size_t)n, f) != (size_t)n) {
+    free(_file_image);
+    _file_image = malloc((size_t)n);
+    if (fread(_file_image, 1, (size_t)n, f) != (size_t)n) {
         fclose(f);
-        free(file_image);
-        file_image = NULL;
+        free(_file_image);
+        _file_image = NULL;
         return -1;
     }
     fclose(f);
@@ -100,10 +100,10 @@ int main(int argc, char **argv)
     }
 
     int32_t bad = 0;
-    scene_init(&osys_null);
-    video_init(&osys_null);
-    palette_init(&osys_null);
-    level_init(&osys_null);
+    scene_init(&g_osys_null);
+    video_init(&g_osys_null);
+    palette_init(&g_osys_null);
+    level_init(&g_osys_null);
 
     /* 1. all 160 levels load and the census distributions hold. */
     uint32_t intro_hist[8] = { 0 };   /* 00,01,02,03,04,05,09,FF */
@@ -174,7 +174,7 @@ int main(int argc, char **argv)
      * (the record 0 starts at the file offset 0; the map offset = 13 +
      * len(goal)+1 + len(author)+1 + 8). */
     for (uint32_t fileIdx = 0; fileIdx < 10u; fileIdx++) {
-        if (load_fixture(fix_abs, fileIdx) != 0) {
+        if (_load_fixture(fix_abs, fileIdx) != 0) {
             fprintf(stderr, "FAIL L%c.BIN fixture unreadable\n", 'A' + fileIdx);
             bad = 1;
             continue;
@@ -184,7 +184,7 @@ int main(int argc, char **argv)
             level_load(id);
             const LevelData *d = level_data();
             uint32_t mapOff = d->mapFileOff;
-            if (memcmp(d->map, file_image + mapOff, 640u) != 0) {
+            if (memcmp(d->map, _file_image + mapOff, 640u) != 0) {
                 fprintf(stderr, "FAIL level %u: map bytes\n", id);
                 bad = 1;
             }
@@ -205,7 +205,7 @@ int main(int argc, char **argv)
                 hdr[10] = (uint8_t)(d->timeB >> 8);
                 hdr[11] = (uint8_t)(d->timeC & 0xFFu);
                 hdr[12] = (uint8_t)(d->timeC >> 8);
-                if (memcmp(hdr, file_image, 13u) != 0) {
+                if (memcmp(hdr, _file_image, 13u) != 0) {
                     fprintf(stderr, "FAIL L%c.BIN: header bytes\n",
                             'A' + fileIdx);
                     bad = 1;
@@ -257,9 +257,9 @@ int main(int argc, char **argv)
             for (uint32_t i = 0; i < 4000u && level_starting(); i++) {
                 level_tick();
                 palette_tick();
-                if (level_loadingScreen()) {
+                if (level_loading_screen()) {
                     loadingSeen = 1;
-                    level_loadingTick();
+                    level_loading_tick();
                 } else if (loadingSeen) loadingDone = 1;
                 /* The on-screen result, one line per chain frame: the page
                  * through the DAC shadow, averaged over the world band
@@ -286,7 +286,7 @@ int main(int argc, char **argv)
                             loadingFrames,
                             (i < 1u)
                                 ? "start"
-                                : (level_loadingScreen()
+                                : (level_loading_screen()
                                        ? "loading"
                                        : (level_starting() ? "chain" : "play")),
                             tsum / (152.0 * 320.0) * 255.0 / 63.0,
@@ -395,7 +395,7 @@ int main(int argc, char **argv)
 
                 for (uint32_t id = 0; id < 256u; id++)
                     for (uint32_t c = 0; c < 16u; c++) {
-                        h ^= level_pageByte(id, c);
+                        h ^= level_page_byte(id, c);
                         h *= 16777619u;
                     }
                 if (h != 0x26a3598fu) {
@@ -415,7 +415,7 @@ int main(int argc, char **argv)
 
                 for (uint32_t id = 0; id <= 0xA8u; id++)
                     for (uint32_t row = 0; row < 16u; row++) {
-                        uint32_t w = level_itemWord(id, row);
+                        uint32_t w = level_item_word(id, row);
 
                         h = (h ^ (w & 0xFFu)) * 16777619u;
                         h = (h ^ (w >> 8)) * 16777619u;
@@ -425,17 +425,18 @@ int main(int argc, char **argv)
                     bad = 1;
                 }
             }
-            for (uint32_t i = 0; i < 200u && palette_fadeActive(); i++)
+            for (uint32_t i = 0; i < 200u && palette_fade_active(); i++)
                 palette_tick();                 /* level_fade_in */
             const uint8_t *pal = osys_null_palette();
             uint32_t n = 0;
             uint8_t *sp =
-                read_fixture(fix_abs, "HUMANS.001/APL/SPRPAL.APL", &n);
+                _read_fixture(fix_abs, "HUMANS.001/APL/SPRPAL.APL", &n);
             uint8_t *bs =
-                read_fixture(fix_abs, "HUMANS.001/LEVELS/BS3.BLK", &n);
-            uint8_t *bg = read_fixture(fix_abs, "HUMANS.001/BACKS/BG4.RAW", &n);
+                _read_fixture(fix_abs, "HUMANS.001/LEVELS/BS3.BLK", &n);
+            uint8_t *bg =
+                _read_fixture(fix_abs, "HUMANS.001/BACKS/BG4.RAW", &n);
             uint8_t *p4 =
-                read_fixture(fix_abs, "HUMANS.001/LBM/PANEL4.BIT", &n);
+                _read_fixture(fix_abs, "HUMANS.001/LBM/PANEL4.BIT", &n);
             if (!sp || !bs || !bg || !p4) {
                 fprintf(stderr, "FAIL palette fixtures unreadable\n");
                 bad = 1;
@@ -469,13 +470,13 @@ int main(int argc, char **argv)
              * rotation (entries 0x71..0x74, every 4th tick). */
             {
                 InputState in;
-                uint8_t *m = object_slot(object_actionEntity());
+                uint8_t *m = object_slot(object_action_entity());
                 int32_t x0 = (int32_t)(int16_t)(m[0] | (m[1] << 8));
 
                 memset(&in, 0, sizeof in);
                 in.joyBits = 0x08u;                 /* right */
                 for (uint32_t t = 0; t < 6u; t++) {
-                    level_noteInput(&in);
+                    level_note_input(&in);
                     level_tick();
                     palette_tick();
                 }
@@ -492,7 +493,7 @@ int main(int argc, char **argv)
                     }
                 }
                 memset(&in, 0, sizeof in);
-                level_noteInput(&in);
+                level_note_input(&in);
             }
 
             /* 1000:3DC0's view origin: the compose reads the world at
@@ -506,11 +507,11 @@ int main(int argc, char **argv)
                  * pan is exercised with the world frozen ([0xC] = 0, the state
                  * the claim holds): compose one frame at (0,0), then at
                  * (16,8) and compare the two. */
-                level_setUpdates(0);
-                level_setView(0u, 0u);
+                level_set_updates(0);
+                level_set_view(0u, 0u);
                 level_tick();
                 memcpy(before, p0, sizeof before);
-                level_setView(16u, 8u);
+                level_set_view(16u, 8u);
                 level_tick();
                 {
                     const uint8_t *p1 = osys_null_page(0);
@@ -529,9 +530,9 @@ int main(int argc, char **argv)
                         bad = 1;
                     }
                 }
-                level_setView(0u, 0u);
+                level_set_view(0u, 0u);
                 level_tick();
-                level_setUpdates(1);
+                level_set_updates(1);
             }
 
             /* The palette rotation (palette_rotate_table 1000:8C78), from
@@ -568,7 +569,7 @@ int main(int argc, char **argv)
         for (uint32_t i = 0; i < 400u && level_starting(); i++) {
             level_tick();
             palette_tick();
-            if (level_loadingScreen()) level_loadingTick();
+            if (level_loading_screen()) level_loading_tick();
         }
         const uint8_t *pal = osys_null_palette();
         uint8_t before[12];
@@ -589,8 +590,8 @@ int main(int argc, char **argv)
         uint32_t ticks;
 
         object_init();
-        object_setPlayer(0);
-        object_setActionEntity(0u);
+        object_set_player(0);
+        object_set_action_entity(0u);
         a = object_slot(0);
         n = object_slot(3);
         a[0] = 0x00;
@@ -605,19 +606,19 @@ int main(int argc, char **argv)
         n[3] = 0x00;
         n[6] = 0x00;
         n[8] = 0x02;
-        if (object_claimBegin(0u, 0) != 3) {
+        if (object_claim_begin(0u, 0) != 3) {
             fprintf(stderr, "FAIL the D-163 claim did not start\n");
             bad = 1;
         } else {
-            level_setUpdates(1); /* 1000:3CAB's [0xC] = 0xFF */
-            ticks = object_worldTicksProbe();
+            level_set_updates(1); /* 1000:3CAB's [0xC] = 0xFF */
+            ticks = object_world_ticks_probe();
             for (uint32_t t = 0; t < 4u; t++) level_tick();
-            if (object_worldTicksProbe() != ticks) {
+            if (object_world_ticks_probe() != ticks) {
                 fprintf(stderr,
                         "FAIL update_world ran during a claim (D-163)\n");
                 bad = 1;
             }
-            for (uint32_t t = 0; t < 20000u && object_claimActive(); t++) {
+            for (uint32_t t = 0; t < 20000u && object_claim_active(); t++) {
                 level_tick();
                 palette_tick();
             }
@@ -674,7 +675,7 @@ int main(int argc, char **argv)
         for (uint32_t i = 0; i < 4000u && level_starting(); i++) {
             level_tick();
             palette_tick();
-            if (level_loadingScreen()) level_loadingTick();
+            if (level_loading_screen()) level_loading_tick();
         }
         for (uint32_t i = 0; i < 4u; i++) {
             const uint8_t *r = object_slot(i);
@@ -704,10 +705,10 @@ int main(int argc, char **argv)
         for (uint32_t i = 0; i < 4000u && level_starting(); i++) {
             level_tick();
             palette_tick();
-            if (level_loadingScreen()) level_loadingTick();
+            if (level_loading_screen()) level_loading_tick();
         }
-        object_goalScan();
-        if (object_goalFlag()) {
+        object_goal_scan();
+        if (object_goal_flag()) {
             fprintf(stderr, "FAIL D-95: the goal flag is set with nothing on "
                             "the 0xBA cell\n");
             bad = 1;
@@ -726,16 +727,16 @@ int main(int argc, char **argv)
             r[8] = 0x18u; /* type 0x18: no row hook, a bare-RET tail */
             r[9] = 0x00u;
         }
-        object_goalScan();
-        if (!object_goalFlag()) {
+        object_goal_scan();
+        if (!object_goal_flag()) {
             fprintf(stderr, "FAIL D-95: a record on the 0xBA cell does not "
                             "reach the level's goal byte\n");
             bad = 1;
         }
         /* 0x6549 excludes id 3 (mask byte 0 = 0x1F) */
         object_slot(4)[8] = 0x03u;
-        object_goalScan();
-        if (object_goalFlag()) {
+        object_goal_scan();
+        if (object_goal_flag()) {
             fprintf(stderr, "FAIL D-95: a 0x6549-excluded id was counted\n");
             bad = 1;
         }
@@ -745,22 +746,22 @@ int main(int argc, char **argv)
          * first class-9 record.  Records 14/15 carry a row tail that would
          * move them, so the pan is pointed at 16 (type 0x59, no row) at
          * (400, 32): the window clamps to (0xC0, 0). */
-        object_setSlotClassForProbe(5u, 0u); /* record 14 */
-        object_setSlotClassForProbe(6u, 0u); /* record 15 */
+        object_set_slot_class_for_probe(5u, 0u); /* record 14 */
+        object_set_slot_class_for_probe(6u, 0u); /* record 15 */
         {
             uint32_t t, markerAt = 0xFFFFFFFFu, doneAt = 0xFFFFFFFFu;
             uint32_t holdX = 0xFFFFFFFFu, holdY = 0xFFFFFFFFu;
 
-            for (t = 0; t < 400u && !object_markerMode(); t++) {
+            for (t = 0; t < 400u && !object_marker_mode(); t++) {
                 level_tick();
                 palette_tick();
             }
             markerAt = t;
-            holdX = level_viewX();
-            holdY = level_viewY();
+            holdX = level_view_x();
+            holdY = level_view_y();
             /* the tail clears [0x2D8C]; the follower then leaves the goal
              * window, which is the pan's end */
-            for (; t < 400u && level_viewX() == holdX; t++) {
+            for (; t < 400u && level_view_x() == holdX; t++) {
                 level_tick();
                 palette_tick();
             }
@@ -790,9 +791,9 @@ int main(int argc, char **argv)
         /* the flag falls -> [0x6531] is cleared again (1000:35A2) */
         object_slot(4)[0] = 0xFFu;
         object_slot(4)[1] = 0xFFu;
-        object_goalScan();
+        object_goal_scan();
         level_tick();
-        if (object_markerMode()) {
+        if (object_marker_mode()) {
             fprintf(stderr, "FAIL D-95: [0x6531] survived the goal flag\n");
             bad = 1;
         }
@@ -801,7 +802,7 @@ int main(int argc, char **argv)
     /* --- D-90: the handled-object slots' stripe (1000:5D65) ---------------- */
     {
         static uint8_t page[320 * 200];
-        uint16_t *s = (uint16_t *)object_spanAtForProbe(0);
+        uint16_t *s = (uint16_t *)object_span_at_for_probe(0);
         uint32_t x = 300u, seed = 100u;
 
         memset(page, 0, sizeof page);
@@ -812,8 +813,8 @@ int main(int argc, char **argv)
         s[5] = (uint16_t)x; /* +0xA: the stripe's x */
         s[6] = (uint16_t)seed; /* +0xC: one past the drawn rows */
         s[9] = 1u; /* +0x12: growing */
-        object_spanSeedForProbe(0u, seed);
-        while ((object_frameCounterProbe() & 1u) != 0u)
+        object_span_seed_for_probe(0u, seed);
+        while ((object_frame_counter_probe() & 1u) != 0u)
             object_tick(level_palette()); /* an even frame: no animation */
         object_render(page, 0, 0);
         if (page[seed * 320u + x] == 0x18u) {
@@ -855,18 +856,18 @@ int main(int argc, char **argv)
             bad = 1;
         }
         memset(s, 0xFF, 28u); /* free it again */
-        object_spanSeedForProbe(0u, 0u);
+        object_span_seed_for_probe(0u, 0u);
     }
 
     /* D-157: draw_level_text clamps [0x2] to 0x78 before its page frames. */
-    level_setView(0u, 0xA8u);
-    level_endRedrawPage();
-    if (level_viewY() != 0x78u) {
+    level_set_view(0u, 0xA8u);
+    level_end_redraw_page();
+    if (level_view_y() != 0x78u) {
         fprintf(stderr, "FAIL the end page view clamp: y = %u\n",
-                level_viewY());
+                level_view_y());
         bad = 1;
     }
-    level_setView(0u, 0u);
+    level_set_view(0u, 0u);
 
     /* D-121: 1000:3D5E recolours every page byte below 0x80 to 0x1E. */
     {
@@ -876,7 +877,7 @@ int main(int argc, char **argv)
         page[1] = 0x7F;
         page[2] = 0x80;
         page[3] = 0xFF;
-        level_claimRecolour();
+        level_claim_recolour();
         if (page[0] != 0x1Eu || page[1] != 0x1Eu || page[2] != 0x80u ||
             page[3] != 0xFFu) {
             fprintf(stderr, "FAIL the claim recolour (D-121)\n");

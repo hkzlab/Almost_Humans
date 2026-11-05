@@ -3,12 +3,12 @@
 #include "audio.h"
 #include "osystem.h"
 
-static const OSystem *au_osys;
-static int32_t musicActive;  /* [0x40BB]: the latch music_resume raises   */
+static const OSystem *_au_osys;
+static int32_t _music_active;  /* [0x40BB]: the latch music_resume raises   */
 
 int32_t audio_init(const OSystem *osys)
 {
-    au_osys = osys;
+    _au_osys = osys;
     return 0;
 }
 
@@ -19,16 +19,16 @@ int32_t audio_init(const OSystem *osys)
  * original resumes [0x5AF0]'s tune, the port can only start the driver.
  * The latch gates the calls to the transitions (the original re-sends
  * cmd 6 every frame while a handle is live — no handle here). */
-void audio_musicGate(uint32_t off)
+void audio_music_gate(uint32_t off)
 {
-    if (!au_osys) return;          /* the module set without audio_init */
+    if (!_au_osys) return;          /* the module set without audio_init */
     if (off) {
-        if (musicActive) {
-            au_osys->audioStop();
-            musicActive = 0;
+        if (_music_active) {
+            _au_osys->audioStop();
+            _music_active = 0;
         }
-    } else if (!musicActive) {
-        au_osys->audioStart();
-        musicActive = 1;
+    } else if (!_music_active) {
+        _au_osys->audioStart();
+        _music_active = 1;
     }
 }

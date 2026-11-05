@@ -14,9 +14,9 @@
 #include <SDL3/SDL.h>
 #include <string.h>
 
-static InputState cur;
+static InputState _cur;
 
-static void joyBits(SDL_Keycode k, int32_t down)
+static void _joy_bits(SDL_Keycode k, int32_t down)
 {
     uint32_t mask;
     switch (k) {
@@ -36,14 +36,14 @@ static void joyBits(SDL_Keycode k, int32_t down)
                                               * Enter mapping) */
     default: return;
     }
-    if (down) cur.joyBits |= mask;
-    else cur.joyBits &= (uint8_t)~mask;
+    if (down) _cur.joyBits |= mask;
+    else _cur.joyBits &= (uint8_t)~mask;
 }
 
 /* The PC set-1 scancode of a make, for the keys the level's key list
  * (DS:0x1989, scan_id_list 1000:386E) binds.  Only those are mapped: the
  * port's other screens read the translated ASCII in lastKey. */
-static uint8_t scanCode(SDL_Keycode k)
+static uint8_t _scan_code(SDL_Keycode k)
 {
     switch (k) {
     case SDLK_ESCAPE: return 0x01u;
@@ -65,7 +65,7 @@ static uint8_t scanCode(SDL_Keycode k)
     return 0u;
 }
 
-static uint8_t keyCode(SDL_Keycode k)
+static uint8_t _key_code(SDL_Keycode k)
 {
     switch (k) {
     case SDLK_ESCAPE: return 0x1Bu;   /* ESC — the 0x5F11 table's key   */
@@ -81,30 +81,30 @@ static uint8_t keyCode(SDL_Keycode k)
     return 0u;
 }
 
-void sdl3_eventsPoll(InputState *out)
+void sdl3_events_poll(InputState *out)
 {
     SDL_Event ev;
     while (SDL_PollEvent(&ev)) {
         switch (ev.type) {
-        case SDL_EVENT_QUIT: cur.quit = 1; break;
+        case SDL_EVENT_QUIT: _cur.quit = 1; break;
         case SDL_EVENT_KEY_DOWN:
-            joyBits(ev.key.key, 1);
-            cur.lastKey = keyCode(ev.key.key);
-            cur.keyScan = scanCode(ev.key.key);
+            _joy_bits(ev.key.key, 1);
+            _cur.lastKey = _key_code(ev.key.key);
+            _cur.keyScan = _scan_code(ev.key.key);
             break;
         case SDL_EVENT_KEY_UP:
             /* the ISR's 942F: EVERY key-up clears the flag — a tapped
              * key must not linger as "held" (the stub-era code re-set
              * the code on release, which made one ENTER tap cascade:
              * abort the boot intro AND immediately escape the attract) */
-            joyBits(ev.key.key, 0);
-            cur.lastKey = 0u;
-            cur.keyScan = 0u;
+            _joy_bits(ev.key.key, 0);
+            _cur.lastKey = 0u;
+            _cur.keyScan = 0u;
             break;
         default: break;
         }
     }
-    *out = cur;
+    *out = _cur;
     /* The ISR's [0x48A3] is rewritten by every make — the BIOS typematic
      * repeats included — and the front-end consumes it (AA4E/AA50); between
      * makes it holds.  The SDL queue's KEY_DOWN events (the OS's typematic
@@ -112,8 +112,8 @@ void sdl3_eventsPoll(InputState *out)
      * is clear until the next make lands.  Without this a held key latches
      * and the name screen fills at tick rate instead of the typematic's
      * delay-then-repeat. */
-    cur.lastKey = 0u;
-    cur.keyScan = 0u;
+    _cur.lastKey = 0u;
+    _cur.keyScan = 0u;
 }
 
-void sdl3_eventsInit(void) { memset(&cur, 0, sizeof cur); }
+void sdl3_events_init(void) { memset(&_cur, 0, sizeof _cur); }

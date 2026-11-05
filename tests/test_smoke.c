@@ -20,44 +20,44 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define DUMP_N (sizeof dumpAt / sizeof dumpAt[0])
+#define DUMP_N (sizeof _dump_at / sizeof _dump_at[0])
 
 enum {
     SCRIPT_N = 8700
 };
 
-extern void osys_null_inputScript(const InputState *states, uint32_t n);
+extern void osys_null_input_script(const InputState *states, uint32_t n);
 extern const uint8_t *osys_null_page(int32_t which);
 extern const uint8_t *osys_null_palette(void);
-extern uint32_t osys_null_pollCount(void);
+extern uint32_t osys_null_poll_count(void);
 
-extern void osys_null_onPresent(void (*fn)(uint32_t poll));
+extern void osys_null_on_present(void (*fn)(uint32_t poll));
 
-extern const OSystem osys_null;
+extern const OSystem g_osys_null;
 
 /* Optional frame evidence (argv[3] = a directory): page 0 + the DAC shadow
  * at the flow's milestones, so the room -> party -> .ANI -> level relay can
  * be looked at instead of guessed. */
-static const char *dump_dir;
-static uint32_t dumped;
+static const char *_dump_dir;
+static uint32_t _dumped;
 
 /* the milestones: the room's exit, the party, the LOADING screen and the
  * level's first play frames (the goal page is dismissed by the held key) */
-static const uint32_t dumpAt[] = { 6600, 6900, 6930, 7100, 7300, 7500,
-                                   7650, 7800, 7900, 8100, 8300, 8600 };
-static const char *dumpName[] = { "flow_6600_room",      "flow_6900_roomexit",
-                                  "flow_6930_party_a",   "flow_7100_party_b",
-                                  "flow_7300_loading_a", "flow_7500_loading_b",
-                                  "flow_7650_level_a",   "flow_7800_level_b",
-                                  "flow_7900_level_c",   "flow_8100_level_d",
-                                  "flow_8300_level_e",   "flow_8600_level_f" };
+static const uint32_t _dump_at[] = { 6600, 6900, 6930, 7100, 7300, 7500,
+                                     7650, 7800, 7900, 8100, 8300, 8600 };
+static const char *_dump_name[] = {
+    "flow_6600_room",    "flow_6900_roomexit",  "flow_6930_party_a",
+    "flow_7100_party_b", "flow_7300_loading_a", "flow_7500_loading_b",
+    "flow_7650_level_a", "flow_7800_level_b",   "flow_7900_level_c",
+    "flow_8100_level_d", "flow_8300_level_e",   "flow_8600_level_f"
+};
 
-static int32_t sawPause;
+static int32_t _saw_pause;
 /* the goal page (scroll_map 1000:9E51): the actor must not move while it is
  * up even with a direction held, and the page must be seen at all */
-static int32_t sawGoal, goalMoved, goalTicks, goalX;
+static int32_t _saw_goal, _goal_moved, _goal_ticks, _goal_x;
 
-static uint8_t *read_file(const char *path, uint32_t *size)
+static uint8_t *_read_file(const char *path, uint32_t *size)
 {
     FILE *f = fopen(path, "rb");
     if (!f) return NULL;
@@ -75,10 +75,10 @@ static uint8_t *read_file(const char *path, uint32_t *size)
     return buf;
 }
 
-static void dump_ppm(const char *name, const uint8_t *page)
+static void _dump_ppm(const char *name, const uint8_t *page)
 {
     char path[512];
-    snprintf(path, sizeof path, "%s/%s.ppm", dump_dir, name);
+    snprintf(path, sizeof path, "%s/%s.ppm", _dump_dir, name);
     FILE *f = fopen(path, "wb");
     if (!f) return;
     fprintf(f, "P6\n320 200\n255\n");
@@ -91,29 +91,29 @@ static void dump_ppm(const char *name, const uint8_t *page)
         fwrite(rgb, 1, 3, f);
     }
     fclose(f);
-    dumped++;
+    _dumped++;
 }
 
-static void present_hook(uint32_t poll)
+static void _present_hook(uint32_t poll)
 {
     /* D-15: the ESC at 8000 must have the pause block up on the next present;
      * the Enter at 8050 selects CONTINUE and closes it. */
-    if (poll >= 8001u && poll <= 8051u && menu_active()) sawPause = 1;
-    if (gameflow_goalPageUp()) {
-        uint8_t *a = object_slot(object_actionEntity());
+    if (poll >= 8001u && poll <= 8051u && menu_active()) _saw_pause = 1;
+    if (gameflow_goal_page_up()) {
+        uint8_t *a = object_slot(object_action_entity());
         int32_t x = a ? (int32_t)(int16_t)(a[0] | (a[1] << 8)) : -1;
 
-        if (!sawGoal) {
-            sawGoal = 1;
-            goalX = x;
-        } else if (x != goalX) goalMoved = 1;
-        goalTicks++;
+        if (!_saw_goal) {
+            _saw_goal = 1;
+            _goal_x = x;
+        } else if (x != _goal_x) _goal_moved = 1;
+        _goal_ticks++;
     }
-    if (!dump_dir || dumped >= DUMP_N) return;
-    if (poll < dumpAt[dumped]) return;
-    while (dumped < DUMP_N && poll >= dumpAt[dumped]) {
-        dump_ppm(dumpName[dumped], osys_null_page(0));
-        dumped++;
+    if (!_dump_dir || _dumped >= DUMP_N) return;
+    if (poll < _dump_at[_dumped]) return;
+    while (_dumped < DUMP_N && poll >= _dump_at[_dumped]) {
+        _dump_ppm(_dump_name[_dumped], osys_null_page(0));
+        _dumped++;
     }
 }
 
@@ -185,39 +185,39 @@ int main(int argc, char **argv)
     script[8050].lastKey = 0x0Du;
     script[SCRIPT_N - 1].quit = 1u;
 
-    dump_dir = argc > 3 ? argv[3] : NULL;
-    osys_null_inputScript(script, SCRIPT_N);
-    osys_null_onPresent(present_hook);
+    _dump_dir = argc > 3 ? argv[3] : NULL;
+    osys_null_input_script(script, SCRIPT_N);
+    osys_null_on_present(_present_hook);
 
-    if (game_main(&osys_null) != 0) {
+    if (game_main(&g_osys_null) != 0) {
         fprintf(stderr, "FAIL game_main returned nonzero\n");
         return 1;
     }
-    if (!sawPause) {
+    if (!_saw_pause) {
         fprintf(stderr,
                 "FAIL D-15: ESC did not open the pause menu in game_main\n");
         bad = 1;
     }
     /* D-40: the goal page was up (scroll_map) with RIGHT held and the actor
      * did not move: the page's loop polls input only. */
-    if (!sawGoal || goalTicks < 5) {
+    if (!_saw_goal || _goal_ticks < 5) {
         fprintf(stderr, "FAIL the goal page was not reached (%d ticks)\n",
-                goalTicks);
+                _goal_ticks);
         bad = 1;
-    } else if (goalMoved) {
+    } else if (_goal_moved) {
         fprintf(stderr, "FAIL the actor moved while the goal page was up\n");
         bad = 1;
     }
     /* D-41: the F2 make at 7750 selected record 1; D-42: the SPACE make at
      * 7760 stepped the action row's cell from 1 to 2. */
-    if (object_actionEntity() != 1u) {
+    if (object_action_entity() != 1u) {
         fprintf(stderr, "FAIL F2 did not select record 1 (entity %u)\n",
-                object_actionEntity());
+                object_action_entity());
         bad = 1;
     }
-    if (statusbar_actionCell(1u) != 2u) {
+    if (statusbar_action_cell(1u) != 2u) {
         fprintf(stderr, "FAIL SPACE did not step the action cell (cell %u)\n",
-                statusbar_actionCell(1u));
+                statusbar_action_cell(1u));
         bad = 1;
     }
 
@@ -253,13 +253,13 @@ int main(int argc, char **argv)
     {
         uint32_t sp_size = 0, bs_size = 0, bg4_size = 0, p4_size = 0;
         snprintf(path, sizeof path, "%s/HUMANS.001/APL/SPRPAL.APL", fix_dir);
-        uint8_t *sp = read_file(path, &sp_size);
+        uint8_t *sp = _read_file(path, &sp_size);
         snprintf(path, sizeof path, "%s/HUMANS.001/LEVELS/BS3.BLK", fix_dir);
-        uint8_t *bs = read_file(path, &bs_size);
+        uint8_t *bs = _read_file(path, &bs_size);
         snprintf(path, sizeof path, "%s/HUMANS.001/BACKS/BG4.RAW", fix_dir);
-        uint8_t *bg4 = read_file(path, &bg4_size);
+        uint8_t *bg4 = _read_file(path, &bg4_size);
         snprintf(path, sizeof path, "%s/HUMANS.001/LBM/PANEL4.BIT", fix_dir);
-        uint8_t *p4 = read_file(path, &p4_size);
+        uint8_t *p4 = _read_file(path, &p4_size);
         if (!sp || sp_size < 0x18u + 0x60u || !bs || bs_size < 0x18u + 0x60u ||
             !bg4 || bg4_size != 163840u + 768u || !p4 ||
             p4_size < 0xFA00u + 768u) {

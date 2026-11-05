@@ -41,15 +41,15 @@
 extern const uint8_t *osys_null_page(int32_t which);
 extern const uint8_t *osys_null_palette(void);
 
-extern const OSystem osys_null;
+extern const OSystem g_osys_null;
 
 /* the render call indices for the PPM dumps predate the palette-fade
  * phases (2026-10-23) — the fade/black-hold blocks shift every offset, so
  * these no longer pin their frames.  shortcut: stale indices, recompute
  * from a traced run when the dumps are next used. */
-static const uint32_t dump_ticks[] = { 281, 581, 1247, 1340, 1460 };
+static const uint32_t _dump_ticks[] = { 281, 581, 1247, 1340, 1460 };
 
-static uint8_t *read_file(const char *path, uint32_t *size)
+static uint8_t *_read_file(const char *path, uint32_t *size)
 {
     FILE *f = fopen(path, "rb");
     if (!f) return NULL;
@@ -67,8 +67,8 @@ static uint8_t *read_file(const char *path, uint32_t *size)
     return buf;
 }
 
-static void dump_ppm(const char *dir, uint32_t tick, const uint8_t *page,
-                     const uint8_t *pal6)
+static void _dump_ppm(const char *dir, uint32_t tick, const uint8_t *page,
+                      const uint8_t *pal6)
 {
     char path[512];
     snprintf(path, sizeof path, "%s/frame_t%04u.ppm", dir, tick);
@@ -111,25 +111,25 @@ int main(int argc, char **argv)
     }
 
     int32_t bad = 0;
-    scene_init(&osys_null);
-    video_init(&osys_null);
-    palette_init(&osys_null);
+    scene_init(&g_osys_null);
+    video_init(&g_osys_null);
+    palette_init(&g_osys_null);
 
     const char *dump_dir = argc > 3 ? argv[3] : NULL;
 
     /* 1. the intro plays until the quit cue, then reports done. */
     uint32_t ticks = 0;
     int32_t r;
-    for (;;) {
-        r = scene_playBootIntro();
+    while (1) {
+        r = scene_play_boot_intro();
         palette_tick();                        /* the ISR body's fade step */
         if (r != 1) break;                     /* done (the quit cue)     */
         if (dump_dir) {
-            for (size_t k = 0; k < sizeof dump_ticks / sizeof dump_ticks[0];
+            for (size_t k = 0; k < sizeof _dump_ticks / sizeof _dump_ticks[0];
                  k++)
-                if (ticks == dump_ticks[k])
-                    dump_ppm(dump_dir, dump_ticks[k], osys_null_page(0),
-                             osys_null_palette());
+                if (ticks == _dump_ticks[k])
+                    _dump_ppm(dump_dir, _dump_ticks[k], osys_null_page(0),
+                              osys_null_palette());
         }
         if (++ticks > 10000u) break;           /* runaways are failures   */
     }
@@ -190,7 +190,7 @@ int main(int argc, char **argv)
     {
         uint32_t rsc_size = 0;
         snprintf(path, sizeof path, "%s/HUMANS.000/INTRO/INTRO.RSC", fix_abs);
-        uint8_t *rsc = read_file(path, &rsc_size);
+        uint8_t *rsc = _read_file(path, &rsc_size);
         static uint8_t list[0x10000];
         static uint8_t obj[0x10000];
         if (!rsc) {

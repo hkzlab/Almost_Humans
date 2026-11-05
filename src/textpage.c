@@ -52,11 +52,11 @@
 
 #define TEXT_LIMIT 96u
 
-static const uint8_t *tp_box;          /* APL\BOX.SPR: 9 x 16x16 tiles */
-static uint8_t tp_arena[16000];
+static const uint8_t *_tp_box;          /* APL\BOX.SPR: 9 x 16x16 tiles */
+static uint8_t _tp_arena[16000];
 
 /* 202F:0x5D33 / 0x5D8B / 0x5DE3 — the 8x11 marker patterns (88 bytes). */
-static const uint8_t markerL[88] = {
+static const uint8_t _marker_l[88] = {
     0xE4, 0xE3, 0xE4, 0xE4, 0xE4, 0xE4, 0xE4, 0xE4, 0xE4, 0xE3, 0xE3,
     0xE4, 0xE4, 0xE4, 0xE4, 0xE4, 0xE4, 0xE3, 0xE3, 0xE3, 0xE4, 0xE4,
     0xE4, 0xE4, 0xE4, 0xE3, 0xE3, 0xE3, 0xE3, 0xE4, 0xE4, 0xE4, 0xE4,
@@ -66,7 +66,7 @@ static const uint8_t markerL[88] = {
     0xE3, 0xE3, 0xE4, 0xE4, 0xE4, 0xE4, 0xE4, 0xE3, 0xE3, 0xE4, 0xE4,
     0xE4, 0xE4, 0xE4, 0xE4, 0xE3, 0xE4, 0xE4, 0xE4, 0xE4, 0xE4, 0xE4,
 };
-static const uint8_t markerR[88] = {
+static const uint8_t _marker_r[88] = {
     0xE4, 0xE4, 0xE4, 0xE4, 0xE4, 0xE4, 0xE3, 0xE4, 0xE4, 0xE4, 0xE4,
     0xE4, 0xE4, 0xE3, 0xE3, 0xE4, 0xE4, 0xE4, 0xE4, 0xE4, 0xE3, 0xE3,
     0xE3, 0xE4, 0xE4, 0xE4, 0xE4, 0xE3, 0xE3, 0xE3, 0xE3, 0xE4, 0xE4,
@@ -77,10 +77,10 @@ static const uint8_t markerR[88] = {
     0xE3, 0xE3, 0xE4, 0xE4, 0xE4, 0xE4, 0xE4, 0xE4, 0xE4, 0xE3, 0xE4,
 };
 
-void textpage_publishBox(const uint8_t *box) { tp_box = box; }
+void textpage_publish_box(const uint8_t *box) { _tp_box = box; }
 
 /* One line's measure: the advance sum (draw_text's own walk). */
-static uint32_t line_advance(const char *p, const char **end)
+static uint32_t _line_advance(const char *p, const char **end)
 {
     char buf[64];
     uint32_t n = 0;
@@ -90,19 +90,19 @@ static uint32_t line_advance(const char *p, const char **end)
     }
     buf[n] = 0;
     *end = p + n;
-    return font_textWidth(buf);
+    return font_text_width(buf);
 }
 
 /* draw_scroll_text (1000:A08E): the max line advance -> [0x5BB2] (tiles),
  * the line count -> [0x5BB4].  Lines are CR-separated, NUL-terminated. */
-static void scroll_text_measure(const char *text, uint32_t *tiles,
-                                uint32_t *lines)
+static void _scroll_text_measure(const char *text, uint32_t *tiles,
+                                 uint32_t *lines)
 {
     uint32_t maxAdv = 1, nlines = 0;
     const char *p = text;
-    for (;;) {
+    while (1) {
         const char *end;
-        uint32_t w = line_advance(p, &end);
+        uint32_t w = _line_advance(p, &end);
         if (w > maxAdv) maxAdv = w;
         nlines++;
         if (*end == 0) break;
@@ -121,16 +121,16 @@ static void scroll_text_measure(const char *text, uint32_t *tiles,
  * `destination | mask`, never a solid colour: the shading comes from
  * whatever the box tile already put there.  `mask` != 0 selects that path;
  * `mask` == 0 writes the solid `colour` for the pages drawn outside a box. */
-static void draw_line(uint8_t *page, const char *line, uint32_t centreX,
-                      uint32_t cell, uint32_t colour, int32_t mask)
+static void _draw_line(uint8_t *page, const char *line, uint32_t centreX,
+                       uint32_t cell, uint32_t colour, int32_t mask)
 {
-    memset(tp_arena, 0, sizeof tp_arena);
-    font_drawText(tp_arena, line, centreX, 0);
+    memset(_tp_arena, 0, sizeof _tp_arena);
+    font_draw_text(_tp_arena, line, centreX, 0);
     for (uint32_t r = 4u; r < 14u; r++) {
         uint32_t y = cell + r;
         if (y >= 200u) break;
         for (uint32_t c = 0; c < 80u; c++) {
-            uint8_t b = tp_arena[r * 80u + c];
+            uint8_t b = _tp_arena[r * 80u + c];
             if (!b) continue;
             for (uint32_t p = 0; p < 4u; p++)
                 if (b & (1u << p)) {
@@ -147,31 +147,31 @@ static void draw_line(uint8_t *page, const char *line, uint32_t centreX,
 
 /* One centred line on the page at `row` in a solid `colour` (not the
  * blit_text_tile path — used where there is no box underneath). */
-void textpage_drawLine(uint8_t *page, const char *line, uint32_t row,
-                       uint8_t colour)
-{ draw_line(page, line, 0xA0u, row, colour, 0); }
+void textpage_draw_line(uint8_t *page, const char *line, uint32_t row,
+                        uint8_t colour)
+{ _draw_line(page, line, 0xA0u, row, colour, 0); }
 
 /* The same line centred on an arbitrary x (draw_text's AX). */
-void textpage_drawLineAt(uint8_t *page, const char *line, uint32_t centreX,
-                         uint32_t row, uint8_t colour)
-{ draw_line(page, line, centreX, row, colour, 0); }
+void textpage_draw_line_at(uint8_t *page, const char *line, uint32_t centreX,
+                           uint32_t row, uint8_t colour)
+{ _draw_line(page, line, centreX, row, colour, 0); }
 
 /* One centred line blitted the original way: `mask` OR'd into the page.
  * The box's fill tile is a vertical ramp EB..E4..EB (all the same red in the
  * palette) so the text becomes the grey ramp FB..F4..FB; that is why the
  * level's goal text is shaded and not flat white. */
-void textpage_drawLineMask(uint8_t *page, const char *line, uint32_t row,
-                           uint8_t mask)
-{ draw_line(page, line, 0xA0u, row, mask, 1); }
+void textpage_draw_line_mask(uint8_t *page, const char *line, uint32_t row,
+                             uint8_t mask)
+{ _draw_line(page, line, 0xA0u, row, mask, 1); }
 
 /* The same masked line centred on an arbitrary x. */
-void textpage_drawLineMaskAt(uint8_t *page, const char *line, uint32_t centreX,
-                             uint32_t row, uint8_t mask)
-{ draw_line(page, line, centreX, row, mask, 1); }
+void textpage_draw_line_mask_at(uint8_t *page, const char *line,
+                                uint32_t centreX, uint32_t row, uint8_t mask)
+{ _draw_line(page, line, centreX, row, mask, 1); }
 
 /* One 16x16 box tile (blit_sprite_planar A10E's layout). */
-static void blit_box_tile(uint8_t *page, uint32_t x0, uint32_t y0,
-                          const uint8_t *tile)
+static void _blit_box_tile(uint8_t *page, uint32_t x0, uint32_t y0,
+                           const uint8_t *tile)
 {
     for (uint32_t r = 0; r < 16u; r++) {
         uint32_t y = y0 + r;
@@ -185,8 +185,8 @@ static void blit_box_tile(uint8_t *page, uint32_t x0, uint32_t y0,
 }
 
 /* The marker pair (A203/A266): 8x11, colour bytes as shipped. */
-static void blit_marker(uint8_t *page, uint32_t x0, uint32_t y0,
-                        const uint8_t *pat)
+static void _blit_marker(uint8_t *page, uint32_t x0, uint32_t y0,
+                         const uint8_t *pat)
 {
     for (uint32_t r = 0; r < 11u; r++) {
         uint32_t y = y0 + r;
@@ -207,8 +207,8 @@ static void blit_marker(uint8_t *page, uint32_t x0, uint32_t y0,
  * per plane; with one byte per pixel the same rule is a single raster pass.
  * The scanned rectangle is [0x5D2F] = the box's interior base (box top + 16),
  * lines*16 rows, from the box's left edge for (tiles+1)*16 px (1000:9FBB). */
-static void draw_outline(uint8_t *page, uint32_t top, uint32_t left,
-                         uint32_t tiles, uint32_t lines)
+static void _draw_outline(uint8_t *page, uint32_t top, uint32_t left,
+                          uint32_t tiles, uint32_t lines)
 {
     uint32_t x0 = left, x1 = left + (tiles + 1u) * 16u;
     uint32_t y0 = top + 16u, y1 = y0 + lines * 16u;
@@ -236,7 +236,7 @@ void textpage_draw(uint8_t *page, const char *text, int32_t cursorRow,
     if (!page || !text || !*text) return;
 
     uint32_t tiles, lines;
-    scroll_text_measure(text, &tiles, &lines);
+    _scroll_text_measure(text, &tiles, &lines);
     if (lines > 20u) return;
 
     uint32_t cols = tiles + 2u;
@@ -245,7 +245,7 @@ void textpage_draw(uint8_t *page, const char *text, int32_t cursorRow,
     uint32_t top = 76u - rows * 8u;
 
     /* the 9-slice box: 0 TL, 1 L, 2 BL, 3 T, 4 C, 5 B, 6 TR, 7 R, 8 BR */
-    if (tp_box) {
+    if (_tp_box) {
         static const uint32_t tile[3][3] = {
             { 0x000u, 0x300u, 0x600u },
             { 0x100u, 0x400u, 0x700u },
@@ -255,8 +255,8 @@ void textpage_draw(uint8_t *page, const char *text, int32_t cursorRow,
             for (uint32_t tx = 0; tx < cols; tx++) {
                 uint32_t ry = (ty == 0u) ? 0u : (ty == rows - 1u) ? 2u : 1u;
                 uint32_t rx = (tx == 0u) ? 0u : (tx == cols - 1u) ? 2u : 1u;
-                blit_box_tile(page, left + tx * 16u, top + ty * 16u,
-                              tp_box + tile[ry][rx]);
+                _blit_box_tile(page, left + tx * 16u, top + ty * 16u,
+                               _tp_box + tile[ry][rx]);
             }
     }
 
@@ -269,13 +269,13 @@ void textpage_draw(uint8_t *page, const char *text, int32_t cursorRow,
             while (*p && *p != '\r' && n + 1 < sizeof buf) buf[n++] = *p++;
             buf[n] = 0;
             if (*p == '\r') p++;
-            draw_line(page, buf, 0xA0u, top + 15u + i * 16u, 0x10u, 1);
+            _draw_line(page, buf, 0xA0u, top + 15u + i * 16u, 0x10u, 1);
         }
     }
 
     /* the black outline (draw_map_object 1000:9FA7 -> 9FB1), after the lines
      * and before the markers — dialog_menu_loop draws those last */
-    draw_outline(page, top, left, tiles, lines);
+    _draw_outline(page, top, left, tiles, lines);
 
     /* the cursor: the pause rows' edge markers, or the grid's cell pair */
     if (cursorRow >= 0) {
@@ -299,15 +299,15 @@ void textpage_draw(uint8_t *page, const char *text, int32_t cursorRow,
             uint32_t k = pre < n ? pre : n;
             memcpy(prebuf, line, k);
             prebuf[k] = 0;
-            int32_t cx = 160 - (int32_t)(font_textWidth(line) / 2u) +
-                         (int32_t)font_textWidth(prebuf) - 9;
+            int32_t cx = 160 - (int32_t)(font_text_width(line) / 2u) +
+                         (int32_t)font_text_width(prebuf) - 9;
             if (cx < 0) cx = 0;
-            blit_marker(page, (uint32_t)cx, y, markerL);
-            blit_marker(page, (uint32_t)cx + 8u + font_textWidth("00") + 2u, y,
-                        markerR);
+            _blit_marker(page, (uint32_t)cx, y, _marker_l);
+            _blit_marker(page, (uint32_t)cx + 8u + font_text_width("00") + 2u,
+                         y, _marker_r);
         } else {
-            blit_marker(page, left + 16u, y, markerL);
-            blit_marker(page, left + 16u * tiles + 8u, y, markerR);
+            _blit_marker(page, left + 16u, y, _marker_l);
+            _blit_marker(page, left + 16u * tiles + 8u, y, _marker_r);
         }
     }
 }

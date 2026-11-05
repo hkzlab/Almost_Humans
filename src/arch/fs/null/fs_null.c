@@ -7,37 +7,38 @@
 
 #include <stdio.h>
 
-static FSVolume *null_openVolume(uint32_t disc);
-static void null_closeVolume(FSVolume *v);
-static uint32_t null_volumeSize(FSVolume *v);
-static uint32_t null_read(FSVolume *v, uint32_t off, uint8_t *dst, uint32_t n);
-static FSSave *null_openSave(char letter);
-static uint32_t null_saveRead(FSSave *s, uint32_t off, uint8_t *dst,
-                              uint32_t n);
-static FSSave *null_createSave(char letter);
-static uint32_t null_saveWrite(FSSave *s, uint32_t off, const uint8_t *src,
-                               uint32_t n);
-static void null_closeSave(FSSave *s);
-static FSSave *null_openNamed(const char *name);
-static FSSave *null_createNamed(const char *name);
+static FSVolume *_null_open_volume(uint32_t disc);
+static void _null_close_volume(FSVolume *v);
+static uint32_t _null_volume_size(FSVolume *v);
+static uint32_t _null_read(FSVolume *v, uint32_t off, uint8_t *dst, uint32_t n);
+static FSSave *_null_open_save(char letter);
+static uint32_t _null_save_read(FSSave *s, uint32_t off, uint8_t *dst,
+                                uint32_t n);
+static FSSave *_null_create_save(char letter);
+static uint32_t _null_save_write(FSSave *s, uint32_t off, const uint8_t *src,
+                                 uint32_t n);
+static void _null_close_save(FSSave *s);
+static FSSave *_null_open_named(const char *name);
+static FSSave *_null_create_named(const char *name);
 
-const FSModule fs = { null_openVolume, null_closeVolume, null_volumeSize,
-                      null_read,       null_openSave,    null_saveRead,
-                      null_createSave, null_saveWrite,   null_closeSave,
-                      null_openNamed,  null_createNamed };
+const FSModule g_fs = {
+    _null_open_volume, _null_close_volume, _null_volume_size, _null_read,
+    _null_open_save,   _null_save_read,    _null_create_save, _null_save_write,
+    _null_close_save,  _null_open_named,   _null_create_named
+};
 
-static FSVolume *null_openVolume(uint32_t disc)
+static FSVolume *_null_open_volume(uint32_t disc)
 {
     (void)disc;
     return NULL;
 }
-static void null_closeVolume(FSVolume *v) { (void)v; }
-static uint32_t null_volumeSize(FSVolume *v)
+static void _null_close_volume(FSVolume *v) { (void)v; }
+static uint32_t _null_volume_size(FSVolume *v)
 {
     (void)v;
     return 0;
 }
-static uint32_t null_read(FSVolume *v, uint32_t off, uint8_t *dst, uint32_t n)
+static uint32_t _null_read(FSVolume *v, uint32_t off, uint8_t *dst, uint32_t n)
 {
     (void)v;
     (void)off;
@@ -46,12 +47,13 @@ static uint32_t null_read(FSVolume *v, uint32_t off, uint8_t *dst, uint32_t n)
     return 0;
 }
 
-static FSSave *null_openSave(char letter)
+static FSSave *_null_open_save(char letter)
 {
     (void)letter;
     return NULL;
 }
-static uint32_t null_saveRead(FSSave *s, uint32_t off, uint8_t *dst, uint32_t n)
+static uint32_t _null_save_read(FSSave *s, uint32_t off, uint8_t *dst,
+                                uint32_t n)
 {
     (void)s;
     (void)off;
@@ -59,13 +61,13 @@ static uint32_t null_saveRead(FSSave *s, uint32_t off, uint8_t *dst, uint32_t n)
     (void)n;
     return 0;
 }
-static FSSave *null_createSave(char letter)
+static FSSave *_null_create_save(char letter)
 {
     (void)letter;
     return NULL;
 }
-static uint32_t null_saveWrite(FSSave *s, uint32_t off, const uint8_t *src,
-                               uint32_t n)
+static uint32_t _null_save_write(FSSave *s, uint32_t off, const uint8_t *src,
+                                 uint32_t n)
 {
     (void)s;
     (void)off;
@@ -73,13 +75,13 @@ static uint32_t null_saveWrite(FSSave *s, uint32_t off, const uint8_t *src,
     (void)n;
     return 0;
 }
-static void null_closeSave(FSSave *s) { (void)s; }
-static FSSave *null_openNamed(const char *name)
+static void _null_close_save(FSSave *s) { (void)s; }
+static FSSave *_null_open_named(const char *name)
 {
     (void)name;
     return NULL;
 }
-static FSSave *null_createNamed(const char *name)
+static FSSave *_null_create_named(const char *name)
 {
     (void)name;
     return NULL;

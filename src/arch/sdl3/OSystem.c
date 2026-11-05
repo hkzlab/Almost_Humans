@@ -7,37 +7,38 @@
 #include <stdio.h>
 #ifdef _WIN32
 #    include <direct.h> /* chdir = _chdir on the Windows CRT */
+/* the macro keeps the CRT's spelling on purpose: it maps the POSIX name */
 #    define chdir _chdir
 #else
 #    include <unistd.h>
 #endif
 
-void sdl3_videoSetMode(VideoMode mode);
-uint8_t *sdl3_videoPage(int32_t which);
-void sdl3_videoPresent(int32_t which);
-void sdl3_videoSetPalette(const uint8_t *p6, uint32_t first, uint32_t n);
-void sdl3_eventsInit(void);
-void sdl3_eventsPoll(InputState *out);
-void sdl3_timerStart(uint32_t ticksPerSec, TickFn tick);
-void sdl3_tickSync(uint32_t *lastSeen);
-int32_t sdl3_audioStart(void);
-int32_t sdl3_audioPlayTune(uint32_t id);
-void sdl3_audioStop(void);
-static void fatal(const char *msg);
+void sdl3_video_set_mode(VideoMode mode);
+uint8_t *sdl3_video_page(int32_t which);
+void sdl3_video_present(int32_t which);
+void sdl3_video_set_palette(const uint8_t *p6, uint32_t first, uint32_t n);
+void sdl3_events_init(void);
+void sdl3_events_poll(InputState *out);
+void sdl3_timer_start(uint32_t ticksPerSec, TickFn tick);
+void sdl3_tick_sync(uint32_t *lastSeen);
+int32_t sdl3_audio_start(void);
+int32_t sdl3_audio_play_tune(uint32_t id);
+void sdl3_audio_stop(void);
+static void _fatal(const char *msg);
 
-const OSystem osys_sdl3 = { sdl3_videoSetMode,
-                            sdl3_videoPage,
-                            sdl3_videoPresent,
-                            sdl3_videoSetPalette,
-                            sdl3_eventsPoll,
-                            sdl3_timerStart,
-                            sdl3_tickSync,
-                            sdl3_audioStart,
-                            sdl3_audioPlayTune,
-                            sdl3_audioStop,
-                            fatal };
+const OSystem g_osys_sdl3 = { sdl3_video_set_mode,
+                              sdl3_video_page,
+                              sdl3_video_present,
+                              sdl3_video_set_palette,
+                              sdl3_events_poll,
+                              sdl3_timer_start,
+                              sdl3_tick_sync,
+                              sdl3_audio_start,
+                              sdl3_audio_play_tune,
+                              sdl3_audio_stop,
+                              _fatal };
 
-static void fatal(const char *msg)
+static void _fatal(const char *msg)
 {
     SDL_LogCritical(SDL_LOG_CATEGORY_APPLICATION, "%s", msg);
     exit(1);
@@ -69,10 +70,10 @@ int main(int argc, char **argv)
     }
 
     // Initialize event structures
-    sdl3_eventsInit();
+    sdl3_events_init();
 
     // Hand over to game code
-    int32_t r = game_main(&osys_sdl3);
+    int32_t r = game_main(&g_osys_sdl3);
 
     // Time to go
     SDL_Quit();

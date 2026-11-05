@@ -56,39 +56,39 @@ typedef enum GameFlow {
 GameFlow gameflow_step(GameFlow state, const InputState *input);
 /* The level index the MENU exit chose (0-based; [0x22]-1) — the save's
  * +0x00 when a slot loaded, otherwise the room's code match.  Probe for the
- * save/restore test (the same role as attract_phaseForProbe). */
-uint32_t gameflow_levelForProbe(void);
+ * save/restore test (the same role as attract_phase_for_probe). */
+uint32_t gameflow_level_for_probe(void);
 /* The pause menu's five 0-based results (dispatch_by_result_a167 1000:38EA);
  * returns the flow the action leaves, sets *quit for QUIT THIS GAME. */
-GameFlow gameflow_pauseAction(int32_t choice, int32_t *quit);
-uint32_t gameflow_partyScore(void); /* the briefing's [0x592] low word */
-int32_t gameflow_partyPending(void); /* a restart leaves the party to run */
-const char *gameflow_partyTribe(void); /* 0x1189: the level's author   */
+GameFlow gameflow_pause_action(int32_t choice, int32_t *quit);
+uint32_t gameflow_party_score(void); /* the briefing's [0x592] low word */
+int32_t gameflow_party_pending(void); /* a restart leaves the party to run */
+const char *gameflow_party_tribe(void); /* 0x1189: the level's author   */
 /* scan_id_list 1000:386E event 4: ESC opens the 0x5BBC pause block. */
 /* scan_id_list 1000:386E: the DS:0x1989 key list.  Handles ESC (the 0x5BBC
  * pause block), F1..F8 (select the record by scancode), ','/'.' (previous /
  * next record), SPACE (the action-icon step / home state) and F10 (the key
  * wait).  Returns 1 when an entry ran; a non-bit7 entry whose gate [0xC] is
  * closed returns 0 (1000:38AD). */
-int32_t gameflow_keyList(const InputState *in);
+int32_t gameflow_key_list(const InputState *in);
 /* [0x5BBA]: the goal page (scroll_map 1000:9E51) is up. */
-int32_t gameflow_goalPageUp(void);
+int32_t gameflow_goal_page_up(void);
 /* 1000:3954's key wait (F10) owns the input and blocks the world. */
-int32_t gameflow_keyWaitActive(void);
+int32_t gameflow_key_wait_active(void);
 /* The time-up dialog's 3 results (1000:34F9's inline dispatch): 0 restart
  * this level (level_restore), 1 restart this game (the room), 2 quit. */
-GameFlow gameflow_timeUpAction(int32_t choice, int32_t *quit);
-int32_t gameflow_restartPending(void); /* [0x1809] = 0xFF: restart game */
+GameFlow gameflow_time_up_action(int32_t choice, int32_t *quit);
+int32_t gameflow_restart_pending(void); /* [0x1809] = 0xFF: restart game */
 /* entry LAB_00CD's post-level step: [0x22]++ / [0x26]-- -> the next level of
  * the 160; when they run out this returns FLOW_ATTRACT (the caller starts
  * FLOW_ENDING: scene 7 -> the disc probe -> the MAP -> the attract). */
-GameFlow gameflow_afterLevel(uint32_t *levelCurrent);
+GameFlow gameflow_after_level(uint32_t *levelCurrent);
 /* entry 14E6/14FF and 150C/1512: the post-level newspaper index (0xFFFF =
  * none: lost, or the header byte 0xFF) and the ending scene (6 lost,
  * 7 COMPLETE). */
-uint32_t gameflow_postLevelScene(int32_t won, uint32_t introIndex);
-uint32_t gameflow_endingScene(int32_t won);
+uint32_t gameflow_post_level_scene(int32_t won, uint32_t introIndex);
+uint32_t gameflow_ending_scene(int32_t won);
 /* level_run 3060/3062's gate: the level's required humans vs the tribe. */
-int32_t gameflow_tribeTooSmall(uint32_t need, uint32_t members);
+int32_t gameflow_tribe_too_small(uint32_t need, uint32_t members);
 
 #endif /* HUMANSRE_GAMEFLOW_H */

@@ -35,7 +35,7 @@
 #define CUE_DWELL      7
 
 /* --- intro cue list (verbatim from 202F:0x843C) ------------------------- */
-static const uint16_t intro_cues[25u * 3u] = {
+static const uint16_t _intro_cues[25u * 3u] = {
     /* frame  cmd  arg */
     0,   7, 1, /* dwell 1                                        */
     0,   6, 3, /* scroll delta 3                                 */
@@ -117,13 +117,14 @@ void script_fire(CueScript *s, uint32_t frame)
 
 int32_t script_quit(const CueScript *s) { return s->quit; }
 int32_t script_done(const CueScript *s) { return s->done; }
-uint32_t script_groupDwell(const CueScript *s) { return s->groupDwell; }
-int32_t script_scrollOn(const CueScript *s) { return s->scrollOn; }
-uint32_t script_scrollDelta(const CueScript *s) { return s->scrollDelta; }
-uint32_t script_transitionIndex(const CueScript *s) { return s->transitionIdx; }
-int32_t script_seekPending(const CueScript *s) { return s->seekPending; }
-uint32_t script_seekFrame(const CueScript *s) { return s->seekFrame; }
-void script_seekDone(CueScript *s) { s->seekPending = 0; }
+uint32_t script_group_dwell(const CueScript *s) { return s->groupDwell; }
+int32_t script_scroll_on(const CueScript *s) { return s->scrollOn; }
+uint32_t script_scroll_delta(const CueScript *s) { return s->scrollDelta; }
+uint32_t script_transition_index(const CueScript *s)
+{ return s->transitionIdx; }
+int32_t script_seek_pending(const CueScript *s) { return s->seekPending; }
+uint32_t script_seek_frame(const CueScript *s) { return s->seekFrame; }
+void script_seek_done(CueScript *s) { s->seekPending = 0; }
 
 /* Start the intro cue script (the verbatim 202F:0x843C template). */
-void script_introStart(CueScript *s) { script_start(s, intro_cues, 25u); }
+void script_intro_start(CueScript *s) { script_start(s, _intro_cues, 25u); }

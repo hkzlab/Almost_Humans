@@ -1,11 +1,11 @@
 /* test_endflow.c — the level-end transition (draw_level_text 1000:33A3) and
- * check_highscore's outcome gate (1000:41AE), driven through game_main.
+ * check_highscore's _outcome gate (1000:41AE), driven through game_main.
  *
  * argv[1] = the game data directory holding HUMANS.000/001/002.
  * argv[2] = 1 for a won level, 0 for a lost one.
  *
- * The script reaches level 1 exactly like test_smoke; the present hook forces
- * the outcome at poll 7900 and a key dismisses the caption.  The hook latches
+ * The script reaches level 1 exactly like test_smoke; the present _hook forces
+ * the _outcome at poll 7900 and a key dismisses the caption.  The _hook latches
  * the three palette states (draw_level_text 0x33E2/0x33FD/0x3419):
  *   - grey:  entries 0..0x7F are the grey luma (r==g==b, non-zero) AND
  *            entries 0x80..0x83 are the shipped gradient (3C283C 3C263C ...);
@@ -29,27 +29,27 @@ enum {
     SCRIPT_N = 9000u
 };
 
-extern void osys_null_inputScript(const InputState *states, uint32_t n);
+extern void osys_null_input_script(const InputState *states, uint32_t n);
 extern const uint8_t *osys_null_palette(void);
-extern void osys_null_onPresent(void (*fn)(uint32_t poll));
+extern void osys_null_on_present(void (*fn)(uint32_t poll));
 
-extern const OSystem osys_null;
+extern const OSystem g_osys_null;
 
-static int32_t outcome;
-static int32_t greySeen, blackSeen, cardSeen, seenCardAfterBlack;
+static int32_t _outcome;
+static int32_t _grey_seen, _black_seen, _card_seen, _seen_card_after_black;
 
-static void hook(uint32_t poll)
+static void _hook(uint32_t poll)
 {
     const uint8_t *pal = osys_null_palette();
 
     if (poll == FORCE_POLL) {
         /* mode 2 = the pause menu's RESTART THIS GAME (1000:390F), which must
          * run the lost-level caption and fades before the restart */
-        if (outcome == 2) {
+        if (_outcome == 2) {
             int32_t q = 0;
-            (void)gameflow_pauseAction(2, &q);
+            (void)gameflow_pause_action(2, &q);
         } else {
-            level_requestEnd(outcome);
+            level_request_end(_outcome);
         }
     }
     if (poll < FORCE_POLL) return;
@@ -66,17 +66,17 @@ static void hook(uint32_t poll)
         if (grey && nz && pal[0x80 * 3u] == 0x3C &&
             pal[0x80 * 3u + 1u] == 0x28 && pal[0x80 * 3u + 2u] == 0x3C &&
             pal[0x81 * 3u] == 0x3C && pal[0x81 * 3u + 1u] == 0x26)
-            greySeen = 1;
+            _grey_seen = 1;
 
         for (uint32_t i = 0; i < 768u; i++)
             if (pal[i]) black = 0;
-        if (black) blackSeen = 1;
+        if (black) _black_seen = 1;
 
         /* the card bank: reblit copies SCORE.BIT+0xFA00 (entry 0 = 00 20 3C) */
         if (pal[0xC0 * 3u] == 0x00 && pal[0xC0 * 3u + 1u] == 0x20 &&
             pal[0xC0 * 3u + 2u] == 0x3C) {
-            cardSeen = 1;
-            if (blackSeen) seenCardAfterBlack = 1;
+            _card_seen = 1;
+            if (_black_seen) _seen_card_after_black = 1;
         }
     }
 }
@@ -89,7 +89,7 @@ int main(int argc, char **argv)
     static InputState script[SCRIPT_N];
     int32_t bad = 0;
 
-    outcome = argc > 2 ? atoi(argv[2]) : 1;
+    _outcome = argc > 2 ? atoi(argv[2]) : 1;
 
     snprintf(path, sizeof path, "%s/HUMANS.002", vol_dir);
     f = fopen(path, "rb");
@@ -115,34 +115,34 @@ int main(int argc, char **argv)
         script[i].lastKey = 1u;              /* the caption's key */
     script[SCRIPT_N - 1].quit = 1u;
 
-    osys_null_inputScript(script, SCRIPT_N);
-    osys_null_onPresent(hook);
-    if (game_main(&osys_null) != 0) {
+    osys_null_input_script(script, SCRIPT_N);
+    osys_null_on_present(_hook);
+    if (game_main(&g_osys_null) != 0) {
         fprintf(stderr, "FAIL game_main returned nonzero\n");
         return 1;
     }
 
-    if (!greySeen) {
+    if (!_grey_seen) {
         fprintf(stderr,
                 "FAIL 1000:33E2: the grey fade + gradient bank was not seen\n");
         bad = 1;
     }
-    if (!blackSeen) {
+    if (!_black_seen) {
         fprintf(stderr, "FAIL 1000:3419: the black fade was not seen\n");
         bad = 1;
     }
-    if (outcome == 1) {
-        if (!cardSeen || !seenCardAfterBlack) {
+    if (_outcome == 1) {
+        if (!_card_seen || !_seen_card_after_black) {
             fprintf(stderr, "FAIL a won level did not open the score card\n");
             bad = 1;
         }
-    } else if (cardSeen) {
+    } else if (_card_seen) {
         fprintf(stderr, "FAIL 1000:41AE: a lost level opened the score card\n");
         bad = 1;
     }
 
     if (!bad)
         printf("endflow(%s): OK\n",
-               outcome == 2 ? "restart" : (outcome ? "won" : "lost"));
+               _outcome == 2 ? "restart" : (_outcome ? "won" : "lost"));
     return bad;
 }

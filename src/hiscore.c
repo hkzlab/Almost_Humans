@@ -38,15 +38,15 @@
 #define HIS_NAME   14u /* 13 chars + NUL                         */
 #define HIS_TABLE  (2u + HIS_LEVELS * 2u + 18u + HIS_TOPN * HIS_ENTRY)
 
-static uint8_t hiscoreTable[HIS_TABLE];
-static int32_t hiscoreLoaded;
+static uint8_t _hiscore_table[HIS_TABLE];
+static int32_t _hiscore_loaded;
 
 /* the shipped defaults (the image's DS:0x4DE block): what a fresh boot shows
  * before any HISCORES.HUM exists */
 static const struct {
     uint32_t score;
     const char *name;
-} hiscoreDefault[10] = {
+} _hiscore_default[10] = {
     { 100000u, "STEVE JONES" },  { 90000u, "NIKKI" },
     { 80000u, "NATASHA" },       { 70000u, "MARV" },
     { 60000u, "JAMIE IRVINE" },  { 50000u, "STEVE OLDACRE" },
@@ -54,8 +54,8 @@ static const struct {
     { 20000u, "SIMON HIRST" },   { 10000u, "CRAIG MASSEY" }
 };
 
-static uint8_t *hiscoreEntry(uint32_t i)
-{ return hiscoreTable + 0x154u + i * HIS_ENTRY; }
+static uint8_t *_hiscore_entry(uint32_t i)
+{ return _hiscore_table + 0x154u + i * HIS_ENTRY; }
 
 /* 1000:06DE crypt_table_38a — the involution, same routine for both
  * directions: [di] ^= bl; bl = rol8(bl,1) + 3. */
@@ -69,47 +69,48 @@ void hiscore_obfuscate(uint8_t *p, uint32_t n)
     }
 }
 
-static void hiscore_crypt(void) { hiscore_obfuscate(hiscoreTable, HIS_TABLE); }
+static void _hiscore_crypt(void)
+{ hiscore_obfuscate(_hiscore_table, HIS_TABLE); }
 
 /* the shipped state: every level 9:99 and the ten defaults */
-static void hiscoreDefaults(void)
+static void _hiscore_defaults(void)
 {
-    memset(hiscoreTable, 0, sizeof hiscoreTable);
-    wr_le_u16(hiscoreTable, 0x0999u); /* [0x38A] = 0x0999 */
+    memset(_hiscore_table, 0, sizeof _hiscore_table);
+    wr_le_u16(_hiscore_table, 0x0999u); /* [0x38A] = 0x0999 */
     for (uint32_t n = 1; n < HIS_LEVELS; n++)
-        wr_le_u16(hiscoreTable + 2u + 2u * n, 0x0999u);
+        wr_le_u16(_hiscore_table + 2u + 2u * n, 0x0999u);
     for (uint32_t i = 0; i < HIS_TOPN; i++) {
-        uint8_t *e = hiscoreEntry(i);
-        uint32_t v = hiscoreDefault[i].score;
+        uint8_t *e = _hiscore_entry(i);
+        uint32_t v = _hiscore_default[i].score;
 
         wr_le_u32(e, v);
-        strncpy((char *)e + 4, hiscoreDefault[i].name, HIS_NAME - 1u);
+        strncpy((char *)e + 4, _hiscore_default[i].name, HIS_NAME - 1u);
     }
 }
 
 /* Restore the shipped state (tests and a fresh install). */
 void hiscore_reset(void)
 {
-    hiscoreDefaults();
-    hiscoreLoaded = 1;
+    _hiscore_defaults();
+    _hiscore_loaded = 1;
 }
 
 /* 1000:069F load_file_to_buffer: DS:0x38A <- 520 bytes, then decrypt.  A
  * missing or short file leaves the shipped defaults in place. */
 void hiscore_init(void)
 {
-    if (hiscoreLoaded) return;
-    hiscoreLoaded = 1;
-    hiscoreDefaults();
+    if (_hiscore_loaded) return;
+    _hiscore_loaded = 1;
+    _hiscore_defaults();
     {
-        FSSave *f = fs.openNamed("HISCORES.HUM");
+        FSSave *f = g_fs.openNamed("HISCORES.HUM");
 
         if (f) {
-            uint32_t n = fs.saveRead(f, 0, hiscoreTable, HIS_TABLE);
+            uint32_t n = g_fs.saveRead(f, 0, _hiscore_table, HIS_TABLE);
 
-            fs.closeSave(f);
-            if (n == HIS_TABLE) hiscore_crypt();
-            else hiscoreDefaults();
+            g_fs.closeSave(f);
+            if (n == HIS_TABLE) _hiscore_crypt();
+            else _hiscore_defaults();
         }
     }
 }
@@ -118,7 +119,7 @@ void hiscore_init(void)
  * save round-trip without a second process. */
 void hiscore_reload(void)
 {
-    hiscoreLoaded = 0;
+    _hiscore_loaded = 0;
     hiscore_init();
 }
 
@@ -128,13 +129,13 @@ void hiscore_write(void)
     FSSave *f;
 
     hiscore_init();
-    hiscore_crypt();
-    f = fs.createNamed("HISCORES.HUM");
+    _hiscore_crypt();
+    f = g_fs.createNamed("HISCORES.HUM");
     if (f) {
-        fs.saveWrite(f, 0, hiscoreTable, HIS_TABLE);
-        fs.closeSave(f);
+        g_fs.saveWrite(f, 0, _hiscore_table, HIS_TABLE);
+        g_fs.closeSave(f);
     }
-    hiscore_crypt();
+    _hiscore_crypt();
 }
 
 /* the per-level best as `1000:42E9` reads it: level N's u16 at 0x38A + 2*N */
@@ -142,14 +143,14 @@ uint16_t hiscore_best(uint32_t level)
 {
     hiscore_init();
     if (level >= HIS_LEVELS) return 0x0999u;
-    return rd_le_u16(hiscoreTable + 2u + 2u * level);
+    return rd_le_u16(_hiscore_table + 2u + 2u * level);
 }
 
-void hiscore_setBest(uint32_t level, uint16_t value)
+void hiscore_set_best(uint32_t level, uint16_t value)
 {
     hiscore_init();
     if (level >= HIS_LEVELS) return;
-    wr_le_u16(hiscoreTable + 2u + 2u * level, value);
+    wr_le_u16(_hiscore_table + 2u + 2u * level, value);
 }
 
 uint32_t hiscore_count(void) { return HIS_TOPN; }
@@ -160,18 +161,18 @@ uint32_t hiscore_score(uint32_t i)
 
     hiscore_init();
     if (i >= HIS_TOPN) return 0u;
-    e = hiscoreEntry(i);
+    e = _hiscore_entry(i);
     return rd_le_u32(e);
 }
 
 const char *hiscore_name(uint32_t i)
 {
     hiscore_init();
-    return i < HIS_TOPN ? (const char *)hiscoreEntry(i) + 4 : "";
+    return i < HIS_TOPN ? (const char *)_hiscore_entry(i) + 4 : "";
 }
 
 /* 1000:0486's sanitiser: 0x1A -> space, 0x1B -> '.' */
-static char hiscore_char(char c)
+static char _hiscore_char(char c)
 {
     if (c == '\x1A') return ' ';
     if (c == '\x1B') return '.';
@@ -199,15 +200,15 @@ int32_t hiscore_insert(uint32_t score, const char *name)
     }
     if (pos >= HIS_TOPN) return -1; /* the last entry still wins */
     for (uint32_t j = HIS_TOPN - 1u; j > pos; j--)
-        memmove(hiscoreEntry(j), hiscoreEntry(j - 1u), HIS_ENTRY);
+        memmove(_hiscore_entry(j), _hiscore_entry(j - 1u), HIS_ENTRY);
     {
-        uint8_t *e = hiscoreEntry(pos);
+        uint8_t *e = _hiscore_entry(pos);
 
         wr_le_u32(e, score);
         memset(e + 4, 0, HIS_NAME);
         if (name) {
             for (uint32_t i = 0; i < HIS_NAME - 1u && name[i]; i++)
-                e[4u + i] = (uint8_t)hiscore_char(name[i]);
+                e[4u + i] = (uint8_t)_hiscore_char(name[i]);
         }
     }
     took = (int32_t)pos;
@@ -222,7 +223,7 @@ int32_t hiscore_insert(uint32_t score, const char *name)
  * confirms.  The buffer holds at most 13 characters (DS:0x757, the copy at
  * commit time is 14 bytes).  A keystroke outside the grid is ignored.
  */
-static void namePut(char *name, uint32_t *len, char c)
+static void _name_put(char *name, uint32_t *len, char c)
 {
     uint32_t n = *len;
 
@@ -236,7 +237,7 @@ static void namePut(char *name, uint32_t *len, char c)
     *len = n;
 }
 
-int32_t hiscore_nameApply(char *name, uint32_t column, uint32_t *len)
+int32_t hiscore_name_apply(char *name, uint32_t column, uint32_t *len)
 {
     uint32_t n = *len;
 
@@ -244,11 +245,11 @@ int32_t hiscore_nameApply(char *name, uint32_t column, uint32_t *len)
     name[n] = '\0';
     *len = n;
     if (column < 0x1Au) {
-        namePut(name, len, (char)('A' + column));
+        _name_put(name, len, (char)('A' + column));
         return 0;
     }
     if (column == 0x1Au || column == 0x1Bu) {
-        namePut(name, len, column == 0x1Au ? ' ' : '.');
+        _name_put(name, len, column == 0x1Au ? ' ' : '.');
         return 0;
     }
     if (column == 0x1Cu) { /* delete the last char */
