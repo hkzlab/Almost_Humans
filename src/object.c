@@ -9706,8 +9706,12 @@ void object_save_pool(uint8_t *dst)
 {
     if (!dst) return;
     memset(dst, 0, 0x13CAu);
-    wr_le_u16(dst + 0u, (uint16_t)level_special_tile(0u)); /* [0x6F20] */
-    wr_le_u16(dst + 2u, (uint16_t)level_special_tile(1u)); /* [0x6F21] */
+    /* 1FE7:0000 copies the whole [0x6F20]..[0x82EA] region, which starts
+     * with the TWO single-byte tile ids (DEFS\BD<n>.BIN field K's first
+     * word).  D-143: the port used to write them as words, so dst[1] stayed
+     * 0 and the tile-1 word was overwritten by the register copy. */
+    dst[0] = (uint8_t)level_special_tile(0u); /* [0x6F20] */
+    dst[1] = (uint8_t)level_special_tile(1u); /* [0x6F21] */
     memcpy(dst + 2u, _obj_register, sizeof _obj_register);
     memcpy(dst + 0x72u, _obj_span, sizeof _obj_span);
 }

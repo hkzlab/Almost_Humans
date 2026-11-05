@@ -381,10 +381,17 @@ static uint8_t *_res_decode_chunk(VolReader *r, uint32_t off,
                                   const uint8_t *rec /* 0x40 bytes */,
                                   uint32_t length, uint16_t *chkOut)
 {
-    uint32_t block = rd_le_u16(rec + 0x36) ? rd_le_u16(rec + 0x36) : 0x4000;
+    uint32_t block = rd_le_u16(rec + 0x36);
     uint8_t *out = malloc(length ? length : 1);
     uint16_t acc = 0;
     if (!out) return NULL;
+    if (block == 0u) { /* the original's stored loop copies 0x10000 words
+                        * (LOOP with CX = 0) and never advances the chunk;
+                        * the port refuses the malformed record instead -
+                        * port_deviations.md D-198. */
+        free(out);
+        return NULL;
+    }
 
     r->pos = off;
     uint32_t done = 0;
@@ -395,11 +402,16 @@ static uint8_t *_res_decode_chunk(VolReader *r, uint32_t off,
         if (flag == 0) { /* stored raw  919f..91a7  */
             uint32_t take =
                 (uint32_t)block < length - done ? block : length - done;
-            if (_vol_sixteen(r, r->pos, out + done, (uint32_t)take)) {
+            /* 1000:9199 MOV CX,[0x4781] / SHR CX,1 / STOSW / LOOP: the arm
+             * writes WORDS, so an odd tail byte is never written.  The
+             * stream still advances by the full take (1000:9135/0x915F),
+             * which is where the next flag word is read. */
+            uint32_t copy = take & ~1u;
+            if (_vol_sixteen(r, r->pos, out + done, copy)) {
                 failed = 1;
                 break;
             }
-            for (uint32_t i = 0; i < (take & ~1u); i += 2)
+            for (uint32_t i = 0; i < copy; i += 2)
                 acc ^= rd_le_u16(out + done + i);
             r->pos += take;
             done += take;

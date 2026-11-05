@@ -492,6 +492,16 @@ int main(int argc, char **argv)
                 bad = 1;
             }
         }
+        {
+            static uint8_t pool[0x13CA];
+
+            object_save_pool(pool);
+            if (pool[0] != (uint8_t)level_special_tile(0u) ||
+                pool[1] != (uint8_t)level_special_tile(1u)) {
+                fprintf(stderr, "FAIL D-143: the pool's two tile bytes\n");
+                bad = 1;
+            }
+        }
         memset(ent, 0, sizeof ent);
         ent[0] = 1; /* [0x64C2] = 1 */
         ent[2] = 0x34;
@@ -536,11 +546,12 @@ int main(int argc, char **argv)
         fx[0x0D + 0x53u] = 9u; /* [0x3E73] */
         _put16(fx + 0x0D + 0x55u, 0x1234u); /* record 0 x */
         _put16(fx + 0x0D + 0x57u, 0x5678u); /* record 0 y */
-        /* 0x6F20: groups and spans all free, then the two specials */
+        /* 0x6F20: the two single-byte tile ids (D-143), then the register
+         * and span pools. */
         memset(fx + 0x026C + 2u, 0xFF, 0x70u);
         memset(fx + 0x026C + 0x72u, 0xFF, 0x38u);
-        _put16(fx + 0x026C, (uint32_t)level_special_tile(0u));
-        _put16(fx + 0x026C + 2u, (uint32_t)level_special_tile(1u));
+        fx[0x026C] = (uint8_t)level_special_tile(0u);
+        fx[0x026D] = (uint8_t)level_special_tile(1u);
         /* 0x5B37 and its [0x5B56] */
         memcpy(fx + 0x1636, prog, sizeof prog);
         /* 0x649A TER slots zero, then 0x64C2 count + 7 records */

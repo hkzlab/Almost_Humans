@@ -1262,7 +1262,9 @@ int32_t level_load(uint32_t levelId)
         memset(_pal_bar_only, 0, sizeof _pal_bar_only);
 
         /* The working palette 0x14D3 (the level's DAC base): entries
-         * 0..31 = APL\SPRPAL.APL+0x18 (the UI, verified live), 32..63 =
+         * 1..31 = APL\SPRPAL.APL+0x1B (the UI; entry 0 keeps the loading
+         * screen's dicon triple - 1000:4FD9's SI = 0x1B / DI = 0x14D6 / CX =
+         * 0x5D, D-142), 32..63 =
          * LEVELS\BS<style>.BLK+0x18 (the tiles), 64..127 = the BG's own
          * palette, 128..191 = zero, 192..255 = panel4's (level_video_init's
          * 0xC0-byte 0x1713 copy).  Then the level's fade-in (level_fade_in
@@ -1271,8 +1273,8 @@ int32_t level_load(uint32_t levelId)
         {
             uint32_t spSize = 0;
             uint8_t *sp = res_load_chunk("APL\\SPRPAL.APL", &spSize, NULL);
-            if (sp && spSize >= 0x18u + 0x60u)
-                memcpy(_level_pal, sp + 0x18, 0x60u);
+            if (sp && spSize >= 0x1Bu + 0x5Du)
+                memcpy(_level_pal + 3u, sp + 0x1Bu, 0x5Du);
             free(sp);
         }
         if (_atlas) memcpy(_level_pal + 32u * 3u, _atlas + 0x18, 0x60u);

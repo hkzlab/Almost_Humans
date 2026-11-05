@@ -173,5 +173,69 @@ int main(int argc, char **argv)
     } else {
         printf("ok missing name -> NULL\n");
     }
+
+    /* D-145 (closed 2026-11-05): the stored arm writes WORDS (1000:919D
+     * SHR CX,1), so an odd take's tail byte is never written; the stream
+     * still advances by the full take, which is where the next flag is read.
+     * A synthetic volume whose stored payload is TRUNCATED by that odd byte
+     * must still decode: the old code read `take` bytes and failed here. */
+    {
+        char cwd[PATH_MAX];
+        static const char scratch[] = "humans_res_d145";
+
+        if (!compat_realpath(".", cwd)) {
+            fprintf(stderr, "FAIL cwd unreadable\n");
+            bad = 1;
+        } else {
+            (void)compat_mkdir(scratch); /* already present is fine */
+            snprintf(path, sizeof path, "%s/HUMANS.000", scratch);
+            uint8_t vol[0x48];
+            memset(vol, 0, sizeof vol);
+            vol[0] = 1; /* one record */
+            memcpy(vol + 2, "TEST\\ODD.BIN      ", 18);
+            vol[2 + 0x36] = 5; /* the block size (odd)     */
+            vol[2 + 0x38] = 5; /* the chunk length (odd)   */
+            vol[2 + 0x3C] = 0x42; /* the data offset      */
+            vol[0x42] = 0; /* the flag word: stored     */
+            vol[0x44] = 0x11; /* the four even payload    */
+            vol[0x45] = 0x22;
+            vol[0x46] = 0x33;
+            vol[0x47] = 0x44;
+            FILE *f = fopen(path, "wb");
+            if (!f || fwrite(vol, 1, sizeof vol, f) != sizeof vol) {
+                if (f) fclose(f);
+                fprintf(stderr, "FAIL cannot write the D-145 volume\n");
+                bad = 1;
+            } else {
+                fclose(f);
+                if (compat_chdir(scratch)) {
+                    perror(scratch);
+                    bad = 1;
+                } else {
+                    uint32_t n = 0;
+                    uint8_t *got;
+
+                    res_set_disc(0); /* the synthetic volume */
+                    got = res_load_chunk("TEST\\ODD.BIN", &n, NULL);
+
+                    if (!got) {
+                        fprintf(stderr, "FAIL D-145: the truncated stored "
+                                        "block must decode\n");
+                        bad = 1;
+                    } else {
+                        if (n != 5u || got[0] != 0x11u || got[1] != 0x22u ||
+                            got[2] != 0x33u || got[3] != 0x44u) {
+                            fprintf(stderr, "FAIL D-145: the stored bytes\n");
+                            bad = 1;
+                        } else {
+                            printf("ok D-145: the odd tail byte is not read\n");
+                        }
+                        free(got);
+                    }
+                    if (compat_chdir(cwd)) perror(cwd);
+                }
+            }
+        }
+    }
     return bad;
 }

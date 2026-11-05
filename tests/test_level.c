@@ -251,7 +251,8 @@ int main(int argc, char **argv)
      * the composite 320x200 viewport on page 0 (the BG's pixels biased into
      * the 64..127 bank with 0xFF -> black, then draw_terrain's tiles at the
      * +0x20 bias) and the working palette 202F:0x14D3:
-     *   0..31   APL\SPRPAL.APL +0x18  (the UI)
+     *   0       the loading screen's BACKS\DICON.APL +0x18 triple (D-142)
+     *   1..31  APL\SPRPAL.APL +0x1B  (the UI)
      *   32..63  LEVELS\BS3.BLK +0x18  (the tiles)
      *   64..127 BG4.RAW's own palette  (draw_map_digit 1000:4F3C)
      *   128..191 zero
@@ -460,15 +461,19 @@ int main(int argc, char **argv)
                 _read_fixture(fix_abs, "HUMANS.001/BACKS/BG4.RAW", &n);
             uint8_t *p4 =
                 _read_fixture(fix_abs, "HUMANS.001/LBM/PANEL4.BIT", &n);
-            if (!sp || !bs || !bg || !p4) {
+            uint8_t *di =
+                _read_fixture(fix_abs, "HUMANS.001/BACKS/DICON.APL", &n);
+            if (!sp || !bs || !bg || !p4 || !di) {
                 fprintf(stderr, "FAIL palette fixtures unreadable\n");
                 bad = 1;
             } else {
-                const uint8_t *want[5] = { sp + 0x18, bs + 0x18, bg + 163840u,
-                                           NULL, p4 + 0xFA00u };
-                uint32_t off[5] = { 0u, 0x60u, 0xC0u, 0x180u, 0x240u };
-                uint32_t len[5] = { 0x60u, 0x60u, 0xC0u, 0xC0u, 0xC0u };
-                for (uint32_t r = 0; r < 5u; r++)
+                const uint8_t *want[6] = {
+                    di + 0x18,    sp + 0x1B, bs + 0x18,
+                    bg + 163840u, NULL,      p4 + 0xFA00u
+                };
+                uint32_t off[6] = { 0u, 3u, 0x60u, 0xC0u, 0x180u, 0x240u };
+                uint32_t len[6] = { 3u, 0x5Du, 0x60u, 0xC0u, 0xC0u, 0xC0u };
+                for (uint32_t r = 0; r < 6u; r++)
                     for (uint32_t i = 0; i < len[r]; i++) {
                         uint8_t w = want[r] ? want[r][i] : 0u;
                         if (pal[off[r] + i] != w) {
@@ -485,6 +490,7 @@ int main(int argc, char **argv)
             free(bs);
             free(bg);
             free(p4);
+            free(di);
 
             /* ... and the acting record actually walks: with the old field-P
              * table the settle judged it unsupported (type 3, y looping
