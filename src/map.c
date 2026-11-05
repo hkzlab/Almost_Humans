@@ -18,17 +18,17 @@
  *
  * RENDERING: the frame/band and the name wheel are the listing's art.  The
  * list is `draw_score_block`'s layout (rank/name/score centred at
- * 0x20/0x82/0x102, pitch 0x14 from base 0; header at 0xA0/0x14), the
- * qualifying total sees the seven-line congratulation page before the ring,
- * and the name screen has no `NAME:` line.  The page behind the text is
- * `lbm\high.bit` only: the band sheet is NOT a page-origin layer.  The live
- * capture shows the origin rows as high.bit's stone slab and the band
- * texture along the bottom via the animated strips, which are not ported
- * (port_deviations.md D-34, REQUIRES INVESTIGATION); the earlier origin fill
- * painted the slab with 0x0F noise.  The name-entry
- * transition follows 1000:028C..030A: five palette fades, the HIGH.BIT
- * re-copy and the two 1000:1251 outlines.  The six `[0x8A2]` positions are
- * not content panels: they are 0x14-frame scroll steps of the same band.
+ * 0x20/0x82/0x102, pitch 0x14 from base 0), the qualifying total sees the
+ * seven-line congratulation page before the ring, and the name screen has no
+ * `NAME:` line.  The visible page is `lbm\high.bit`; the four animated band
+ * strips live on the display (`1000:0A72`) and `_map_draw_strips` restores
+ * them after the `0x024B` offscreen copy.  The top-ten list keeps high.bit
+ * behind the rows and uses `apl\band.spr` for the five frame bands (D-215;
+ * the 0x0874 offscreen page cannot stand in for both the display and the
+ * frame art in the port's one-page model).  The name-entry transition follows
+ * 1000:028C..030A: five palette fades, the HIGH.BIT re-copy and the two
+ * 1000:1251 outlines.  The six `[0x8A2]` positions are not content panels:
+ * they are 0x14-frame scroll steps of the same band.
  *
  * Entry state: entry 0x151A sets [0xF7E]=0 and calls draw_status_indicator
  * (the disc-0 probe) before menu_loop, so the asset loads from disc 0.
@@ -120,6 +120,17 @@ static uint32_t _map_list_step;
 static uint32_t _map_angle;
 static uint32_t _map_angle_step;
 static int32_t _map_spin; /* frames left in the entry spin (20 + 3) */
+/* 1000:03B5..0x03F8: a left/right press is four 3-degree draws plus the three
+ * 0x0330 holds, not one 12-degree jump. */
+static int32_t _map_move_steps;
+static int32_t _map_move_dir; /* -1 = left (0x03DA), +1 = right (0x03B5) */
+static int32_t _map_move_hold;
+/* 1000:0368 clears [0x5ACE]: after a typed key the action bit is swallowed
+ * until the key is released (Z is the shipped action key). */
+static int32_t _map_fire_lock;
+/* [0x48A3]: the ISR's last-key latch; the menu takes it once, so a key that
+ * lands during the spin/holds is not lost and a held key does not repeat. */
+static uint32_t _map_pending_key;
 
 /* 1000:0CBE's display list at [0x596]: {target x,y, current x,y}. */
 struct MapGlyph {
@@ -136,9 +147,10 @@ static uint32_t _map_dirty[2][MAP_DIRTY_MAX];
 static uint32_t _map_dirty_n[2];
 static uint32_t _map_dirty_cur;
 static uint32_t _map_dirty_prev;
-/* the frame source is the offscreen page at 1000:0874's DS, [0x8A4], not the
- * display it writes: snapshot it so the five bands never sample each other. */
-static uint8_t _map_frame_src[MAP_PAGE];
+/* the frame's art is the band sheet: the old text-page source painted the
+ * list's own glyph bits as the blue scrolling bands the user rejected. */
+static void _map_page_copy(uint8_t *page);
+static uint32_t _map_col_from_angle(void);
 
 /* --- the letter wheel: ALPHA.SPR + rotate_spinner_cell -------------------
  *
@@ -646,7 +658,7 @@ static void _blit_runs(uint8_t *page, uint32_t *d, uint32_t *s, uint32_t mask)
 
     for (uint32_t k = 0; k < 3u; k++) {
         for (uint32_t n = 0; n < runs[k]; n++) {
-            uint32_t v = (*s < MAP_PAGE) ? _map_frame_src[*s] : 0u;
+            uint32_t v = _band_sheet[*s % 24320u];
             uint32_t row = (*d / 80u), col = (*d % 80u);
 
             if (row < 200u) _blit_four(page, row, col, v, mask);
@@ -675,12 +687,14 @@ static void _map_blit_row(uint8_t *page, uint32_t dstByte, uint32_t srcByte,
 }
 
 /**
- * @brief 1000:07E6: the five frame bands from page row `[0x8AE]`.
+ * @brief 1000:07E6: the five frame bands from band row `[0x8AE]`.
  *
- * The source is the offscreen page (`1000:0874` sets `DS = [0x8A4]`, the
- * high.bit/score page), not the band sheet: the bands sample the page's own
- * bytes at `[0x8AE]*80 + 6`.  The display is a different buffer in the
- * original, so snapshot the page first (the port draws into the same buffer).
+ * The frame art is `apl\band.spr` (the sheet the original de-interleaves into
+ * the staging page): each band reads `[0x8AE]*80 + 6` and advances 0x640 per
+ * box.  The listing's `0x0874` source is the page at `[0x8A4]`, but that page
+ * is the text page in the port's one-page model and painting its glyph bits
+ * produced the blue scrolling bands the user rejected; the shipped frame art
+ * is the band sheet.
  *
  * @param page the page buffer
  * @param row the source row ([0x8AE])
@@ -692,8 +706,7 @@ void map_draw_box_edges(uint8_t *page, uint32_t row)
     static const uint32_t mask[5] = { 0xA0u, 0xB0u, 0xE0u, 0xF0u, 0x30u };
     uint32_t src = row * 80u + 6u;
 
-    if (!page) return;
-    memcpy(_map_frame_src, page, MAP_PAGE);
+    if (!page || !_band_sheet) return;
     for (uint32_t i = 0; i < 5u; i++) {
         _map_blit_row(page, dstByte[i], src, mask[i]);
         src += 0x640u; /* ADD SI,0x640 */
@@ -783,6 +796,24 @@ static void _map_blit_strip(uint16_t phase, uint32_t ch, uint8_t *page)
             for (uint32_t j = 0; j < 4u; j++)
                 page[px + j] = _map_stage_pixel(a, j);
         }
+}
+
+/** @brief 1000:0A72 for all four channels: force the strip layer onto the page.
+ *
+ * `1000:0221`/`0x09DA` only blit a channel whose word changed, so a page
+ * re-copy (1000:024B) would leave the display without its strips.  The
+ * original's strips live on the display page and survive that offscreen copy;
+ * the port's one-page model needs this full redraw.
+ *
+ * @param page the page buffer
+ */
+static void _map_draw_strips(uint8_t *page)
+{
+    static const uint16_t off[4] = { 0u, 3u, 8u, 0x0Eu };
+
+    if (!page || !_map_stage_ready) return;
+    for (uint32_t ch = 0; ch < 4u; ch++)
+        _map_blit_strip((uint16_t)(_map_ch[ch] + off[ch]), ch, page);
 }
 
 /** @brief 1000:0E77 anim_tick_1: the [0x94] channel's 10-frame cycler (the
@@ -996,8 +1027,11 @@ uint8_t map_stage_at(uint32_t addr, uint32_t plane)
 
 /** @brief draw_score_block (1000:0651): the rank is centred at x=0x20, the name at
  * x=0x82, the 32-bit score at x=0x102, row pitch [0x36]=0x14 from base
- * [0x38]=0.  `1000:0577` clears the page first, so the final list has no
- * header and no high.bit behind it.
+ * [0x38]=0.
+ *
+ * `1000:0577` clears the offscreen page; the displayed page keeps the
+ * high.bit stone, so the port resets to high.bit here (this also removes the
+ * transition's 15 outlines and title) and then draws the rows over it.
  *
  * @param page the page buffer
  */
@@ -1006,7 +1040,8 @@ void map_draw_list(uint8_t *page)
     uint32_t row = 0u;
 
     if (!page) return;
-    memset(page, 0, MAP_PAGE); /* 1000:0577 */
+    _map_page_copy(
+        page); /* 1000:0577 on the offscreen page; display = high.bit */
     for (uint32_t i = 0; i < hiscore_count(); i++) {
         char buf[24];
 
@@ -1203,6 +1238,31 @@ static void _map_redraw(void)
 }
 
 /**
+ * @brief One left/right animation tick: four 3-degree draws, then the three
+ * 0x0330 holds (1000:03B5..0x03F8).
+ *
+ * @return 1 when a tick was consumed, 0 when the animation is idle
+ */
+static int32_t _map_move_tick(void)
+{
+    if (_map_move_steps > 0) {
+        int32_t a = (int32_t)_map_angle + _map_move_dir * 3 + 0x168;
+
+        _map_angle = (uint32_t)(a % 0x168);
+        _map_col = _map_col_from_angle();
+        _map_redraw();
+        if (--_map_move_steps == 0) _map_move_hold = 3;
+        return 1;
+    }
+    if (_map_move_hold > 0) {
+        _map_redraw(); /* 1000:0330 */
+        _map_move_hold--;
+        return 1;
+    }
+    return 0;
+}
+
+/**
  * @brief Open the MAP screen.
  *
  * @return 1 when the MAP screen opened, 0 otherwise
@@ -1245,6 +1305,11 @@ int32_t map_begin(void)
     _map_angle = 0x10Eu;
     _map_angle_step = 0u;
     _map_spin = 0;
+    _map_move_steps = 0;
+    _map_move_dir = 0;
+    _map_move_hold = 0;
+    _map_fire_lock = 0;
+    _map_pending_key = 0;
     memset(_map_glyphs, 0, sizeof _map_glyphs);
     _map_dirty_reset();
     _map_fade_starts = 0u;
@@ -1261,7 +1326,7 @@ int32_t map_begin(void)
          * colours fade in (the rest of the DAC is still the previous page's). */
         _map_page_copy(page);
         map_palette_reset(); /* 0x0221 */
-        _map_build_fade(0x10u, 0x10u, 0x1Eu, 0x30u); /* 0x0224 */
+        _map_build_fade(0x00u, 0x20u, 0x1Eu, 0x00u); /* 0x0224, whole band */
     }
 
     _map_up = 1;
@@ -1367,6 +1432,7 @@ int32_t map_tick(const InputState *in)
 
             if (palette_fade_active()) return 1;
             _map_page_copy(page); /* 0x024B */
+            _map_draw_strips(page); /* the display strips survive the copy */
             map_draw_congrats(page); /* 0x024E, first pass */
             _map_congrats_draws = 1u;
             _map_intro = 2u;
@@ -1437,6 +1503,10 @@ int32_t map_tick(const InputState *in)
             _map_angle_step = 0x12u; /* 1000:0316 */
             _map_spin = 23; /* 20 stepped draws + the three 0x0330 draws */
             _map_col = 0u;
+            _map_move_steps = 0;
+            _map_move_hold = 0;
+            _map_fire_lock = 0;
+            _map_pending_key = 0;
             _map_dirty_reset();
             return 1;
         default:
@@ -1445,11 +1515,18 @@ int32_t map_tick(const InputState *in)
             _map_angle = 0x10Eu;
             _map_angle_step = 0x12u;
             _map_spin = 23;
+            _map_move_steps = 0;
+            _map_move_hold = 0;
+            _map_fire_lock = 0;
+            _map_pending_key = 0;
             return 1;
         }
     }
 
     if (_map_phase == MAP_NAME) {
+        if (_map_fire_wait < 0xFFFFu) _map_fire_wait++; /* the [0x5AC8] tick */
+        if (in->lastKey) _map_pending_key = in->lastKey; /* [0x48A3] latch */
+
         /* 1000:031C..0x0342: the ring spins one full revolution (20 x 0x12)
          * and then holds for the three 0x0330 draws. */
         if (_map_spin > 0) {
@@ -1464,26 +1541,34 @@ int32_t map_tick(const InputState *in)
             _map_col = _map_col_from_angle();
             return 1;
         }
-        if (_map_fire_wait < 0xFFFFu) _map_fire_wait++; /* the [0x5AC8] tick */
+        if (_map_move_tick()) return 1; /* four 3-degree draws + three holds */
+
+        if (!(in->joyBits & 0x80u)) _map_fire_lock = 0;
 
         int32_t committed = 0;
 
         if (in->joyBits & 0x04u) { /* left: 1000:03DA, [0x48] -= 3 x4 */
-            _map_angle = (_map_angle + 0x168u - 0x0Cu) % 0x168u;
-            _map_col = _map_col_from_angle();
-        } else if (in->joyBits & 0x08u) { /* right: 1000:03B5, [0x48] += 3 x4 */
-            _map_angle = (_map_angle + 0x0Cu) % 0x168u;
-            _map_col = _map_col_from_angle();
-        } else if (in->lastKey) {
-            uint32_t c = in->lastKey;
+            _map_move_dir = -1;
+            _map_move_steps = 4;
+            return _map_move_tick();
+        }
+        if (in->joyBits & 0x08u) { /* right: 1000:03B5, [0x48] += 3 x4 */
+            _map_move_dir = 1;
+            _map_move_steps = 4;
+            return _map_move_tick();
+        }
+        if (_map_pending_key) {
+            uint32_t c = _map_pending_key;
             uint32_t cell = 0xFFu;
 
+            _map_pending_key = 0u; /* 1000:0363 [0x48A3] = 0 */
             if (c >= 'a' && c <= 'z') c -= 32u;
             if (c >= 'A' && c <= 'Z') cell = c - 'A';
             else if (c == ' ') cell = 0x1Au;
             else if (c == '.') cell = 0x1Bu;
             else if (c == 8u || c == 0x7Fu) cell = 0x1Cu; /* delete */
             else if (c == 13u || c == 10u) cell = 0x1Du; /* enter  */
+            _map_fire_lock = 1; /* 1000:0368 [0x5ACE] = 0 */
             if (cell != 0xFFu) {
                 /* 1000:039C..0x03B3: the key turns the ring to the cell and
                  * then falls into the shared append at 0x040B (the typed
@@ -1492,7 +1577,8 @@ int32_t map_tick(const InputState *in)
                 _map_angle = (0x10Eu + 0x168u - cell * 0x0Cu) % 0x168u;
                 committed = _map_apply(cell);
             }
-        } else if ((in->joyBits & 0x80u) && _map_fire_wait >= 0x23u) {
+        } else if ((in->joyBits & 0x80u) && !_map_fire_lock &&
+                   _map_fire_wait >= 0x23u) {
             /* 1000:03FB CMP [0x5AC8],0x23 / 0x0405 reset */
             _map_fire_wait = 0u;
             committed = _map_apply(_map_col);

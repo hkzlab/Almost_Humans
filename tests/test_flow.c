@@ -6346,13 +6346,45 @@ int main(int argc, char **argv)
                        "D-206: the opening fade chain reaches the key wait");
                 _check(map_congrats_draws() == 2u,
                        "1000:0251: the two congratulation passes are drawn");
+                /* D-211 (closed 2026-11-05): the display strips survive the
+                 * 0x024B offscreen copy; the port must redraw all four. */
+                {
+                    const uint8_t *pg = osys_null_page(0);
+                    uint32_t bad = 0, n = 0;
+
+                    for (uint32_t ch = 0; ch < 4u; ch++) {
+                        uint32_t phase = map_anim_channel_for_probe(ch) +
+                                         (ch == 0u   ? 0u
+                                          : ch == 1u ? 3u
+                                          : ch == 2u ? 8u
+                                                     : 0x0Eu);
+
+                        for (uint32_t r = 0; r < 40u; r++)
+                            for (uint32_t c = 0; c < 8u; c++) {
+                                uint32_t a =
+                                    (phase & 0xFFu) * 0x140u + r * 8u + c;
+                                uint32_t x = 96u + 32u * ch + c * 4u;
+                                uint32_t y = 146u + r;
+
+                                for (uint32_t j = 0; j < 4u; j++) {
+                                    n++;
+                                    if (pg[y * 320u + x + j] !=
+                                        map_stage_at(a, j))
+                                        bad++;
+                                }
+                            }
+                    }
+                    _check(
+                        n != 0u && bad == 0u,
+                        "D-211: the four band strips survive the opening copy");
+                }
             }
             {
                 uint32_t f = 0, e = 0, d = 0, t = 0;
 
-                _check(map_fade_at(0u, &f, &e, &d, &t) && f == 0x10u &&
-                           e == 0x10u && d == 0x1Eu && t == 0x30u,
-                       "D-206: 1000:0224 fades the band's 0x10..0x1F in");
+                _check(map_fade_at(0u, &f, &e, &d, &t) && f == 0x00u &&
+                           e == 0x20u && d == 0x1Eu && t == 0x00u,
+                       "D-212: 1000:0224 fades the whole band 0x00..0x1F in");
                 _check(map_fade_at(1u, &f, &e, &d, &t) && f == 0x20u &&
                            e == 0x20u && d == 0x02u,
                        "D-206: 1000:0239 fades 0x20..0x3F to black");
@@ -6457,20 +6489,31 @@ int main(int argc, char **argv)
             {
                 static uint8_t before[320u * 200u];
                 uint32_t c0 = map_name_col_for_probe();
+                uint32_t a0 = map_name_angle_for_probe();
 
                 memcpy(before, osys_null_page(0), sizeof before);
                 k.lastKey = 0;
                 k.joyBits = 0x08u; /* right */
                 map_tick(&k);
+                _check(map_name_angle_for_probe() == (a0 + 3u) % 0x168u,
+                       "D-213: right starts with one 3-degree draw");
+                for (uint32_t i = 0; i < 3u; i++) map_tick(&k);
                 _check(map_name_col_for_probe() == (c0 + 29u) % 30u,
                        "D-202: right spins the ring to the previous cell");
                 _check(memcmp(before, osys_null_page(0), sizeof before) != 0u,
                        "D-202: the ring is redrawn after the move");
+                a0 = map_name_angle_for_probe();
+                k.joyBits = 0;
+                for (uint32_t i = 0; i < 3u; i++) map_tick(&k); /* 0x0330 */
+                _check(map_name_angle_for_probe() == a0,
+                       "D-213: the three hold draws do not move the ring");
                 k.joyBits = 0x04u; /* left */
                 map_tick(&k);
+                for (uint32_t i = 0; i < 3u; i++) map_tick(&k);
                 _check(map_name_col_for_probe() == c0,
                        "D-202: left moves it back");
                 k.joyBits = 0;
+                for (uint32_t i = 0; i < 3u; i++) map_tick(&k); /* holds */
             }
             /* D-203 (closed 2026-11-05): the fire append waits for
              * [0x5AC8] >= 0x23 and resets it (1000:03FB/0x0405); the name
@@ -6493,6 +6536,33 @@ int main(int argc, char **argv)
             map_tick(&k);
             _check(map_name_for_probe()[0] == 0,
                    "D-203: the typed backspace clears it");
+            /* D-214 (closed 2026-11-05): Z is the shipped action key
+             * ([0x5B05] = 0x2C).  One typed Z appends once; the still-held
+             * fire bit is swallowed until release (1000:0363/0x0368). */
+            {
+                k.lastKey = 0;
+                k.joyBits = 0;
+                for (uint32_t i = 0; i < 0x23u; i++)
+                    map_tick(&k); /* re-arm [0x5AC8] after D-203's fire */
+                k.lastKey = 'Z';
+                k.joyBits = 0x80u;
+                map_tick(&k);
+                _check(map_name_for_probe()[0] == 'Z' &&
+                           map_name_for_probe()[1] == 0,
+                       "D-214: a typed Z appends once");
+                k.lastKey = 0; /* the event layer delivers the make once */
+                for (uint32_t i = 0; i < 5u; i++) map_tick(&k);
+                _check(map_name_for_probe()[1] == 0,
+                       "D-214: the held action bit does not append again");
+                k.joyBits = 0;
+                map_tick(&k); /* release clears the lock */
+                _check(map_name_for_probe()[1] == 0,
+                       "D-214: release keeps the name at one Z");
+                k.lastKey = 8u; /* clear the Z before D-201 */
+                map_tick(&k);
+                k.lastKey = 0;
+                k.joyBits = 0;
+            }
             /* D-201 (closed 2026-11-05): a typed key turns the ring to its
              * cell and then appends (1000:039C..0x03B3). */
             k.lastKey = 'Q';
@@ -6524,14 +6594,27 @@ int main(int argc, char **argv)
             _check(found, "the typed name and the total reach the table");
 
             /* draw_score_block (1000:0651): rank/name/score are centred at
-             * 0x20/0x82/0x102, pitch 0x14 from base 0; the header is at
-             * 0xA0/0x14 with blit_text_tile's 0x20 mask. */
+             * 0x20/0x82/0x102, pitch 0x14 from base 0; the rows are drawn
+             * over the high.bit stone (the display page), not on black. */
             {
                 static uint8_t page[320 * 200];
+                static uint8_t high[320 * 200];
                 static const uint32_t cx[3] = { 0x20u, 0x82u, 0x102u };
+                char hp[512];
+                size_t hn = 0;
+                FILE *hf;
 
+                snprintf(hp, sizeof hp, "%s/HUMANS.000/LBM/HIGH.BIT", fix_dir);
+                hf = fopen(hp, "rb");
+                if (hf) {
+                    hn = fread(high, 1, sizeof high, hf);
+                    fclose(hf);
+                }
                 memset(page, 0, sizeof page);
                 map_draw_list(page);
+                _check(hn == sizeof high &&
+                           page[150u * 320u + 300u] == high[150u * 320u + 300u],
+                       "D-215: the list keeps the high.bit background");
                 for (uint32_t k = 0; k < 10u; k++) {
                     uint32_t y = k * 0x14u;
                     for (uint32_t c = 0; c < 3u; c++) {
@@ -6539,8 +6622,12 @@ int main(int argc, char **argv)
 
                         for (uint32_t r = 4u; r < 14u; r++)
                             for (uint32_t x = cx[c] - 16u; x <= cx[c] + 16u;
-                                 x++)
-                                if (page[(y + r) * 320u + x]) n++;
+                                 x++) {
+                                uint32_t i = (y + r) * 320u + x;
+
+                                if (hn == sizeof high && page[i] != high[i])
+                                    n++;
+                            }
                         _check(n != 0u,
                                "1000:0651: rank/name/score ink at the column");
                     }
@@ -6552,10 +6639,12 @@ int main(int argc, char **argv)
                      * row 1's name ends near 0xB4 and the score starts at
                      * 0x102, so this window is header-only. */
                     for (uint32_t r = 4u; r < 14u; r++)
-                        for (uint32_t x = 0xC0u; x < 0xF0u; x++)
-                            if (page[(0x14u + r) * 320u + x]) n++;
-                    _check(n == 0u,
-                           "1000:0577: the cleared list has no header");
+                        for (uint32_t x = 0xC0u; x < 0xF0u; x++) {
+                            uint32_t i = (0x14u + r) * 320u + x;
+
+                            if (hn == sizeof high && page[i] != high[i]) n++;
+                        }
+                    _check(n == 0u, "1000:0577: the final list has no header");
                 }
                 /* D-98 (closed 2026-11-05): the 15 outlines live only on the
                  * 0x0518 header frames, before 0x0577 clears the page. */
@@ -6765,44 +6854,61 @@ int main(int argc, char **argv)
         /* 1000:07E6: the five frame rows, at rows 46/66/86/106/126 (the
          * 0xE66/0x14A6/0x1AE6/0x2126/0x2766 offsets on an 80-byte stride),
          * each a 14-row band built from the 4/+7/31/+9/15/+0xE runs.  The
-         * source is the page itself ([0x8A4]); write mode 2 + the box's Bit
-         * Mask sets/clears only the masked colour bits, so the text survives. */
+         * source is the band sheet; write mode 2 + the box's Bit Mask
+         * sets/clears only the masked colour bits, so the page survives. */
         {
             static uint8_t page[320 * 200];
-            static const uint32_t want[5] = { 46u, 66u, 86u, 106u, 126u };
+            static const uint32_t dstByte[5] = { 0xE66u, 0x14A6u, 0x1AE6u,
+                                                 0x2126u, 0x2766u };
             static const uint32_t masks[5] = { 0xA0u, 0xB0u, 0xE0u, 0xF0u,
                                                0x30u };
-            uint32_t shared[5] = { 0, 0, 0, 0, 0 }, stray = 0;
-            int32_t inBlock = 0;
+            static const uint32_t runN[3] = { 4u, 31u, 15u };
+            static const uint32_t gapN[3] = { 7u, 9u, 0x0Eu };
+            uint32_t checked = 0, bad = 0, stray = 0;
 
-            memset(page, 0x08, sizeof page); /* a known source bit (3) */
+            memset(page, 0x08, sizeof page);
             map_draw_box_edges(page, 2u);
-            for (uint32_t y = 0; y < 200u; y++) {
-                inBlock = 0;
-                for (uint32_t k = 0; k < 5u; k++)
-                    if (y >= want[k] && y < want[k] + 14u) inBlock = 1;
-                for (uint32_t x = 0; x < 320u; x++) {
-                    uint8_t v = page[y * 320u + x];
+            for (uint32_t k = 0; k < 5u; k++) {
+                uint32_t d = dstByte[k];
+                uint32_t s = 2u * 80u + 6u + k * 0x640u;
+                uint32_t M = masks[k];
 
-                    if (!inBlock) {
-                        if (v != 0x08u) stray++;
-                        continue;
+                for (uint32_t it = 0; it < 14u; it++)
+                    for (uint32_t r = 0; r < 3u; r++) {
+                        for (uint32_t n = 0; n < runN[r]; n++) {
+                            uint32_t a = s % 24320u;
+                            uint32_t v = map_stage_at(a / 4u, a % 4u);
+                            uint32_t row = d / 80u, col = d % 80u;
+
+                            for (uint32_t p = 0; p < 4u; p++) {
+                                uint8_t *px = &page[row * 320u + col * 4u + p];
+                                uint8_t exp =
+                                    (uint8_t)((0x08u & (uint8_t)~M) |
+                                              (((v >> p) & 1u) ? M : 0u));
+
+                                if (*px != exp) bad++;
+                                checked++;
+                            }
+                            d++;
+                            s++;
+                        }
+                        d += gapN[r];
+                        s += gapN[r];
                     }
-                    /* the low nibble must survive, and no pixel may be the
-                     * old 0x0F overwrite */
-                    if ((v & 0x0Fu) != 0x08u || v == 0x0Fu) stray++;
-                    for (uint32_t k = 0; k < 5u; k++)
-                        if (v == (uint8_t)(0x08u | masks[k])) shared[k]++;
-                }
             }
+            for (uint32_t y = 0; y < 200u; y++)
+                for (uint32_t x = 0; x < 320u; x++) {
+                    int32_t in = 0;
+
+                    for (uint32_t k = 0; k < 5u; k++)
+                        if (y >= dstByte[k] / 80u && y < dstByte[k] / 80u + 14u)
+                            in = 1;
+                    if (!in && page[y * 320u + x] != 0x08u) stray++;
+                }
             _check(
-                stray == 0u,
-                "D-210: the frame writes only the five bands and keeps the text bits");
-            _check(shared[0] && shared[1] && shared[2] && shared[3] &&
-                       shared[4],
-                   "D-210: all five masks blend their colour bits");
-            _check(shared[3] != 0u,
-                   "D-210: the 0xF0 mask sets all four high bits");
+                checked != 0u && bad == 0u,
+                "D-210: the frame blends the band sheet's bits over the page");
+            _check(stray == 0u, "D-210: the frame writes only the five bands");
         }
         _flow_dump_ppm("map_frame.ppm", video_page(0));
         k.lastKey = 1;
