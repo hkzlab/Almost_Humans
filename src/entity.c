@@ -105,15 +105,6 @@ static const uint8_t _style6_flags[32] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
-/* DS:0x6EC3 - the 44-byte table the interaction gate tests: a record whose type
- * has a non-zero byte here is not picked up. */
-static const uint8_t _ent_no_pick[0x2C] = {
-    0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x01, 0x01,
-    0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x01, 0x00, 0x00,
-    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-};
-
 /* --- the REX.DAT frame tables (1000:58A5) ------------------------------
  *
  * `update_object_list` (1000:5823) walks the entities, sets `ES` to the
@@ -320,12 +311,18 @@ static uint32_t _ent_index(const Entity *ep)
  * and takes the first one that
  *   - is active ([+6] bit 7 clear),
  *   - sits at `x - entity.x + wp[3]` in 0..2 and `y - entity.y - 0x14` in
- *     0..0x2C (wp[3] is a negative x tolerance: 0xFFDD = -35),
+ *     0..0x2C (wp[3] is the x tolerance: 0xFFDD = -35 for handler 0, +0x10
+ *     for handler 1),
  *   - is not the type wp[4] names, not type 4/5, and not marked in 0x6EC3,
  * dissolves it (1000:F453 with DX = 5) and posts the carry: the record becomes
  * type 0x22, its +0xA the entity link, +0xE = wp[5], +0x10 = wp[7] + the
  * entity word wp[6] names; the entity's handler becomes wp[8], its waypoint
  * wp[9] and its hold 0xA032 (the "stuck while carrying" sentinel), effect 9.
+ *
+ * The type compare is an equality branch, not a skip (1000:CABC -> 1000:CB78):
+ * a record whose +8 is exactly wp[4] (0x20 handler 0 / 0x1F handler 1) is the
+ * guard stance op 5 (`entity_promote_to_type_1f` 1000:39B5) writes on a human
+ * holding a spear or torch, and the original turns the entity around there.
  *
  * `+0xA` holds a DS pointer to the entity record in the original; the port has
  * no DS image, so it stores `entity index + 1` (0 = none) - the same internal
@@ -355,10 +352,16 @@ static void _entity_tail_interact(Entity *ep, uint32_t slot, uint32_t off)
         dy = (int32_t)(int16_t)(uint16_t)(rd_le_u16(rec + 2u) - ep->y) - 0x14;
         if (dy < 0 || dy > 0x2C) continue; /* 1000:CAA4 */
         type = rd_le_u16(rec + 8u);
-        if (type == w4) continue; /* 1000:CABC */
+        if (type == w4) { /* 1000:CABC -> 1000:CB78 */
+            /* the guard reversal: the entity turns around instead of carrying
+             * the guarding record */
+            _sel_primary ^= 0x000Eu;
+            ep->waypoint = _sel_primary;
+            ep->handler ^= 1u;
+            return;
+        }
         if (type == 4u || type == 5u) continue; /* 1000:CAC5 */
-        if (type < sizeof _ent_no_pick && _ent_no_pick[type])
-            continue; /* 1000:CAE1 */
+        if (object_type_blocked(type)) continue; /* 1000:CAE1 (DS:0x6EC3) */
         (void)object_stack_scan_dissolve(i); /* 1000:CAFE: 0xF453, DX = 5 */
         wr_le_u16(rec + 8u, 0x0022u); /* 1000:CB15 */
         /* 1000:CB19 stores the entity record pointer (0x64C4 + 0x10*n); the

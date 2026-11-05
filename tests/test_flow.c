@@ -768,27 +768,6 @@ int main(int argc, char **argv)
         object_action_set_cursor(1u);
         object_set_slot_class(1u, 0x85u); /* the spear's taken mark back   */
 
-        /* op 7 (0x39CF) is dispatched when a cursor > 1 selects it (program 3,
-         * prog[2+1] = 0x07): it records the fault and touches nothing.  The
-         * osys is detached for this block because the game attaches the arch's
-         * fatal route (which halts) — the headless run must survive to _check
-         * the flag and the untouched record. */
-        {
-            uint8_t before[0x12];
-            memcpy(before, actor, sizeof before);
-            object_attach_osys(NULL);
-            object_action_set_program(3u);
-            object_action_set_cursor(2u); /* prog[3] = 0x07 */
-            object_action_run();
-            _check(object_action_fault() == 7u,
-                   "op 7 is recorded when dispatched");
-            _check(memcmp(before, actor, sizeof before) == 0,
-                   "op 7 touches no state yet (the ride calls are D-92)");
-            object_action_set_program(1u);
-            object_action_set_cursor(1u);
-            object_attach_osys(&g_osys_null); /* the game's halt route back   */
-        }
-
 
         /* and the level's own flow ends it as won */
         object_pending_run();
@@ -803,6 +782,46 @@ int main(int argc, char **argv)
         for (uint32_t h = 0; h < 15u && level_end_holding(); h++) level_tick();
         _check(level_ended() && level_outcome(),
                "the pickup ends level 1 as won");
+
+        /* op 7 (0x39CF): the ride command.  Type 0 -> 0xEA0F (frame 0xAB,
+         * +0xA = 3, [0x423C] = 9), type 1 -> 0xEA4D (0xAD/3/0xA); the
+         * 0xF2CF state-2 gate and the CMP AX,2 gate apply. */
+        {
+            uint8_t *a = object_slot(0);
+
+            object_init();
+            object_set_action_entity(0u);
+            object_set_slot_class(1u, 7u); /* behaviour 7 -> state 2 */
+            a[7] = 1u;
+            a[0] = 100;
+            a[1] = 0;
+            a[2] = 100;
+            a[3] = 0;
+            object_action_set_program(3u);
+            object_action_set_cursor(2u); /* prog[3] = op 7 */
+            object_set_action_latched(0);
+            a[8] = 0;
+            a[9] = 0;
+            object_action_run();
+            _check(rd_le_u16(a + 4) == 0x00AB && rd_le_u16(a + 0xA) == 3,
+                   "op 7 type 0 rides 0xEA0F (frame 0xAB)");
+            object_set_action_latched(0);
+            a[8] = 1;
+            a[9] = 0;
+            a[4] = 0x10;
+            a[0xA] = 0;
+            object_action_run();
+            _check(rd_le_u16(a + 4) == 0x00AD && rd_le_u16(a + 0xA) == 3,
+                   "op 7 type 1 rides 0xEA4D (frame 0xAD)");
+            object_set_action_latched(0);
+            a[8] = 2;
+            a[9] = 0;
+            a[4] = 0x10;
+            a[0xA] = 0;
+            object_action_run();
+            _check(rd_le_u16(a + 4) == 0x0010 && rd_le_u16(a + 0xA) == 0,
+                   "op 7 is gated out for type 2 (1000:39D2)");
+        }
 
         /* op 9 (0x39E4 -> 0xEF0C) + object_find_overlap (0xF2E0): a behaviour-6
          * actor walks the live record with slot 3 in its upper-left window,
@@ -845,6 +864,22 @@ int main(int argc, char **argv)
                        (rd_le_u16(victim + 10)) == 0x0006u &&
                        (rd_le_u16(victim + 14)) == 0x000Au,
                    "the overlap fixup converts the overlapping record");
+            /* D-113: the non-player arm's gate is CMP AX,2 / JNC.  The walk
+             * window for step 0 (types 1/2) is [x-0x10, x), so move the live
+             * record there: type 2 must return, type 1 marks it. */
+            wr_le_u16(live + 0u, 432u);
+            wr_le_u16(live + 8u, 0u);
+            wr_le_u16(live + 0xAu, 0u);
+            mv[8] = 2;
+            object_set_action_latched(0);
+            object_action_run();
+            _check(rd_le_u16(live + 8u) == 0u && rd_le_u16(live + 0xAu) == 0u,
+                   "op 9 is gated out for type 2 (1000:39F3)");
+            mv[8] = 1;
+            object_set_action_latched(0);
+            object_action_run();
+            _check(rd_le_u16(live + 8u) == 1u && rd_le_u16(live + 0xAu) == 3u,
+                   "op 9 runs for type 1 (1000:39F3)");
         }
 
         /* op 3 (0xECFE) with its page gate: level 1's cells (22,1) and (23,1)
@@ -1905,23 +1940,28 @@ int main(int argc, char **argv)
                     _check(gameflow_key_list(&k) == 1 &&
                                object_action_entity() == 1u,
                            "F2 selects record 1 (1000:38C3)");
+                    object_pending_run(); /* the dispatch between key frames */
                     k.keyScan = 0x3Bu; /* F1 */
                     _check(gameflow_key_list(&k) == 1 &&
                                object_action_entity() == 0u,
                            "F1 selects record 0");
+                    object_pending_run();
                     k.keyScan = 0x34u; /* '.' next */
                     _check(gameflow_key_list(&k) == 1 &&
                                object_action_entity() == 1u,
                            "'.' steps to the next record (1000:38E4)");
+                    object_pending_run();
                     k.keyScan = 0x33u; /* ',' previous */
                     _check(gameflow_key_list(&k) == 1 &&
                                object_action_entity() == 0u,
                            "',' steps to the previous record");
+                    object_pending_run();
                     r1[6] = 0x80u; /* disabled */
                     k.keyScan = 0x3Cu;
                     _check(gameflow_key_list(&k) == 1 &&
                                object_action_entity() == 0u,
                            "a disabled record is not selected (1000:38CE)");
+                    object_pending_run();
                     r1[6] = 0u;
                     /* SPACE: a convertible pose is stood up, the cell stays */
                     object_action_set_program(1u);
@@ -1963,6 +2003,94 @@ int main(int argc, char **argv)
                                !gameflow_key_wait_active(),
                            "F10 releases the world after the second release");
                     level_set_updates(1);
+                }
+
+                /* 1000:410A: seven candidates (BX = 6), the records other
+                 * than the current one; a lone eligible record is left alone
+                 * instead of being re-resolved as the eighth candidate. */
+                {
+                    uint8_t *r0, *r2;
+
+                    object_init();
+                    object_set_action_entity(0u);
+                    object_action_set_program(2u);
+                    r0 = object_slot(0);
+                    memset(r0, 0, 0x12u);
+                    r0[8] = 2; /* eligible; the other slots stay disabled */
+                    r2 = object_slot(2);
+                    memset(r2, 0, 0x12u);
+                    r2[6] = 0x80u;
+                    _check(object_cycle_entity(1) == -1,
+                           "the cycler leaves a lone record alone (1000:4143)");
+                    _check(object_action_program() == 2u &&
+                               object_action_pending() == 0u,
+                           "the cycler does not re-resolve the current record");
+                    r2[6] = 0u; /* slot 2 now eligible */
+                    _check(object_cycle_entity(1) == 2,
+                           "the cycler steps over the disabled slot 1");
+                }
+
+                /* 1000:E447/1000:34D1/1000:386E: [0x1979] is a per-call
+                 * output state.  A handler that queues code 5 (1000:EEF7)
+                 * must not keep re-queuing it, or event 5 (1000:382D)
+                 * rewrites the ACTION cursor with [0x1988] on every frame and
+                 * a SPACE selection cannot stick.  scan_id_list is skipped
+                 * while a code is armed, and a repeat of the last dispatched
+                 * code runs no handler. */
+                {
+                    InputState k;
+                    uint8_t *a;
+
+                    object_init();
+                    object_set_action_entity(0u);
+                    a = object_slot(0);
+                    memset(a, 0, 0x12u);
+                    _tf_wr16(a, 0u, 0x0080u);
+                    _tf_wr16(a, 2u, 0x0050u);
+                    _tf_wr16(a, 4u, 0x008Eu); /* a frame in 0x8C..0x93 */
+                    _tf_wr16(a, 8u, 0x0012u); /* a walking human type */
+                    object_action_set_program(1u);
+                    object_action_set_cursor(1u);
+                    object_set_action_latched(0);
+                    level_set_updates(1);
+
+                    /* the turn queues code 4; the key walk waits for the
+                     * dispatch (1000:386E), then the repeat is debounced
+                     * (1000:34D1) */
+                    (void)object_command_run(a, 0x80u);
+                    _check(object_action_pending() == 4u,
+                           "the turn queues code 4");
+                    memset(&k, 0, sizeof k);
+                    k.keyScan = 0x39u; /* SPACE */
+                    _check(gameflow_key_list(&k) == 0,
+                           "a pending code skips scan_id_list (1000:386E)");
+                    object_pending_run();
+                    _check(object_action_pending() == 0u,
+                           "the dispatch consumes the code");
+                    object_set_action_latched(0);
+                    (void)object_command_run(a, 0x80u);
+                    _check(object_action_pending() == 0u,
+                           "a repeated dispatch code is debounced (1000:34D1)");
+
+                    /* the next frame's step enters (1000:EE3B), queues code 5
+                     * once; SPACE then moves the cell and no later frame may
+                     * reset it (the missing 1000:E447 clear did) */
+                    object_set_action_latched(0);
+                    (void)object_command_run(a, 0x04u);
+                    _check(object_action_pending() == 5u,
+                           "the enter sequence queues code 5");
+                    object_pending_run();
+                    object_space_action();
+                    _check(statusbar_action_cell(1u) == 2u,
+                           "SPACE selects the second action cell");
+                    for (uint32_t f = 0; f < 3u; f++) {
+                        object_set_action_latched(0);
+                        (void)object_command_run(a, 0x04u);
+                        object_pending_run();
+                    }
+                    _check(statusbar_action_cell(1u) == 2u,
+                           "a queued code 5 does not reset the cursor every "
+                           "frame (1000:E447)");
                 }
 
                 /* The two movement states that feed the stack: 1000:E4F8 (step
@@ -2657,6 +2785,14 @@ int main(int argc, char **argv)
                 _check(spear && cand && object_slot_class(1u) == 5u &&
                            object_slot_class(2u) == 8u,
                        "the mover and the behaviour-8 candidate");
+                /* the synthetic map is not the loaded level's map, so the
+                 * 1000:5639 ground snap probes the level's terrain: level 1
+                 * blocks (72,80) and the original parks the record at
+                 * 0xFFEF (D-124).  Pin both where this fixture wants them. */
+                spear[0] = 64;
+                spear[1] = 0;
+                spear[2] = 64;
+                spear[3] = 0;
                 /* frame 0x60 selects (dx,dy) = (+8,+15); the window's far
                  * edges are x - 0x10 and y - 0x1A */
                 cand[0] = (uint8_t)(64 + 8 - 0x10);
@@ -2814,7 +2950,7 @@ int main(int argc, char **argv)
             actor[9] = 0;
             object_action_run(); /* the pickup */
             object_action_set_cursor(2u);
-            actor[8] = 2;
+            actor[8] = 1; /* op 4's gate is CMP AX,2 / JNC (D-113) */
             actor[9] = 0;
             actor[4] = 0x10;
             object_action_run(); /* op 4: the pose */
@@ -2862,6 +2998,215 @@ int main(int argc, char **argv)
         _check(
             c.handler == 0xEFD4u,
             "the fire-only command selects the fire half's row[0x19] (0xEFD4)");
+        /* 0xEFD1 is `JMP 0x1000:EDB7` (the home state), selected by the pose
+         * row's position 5 with a direction held (row[5] = 0x2F). */
+        c = object_command_select(actor, 0x02u);
+        _check(c.handler == 0xEFD1u,
+               "the DOWN command selects the pose row's row[5] (0xEFD1)");
+        _tf_wr16(actor, 4u, 0x00BEu);
+        _tf_wr16(actor, 8u, 0x0018u);
+        object_set_action_latched(0);
+        (void)object_command_run(actor, 0x02u);
+        _check(_tf_rd16(actor, 4u) == 8u && _tf_rd16(actor, 8u) == 1u,
+               "0xEFD1 home-states the record (1000:EDB7)");
+    }
+
+    /* 6c9. ACTION op 8 (1000:EA71) and op 2/6's tail (1000:9CD9).  Op 8's
+     * span reset clears unless BOTH +6 and +8 are zero (the `&&` used to miss
+     * `+8 != 0`); op 2/6 with no live records takes the tail with the shared
+     * [0x423C] programme scratch instead of returning. */
+    object_init();
+    {
+        uint8_t *a = object_slot(0);
+        uint8_t *sp = object_span_at_for_probe(0u);
+        uint8_t map[640];
+        uint32_t parity = object_frame_counter_probe() & 1u;
+
+        object_set_action_entity(0u);
+        object_action_set_program(3u); /* 3 = {4,1,3,7,8,6}: cell 3 = op 8 */
+        object_action_set_cursor(3u);
+        while ((object_frame_counter_probe() & 1u) == 0u) object_tick(NULL);
+
+        /* (a) +8 != 0 and +6 <= +8: the original clears (1000:EAA3) */
+        memset(sp, 0, 0x1Cu);
+        wr_le_u16(sp + 0u, 0u);
+        wr_le_u16(sp + 6u, 4u);
+        wr_le_u16(sp + 8u, 8u);
+        wr_le_u16(sp + 0x12u, 1u);
+        object_set_action_latched(0);
+        object_action_run();
+        _check(rd_le_u16(sp + 8u) == 0u && rd_le_u16(sp + 0x12u) == 0u,
+               "op 8 clears a span with +8 set (1000:EAA3)");
+
+        /* (b) +8 == 0, +6 > 0: the original clears too (1000:EAA1) */
+        wr_le_u16(sp + 6u, 4u);
+        wr_le_u16(sp + 8u, 0u);
+        wr_le_u16(sp + 0x12u, 1u);
+        object_set_action_latched(0);
+        object_action_run();
+        _check(rd_le_u16(sp + 8u) == 0u && rd_le_u16(sp + 0x12u) == 0u,
+               "op 8 clears a span with +6 only (1000:EAA1)");
+
+        /* (c) both zero: left alone (1000:EAAB) */
+        wr_le_u16(sp + 6u, 0u);
+        wr_le_u16(sp + 8u, 0u);
+        wr_le_u16(sp + 0x12u, 0x1234u);
+        object_set_action_latched(0);
+        object_action_run();
+        _check(rd_le_u16(sp + 0x12u) == 0x1234u,
+               "op 8 leaves a zero span alone (1000:EAAB)");
+        /* keep the frame parity the later blocks rely on */
+        while ((object_frame_counter_probe() & 1u) != parity) object_tick(NULL);
+
+        /* a pickup stamps [0x423C] = 2 (1000:9C8D) */
+        object_init();
+        memset(map, 0, sizeof map);
+        map[100] = 0xAB; /* a spear at x = 64, y = 48 */
+        object_load_terrain_objects(map);
+        /* the synthetic map is not the loaded level's map, so the 1000:5639
+         * ground snap probes the level's terrain (D-124); pin the spear where
+         * this fixture wants it. */
+        {
+            uint8_t *sp = object_slot(9);
+
+            sp[0] = 64;
+            sp[1] = 0;
+            sp[2] = 48;
+            sp[3] = 0;
+        }
+        a = object_slot(0);
+        memset(a, 0, 0x12u);
+        wr_le_u16(a + 0u, 56u);
+        wr_le_u16(a + 2u, 48u);
+        wr_le_u16(a + 8u, 0u);
+        object_set_action_entity(0u);
+        object_action_set_program(1u);
+        object_action_set_cursor(1u);
+        object_set_action_latched(0);
+        object_action_run(); /* op 2: the pickup */
+        _check(object_action_program() == 2u && object_action_pending() == 5u,
+               "the pickup stamps and queues programme 2");
+
+        /* [0x423C] survives a level reset (1000:4CAB); the empty-map press
+         * runs the tail with it (1000:9C4E -> 0x9CD9) */
+        object_init();
+        memset(map, 0, sizeof map);
+        object_load_terrain_objects(map); /* live count 8: no live records */
+        a = object_slot(0);
+        memset(a, 0, 0x12u);
+        wr_le_u16(a + 8u, 0u);
+        object_set_action_entity(0u);
+        object_action_set_program(1u);
+        object_action_set_cursor(1u);
+        object_set_action_latched(0);
+        object_action_run(); /* op 2 on an empty map */
+        _check(object_action_pending() == 5u && object_action_program() == 2u,
+               "the empty-map tail queues event 5 with the stale programme");
+
+        /* a stale id with bit 7 set skips the tail (1000:9CDF) */
+        object_init();
+        object_load_terrain_objects(map);
+        a = object_slot(0);
+        memset(a, 0, 0x12u);
+        object_set_action_entity(0u);
+        object_action_set_program(1u);
+        object_action_set_cursor(1u);
+        (void)object_selector(a, 0u, 0u, 0x86u); /* [0x423C] = 0x86 */
+        wr_le_u16(a + 8u, 0u);
+        object_set_action_latched(0);
+        object_action_run();
+        _check(object_action_pending() == 0u,
+               "a bit-7 stale programme id skips the tail (1000:9CDF)");
+
+        /* the raw id is stored; ids 1..6 resolve their table runs, anything
+         * else has no header (D-194) */
+        object_init();
+        object_action_set_program(0u);
+        _check(object_action_program_si() == 0u, "id 0 has no header (D-194)");
+        object_action_set_program(1u);
+        _check(object_action_program_si() == 0x5B37u,
+               "id 1 resolves to the table's first run");
+
+        /* an out-of-table stale id (0x10, what a walk leaves in [0x423C]) is
+         * stored raw (D-185) but has no header: no DS read, no draw and no op
+         * (D-194: the DS image is gone, out-of-table ids are bounded). */
+        object_init();
+        object_load_terrain_objects(map);
+        a = object_slot(0);
+        memset(a, 0, 0x12u);
+        object_set_action_entity(0u);
+        object_action_set_program(1u);
+        object_action_set_cursor(1u);
+        (void)object_selector(a, 0u, 0u, 0x10u); /* [0x423C] = 0x10 */
+        wr_le_u16(a + 8u, 0u);
+        object_set_action_latched(0);
+        object_action_run(); /* op 2 -> the tail */
+        _check(object_action_program() == 0x10u &&
+                   object_action_pending() == 5u,
+               "an out-of-table stale id is stored raw (1000:9CEB)");
+        _check(object_action_program_si() == 0u &&
+                   object_action_byte(0u) == 0u && object_action_byte(1u) == 0u,
+               "an out-of-table id has no header (D-194)");
+        _check(statusbar_action_count(0x10u) == 0u &&
+                   statusbar_action_cell(0x10u) == 0u,
+               "the bar draws no out-of-table header");
+        object_pending_run(); /* event 5: no header to rewrite */
+        object_space_action(); /* SPACE: no cursor to step */
+        object_action_run(); /* ACTION: no op to dispatch */
+        _check(object_action_program() == 0x10u && !object_action_pending(),
+               "an out-of-table id survives the press paths");
+
+        /* event 5's store needs a header: an id outside 1..6 writes nothing
+         * (D-194) */
+        object_init();
+        object_load_terrain_objects(map);
+        a = object_slot(0);
+        memset(a, 0, 0x12u);
+        object_set_action_entity(0u);
+        object_action_set_program(2u);
+        object_action_set_cursor(1u); /* pin group 2's cursor (0x5B3C) */
+        object_action_set_program(1u);
+        object_action_set_cursor(1u);
+        (void)object_selector(a, 0u, 0u, 9u); /* [0x423C] = 9 */
+        wr_le_u16(a + 8u, 0u);
+        object_set_action_latched(0);
+        object_action_run();
+        _check(object_action_program() == 9u &&
+                   object_action_program_si() == 0u &&
+                   object_action_byte(1u) == 0u,
+               "id 9 has no header (D-194)");
+        object_pending_run(); /* 1000:382D has no [SI+1] to write */
+        _check(object_action_byte(1u) == 0u,
+               "event 5 leaves an out-of-table id alone");
+
+        /* an out-of-table header dispatches nothing (D-194) */
+        object_init();
+        object_load_terrain_objects(map);
+        a = object_slot(0);
+        memset(a, 0, 0x12u);
+        wr_le_u16(a + 4u, 0x10u);
+        wr_le_u16(a + 8u, 0u);
+        object_set_action_entity(0u);
+        object_action_set_program(0x3Fu);
+        object_set_action_latched(0);
+        object_action_run();
+        _check(rd_le_u16(a + 4u) == 0x10u && rd_le_u16(a + 8u) == 0u,
+               "an out-of-table header dispatches no op (D-194)");
+        object_action_set_program(1u);
+
+        /* the save's +0x06 byte is the raw [0x5B56] (re_formats.md) */
+        {
+            uint8_t pb[0x20];
+
+            object_action_set_program(0x10u);
+            object_save_programs(pb);
+            _check(pb[0x1F] == 0x10u, "the save stores the raw program byte");
+            object_action_set_program(2u);
+            object_load_programs(pb);
+            _check(object_action_program() == 0x10u,
+                   "the load restores the raw program byte");
+            object_action_set_program(1u);
+        }
     }
 
     /* 6c7. D-68: the pending-event 4 charge loop.  With the throw pose up,
@@ -2894,7 +3239,7 @@ int main(int argc, char **argv)
             actor[9] = 0;
             object_action_run(); /* pickup */
             object_action_set_cursor(2u);
-            actor[8] = 2;
+            actor[8] = 1; /* op 4's gate is CMP AX,2 / JNC (D-113) */
             actor[9] = 0;
             actor[4] = 0x10;
             object_action_run(); /* op 4: the pose */
@@ -2909,14 +3254,14 @@ int main(int argc, char **argv)
             object_set_action_latched(
                 0); /* 0xEE01 sets it; a release clears it */
             object_action_set_cursor(2u);
-            actor[8] = 2;
+            actor[8] = 1;
             actor[9] = 0;
             actor[4] = 0x10;
             object_action_run();
             for (i = 0; i < 60u; i++) statusbar_tick(); /* split -> 152 */
             split = statusbar_split();
             object_set_action_latched(0); /* poll_input 0x85A9 */
-            object_command_run(actor, 0x02u); /* DOWN: the turn */
+            object_command_run(actor, 0x80u); /* fire: the turn (0xEFD4) */
             _check((uint32_t)(rd_le_u16(actor + 0xEu)) == 4u,
                    "the turn starts the charge (+0xE = 4)");
             object_pending_run(); /* event 4: enter the loop */
@@ -2933,7 +3278,7 @@ int main(int argc, char **argv)
                         _bad++;
                 _check(_bad == 0u, "the charge bar is drawn at +0xE = 4");
             }
-            object_command_run(actor, 0x02u); /* another turn frame */
+            object_command_run(actor, 0x80u); /* another turn (fire) frame */
             object_pending_run();
             _check(object_charge_tick() == 1, "the loop keeps running");
             {
@@ -2943,17 +3288,79 @@ int main(int argc, char **argv)
                 _check(video_page(0)[(split + 15u) * 320u + x] == 0xDFu,
                        "the bar follows +0xE");
             }
-            object_action_run(); /* the release press */
-            _check(object_charge_tick() == 0, "the press ends the charge");
+            /* the release (no fire) runs the type-0x18 idle half: 0xEFD7 ->
+             * 0xEFE4 performs the jump/throw and arms no code. */
             {
                 uint32_t f0 = rd_le_u16(actor + 4);
                 uint32_t t0 = rd_le_u16(actor + 8);
 
-                object_command_run(actor, 0x01u); /* UP: 0xEFD7 */
+                object_set_action_latched(0);
+                object_command_run(actor, 0x00u);
                 _check((uint32_t)(rd_le_u16(actor + 4)) != f0 ||
                            (uint32_t)(rd_le_u16(actor + 8)) != t0,
                        "the release performs the jump/throw (0xEFE4)");
             }
+            _check(object_charge_tick() == 0,
+                   "the release ends the loop (0x370C)");
+
+            /* D-190: 0x373B is a *word* store at 0x1979, so the charge loop's
+             * exit clears the debounce byte 0x197A as well; the next wind-up
+             * charge must arm event 4 again (and draw the bar). */
+            object_set_action_latched(0);
+            actor[4] = 0xBE;
+            actor[5] = 0;
+            actor[8] = 0x18;
+            actor[9] = 0;
+            actor[0xC] = 0;
+            actor[0xD] = 0;
+            actor[0xE] = 0;
+            actor[0xF] = 0;
+            object_command_run(actor, 0x80u);
+            _check(object_action_pending() == 4u,
+                   "the next wind-up charge re-arms event 4 (0x373B)");
+            object_pending_run();
+            _check(object_charge_tick() == 1, "the second charge loop runs");
+
+            /* D-193: a code the loop's own update_world frame arms is consumed
+             * by the loop (0x3705 -> 0x3735/0x373B), not dispatched, and the
+             * word store clears the debounce too.  The walking idle's enter
+             * sequence (0xEE3B -> 0xEEF7) is the in-loop producer. */
+            object_set_action_latched(0);
+            actor[4] = 0x8E;
+            actor[5] = 0;
+            actor[8] = 0x12;
+            actor[9] = 0;
+            /* (a dispatched code 5 would write [0x1988] = 1 into program 1's
+             * cursor; the swallowed one must leave it at 2) */
+            object_action_set_program(1u);
+            object_action_set_cursor(2u);
+            object_action_set_program(2u);
+            _check(object_command_run(actor, 0x00u) == OBJ_CMD_HANDLER,
+                   "the walking idle runs the enter sequence (0xEE3B)");
+            _check(object_action_pending() == 5u,
+                   "the enter queues code 5 inside the charge loop");
+            _check(object_action_byte(1u) == 2u,
+                   "the enter leaves program 1's cursor alone");
+            object_pending_run();
+            _check(object_action_pending() == 0u && !object_charge_active(),
+                   "the charge loop swallows the pending code (0x3735/0x373B)");
+            _check(object_action_byte(1u) == 2u,
+                   "the swallowed code does not run the code-5 rewind");
+            actor[4] = 0xBE;
+            actor[5] = 0;
+            actor[8] = 0x18;
+            actor[9] = 0;
+            actor[0xE] = 0;
+            actor[0xF] = 0;
+            object_command_run(actor, 0x80u);
+            _check(object_action_pending() == 4u,
+                   "the swallowed code cleared the debounce (0x373B)");
+            object_pending_run();
+            _check(object_charge_tick() == 1, "the third charge loop runs");
+            /* close the third charge through the release path: 0x373B again */
+            object_command_run(actor, 0x00u);
+            _check(object_charge_tick() == 0,
+                   "the third charge's release ends the loop (0x370C)");
         }
     }
 
@@ -2987,9 +3394,20 @@ int main(int argc, char **argv)
                    object_program_header(2u)[4] == 5u &&
                    object_program_header(2u)[5] == 6u,
                "group 2's icons are ops 3,4,5,6");
+        /* D-113: op 3's gate is CMP AX,2 / JNC, so the type-2 human returns */
+        object_action_run(); /* cell 1 = op 3 */
+        _check((rd_le_u16(actor + 4)) == 0x0010u &&
+                   (rd_le_u16(actor + 8)) == 0x0002u,
+               "op 3 is gated out for type 2 (1000:3A20)");
         object_space_action(); /* SPACE: cell 2 */
         _check(statusbar_action_cell(2u) == 2u,
                "SPACE steps the cell to 2 (1000:3947)");
+        object_action_run(); /* op 4 on type 2 */
+        _check((rd_le_u16(actor + 4)) == 0x0010u &&
+                   (rd_le_u16(actor + 8)) == 0x0002u,
+               "op 4 is gated out for type 2 (1000:3A08)");
+        actor[8] = 1;
+        actor[9] = 0;
         object_action_run();
         _check((rd_le_u16(actor + 4)) == 0x00BEu &&
                    (rd_le_u16(actor + 8)) == 0x0018u,
@@ -3301,6 +3719,52 @@ int main(int argc, char **argv)
         }
     }
 
+    /* 7b7b. D-136: the settle's log mark.  `1000:DF2C` indexes the
+     * 0x689E/0x68BE table with `d = foot_x - ((rx+0x10) & 0xFFF0)` (the
+     * offset from the 16-aligned window start, `0xDFB1..0xDFE2`), and a
+     * static record uses 0x689E unless its type is exactly 1
+     * (`0xE001..0xE009`).  Level 16's A9 sits at (224,257), so the window
+     * starts at (240,272); the foot at (246,272) is d = 6, where
+     * `0x689E[6] = 8` (log 0) and `0x68BE[6] = 0x1A` (log 1). */
+    if (level_load(15) == 0) {
+        for (uint32_t type = 0; type < 2u; type++) {
+            uint8_t *logs[5] = { NULL, NULL, NULL, NULL, NULL };
+            uint8_t *a;
+            uint32_t i, k, n;
+
+            object_init();
+            n = object_load_terrain_objects((uint8_t *)level_map());
+            for (i = 8u; i <= n; i++) {
+                uint8_t *r = object_slot(i);
+                uint32_t f = (uint32_t)rd_le_u16(r + 4);
+
+                if (f >= 0x33u && f <= 0x37u) logs[f - 0x33u] = r;
+            }
+            _check(logs[0] != NULL && logs[4] != NULL,
+                   "the A9 log fixtures exist for the settle mark");
+            if (!logs[0] || !logs[4]) continue;
+            for (k = 0; k < 5u; k++) logs[k][8] = logs[k][9] = 0u;
+            a = object_slot(0);
+            memset(a, 0, 0x12u);
+            _tf_wr16(a, 0, 238u); /* foot x = 246 */
+            _tf_wr16(a, 2, 248u); /* foot y = 272 (before the settle) */
+            a[4] = 0x10u;
+            a[8] = (uint8_t)type;
+            object_set_action_entity(0u);
+            _check(object_command_run(a, 0x80u) == OBJ_CMD_TAIL,
+                   "the settle hook runs for the log mark");
+            _check((uint32_t)(rd_le_u16(a + 2)) == 256u,
+                   "the settle snaps the actor onto the log row");
+            if (type == 0u) {
+                _check(logs[0][8] == 0xFFu && logs[1][8] == 0u,
+                       "D-136: type 0 marks log 0 via 0x689E[d]");
+            } else {
+                _check(logs[1][8] == 0xFFu && logs[0][8] == 0u,
+                       "D-136: type 1 marks log 1 via 0x68BE[d]");
+            }
+        }
+    }
+
     /* 7b8. D-77: the DEFS field-D/E and H sprites.  The A9 records' frames
      * 0x33..0x37 are blank in the image table (apply_relocations skips them)
      * but the level loader points them at field E; 0x26/0x27 at field H.
@@ -3513,6 +3977,248 @@ int main(int argc, char **argv)
         }
     }
 
+    /* 7b11b. D-140: both landing probes add the record's coordinates before
+     * the 0xE389 lookup (`0xE361` does `ADD AX,[SI] / ADD BX,[SI+2]`), so
+     * 0xC62C probes (x + vy + 8, y + 0x18) and 0xF08D probes
+     * (x - 8, y + 0x18). */
+    if (level_load(10u) == 0) {
+        static uint8_t m[640];
+        uint8_t *rec = NULL;
+        uint32_t i, cell;
+        int32_t want;
+
+        memset(m, 0, sizeof m);
+        m[10u * 32u + 10u] = 0xB7u; /* a behaviour-8 record */
+        object_init();
+        (void)object_load_terrain_objects(m);
+        for (i = 9u; i <= object_live_count(); i++) {
+            if ((object_slot_class(i - 8u) & 0x3Fu) == 8u) {
+                rec = object_slot(i);
+                break;
+            }
+        }
+        _check(rec != NULL, "the behaviour-8 record exists for the probe");
+        if (rec) {
+            rec[0xA] = 0u; /* state 0: the 0xC62C walk */
+            rec[0xB] = 0u;
+            want = object_land_y_for_probe(
+                (int32_t)(int16_t)rd_le_u16(rec + 0u) + 1 + 8,
+                (int32_t)(int16_t)rd_le_u16(rec + 2u) + 0x18, &cell);
+            object_update_list();
+            _check(want >= 0 &&
+                       (int32_t)(int16_t)rd_le_u16(rec + 2u) == want - 0x18,
+                   "D-140: the behaviour-8 probe adds the record's y");
+        }
+
+        /* the placement tail 0xF08D (type 4's row, position 7), on a spot
+         * whose landing is 7 px below the feet row */
+        object_init();
+        rec = object_slot(0);
+        memset(rec, 0, 0x12u);
+        _tf_wr16(rec, 0, 201u);
+        _tf_wr16(rec, 2, 1u);
+        rec[4] = 0x10u;
+        rec[8] = 4u;
+        object_set_action_entity(0u);
+        want = object_land_y_for_probe(201 - 8, 1 + 0x18, &cell);
+        _check(want >= 0 && want - 0x18 - 1 >= 0 && want - 0x18 - 1 < 8,
+               "the 0xF08D placement fixture lands 0..7 below the row");
+        (void)object_command_run(rec, 0x04u);
+        _check((uint32_t)(rd_le_u16(rec + 4u)) == 8u &&
+                   (uint32_t)(rd_le_u16(rec + 8u)) == 1u,
+               "D-140: 0xF08D lands on (x - 8, y + 0x18)");
+
+        /* D-124: the shared ground snap stores y = land - 0x10
+         * unconditionally (1000:5639), so a blocked probe parks the spear
+         * at 0xFFEF instead of leaving it on the map.  Level 11's (0,0)
+         * cell is solid above and below the probe row. */
+        memset(m, 0, sizeof m);
+        m[0] = 0xABu;
+        object_init();
+        _check(object_load_terrain_objects(m) == 9u,
+               "the blocked 0xAB appends the spear");
+        rec = object_slot(9);
+        _check(rec != NULL && (uint32_t)(rd_le_u16(rec + 2u)) == 0xFFEFu,
+               "D-124: a blocked probe parks the spear at y = 0xFFEF");
+    }
+
+    /* D-147: 1000:F2E0 dissolves the group of the record it is about to
+     * convert (`0xF453` with DX = 5, inside the walk), not the actor's, and
+     * only when an overlap is found. */
+    {
+        uint8_t *a, *c;
+
+        /* (a) no candidate: the actor's own group survives */
+        object_init();
+        a = object_slot(0);
+        memset(a, 0, 0x12u);
+        _tf_wr16(a, 0u, 300u);
+        _tf_wr16(a, 2u, 100u);
+        a[4] = 0x10u;
+        a[8] = 2u;
+        object_set_action_entity(0u);
+        object_action_set_program(1u);
+        object_action_set_cursor(2u); /* program 1, cell 2 = op 1 */
+        object_action_run(); /* registers record 0 as a group owner */
+        object_find_overlap_for_probe(a);
+        _check(object_stack_scan_dissolve(0u) == 1,
+               "D-147: no overlap leaves the actor's group alone");
+
+        /* (b) an overlapping candidate's own group is dissolved */
+        object_init();
+        a = object_slot(0);
+        memset(a, 0, 0x12u);
+        _tf_wr16(a, 0u, 100u);
+        _tf_wr16(a, 2u, 100u);
+        a[4] = 0x10u;
+        a[8] = 2u;
+        c = object_slot(2);
+        memset(c, 0, 0x12u);
+        _tf_wr16(c, 0u, 105u);
+        _tf_wr16(c, 2u, 100u);
+        c[4] = 0x10u;
+        c[8] = 2u;
+        object_set_action_entity(2u);
+        object_action_set_program(1u);
+        object_action_set_cursor(2u);
+        object_action_run(); /* registers record 2 as a group owner */
+        c[6] = 0u;
+        object_find_overlap_for_probe(a);
+        _check((rd_le_u16(c + 8u)) == 0x1Eu && (rd_le_u16(c + 4u)) == 0x103u,
+               "D-147: the overlapping candidate converts");
+        _check(object_stack_scan_dissolve(2u) == 0,
+               "D-147: the candidate's group was dissolved");
+    }
+
+    /* D-187: 1000:F4D9..0xF5BB, the class-transfer tail of 0xF453 (every
+     * caller passes DX = 5). */
+    {
+        static uint8_t m[640];
+        uint8_t *item, *rec;
+
+        /* the item behaviour: the carried live record is dropped at the
+         * carrier (behaviour 5 -> frame 0x60) */
+        memset(m, 0, sizeof m);
+        m[0] = 0xABu; /* appends the spear at live index 9 */
+        object_init();
+        (void)object_load_terrain_objects(m);
+        item = object_slot(9);
+        rec = object_slot(1);
+        _check(item != NULL && rec != NULL, "D-187: the live spear fixture");
+        if (item && rec) {
+            memset(item, 0, 0x12u);
+            _tf_wr16(item, 0u, 10u);
+            _tf_wr16(item, 2u, 20u);
+            _tf_wr16(item, 4u, 0x0060u);
+            _tf_wr16(item, 8u, 0x1234u);
+            memset(rec, 0, 0x12u);
+            _tf_wr16(rec, 0u, 50u);
+            _tf_wr16(rec, 2u, 60u);
+            _tf_wr16(rec, 4u, 0x0010u);
+            _tf_wr16(rec, 8u, 2u);
+            rec[7] = 1u; /* class 1 = live index 9 */
+            object_set_slot_class(1u, 5u);
+            object_set_action_entity(1u);
+            (void)object_stack_scan_dissolve(1u);
+            _check(rec[7] == 0u, "D-187: the class is cleared");
+            _check((uint32_t)(rd_le_u16(item + 0u)) == 50u &&
+                       (uint32_t)(rd_le_u16(item + 2u)) == 68u &&
+                       (uint32_t)(rd_le_u16(item + 4u)) == 0x0060u &&
+                       (uint32_t)(rd_le_u16(item + 6u)) == 0u &&
+                       (uint32_t)(rd_le_u16(item + 8u)) == 0xFFFFu,
+                   "D-187: the carried spear is dropped at the carrier");
+            _check((object_slot_class(1u) & 0x3Fu) == 5u &&
+                       (object_slot_class(1u) & 0x80u) == 0u,
+                   "D-187: the class slot's taken mark is cleared");
+            _check(object_action_program() == 1u &&
+                       object_action_pending() == 5u,
+                   "D-187: the acting record's event 5 is queued");
+        }
+
+        /* the behaviour-4 slot: the live projectile is lifted into the
+         * record (bit 15 of live+8 -> frame 8 / type 1) */
+        memset(m, 0, sizeof m);
+        m[0] = 0xAEu; /* the stone, live index 9, behaviour 4 */
+        object_init();
+        (void)object_load_terrain_objects(m);
+        item = object_slot(9);
+        rec = object_slot(1);
+        _check(item != NULL && rec != NULL, "D-187: the live stone fixture");
+        if (item && rec) {
+            memset(item, 0, 0x12u);
+            _tf_wr16(item, 0u, 100u);
+            _tf_wr16(item, 2u, 100u);
+            _tf_wr16(item, 8u, 0x8000u);
+            item[6] = 0xFFu;
+            _tf_wr16(item, 0xEu, 0x1111u);
+            memset(rec, 0, 0x12u);
+            _tf_wr16(rec, 4u, 0x0010u);
+            _tf_wr16(rec, 8u, 2u);
+            rec[7] = 1u;
+            object_set_slot_class(1u, 4u);
+            object_set_action_entity(1u);
+            (void)object_stack_scan_dissolve(1u);
+            _check((uint32_t)(rd_le_u16(item + 0xEu)) == 0xFFFFu &&
+                       (item[6] & 0x80u) == 0u,
+                   "D-187: the behaviour-4 live record is consumed");
+            _check((uint32_t)(rd_le_u16(rec + 0u)) == 100u &&
+                       (uint32_t)(rd_le_u16(rec + 2u)) == 92u &&
+                       (uint32_t)(rd_le_u16(rec + 4u)) == 8u &&
+                       (uint32_t)(rd_le_u16(rec + 8u)) == 1u,
+                   "D-187: the record takes the live projectile's form");
+        }
+    }
+
+    /* D-188: the 0x6EC3 gate's full DS window (the image's 0x5F-byte run,
+     * the live 0x6F22 pool and the 0x6F92 spans). */
+    {
+        uint8_t *a, *c;
+
+        object_init();
+        _check(object_type_blocked(2u) == 0 && object_type_blocked(3u) == 1 &&
+                   object_type_blocked(8u) == 0 &&
+                   object_type_blocked(0x16u) == 1 &&
+                   object_type_blocked(0x1Bu) == 1 &&
+                   object_type_blocked(0x1Du) == 1 &&
+                   object_type_blocked(0x1Eu) == 1 &&
+                   object_type_blocked(0x21u) == 1 &&
+                   object_type_blocked(0x2Du) == 1,
+               "D-188: the image's 0x6EC3 run");
+        _check(object_type_blocked(0xC1u) == 1,
+               "D-188: the free register pool blocks a decoration type");
+        a = object_slot(0);
+        memset(a, 0, 0x12u);
+        _tf_wr16(a, 0u, 0u); /* pool word 0's low byte = type 0x5F */
+        _tf_wr16(a, 2u, 10u);
+        a[4] = 0x10u;
+        a[8] = 2u;
+        object_set_action_entity(0u);
+        object_action_set_program(1u);
+        object_action_set_cursor(2u);
+        object_action_run(); /* op 1 registers it: pool byte 0x5F = 0 */
+        _check(object_type_blocked(0x5Fu) == 0,
+               "D-188: type 0x5F reads the live register pool byte");
+
+        /* an overlapping type-0x1D candidate is skipped, not converted */
+        object_init();
+        a = object_slot(0);
+        memset(a, 0, 0x12u);
+        _tf_wr16(a, 0u, 100u);
+        _tf_wr16(a, 2u, 100u);
+        a[4] = 0x10u;
+        a[8] = 2u;
+        c = object_slot(2);
+        memset(c, 0, 0x12u);
+        _tf_wr16(c, 0u, 105u);
+        _tf_wr16(c, 2u, 100u);
+        c[4] = 0x10u;
+        c[8] = 0x1Du;
+        object_find_overlap_for_probe(a);
+        _check((uint32_t)(rd_le_u16(c + 8u)) == 0x1Du &&
+                   (uint32_t)(rd_le_u16(c + 4u)) != 0x103u,
+               "D-188: a type-0x1D candidate is not converted");
+    }
+
     /* 7b12. D-74: behaviour 4's projectile (1000:CEC3).  Level 13's 0xAE
      * stone is behaviour 4 with vx = vy = 0; phase 1 reads the field-A slope
      * and moves x (or starts the fall via +0xA). */
@@ -3565,7 +4271,7 @@ int main(int argc, char **argv)
         a[4] = 0x10;
         a[5] = 0;
         a[6] = 0;
-        a[8] = 2;
+        a[8] = 1; /* op 4's gate is CMP AX,2 / JNC (D-113) */
         a[9] = 0;
         a[0xA] = 0;
         a[0xB] = 0;
@@ -3599,6 +4305,13 @@ int main(int argc, char **argv)
         object_action_run(); /* 1000:3530: blocked by [0x6F1D] */
         _check((rd_le_u16(a + 8)) == 0x0018u,
                "pause_toggle is blocked while the charge owns the record");
+        /* 1000:3702 reuses the press frame's [0x5ACE]; a direction pressed
+         * mid-charge must not replace the row half the loop runs. */
+        (void)object_command_run(a, 0x84u); /* fire + LEFT */
+        _check((uint32_t)(rd_le_u16(a + 0xE)) == 0xCu &&
+                   (uint32_t)(rd_le_u16(a + 8)) == 0x0018u,
+               "the charge loop reuses the press input, not the live "
+               "direction");
 
         (void)object_command_run(a, 0x00u); /* the release */
         {
@@ -3807,6 +4520,29 @@ int main(int argc, char **argv)
             _check(guard < 20000u && score_shown_lo() == score_total_lo() &&
                        score_shown_hi() == score_total_hi(),
                    "1000:475D counts the display up to the running total");
+        }
+
+        /* D-146: [0x1DCA] is not cleared by score_prepare; only the count-up
+         * drains it, so a screen left early carries its remainder into the
+         * next level's term. */
+        {
+            uint16_t t0, t2;
+            uint32_t guard = 0;
+
+            score_set_total(0, 0);
+            score_prepare();
+            t0 = score_level_term_for_probe();
+            _check(t0 >= 10u, "the score term has at least one 10-point step");
+            for (uint32_t i = 0; i < 0x50u; i++)
+                (void)score_counters_run(); /* the 0x50-frame delay */
+            (void)score_counters_run(); /* one 10-point step */
+            _check(score_level_term_for_probe() == (uint16_t)(t0 - 10u),
+                   "1000:475D drains [0x1DCA] 10 at a time");
+            score_prepare();
+            t2 = score_level_term_for_probe();
+            _check(t2 == (uint16_t)(t0 + t0 - 10u),
+                   "1000:41AE does not clear [0x1DCA]: the leftover carries");
+            while (score_counters_run() && guard++ < 20000u) {}
         }
     }
 
@@ -4168,16 +4904,6 @@ int main(int argc, char **argv)
             }
         }
 
-        /* 1000:467A: with NEW RECORD set the 0x19-frame blink toggles; at the
-         * 26th tick the phase flips once (the previous 8a prepared a record) */
-        if (score_is_record()) {
-            uint32_t flips = 0;
-
-            for (uint32_t i = 0; i < 26u; i++)
-                if (score_blink_tick()) flips++;
-            _check(flips == 1u, "1000:467A: the NEW RECORD blink toggles once");
-        }
-
         /* 1000:4333: the screen fades in before it takes input */
         {
             uint32_t t;
@@ -4206,7 +4932,50 @@ int main(int argc, char **argv)
             hiscore_reset(); /* the 0x0999 sentinels */
             statusbar_start(0x0600u, 12u, 4u);
             level_request_end(1);
-            _check(score_begin(0u) == 1, "the blink screen starts");
+            {
+                uint8_t wantPal[768];
+                uint8_t *raw;
+                uint32_t sz = 0;
+
+                memcpy(wantPal, level_palette(), sizeof wantPal);
+                _check(score_begin(0u) == 1, "the blink screen starts");
+                /* D-130: 1000:4287 seals entries 0x80..0xDF to grey and
+                 * 1000:428A copies the card's 64 entries over 0xC0..0xFF. */
+                palette_seal_triples(wantPal, 0x80u, 0x60u);
+                raw = res_load_chunk("LBM\\SCORE.BIT", &sz, NULL);
+                _check(raw != NULL && sz >= 320u * 200u + 768u,
+                       "the score card loads for the palette test");
+                if (raw && sz >= 320u * 200u + 768u)
+                    memcpy(wantPal + 0xC0u * 3u, raw + 320u * 200u, 192u);
+                free(raw);
+                _check(memcmp(level_palette(), wantPal, sizeof wantPal) == 0,
+                       "1000:4287/0x428A: the score prep seals 0x80..0xDF and "
+                       "writes the card's 0xC0..0xFF bank");
+            }
+
+            /* 1000:467A: with NEW RECORD set the counter toggles on the borrow
+             * (`SUB 1` / `JNS`); score_begin just prepared a record, so every
+             * post-first gap is exactly 26 calls (the return is the new phase,
+             * so track the phase itself, not the non-zero returns). */
+            {
+                uint32_t flips = 0, last = 0, badGap = 0;
+                uint32_t prev = (uint32_t)score_blink_on();
+
+                for (uint32_t i = 1; i <= 160u; i++) {
+                    uint32_t now;
+
+                    (void)score_blink_tick();
+                    now = (uint32_t)score_blink_on();
+                    if (now == prev) continue;
+                    flips++;
+                    if (last != 0u && i - last != 26u) badGap = 1;
+                    last = i;
+                    prev = now;
+                }
+                _check(
+                    flips >= 4u && badGap == 0u,
+                    "1000:467A: the NEW RECORD blink toggles every 26 calls");
+            }
             for (t = 0; t < 400u && palette_fade_active(); t++) {
                 (void)score_tick(&tk);
                 palette_tick();

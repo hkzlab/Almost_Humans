@@ -131,8 +131,10 @@ static const uint16_t _mark_bias[5] = { 0, 0xC0, 0, 0, 0 };
  * The group itself is the ACTION program at `0x5B37` (`[0x5B56]` selects it
  * through `202F:0x5B2B`): its first two bytes are `count, cursor`, and the
  * cursor is the byte SPACE steps and the script dispatcher reads.  The port
- * keeps one copy of those bytes (`object_program_header`), so the highlighted
- * cell and the executed op cannot drift apart. */
+ * reads those bytes back through the same header for every draw, step and
+ * dispatch (`object_action_byte`), so the highlighted cell and the executed op
+ * cannot drift apart.  An id outside 1..6 has no header and draws no action
+ * row (D-194). */
 static const uint8_t _action_gold[40] = {
     /* 202F:0x5B57 */
     0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 0xD8, 0xD9,
@@ -472,25 +474,80 @@ static void _draw_action_icon(uint8_t *page, uint32_t x, uint32_t y,
  */
 static void _draw_actions(uint8_t *page)
 {
-    const uint8_t *g = object_action_header();
-    uint32_t count;
-
-    if (!g) return; /* [0x5B56] is 1..6, see 1000:32DC */
-    count = g[0];
-    uint32_t span = count * 23u + (count - 1u) * 12u;
-    uint32_t x = (0x140u - span) / 2u;
+    /* An id outside 1..6 has no header (D-194): the original resolves a
+     * garbage pointer and draws from it, the port leaves the row blank. */
+    if (!object_action_header()) return;
+    /* Every step is a 16-bit word operation: the span/x below reproduce
+     * `MUL BH` x2, `ADD`, `SUB 0x140`, `NEG`, `SHR 1`, and BP is the
+     * original's do-while counter (count 0 draws 0xFFFF times). */
+    uint32_t count = object_action_byte(0u);
+    uint32_t cursor = object_action_byte(1u);
+    uint16_t span = (uint16_t)((uint16_t)((uint8_t)count * 0x17u) +
+                               (uint16_t)((uint8_t)(count - 1u) * 0x0Cu));
+    uint16_t ax = (uint16_t)(0x140u - span); /* SUB 0x140 / NEG */
+    uint16_t x = (uint16_t)(ax >> 1); /* AX is 16-bit and wraps below */
     uint32_t y = _bar_split + 5u;
+    uint32_t i = 0;
+    uint16_t bp = (uint16_t)count;
 
-    for (uint32_t i = 0; i + 1u < count + 1u && i < 4u; i++) {
+    do {
         _frame_box(page, x, y, 23u, 31u, NULL, 0u);
-        /* 1000:990A: the gold 21x29 inner frame sits on the cell the header's
-         * second byte counts down to - the cell `g[1] - 1`, not always the
-         * first (SPACE steps that byte, 1000:3933). */
-        if (g[1] != 0u && i == (uint32_t)(g[1] - 1u))
+        /* 1000:990A: DI starts at the cursor and is decremented each slot,
+         * so the gold 21x29 inner frame lands on cell `cursor - 1`. */
+        if (cursor != 0u && i == cursor - 1u)
             _frame_box(page, x + 1u, y + 1u, 21u, 29u, _action_gold, 6u);
-        _draw_action_icon(page, x + 4u, y + 4u, (uint32_t)(g[i + 2u] - 1u));
-        x += 4u + 0x1Fu; /* the icon's +4 is never undone (0xAD6A/7C) */
+        _draw_action_icon(page, x + 4u, y + 4u,
+                          (uint32_t)(object_action_byte(2u + i) - 1u));
+        x = (uint16_t)(x + 4u + 0x1Fu); /* +4 then +0x1F, 16-bit */
+        i++;
+        bp--;
+    } while (bp != 0u);
+}
+
+/** @brief 0x9A18's incremental path: the band's x 48..271 slice from the clean
+ * panel art (the original copies 56 bytes at the +3 source stride per plane,
+ * which covers x 48..271; the digit marks and the outer columns are left
+ * alone).  Used at the charge entry and on the loop's exit.
+ *
+ * @param page the page buffer
+ */
+static void _draw_band_slice(uint8_t *page)
+{
+    for (uint32_t y = 0; y < BAR_ROWS; y++) {
+        uint32_t at = _bar_split + y;
+
+        if (at >= 200u) continue;
+        for (uint32_t x = 48u; x <= 271u; x++)
+            page[at * 320u + x] = (uint8_t)(0xC0u | _panel4[y * 320u + x]);
     }
+}
+
+/** @brief 1000:99D8 + 0x9B7D + 0x9A18 at the charge entry (0x36DB):
+ * `shift_screen_up` prepares the clean band, the `0x9B7D` call with
+ * `AX=0x5F/BX=0x0C/CX=0x82/DX=0x0F` draws the sunken 130x15 trough (the four
+ * ±4 edge passes from the zeroed `0x48BC` ramp), and `blit_area_if_dirty`
+ * carries the x 48..271 slice to the visible band.  The port's page is
+ * recomposed each tick, so this runs before every charging frame's strokes.
+ */
+void statusbar_charge_begin(void)
+{
+    uint8_t *page = _sb_osys ? _sb_osys->videoPage(0) : NULL;
+
+    if (!page || !_panel4) return;
+    _draw_band_slice(page);
+    _frame_box(page, 0x5Fu, _bar_split + 0x0Cu, 0x82u, 0x0Fu, NULL, 0u);
+}
+
+/** @brief 1000:3738's exit: `0x98F8`/`0x990A` restore the clean band slice and
+ * redraw the action row over it (the same closing `0x9A18` blit).
+ */
+void statusbar_charge_end(void)
+{
+    uint8_t *page = _sb_osys ? _sb_osys->videoPage(0) : NULL;
+
+    if (!page || !_panel4) return;
+    _draw_band_slice(page);
+    _draw_actions(page);
 }
 
 /** @brief tick_state_machine_5b22 (1000:9767): the tribe odometer.  The value
@@ -623,7 +680,10 @@ void statusbar_tick(void)
     if (!_strip || !_panel4 || !page) return;
 
     _draw_band(page);
-    _draw_actions(page);
+    /* 1000:990A is not called inside the charge loop: the entry's 0x9A18
+     * repaint (statusbar_charge_begin) has just erased the action row, and
+     * the exit's 0x990A (statusbar_charge_end) brings it back. */
+    if (!object_charge_active()) _draw_actions(page);
 
     if (_active) {
         int32_t died = 0;

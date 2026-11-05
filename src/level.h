@@ -35,6 +35,9 @@ uint32_t level_style(void); /* [0x17EE]: the record's style */
 /* the working palette 202F:0x14D3 (the fade target of the claim, the level's
  * own fades and the rotate hook) */
 const uint8_t *level_palette(void);
+/* check_highscore's palette prep (1000:4287/0x428A): seal entries 0x80..0xDF
+ * to grey, then copy the card's 64 entries over 0xC0..0xFF. */
+void level_palette_score_prepare(const uint8_t *cardPalette);
 /* draw_level_text 0x33E2/0x33F2: seal the level palette's 0..0x7F to grey
  * and copy the shipped gradient into 0x80..0xBF (the 0x14D3 buffer). */
 void level_end_palette(void);

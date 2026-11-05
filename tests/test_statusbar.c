@@ -587,6 +587,7 @@ int main(int argc, char **argv)
         const uint8_t *pg = osys_null_page(0);
         uint8_t *a;
         uint32_t c1 = 0, c2 = 0;
+        uint8_t mark0 = pg[MARK_Y * 320u + 8u]; /* the minutes glyph */
 
         object_init();
         a = object_slot(0);
@@ -596,7 +597,7 @@ int main(int argc, char **argv)
         object_set_action_latched(0);
         object_set_slot_class(1u, 5u);
         a[7] = 1u;
-        a[8] = 2;
+        a[8] = 1; /* op 4's gate is CMP AX,2 / JNC (D-113) */
         a[9] = 0;
         object_action_run(); /* the wind-up */
         object_set_action_latched(0); /* its release */
@@ -631,6 +632,81 @@ int main(int argc, char **argv)
             bad = 1;
         }
 #undef BAR_SHADE
+
+        /* D-83: 1000:36DB's entry (0x99D8/0x9B7D/0x9A18) restores the band's
+         * x 48..271 slice over the action row and draws the 130x15 trough;
+         * 0x990A is not called inside the loop, so the icons are gone while
+         * the bar is up, and the exit (0x3738) brings them back. */
+        {
+            uint32_t bx = 150u, by = BAR_Y + 12u; /* the trough's top edge */
+            uint8_t band = (uint8_t)(0xC0u | _panel4[12u * 320u + bx]);
+            /* _frame_px: +(-4) clamped to 0xC0..0xCF */
+            uint8_t want = band >= 0xD4u  ? 0xCFu
+                           : band < 0xC4u ? 0xC0u
+                                          : (uint8_t)(band - 4u);
+
+            if (pg[(BAR_Y + 6u) * 320u + 132u] == 0xD6u) {
+                fprintf(stderr,
+                        "FAIL D-83: the action row is still drawn during the "
+                        "charge\n");
+                bad = 1;
+            }
+            if (pg[by * 320u + bx] != want) {
+                fprintf(stderr,
+                        "FAIL D-83: the trough's top edge is missing "
+                        "(%02x, want %02x)\n",
+                        pg[by * 320u + bx], want);
+                bad = 1;
+            }
+            if (pg[MARK_Y * 320u + 8u] != mark0) {
+                fprintf(stderr, "FAIL D-83: the charge erased the digit "
+                                "marks\n");
+                bad = 1;
+            }
+            object_set_action_latched(0);
+            (void)object_command_run(a, 0x00u); /* the release */
+            if (object_charge_tick() != 0) {
+                fprintf(stderr, "FAIL D-83: the release did not end the "
+                                "charge\n");
+                bad = 1;
+            }
+            if (pg[(BAR_Y + 6u) * 320u + 132u] != 0xD6u) {
+                fprintf(stderr,
+                        "FAIL D-83: the exit did not restore the action row\n");
+                bad = 1;
+            }
+            if (pg[by * 320u + bx] != band) {
+                fprintf(stderr,
+                        "FAIL D-83: the trough survived the loop's exit\n");
+                bad = 1;
+            }
+        }
+    }
+
+    /* an id outside 1..6 has no header in the port (D-194): the original
+     * resolves a garbage pointer and draws 0x38 off-screen slots; the port
+     * draws no action row, so the band stays clean. */
+    {
+        const uint8_t *pg = osys_null_page(0);
+        uint32_t badpx = 0;
+
+        object_init();
+        object_action_set_program(0x10u);
+        statusbar_set_split(152u);
+        statusbar_set_active(1);
+        statusbar_tick();
+        for (uint32_t y = BAR_Y + 5u; y < BAR_Y + 36u; y++)
+            for (uint32_t x = 128u; x < 192u; x++)
+                if (pg[y * 320u + x] !=
+                    (uint8_t)(0xC0u | _panel4[(y - BAR_Y) * 320u + x]))
+                    badpx++;
+        if (badpx != 0u) {
+            fprintf(stderr,
+                    "FAIL the out-of-table header's row drew %u on-screen "
+                    "pixels\n",
+                    badpx);
+            bad = 1;
+        }
     }
 
     if (bad) {

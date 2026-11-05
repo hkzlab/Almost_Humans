@@ -311,6 +311,62 @@ int main(int argc, char **argv)
         }
     }
 
+    /* 3b2. D-96: the guard reversal (1000:CABC -> 1000:CB78).  A placed record
+     * whose type is the handler's wp[4] (0x20 for handler 0, 0x1F for handler
+     * 1) is the spear/torch guard stance op 5 writes; the original flips the
+     * entity's waypoint and dispatch index instead of carrying it. */
+    {
+        Entity *p = entity_at_mut(0u);
+        uint8_t *rec = object_slot(0u);
+
+        if (p && rec) {
+            /* handler 0, walking right: wp[3] = -35, so rec.x = x + 36 */
+            p->handler = 0u;
+            p->waypoint = 0u;
+            p->hold = 0u;
+            p->x = 360u;
+            memset(rec, 0, 0x12u);
+            wr_le_u16(rec + 0, (uint16_t)(p->x + 36u));
+            wr_le_u16(rec + 2, (uint16_t)(p->y + 30u));
+            rec[4] = 0x10u;
+            rec[8] = 0x20u; /* handler 0's wp[4]: a guard facing left */
+            entity_tick();
+            if (p->handler != 1u)
+                _failf("D-96: the guard reverses handler 0", 10u, p->handler,
+                       1);
+            if (p->waypoint != 0x0Eu)
+                _failf("D-96: the guard sets the waypoint", 10u, p->waypoint,
+                       0x0E);
+            if ((uint32_t)(rd_le_u16(rec + 8)) != 0x20u)
+                _failf("D-96: the guard record is not carried", 10u,
+                       rd_le_u16(rec + 8), 0x20);
+            if ((uint32_t)(rd_le_u16(rec + 0xAu)) != 0u)
+                _failf("D-96: the guard record has no entity link", 10u,
+                       rd_le_u16(rec + 0xAu), 0);
+
+            /* handler 1, walking left: wp[3] = +16, so rec.x = x - 15 */
+            p->handler = 1u;
+            p->waypoint = 0x0Eu;
+            p->hold = 4u;
+            p->x = 360u;
+            memset(rec, 0, 0x12u);
+            wr_le_u16(rec + 0, (uint16_t)(p->x - 15u));
+            wr_le_u16(rec + 2, (uint16_t)(p->y + 30u));
+            rec[4] = 0x10u;
+            rec[8] = 0x1Fu; /* handler 1's wp[4]: a guard facing right */
+            entity_tick();
+            if (p->handler != 0u)
+                _failf("D-96: the guard reverses handler 1", 10u, p->handler,
+                       0);
+            if (p->waypoint != 0u)
+                _failf("D-96: the guard restores the waypoint", 10u,
+                       p->waypoint, 0);
+            if ((uint32_t)(rd_le_u16(rec + 8)) != 0x1Fu)
+                _failf("D-96: the guard record stays type 0x1F", 10u,
+                       rd_le_u16(rec + 8), 0x1F);
+        }
+    }
+
     /* 3c. D-59: the full eaten chain.  The carry link points at the entity,
      * so the type-34 tail marks the human consumed while the entity is on
      * handlers 2/3 and runs 0xF5BC when the carry ends; the probe's F682 arm

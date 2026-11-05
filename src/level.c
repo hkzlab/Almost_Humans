@@ -1024,7 +1024,6 @@ uint32_t level_bg_index_for_probe(void) { return _level_bg_index; }
 int32_t level_init(const OSystem *osys)
 {
     _level_osys = osys; /* the render goes through videoSetPalette  */
-    object_attach_osys(osys); /* the ACTION machine's fatal route         */
     return 0;
 }
 
@@ -2029,6 +2028,19 @@ const uint8_t *level_map(void)
  */
 const uint8_t *level_palette(void) { return _level_pal; }
 
+/** @brief check_highscore's palette prep (1000:4287/0x428A): seal the working
+ * palette's entries 0x80..0xDF to grey (`0x43BC` at `0x1653` = entry 0x80,
+ * CX = 0x60), then copy the score card's own 64 entries over 0xC0..0xFF
+ * (`0x4403`'s `0xFA00` -> `0x1713`, `0xC0` bytes).
+ *
+ * @param cardPalette the card's 192 palette bytes, or NULL
+ */
+void level_palette_score_prepare(const uint8_t *cardPalette)
+{
+    palette_seal_triples(_level_pal, 0x80u, 0x60u);
+    if (cardPalette) memcpy(_level_pal + 0xC0u * 3u, cardPalette, 0xC0u);
+}
+
 /** @brief draw_level_text 0x33E2 + 0x33F2: the level palette's 0..0x7F becomes grey
  * (seal_triples), then the shipped gradient fills 0x80..0xBF.  The 0x33FD
  * fade targets this palette.
@@ -2345,11 +2357,11 @@ int32_t level_tick(void)
     if (object_claim_pan_active()) /* 1000:3D5E's recolour on both pan frames */
         level_claim_recolour();
 
-    /* the pending-event dispatch ([0x1979] -> CS:0x197B) and, when event 4 is
-     * running, its per-frame share (1000:3702): the _world frame has run, so
-     * redraw the jump/throw bar at the record's new +0xE */
-    object_pending_run();
-    (void)object_charge_tick();
+    /* The [0x1979] dispatch is input_dispatch_loop's 1000:34C3..0x34E4, i.e.
+     * game_main's play frame after scan_id_list and pause_toggle; level_tick
+     * only runs update_world.  Kept out of here so the key list is gated on a
+     * pending code (1000:386E) and a code armed by pause_toggle dispatches on
+     * the same frame, as in the original. */
 
     /* input_dispatch_loop 1000:34B8's object_test_dispatch call, after the
      * _world tick: a negative return ends the play loop.  menu_flag_tick's pan

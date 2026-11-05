@@ -34,9 +34,13 @@ typedef struct {
     uint32_t command;
 } ObjCommand;
 
-/* the program/group header ([0x5B2B] -> 0x5B37): {count, cursor, icon...} */
+/* The program header `1000:98F8` resolves for a raw id: the six word pointers
+ * at `202F:0x5B2B` select the overlapping runs at 0x5B37..0x5B53, read as
+ * {count, cursor, icon...}.  An id outside 1..6 is bounded (D-194). */
 const uint8_t *object_program_header(uint32_t group);
 const uint8_t *object_action_header(void);
+uint8_t object_action_byte(uint32_t k); /* one header byte, 0 past the region */
+uint32_t object_action_program_si(void); /* image address, 0 outside 1..6     */
 void object_step_action_cell(void); /* 1000:3941: SPACE steps the cursor */
 /* DEFS field G: the per-level 3-layer 0x100 sprites the frame slots 0xC1+4L+i
  * point at (level_setup_screen writes their far pointers into DS:0x3CAC). */
@@ -165,6 +169,10 @@ int32_t object_selector(uint8_t *actor, uint16_t xoff, uint16_t frame,
                         uint16_t type);
 int32_t
 object_stack_scan_dissolve(uint32_t recIndex); /* 1 = a group was dissolved */
+/* 0x6EC3 + type != 0 (the overlap/carry gate, with its full DS window). */
+int32_t object_type_blocked(uint32_t type);
+/* Test seam: 1000:F2E0's per-candidate dissolve + conversion. */
+void object_find_overlap_for_probe(uint8_t *actor);
 /* 1000:FA13 object_group_dissolve, by group slot (the 0x6F22 entry the tail holds
  * in BP when it calls it). */
 void object_group_dissolve_at(uint32_t slot);
@@ -224,8 +232,7 @@ void object_set_action_entity(uint32_t index);
 uint32_t object_action_program(void);
 uint32_t object_action_pending(void);
 void object_action_set_cursor(uint32_t cursor);
-void object_action_set_program(uint32_t index); /* [0x5B56], 1..6        */
-uint32_t object_action_fault(void);
+void object_action_set_program(uint32_t index); /* [0x5B56], a raw byte   */
 /* 1000:83B7 driver_call: the last sfx number a handler asked for (the audio
  * surface has no sfx entry until M6, so the request is only recorded). */
 uint32_t object_last_sfx(void);
@@ -235,9 +242,5 @@ void object_driver_call(uint32_t n); /* 1000:83B7 from another module */
 /* [0x13A4]: the ACTION press's latch as the command handlers see it. */
 int32_t object_action_latched(void);
 void object_set_action_latched(int32_t on); /* 7 = op 7 was dispatched */
-
-/* The arch's fatal route for the op-7 halt (NULL detaches it, the tests do
- * that on purpose); level_init attaches the game's OSystem. */
-void object_attach_osys(const OSystem *osys);
 
 #endif /* HUMANSRE_OBJECT_H */

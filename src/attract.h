@@ -64,4 +64,8 @@ uint32_t attract_phase_for_probe(void); /* the tests' phase read      */
  * load until the next effect begins. */
 const uint8_t *attract_strip_for_probe(uint32_t *rowsBuilt);
 
+/* Test seam: the attract's decimal formatter (1000:0AEC); the digits are
+ * built LSB-first and reversed once, so every value prints in order. */
+void attract_format_decimal_for_probe(uint32_t v, char *out);
+
 #endif /* HUMANSRE_ATTRACT_H */

@@ -282,28 +282,29 @@ static void _wipe_step(void)
 
 /* --- the text helpers --------------------------------------------------- */
 
-/** @brief _format_decimal (1000:0AEC): value DX:CX; >= 10000 prints the quotient
- * then exactly 4 zero-padded remainder digits, else the plain digits.
+/** @brief _format_decimal (1000:0AEC): value DX:CX; the digits are written
+ * least-significant first and the whole run is reversed once (0x0B3B), so
+ * `>= 10000` is the quotient's digits followed by exactly four zero-padded
+ * remainder digits, and below it the plain digits.
  *
  * @param v the value
  * @param out the output buffer
  */
 static void _format_decimal(uint32_t v, char *out)
 {
-    uint32_t n = 0;
+    uint32_t n = 0, m = 0;
     char t[8];
-    uint32_t m = 0;
+
     if (v >= 10000u) {
         uint32_t hi = v / 10000u, lo = v % 10000u;
-        if (!hi) t[m++] = '0';
+
+        for (uint32_t i = 0; i < 4u; i++) { /* 1000:0B0E: four LSB-first */
+            t[m++] = (char)('0' + lo % 10u);
+            lo /= 10u;
+        }
         while (hi) {
             t[m++] = (char)('0' + hi % 10u);
             hi /= 10u;
-        }
-        while (m) out[n++] = t[--m];
-        for (uint32_t i = 0; i < 4u; i++) {
-            out[n++] = (char)('0' + lo % 10u);
-            lo /= 10u;
         }
     } else {
         if (!v) t[m++] = '0';
@@ -311,10 +312,18 @@ static void _format_decimal(uint32_t v, char *out)
             t[m++] = (char)('0' + v % 10u);
             v /= 10u;
         }
-        while (m) out[n++] = t[--m];
     }
+    while (m) out[n++] = t[--m]; /* 1000:0B3B: one reversal of the lot */
     out[n] = 0;
 }
+
+/** @brief Test seam: the attract's decimal formatter (1000:0AEC).
+ *
+ * @param v the value
+ * @param out the output buffer (at least 8 bytes)
+ */
+void attract_format_decimal_for_probe(uint32_t v, char *out)
+{ _format_decimal(v, out); }
 
 /** @brief _draw_score_block (1000:0651): [0x36]=0x10, [0x38]=0x18 (set by
  * intro_frame_1); rank x=0x20, name x=0x82, score x=0x102.

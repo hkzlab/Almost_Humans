@@ -45,13 +45,19 @@ void statusbar_set_split(uint32_t row);
 /* the level end's [0x5B0A] = 0xC9 (1000:342B): stop composing the bar */
 void statusbar_hide(void); /* [0x5B0A], 201..152 reveal */
 uint32_t statusbar_split(void);
-/* [0x5B56] (1..6): the current ACTION program — draws both the program and
- * the action row's group.  object.c owns it; the bar follows. */
+/* [0x5B56]: the current ACTION program — a raw byte; draws both the program
+ * and the action row's group.  An id outside 1..6 has no header (D-194).
+ * object.c owns it; the bar follows. */
 /* 1000:3933's tail: advance the current action row's selected cell (the
  * 0x5B2B header's second byte) with the wrap to 1 past the count. */
 void statusbar_cycle_action(void);
 /* 1000:3747: the jump/throw charge bar, v = the acting record's +0xE. */
 void statusbar_charge_bar(uint32_t v);
+/* 1000:36DB's entry: 0x99D8 + 0x9B7D + 0x9A18 — restore the band's x 48..271
+ * slice over the action row and draw the sunken trough. */
+void statusbar_charge_begin(void);
+/* 1000:3738's exit: 0x990A — restore the clean slice and the action row. */
+void statusbar_charge_end(void);
 /* the group's selected-cell byte (1-based), for tests; 0 past the table. */
 uint32_t statusbar_action_group(void); /* [0x5B56]: the bar's current group */
 uint32_t statusbar_action_count(uint32_t group);

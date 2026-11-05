@@ -101,7 +101,8 @@ static uint16_t _score_screen_timer; /* [0x1DC8]: 0x15E, the screen's
                                                    * sign bit sets */
 static uint16_t _score_best_time; /* [0x1E88] */
 static int32_t _score_is_record; /* [0x1DD6] */
-static uint8_t _score_blink = 0x19; /* [0x1DD7] */
+static uint8_t _score_blink = 0x00; /* [0x1DD7]: the image's 0, toggles on the
+                                       * first decrement's borrow */
 static int32_t _score_blink_phase; /* [0x1DC4]: the RECORD's on/off */
 
 static uint8_t *_score_bit;
@@ -166,6 +167,13 @@ uint32_t score_members(void)
  */
 void score_add_level_term(uint16_t v)
 { _score_level_term = (uint16_t)(_score_level_term + v); }
+
+/** @brief Accessor: the level's score term [0x1DCA] (the test seam for the
+ * cross-level leftover).
+ *
+ * @return the level term
+ */
+uint16_t score_level_term_for_probe(void) { return _score_level_term; }
 
 /**
  * @brief 1000:41EA..4235: the level's two terms.
@@ -259,8 +267,11 @@ int32_t score_blink_on(void) { return _score_blink_phase; }
 int32_t score_blink_tick(void)
 {
     if (!_score_is_record) return 0;
-    if (--_score_blink) return 0;
-    _score_blink = 0x19;
+    /* 1000:4685/0x468A: SUB 1 / JNS -> the borrow (bit 7) resets to 0x19 and
+     * toggles; the image's counter starts at 0, so the first call toggles. */
+    _score_blink--;
+    if (_score_blink < 0x80u) return 0;
+    _score_blink = 0x19u;
     _score_blink_phase ^= 1;
     return _score_blink_phase;
 }
@@ -644,9 +655,12 @@ int32_t score_begin(uint32_t value)
             static uint8_t fadeTarget[768];
 
             /* 0x4333 targets 0x14D3, the LEVEL palette (sealed to grey), not
-             * the image working palette 0x4BBC. */
+             * the image working palette 0x4BBC.  The original's two prep
+             * steps (1000:4287/0x428A) run on 0x14D3 first: entries
+             * 0x80..0xDF become grey and the card's 64 entries take
+             * 0xC0..0xFF. */
+            level_palette_score_prepare(_score_bit + SCORE_PAGE);
             memcpy(fadeTarget, level_palette(), sizeof fadeTarget);
-            memcpy(fadeTarget + 0xC0u * 3u, _score_bit + SCORE_PAGE, 192u);
             palette_build_fade(0u, 0x100u, 0x23u, fadeTarget);
         }
         _score_arm_fade = 1;

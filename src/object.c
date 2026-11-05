@@ -28,7 +28,7 @@
  * The ACTION machine (`script_op_dispatch` 1000:3979, `object_action_run`) is
  * ported with ops 1, 2/6, 3, 4, 5, 8, 9 and 10/11/12, the collision pass with
  * both direction actions (the pickup writes the class — level 1's win), the
- * object selector and the pending-action arm; op 7 is dead code and halts.
+ * object selector and the pending-action arm; op 7 is the ride command.
  *
  * The human stack (`0x6F22`) is ported through the verbs the rows reach: push
  * (`1000:E697`), grab (`1000:E58B`), pop (`1000:FDED`), the two leaves
@@ -223,7 +223,7 @@ typedef struct {
  *   4  0x3A05 -> 0xEFA1/0xEFB9 per type (<= 2) -> `_obj_op_set_state`: type 1/frame 0xBB for type
  *                        0, type 2/frame 0x17 otherwise - ported (`OP_TYPE_A`)
  *   5  0x39B5 type += 0x1F and frame = 0x10E + 4*type         - ported (`OP_SETFRAME`)
- *   7  0x39CF -> 0xEA0F/0xEA4D the two ride commands - the port halts: port_deviations.md D-92
+ *   7  0x39CF -> 0xEA0F/0xEA4D the two ride commands (`_obj_cmd_ride`) - ported (`OP_TYPE_B`)
  *   8  0x39CC -> 0xEA71 `reset_span_entry_on_phase`            - ported (`OP_RESET`)
  *   9  0x39E4 the player claims (AX = 2), otherwise 0xEF0C/0xEF39 `cmd_walk_and_mark_state1_a/b`
  *                        (walk 0x10 / walk 0 and mark state 1) - ported (`OP_CLAIM_OR_TYPE`,
@@ -295,8 +295,6 @@ static uint32_t _obj_live_count =
     OBJ_LIVE0; /* [0x3E73]: the array's used slots     */
 static uint32_t _obj_placed_humans; /* [0x3E20]: the 0xAA handlers' count   */
 static uint32_t _obj_entity; /* [0x3E22]: the acting record          */
-static uint32_t _obj_program_index =
-    1; /* [0x5B56], 1-based                    */
 static uint16_t _obj_cmd_timer; /* [0x6DEA]: the command one-shot */
 static uint16_t _obj_stream_count; /* [0x6DEC]: stream hold countdown */
 static const uint8_t *_obj_stream_ptr; /* [0x6DEE]: the script stream    */
@@ -315,17 +313,19 @@ static uint16_t _obj_pair_a[8], _obj_pair_b[2], _obj_pair_c[8], _obj_pair_d[2];
 static uint32_t _obj_bg_count;
 static uint32_t _obj_pending; /* [0x1979]                             */
 static uint32_t _obj_cursor = 1; /* [0x1988]                             */
-static uint32_t _obj_fault; /* op 7 was dispatched (see below)      */
 /* [0x1987] / the port's "inside 0x36DB" state: the turn arms the flag
  * (1000:EE35) and the pending-event 4 charge loop consumes it (1000:370C). */
 static uint8_t _obj_charge_arm;
 static int32_t _obj_charging;
+/* [0x5ACE] latched when event 4 starts: the original's 0x36DB loop does not
+ * poll input, so every update_world reuses the press frame's word.  The live
+ * charge has the fire bit set and [0x13A4] clear. */
+static uint8_t _obj_charge_joy;
 /* [0x42F0], the ACTION edge's guard, is **never set** in this image: the only
  * two references in the whole file are the test and the clear at 0xE3F9-0xE407,
  * so the edge (0xE40C's `CALL 0x392D`) is dead in the shipped build and the port
  * does not run it.  That is what lets a fire press reach the type row's fire
  * half (D-68). */
-static const OSystem *_obj_osys; /* the fatal halt's route (osystem.h)   */
 static uint16_t _obj_register[8][7]; /* 0x6F22: 8 x 0xE (clear is 0x70 bytes at
                                           * 0x60F4; op 1 walks AX = 7..0), bit15 = free */
 static uint16_t _obj_span[2][14]; /* 0x6F92, 2 x 0x1C: {id, .. +6, +8, +0x12} */
@@ -1049,11 +1049,56 @@ static const uint8_t _obj_seq6568[0x64] = {
     0x08, 0x0C, 0xFF, 0xFF,
 };
 
-/* DS:0x6EC3, 16 bytes: object_find_overlap's "this type does not take part"
- * flag.  Types 0..2 and 8 are 0 (they *do*), the rest 1.  Types >= 0x10 read
- * past the table in the original; the port treats them as "no". */
-static const uint8_t _obj_type_overlaps[16] = { 0, 0, 0, 1, 1, 1, 1, 1,
-                                                0, 1, 1, 1, 1, 1, 1, 1 };
+/* DS:0x6EC3, the overlap/carry gate (1000:F336/0xF361, 0x5B9F, 0xC4BA and the
+ * entity's 0xCAE1).  The original reads `byte[0x6EC3 + type]` with no bound:
+ * 0x00..0x5E is the image's static run (the 40-byte table, then the 0x6EEB
+ * frame table and the 0x6F0D group dispatch), 0x5F..0xCE aliases the live
+ * 0x6F22 register pool, and 0xCF..0xFF the 0x6F92 spans.  Types above 0xFF wrap
+ * the original's 16-bit address into earlier DS; the game's writers stop at
+ * 0xC9, so the port returns 0 there (malformed save only, the D-180 family). */
+static const uint8_t _obj_type_run[0x5F] = {
+    0x00u, 0x00u, 0x00u, 0x01u, 0x01u, 0x01u, 0x01u, 0x01u, 0x00u, 0x01u, 0x01u,
+    0x01u, 0x01u, 0x01u, 0x01u, 0x01u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+    0x01u, 0x00u, 0x00u, 0x00u, 0x00u, 0x01u, 0x00u, 0x01u, 0x01u, 0x00u, 0x00u,
+    0x01u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,
+    0x00u, 0x60u, 0x9Cu, 0x96u, 0xFEu, 0xFEu, 0xFFu, 0xFFu, 0xFFu, 0xFFu, 0xFFu,
+    0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x01u,
+    0x01u, 0x01u, 0x01u, 0x01u, 0x02u, 0x02u, 0x00u, 0x00u, 0x49u, 0xFAu, 0x64u,
+    0xFAu, 0x78u, 0xFAu, 0x78u, 0xFAu, 0x78u, 0xFAu, 0x78u, 0xFAu, 0x78u, 0xFAu,
+    0x78u, 0xFAu, 0x00u, 0xFFu, 0xFFu, 0x00u, 0x00u,
+};
+
+/** @brief One little-endian byte of a DS word.
+ *
+ * @param w the word
+ * @param i the byte index
+ * @return the byte value
+ */
+static uint32_t _obj_ds_word_byte(uint16_t w, uint32_t i)
+{ return ((uint32_t)w >> (8u * (i & 1u))) & 0xFFu; }
+
+/** @brief 0x6EC3 + type != 0, with the image's full DS window: the static run,
+ * then the live register pool, then the spans.
+ *
+ * @param type the record type
+ * @return 1 when the gate blocks the type, 0 otherwise
+ */
+int32_t object_type_blocked(uint32_t type)
+{
+    if (type < sizeof _obj_type_run) return _obj_type_run[type] != 0u;
+    if (type < 0xCFu) {
+        uint32_t n = type - 0x5Fu;
+
+        return _obj_ds_word_byte(_obj_register[n / 14u][(n % 14u) / 2u], n) !=
+               0u;
+    }
+    if (type <= 0xFFu) {
+        uint32_t n = type - 0xCFu;
+
+        return _obj_ds_word_byte(_obj_span[n / 28u][(n % 28u) / 2u], n) != 0u;
+    }
+    return 0;
+}
 /* 0x6847: the per-record settled position (4 bytes per record). */
 static uint16_t _obj_settled[OBJ_SLOTS][2];
 
@@ -1154,15 +1199,6 @@ void object_set_marker_mode(int32_t on) { _obj_marker_mode = on ? 1u : 0u; }
  */
 int32_t object_marker_mode(void) { return _obj_marker_mode; }
 
-/* the six programs at 0x5B37..0x5B53 (202F image, 12 bytes each). */
-static uint8_t _obj_programs[6][12] = {
-    { 0x02, 0x01, 0x02, 0x01, 0x04, 0x01, 0x03, 0x04, 0x05, 0x06, 0x04, 0x01 },
-    { 0x04, 0x01, 0x03, 0x04, 0x05, 0x06, 0x04, 0x01, 0x03, 0x07, 0x08, 0x06 },
-    { 0x04, 0x01, 0x03, 0x07, 0x08, 0x06, 0x04, 0x01, 0x03, 0x05, 0x09, 0x06 },
-    { 0x04, 0x01, 0x03, 0x05, 0x09, 0x06, 0x04, 0x01, 0x09, 0x0A, 0x0B, 0x0C },
-    { 0x04, 0x01, 0x09, 0x0A, 0x0B, 0x0C, 0x01, 0x01, 0x06, 0x01, 0xD0, 0xD1 },
-    { 0x01, 0x01, 0x06, 0x01, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7 },
-};
 
 /* DS:0x1C76 (behaviour -> program - 1) and DS:0x5B81 (behaviour -> the
  * direction the collision pass dispatches on).  DS:0x5B8A is the collision
@@ -1209,7 +1245,7 @@ static const uint8_t _obj_drop_frame[8] = { 0x00, 0x00, 0x00, 0x00,
  * with BX = the behaviour (0..0x3F).  The table proper is 21 bytes —
  * behaviours 5/6/7 -> 1/3/2, 8 -> 0x0F, 9 -> 0xFF, 10..15 -> 0xC2/0x1D/0xA0/
  * 0x00, and 16..20 -> 1 — and the original reads straight on into the next
- * tables (0x6ECB is `_obj_type_overlaps[8]`, then the 0/1 run that follows), so
+ * tables (0x6ECB is `_obj_type_run[8]`, then the 0/1 run that follows), so
  * the port keeps the whole 64-byte read window verbatim instead of bounding
  * the index (port_deviations.md used to carry the 21-vs-8 truncation as
  * D-160; closed 2026-11-04, re_history.md). */
@@ -1524,8 +1560,9 @@ static uint16_t _obj_foot_x, _obj_foot_y;
 
 /* 1000:E4BD's `CALL word ptr [BX + 0x6916]` — the ported handlers, by address.
  * Returns 0 when the address has no port yet (the caller reports it). */
-/* [0x6916] / [0x6917]: the per-call output state the handlers may set; 1000:E4E7
- * copies it to [0x1979] / [0x1988] when it is non-zero. */
+/* [0x6916] / [0x6917]: the per-call output state the handlers may set.  The
+ * dispatcher zeroes the word before the handler (1000:E447) and copies it to
+ * [0x1979] / [0x1988] when it is non-zero afterwards (1000:E4E4). */
 static uint8_t _obj_out_state, _obj_out_state_hi;
 
 /* ===================================================================== *
@@ -1656,17 +1693,6 @@ static const uint8_t _obj_type_tile[35] = {
     0x02, 0x00, 0x00, 0x49, 0xFA, 0x64, 0xFA, 0x78, 0xFA, 0x78, 0xFA,
 };
 
-/* 0x5B37..0x5B56: the six overlapping programs and [0x5B56].  The port keeps
- * six 12-byte copies; the original region is the 0x20-byte union, so save the
- * union and overlay each program's cursor byte at its table start. */
-static const uint8_t _obj_program_base[0x20] = {
-    0x02, 0x01, 0x02, 0x01, 0x04, 0x01, 0x03, 0x04, 0x05, 0x06, 0x04,
-    0x01, 0x03, 0x07, 0x08, 0x06, 0x04, 0x01, 0x03, 0x05, 0x09, 0x06,
-    0x04, 0x01, 0x09, 0x0A, 0x0B, 0x0C, 0x01, 0x01, 0x06, 0x01,
-};
-static const uint32_t _obj_program_start[6] = { 0u, 4u, 10u, 16u, 22u, 28u };
-static uint8_t _obj_program_region[0x20];
-
 /* 0x67FF: the pending-move (offset, divider) table; the word after each
  * entry is the next offset, so 0xFFFF ends the run and resets the cursor. */
 static const uint16_t _pend_off[18] = {
@@ -1694,16 +1720,49 @@ uint16_t object_pend_off_for_probe(uint32_t i)
 uint16_t object_pend_wait_for_probe(uint32_t i)
 { return i < sizeof _pend_wait / sizeof _pend_wait[0] ? _pend_wait[i] : 0u; }
 
+/* 0x5B37..0x5B5E: the six overlapping program runs.  The six words at
+ * 202F:0x5B2B point at offsets 0, 4, 0xA, 0x10, 0x16 and 0x1C; the raw id at
+ * 0x5B56 is byte 0x1F, i.e. program 5's +9 and program 6's +3, exactly as in
+ * the image.  The save carries only 0x5B37..0x5B56 (0x20 bytes), so the tail
+ * of program 6 stays static across a load. */
+static uint8_t _obj_program_region[0x28] = {
+    0x02, 0x01, 0x02, 0x01, 0x04, 0x01, 0x03, 0x04, 0x05, 0x06,
+    0x04, 0x01, 0x03, 0x07, 0x08, 0x06, 0x04, 0x01, 0x03, 0x05,
+    0x09, 0x06, 0x04, 0x01, 0x09, 0x0A, 0x0B, 0x0C, 0x01, 0x01,
+    0x06, 0x01, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7,
+};
+static const uint8_t _obj_program_start[6] = { 0x00u, 0x04u, 0x0Au,
+                                               0x10u, 0x16u, 0x1Cu };
+
 /** @brief [0x5B56] is shared with the status bar (its action row's group), so every
- * write goes through here.
+ * write goes through here.  It is a raw byte: the shipped writers produce 1..6,
+ * but the collision tail stores `[0x423C]` straight (`1000:9CEB`, any value).
  *
  * @param index the index
  */
 static void _obj_set_program_index(uint32_t index)
+{ _obj_program_region[0x1Fu] = (uint8_t)index; }
+
+/** @brief 1000:98F8's header for a raw id: the six table words at 0x5B2B point
+ * into `_obj_program_region`, so the header is the 12 bytes at that run.  An
+ * id outside 1..6 is bounded here (D-194).
+ *
+ * @param id the raw id
+ * @return the header, or NULL outside 1..6
+ */
+static uint8_t *_obj_program_slot(uint32_t id)
 {
-    if (index < 1u || index > 6u) return;
-    _obj_program_index = index;
+    return (id >= 1u && id <= 6u)
+               ? _obj_program_region + _obj_program_start[id - 1u]
+               : NULL;
 }
+
+/** @brief The raw [0x5B56] byte.
+ *
+ * @return the id
+ */
+static uint32_t _obj_program_id(void)
+{ return (uint32_t)_obj_program_region[0x1Fu]; }
 
 /** @brief the acting record: get_object_ptr (1000:8DF4) = the 29-word table baked at
  * DS:0x3E24, indexed by [0x3E22] — i.e. _obj_array[_obj_entity].
@@ -1742,8 +1801,15 @@ void object_init(void)
     _obj_entity = 0u; /* [0x3E22] cleared (1000:4CB7)      */
     _obj_bg_count = 0u; /* [0x32B9] cleared (1000:4CBA)      */
     _obj_pending = 0u; /* [0x1979]                          */
+    _obj_debounce = 0u; /* [0x197A], cleared with it (1000:31B1) */
     _obj_cursor = 1u; /* [0x1988]                          */
+    _obj_lat = 0; /* [0x6F1D]                          */
+    _obj_action_latch = 0; /* [0x13A4]                          */
+    _obj_charging = 0; /* the event-4 loop is stopped at load   */
+    _obj_charge_arm = 0u; /* [0x1987]                          */
+    _obj_charge_joy = 0u; /* the latched [0x5ACE]              */
     _obj_set_program_index(1u); /* [0x5B56]                          */
+    _obj_program_region[1] = 1u; /* 1000:957B: [SI+1] = AH = 1 (prog 1) */
     _obj_cmd_timer = 0u; /* [0x6DEA]                          */
     _obj_stream_count = 0u; /* [0x6DEC]                          */
     _obj_stream_ptr = _obj_anim_stream; /* [0x6DEE] = 0x6DF2                 */
@@ -1751,7 +1817,6 @@ void object_init(void)
     _pend_tag = _pend_count = _pend_slot = _pend_index = _pend_cursor = 0u;
     _pend_div = 0;
     _obj_stack_mask[0] = _obj_stack_mask[1] = 0u;
-    _obj_fault = 0u;
     memset(_obj_register, 0xFF, sizeof _obj_register); /* 0x6F22, all free  */
     memset(_obj_span, 0xFF,
            sizeof _obj_span); /* 0x6F92: 0x38 bytes at 0x60FF */
@@ -2419,9 +2484,11 @@ static void _obj_append_spear(uint32_t col, uint32_t row)
     wr_le_u16(r + 0xAu, 0u);
     _obj_slot_class[_obj_live_count - 7u] = 5u; /* [0x3E5F + count-8] = 0x05 */
     _obj_live_count++;
-    /* 1000:527D ends JMP 0x5639: the shared ground snap. */
+    /* 1000:527D ends JMP 0x5639: the shared ground snap.  The listing stores
+     * `bx - 0x10` unconditionally, so a blocked probe parks the record at
+     * y = 0xFFEF. */
     bx = _obj_step_probe_at(r, 8, 0x10, &probe);
-    if (bx >= 0) wr_le_u16(r + 2u, (uint16_t)(bx - 0x10));
+    wr_le_u16(r + 2u, (uint16_t)(bx - 0x10));
 }
 
 /** @brief 1000:54D9 (0xBB): {x, y, +4 = 0x26, +6 = 0, +8 = the map cell - 1},
@@ -2724,7 +2791,7 @@ static void _obj_append_style(const uint8_t *map, uint32_t col, uint32_t row,
     _obj_slot_class[_obj_live_count - 7u] = (uint8_t)behaviour;
     _obj_live_count++;
     bx = _obj_step_probe_at(r, 8, 0x10, &probeCell); /* 1000:5639 */
-    if (bx >= 0) wr_le_u16(r + 2u, (uint16_t)(bx - 0x10));
+    wr_le_u16(r + 2u, (uint16_t)(bx - 0x10));
 }
 
 /** @brief 1000:51F9 decode_terrain_row (tile 0xA9): five records from the 0x1EFE
@@ -4227,7 +4294,7 @@ static void _obj_mover_pass_placed(uint8_t *r, int32_t ax, int32_t bx)
         dy = (int16_t)rd_le_u16(slot + 2u) - bx;
         if (!(dy - 2 < 0 && dy + 0x0C >= 0)) continue; /* 1000:5B89/0x5B91 */
         type = rd_le_u16(slot + 8u);
-        if (type < 16u && _obj_type_overlaps[type]) continue;
+        if (object_type_blocked(type)) continue;
         (void)object_stack_scan_dissolve(i); /* 1000:F453, AX = 5 */
         _obj_slot_class[(uint32_t)((r - _obj_array) / OBJ_STRIDE) - 8u] = 0u;
         r[6] = 0xFFu;
@@ -4402,8 +4469,10 @@ static void _obj_stack8_move(uint8_t *r, int32_t vx, int32_t vy,
     {
         uint32_t probeCell;
 
-        land = _obj_land_y((int32_t)(int16_t)rd_le_u16(r + 0u) + vy + 8, 0x18,
-                           &probeCell);
+        /* 1000:C62C: AX = [0x4234] + 8, BX = 0x18, and 1000:E389's 0xE361
+         * adds the record's own x/y — so the probe is at
+         * (x + vy + 8, y + 0x18), not at the raw offsets. */
+        land = _obj_step_probe_at(r, vy + 8, 0x18, &probeCell);
         (void)probeCell;
     }
     if (land < 0) {
@@ -5121,7 +5190,7 @@ static void _obj_walk_marker(uint8_t *r)
             if (sx != mx || sy != my) continue;
             if (slot[6] & 0x80u) continue;
             type = rd_le_u16(slot + 8u);
-            if (type < 16u && _obj_type_overlaps[type]) continue;
+            if (object_type_blocked(type)) continue;
             object_stack_scan_dissolve(i); /* 1000:F453, DX = 5 */
             wr_le_u16(r + 0u, (uint16_t)(rd_le_u16(r + 0u) - 8u));
             wr_le_u16(r + 4u, 0x0028u);
@@ -5304,40 +5373,51 @@ void object_set_action_entity(uint32_t i)
  *
  * @return The action program index.
  */
-uint32_t object_action_program(void) { return _obj_program_index; }
-/**
- * @brief Accessor: the action fault flag.
- *
- * @return The action fault flag.
- */
-uint32_t object_action_fault(void) { return _obj_fault; }
+uint32_t object_action_program(void) { return _obj_program_id(); }
 
-/**
- * @brief `NULL` detaches the halt (the headless tests exercise op 7 on purpose).
+/** @brief The program header `1000:98F8` resolves for `group`: the six table
+ * words at `0x5B2B` select the overlapping runs at `0x5B37..0x5B53`.  An id
+ * outside 1..6 is bounded (D-194).
  *
- * @param osys the backend interface
- */
-void object_attach_osys(const OSystem *osys) { _obj_osys = osys; }
-/** @brief The program at 0x5B37 + its own pointer offset, `{count, cursor, icon...}`.
- * Those first two bytes are also the status bar's action-row header: the bar
- * draws this group and SPACE steps byte 1, which is the cursor the script
- * dispatcher reads (1000:3947 writes it, 1000:3987 reads prog[cursor+1]).
- * (The six runs overlap in the image, but every write lands outside the other
- * groups' visible bytes 0..5 - checked against 0x5B2B/0x5B37.)
- *
- * @param group the group
- * @return the pointer, or NULL when unavailable
+ * @param group the raw program id
+ * @return the 12-byte header, or NULL outside 1..6
  */
 const uint8_t *object_program_header(uint32_t group)
-{ return (group >= 1u && group <= 6u) ? _obj_programs[group - 1u] : NULL; }
+{ return _obj_program_slot(group); }
 
 /**
  * @brief Accessor: the action program header.
  *
- * @return The action program header.
+ * @return the action program header, or NULL outside 1..6
  */
 const uint8_t *object_action_header(void)
-{ return object_program_header(_obj_program_index); }
+{ return object_program_header(_obj_program_id()); }
+
+/** @brief One byte of the acting program's header sequence, `prog[k]`.
+ *
+ * @param k the byte offset
+ * @return the byte, or 0 outside the region
+ */
+uint8_t object_action_byte(uint32_t k)
+{
+    uint8_t *h = _obj_program_slot(_obj_program_id());
+    uint32_t off;
+
+    if (!h) return 0u;
+    off = (uint32_t)(h - _obj_program_region) + k;
+    return off < sizeof _obj_program_region ? _obj_program_region[off] : 0u;
+}
+
+/** @brief The resolved header pointer (SI) for the current raw id.
+ *
+ * @return SI, or 0 outside 1..6
+ */
+uint32_t object_action_program_si(void)
+{
+    uint8_t *h = _obj_program_slot(_obj_program_id());
+
+    return h ? 0x5B37u + (uint32_t)(h - _obj_program_region) : 0u;
+}
 
 /** @brief 1000:3933's tail (0x3941-0x394D): advance the selected cell with the wrap to
  * 1 past the count.  It is the program's cursor byte, so the next ACTION press
@@ -5345,15 +5425,20 @@ const uint8_t *object_action_header(void)
  */
 void object_step_action_cell(void)
 {
-    uint8_t *p = _obj_programs[(_obj_program_index - 1u) % 6u];
+    uint8_t *p = _obj_program_slot(_obj_program_id());
+    uint8_t cursor;
 
-    if (!p[0]) return;
-    p[1] = (uint8_t)(p[1] + 1u);
-    if (p[1] > p[0]) p[1] = 1u;
+    if (!p) return; /* D-194 */
+    cursor = (uint8_t)(p[1] + 1u);
+    /* 1000:3941..0x394D: INC the cursor, wrap to 1 when it passes the count
+     * (a count of 0 leaves the wrap's `CMP 0,cursor / JNC` to set 1). */
+    if (cursor > p[0]) cursor = 1u;
+    p[1] = cursor;
 }
 
-/** @brief [0x5B56] (1-based): the shipped writers only produce 1..6, so this exists
- * for tests and for a future caller that restores a program from a save.
+/** @brief [0x5B56] (a raw byte), for tests and for a program restored from a
+ * save.  The shipped writers produce 1..6; the collision tail can store the
+ * shared scratch byte (any value; an out-of-table id is bounded, D-194).
  *
  * @param index the index
  */
@@ -5366,9 +5451,10 @@ void object_action_set_program(uint32_t index)
  */
 void object_action_set_cursor(uint32_t cursor)
 {
-    uint8_t *p = _obj_programs[(_obj_program_index - 1u) % 6u];
+    uint8_t *p = _obj_program_slot(_obj_program_id());
+
     _obj_cursor = cursor;
-    p[1] = (uint8_t)cursor;
+    if (p) p[1] = (uint8_t)cursor; /* D-194 */
 }
 /**
  * @brief Accessor: the pending event.
@@ -5483,9 +5569,11 @@ static void _obj_class_drop(uint8_t *actor, uint8_t *found, uint8_t *slot)
 }
 
 /** @brief 1000:9DD7 (behaviours 5..7): the carried record is thrown / placed at the
- * acting record's feet and snapped to the terrain.  The two scratch stores the
- * original makes first ([0x4238] = -6 / 0x16, [0x423C] = 0x10) are dead: every
- * reader of those words writes them itself (1000:650B, 1000:A783).
+ * acting record's feet and snapped to the terrain.  The original's two scratch
+ * stores ([0x4238] = -6 / 0x16, [0x423C] = 0x10) lead the body: [0x4238] is
+ * re-written by every reader (1000:650B, 1000:A783), but [0x423C] is the
+ * collision tail's program scratch (1000:9CD9), which can read it on a later
+ * empty-map press, so it is modelled here.
  *
  * @param actor the object record
  * @param found the found flag
@@ -5498,6 +5586,7 @@ static void _obj_class_throw(uint8_t *actor, uint8_t *found, uint8_t *slot)
     int32_t landed;
     uint32_t cell;
 
+    _obj_sel_type = 0x10u; /* 1000:9DDD: [0x423C] */
     actor[7] = 0u; /* 1000:9DF1 */
     *slot &= 0x7Fu;
     wr_le_u16(
@@ -5549,6 +5638,23 @@ static void _obj_op_class_path(uint8_t *actor)
 }
 
 /**
+ * @brief 0x9CD9: the collision pass's tail.  The program id is the shared
+ * scratch word [0x423C] (`_obj_sel_type`): on the scan's success path the loop
+ * stamped it from 0x5B8A[behaviour] (1000:9C8D), and the count < 9 branch
+ * reaches it without stamping anything in this call (D-115's stale case).
+ * A negative low byte leaves all three writes undone (1000:9CDF).
+ */
+static void _obj_collide_tail(void)
+{
+    uint32_t prog = (uint32_t)(_obj_sel_type & 0xFFu);
+
+    if (prog & 0x80u) return; /* 1000:9CDF */
+    _obj_pending = 5u; /* [0x1979] = 5 */
+    _obj_cursor = 1u; /* [0x1988] = 1 */
+    _obj_set_program_index(prog); /* [0x5B56] = CL */
+}
+
+/**
  * @brief 0x9C1B (ops 2/6): the collision pass over the live records.
  *
  * @param actor the object record
@@ -5567,6 +5673,11 @@ static void _obj_op_collide(uint8_t *actor)
     ax = (int16_t)rd_le_u16(actor + 0u);
     bx = (int16_t)rd_le_u16(actor + 2u);
     live = _obj_live_count > OBJ_LIVE0 ? _obj_live_count - OBJ_LIVE0 : 0u;
+    /* 1000:9C4E: count < 9 (no live records) jumps straight to the tail. */
+    if (live == 0u) {
+        _obj_collide_tail();
+        return;
+    }
 
     for (uint32_t k = 0; k < live; k++) {
         uint32_t ordinal = k + 1u; /* DX */
@@ -5580,10 +5691,15 @@ static void _obj_op_collide(uint8_t *actor)
         if (*slot & 0x80u) continue;
         if (found[6] & 0x80u) continue;
         beh = (uint32_t)(*slot & 0x3Fu);
-        /* 0x5B81 is 8 bytes; behaviours 8/9 (the 0xB7 stack record and the
+        /* 1000:9C89: the tail's program id (0x5B8A[behaviour]) is stamped on
+         * every candidate the slot/flag tests let through, before the
+         * direction test, so a later empty-map press can read it.
+         * 0x5B81 is 8 bytes; behaviours 8/9 (the 0xB7 stack record and the
          * 0xBB marker) read 0xFF/0xFF there, i.e. "skip" - see the table
          * comment.  10..63 read the tables that follow in the image and
          * never occur. */
+        prog = beh < 8u ? _obj_beh_collide_prog[beh] : 0xFFu;
+        _obj_sel_type = (uint16_t)prog; /* [0x423C] */
         dir = beh < 8u ? _obj_beh_dir[beh] : 0xFFu;
         if (dir & 0x80u) continue;
         dx = (int16_t)rd_le_u16(found + 0u) - ax;
@@ -5594,16 +5710,7 @@ static void _obj_op_collide(uint8_t *actor)
         if (dir == 0u) {
             if (!_obj_give_found(actor, found, slot, ordinal)) continue;
         } else if (!_obj_take_found(actor, found, slot, ordinal)) continue;
-        /* the tail at 1000:9CD9: [0x5B56] = [0x423C] = 0x5B8A[behaviour],
-         * which is the ACTION program and the bar's action-row group; a
-         * negative id leaves all three writes undone (1000:9CDF).
-         * 0x5B8A[8]/[9] = 0xFF/0xF0 in the image, so the bound is the same
-         * "negative id" return. */
-        prog = beh < 8u ? _obj_beh_collide_prog[beh] : 0xFFu;
-        if (prog & 0x80u) return;
-        _obj_pending = 5u; /* [0x1979] = 5 */
-        _obj_cursor = 1u; /* [0x1988] = 1 */
-        _obj_set_program_index(prog); /* [0x5B56] */
+        _obj_collide_tail();
         return;
     }
 }
@@ -5680,7 +5787,9 @@ int32_t object_cycle_entity(int32_t step)
 {
     int32_t at = (int32_t)_obj_entity;
 
-    for (uint32_t n = 0; n < OBJ_STATIC; n++) {
+    /* 1000:4113 BX = 6 and the DEC BX / JNS leave: seven candidates, the
+     * records other than the current one (the eighth would be itself). */
+    for (uint32_t n = 0; n + 1u < OBJ_STATIC; n++) {
         int32_t idx = at + (step < 0 ? -1 : 1);
         uint8_t *r;
 
@@ -5761,7 +5870,11 @@ static void _obj_op_set_state(uint8_t *actor, uint32_t type)
 }
 
 /**
- * @brief Find the record's overlap target.
+ * @brief Find the record's overlap target (1000:F2E0).
+ *
+ * Each candidate is dissolved inside the walk (`0xF453` with `DX = 5`), and
+ * the `0x6EC3` gate is re-read afterwards: a dissolve can leave the record's
+ * `+8` in the non-overlappable set, and the original then skips it.
  *
  * @param actor the object record
  */
@@ -5769,9 +5882,6 @@ static void _obj_find_overlap(uint8_t *actor)
 {
     int32_t ax = (int16_t)rd_le_u16(actor + 0u);
     int32_t bx = (int16_t)rd_le_u16(actor + 2u);
-
-    (void)object_stack_scan_dissolve((uint32_t)(actor - _obj_array) /
-                                     OBJ_STRIDE);
 
     for (uint32_t i = 0; i < OBJ_STATIC; i++) {
         uint8_t *r = _obj_array + i * OBJ_STRIDE;
@@ -5789,9 +5899,14 @@ static void _obj_find_overlap(uint8_t *actor)
         if (dy > 0x10) continue;
         found = (i == (uint32_t)_obj_player) ? actor : r;
         type = rd_le_u16(found + 8u);
-        if (type < 16u && _obj_type_overlaps[type]) continue;
-        /* 1000:F453 scan_groups_for_record (DX = 5) -> 1000:FA13: the group
-         * whose member list holds this record is dissolved */
+        if (object_type_blocked(type)) continue;
+        /* 1000:F34F: dissolve the group of [0x4254], the record the
+         * conversion is about to hit (the actor when the candidate is the
+         * player).  Then 1000:F35C re-tests the gate. */
+        (void)object_stack_scan_dissolve((uint32_t)(found - _obj_array) /
+                                         OBJ_STRIDE);
+        type = rd_le_u16(found + 8u);
+        if (object_type_blocked(type)) continue;
         wr_le_u16(found + 4u, 0x0103u);
         wr_le_u16(found + 8u, 0x001Eu);
         wr_le_u16(found + 0xAu, 0x0006u);
@@ -6591,13 +6706,16 @@ static int32_t _obj_bg_mark(const uint8_t *actor)
         if (d < 0 || d >= 0x20) continue;
         if (idx < 8u) {
             if (rd_le_u16(actor + 8u) > 1u) return -1; /* 1000:E001 */
-            tbl = _obj_foot_b;
+            /* 1000:E007/E009: type 1 -> 0x68BE, everything <= 1 -> 0x689E */
+            tbl = rd_le_u16(actor + 8u) == 1u ? _obj_foot_b : _obj_foot_a;
         } else {
             int32_t side = (int16_t)_obj_side;
             if (side == 0) return -1; /* 1000:DFF8 */
             tbl = side < 0 ? _obj_foot_b : _obj_foot_a;
         }
-        bl = tbl[(uint32_t)(_obj_foot_x - rx) & 0x1Fu];
+        /* 1000:DFE2/0xE00C: the table index is d, the offset from the aligned
+         * window start (not foot_x - rx, which is d + 0x10). */
+        bl = tbl[(uint32_t)d & 0x1Fu];
         if (bl && _obj_bg[i].dst) _obj_bg[i].dst[bl] = 0xFFu;
         return -1;
     }
@@ -6845,15 +6963,18 @@ static int32_t _obj_frame_cadence(uint8_t *actor)
 
 /** @brief 1000:F23A: place the record at ([0x4230], [0x4234]) when the landing probe at
  * ([0x4230], 0x18) comes back 0..7 px below that row.  The probe is
- * `1000:E389`'s; its `BP` argument is the item table - see re_map.md, "the
- * handler's BP", for the open question about what the dispatcher leaves there.
+ * `1000:E389`'s; its `0xE361` prologue adds the record's own x/y, so the
+ * arguments are offsets from the actor, not absolute coordinates.  Its `BP`
+ * argument is the item table - see re_map.md, "the handler's BP", for the
+ * open question about what the dispatcher leaves there.
  *
  * @param actor the object record
  */
 static void _obj_place_at(uint8_t *actor)
 {
     uint32_t cell;
-    int32_t bx = _obj_land_y((int32_t)(int16_t)_obj_side, 0x18, &cell);
+    int32_t bx =
+        _obj_step_probe_at(actor, (int32_t)(int16_t)_obj_side, 0x18, &cell);
     int32_t d;
 
     if (bx < 0) return; /* 1000:F243 */
@@ -8296,7 +8417,10 @@ static int32_t _obj_cmd_home_state(uint8_t *actor)
  */
 static void _obj_cmd_turn(uint8_t *actor)
 {
-    if (object_action_latched()) return; /* 1000:EE0C */
+    /* 1000:EE0C.  The live charge loop has [0x13A4] clear; the port also has
+     * to let the first post-op4 frame through when the ACTION latch is still
+     * up. */
+    if (object_action_latched() && !_obj_charging) return;
     if (!_obj_lat) {
         _obj_lat = 0xFF; /* 1000:EE16 */
         wr_le_u16(actor + 0xEu, 0u);
@@ -8791,8 +8915,8 @@ static int32_t _obj_cmd_call(uint8_t *actor, uint32_t addr)
     case 0xEDB7u: _obj_cmd_home_state(actor); return 1;
     case 0xEE07u: _obj_cmd_turn(actor); return 1;
     case 0xEE3Bu: _obj_cmd_enter(actor); return 1;
-    case 0xEFD1u: _obj_cmd_turn(actor); return 1;
-    case 0xEFD4u: _obj_cmd_turn(actor); return 1;
+    case 0xEFD1u: _obj_cmd_home_state(actor); return 1; /* JMP 0xEDB7 */
+    case 0xEFD4u: _obj_cmd_turn(actor); return 1; /* JMP 0xEE07 */
     case 0xEFD7u: _obj_cmd_turn_idle(actor); return 1;
     case 0xF08Du: _obj_cmd_place(actor, -8, 8, 1u); return 1;
     case 0xF0A2u: _obj_cmd_place(actor, 0x18, 0, 0u); return 1;
@@ -8821,10 +8945,26 @@ static int32_t _obj_cmd_call(uint8_t *actor, uint32_t addr)
  */
 int32_t object_command_run(uint8_t *actor, uint8_t input)
 {
-    ObjCommand c = object_command_select(actor, input);
-    uint32_t before = rd_le_u16(actor + 8u);
+    ObjCommand c;
+    uint32_t before;
     int32_t ran = OBJ_CMD_NONE;
     int32_t skip = 0;
+    uint8_t dispatch = input;
+
+    /* 1000:3702 reuses the press frame's [0x5ACE] for every update_world of
+     * the blocking charge loop; the port's per-frame model still polls the
+     * keyboard, so keep the press directions and the live fire bit (the
+     * release is what ends the loop). */
+    if (_obj_charging)
+        dispatch = (uint8_t)((input & 0x80u) | (_obj_charge_joy & 0x0Fu));
+
+    /* 1000:E447: the output state [0x6916]/[0x6917] is per-call, so a queued
+     * code cannot re-arm itself on every later frame (which would reset the
+     * ACTION cursor through 1000:382D). */
+    _obj_out_state = 0u;
+    _obj_out_state_hi = 0u;
+    c = object_command_select(actor, dispatch);
+    before = rd_le_u16(actor + 8u);
 
     if (c.handler) {
         if (!_obj_cmd_call(actor, c.handler)) return OBJ_CMD_UNPORTED;
@@ -8839,10 +8979,11 @@ int32_t object_command_run(uint8_t *actor, uint8_t input)
         }
     }
     if (_obj_out_state != 0u) { /* 1000:E4E4 */
-        _obj_debounce =
-            (uint8_t)_obj_pending; /* [0x197A] := the old [0x1979] */
         _obj_pending = _obj_out_state;
         _obj_cursor = _obj_out_state_hi;
+        /* The turn that queues event 4 is the press frame: latch its word
+         * for the loop's later update_world calls. */
+        if (_obj_out_state == 4u && !_obj_charging) _obj_charge_joy = dispatch;
     }
     return ran;
 }
@@ -9145,25 +9286,94 @@ static void _obj_group_dissolve(uint8_t *e)
     _obj_group_clear_list(e); /* 1000:FABF */
 }
 
-/** @brief 1000:F453 scan_groups_for_record: the first 0x6F22 entry whose member list
- * (from +5) contains `recIndex` gets dissolved.  Returns 1 when one was.
+/** @brief 1000:F4D9..0xF5BB: the `DL & 1` class-transfer tail of `0xF453`.  A
+ * dissolved record with a class hands the carried live record back (or, for a
+ * behaviour-4 slot, lifts the live projectile into the record), clears the
+ * class and, when the record is the acting one, arms event 5.
+ *
+ * @param recIndex the record index (static or live)
+ */
+static void _obj_class_transfer(uint32_t recIndex)
+{
+    uint8_t *rec = _obj_array + recIndex * OBJ_STRIDE;
+    uint32_t cls = rec[7];
+    uint8_t *live, *slot;
+    uint32_t beh;
+
+    if (!cls) return; /* 1000:F4E6 */
+    rec[7] = 0u; /* 1000:F4EF */
+    live =
+        _obj_array + (OBJ_LIVE0 + cls) * OBJ_STRIDE; /* 0x3F17+0x12*(cls-1) */
+    slot = _obj_slot_class + cls; /* 0x3E5F + cls - 1 */
+    *slot &= 0x7Fu; /* 1000:F504 */
+    beh = (uint32_t)(*slot & 0x3Fu);
+    if (beh == 4u) { /* 1000:F50B: the live record is the projectile/stone */
+        uint32_t ax, bx;
+
+        wr_le_u16(live + 0xEu, 0xFFFFu);
+        live[6] &= 0x7Fu;
+        ax = (rd_le_u16(live + 8u) & 0x8000u) ? 1u : 0u;
+        bx = ax ? 8u : 0u;
+        wr_le_u16(rec + 0u, rd_le_u16(live + 0u)); /* 1000:F52D */
+        wr_le_u16(rec + 2u, (uint16_t)(rd_le_u16(live + 2u) - 8u));
+        wr_le_u16(rec + 4u, (uint16_t)bx);
+        wr_le_u16(rec + 8u, (uint16_t)ax);
+        wr_le_u16(rec + 0xAu, 0u);
+    } else { /* 1000:F54B: the found record becomes the placed item */
+        /* the frame is `byte[0x6EEB + behaviour]`; 0x6EEB is the same run as
+         * 0x6EC3 + 0x28, so behaviours up to 0x36 are exact (5/6/7 drop
+         * 0x60/0x9C/0x96).  A malformed class above 0x36 would read the live
+         * register pool; the port stops there (D-180's malformed-save family). */
+        wr_le_u16(live + 0u, rd_le_u16(rec + 0u));
+        wr_le_u16(live + 2u, (uint16_t)(rd_le_u16(rec + 2u) + 8u));
+        wr_le_u16(live + 4u, beh <= 0x36u ? _obj_type_run[0x28u + beh] : 0u);
+        wr_le_u16(live + 6u, 0u);
+        wr_le_u16(live + 8u, 0xFFFFu);
+        wr_le_u16(live + 0xAu, 0u);
+        wr_le_u16(live + 0xCu, 0u);
+        wr_le_u16(live + 0xEu, 0u);
+    }
+    if (recIndex != (uint32_t)_obj_player &&
+        recIndex == (uint32_t)_obj_entity) { /* 1000:F597 */
+        _obj_set_program_index(1u); /* [0x5B56] = 1 */
+        _obj_out_state = 5u; /* [0x6916] = 0x105 */
+        _obj_out_state_hi = 1u;
+        _obj_pending = 5u; /* [0x1979] = 5 */
+        _obj_cursor = 1u; /* [0x1988] = 1 */
+    }
+}
+
+/** @brief 1000:F453 scan_groups_for_record with the callers' `DX = 5`: the first
+ * 0x6F22 entry whose member list (from +5) contains `recIndex` gets dissolved,
+ * then the `DL & 1` class-transfer tail runs (whether or not a group matched).
  *
  * @param recIndex the record index
  * @return 1 when a group was found, 0 otherwise
  */
 int32_t object_stack_scan_dissolve(uint32_t recIndex)
 {
+    int32_t found = 0;
+
     for (uint32_t i = 0; i < 8u; i++) {
         uint8_t *e = (uint8_t *)_obj_register[i];
         if (e[1] & 0x80u) continue; /* +0 bit 15 set = free */
         for (uint8_t *p = e + 5; !(p[0] & 0x80u); p++)
             if (p[0] == (uint8_t)recIndex) {
                 _obj_group_dissolve(e);
-                return 1;
+                found = 1;
+                break;
             }
+        if (found) break;
     }
-    return 0;
+    _obj_class_transfer(recIndex);
+    return found;
 }
+
+/** @brief Test seam: 1000:F2E0's overlap conversion.
+ *
+ * @param actor the object record
+ */
+void object_find_overlap_for_probe(uint8_t *actor) { _obj_find_overlap(actor); }
 
 /** @brief 0xEA71 (op 8): on odd frames reset the span entry of the acting record.
  * On even frames the original also clears [0x13A4]; the port's equivalent is
@@ -9176,7 +9386,9 @@ static void _obj_op_reset_span(void)
     for (uint32_t i = 0; i < 2u; i++) {
         uint16_t *e = _obj_span[i];
         if (e[0] != _obj_entity) continue;
-        if (e[4] != 0u && e[3] > e[4]) {
+        /* 1000:EA94..0xEAA1: +8 != 0 clears outright, and with +8 == 0 the
+         * `CMP [+6],[+8] / JBE` only leaves the entry alone when +6 is also 0. */
+        if (e[4] != 0u || e[3] != 0u) {
             e[4] = 0u;
             e[9] = 0u;
         }
@@ -9184,13 +9396,20 @@ static void _obj_op_reset_span(void)
     }
 }
 
-/* The pending-action dispatch ([0x1979] -> the table at 0x197B), one frame
- * later.  Action 5 is event_anim_script_advance (1000:382D): it rewinds the
- * program's cursor byte to [0x1988], then calls blit_sprite_loop (1000:990A),
- * which re-draws the status bar's action row for the program's first two bytes
- * (count, gold flag) — the same bytes as the 0x5B2B group header.  That
- * drawing is already ported in statusbar.c as draw_actions() and runs every
- * tick via statusbar_tick(), so the press needs no extra call here. */
+/* The pending-action dispatch ([0x1979] -> the table at 0x197B).  It runs once
+ * per play frame, after scan_id_list (which skips its whole walk while a code
+ * is armed, 1000:386E), and debounces a repeat of the code the previous
+ * dispatch ran ([0x197A], 1000:34D1..0x34D5).  The handlers are what end a
+ * debounce: the code-1 lock (0x36CD), the code-5 rewind (0x3839) and the
+ * code-4 loop's exit (0x373B) all store a *word* 0 at 0x1979, which clears
+ * 0x197A too, while the dispatcher's own consume (0x34CB) clears the byte
+ * only.  Action 5 is
+ * event_anim_script_advance (1000:382D): it rewinds the program's cursor byte
+ * to [0x1988], then calls blit_sprite_loop (1000:990A), which re-draws the
+ * status bar's action row for the program's first two bytes (count, gold
+ * flag) — the same bytes as the 0x5B2B group header.  That drawing is already
+ * ported in statusbar.c as draw_actions() and runs every tick via
+ * statusbar_tick(), so the press needs no extra call here. */
 /** @brief 1000:3747 with the acting record's +0xE (the bar drawing lives in
  * statusbar.c, which owns the band and panel4).
  */
@@ -9200,6 +9419,10 @@ static void _obj_charge_draw(void)
     uint32_t v;
 
     if (!actor) return;
+    /* 1000:36DB's entry: 0x99D8/0x9B7D/0x9A18 restore the band over the
+     * action row and draw the trough before the strokes.  The port recomposes
+     * the page each tick, so replay it on every charging frame. */
+    statusbar_charge_begin();
     /* The original's charge loop accumulates one stroke per frame (1000:3702
      * -> 0x3747, +0xE stepping by 4); its page is never rebuilt, so the
      * strokes stay.  The port recomposes the page every tick, so it redraws
@@ -9221,15 +9444,30 @@ void object_pending_run(void)
     uint32_t code = _obj_pending;
 
     _obj_pending = 0u;
-    /* 1000:3705: any pending code ends the running charge loop (the loop
-     * swallows it at 0x373B); its own event-4 request does not. */
-    if (_obj_charging && code != 4u) _obj_charging = 0;
+    if (code == 0u) return;
+    /* 1000:3705 -> 0x3735/0x373B: a code queued by the running charge loop's
+     * own update_world frame is consumed by the loop, not dispatched, and the
+     * `MOV word [0x1979],0` at 0x373B also resets the debounce byte 0x197A. */
+    if (_obj_charging) {
+        _obj_charging = 0;
+        _obj_debounce = 0u;
+        /* 1000:3738: 0x98F8/0x990A redraw the action row on the loop's exit */
+        statusbar_charge_end();
+        return;
+    }
+    /* 1000:34D1: the code the previous dispatch ran is not run again. */
+    if (code == (uint32_t)_obj_debounce) return;
+    _obj_debounce = (uint8_t)code; /* 1000:34D5 */
     switch (code) {
+    case 1u: /* 1000:36C7: the lock arm clears the dispatch word (0x36CD) */
+        _obj_debounce = 0u;
+        break;
     case 4u: /* 1000:36DB: enter 0x36DB */ _obj_charging = 1; break;
     case 5u: { /* 1000:382D */
-        uint8_t *p = _obj_programs[(_obj_program_index - 1u) % 6u];
+        uint8_t *p = _obj_program_slot(_obj_program_id());
 
-        p[1] = (uint8_t)_obj_cursor;
+        if (p) p[1] = (uint8_t)_obj_cursor; /* D-194 */
+        _obj_debounce = 0u; /* 1000:3839: MOV word [0x1979],0 */
         break;
     }
     default: /* 1000:36C7/36D7/36DA/3843 */ break;
@@ -9238,8 +9476,8 @@ void object_pending_run(void)
 
 /** @brief One frame of the charge loop (0x3702): the world frame has already run, so
  * this redraws the bar at the record's new +0xE, or leaves when the turn did
- * not advance (0x370C) - the loop's other exit, a pending code, is the ACTION
- * press and is consumed by object_action_run.
+ * not advance (0x370C).  The loop's other exit, a pending code, is consumed by
+ * `object_pending_run` (0x3705 -> 0x3735/0x373B), which swallows it.
  *
  * @return 1 while the charge loop is active, 0 otherwise
  */
@@ -9255,6 +9493,10 @@ int32_t object_charge_tick(void)
     if (!_obj_charging) return 0;
     if (!_obj_charge_arm) { /* 1000:370C */
         _obj_charging = 0; /* the loop leaves; 0x373B */
+        /* 0x373B is `MOV word [0x1979],0`: it clears the debounce byte
+         * 0x197A as well, so the next turn re-arms event 4. */
+        _obj_debounce = 0u;
+        statusbar_charge_end(); /* 1000:3738: 0x98F8/0x990A */
         return 0;
     }
     _obj_charge_arm = 0u; /* 1000:3713 */
@@ -9267,7 +9509,7 @@ int32_t object_charge_tick(void)
  */
 void object_action_run(void)
 {
-    const uint8_t *p = _obj_programs[(_obj_program_index - 1u) % 6u];
+    uint8_t *p = _obj_program_slot(_obj_program_id());
 
     /* 1000:3523/0x3530: pause_toggle returns while a sequence owns the
      * record ([0x6F1D] != 0), so the held frames keep reaching the type row's
@@ -9277,9 +9519,11 @@ void object_action_run(void)
      * column stops arming [0x1987]. */
     if (_obj_lat) return;
     object_set_action_latched(1);
+    if (!p) return; /* D-194: nothing to dispatch */
 
     uint8_t *actor = _obj_array + _obj_entity * OBJ_STRIDE;
-    uint32_t op = p[p[1] + 1u];
+    /* 1000:3987: cursor = [SI+1] (after the two INCs), op = [SI+1+cursor]. */
+    uint32_t op = object_action_byte(1u + object_action_byte(1u));
 
     switch (op) {
     case OP_REGISTER: _obj_op_register(actor); break;
@@ -9289,13 +9533,14 @@ void object_action_run(void)
     case OP_CLAIM_OR_TYPE: /* 0x39E4: the player claims, others walk */
         if (actor == _obj_array + _obj_player * OBJ_STRIDE)
             (void)object_claim_begin(2u, (int32_t)_obj_entity);
-        else _obj_op_mark_walk(actor, rd_le_u16(actor + 8u) ? 0u : 0x10u);
+        else if (rd_le_u16(actor + 8u) < 2u) /* 1000:39F3 CMP AX,2 / JNC */
+            _obj_op_mark_walk(actor, rd_le_u16(actor + 8u) ? 0u : 0x10u);
         break;
     case OP_CLAIM3: (void)object_claim_begin(3u, (int32_t)_obj_entity); break;
     case OP_CLAIM0: (void)object_claim_begin(0u, (int32_t)_obj_entity); break;
     case OP_CLAIM1: (void)object_claim_begin(1u, (int32_t)_obj_entity); break;
     case OP_TYPE_A: /* 0x3A05 -> 0xEFA1 / 0xEFB9          */
-        if (rd_le_u16(actor + 8u) <= 2u)
+        if (rd_le_u16(actor + 8u) < 2u) /* 1000:3A08 CMP AX,2 / JNC */
             _obj_op_set_state(actor, rd_le_u16(actor + 8u) ? 1u : 0u);
         break;
     case OP_RESET: /* 0x39CC -> 0xEA71                   */
@@ -9320,7 +9565,7 @@ void object_action_run(void)
             int32_t cell = row * 32 + col;
             int32_t next = cell + (int32_t)(int16_t)step;
 
-            if (!actor[7u] || t > 2u || !map) break;
+            if (!actor[7u] || t >= 2u || !map) break; /* 1000:3A1D CMP/JNC */
             if (cell < 0 || cell >= 640) break;
             if (!level_page_free(map[cell])) break;
             if (next < 0 || next >= 640) break;
@@ -9330,25 +9575,18 @@ void object_action_run(void)
         }
         break;
     case OP_TYPE_B: /* 0x39CF -> 0xEA0F / 0xEA4D          */
-        /* Op 7 is the **ride** command: `1000:39CF` loads BP = 0xEA0F for
-         * type 0 and 0xEA4D otherwise and calls it - `cmd_ride_ab` /
-         * `cmd_ride_ad`, the same two bodies the type rows reach as command 8
-         * (`_obj_cmd_ride` above).  The port still stops here instead of calling
-         * them: port_deviations.md D-92.  The earlier reading (that these
-         * targets are address fragments inside 0xD5F0) named the wrong page;
-         * re_map.md's op-7 section and re_history.md carry the correction.
-         * The op is reachable only through a program cursor above 1, which the
-         * shipped data never produces: every readable path pins the cursor at
-         * 1, and the only unread producer is the 0FE7:0188 save-restore
-         * overlay. */
-        _obj_fault = OP_TYPE_B;
-        if (_obj_osys && _obj_osys->fatalError) {
-            _obj_osys->fatalError(
-                "HUMANS: ACTION op 7 (1000:39CF) dispatched - it needs a "
-                "program cursor above 1, which the shipped data never "
-                "produces.  The op's targets are the ride commands "
-                "(1000:EA0F/1000:EA4D); the port does not call them yet "
-                "(port_deviations.md D-92).");
+        /* 1000:39CF: `CMP AX,2 / JNC` then BP = 0xEA0F for type 0 and
+         * 0xEA4D otherwise - the two ride bodies, `cmd_ride_ab` /
+         * `cmd_ride_ad`, already ported as `_obj_cmd_ride` (the same bodies
+         * the type rows reach as command 8). */
+        {
+            uint32_t t = rd_le_u16(actor + 8u);
+
+            if (t < 2u) { /* 1000:39D2 CMP AX,2 / JNC */
+                if (t == 0u)
+                    _obj_cmd_ride(actor, 0xABu, 0xCu, 9u); /* 1000:EA0F */
+                else _obj_cmd_ride(actor, 0xADu, 2u, 0xAu); /* 1000:EA4D */
+            }
         }
         break;
     default: break;
@@ -9402,10 +9640,8 @@ void object_load_table(const uint8_t *src)
 void object_save_programs(uint8_t *dst)
 {
     if (!dst) return;
-    memcpy(dst, _obj_program_base, 0x20u);
-    for (uint32_t i = 0; i < 6u; i++)
-        dst[_obj_program_start[i] + 1u] = _obj_programs[i][1];
-    dst[0x1F] = (uint8_t)_obj_program_index;
+    /* 0x5B37..0x5B56: the six overlapping programs and the raw id byte. */
+    memcpy(dst, _obj_program_region, 0x20u);
 }
 
 /**
@@ -9416,19 +9652,9 @@ void object_save_programs(uint8_t *dst)
 void object_load_programs(const uint8_t *src)
 {
     if (!src) return;
+    /* 0x5B37..0x5B56 only: program 6's bytes past the id (0x5B57..) are not
+     * in the save and stay static. */
     memcpy(_obj_program_region, src, 0x20u);
-    for (uint32_t i = 0; i < 6u; i++) {
-        uint32_t start = _obj_program_start[i];
-        uint32_t n = 0x20u - start;
-
-        if (n > 12u) n = 12u;
-        memcpy(_obj_programs[i], _obj_program_region + start, n);
-        /* n < 12 only for the last program: the save ends at 0x5B56, so its
-         * tail is not in the file and the port keeps the static tail. */
-    }
-    _obj_program_index = src[0x1F];
-    if (_obj_program_index < 1u || _obj_program_index > 6u)
-        _obj_program_index = 1u;
 }
 
 /**

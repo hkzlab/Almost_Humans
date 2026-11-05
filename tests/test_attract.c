@@ -86,6 +86,34 @@ int main(int argc, char **argv)
     const char *vol_dir = argc > 1 ? argv[1] : ".";
     const char *ref_dir = argc > 3 ? argv[3] : "../analysis/attract_scroll";
 
+    /* D-134: 1000:0AEC builds the digits least-significant first and reverses
+     * the whole buffer (0x0B3B); the low four digits are NOT exempt. */
+    {
+        static const struct {
+            uint32_t v;
+            const char *s;
+        } cases[] = {
+            { 0u, "0" },         { 9u, "9" },         { 9999u, "9999" },
+            { 10000u, "10000" }, { 10001u, "10001" }, { 12345u, "12345" },
+            { 19999u, "19999" }, { 20001u, "20001" }, { 54321u, "54321" },
+            { 65535u, "65535" },
+        };
+        int32_t bad = 0;
+
+        for (uint32_t i = 0; i < sizeof cases / sizeof cases[0]; i++) {
+            char out[16];
+
+            attract_format_decimal_for_probe(cases[i].v, out);
+            if (strcmp(out, cases[i].s) != 0) {
+                fprintf(stderr, "FAIL D-134: %u printed \"%s\", want \"%s\"\n",
+                        cases[i].v, out, cases[i].s);
+                bad = 1;
+            }
+        }
+        if (bad) return 1;
+        printf("ok D-134: format_decimal prints every value in order\n");
+    }
+
     char path[512];
     snprintf(path, sizeof path, "%s/HUMANS.000", vol_dir);
     FILE *f = fopen(path, "rb");

@@ -322,6 +322,8 @@ int32_t gameflow_key_list(const InputState *in)
 {
     if (!in) return 0;
     if (_key_wait_stage) return _key_wait_step(in); /* 1000:3954 */
+    /* 1000:386E's first test: a pending event skips the whole key walk. */
+    if (object_action_pending() != 0u) return 0;
     if (in->keyScan == 0u) return 0;
     for (uint32_t i = 0; i < sizeof _key_list / sizeof _key_list[0]; i++) {
         uint32_t id = _key_list[i][1];
@@ -571,8 +573,10 @@ static int32_t _game_frame(const OSystem *osys, GameFlow *state,
     rawFire = (input.joyBits & 0x80u) != 0;
     /* 1000:8598-0x85AE (poll_input's tail): while [0x13A4] is set the
          * fire bit is masked out of [0x5ACE]; the release clears the latch
-         * (1000:85A9).  One flag, owned by object.c. */
-    if (object_action_latched()) {
+         * (1000:85A9).  One flag, owned by object.c.  The event-4 charge is a
+         * blocking loop in the original and never polls, so its update_world
+         * keeps the press frame's fire; do not mask it here. */
+    if (object_action_latched() && !object_charge_active()) {
         if (rawFire) input.joyBits &= 0x0Fu;
         else object_set_action_latched(0);
     }
@@ -826,19 +830,19 @@ static int32_t _game_frame(const OSystem *osys, GameFlow *state,
                  * runs the ACTION program.  [0x42F0] is never set in the image,
                  * so the 0xE3F9 ACTION edge is dead and the same frame's
                  * command dispatch still sees the fire half of the row. */
-            int32_t pressed = rawFire && !object_action_latched();
+            int32_t pressed =
+                rawFire && !object_action_latched() && !object_charge_active();
 
             /* the original's order (1000:34B5 -> 0x34BD): update_world
                  * runs first - the record command dispatch inside it sees the
                  * press (the type row's fire half selects the turn) - and
-                 * pause_toggle runs after it. */
+                 * pause_toggle runs after it.  The event-4 loop blocks
+                 * pause_toggle until it ends (1000:36DB). */
             level_tick(); /* 1000:34B5 update_world */
             if (!menu_active() && pressed && !(input.joyBits & 0x0Fu))
                 object_action_run(); /* 1000:34BD pause_toggle */
             /* the latch is not assigned here: object_action_run sets it
                  * (1000:3538) and the release above clears it (1000:85A9). */
-            /* level_tick ends with the [0x1979] dispatch (1000:382D and
-                 * the event-4 charge loop), so it runs once per frame */
             if (level_end_holding()) {
                 /* 1000:34E6: the play loop's exit hold - the end sound
                      * (0x83B7, AX = 0xC) and 15 vsyncs (0x8B56) on the frozen
@@ -855,8 +859,9 @@ static int32_t _game_frame(const OSystem *osys, GameFlow *state,
             }
             /* scan_id_list (1000:386E) runs after update_world and before
                  * the pending-event table. */
-            if (!menu_active() && !level_ended())
-                (void)gameflow_key_list(&input);
+            if (!menu_active() && !level_ended() && !object_charge_active())
+                (void)gameflow_key_list(&input); /* scan_id_list is blocked by
+                                                  * the event-4 loop (1000:36DB) */
             if (menu_active()) {
                 if (!menu_tick(&input)) {
                     int32_t wasTimeUp = menu_time_up();
@@ -868,6 +873,16 @@ static int32_t _game_frame(const OSystem *osys, GameFlow *state,
                     if (wasTimeUp) _timeout_shown = 0;
                     if (!*quit_requested) statusbar_set_active(1);
                 }
+            }
+            /* 1000:34C3: the [0x1979] dispatch, after scan_id_list and
+                 * pause_toggle (both of which may have armed a code); event
+                 * 4's charge loop then takes its per-frame share (1000:3702)
+                 * with the world frame already updated.  A negative
+                 * object_test_dispatch (level_ended) leaves the play loop
+                 * before the dispatch (JS 0x34E6). */
+            if (!level_ended()) {
+                object_pending_run();
+                (void)object_charge_tick();
             }
             if (*quit_requested) return 0;
         }
