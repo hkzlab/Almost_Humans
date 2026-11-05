@@ -14,6 +14,7 @@ void hiscore_write(void); /* 1000:06CC: encrypt + save  */
 uint16_t hiscore_best(uint32_t level); /* DS:0x38A + 2*level         */
 void hiscore_set_best(uint32_t level, uint16_t value);
 uint32_t hiscore_count(void); /* 10                         */
+uint32_t hiscore_table_size(void); /* the on-disk 0x208 (520)    */
 uint32_t hiscore_score(uint32_t i); /* the top-10, descending     */
 const char *hiscore_name(uint32_t i);
 int32_t hiscore_qualifies(uint32_t score);

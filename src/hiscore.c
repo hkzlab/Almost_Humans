@@ -5,7 +5,7 @@
  * bytes (0x208), loaded whole into DS:0x38A and obfuscated in place:
  *
  *   +0x000  2    the reserved word (0x0999); level 0's slot, never used
- *   +0x002  320  160 x u16 per-level best, level N at +0x002 + 2*N
+ *   +0x002  320  160 x u16 per-level best, level N at +2*N
  *                (`1000:42E9`: BX = 0x38A + [0x1F41]*2)
  *   +0x142  18   unused
  *   +0x154  180  10 x 18: u32 score (LE) at +0, ASCIIZ name at +4
@@ -32,7 +32,7 @@
 
 #include <string.h>
 
-#define HIS_LEVELS 161u /* the table's 1-based level index        */
+#define HIS_LEVELS 160u /* the table's 1-based level count        */
 #define HIS_TOPN   10u
 #define HIS_ENTRY  18u
 #define HIS_NAME   14u /* 13 chars + NUL                         */
@@ -92,8 +92,8 @@ static void _hiscore_defaults(void)
 {
     memset(_hiscore_table, 0, sizeof _hiscore_table);
     wr_le_u16(_hiscore_table, 0x0999u); /* [0x38A] = 0x0999 */
-    for (uint32_t n = 1; n < HIS_LEVELS; n++)
-        wr_le_u16(_hiscore_table + 2u + 2u * n, 0x0999u);
+    for (uint32_t n = 1; n <= HIS_LEVELS; n++)
+        wr_le_u16(_hiscore_table + 2u * n, 0x0999u);
     for (uint32_t i = 0; i < HIS_TOPN; i++) {
         uint8_t *e = _hiscore_entry(i);
         uint32_t v = _hiscore_default[i].score;
@@ -168,8 +168,8 @@ void hiscore_write(void)
 uint16_t hiscore_best(uint32_t level)
 {
     hiscore_init();
-    if (level >= HIS_LEVELS) return 0x0999u;
-    return rd_le_u16(_hiscore_table + 2u + 2u * level);
+    if (level == 0u || level > HIS_LEVELS) return 0x0999u;
+    return rd_le_u16(_hiscore_table + 2u * level);
 }
 
 /**
@@ -181,8 +181,8 @@ uint16_t hiscore_best(uint32_t level)
 void hiscore_set_best(uint32_t level, uint16_t value)
 {
     hiscore_init();
-    if (level >= HIS_LEVELS) return;
-    wr_le_u16(_hiscore_table + 2u + 2u * level, value);
+    if (level == 0u || level > HIS_LEVELS) return;
+    wr_le_u16(_hiscore_table + 2u * level, value);
 }
 
 /**
@@ -191,6 +191,12 @@ void hiscore_set_best(uint32_t level, uint16_t value)
  * @return The table's entry count.
  */
 uint32_t hiscore_count(void) { return HIS_TOPN; }
+
+/** @brief The on-disk table length (the original's 0x208 = 520 bytes).
+ *
+ * @return the table size
+ */
+uint32_t hiscore_table_size(void) { return HIS_TABLE; }
 
 /**
  * @brief Accessor: one entry's score.
