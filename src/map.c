@@ -544,21 +544,22 @@ static void _map_stage_fill(void)
     _map_stage_ready = 1;
 }
 
-/** @brief the colour of pixel j of the staging page's byte address a: bit j of
- * each plane is the pixel's bit p (the flat `4*address + plane` model).
+/** @brief the colour of pixel j of the staging page's byte address a.
+ *
+ * Measured on the running game (2026-11-05): the four plane bytes at one
+ * address are the four pixels' FULL 8-bit colours, pixel j = plane j - the
+ * page is a plain 320-px row-major image whose 4-pixel groups are split
+ * across the planes.  Dumping plane p while the attract screen was up and
+ * pairing it with the displayed pixel (the DAC read back through 0x3C7/0x3C9)
+ * gave 4546 distinct plane-byte keys with zero inconsistencies; the live band
+ * staging page then decodes to BAND.SPR row-major byte for byte (24320/24320).
  *
  * @param a the staging byte address
  * @param j the pixel within the 4-pixel group
  * @return the colour
  */
 static uint8_t _map_stage_pixel(uint32_t a, uint32_t j)
-{
-    uint8_t c = 0;
-
-    for (uint32_t p = 0; p < 4u; p++)
-        c |= (uint8_t)(((_map_stage[a][p] >> j) & 1u) << p);
-    return c;
-}
+{ return _map_stage[a][j & 3u]; }
 
 /** @brief 1000:0A72: one channel's 8-byte x 40-row strip from the staging page
  * at `phase*0x140` byte addresses into the page at `0x2DB8 + ch*8`.

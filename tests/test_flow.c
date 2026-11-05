@@ -6278,14 +6278,11 @@ int main(int argc, char **argv)
                         uint32_t y = 146u + r;
 
                         for (uint32_t j = 0; j < 4u; j++) {
-                            uint8_t want = 0;
-
-                            for (uint32_t p = 0; p < 4u; p++)
-                                want |=
-                                    (uint8_t)(((map_stage_at(a, p) >> j) & 1u)
-                                              << p);
+                            /* the four plane bytes are the four pixels'
+                             * full colours (measured live, 2026-11-05) */
                             n2++;
-                            if (pg[y * 320u + x + j] != want) bad2++;
+                            if (pg[y * 320u + x + j] != map_stage_at(a, j))
+                                bad2++;
                         }
                     }
             }
