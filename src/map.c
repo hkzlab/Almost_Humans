@@ -90,6 +90,9 @@ static char _map_name_store[NAME_MAX + 2u];
 static char *_map_name = _map_name_store + 1u; /* one byte for 0x756's delete */
 static uint32_t _map_name_len;
 static uint32_t _map_col;
+/* 1000:03FB/0x0405: the fire append waits for the ISR tick counter [0x5AC8]
+ * to reach 0x23 and resets it; the name screen arms it at entry (0x030A). */
+static uint32_t _map_fire_wait;
 /* 1000:05F4/0613: a panel step is 0x14 frames, one [0x8AE] unit per frame. */
 static int32_t _map_step; /* frames left in the current step */
 static int32_t _map_step_dir; /* +1 = up (0x060C), -1 = down (0x05ED) */
@@ -721,6 +724,24 @@ uint16_t map_anim_channel_for_probe(uint32_t ch)
  */
 void map_anim_tick_for_probe(void) { _map_palette_animate(); }
 
+/** @brief Accessor: the name screen's ring cell (the test seam).
+ *
+ * @return the cell (0..29)
+ */
+uint32_t map_name_col_for_probe(void) { return _map_col; }
+
+/** @brief Accessor: the name-entry fire counter (the test seam).
+ *
+ * @return the [0x5AC8] model
+ */
+uint32_t map_name_fire_wait_for_probe(void) { return _map_fire_wait; }
+
+/** @brief Accessor: the typed name buffer (the test seam).
+ *
+ * @return the name string
+ */
+const char *map_name_for_probe(void) { return _map_name; }
+
 /** @brief Accessor: the staging page is filled (the test seam).
  *
  * @return 1 when ready
@@ -1068,35 +1089,55 @@ int32_t map_tick(const InputState *in)
             _map_build_fade(0x20u, 0x20u, 0x46u, 0x60u);
             _map_trans = 6;
             _map_phase = MAP_NAME;
+            _map_fire_wait = 0x23u; /* 1000:030A: [0x5AC8] := 0x23 */
             _map_redraw();
             return 1;
-        default: _map_phase = MAP_NAME; return 1;
+        default:
+            _map_phase = MAP_NAME;
+            _map_fire_wait = 0x23u;
+            return 1;
         }
     }
 
     if (_map_phase == MAP_NAME) {
-        uint32_t column = 0xFFu;
+        if (_map_fire_wait < 0xFFFFu) _map_fire_wait++; /* the [0x5AC8] tick */
 
         if (in->joyBits & 0x04u) { /* left  */
+            /* 1000:03B5..0x03D7: [0x48] += 3 x4, redraw (0x0CBE) each step */
             _map_col = (_map_col + GRID_CELLS - 1u) % GRID_CELLS;
+            _map_redraw();
             return 1;
         }
         if (in->joyBits & 0x08u) { /* right */
+            /* 1000:03DA..0x03F8: [0x48] -= 3 x4, redraw each step */
             _map_col = (_map_col + 1u) % GRID_CELLS;
+            _map_redraw();
             return 1;
         }
-        if (in->joyBits & 0x80u) column = _map_col; /* fire selects the cell */
         if (in->lastKey) {
             uint32_t c = in->lastKey;
+            uint32_t cell = 0xFFu;
 
             if (c >= 'a' && c <= 'z') c -= 32u;
-            if (c >= 'A' && c <= 'Z') column = c - 'A';
-            else if (c == ' ') column = 0x1Au;
-            else if (c == '.') column = 0x1Bu;
-            else if (c == 8u || c == 0x7Fu) column = 0x1Cu; /* delete */
-            else if (c == 13u || c == 10u) column = 0x1Du; /* enter  */
+            if (c >= 'A' && c <= 'Z') cell = c - 'A';
+            else if (c == ' ') cell = 0x1Au;
+            else if (c == '.') cell = 0x1Bu;
+            else if (c == 8u || c == 0x7Fu) cell = 0x1Cu; /* delete */
+            else if (c == 13u || c == 10u) cell = 0x1Du; /* enter  */
+            if (cell != 0xFFu) {
+                /* 1000:039C..0x03B3: the key turns the ring to the cell and
+                 * then falls into the shared append at 0x040B (the typed
+                 * path bypasses the fire debounce). */
+                _map_col = cell;
+                _map_apply(cell);
+                return 1;
+            }
         }
-        if (column != 0xFFu) _map_apply(column);
+        if ((in->joyBits & 0x80u) && _map_fire_wait >= 0x23u) {
+            /* 1000:03FB CMP [0x5AC8],0x23 / 0x0405 reset */
+            _map_fire_wait = 0u;
+            _map_apply(_map_col);
+        }
         return 1;
     }
 

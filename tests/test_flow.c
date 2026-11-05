@@ -6388,8 +6388,55 @@ int main(int argc, char **argv)
                     }
                 }
             }
+            /* D-202 (closed 2026-11-05): left/right move the ring cell and
+             * redraw the page (1000:03B5..0x03F8 call 0x0CBE).  The arrival
+             * cell is 0 (the ring is armed at 'A'). */
+            {
+                static uint8_t before[320u * 200u];
+                uint32_t c0 = map_name_col_for_probe();
+
+                memcpy(before, osys_null_page(0), sizeof before);
+                k.lastKey = 0;
+                k.joyBits = 0x08u; /* right */
+                map_tick(&k);
+                _check(map_name_col_for_probe() == (c0 + 1u) % 30u,
+                       "D-202: right moves the ring one cell");
+                _check(memcmp(before, osys_null_page(0), sizeof before) != 0u,
+                       "D-202: the ring is redrawn after the move");
+                k.joyBits = 0x04u; /* left */
+                map_tick(&k);
+                _check(map_name_col_for_probe() == c0,
+                       "D-202: left moves it back");
+                k.joyBits = 0;
+            }
+            /* D-203 (closed 2026-11-05): the fire append waits for
+             * [0x5AC8] >= 0x23 and resets it (1000:03FB/0x0405); the name
+             * screen arms it at entry, so the first fire appends and the
+             * next immediate one does not. */
+            _check(map_name_fire_wait_for_probe() >= 0x23u,
+                   "D-203: the name screen arms the fire counter");
+            k.joyBits = 0x80u;
+            map_tick(&k);
+            _check(map_name_for_probe()[0] == 'A' &&
+                       map_name_for_probe()[1] == 0,
+                   "D-203: the first fire appends the ring cell");
+            _check(map_name_fire_wait_for_probe() < 0x23u,
+                   "D-203: the fire resets the counter");
+            map_tick(&k); /* a second held frame */
+            _check(map_name_for_probe()[1] == 0,
+                   "D-203: a held fire does not append twice");
+            k.joyBits = 0;
+            k.lastKey = 8u; /* backspace: delete the 'A' */
+            map_tick(&k);
+            _check(map_name_for_probe()[0] == 0,
+                   "D-203: the typed backspace clears it");
+            /* D-201 (closed 2026-11-05): a typed key turns the ring to its
+             * cell and then appends (1000:039C..0x03B3). */
             k.lastKey = 'Q';
             map_tick(&k);
+            _check(map_name_col_for_probe() == 16u &&
+                       map_name_for_probe()[0] == 'Q',
+                   "D-201: the typed letter moves the ring and appends");
             k.lastKey = 'X';
             map_tick(&k);
             k.lastKey = 8u;

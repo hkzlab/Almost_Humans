@@ -39,6 +39,9 @@ void map_palette_reset(void); /* 1000:07B2: shadows + two blits  */
 uint16_t
 map_anim_channel_for_probe(uint32_t ch); /* [0x90]/[0x92]/[0x94]/[0x96] */
 void map_anim_tick_for_probe(void); /* one 1000:09DA frame */
+uint32_t map_name_col_for_probe(void); /* the name ring cell  */
+uint32_t map_name_fire_wait_for_probe(void); /* [0x5AC8] model */
+const char *map_name_for_probe(void); /* the typed name      */
 int32_t map_stage_ready_for_probe(void); /* the staging page is filled */
 uint8_t map_stage_at(uint32_t addr, uint32_t plane); /* 1000:12D3 plane byte */
 
