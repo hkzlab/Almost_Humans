@@ -6336,16 +6336,55 @@ int main(int argc, char **argv)
              * twice, then fades 0..0x3F in.  Drive map_tick + palette_tick. */
             {
                 uint32_t guard = 0;
+                uint32_t step_mid = 0xFFFFFFFFu;
+                uint8_t pal0[768];
+                const uint8_t *work = palette_working();
+                int32_t band_up = 0, table_down = 0;
 
+                memcpy(pal0, osys_null_palette(), sizeof pal0);
                 k.lastKey = 0;
                 while (map_intro_step_for_probe() < 4u && guard++ < 4000u) {
                     map_tick(&k);
                     palette_tick();
+                    if (guard == 0x60u) step_mid = map_intro_step_for_probe();
+                    /* D-217: after the 0x0224 fade has had its 0x1E ticks and
+                     * while 0x0233 still runs, the strips' 0x10..0x1F half is
+                     * at the working palette and the stone table's 0x00..0x0F
+                     * is exactly the incoming DAC. */
+                    if (guard == 0x30u && map_intro_step_for_probe() == 0u) {
+                        const uint8_t *pal = osys_null_palette();
+                        uint32_t bad_lo = 0, bad_hi = 0;
+
+                        for (uint32_t i = 0; i < 0x30u; i++)
+                            bad_lo += pal[i] != pal0[i];
+                        for (uint32_t i = 0; i < 0x30u; i++)
+                            bad_hi += pal[0x30u + i] != work[0x30u + i];
+                        table_down = (bad_lo == 0u);
+                        band_up = (bad_hi == 0u);
+                    }
                 }
                 _check(guard < 4000u && map_intro_step_for_probe() == 4u,
                        "D-206: the opening fade chain reaches the key wait");
+                _check(band_up && table_down,
+                       "D-217: 1000:0224 fades only the strips' 0x10..0x1F");
+                _check(step_mid == 0u,
+                       "D-217: 1000:0233 runs 0x8C animate frames over ticks");
                 _check(map_congrats_draws() == 2u,
                        "1000:0251: the two congratulation passes are drawn");
+                {
+                    const uint8_t *pal = osys_null_palette();
+                    uint32_t bad_t = 0, bad_f = 0;
+
+                    /* D-217: the 0x0273 0x00..0x3F fade lifts the stone table
+                     * (0x00..0x0F) and the congrats ink (0x20..0x2C) together. */
+                    for (uint32_t i = 0; i < 0x30u; i++)
+                        bad_t += pal[i] != work[i];
+                    for (uint32_t i = 0x60u; i < 0x90u; i++)
+                        bad_f += pal[i] != work[i];
+                    _check(
+                        bad_t == 0u && bad_f == 0u,
+                        "D-217: 1000:0273 brings table and font up together");
+                }
                 /* D-211 (closed 2026-11-05): the display strips survive the
                  * 0x024B offscreen copy; the port must redraw all four. */
                 {
@@ -6382,9 +6421,9 @@ int main(int argc, char **argv)
             {
                 uint32_t f = 0, e = 0, d = 0, t = 0;
 
-                _check(map_fade_at(0u, &f, &e, &d, &t) && f == 0x00u &&
-                           e == 0x20u && d == 0x1Eu && t == 0x00u,
-                       "D-212: 1000:0224 fades the whole band 0x00..0x1F in");
+                _check(map_fade_at(0u, &f, &e, &d, &t) && f == 0x10u &&
+                           e == 0x10u && d == 0x1Eu && t == 0x30u,
+                       "D-217: 1000:0224 fades 0x10..0x1F (working+0x30) in");
                 _check(map_fade_at(1u, &f, &e, &d, &t) && f == 0x20u &&
                            e == 0x20u && d == 0x02u,
                        "D-206: 1000:0239 fades 0x20..0x3F to black");

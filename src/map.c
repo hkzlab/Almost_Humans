@@ -112,6 +112,8 @@ static const uint8_t _map_black[768];
 /* 1000:021E..0x0285: the opening's fade/animate steps. */
 #define MAP_INTRO_WAIT 4u
 static uint32_t _map_intro;
+/* 1000:0233's 0x8C palette_animate frames, one per tick (each presents). */
+static uint32_t _map_intro_frames;
 /* the top-ten list's 0x0518 header frames (the 15 outlines) before 0x0577. */
 static uint32_t _map_list_step;
 
@@ -1314,6 +1316,7 @@ int32_t map_begin(void)
     _map_dirty_reset();
     _map_fade_starts = 0u;
     _map_intro = 0u;
+    _map_intro_frames = 0u;
     _map_list_step = 0u;
     g_map_box_bottom = 0x130u; /* 1000:0518's [0x8AE] */
     g_map_panel = 0u; /* 0 = the entry animation */
@@ -1326,7 +1329,7 @@ int32_t map_begin(void)
          * colours fade in (the rest of the DAC is still the previous page's). */
         _map_page_copy(page);
         map_palette_reset(); /* 0x0221 */
-        _map_build_fade(0x00u, 0x20u, 0x1Eu, 0x00u); /* 0x0224, whole band */
+        _map_build_fade(0x10u, 0x10u, 0x1Eu, 0x30u); /* 0x0224 */
     }
 
     _map_up = 1;
@@ -1420,9 +1423,11 @@ int32_t map_tick(const InputState *in)
          * black, high.bit again, the text twice, then the 0..0x3F fade in. */
         switch (_map_intro) {
         case 0:
-            if (palette_fade_active()) return 1;
-            for (uint32_t i = 0; i < 0x8Cu; i++)
-                _map_palette_animate(); /* 0x0233 */
+            /* 1000:0233: 0x8C palette_animate frames, one present per tick.
+             * The 0x0224 fade (0x10..0x1F) steps inside them, so the band
+             * strips fade in while the stone table is still black. */
+            _map_intro_frames++;
+            if (_map_intro_frames < 0x8Cu) return 1;
             _map_build_fade_to(0x20u, 0x20u, 2u, _map_black,
                                0xFFFFu); /* 0x0239 */
             _map_intro = 1u;
