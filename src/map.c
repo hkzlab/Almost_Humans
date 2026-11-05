@@ -23,9 +23,9 @@
  * `NAME:` line.  The visible page is `lbm\high.bit`; the four animated band
  * strips live on the display (`1000:0A72`) and `_map_draw_strips` restores
  * them after the `0x024B` offscreen copy.  The top-ten list keeps high.bit
- * behind the rows; the five frame bands still read `apl\band.spr`, while the
- * listing's `0x0874` reads the offscreen row page (D-219: the one-page model
- * cannot keep the display and the row page apart).  The name-entry transition follows
+ * behind the rows: `map_draw_list` fills the offscreen page (`0x0577`/
+ * `0x0595`) and the five frame bands (`0x07E6`) copy its masked 4-pixel
+ * groups into the display (D-219).  The name-entry transition follows
  * 1000:028C..030A: five palette fades, the HIGH.BIT re-copy and the two
  * 1000:1251 outlines.  The six `[0x8A2]` positions are not content panels:
  * they are 0x14-frame scroll steps of the same band.
@@ -57,6 +57,7 @@ enum {
     MAP_CONGRATS,
     MAP_NAME_FADE,
     MAP_NAME,
+    MAP_ENTER, /* 1000:049A..0x0516: the spin + white fade after Enter */
     MAP_LIST_HEADER,
     MAP_LIST,
     MAP_EXIT
@@ -116,6 +117,12 @@ static uint32_t _map_intro;
 static uint32_t _map_intro_frames;
 /* the top-ten list's 0x0518 header frames (the 15 outlines) before 0x0577. */
 static uint32_t _map_list_step;
+/* 1000:049A..0x0516: the Enter spin, the white ramp and the two fades. */
+static uint32_t _map_enter_phase; /* 0 = to white, 1 = back to working */
+static uint32_t _map_enter_bx; /* the 0x04B9/0x0515 counter */
+static uint8_t _map_white[0xC0]; /* the 0x48BC ramp during the spin */
+/* 1000:0577/0x0595: the offscreen list page (cleared, then the rows). */
+static uint8_t _map_off[MAP_PAGE];
 
 /* 1000:048/0x04A: the ring angle and its per-draw step.  `_map_col` is the
  * cell index derived from the angle (`(0x10E - angle) / 0x0C`). */
@@ -645,6 +652,26 @@ static void _blit_four(uint8_t *page, uint32_t row, uint32_t col, uint32_t v,
     }
 }
 
+/** @brief The offscreen page's 4-pixel group at an 80-byte address.
+ *
+ * `1000:0874` reads the page at `[0x8AE]*80 + 6` one byte (four pixels) at a
+ * time; the offscreen page is stored flat here, so pack the four pixels'
+ * low bits back into the source byte the way `_blit_four` consumes it.
+ *
+ * @param a the 80-byte page address
+ * @return the four pixels as bits 0..3
+ */
+static uint32_t _map_off_byte(uint32_t a)
+{
+    uint32_t row = a / 80u, col = (a % 80u) * 4u;
+    uint32_t v = 0;
+
+    if (row >= 200u) return 0u;
+    for (uint32_t p = 0; p < 4u; p++)
+        v |= (uint32_t)(_map_off[row * 320u + col + p] & 1u) << p;
+    return v;
+}
+
 /**
  * @brief One blit-row pass: the three runs and their gaps.
  *
@@ -660,7 +687,7 @@ static void _blit_runs(uint8_t *page, uint32_t *d, uint32_t *s, uint32_t mask)
 
     for (uint32_t k = 0; k < 3u; k++) {
         for (uint32_t n = 0; n < runs[k]; n++) {
-            uint32_t v = _band_sheet[*s % 24320u];
+            uint32_t v = _map_off_byte(*s);
             uint32_t row = (*d / 80u), col = (*d % 80u);
 
             if (row < 200u) _blit_four(page, row, col, v, mask);
@@ -691,11 +718,10 @@ static void _map_blit_row(uint8_t *page, uint32_t dstByte, uint32_t srcByte,
 /**
  * @brief 1000:07E6: the five frame bands from band row `[0x8AE]`.
  *
- * Each band reads `[0x8AE]*80 + 6` and advances 0x640 per box.  The listing's
- * `0x0874` source is the page at `[0x8A4]` (the offscreen page `0x0577` cleared
- * and `0x0595` filled with the rows), not `apl\band.spr`; the port's one-page
- * model cannot keep the display and the row page apart, so this reads the band
- * sheet instead — D-219 in `port_deviations.md`.
+ * Each band reads `[0x8AE]*80 + 6` from the offscreen page (`0x0577` cleared
+ * it and `0x0595` filled it with the rows; `0x0874` sets `DS = [0x8A4]`) and
+ * advances 0x640 per box, writing the masked 4-pixel groups into the display
+ * at `A000:[0x5AC4]`.
  *
  * @param page the page buffer
  * @param row the source row ([0x8AE])
@@ -975,6 +1001,24 @@ const char *map_name_for_probe(void) { return _map_name; }
  */
 uint32_t map_intro_step_for_probe(void) { return _map_intro; }
 
+/** @brief Accessor: the Enter sequence's phase (the test seam).
+ *
+ * @return 0 = fading to white, 1 = fading back, 2 = the header is up
+ */
+uint32_t map_enter_step_for_probe(void) { return _map_enter_phase; }
+
+/** @brief Accessor: the Enter spin's BX counter (the test seam).
+ *
+ * @return the 0x04B9/0x0515 counter
+ */
+uint32_t map_enter_bx_for_probe(void) { return _map_enter_bx; }
+
+/** @brief Accessor: the offscreen list page (the test seam).
+ *
+ * @return the 1000:8A4-style page buffer
+ */
+uint8_t *map_off_page_for_probe(void) { return _map_off; }
+
 /** @brief Accessor: the ring angle [0x48] (the test seam).
  *
  * @return the angle
@@ -1030,19 +1074,18 @@ uint8_t map_stage_at(uint32_t addr, uint32_t plane)
  * x=0x82, the 32-bit score at x=0x102, row pitch [0x36]=0x14 from base
  * [0x38]=0.
  *
- * `1000:0577` clears the offscreen page; the displayed page keeps the
- * high.bit stone, so the port resets to high.bit here (this also removes the
- * transition's 15 outlines and title) and then draws the rows over it.
+ * `1000:0577` clears the **offscreen** page and `0x0595` draws the rows into
+ * it; the displayed page keeps high.bit + the header.  The frame bands
+ * (`0x07E6`) copy from this page into the display.
  *
- * @param page the page buffer
+ * @param page the offscreen page buffer
  */
 void map_draw_list(uint8_t *page)
 {
     uint32_t row = 0u;
 
     if (!page) return;
-    _map_page_copy(
-        page); /* 1000:0577 on the offscreen page; display = high.bit */
+    memset(page, 0, MAP_PAGE); /* 1000:0577 */
     for (uint32_t i = 0; i < hiscore_count(); i++) {
         char buf[24];
 
@@ -1231,9 +1274,10 @@ static void _map_redraw(void)
     uint8_t *page = video_page(0);
 
     if (!page) return;
-    if (_map_phase == MAP_NAME) map_draw_name(page);
+    if (_map_phase == MAP_NAME || _map_phase == MAP_ENTER) map_draw_name(page);
     else if (_map_phase == MAP_LIST) {
-        map_draw_list(page);
+        /* 1000:05A5/05F8/0617: only the frame bands; the rows stay in the
+         * offscreen page and the display keeps high.bit + the header. */
         map_draw_box_edges(page, g_map_box_bottom);
     }
 }
@@ -1317,6 +1361,9 @@ int32_t map_begin(void)
     _map_intro = 0u;
     _map_intro_frames = 0u;
     _map_list_step = 0u;
+    _map_enter_phase = 0u;
+    _map_enter_bx = 0u;
+    memset(_map_off, 0, sizeof _map_off);
     g_map_box_bottom = 0x130u; /* 1000:0518's [0x8AE] */
     g_map_panel = 0u; /* 0 = the entry animation */
     _map_step = 0;
@@ -1352,10 +1399,33 @@ static void _map_list_begin(void)
 
     _map_phase = MAP_LIST_HEADER;
     _map_list_step = 0u;
+    _map_enter_phase = 2u; /* the test seam: the Enter spin is over */
     if (!page) return;
     _map_page_copy(page); /* 0x0526 */
     map_draw_list_header(page); /* 0x052F..0x054E */
     if (_map_stage_ready) map_palette_reset(); /* 0x053B */
+    /* 0x055E: the working palette is reloaded from high.bit, then 0x0568
+     * fades 0x20..0x5F to it before the rows' box unroll starts. */
+    if (_map_high && _map_high_size >= MAP_PAGE + 768u)
+        palette_load_working(_map_high + MAP_PAGE);
+    _map_build_fade(0x20u, 0x40u, 0x1Eu, 0x60u); /* 0x0568 */
+}
+
+/** @brief 1000:049A..0x0516: the Enter spin, white ramp and two fades.
+ *
+ * `0x049A` fills the 0x48BC ramp with 0x3F (white) and `0x04B4` fades palette
+ * 0x20..0x5F to it; `0x04BC` spins the wheel until that fade ends.  `0x04EA`
+ * then copies working[0x60..0x7F] into the ramp twice and `0x050E` fades
+ * 0x20..0x5F back to the working palette; the spin continues until it ends,
+ * then `0x0518` draws the header.
+ */
+static void _map_enter_begin(void)
+{
+    memset(_map_white, 0x3Fu, sizeof _map_white); /* 0x049A */
+    _map_build_fade_to(0x20u, 0x40u, 0x64u, _map_white, 0xFFFFu); /* 0x04B4 */
+    _map_enter_phase = 0u;
+    _map_enter_bx = 1u;
+    _map_phase = MAP_ENTER;
 }
 
 /**
@@ -1369,9 +1439,9 @@ static int32_t _map_apply(uint32_t column)
     uint32_t n0 = _map_name_len;
 
     if (hiscore_name_apply(_map_name, column, &_map_name_len)) {
-        /* 0x1D: commit the 14-byte name and insert */
+        /* 0x1D: commit the 14-byte name and insert, then 0x049A's spin. */
         hiscore_insert(_map_score(), _map_name);
-        _map_list_begin();
+        _map_enter_begin();
         return 1;
     }
     if (column != 0x1Cu) {
@@ -1592,17 +1662,44 @@ int32_t map_tick(const InputState *in)
         return 1;
     }
 
-    if (_map_phase == MAP_LIST_HEADER) {
-        /* 1000:0577: clear the page (the 15 outlines' lifetime ends here),
-         * then 0x0595's rows and the 0x12E-frame box animation. */
-        _map_list_step++;
-        if (_map_list_step == 1u) {
-            _map_redraw(); /* the header page is presented for one frame */
+    if (_map_phase == MAP_ENTER) {
+        /* 1000:04BC: step = min(BX/8, 0x10), the ring turns left and the
+         * 0x0224-style present happens every frame. */
+        uint32_t step = _map_enter_bx / 8u;
+
+        if (step > 0x10u) step = 0x10u;
+        _map_angle = (_map_angle + 0x168u - step) % 0x168u;
+        _map_col = _map_col_from_angle();
+        _map_redraw(); /* 0x0CBE */
+        if (palette_fade_active()) {
+            _map_enter_bx++;
             return 1;
         }
-        uint8_t *page = video_page(0);
+        if (_map_enter_phase == 0u) {
+            /* 0x04EA: the 0x60-byte working[0x60..0x7F] block, twice */
+            memcpy(_map_white, palette_working() + 0x120u, 0x60u);
+            memcpy(_map_white + 0x60u, palette_working() + 0x120u, 0x60u);
+            _map_build_fade_to(0x20u, 0x40u, 0x3Cu, _map_white,
+                               0xFFFFu); /* 0x050E */
+            _map_enter_phase = 1u;
+            _map_enter_bx++;
+            return 1;
+        }
+        _map_list_begin(); /* 0x0518 */
+        return 1;
+    }
 
-        if (page) map_draw_list(page); /* 0x0577 + 0x0595 */
+    if (_map_phase == MAP_LIST_HEADER) {
+        /* 0x053E/0x0558: the title's two draws; 0x0577/0x0595: the rows into
+         * the offscreen page; 0x0598: wait for the 0x0568 fade; 0x059B: the
+         * 0x12E-frame box unroll. */
+        _map_list_step++;
+        if (_map_list_step <= 2u) return 1;
+        if (_map_list_step == 3u) {
+            map_draw_list(_map_off); /* 0x0577 + 0x0595 */
+            return 1;
+        }
+        if (palette_fade_active()) return 1; /* 0x0598 */
         g_map_box_bottom = 0x130u; /* 0x059B */
         g_map_panel = 0u;
         _map_step = 0;

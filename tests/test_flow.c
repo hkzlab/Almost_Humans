@@ -6632,9 +6632,80 @@ int main(int argc, char **argv)
                     found = 1;
             _check(found, "the typed name and the total reach the table");
 
-            /* draw_score_block (1000:0651): rank/name/score are centred at
-             * 0x20/0x82/0x102, pitch 0x14 from base 0; the rows are drawn
-             * over the high.bit stone (the display page), not on black. */
+            /* D-218 (closed 2026-11-05): 1000:049A..0x0516.  Enter first
+             * fades palette 0x20..0x5F to white (div 0x64) while the wheel
+             * spins, then back to working[0x60..0x7F] (div 0x3C); only then
+             * 0x0518's header is drawn. */
+            {
+                uint32_t f = 0, e = 0, d = 0, t = 0;
+                uint32_t guard = 0, a0 = map_name_angle_for_probe();
+                uint32_t white_ok = 0, back_ok = 0;
+
+                _check(
+                    map_fade_starts() != 0u &&
+                        map_fade_at(map_fade_starts() - 1u, &f, &e, &d, &t) &&
+                        f == 0x20u && e == 0x40u && d == 0x64u,
+                    "D-218: 1000:04B4 fades 0x20..0x5F to white (0x64)");
+                /* BX starts at 1: the first frames step 0, then 1..0x10 */
+                for (uint32_t i = 0; i < 12u; i++) {
+                    k.lastKey = 0;
+                    map_tick(&k);
+                    palette_tick();
+                }
+                _check(map_name_angle_for_probe() != a0,
+                       "D-218: the wheel spins during the white fade");
+                /* Capture the DAC on the tick the fade went inactive, before
+                 * the following map_tick starts the next phase. */
+                while (map_enter_step_for_probe() == 0u && guard++ < 600u) {
+                    if (!palette_fade_active()) {
+                        const uint8_t *pal = osys_null_palette();
+                        uint32_t bad = 0;
+
+                        for (uint32_t i = 0x20u; i < 0x60u; i++)
+                            if (pal[i * 3] != 0x3Fu ||
+                                pal[i * 3 + 1] != 0x3Fu ||
+                                pal[i * 3 + 2] != 0x3Fu)
+                                bad++;
+                        white_ok = (bad == 0u);
+                        map_tick(&k); /* the phase-1 transition */
+                        break;
+                    }
+                    map_tick(&k);
+                    palette_tick();
+                }
+                _check(white_ok, "D-218: 1000:04B4 reaches white");
+                _check(map_fade_at(map_fade_starts() - 1u, &f, &e, &d, &t) &&
+                           f == 0x20u && e == 0x40u && d == 0x3Cu,
+                       "D-218: 1000:050E fades 0x20..0x5F back (0x3C)");
+                guard = 0;
+                while (map_enter_step_for_probe() == 1u && guard++ < 600u) {
+                    if (!palette_fade_active()) {
+                        const uint8_t *pal = osys_null_palette();
+                        const uint8_t *work = palette_working();
+                        uint32_t bad = 0;
+
+                        for (uint32_t i = 0; i < 0x40u; i++) {
+                            uint32_t w = 0x120u + (i % 0x20u) * 3u;
+
+                            if (pal[0x20u * 3u + i * 3u] != work[w] ||
+                                pal[0x20u * 3u + i * 3u + 1u] != work[w + 1u] ||
+                                pal[0x20u * 3u + i * 3u + 2u] != work[w + 2u])
+                                bad++;
+                        }
+                        back_ok = (bad == 0u);
+                        map_tick(&k); /* the header transition */
+                        break;
+                    }
+                    map_tick(&k);
+                    palette_tick();
+                }
+                _check(back_ok && map_enter_step_for_probe() == 2u,
+                       "D-218: 1000:050E returns to working 0x60..0x7F");
+            }
+
+            /* draw_score_block (1000:0651) writes the rows into the
+             * **offscreen** page (0x0577 clears it first); the display keeps
+             * high.bit + the header (D-219). */
             {
                 static uint8_t page[320 * 200];
                 static uint8_t high[320 * 200];
@@ -6649,11 +6720,10 @@ int main(int argc, char **argv)
                     hn = fread(high, 1, sizeof high, hf);
                     fclose(hf);
                 }
-                memset(page, 0, sizeof page);
-                map_draw_list(page);
-                _check(hn == sizeof high &&
-                           page[150u * 320u + 300u] == high[150u * 320u + 300u],
-                       "D-215: the list keeps the high.bit background");
+                memset(page, 0xFF, sizeof page);
+                map_draw_list(page); /* the offscreen page */
+                _check(page[150u * 320u + 300u] == 0u,
+                       "D-219: 1000:0577 clears the offscreen list page");
                 for (uint32_t k = 0; k < 10u; k++) {
                     uint32_t y = k * 0x14u;
                     for (uint32_t c = 0; c < 3u; c++) {
@@ -6661,12 +6731,8 @@ int main(int argc, char **argv)
 
                         for (uint32_t r = 4u; r < 14u; r++)
                             for (uint32_t x = cx[c] - 16u; x <= cx[c] + 16u;
-                                 x++) {
-                                uint32_t i = (y + r) * 320u + x;
-
-                                if (hn == sizeof high && page[i] != high[i])
-                                    n++;
-                            }
+                                 x++)
+                                if (page[(y + r) * 320u + x]) n++;
                         _check(n != 0u,
                                "1000:0651: rank/name/score ink at the column");
                     }
@@ -6674,16 +6740,23 @@ int main(int argc, char **argv)
                 {
                     uint32_t n = 0;
 
-                    /* the header's right part ("...TRIBES") reaches x≈0xF0;
-                     * row 1's name ends near 0xB4 and the score starts at
-                     * 0x102, so this window is header-only. */
                     for (uint32_t r = 4u; r < 14u; r++)
-                        for (uint32_t x = 0xC0u; x < 0xF0u; x++) {
-                            uint32_t i = (0x14u + r) * 320u + x;
+                        for (uint32_t x = 0xC0u; x < 0xF0u; x++)
+                            if (page[(0x14u + r) * 320u + x]) n++;
+                    _check(n == 0u, "D-219: the offscreen page has no header");
+                }
+                /* D-218: the display page is still high.bit + the title */
+                {
+                    const uint8_t *disp = osys_null_page(0);
+                    uint32_t ink = 0;
 
-                            if (hn == sizeof high && page[i] != high[i]) n++;
-                        }
-                    _check(n == 0u, "1000:0577: the final list has no header");
+                    for (uint32_t r = 4u; r < 14u; r++)
+                        for (uint32_t x = 0x80u; x <= 0xC0u; x++)
+                            if (disp[(0x14u + r) * 320u + x] & 0x20u) ink++;
+                    _check(hn == sizeof high && ink != 0u &&
+                               disp[150u * 320u + 300u] ==
+                                   high[150u * 320u + 300u],
+                           "D-218: the header keeps high.bit and the title");
                 }
                 /* D-98 (closed 2026-11-05): the 15 outlines live only on the
                  * 0x0518 header frames, before 0x0577 clears the page. */
@@ -6849,7 +6922,10 @@ int main(int argc, char **argv)
             uint32_t guard = 0;
 
             k.lastKey = 0;
-            while (g_map_panel == 0u && guard++ < 1000u) map_tick(&k);
+            while (g_map_panel == 0u && guard++ < 2000u) {
+                map_tick(&k);
+                palette_tick();
+            }
             _check(guard >= 0x12Eu && g_map_box_bottom == 2u &&
                        g_map_panel == 1u,
                    "1000:0518: the frame unrolls from row 0x130 to row 2");
@@ -6893,8 +6969,8 @@ int main(int argc, char **argv)
         /* 1000:07E6: the five frame rows, at rows 46/66/86/106/126 (the
          * 0xE66/0x14A6/0x1AE6/0x2126/0x2766 offsets on an 80-byte stride),
          * each a 14-row band built from the 4/+7/31/+9/15/+0xE runs.  The
-         * source is the band sheet; write mode 2 + the box's Bit Mask
-         * sets/clears only the masked colour bits, so the page survives. */
+         * source is the offscreen page (1000:0874's DS=[0x8A4]); write mode
+         * 2 + the box's Bit Mask sets/clears only the masked colour bits. */
         {
             static uint8_t page[320 * 200];
             static const uint32_t dstByte[5] = { 0xE66u, 0x14A6u, 0x1AE6u,
@@ -6903,20 +6979,27 @@ int main(int argc, char **argv)
                                                0x30u };
             static const uint32_t runN[3] = { 4u, 31u, 15u };
             static const uint32_t gapN[3] = { 7u, 9u, 0x0Eu };
+            uint8_t *off = map_off_page_for_probe();
             uint32_t checked = 0, bad = 0, stray = 0;
 
+            /* every 4-pixel group is (1,0,1,0), so the packed source byte
+             * is 0x05 for every in-range address */
+            memset(off, 0, 320u * 200u);
+            for (uint32_t y = 0; y < 200u; y++)
+                for (uint32_t x = 0; x < 320u; x += 4u) {
+                    off[y * 320u + x] = 1u;
+                    off[y * 320u + x + 2u] = 1u;
+                }
             memset(page, 0x08, sizeof page);
             map_draw_box_edges(page, 2u);
             for (uint32_t k = 0; k < 5u; k++) {
                 uint32_t d = dstByte[k];
-                uint32_t s = 2u * 80u + 6u + k * 0x640u;
                 uint32_t M = masks[k];
 
                 for (uint32_t it = 0; it < 14u; it++)
                     for (uint32_t r = 0; r < 3u; r++) {
                         for (uint32_t n = 0; n < runN[r]; n++) {
-                            uint32_t a = s % 24320u;
-                            uint32_t v = map_stage_at(a / 4u, a % 4u);
+                            uint32_t v = 0x05u;
                             uint32_t row = d / 80u, col = d % 80u;
 
                             for (uint32_t p = 0; p < 4u; p++) {
@@ -6929,10 +7012,8 @@ int main(int argc, char **argv)
                                 checked++;
                             }
                             d++;
-                            s++;
                         }
                         d += gapN[r];
-                        s += gapN[r];
                     }
             }
             for (uint32_t y = 0; y < 200u; y++)
@@ -6944,9 +7025,8 @@ int main(int argc, char **argv)
                             in = 1;
                     if (!in && page[y * 320u + x] != 0x08u) stray++;
                 }
-            _check(
-                checked != 0u && bad == 0u,
-                "D-210: the frame blends the band sheet's bits over the page");
+            _check(checked != 0u && bad == 0u,
+                   "D-219: the frame blends the offscreen page's bits");
             _check(stray == 0u, "D-210: the frame writes only the five bands");
         }
         _flow_dump_ppm("map_frame.ppm", video_page(0));

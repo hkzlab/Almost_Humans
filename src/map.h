@@ -30,7 +30,7 @@ int32_t map_fade_at(uint32_t i, uint32_t *first, uint32_t *entries,
                     uint32_t *div, uint32_t *target);
 void map_draw_name(uint8_t *page); /* 1000:0CBE (ring + typed)   */
 
-/* --- the MAP screen's frame (apl\band.spr, 1000:12D3/0874/07E6) --------- */
+/* --- the MAP screen's frame (the offscreen row page, 1000:0577/0595/0874/07E6) */
 extern uint32_t g_map_box_bottom; /* [0x8AE]                    */
 extern uint32_t g_map_panel; /* [0x8A2]: 1..6              */
 
@@ -44,6 +44,9 @@ uint32_t map_name_col_for_probe(void); /* the name ring cell  */
 uint32_t map_name_angle_for_probe(void); /* the ring angle [0x48] */
 void map_name_set_angle_for_probe(uint32_t angle); /* the erase check */
 uint32_t map_intro_step_for_probe(void); /* the opening step   */
+uint32_t map_enter_step_for_probe(void); /* the Enter phase    */
+uint32_t map_enter_bx_for_probe(void); /* the Enter spin BX  */
+uint8_t *map_off_page_for_probe(void); /* the offscreen page */
 int32_t map_glyph_for_probe(uint32_t i, int32_t *tx, int32_t *ty, int32_t *cx,
                             int32_t *cy); /* the [0x596] entry  */
 uint32_t map_name_fire_wait_for_probe(void); /* [0x5AC8] model */
