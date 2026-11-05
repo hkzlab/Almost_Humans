@@ -583,6 +583,56 @@ int main(int argc, char **argv)
         }
     }
 
-    if (!bad) printf("scene tests: OK (6 checks)\n");
+    /* D-105 (closed 2026-11-05): the headline block's string 9 at
+     * 202F:0x6416 is EMPTY.  1000:B0C1 walks to the (index+1)-th NUL, so
+     * scene 8 draws no headline and scene 9 draws "HUMANS RECOVER THE STOLEN
+     * IDOL!".  Both ANIs ship (index 8 -> disc 2, index 9 -> disc 2). */
+    {
+        uint32_t dsz = 0;
+        snprintf(path, sizeof path, "%s/HUMANS.002/LBM/DAILY.BIT", fix_abs);
+        uint8_t *daily = _read_file(path, &dsz);
+        if (!daily || dsz < 64000u) {
+            fprintf(stderr, "FAIL D-105: DAILY.BIT unreadable\n");
+            bad = 1;
+        } else {
+            static const uint32_t idx[2] = { 8u, 9u };
+            static const uint32_t want_ink[2] = { 0u, 1u };
+
+            for (uint32_t k = 0; k < 2u; k++) {
+                scene_reset_intro();
+                if (scene_play_level_intro(idx[k]) != 1) {
+                    fprintf(stderr, "FAIL D-105: scene %u did not start\n",
+                            idx[k]);
+                    bad = 1;
+                    continue;
+                }
+                {
+                    const uint8_t *page = osys_null_page(0);
+                    uint32_t ink = 0;
+
+                    for (uint32_t y = 0x45u; y <= 0x4Eu; y++)
+                        for (uint32_t x = 0; x < 320u; x++) {
+                            uint32_t at = y * 320u + x;
+
+                            if (page[at] == (uint8_t)(daily[at] | 0x10u) &&
+                                page[at] != daily[at])
+                                ink++;
+                        }
+                    if ((ink != 0u) != (want_ink[k] != 0u)) {
+                        fprintf(stderr,
+                                "FAIL D-105: scene %u headline ink %u "
+                                "(want %s)\n",
+                                idx[k], ink, want_ink[k] ? "drawn" : "blank");
+                        bad = 1;
+                    }
+                }
+            }
+            /* the ending scene (6) the previous block left behind */
+            scene_reset_intro();
+        }
+        free(daily);
+    }
+
+    if (!bad) printf("scene tests: OK (7 checks)\n");
     return bad;
 }

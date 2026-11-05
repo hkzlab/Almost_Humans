@@ -17,7 +17,6 @@ void alpha_expand(const uint8_t *src, uint8_t *dst);
 void alpha_cell(uint32_t cell, uint32_t angle, uint32_t *src, uint32_t *dst);
 void alpha_draw_wheel(uint8_t *page, uint32_t base);
 void alpha_draw_name(uint8_t *page, const char *name);
-void map_band_fill(uint8_t *page); /* 1000:12D3                  */
 void map_draw_box_edges(uint8_t *page, uint32_t row); /* 1000:07E6    */
 void map_draw_list(uint8_t *page); /* draw_score_block 1000:0651 */
 void map_draw_congrats(uint8_t *page); /* 1000:021E..0266            */

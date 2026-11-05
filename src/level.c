@@ -596,16 +596,18 @@ static void _spark_step(void)
 }
 
 /** @brief `1000:3F4A`'s per-frame particle draw, in the flat model: `DI = y*0x58 +
- * (x>>2) + [0x5AC4]`, plane `x & 3`, one `STOSB` per cell.  The original
- * writes into its 512x320 page with no clip; the flat page is 320x200, so this
- * clips to the window.  `0x4073` (the expired cell's paint into the 0x12-wide
- * scratch strip) is a separate routine - see D-132 in port_deviations.md.
+ * (x>>2) + [0x5AC4]`, plane `x & 3`, one `STOSB` of the cell's shade per cell.
+ * The original writes into its 512x320 page with no clip; the flat page is
+ * 320x200, so this clips to the window.  A plane byte is one pixel colour under
+ * the port's `4*address + plane` mapping (D-04), so the write is a full byte,
+ * not a bit scatter.  `0x4073` (the expired cell's paint into the 0x12-wide
+ * scratch strip) is a separate routine - see D-132.
  */
 static void _spark_draw(void)
 {
     for (uint32_t i = 0; i < 0x58u; i++) {
         int32_t sx, sy;
-        uint32_t plane, addr, base;
+        uint32_t plane, addr;
 
         if (!_spark[i].live || _spark[i].value == 0u) continue;
         sx = (int32_t)_spark[i].x - (int32_t)_view_x;
@@ -613,14 +615,10 @@ static void _spark_draw(void)
         if (sx < 0 || sx >= (int32_t)VIEW_W || sy < 0 || sy >= (int32_t)VIEW_H)
             continue;
         plane = (uint32_t)sx & 3u;
-        base = (uint32_t)sx & ~3u;
         addr = (uint32_t)sy * 88u + ((uint32_t)sx >> 2);
-        for (uint32_t k = 0; k < 4u; k++) {
-            uint8_t bit = (uint8_t)(((_spark[i].value >> k) & 1u) << plane);
-            uint8_t *px = &_lvl_plane[addr][(base + k) & 3u];
-
-            *px = (uint8_t)((*px & (uint8_t)~(1u << plane)) | bit);
-        }
+        /* 1000:3F9C MOV AL,[SI+1] / STOSB: the whole shade byte into the
+         * plane selected by Map Mask 1 << (x & 3). */
+        _lvl_plane[addr][plane] = _spark[i].value;
     }
 }
 
@@ -1942,6 +1940,14 @@ void level_add_member(void)
 {
     if (_tribe_members < 0xFFu) _tribe_members++;
 }
+
+/**
+ * @brief 1000:41E6 (check_highscore): store the odometer + live-record recount
+ * into [0x11FC].
+ *
+ * @param n the recounted member count
+ */
+void level_set_members(uint32_t n) { _tribe_members = n; }
 
 /** @brief level_restore (1000:35AF): the members go back to the level's own start
  * value, then level_start re-picks the time (the port re-runs level_load, so

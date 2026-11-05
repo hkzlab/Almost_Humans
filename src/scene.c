@@ -165,8 +165,11 @@ static const uint8_t _scene_chain_table[10] = { 0, 1, 2, 3, 8, 5, 6, 7, 4, 9 };
  * 0xE00-byte apl\scoops.apl block drawn as the cutscene background. */
 static const uint8_t _scene_bg_table[10] = { 1, 2, 3, 4, 5, 6, 8, 0, 5, 7 };
 
-/* 202F:0x6304 — the panel's "scoop" headlines, one per scene index (the
- * 10th is empty).  Drawn centred at 0xA0, row 0x41, colour 0x10. */
+/* 202F:0x6304 — the panel's "scoop" headlines: string N+1 of the block at
+ * 202F:0x6305 for scene index N (1000:B0C1 scans N+1 NULs forward).  String 9
+ * (202F:0x6416) is the empty one, so scene 8 draws nothing and scene 9 prints
+ * "HUMANS RECOVER THE STOLEN IDOL!".  Drawn centred at 0xA0, row 0x41,
+ * colour 0x10. */
 static const char *const _scene_headline[10] = {
     "HUMANS INVENT WEAPON! THE SPEAR!",
     "HUMANS RESCUE BABY DINOSAUR!",
@@ -176,8 +179,8 @@ static const char *const _scene_headline[10] = {
     "UNIDENTIFIED FLYING HUMAN SPOTTED!",
     "HUMANS FAIL IN RACE FOR EVOLUTION!",
     "HUMANS WIN THE RACE FOR EVOLUTION!",
-    "HUMANS RECOVER THE STOLEN IDOL!",
-    ""
+    "",
+    "HUMANS RECOVER THE STOLEN IDOL!"
 };
 
 static const OSystem *_scene_osys;

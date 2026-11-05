@@ -181,11 +181,17 @@ uint16_t score_level_term_for_probe(void) { return _score_level_term; }
 static void _score_terms(void)
 {
     uint32_t levelNo = gameflow_level_for_probe() + 1u;
+    uint32_t members = score_members();
+
+    /* 1000:41E6: the recount is STORED into [0x11FC] before the terms use it
+     * (1000:41EA `MUL word [0x11FC]`).  Nothing else in the image decrements
+     * the tribe per death, so this store is what tightens the next level's
+     * "need N humans" gate and the bar's spare count (D-106). */
+    level_set_members(members);
 
     /* 1000:41F6 is an ADD: [0x1DCA] also carries whatever the handler-4
      * steps (1000:C9B9) added during play, so the term accumulates. */
-    _score_level_term =
-        (uint16_t)(_score_level_term + levelNo * score_members() * 10u);
+    _score_level_term = (uint16_t)(_score_level_term + levelNo * members * 10u);
     for (uint32_t i = 0; i < object_static_slots(); i++) {
         uint32_t cell = object_record_map_cell(i);
 

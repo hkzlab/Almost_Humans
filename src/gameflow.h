@@ -63,6 +63,9 @@ uint32_t gameflow_level_for_probe(void);
 GameFlow gameflow_pause_action(int32_t choice, int32_t *quit);
 uint32_t gameflow_party_score(void); /* the briefing's [0x592] low word */
 int32_t gameflow_party_pending(void); /* a restart leaves the party to run */
+/* 1000:35AF/35CA: 1 while a RESTART THIS LEVEL's fade to black runs; the
+ * level reloads and the party screen starts when it returns 0. */
+int32_t gameflow_restart_fade_tick(void);
 const char *gameflow_party_tribe(void); /* 0x1189: the level's author   */
 /* scan_id_list 1000:386E event 4: ESC opens the 0x5BBC pause block. */
 /* scan_id_list 1000:386E: the DS:0x1989 key list.  Handles ESC (the 0x5BBC

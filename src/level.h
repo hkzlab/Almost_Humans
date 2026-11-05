@@ -107,6 +107,10 @@ uint32_t level_required(void);
 uint32_t level_goal_count(void); /* [0x17F0]: the goal scan's threshold */
 uint32_t level_members(void);
 void level_add_member(void); /* 1000:DE1F: [0x11FC]++ */
+/* 1000:41E6 (check_highscore): [0x11FC] := the odometer + live-record recount.
+ * The only per-level write besides the difficulty pick/restore/join; the port's
+ * earlier per-death decrement is not in the image. */
+void level_set_members(uint32_t n);
 
 /* level_restore (1000:35AF): [0x11FC] := [0x1970] — the members the level
  * started with, before the level's own joins (level_start 1000:3032 then

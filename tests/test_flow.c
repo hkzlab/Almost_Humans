@@ -567,14 +567,17 @@ int main(int argc, char **argv)
 
                         if (px < 320u && py < 200u) {
                             seen = 1;
-                            bitOK = (((pg[py * 320u + px] >> (px & 3u)) & 1u) ==
-                                     ((sv >> (px & 3u)) & 1u));
+                            /* D-199 (closed 2026-11-05): 1000:3F9C writes the
+                             * whole shade byte into the pixel's plane, so the
+                             * pixel carries all 8 bits, not one scattered bit
+                             * over each of the group's four pixels. */
+                            bitOK = (pg[py * 320u + px] == (uint8_t)sv);
                         }
                     }
                 }
                 _check(seen != 0u, "a spawned cell carries a sprite value");
                 _check(bitOK != 0u,
-                       "the composed pixel carries the cell's plane bit");
+                       "D-199: the composed pixel is the cell's full shade");
                 _check(!level_spark_active(),
                        "the effect ends after its 0x53 life");
             }
@@ -4693,7 +4696,10 @@ int main(int argc, char **argv)
         _check(score_best_for(1u) == 0x0999u,
                "the best-time table ships as the 0x0999 sentinel");
         before = score_total_lo() | (score_total_hi() << 16);
+        level_set_members(3u); /* a stale count the recount overwrites */
         score_prepare();
+        _check(level_members() == 12u,
+               "1000:41E6: the screen stores the recount into [0x11FC]");
         _check(score_is_record() == 1 &&
                    score_best_for(1u) == statusbar_elapsed_word() &&
                    score_best_time() == statusbar_elapsed_word(),
@@ -6207,6 +6213,26 @@ int main(int argc, char **argv)
      * first when the running total qualifies (1000:01CD), then the key exits. */
     hiscore_reset();
     _check(map_begin() == 1, "the MAP screen starts");
+
+    /* D-34 (closed 2026-11-05): the page origin is high.bit's stone slab, not
+     * the band sheet.  The old 1000:12D3-at-the-origin fill painted 0x0F
+     * where a band bit was set; both corners below are high.bit's 0. */
+    {
+        char hp[512];
+        snprintf(hp, sizeof hp, "%s/HUMANS.000/LBM/HIGH.BIT", fix_dir);
+        FILE *hf = fopen(hp, "rb");
+        if (hf) {
+            static uint8_t hb[320u * 200u];
+            size_t n = fread(hb, 1, sizeof hb, hf);
+            fclose(hf);
+            if (n == sizeof hb) {
+                const uint8_t *pg = osys_null_page(0);
+                _check(pg[3u * 320u + 315u] == hb[3u * 320u + 315u] &&
+                           pg[5u * 320u + 300u] == hb[5u * 320u + 300u],
+                       "D-34: the page origin is high.bit, not the band fill");
+            }
+        }
+    }
     {
         InputState k;
         memset(&k, 0, sizeof k);

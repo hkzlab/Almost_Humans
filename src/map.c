@@ -20,11 +20,12 @@
  * list is `draw_score_block`'s layout (rank/name/score centred at
  * 0x20/0x82/0x102, pitch 0x14 from base 0; header at 0xA0/0x14), the
  * qualifying total sees the seven-line congratulation page before the ring,
- * and the name screen has no `NAME:` line.  The band's destination is the
- * port's page origin: the live MAP capture showed the original composes the
- * same page at the origin (`re_map.md` "The frame: `apl\band.spr`"), so the
- * open difference is only the band's *pixel decode* - port_deviations.md
- * D-34.  The name-entry
+ * and the name screen has no `NAME:` line.  The page behind the text is
+ * `lbm\high.bit` only: the band sheet is NOT a page-origin layer.  The live
+ * capture shows the origin rows as high.bit's stone slab and the band
+ * texture along the bottom via the animated strips, which are not ported
+ * (port_deviations.md D-34, REQUIRES INVESTIGATION); the earlier origin fill
+ * painted the slab with 0x0F noise.  The name-entry
  * transition follows 1000:028C..030A: five palette fades, the HIGH.BIT
  * re-copy and the two 1000:1251 outlines.  The six `[0x8A2]` positions are
  * not content panels: they are 0x14-frame scroll steps of the same band.
@@ -421,39 +422,6 @@ void alpha_draw_name(uint8_t *page, const char *name)
     }
 }
 
-/** 1000:12D3: the 1:1 band copy (6080 bytes, four plane passes, source stride
- * 4).  The output is the 76-row band at the page origin. */
-/**
- * @brief Write one 4-pixel nibble of the band at (row, col).
- *
- * @param page the page buffer
- * @param row the row
- * @param col the column
- * @param v the sheet nibble
- */
-static void _band_write(uint8_t *page, uint32_t row, uint32_t col, uint32_t v)
-{
-    for (uint32_t j = 0; j < 4u; j++)
-        if ((v >> j) & 1u) page[row * 320u + col * 4u + j] = 0x0Fu;
-}
-
-/**
- * @brief Fill the 76-row band from the band sheet.
- *
- * @param page the page buffer
- */
-void map_band_fill(uint8_t *page)
-{
-    if (!page || !_band_sheet) return;
-    for (uint32_t i = 0; i < 6080u; i++) {
-        uint32_t row = i / 80u, col = i % 80u;
-
-        if (row >= 76u) break;
-        for (uint32_t p = 0; p < 4u; p++)
-            _band_write(page, row, col, _band_sheet[(i * 4u + p) & 0xFFFFu]);
-    }
-}
-
 /**
  * @brief Write the masked four pixels of one sheet byte.
  *
@@ -680,8 +648,8 @@ static void _map_page_reset(uint8_t *page)
                _map_high_size < MAP_PAGE ? _map_high_size : MAP_PAGE);
 }
 
-/** @brief the whole screen: the band layer (1000:12D3), the card, then the state's
- * own art and the box frame (1000:07E6).
+/** @brief the whole screen: high.bit's page, then the state's own art and the
+ * box frame (1000:07E6).
  */
 static void _map_redraw(void)
 {
@@ -742,7 +710,6 @@ int32_t map_begin(void)
     /* 1000:01CD: a total that beats none leaves via 0x062B without the list;
      * a qualifying one gets the congratulation page, then the name entry. */
     _map_phase = hiscore_qualifies(_map_score()) ? MAP_CONGRATS : MAP_EXIT;
-    map_band_fill(page); /* 1000:12D3 */
     if (_map_phase == MAP_CONGRATS) _map_congrats_draws = 1;
     _map_redraw(); /* 1000:024B: first pass */
 

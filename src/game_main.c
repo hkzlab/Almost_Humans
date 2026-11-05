@@ -74,6 +74,10 @@ static int32_t _score_up, _post_pending;
  * 1000:3510), consumed by entry 1000:00C9 -> 1000:002B after the level's
  * lost-level caption and fades. */
 static int32_t _restart_game;
+/* 1000:35AF's prologue: the restart fades the play screen to black and
+ * blocks on it (1000:35CA) before level_start re-enters; the reload and
+ * the party screen wait in the FLOW_LEVEL branch until it finishes. */
+static int32_t _restart_fade;
 static int32_t _end_phase = END_CAPTION;
 static uint32_t _end_hold;
 static const uint8_t _end_black[768]; /* the 0x48BC ramp: zeroed = black */
@@ -235,7 +239,7 @@ int32_t gameflow_party_pending(void) { return !_party_tried; }
  * and re-spawns the map's entities like the level entry, then puts the
  * members snapshot back.
  */
-static void _level_restart(void)
+static void _level_restart_finish(void)
 {
     if (level_load(_level_current) == 0) {
         const LevelData *ld = level_data();
@@ -248,6 +252,31 @@ static void _level_restart(void)
      * original (re_history.md, 2026-11-02). */
     _party_tried = 0;
     _party_playing = 0;
+}
+
+/** @brief 1000:35AF's prologue: park the bar, fade the play screen to black
+ * (div 0x23) and stop there.  `gameflow_restart_fade_tick` does the reload
+ * once the DAC is black, which is where 1000:35CA blocks.
+ */
+static void _level_restart(void)
+{
+    statusbar_set_active(0); /* 1000:35B6: [0x5B12] = 0 */
+    palette_build_fade(0u, 0x100u, 0x23u, _end_black); /* 1000:35C7 */
+    _restart_fade = 1;
+}
+
+/** @brief 1000:35CA `wait_palette_fade_done`: 1 while the restart's fade
+ * runs, 0 when it is over (the level has then been reloaded).
+ *
+ * @return 1 while the fade is still stepping, 0 otherwise
+ */
+int32_t gameflow_restart_fade_tick(void)
+{
+    if (!_restart_fade) return 0;
+    if (palette_fade_active()) return 1;
+    _restart_fade = 0;
+    _level_restart_finish();
+    return 0;
 }
 
 /** @brief The briefing's YOUR SCORE IS value: the low word of [0x592]/[0x594],
@@ -592,6 +621,9 @@ static int32_t _game_frame(const OSystem *osys, GameFlow *state,
 
     *state = gameflow_step(*state, &input);
     if (*state == FLOW_LEVEL) {
+        /* 1000:35AF's restart prologue blocks on the fade to black before
+             * level_start re-enters; hold the whole branch while it runs. */
+        if (gameflow_restart_fade_tick()) return 1;
         /* entering the level (entry 14CD): draw_status_indicator's disc
              * probe, then level_run's header/map load and the party's
              * fresh-load screen (307A).  The .ANI newspaper is NOT here: it

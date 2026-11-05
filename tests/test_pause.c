@@ -635,10 +635,51 @@ int main(int argc, char **argv)
             fprintf(stderr, "FAIL CONTINUE changed the pick\n");
             bad = 1;
         }
-        /* RESTART THIS LEVEL: the record's pick again (the save consumed) */
+        /* RESTART THIS LEVEL: 1000:35AF first fades the play screen to black
+         * (D-87, closed 2026-11-05) and blocks on it; the record's pick and
+         * the party screen run only after the DAC is black.  Install a lit
+         * palette first so the fade is observable. */
+        {
+            static uint8_t lit[768];
+
+            memset(lit, 0x3Fu, sizeof lit);
+            palette_set_dac(lit, 0, 256);
+        }
+        level_set_members(5u); /* the reload must not happen yet */
         if (gameflow_pause_action(1, &quit) != FLOW_LEVEL) {
             fprintf(stderr, "FAIL RESTART THIS LEVEL\n");
             bad = 1;
+        }
+        if (!palette_fade_active()) {
+            fprintf(stderr, "FAIL the restart did not fade the play screen\n");
+            bad = 1;
+        }
+        if (level_tribe_members() != 5u) {
+            fprintf(stderr,
+                    "FAIL the restart reloaded the level before the fade\n");
+            bad = 1;
+        }
+        {
+            uint32_t t = 0;
+
+            while (palette_fade_active() && t++ < 400u) palette_tick();
+            if (palette_fade_active() || gameflow_restart_fade_tick() != 0) {
+                fprintf(stderr, "FAIL the restart fade never finished\n");
+                bad = 1;
+            } else {
+                const uint8_t *pal = osys_null_palette();
+                uint32_t nz = 0;
+
+                for (uint32_t i = 0; i < 768u; i++)
+                    if (pal[i]) nz++;
+                if (nz) {
+                    fprintf(stderr,
+                            "FAIL the restart fade did not reach black "
+                            "(%u entries lit)\n",
+                            nz);
+                    bad = 1;
+                }
+            }
         }
         if (level_time_limit() != level_data()->timeA ||
             level_tribe_members() != 12u) {
@@ -722,6 +763,13 @@ int main(int argc, char **argv)
         if (gameflow_time_up_action(0, &quit) != FLOW_LEVEL) {
             fprintf(stderr, "FAIL the time-up RESTART THIS LEVEL\n");
             bad = 1;
+        }
+        /* the same 1000:35AF fade; drain it so the next action starts clean */
+        {
+            uint32_t t = 0;
+
+            while (palette_fade_active() && t++ < 400u) palette_tick();
+            (void)gameflow_restart_fade_tick();
         }
         /* 1000:3510: the same lost-level arm as the pause menu's result 2 */
         if (gameflow_time_up_action(1, &quit) != FLOW_LEVEL || !level_ended() ||
