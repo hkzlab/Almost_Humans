@@ -202,6 +202,32 @@ static void _entity_find(const uint8_t *map, uint32_t mapLen, uint32_t matchIdx,
 
 /* --- load_terrain_b (1000:5168): the level's map walk ------------------- */
 
+/** @brief Spawn every map cell that matches one table tile. */
+static void _spawn_tile_pair(uint32_t pair, uint8_t tile, const uint8_t *map,
+                             uint32_t lifeSeed)
+{
+    for (uint32_t row = 0; row < MAP_ROWS; row++) {
+        for (uint32_t col = 0; col < MAP_COLS; col++) {
+            uint32_t idx = row * MAP_COLS + col;
+            uint32_t cx = col * 16u;
+            uint32_t dx = row * 16u;
+
+            if (map[idx] != tile) continue;
+            switch (pair) {
+            case TILE_HANDLER_APPEND:
+                _entity_append(map, MAP_COLS * MAP_ROWS, idx, cx, dx, lifeSeed);
+                break;
+            case TILE_HANDLER_FIND:
+                _entity_find(map, MAP_COLS * MAP_ROWS, idx, cx, dx);
+                break;
+            default:
+                /* the placed-object spawners: with object.c */
+                break;
+            }
+        }
+    }
+}
+
 /** One pass over the whole 32x20 map per table pair, in table order, the
  * handler invoked at each matching cell with CX = col*16, DX = row*16
  * (the SHL 4s at 51bf-51cd).  The scan is column-inner, row-outer
@@ -217,30 +243,8 @@ int32_t entity_spawn_from_map(const uint8_t *map, uint32_t style,
     _cur_style = style;
     _sel_secondary = _sel_primary = 0;
 
-    for (uint32_t pair = 0; pair < 25u; pair++) {
-        uint8_t tile = _tile_ids[pair];
-
-        for (uint32_t row = 0; row < MAP_ROWS; row++) {
-            for (uint32_t col = 0; col < MAP_COLS; col++) {
-                uint32_t idx = row * MAP_COLS + col;
-                if (map[idx] != tile) continue;
-                uint32_t cx = col * 16u;
-                uint32_t dx = row * 16u;
-                switch (pair) {
-                case TILE_HANDLER_APPEND:
-                    _entity_append(map, MAP_COLS * MAP_ROWS, idx, cx, dx,
-                                   lifeSeed);
-                    break;
-                case TILE_HANDLER_FIND:
-                    _entity_find(map, MAP_COLS * MAP_ROWS, idx, cx, dx);
-                    break;
-                default:
-                    /* the placed-object spawners: with object.c */
-                    break;
-                }
-            }
-        }
-    }
+    for (uint32_t pair = 0; pair < 25u; pair++)
+        _spawn_tile_pair(pair, _tile_ids[pair], map, lifeSeed);
     return 0;
 }
 

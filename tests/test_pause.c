@@ -33,6 +33,7 @@
 #include "statusbar.h"
 #include "video.h"
 #include "compat.h"
+#include "byteorder.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -47,11 +48,7 @@ extern const uint8_t *osys_null_palette(void);
 extern const OSystem g_osys_null;
 
 /** @brief Store one little-endian 16-bit word. */
-static void _put16(uint8_t *p, uint32_t v)
-{
-    p[0] = (uint8_t)v;
-    p[1] = (uint8_t)(v >> 8);
-}
+static void _put16(uint8_t *p, uint32_t v) { wr_le_u16(p, (uint16_t)v); }
 
 /** @brief Write a page and its palette as a binary PPM for inspection. */
 static void _dump_ppm(const char *dir, const char *name, const uint8_t *page,

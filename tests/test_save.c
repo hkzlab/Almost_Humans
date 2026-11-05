@@ -29,6 +29,7 @@
 #include "statusbar.h"
 #include "video.h"
 #include "compat.h"
+#include "byteorder.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,11 +41,7 @@
 extern const OSystem g_osys_null;
 
 /** @brief Store one little-endian 16-bit word. */
-static void _put16(uint8_t *p, uint32_t v)
-{
-    p[0] = (uint8_t)v;
-    p[1] = (uint8_t)(v >> 8);
-}
+static void _put16(uint8_t *p, uint32_t v) { wr_le_u16(p, (uint16_t)v); }
 
 /** @brief A zeroed input state (no key, fire released). */
 static InputState _idle(void)

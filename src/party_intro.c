@@ -85,7 +85,7 @@
 #define SCRIPT_COUNT 7
 
 /* === the 8-slot script machine ============================================== */
-struct slot { /* 16 B at [0x11fe]:0xFA8 + 0x10*i    */
+struct Slot { /* 16 B at [0x11fe]:0xFA8 + 0x10*i    */
     uint16_t dst; /* +0: the stamp's dest word          */
     uint8_t count; /* +2: the 8-tick countdown           */
     uint8_t script; /* +3: the running id (1-indexed)     */
@@ -93,7 +93,7 @@ struct slot { /* 16 B at [0x11fe]:0xFA8 + 0x10*i    */
     uint8_t loopc; /* +5: the sub-list counter           */
     uint8_t sub[10]; /* +6..15: the sub-list               */
 };
-struct script {
+struct Script {
     uint32_t len;
     const uint8_t *b;
 };
@@ -160,8 +160,8 @@ static char _s_fire[32]; /* 0x1108: "PRESS FIRE TO START LEVEL...."         */
 
 static const uint8_t _ramp10[10] = /* 2e94's ramp -> CS:[0x2DFE+i]  */
     { 0x80, 0xA0, 0xC0, 0xE0, 0xE0, 0xE0, 0xE0, 0xC0, 0xA0, 0x80 };
-static struct slot _slots[8];
-static struct script _scripts[SCRIPT_COUNT];
+static struct Slot _slots[8];
+static struct Script _scripts[SCRIPT_COUNT];
 
 static uint8_t *_script_store; /* the seeded bodies (memcpy'd)       */
 
@@ -226,7 +226,7 @@ void party_intro_seed_slots(const uint8_t *raw) /* the 128 B at DS:0xFA8 */
     }
     for (uint32_t i = 0; i < 8u; i++) {
         const uint8_t *r = raw + i * 16u;
-        struct slot *s = &_slots[i];
+        struct Slot *s = &_slots[i];
         s->dst = rd_le_u16(r);
         s->count = r[2];
         s->script = r[3];
@@ -316,6 +316,17 @@ static void _bake_page(const uint8_t *bit, uint32_t pagebase)
     }
 }
 
+/** @brief Write mode 2: read the planes, mask them, OR the new colour. */
+static void _write_mode2(uint8_t *px, uint8_t c, uint32_t m)
+{
+    for (uint32_t p = 0; p < 4u; p++) {
+        uint32_t spread = (((c >> p) & 1u) != 0u) ? m : 0u;
+        uint8_t pre = px[p];
+
+        px[p] = (uint8_t)(((pre & (uint32_t)(~m & 0xFFu)) | spread) & 0xFFu);
+    }
+}
+
 /** 2c1d draw_intro_frame — the closed funnel */
 static void _band_stamp(uint32_t pagebase)
 {
@@ -324,14 +335,8 @@ static void _band_stamp(uint32_t pagebase)
         uint32_t a = pagebase + 0x6E8u + row * 88u;
         const uint8_t *src = _canvas + 0x640u + row * 80u;
         for (uint32_t k = 0; k < 80u; k++) {
-            uint8_t c = src[k]; /* LODSB [BX+0x640+80+k]      */
-            for (uint32_t p = 0; p < 4u; p++) {
-                uint32_t spread = (((c >> p) & 1u) != 0u) ? m : 0u;
-                uint8_t pre = _vram[a + k][p];
-                _vram[a + k][p] =
-                    (uint8_t)(((pre & (uint32_t)(~m & 0xFFu)) | spread) &
-                              0xFFu);
-            }
+            /* LODSB [BX+0x640+80+k] */
+            _write_mode2(_vram[a + k], src[k], m);
         }
     }
 }
@@ -351,13 +356,7 @@ static void _blit_slot(uint32_t frame)
             /* write mode 2 reads AL's bits 0..3 only — the _sheet's nibble
              * is the plane value itself; no palette bias applies to the
              * byte (the +0xC0 story lives in the palette table, not here). */
-            for (uint32_t p = 0; p < 4u; p++) {
-                uint32_t spread = (((c >> p) & 1u) != 0u) ? MASK : 0u;
-                uint8_t pre = _vram[di + w][p];
-                _vram[di + w][p] =
-                    (uint8_t)(((pre & (uint32_t)(~MASK & 0xFFu)) | spread) &
-                              0xFFu);
-            }
+            _write_mode2(_vram[di + w], c, MASK);
         }
         di += 88u; /* 4 written + ADD DI,0x54 = 88      */
     }
@@ -387,13 +386,7 @@ static void _marquee(void)
         uint32_t di = (uint32_t)_page_draw + dhi + r * 88u;
         for (uint32_t k = 0; k < 10u; k++) {
             uint8_t c = _strip[src + r * 10u + k]; /* 5 LODSW = 10 B/row    */
-            for (uint32_t p = 0; p < 4u; p++) {
-                uint32_t spread = (((c >> p) & 1u) != 0u) ? MASK : 0u;
-                uint8_t pre = _vram[di + k][p];
-                _vram[di + k][p] =
-                    (uint8_t)(((pre & (uint32_t)(~MASK & 0xFFu)) | spread) &
-                              0xFFu);
-            }
+            _write_mode2(_vram[di + k], c, MASK);
         }
     }
 }
@@ -402,7 +395,7 @@ static void _marquee(void)
 static void _anim_entities(void)
 {
     for (uint32_t i = 0; i < 8u; i++) {
-        struct slot *s = &_slots[i];
+        struct Slot *s = &_slots[i];
         uint8_t dl = 0;
         s->count--;
         if (s->count == 0u) {
@@ -411,7 +404,7 @@ static void _anim_entities(void)
         } /* 2909..2912 */
         for (uint32_t pass = 0; pass < 40u; pass++) { /* the 2914 walk */
             if (s->script == 0u || s->script > SCRIPT_COUNT) break;
-            const struct script *sc = &_scripts[s->script - 1u];
+            const struct Script *sc = &_scripts[s->script - 1u];
             if (sc->b == NULL || sc->len == 0u) break;
             uint8_t bx = s->fpos; /* 2920: BX = [SI+4] */
             s->fpos = (uint8_t)(bx + dl); /* 2925: ADD before the read */

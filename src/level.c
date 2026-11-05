@@ -605,6 +605,15 @@ static void _page_mask_build(const uint8_t *four)
  * field-O ids are wholly solid; every other column holds the row of its
  * first opaque pixel (0xFF when the column is empty); the field-N records
  * then overwrite the 16 bytes. */
+/** @brief The first opaque row of one 16-px tile column (0xFF when empty). */
+static uint8_t _page_column_top(const uint8_t *tile, uint32_t col)
+{
+    for (uint32_t row = 0; row < 16u; row++)
+        if (_page_opacity[tile[row * 16u + col]]) return (uint8_t)row;
+    return 0xFFu;
+}
+
+/** @brief Build the per-tile column masks from the page's J and N blocks. */
 static void _page_table_build(const BdPage *page)
 {
     memset(_page_mask, 0xFF, sizeof _page_mask);
@@ -612,6 +621,8 @@ static void _page_table_build(const BdPage *page)
     _page_mask_build(page->jBytes + 4u);
     for (uint32_t id = 0; id <= 0xA8u; id++) {
         int32_t blocked = 0;
+        const uint8_t *tile;
+        uint32_t col;
 
         for (uint32_t k = 0; k < page->oCount; k++)
             if (page->oList[1u + k] == id) {
@@ -619,21 +630,29 @@ static void _page_table_build(const BdPage *page)
                 break;
             }
         if (blocked) continue;
-        for (uint32_t col = 0; col < 16u; col++) {
-            const uint8_t *tile = _atlas + 0x400u + id * 0x100u;
-
-            for (uint32_t row = 0; row < 16u; row++) {
-                if (_page_opacity[tile[row * 16u + col]]) {
-                    _page_mask[id][col] = (uint8_t)row;
-                    break;
-                }
-            }
+        for (col = 0; col < 16u; col++) {
+            tile = _atlas + 0x400u + id * 0x100u;
+            _page_mask[id][col] = _page_column_top(tile, col);
         }
     }
     for (uint32_t k = 0; k < page->nCount; k++) {
         const uint8_t *e = page->nList + 1u + 17u * k;
         memcpy(_page_mask[e[0]], e + 1u, 16u);
     }
+}
+
+/** @brief Build one 16-bit item row from the atlas cursor and advance it. */
+static uint32_t _item_row_word(uint32_t *si)
+{
+    uint32_t word = 0;
+
+    for (uint32_t col = 0; col < 16u; col++) { /* 1000:55D9 */
+        uint8_t px = *si < 0x400u + ATLAS_TILES * 0x100u ? _atlas[*si] : 0u;
+
+        (*si)++;
+        if (px < 32u && _page_opacity[px]) word |= 0x8000u >> col;
+    }
+    return word;
 }
 
 /** draw_objects (1000:558B): field B's item records are the terrain's per-row
@@ -671,18 +690,9 @@ static void _item_masks_build(const BdPage *page)
         if ((uint32_t)off + 32u > _page_items_size) continue;
         for (uint32_t row = 0; row < 16u; row++) {
             uint32_t o = off + 2u * row;
-            uint32_t word = rd_le_u16(_page_items + o);
 
-            if (word != 0u) continue; /* 1000:55CC JNZ    */
-            word = 0u;
-            for (uint32_t col = 0; col < 16u; col++) { /* 1000:55D9        */
-                uint8_t px =
-                    si < 0x400u + ATLAS_TILES * 0x100u ? _atlas[si] : 0u;
-
-                si++;
-                if (px < 32u && _page_opacity[px]) word |= 0x8000u >> col;
-            }
-            wr_le_u16(_page_items + o, (uint16_t)word);
+            if (rd_le_u16(_page_items + o) != 0u) continue; /* 1000:55CC */
+            wr_le_u16(_page_items + o, (uint16_t)_item_row_word(&si));
         }
     }
 }
@@ -827,6 +837,23 @@ static int32_t _visuals_load(uint32_t style)
     return 0;
 }
 
+/** @brief Stamp one 64x64 P-block into the background at (x, y). */
+static void _stamp_p_block(int32_t x, int32_t y)
+{
+    for (uint32_t r = 0; r < 64u; r++)
+        for (uint32_t c = 0; c < 64u; c++) {
+            uint8_t v = _bd_p_block[r * 64u + c];
+            int32_t px = x + (int32_t)c, py = y + (int32_t)r;
+
+            if (!v || px < 0 || py < 0 || px >= (int32_t)WORLD_W ||
+                py >= (int32_t)WORLD_H)
+                continue;
+            /* level_setup_screen's add_delta_nonzero(0x1000, 0x20) pass
+             * moves the P block into the 0x20..0x3F art palette. */
+            _bg_image[py * (int32_t)WORLD_W + px] = (uint8_t)(v + 0x20u);
+        }
+}
+
 /** 1000:5159 load_terrain_a + 1000:54A9: every map cell 0xB9 stamps the BD
  * page's P block (64 x 64, zero transparent) into the background image at
  * (col*16, row*16 - 0x30) — the level's exit/igloo art. */
@@ -835,24 +862,8 @@ static void _level_stamp_exits(void)
     if (!_bg_image || !_bd_p_have) return;
     for (uint32_t row = 0; row < MAP_ROWS; row++)
         for (uint32_t col = 0; col < MAP_COLS; col++) {
-            int32_t x, y;
-
             if (_level_data_cur.map[row * MAP_COLS + col] != 0xB9u) continue;
-            x = (int32_t)(col * 16u);
-            y = (int32_t)(row * 16u) - 0x30;
-            for (uint32_t r = 0; r < 64u; r++)
-                for (uint32_t c = 0; c < 64u; c++) {
-                    uint8_t v = _bd_p_block[r * 64u + c];
-                    int32_t px = x + (int32_t)c, py = y + (int32_t)r;
-
-                    if (!v || px < 0 || py < 0 || px >= (int32_t)WORLD_W ||
-                        py >= (int32_t)WORLD_H)
-                        continue;
-                    /* level_setup_screen's add_delta_nonzero(0x1000, 0x20) pass
-                     * moves the P block into the 0x20..0x3F art palette. */
-                    _bg_image[py * (int32_t)WORLD_W + px] =
-                        (uint8_t)(v + 0x20u);
-                }
+            _stamp_p_block((int32_t)(col * 16u), (int32_t)(row * 16u) - 0x30);
         }
 }
 
@@ -1243,6 +1254,19 @@ static void _load_draw_background(uint8_t *page)
     statusbar_tick();
 }
 
+/** @brief Blit one 16x24 loading-screen sprite at (x, y). */
+static void _load_sprite(uint8_t *page, uint32_t off, int32_t x, int32_t y)
+{
+    for (uint32_t r = 0; r < 24u; r++)
+        for (uint32_t c = 0; c < 16u; c++) {
+            int32_t px = x + (int32_t)c;
+            uint8_t v = _loading_bank[off + r * 16u + c];
+
+            if (px < 0 || px >= 320 || !v) continue;
+            page[(y + r) * 320u + (uint32_t)px] = v;
+        }
+}
+
 /** blit_sprite_scaled (1000:1F5A): the list x is in the 416-px source
  * coordinate space; the visible 320-px window starts 0x50 pixels in
  * (x/4 - 0x14 bytes), so screen x = list x - 0x50.  The frames are the
@@ -1259,13 +1283,7 @@ static void _load_draw_one(uint8_t *page, const uint8_t *list, uint32_t entries,
         uint32_t off = 0x400u + spr * 0x180u;
         if (off + 0x180u > _loading_size) continue; /* the 0x25 sentinel  */
         if (y < 0 || y + 24 > 200) continue;
-        for (uint32_t r = 0; r < 24u; r++)
-            for (uint32_t c = 0; c < 16u; c++) {
-                int32_t px = x + (int32_t)c;
-                if (px < 0 || px >= 320) continue;
-                uint8_t v = _loading_bank[off + r * 16u + c];
-                if (v) page[(y + r) * 320u + (uint32_t)px] = v;
-            }
+        _load_sprite(page, off, x, y);
     }
 }
 
@@ -1752,6 +1770,19 @@ uint32_t level_tribe_members(void) { return _tribe_members; }
 void level_note_input(const InputState *in)
 { _level_joy = in ? in->joyBits : 0u; }
 
+/** @brief Stamp one 16x16 terrain tile into the world page. */
+static void _stamp_tile(uint8_t *dst, const uint8_t *src)
+{
+    for (uint32_t y = 0; y < 16u; y++) {
+        for (uint32_t x = 0; x < 16u; x++) {
+            uint8_t v = src[y * 16u + x];
+            /* draw_terrain 0x502d: a zero tile byte is NOT stored - the
+             * background (BG art / 0x80 sky) stays. */
+            if (v) dst[y * WORLD_W + x] = (uint8_t)(v + 0x20u);
+        }
+    }
+}
+
 /** The _world pass: `render_level_frame`'s terrain + `render_objects` + the bar,
  * i.e. everything 1000:4C28's pre-draw and every play frame put on the page.
  * The original's `blit_bitmap_call` (`1000:4C28`) draws the level bitmap into
@@ -1769,16 +1800,8 @@ static void _render_world(void)
         for (uint32_t c = 0; c < MAP_COLS; c++) {
             uint32_t tile = _level_data_cur.map[r * MAP_COLS + c];
             if (tile >= 0xA9u) continue;
-            const uint8_t *src = _atlas + 0x400u + tile * 0x100u;
-            uint8_t *dst = _world + (r * 16u) * WORLD_W + c * 16u;
-            for (uint32_t y = 0; y < 16u; y++) {
-                for (uint32_t x = 0; x < 16u; x++) {
-                    uint8_t v = src[y * 16u + x];
-                    /* draw_terrain 0x502d: a zero tile byte is NOT stored -
-                     * the background (BG art / 0x80 sky) stays. */
-                    if (v) dst[y * WORLD_W + x] = (uint8_t)(v + 0x20u);
-                }
-            }
+            _stamp_tile(_world + (r * 16u) * WORLD_W + c * 16u,
+                        _atlas + 0x400u + tile * 0x100u);
         }
     }
 

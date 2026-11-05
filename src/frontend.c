@@ -278,6 +278,30 @@ static void _compose(int32_t swapPages)
     }
 }
 
+/** @brief Copy a rectangular, zero-transparent cell block to the page. */
+static void _page_cells(uint32_t dst, const uint8_t *src, uint32_t srcStride,
+                        uint32_t w, uint32_t h, uint32_t dx)
+{
+    for (uint32_t r = 0; r < h; r++)
+        for (uint32_t c = 0; c < w; c++) {
+            uint8_t v = src[r * srcStride + c];
+
+            if (v) _put_pixel(dst + r * 160u, dx + c, v);
+        }
+}
+
+/** @brief Patch a zero-transparent cell block into the loaded code2 image. */
+static void _patch_code2(uint32_t pOff, const uint8_t *src, uint32_t w,
+                         uint32_t h)
+{
+    for (uint32_t r = 0; r < h; r++)
+        for (uint32_t c = 0; c < w; c++) {
+            uint8_t v = src[r * w + c];
+
+            if (v) _code2[pOff + r * 640u + c] = v;
+        }
+}
+
 /** place_4_sprites_to_vga (1000:A684) — the option-value badges at the
  * MUSIC / LEVEL / RESTORE GAME / ANIMATIONS signs.  The entry table at
  * 202F:0x5E54
@@ -325,23 +349,12 @@ static void _draw_option_sprites(void)
          * transparent masks are uniform within each badge's _cell group,
          * so cycling overwrites cleanly. */
         if (_code2 && (uint32_t)e[i].dest * 4u < _code2_size &&
-            (uint32_t)e[i].dest * 4u + (h - 1u) * 640u + w < _code2_size) {
-            uint32_t pOff = (uint32_t)e[i].dest * 4u;
-            for (uint32_t r = 0; r < h; r++)
-                for (uint32_t c = 0; c < w; c++) {
-                    uint8_t v = src[off + r * w + c];
-                    if (v) _code2[pOff + r * 640u + c] = v;
-                }
-        }
+            (uint32_t)e[i].dest * 4u + (h - 1u) * 640u + w < _code2_size)
+            _patch_code2((uint32_t)e[i].dest * 4u, src + off, w, h);
         uint32_t destRow = e[i].dest / 160u, destCol = e[i].dest % 160u;
         if (destCol * 4u + w > 640u) continue;
-        for (uint32_t r = 0; r < h; r++) {
-            uint32_t base = _page_draw + (destRow + r) * 160u;
-            for (uint32_t c = 0; c < w; c++) {
-                uint8_t v = src[off + r * w + c];
-                if (v) _put_pixel(base, destCol * 4u + c, v);
-            }
-        }
+        _page_cells(_page_draw + destRow * 160u, src + off, w, w, h,
+                    destCol * 4u);
     }
 }
 
@@ -370,34 +383,30 @@ static void _draw_humans(void)
          * exactly this middle pair that turns the screen's hanging human
          * into the FOUR-human stack holding the board while the 320-px
          * window slides across the 640-px room during the pan. */
-        for (uint32_t r = 0; r < 20u; r++) {
-            uint32_t srcRow = bankBase[h] + r * 640u;
+        {
             uint32_t base = _name_screen
-                                ? (destRow[h] + r) * 160u
-                                : _page_draw + (136u + destRow[h] + r) * 160u;
-            for (uint32_t c = 0; c < 20u; c++) {
-                uint8_t v = _code2[srcRow + cx + c];
-                if (v) _put_pixel(base, cx + c, v);
-            }
-        }
-        if (_codehum && _codehum_size >= 16u * 16u) {
-            for (uint32_t r = 0; r < 16u; r++) {
-                /* the overlay's scratch offset CS:[0xaeab] is 0 for the
-                 * anim draws (ada2's room draw leaves it 0) — the sprite
-                 * lands at box rows 0..15, cols 2..17 (0x5F65 = base+2) */
-                uint32_t base =
-                    _name_screen ? (destRow[h] + r) * 160u
-                                 : _page_draw + (136u + destRow[h] + r) * 160u;
-                for (uint32_t c = 0; c < 16u; c++) {
-                    uint8_t v = _codehum[r * 16u + c];
-                    if (v) _put_pixel(base, cx + 2u + c, v);
-                }
-            }
+                                ? destRow[h] * 160u
+                                : _page_draw + (136u + destRow[h]) * 160u;
+
+            _page_cells(base, _code2 + bankBase[h] + cx, 640u, 20u, 20u, cx);
+            /* the overlay's scratch offset CS:[0xaeab] is 0 for the anim
+             * draws (ada2's room draw leaves it 0) — the sprite lands at
+             * box rows 0..15, cols 2..17 (0x5F65 = base+2) */
+            if (_codehum && _codehum_size >= 16u * 16u)
+                _page_cells(base, _codehum, 16u, 16u, 16u, cx + 2u);
         }
     }
 }
 
 /* --- the name ----------------------------------------------------------- */
+
+/** @brief Write mode 2 on one chained-page byte, bits 0..3. */
+static void _wm2_set(uint32_t addr, uint8_t v)
+{
+    for (uint32_t p = 0; p < 4u; p++)
+        _vram[addr][p] =
+            (uint8_t)((_vram[addr][p] & 0x7F) | ((v >> p) & 1u) << 7);
+}
 
 /** name_entry_blit (1000:AB8D) — the typed name IS displayed: the last
  * claim ("never displayed, live-verified") misidentified this routine's
@@ -423,9 +432,7 @@ static void _draw_name_line(void)
         for (uint32_t c = 0; c < 40u; c++) {
             uint8_t v = _arena[0x152u + r * 80u + c];
             uint32_t addr = (_page_draw + 0x38F5u + r * 0xA0u + c) & 0xFFFFu;
-            for (uint32_t p = 0; p < 4u; p++)
-                _vram[addr][p] =
-                    (uint8_t)((_vram[addr][p] & 0x7F) | ((v >> p) & 1u) << 7);
+            _wm2_set(addr, v);
         }
 }
 

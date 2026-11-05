@@ -32,6 +32,7 @@
 #include "statusbar.h"
 #include "video.h"
 #include "compat.h"
+#include "byteorder.h"
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -250,17 +251,15 @@ int main(int argc, char **argv)
             uint32_t ex = p->x, ey = p->y;
 
             memset(rec, 0, 0x12u);
-            rec[0] = (uint8_t)(ex + 36u);
-            rec[1] = (uint8_t)((ex + 36u) >> 8);
-            rec[2] = (uint8_t)(ey + 30u);
-            rec[3] = (uint8_t)((ey + 30u) >> 8);
+            wr_le_u16(rec + 0, (uint16_t)(ex + 36u));
+            wr_le_u16(rec + 2, (uint16_t)(ey + 30u));
             rec[4] = 0x10u;
             rec[8] = 0x01u; /* type 1: pickable (0x6EC3 = 0) */
             entity_tick();
-            if ((rec[8] | (rec[9] << 8)) != 0x22u)
+            if ((rd_le_u16(rec + 8)) != 0x22u)
                 _failf("the pick-up's type", 10u, rec[8], 0x22);
             /* D-59: the +0xA link is the entity, tagged (0x8000 | index) */
-            if ((rec[10] | (rec[11] << 8)) != 0x8000u)
+            if ((rd_le_u16(rec + 10)) != 0x8000u)
                 _failf("the entity link at +0xA", 10u, rec[10], 0x8000);
             if (entity_at(0)->handler != 3u)
                 _failf("the carry handler", 10u, entity_at(0)->handler, 3);
@@ -307,31 +306,29 @@ int main(int argc, char **argv)
             uint32_t px = p ? p->x : 320u, py = p ? p->y : 193u;
 
             memset(cr, 0, 0x12u);
-            cr[0] = (uint8_t)(px + 36u);
-            cr[1] = (uint8_t)((px + 36u) >> 8);
-            cr[2] = (uint8_t)(py + 30u);
-            cr[3] = (uint8_t)((py + 30u) >> 8);
+            wr_le_u16(cr + 0, (uint16_t)(px + 36u));
+            wr_le_u16(cr + 2, (uint16_t)(py + 30u));
             cr[4] = 0x10u;
             cr[8] = 0x01u;
         }
         object_set_action_entity(0u);
         entity_tick();
-        if ((cr[8] | (cr[9] << 8)) != 0x22u)
+        if ((rd_le_u16(cr + 8)) != 0x22u)
             _failf("D-59: the pick-up", 10u, cr[8], 0x22);
         statusbar_set_tribe_digits(1u, 2u); /* the bar shows 12 */
         for (t = 0; t < 4000u; t++) {
-            type = (uint32_t)(cr[8] | (cr[9] << 8));
+            type = (uint32_t)(rd_le_u16(cr + 8));
             if (type == 0x21u) break;
             entity_tick(); /* the game's order: world first */
             (void)object_command_run(cr, 0u);
         }
-        type = (uint32_t)(cr[8] | (cr[9] << 8));
+        type = (uint32_t)(rd_le_u16(cr + 8));
         if (type != 0x21u)
             _failf("D-59: the carried human is consumed", 10u, type, 0x21);
         statusbar_save_params(params);
         if (params[0] != 0xFFu)
             _failf("D-59: the loss arms the odometer", 10u, params[0], 0xFF);
-        if ((cr[4] | (cr[5] << 8)) != 0x2Du)
+        if ((rd_le_u16(cr + 4)) != 0x2Du)
             _failf("D-59: the lost marker's frame", 10u, cr[4], 0x2D);
     }
 

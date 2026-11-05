@@ -193,6 +193,14 @@ int32_t statusbar_init(const OSystem *osys)
     return 0;
 }
 
+/** @brief Write one 8-pixel mark row into the status band. */
+static void _mark_row(uint8_t *page, uint32_t at, uint32_t x,
+                      const uint8_t *src)
+{
+    for (uint32_t j = 0; j < 8u; j++)
+        page[at * 320u + x + j] = (uint8_t)(0xC0u | src[j]);
+}
+
 /** stamp_statusbar_plane_bits (1000:9846) + copy_8rows_2bytes_to_vga
  * (1000:98D1): one mark = 16 consecutive _strip bytes laid out 8 px per
  * row, 8 rows.  The _strip values are the low nibbles {03,07,0E} = the
@@ -207,9 +215,7 @@ static void _stamp_marks(uint8_t *page)
         for (uint32_t r = 0; r < 8u; r++) {
             uint32_t at = _bar_split + 20u + r;
             if (at >= 200u) continue;
-            for (uint32_t j = 0; j < 8u; j++)
-                page[at * 320u + _mark_x[m] + j] =
-                    (uint8_t)(0xC0u | _strip[base + 8u * r + j]);
+            _mark_row(page, at, _mark_x[m], _strip + base + 8u * r);
         }
     }
 }

@@ -2549,6 +2549,42 @@ static void _obj_append_decoration(uint32_t x, uint32_t y, uint8_t tile)
     _obj_live_count++;
 }
 
+/** @brief Spawn every map cell that holds one placed-object tile. */
+static void _spawn_terrain_tile(uint8_t *map, uint32_t tile)
+{
+    for (uint32_t row = 0; row < OBJ_ROWS; row++)
+        for (uint32_t col = 0; col < OBJ_COLS; col++) {
+            if (map[row * OBJ_COLS + col] != tile) continue;
+            /* live-confirmed (2026-10-30): level 1's records read
+             * (48,25) (208,25) (256,137) (464,265) = row*16 - 7, exactly
+             * what 0x524B writes. */
+            if (tile == 0xBBu) _obj_spawn_bb(col, row);
+            else if (tile == 0xBEu) _obj_spawn_be(col, row);
+            else if (tile == 0xBFu) _obj_join_bf(col);
+            else if (tile == 0xC0u) _obj_spawn_c0(col, row);
+            else if (tile == 0xC1u) _obj_spawn_c1(col, row);
+            else if (tile == 0xB6u) _obj_spawn_b6(col, row);
+            else if (tile == 0xB7u) _obj_spawn_b7(map, col, row);
+            else if (tile == 0xB8u) _obj_spawn_b8(col, row);
+            else if (tile >= 0xAFu && tile <= 0xB2u)
+                _obj_write_pair(tile, col * 16u, row * 16u);
+            else if (tile == 0xA9u) _obj_append_row9(map, col, row);
+            else if (tile == 0xAAu) _obj_place_human(col, row);
+            else if (tile == 0xABu) _obj_append_spear(col, row);
+            else if (tile == 0xACu)
+                _obj_append_style(map, col, row, 0x96u, 7u, 0xFFFFu, 0u, 0u);
+            else if (tile == 0xADu)
+                _obj_append_style(map, col, row, 0x9Cu, 6u, 0xFFFFu, 0u, 0u);
+            else if (tile == 0xAEu)
+                /* 1000:52EB differs from 0x52A2/0x52C7: +8 and +0xA are 0
+                 * and BOTH +0xC and +0xE are 0xFFFF (+0xE is the give/hold
+                 * gate 0x9CF6 tests with bit 15). */
+                _obj_append_style(map, col, row, 0x38u, 4u, 0x0000u, 0xFFFFu,
+                                  0xFFFFu);
+            else _obj_append_decoration(col * 16u, row * 16u, tile);
+        }
+}
+
 /** @brief Spawn the map's placed objects. */
 uint32_t object_load_terrain_objects(uint8_t *map)
 {
@@ -2565,39 +2601,7 @@ uint32_t object_load_terrain_objects(uint8_t *map)
             tile != 0xB8u && tile != 0xBBu && tile != 0xBEu && tile != 0xBFu &&
             tile != 0xC0u && tile != 0xC1u && (tile < 0xF0u || tile > 0xF2u))
             continue;
-        for (uint32_t row = 0; row < OBJ_ROWS; row++)
-            for (uint32_t col = 0; col < OBJ_COLS; col++) {
-                if (map[row * OBJ_COLS + col] != tile) continue;
-                /* live-confirmed (2026-10-30): level 1's records read
-                 * (48,25) (208,25) (256,137) (464,265) = row*16 - 7, exactly
-                 * what 0x524B writes. */
-                if (tile == 0xBBu) _obj_spawn_bb(col, row);
-                else if (tile == 0xBEu) _obj_spawn_be(col, row);
-                else if (tile == 0xBFu) _obj_join_bf(col);
-                else if (tile == 0xC0u) _obj_spawn_c0(col, row);
-                else if (tile == 0xC1u) _obj_spawn_c1(col, row);
-                else if (tile == 0xB6u) _obj_spawn_b6(col, row);
-                else if (tile == 0xB7u) _obj_spawn_b7(map, col, row);
-                else if (tile == 0xB8u) _obj_spawn_b8(col, row);
-                else if (tile >= 0xAFu && tile <= 0xB2u)
-                    _obj_write_pair(tile, col * 16u, row * 16u);
-                else if (tile == 0xA9u) _obj_append_row9(map, col, row);
-                else if (tile == 0xAAu) _obj_place_human(col, row);
-                else if (tile == 0xABu) _obj_append_spear(col, row);
-                else if (tile == 0xACu)
-                    _obj_append_style(map, col, row, 0x96u, 7u, 0xFFFFu, 0u,
-                                      0u);
-                else if (tile == 0xADu)
-                    _obj_append_style(map, col, row, 0x9Cu, 6u, 0xFFFFu, 0u,
-                                      0u);
-                else if (tile == 0xAEu)
-                    /* 1000:52EB differs from 0x52A2/0x52C7: +8 and +0xA are
-                     * 0 and BOTH +0xC and +0xE are 0xFFFF (+0xE is the
-                     * give/hold gate 0x9CF6 tests with bit 15). */
-                    _obj_append_style(map, col, row, 0x38u, 4u, 0x0000u,
-                                      0xFFFFu, 0xFFFFu);
-                else _obj_append_decoration(col * 16u, row * 16u, tile);
-            }
+        _spawn_terrain_tile(map, tile);
     }
     return _obj_live_count;
 }
@@ -3060,6 +3064,32 @@ static uint32_t _obj_goal_cell_index(uint32_t x, uint32_t y)
     return 32u * ((yy & 0xFFF0u) >> 4) + (xx >> 4);
 }
 
+/** @brief Find the group that lists record i; its base point goes to x/y. */
+static int32_t _goal_group(uint32_t i, uint32_t *x, uint32_t *y)
+{
+    for (uint32_t g = 0; g < 8u; g++) { /* 1000:C319 */
+        uint8_t *e = (uint8_t *)_obj_register[g];
+        uint8_t *p;
+        int32_t hit = 0;
+
+        if (rd_le_u16(e + 0u) & 0x8000u) continue; /* 1000:C32B */
+        p = e + 5;
+        while (1) { /* 1000:C339 */
+            if (*p == (uint8_t)i) {
+                hit = 1;
+                break;
+            }
+            p++;
+            if (*p & 0x80u) break; /* 1000:C347 */
+        }
+        if (!hit) continue;
+        *x = rd_le_u16(e + 0u); /* 1000:C325 */
+        *y = rd_le_u16(e + 2u); /* 1000:C31E */
+        return (int32_t)g;
+    }
+    return -1;
+}
+
 /** @brief The goal scan over the placed records. */
 void object_goal_scan(void)
 {
@@ -3076,28 +3106,7 @@ void object_goal_scan(void)
         y = rd_le_u16(r + 2u);
         type = rd_le_u16(r + 8u);
         if (type == 8u) { /* 1000:C2F7 -> C300: a group base's own point */
-            int32_t found = -1;
-
-            for (uint32_t g = 0; g < 8u; g++) { /* 1000:C319 */
-                uint8_t *e = (uint8_t *)_obj_register[g];
-                uint8_t *p;
-
-                if (rd_le_u16(e + 0u) & 0x8000u) continue; /* 1000:C32B */
-                p = e + 5;
-                while (1) { /* 1000:C339 */
-                    if (*p == (uint8_t)i) {
-                        found = (int32_t)g;
-                        break;
-                    }
-                    p++;
-                    if (*p & 0x80u) break; /* 1000:C347 */
-                }
-                if (found < 0) continue;
-                x = rd_le_u16(e + 0u); /* 1000:C325 */
-                y = rd_le_u16(e + 2u); /* 1000:C31E */
-                break;
-            }
-            if (found < 0) continue; /* 1000:C35B: next record */
+            if (_goal_group(i, &x, &y) < 0) continue; /* 1000:C35B */
         } else {
             /* 1000:C389 test_goal_cell_occupancy: the id's mask bit skips. */
             uint32_t bit;
@@ -5806,6 +5815,17 @@ static void _obj_cmd_settle(uint8_t *actor)
         rd_le_u16(actor + 2u);
 }
 
+/** @brief Copy one four-byte shade group into its 16-byte row. */
+static void _shade_row(const ObjSprite *sp, uint32_t pass, uint32_t row,
+                       uint8_t *out, uint32_t *s)
+{
+    for (uint32_t j = 0; j < 4u; j++) {
+        if ((uint32_t)(sp->off + *s) < _obj_bank_size)
+            out[row * 16u + pass + 4u * j] = _obj_bank[sp->off + *s];
+        (*s)++;
+    }
+}
+
 /** 1000:3E73's shade table: the recipe sprite's bytes as a 16x16 table.  Rows
  * 0..ybias-1 stay zero, then `rows` rows copy four bytes per pass; pass p fills
  * `row*16 + p + 4*j`, so the four passes fill every byte of each row. */
@@ -5820,11 +5840,7 @@ static void _obj_build_shade(uint32_t frame, uint8_t *out)
     for (uint32_t pass = 0; pass < 4u; pass++)
         for (uint32_t row = 0; row < 16u; row++) {
             if (row < sp->ybias || row >= sp->ybias + sp->rows) continue;
-            for (uint32_t j = 0; j < 4u; j++) {
-                if ((uint32_t)(sp->off + s) < _obj_bank_size)
-                    out[row * 16u + pass + 4u * j] = _obj_bank[sp->off + s];
-                s++;
-            }
+            _shade_row(sp, pass, row, out, &s);
         }
 }
 

@@ -19,6 +19,7 @@
 #include "scene.h"
 #include "video.h"
 #include "compat.h"
+#include "byteorder.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -474,7 +475,7 @@ int main(int argc, char **argv)
             {
                 InputState in;
                 uint8_t *m = object_slot(object_action_entity());
-                int32_t x0 = (int32_t)(int16_t)(m[0] | (m[1] << 8));
+                int32_t x0 = (int32_t)(int16_t)(rd_le_u16(m + 0));
 
                 memset(&in, 0, sizeof in);
                 in.joyBits = 0x08u;                 /* right */
@@ -484,8 +485,8 @@ int main(int argc, char **argv)
                     palette_tick();
                 }
                 {
-                    int32_t x1 = (int32_t)(int16_t)(m[0] | (m[1] << 8));
-                    uint32_t ty = (uint32_t)(m[8] | (m[9] << 8));
+                    int32_t x1 = (int32_t)(int16_t)(rd_le_u16(m + 0));
+                    uint32_t ty = (uint32_t)(rd_le_u16(m + 8));
 
                     if (x1 < x0 + 4 || ty > 2u) {
                         fprintf(stderr,
@@ -650,12 +651,12 @@ int main(int argc, char **argv)
             uint8_t *r = object_slot(i);
 
             if (!r) continue;
-            if ((r[4] | (r[5] << 8)) != 0x9Cu) continue;
+            if ((rd_le_u16(r + 4)) != 0x9Cu) continue;
             found = 1;
-            if ((r[0] | (r[1] << 8)) != 272u || (r[2] | (r[3] << 8)) != 177u) {
+            if ((rd_le_u16(r + 0)) != 272u || (rd_le_u16(r + 2)) != 177u) {
                 fprintf(stderr,
                         "FAIL the torch is at x=%u y=%u, want 272/177\n",
-                        r[0] | (r[1] << 8), r[2] | (r[3] << 8));
+                        rd_le_u16(r + 0), rd_le_u16(r + 2));
                 bad = 1;
             }
         }
@@ -682,7 +683,7 @@ int main(int argc, char **argv)
         }
         for (uint32_t i = 0; i < 4u; i++) {
             const uint8_t *r = object_slot(i);
-            uint32_t y = (uint32_t)(r[2] | (r[3] << 8));
+            uint32_t y = (uint32_t)(rd_le_u16(r + 2));
 
             if (y != wantY[i]) {
                 fprintf(stderr, "FAIL D-89: record %u y = %u, want %u\n", i, y,

@@ -117,6 +117,23 @@ static void _scroll_text_measure(const char *text, uint32_t *tiles,
     *lines = nlines;
 }
 
+/** @brief Write the four glyph pixels of one arena byte. */
+static void _glyph_px(uint8_t *page, uint32_t y, uint32_t x0, uint8_t b,
+                      uint32_t colour, int32_t mask)
+{
+    for (uint32_t p = 0; p < 4u; p++)
+        if (b & (1u << p)) {
+            uint32_t x = x0 + p;
+
+            if (x < 320u) {
+                uint32_t at = y * 320u + x;
+
+                if (mask) page[at] |= (uint8_t)colour;
+                else page[at] = (uint8_t)colour;
+            }
+        }
+}
+
 /** blit_text_tile (1000:47D5) writes through write mode 2 with the OR ALU
  * (GC3 := 0x10 at 1000:9F76) and the bit mask = DL, so a glyph pixel is
  * `destination | mask`, never a solid colour: the shading comes from
@@ -132,16 +149,8 @@ static void _draw_line(uint8_t *page, const char *line, uint32_t centreX,
         if (y >= 200u) break;
         for (uint32_t c = 0; c < 80u; c++) {
             uint8_t b = _tp_arena[r * 80u + c];
-            if (!b) continue;
-            for (uint32_t p = 0; p < 4u; p++)
-                if (b & (1u << p)) {
-                    uint32_t x = c * 4u + p;
-                    if (x < 320u) {
-                        uint32_t at = y * 320u + x;
-                        if (mask) page[at] |= (uint8_t)colour;
-                        else page[at] = (uint8_t)colour;
-                    }
-                }
+
+            if (b) _glyph_px(page, y, c * 4u, b, colour, mask);
         }
     }
 }
@@ -170,6 +179,18 @@ void textpage_draw_line_mask_at(uint8_t *page, const char *line,
                                 uint32_t centreX, uint32_t row, uint8_t mask)
 { _draw_line(page, line, centreX, row, mask, 1); }
 
+/** @brief Write one 16-pixel tile row (four 4-px groups per byte). */
+static void _blit_16px(uint8_t *page, uint32_t y, uint32_t x0,
+                       const uint8_t *row)
+{
+    for (uint32_t k = 0; k < 4u; k++)
+        for (uint32_t p = 0; p < 4u; p++) {
+            uint32_t x = x0 + k * 4u + p;
+
+            if (x < 320u) page[y * 320u + x] = row[p + 4u * k];
+        }
+}
+
 /** One 16x16 box tile (blit_sprite_planar A10E's layout). */
 static void _blit_box_tile(uint8_t *page, uint32_t x0, uint32_t y0,
                            const uint8_t *tile)
@@ -177,12 +198,16 @@ static void _blit_box_tile(uint8_t *page, uint32_t x0, uint32_t y0,
     for (uint32_t r = 0; r < 16u; r++) {
         uint32_t y = y0 + r;
         if (y >= 200u) continue;
-        for (uint32_t k = 0; k < 4u; k++)
-            for (uint32_t p = 0; p < 4u; p++) {
-                uint32_t x = x0 + k * 4u + p;
-                if (x < 320u) page[y * 320u + x] = tile[r * 16u + p + 4u * k];
-            }
+        _blit_16px(page, y, x0, tile + r * 16u);
     }
+}
+
+/** @brief Write four consecutive pixels from one tile byte group. */
+static void _blit_4px(uint8_t *page, uint32_t y, uint32_t x0,
+                      const uint8_t *src)
+{
+    for (uint32_t p = 0; p < 4u; p++)
+        if (x0 + p < 320u) page[y * 320u + x0 + p] = src[p];
 }
 
 /** The marker pair (A203/A266): 8x11, colour bytes as shipped. */
@@ -193,10 +218,7 @@ static void _blit_marker(uint8_t *page, uint32_t x0, uint32_t y0,
         uint32_t y = y0 + r;
         if (y >= 200u) continue;
         for (uint32_t k = 0; k < 2u; k++)
-            for (uint32_t p = 0; p < 4u; p++) {
-                uint32_t x = x0 + k * 4u + p;
-                if (x < 320u) page[y * 320u + x] = pat[r * 8u + p + 4u * k];
-            }
+            _blit_4px(page, y, x0 + k * 4u, pat + r * 8u + 4u * k);
     }
 }
 

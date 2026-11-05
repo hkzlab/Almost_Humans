@@ -310,6 +310,15 @@ static void _draw_times_row(uint8_t *ar, uint32_t levelMinus1,
 
 /* --- effect 2's present path -------------------------------------------- */
 
+/** @brief Splat the four bits of one 1bpp byte as four pixels. */
+static void _splat_bits(uint8_t *d, uint8_t b, uint32_t dl)
+{
+    for (uint32_t bit = 0; bit < 4u; bit++) {
+        if (b & 1u) d[bit] = (uint8_t)dl;
+        b >>= 1;
+    }
+}
+
 /** _blit_80x200 (1000:17FB): the _arena's bits 0..3 (4 px per byte, bit 0 the
  * leftmost) splat colour over _page_b, 320 B per row from dest offset 4. */
 static void _blit_80x200(const uint8_t *ar)
@@ -318,13 +327,7 @@ static void _blit_80x200(const uint8_t *ar)
     for (uint32_t row = 0; row < 200u; row++) {
         uint8_t *d = _page_b + 4u + row * 320u;
         const uint8_t *s = ar + row * 80u;
-        for (uint32_t k = 0; k < 80u; k++) {
-            uint8_t b = s[k];
-            for (uint32_t bit = 0; bit < 4u; bit++) {
-                if (b & 1u) d[k * 4u + bit] = (uint8_t)dl;
-                b >>= 1;
-            }
-        }
+        for (uint32_t k = 0; k < 80u; k++) _splat_bits(d + k * 4u, s[k], dl);
         uint32_t cx = 200u - row; /* the pushed row countdown */
         if (cx > 0xB0u) dl = 0xF0u | ((dl + 1u) & 0xFu);
         else if (cx == 0xB0u) dl = _colour1881;
@@ -530,6 +533,14 @@ static void _e4_fill(void)
     _cred_cursor++; /* 1a37: INC SI                    */
 }
 
+/** @brief Mask four planes of one strip byte with one colour. */
+static void _mask_four(uint8_t *px, uint8_t v, uint8_t mask)
+{
+    for (uint32_t j = 0; j < 4u; j++)
+        px[j] =
+            (uint8_t)((px[j] & (uint8_t)~mask) | (((v >> j) & 1u) ? mask : 0u));
+}
+
 /** _blit_scroll (1000:1B58): present strip row `row` — the 200-row window
  * written into the draw page's scanline bytes 20..79 (screen x 80..319),
  * VGA write mode 2 with the row's own bit mask: each 1-bpp source byte
@@ -551,11 +562,8 @@ static void _blit_scroll(uint32_t row)
             _row_sig[i] = sig;
             uint8_t mask = _e4strip[src + 1u];
             for (uint32_t k = 0; k < 60u; k++) {
-                uint8_t v = _e4strip[(src + 0x14u + k) % sizeof _e4strip];
-                uint8_t *px = _vram[di + k];
-                for (uint32_t j = 0; j < 4u; j++)
-                    px[j] = (uint8_t)((px[j] & (uint8_t)~mask) |
-                                      (((v >> j) & 1u) ? mask : 0u));
+                _mask_four(_vram[di + k],
+                           _e4strip[(src + 0x14u + k) % sizeof _e4strip], mask);
             }
         }
         src = (src + 80u) % sizeof _e4strip;

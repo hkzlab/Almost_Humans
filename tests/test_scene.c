@@ -16,6 +16,7 @@
 #include "scene.h"
 #include "video.h"
 #include "compat.h"
+#include "byteorder.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -311,8 +312,7 @@ int main(int argc, char **argv)
                 return 1;
             }
             for (uint32_t i = 0; i + 1 < 320u * 200u; i += 2)
-                h ^= (uint32_t)(osys_null_page(0)[i] |
-                                (osys_null_page(0)[i + 1] << 8));
+                h ^= (uint32_t)(rd_le_u16(osys_null_page(0) + i));
             if (h == last) quiet++;
             else {
                 last = h;
@@ -528,8 +528,7 @@ int main(int argc, char **argv)
                 if (scene_play_level_intro(6) != 1) break;
                 h = 0;
                 for (uint32_t i = 0; i + 1 < 320u * 200u; i += 2)
-                    h ^= (uint32_t)(osys_null_page(0)[i] |
-                                    (osys_null_page(0)[i + 1] << 8));
+                    h ^= (uint32_t)(rd_le_u16(osys_null_page(0) + i));
                 if (h == last) {
                     quiet++;
                 } else {

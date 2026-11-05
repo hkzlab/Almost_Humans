@@ -218,6 +218,37 @@ uint32_t g_map_panel; /** [0x8A2]: 1..6                          */
 static uint32_t _map_score(void)
 { return ((uint32_t)score_total_hi() << 16) | score_total_lo(); }
 
+/** @brief Rotate a word right by p positions (XCHG/SHR/XCHG). */
+static uint16_t _alpha_ror16(uint16_t bx, uint32_t p)
+{
+    for (uint32_t r = 0; r < p; r++) bx = (uint16_t)((bx >> 1) | (bx << 15));
+    return bx;
+}
+
+/** @brief SHL AH / RCR AL over four steps; the high nibble of the result. */
+static uint8_t _alpha_hi_right(uint8_t ah)
+{
+    uint8_t al = 0;
+
+    for (uint32_t k = 0; k < 4u; k++) {
+        al = (uint8_t)((al >> 1) | ((ah & 0x80u) ? 0x80u : 0u));
+        ah = (uint8_t)(ah << 1);
+    }
+    return (uint8_t)(al >> 4);
+}
+
+/** @brief SHR AH / RCL AL over four steps; the low nibble of the result. */
+static uint8_t _alpha_lo_left(uint8_t ah)
+{
+    uint8_t al = 0;
+
+    for (uint32_t k = 0; k < 4u; k++) {
+        al = (uint8_t)((al << 1) | (ah & 1u));
+        ah = (uint8_t)(ah >> 1);
+    }
+    return (uint8_t)(al & 0x0Fu);
+}
+
 /** 1000:0705 expand_nibbles_4plane: the packed 4bpp sheet into four planes of
  * 0x4000 bytes (a literal port of the bit twiddling). */
 void alpha_expand(const uint8_t *src, uint8_t *dst)
@@ -226,41 +257,23 @@ void alpha_expand(const uint8_t *src, uint8_t *dst)
         uint32_t si = 0, di = p * 0x4000u;
 
         for (uint32_t i = 0; i < 0x1000u; i++) {
-            uint16_t bx = rd_le_u16(src + si);
-            uint8_t al = 0, ah;
+            uint16_t bx = _alpha_ror16(rd_le_u16(src + si), p);
 
             si += 2u;
-            for (uint32_t r = 0; r < p; r++)
-                bx = (uint16_t)((bx >> 1) | (bx << 15)); /* XCHG/SHR/XCHG */
-            ah = (uint8_t)(bx & 0xFFu); /* BL */
-            for (uint32_t k = 0; k < 4u; k++) { /* SHL AH / RCR AL */
-                al = (uint8_t)((al >> 1) | ((ah & 0x80u) ? 0x80u : 0u));
-                ah = (uint8_t)(ah << 1);
-            }
-            dst[di++] = (uint8_t)(al >> 4);
-            al = 0;
-            ah = (uint8_t)(bx & 0xFFu);
-            for (uint32_t k = 0; k < 4u; k++) { /* SHR AH / RCL AL */
-                al = (uint8_t)((al << 1) | (ah & 1u));
-                ah = (uint8_t)(ah >> 1);
-            }
-            dst[di++] = (uint8_t)(al & 0x0Fu);
-            ah = (uint8_t)((bx >> 8) & 0xFFu); /* MOV BL,BH */
-            al = 0;
-            for (uint32_t k = 0; k < 4u; k++) {
-                al = (uint8_t)((al >> 1) | ((ah & 0x80u) ? 0x80u : 0u));
-                ah = (uint8_t)(ah << 1);
-            }
-            dst[di++] = (uint8_t)(al >> 4);
-            al = 0;
-            ah = (uint8_t)((bx >> 8) & 0xFFu);
-            for (uint32_t k = 0; k < 4u; k++) {
-                al = (uint8_t)((al << 1) | (ah & 1u));
-                ah = (uint8_t)(ah >> 1);
-            }
-            dst[di++] = (uint8_t)(al & 0x0Fu);
+            dst[di++] = _alpha_hi_right((uint8_t)(bx & 0xFFu)); /* BL */
+            dst[di++] = _alpha_lo_left((uint8_t)(bx & 0xFFu));
+            /* MOV BL,BH */
+            dst[di++] = _alpha_hi_right((uint8_t)((bx >> 8) & 0xFFu));
+            dst[di++] = _alpha_lo_left((uint8_t)((bx >> 8) & 0xFFu));
         }
     }
+}
+
+/** @brief Splat one nibble as four page pixels. */
+static void _splat_four(uint8_t *page, uint32_t px, uint32_t py, uint32_t v)
+{
+    for (uint32_t bit = 0; bit < 4u; bit++)
+        if ((v >> bit) & 1u) page[py * 320u + px + bit] = 0x0Fu;
 }
 
 /** 1000:119F cos_scaled (angle + 0x5A, wrapped) / 1000:11AA sin_scaled:
@@ -305,8 +318,7 @@ static void _alpha_blit_cell(uint8_t *page, uint32_t src, uint32_t dst)
             uint32_t py = at / 80u;
 
             if (!v || py >= 200u || px + 3u >= 320u) continue;
-            for (uint32_t bit = 0; bit < 4u; bit++)
-                if ((v >> bit) & 1u) page[py * 320u + px + bit] = 0x0Fu;
+            _splat_four(page, px, py, v);
         }
     }
 }
@@ -353,6 +365,14 @@ void alpha_draw_name(uint8_t *page, const char *name)
 
 /** 1000:12D3: the 1:1 band copy (6080 bytes, four plane passes, source stride
  * 4).  The output is the 76-row band at the page origin. */
+/** @brief Write one 4-pixel nibble of the band at (row, col). */
+static void _band_write(uint8_t *page, uint32_t row, uint32_t col, uint32_t v)
+{
+    for (uint32_t j = 0; j < 4u; j++)
+        if ((v >> j) & 1u) page[row * 320u + col * 4u + j] = 0x0Fu;
+}
+
+/** @brief Fill the 76-row band from the band sheet. */
 void map_band_fill(uint8_t *page)
 {
     if (!page || !_band_sheet) return;
@@ -360,12 +380,37 @@ void map_band_fill(uint8_t *page)
         uint32_t row = i / 80u, col = i % 80u;
 
         if (row >= 76u) break;
-        for (uint32_t p = 0; p < 4u; p++) {
-            uint32_t v = _band_sheet[(i * 4u + p) & 0xFFFFu];
+        for (uint32_t p = 0; p < 4u; p++)
+            _band_write(page, row, col, _band_sheet[(i * 4u + p) & 0xFFFFu]);
+    }
+}
 
-            for (uint32_t j = 0; j < 4u; j++)
-                if ((v >> j) & 1u) page[row * 320u + col * 4u + j] = 0x0Fu;
+/** @brief Write the masked four pixels of one sheet byte. */
+static void _blit_four(uint8_t *page, uint32_t row, uint32_t col, uint32_t v,
+                       uint32_t mask)
+{
+    for (uint32_t j = 0; j < 4u; j++)
+        if (((mask >> (4u + j)) & 1u) && ((v >> j) & 1u))
+            page[row * 320u + col * 4u + j] = 0x0Fu;
+}
+
+/** @brief One blit-row pass: the three runs and their gaps. */
+static void _blit_runs(uint8_t *page, uint32_t *d, uint32_t *s, uint32_t mask)
+{
+    static const uint32_t runs[3] = { 4u, 31u, 15u };
+    static const uint32_t gaps[3] = { 7u, 9u, 0x0Eu };
+
+    for (uint32_t k = 0; k < 3u; k++) {
+        for (uint32_t n = 0; n < runs[k]; n++) {
+            uint32_t v = _band_sheet[(*s % 24320u)];
+            uint32_t row = (*d / 80u), col = (*d % 80u);
+
+            if (row < 200u) _blit_four(page, row, col, v, mask);
+            (*d)++;
+            (*s)++;
         }
+        *d += gaps[k];
+        *s += gaps[k];
     }
 }
 
@@ -373,28 +418,9 @@ void map_band_fill(uint8_t *page)
 static void _map_blit_row(uint8_t *page, uint32_t dstByte, uint32_t srcByte,
                           uint32_t mask)
 {
-    static const uint32_t runs[3] = { 4u, 31u, 15u };
-    static const uint32_t gaps[3] = { 7u, 9u, 0x0Eu };
     uint32_t d = dstByte, s = srcByte;
 
-    for (uint32_t iter = 0; iter < 14u; iter++) {
-        for (uint32_t k = 0; k < 3u; k++) {
-            for (uint32_t n = 0; n < runs[k]; n++) {
-                uint32_t v = _band_sheet[(s % 24320u)];
-                uint32_t row = (d / 80u), col = (d % 80u);
-
-                if (row < 200u) {
-                    for (uint32_t j = 0; j < 4u; j++)
-                        if (((mask >> (4u + j)) & 1u) && ((v >> j) & 1u))
-                            page[row * 320u + col * 4u + j] = 0x0Fu;
-                }
-                d++;
-                s++;
-            }
-            d += gaps[k];
-            s += gaps[k];
-        }
-    }
+    for (uint32_t iter = 0; iter < 14u; iter++) _blit_runs(page, &d, &s, mask);
 }
 
 /** 1000:07E6: the five frame rows from sheet row `[0x8AE]`. */

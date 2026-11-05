@@ -15,6 +15,7 @@
 #include "osystem.h"
 #include "statusbar.h"
 #include "compat.h"
+#include "byteorder.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -104,7 +105,7 @@ static void _present_hook(uint32_t poll)
     if (poll >= 8001u && poll <= 8051u && menu_active()) _saw_pause = 1;
     if (gameflow_goal_page_up()) {
         uint8_t *a = object_slot(object_action_entity());
-        int32_t x = a ? (int32_t)(int16_t)(a[0] | (a[1] << 8)) : -1;
+        int32_t x = a ? (int32_t)(int16_t)(rd_le_u16(a + 0)) : -1;
 
         if (!_saw_goal) {
             _saw_goal = 1;
