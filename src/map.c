@@ -23,9 +23,9 @@
  * `NAME:` line.  The visible page is `lbm\high.bit`; the four animated band
  * strips live on the display (`1000:0A72`) and `_map_draw_strips` restores
  * them after the `0x024B` offscreen copy.  The top-ten list keeps high.bit
- * behind the rows and uses `apl\band.spr` for the five frame bands (D-215;
- * the 0x0874 offscreen page cannot stand in for both the display and the
- * frame art in the port's one-page model).  The name-entry transition follows
+ * behind the rows; the five frame bands still read `apl\band.spr`, while the
+ * listing's `0x0874` reads the offscreen row page (D-219: the one-page model
+ * cannot keep the display and the row page apart).  The name-entry transition follows
  * 1000:028C..030A: five palette fades, the HIGH.BIT re-copy and the two
  * 1000:1251 outlines.  The six `[0x8A2]` positions are not content panels:
  * they are 0x14-frame scroll steps of the same band.
@@ -691,12 +691,11 @@ static void _map_blit_row(uint8_t *page, uint32_t dstByte, uint32_t srcByte,
 /**
  * @brief 1000:07E6: the five frame bands from band row `[0x8AE]`.
  *
- * The frame art is `apl\band.spr` (the sheet the original de-interleaves into
- * the staging page): each band reads `[0x8AE]*80 + 6` and advances 0x640 per
- * box.  The listing's `0x0874` source is the page at `[0x8A4]`, but that page
- * is the text page in the port's one-page model and painting its glyph bits
- * produced the blue scrolling bands the user rejected; the shipped frame art
- * is the band sheet.
+ * Each band reads `[0x8AE]*80 + 6` and advances 0x640 per box.  The listing's
+ * `0x0874` source is the page at `[0x8A4]` (the offscreen page `0x0577` cleared
+ * and `0x0595` filled with the rows), not `apl\band.spr`; the port's one-page
+ * model cannot keep the display and the row page apart, so this reads the band
+ * sheet instead — D-219 in `port_deviations.md`.
  *
  * @param page the page buffer
  * @param row the source row ([0x8AE])
