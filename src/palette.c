@@ -20,23 +20,25 @@ static uint32_t _fade_first;    /* [0x48B8]: the DAC's first entry    */
 static uint32_t _fade_comps;    /* [0x48B0]: components (entries * 3) */
 static const uint8_t *_fade_target;   /* [0x48B6]: the target palette bytes */
 static int32_t _fade_active;   /* [0x48B4]                           */
-static uint16_t _ramp[768][2]; /* [0x4EBC]: {cur<<8, delta<<8}       */
+static uint16_t _ramp[768][2]; /** [0x4EBC]: {cur<<8, delta<<8}       */
 
+/** @brief Bind the palette module to the backend. */
 int32_t palette_init(const OSystem *osys)
 {
     _pal_osys = osys;
     return 0;
 }
 
-/* palette_load_6bit (1000:8d24): the _working palette := 768 6-bit bytes. */
+/** palette_load_6bit (1000:8d24): the _working palette := 768 6-bit bytes. */
 void palette_load_working(const uint8_t *p6)
 {
     for (uint32_t i = 0; i < 768u; i++) _working[i] = p6[i] & 0x3Fu;
 }
 
+/** @brief Accessor: the working palette. */
 const uint8_t *palette_working(void) { return _working; }
 
-/* seal_triples (1000:43C2) + hash_three_bytes (1000:43D5): turn `entries`
+/** seal_triples (1000:43C2) + hash_three_bytes (1000:43D5): turn `entries`
  * triples of the given palette buffer into grey.  The hash is
  * (77R + 151G + 28B) >> 8 and the tail's SHR CH,1 halves it, so the grey
  * value is (77R + 151G + 28B) >> 9 (0..31 on 6-bit components); all three
@@ -54,7 +56,7 @@ void palette_seal_triples(uint8_t *p6, uint32_t first, uint32_t entries)
     }
 }
 
-/* set_palette_dac (1000:8CEE) route: an immediate DAC write that keeps the
+/** set_palette_dac (1000:8CEE) route: an immediate DAC write that keeps the
  * shadow honest for the next fade's current-colour read. */
 void palette_set_dac(const uint8_t *p6, uint32_t first, uint32_t n)
 {
@@ -62,7 +64,7 @@ void palette_set_dac(const uint8_t *p6, uint32_t first, uint32_t n)
     _pal_osys->videoSetPalette(p6, first, n);
 }
 
-/* palette_build_fade (1000:8bac): fade DAC entries first..first+entries-1
+/** palette_build_fade (1000:8bac): fade DAC entries first..first+entries-1
  * toward `target` (the 6-bit palette whose triple for entry `first` is
  * target[0]) in ~div ticks. */
 void palette_build_fade(uint32_t first, uint32_t entries, uint32_t div,
@@ -81,19 +83,22 @@ void palette_build_fade(uint32_t first, uint32_t entries, uint32_t div,
     _fade_active = 1;
 }
 
-/* palette_fade_active (1000:8b9a) */
+/** palette_fade_active (1000:8b9a) */
 int32_t palette_fade_active(void) { return _fade_active; }
 
-/* the DAC shadow, read-only: the fade-ladder harness compares the port's
+/** the DAC shadow, read-only: the fade-ladder harness compares the port's
  * per-tick DAC progression against the original's live IN 3C9h reads
  * (2026-10-30: window 0x80+n <- buffer entry n, verified in the hardware).
  * No engine logic lives here. */
 const uint8_t *palette_dac_shadow(void) { return _dac; }
+/** @brief Accessor: the fade's target palette. */
 const uint8_t *palette_fade_target(void) { return _fade_target; }
+/** @brief Accessor: the fade's first entry. */
 uint32_t palette_fade_first(void) { return _fade_first; }
+/** @brief Accessor: the fade's component count. */
 uint32_t palette_fade_comps(void) { return _fade_comps; }
 
-/* palette_fade_step (1000:8bfd): one step per tick (the ISR body's palette
+/** palette_fade_step (1000:8bfd): one step per tick (the ISR body's palette
  * work, game_main's game_tick). */
 void palette_tick(void)
 {

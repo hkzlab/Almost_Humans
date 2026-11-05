@@ -136,7 +136,7 @@ static uint32_t _ent_bank_size;
 
 /* --- the appender (1000:5360) and the prologue (1000:5662) -------------- */
 
-/* style_handler_prologue (1000:5662): the walked record's style is 6 and
+/** style_handler_prologue (1000:5662): the walked record's style is 6 and
  * the map cell DIRECTLY BELOW the match (matchIdx + 0x20 — the +0x1F the
  * prologue reads is offset from the walker's cursor, which has already
  * stepped +1 past the match) is <= 0x90 and passes the 0x1F20 flag bit
@@ -158,7 +158,7 @@ static int32_t _style6_y_bonus(const uint8_t *map, uint32_t mapLen,
     return 0;
 }
 
-/* entity_append_to_array (1000:5360..5398).  Summoned per 0xB3 cell in
+/** entity_append_to_array (1000:5360..5398).  Summoned per 0xB3 cell in
  * map scan order. */
 static void _entity_append(const uint8_t *map, uint32_t mapLen,
                            uint32_t matchIdx, uint32_t cx, uint32_t dx,
@@ -185,7 +185,7 @@ static void _entity_append(const uint8_t *map, uint32_t mapLen,
     e[7] = (uint16_t)lifeSeed;    /* +E = [0x17F1] = the goal high byte  */
 }
 
-/* entity_find_by_id (1000:5399..53b8).  Summoned per 0xB4 cell: rewrites
+/** entity_find_by_id (1000:5399..53b8).  Summoned per 0xB4 cell: rewrites
  * the FIRST entity whose spawn row (+8) matches this row's x1 endpoint. */
 static void _entity_find(const uint8_t *map, uint32_t mapLen, uint32_t matchIdx,
                          uint32_t cx, uint32_t dx)
@@ -202,7 +202,7 @@ static void _entity_find(const uint8_t *map, uint32_t mapLen, uint32_t matchIdx,
 
 /* --- load_terrain_b (1000:5168): the level's map walk ------------------- */
 
-/* One pass over the whole 32x20 map per table pair, in table order, the
+/** One pass over the whole 32x20 map per table pair, in table order, the
  * handler invoked at each matching cell with CX = col*16, DX = row*16
  * (the SHL 4s at 51bf-51cd).  The scan is column-inner, row-outer
  * ([0x4234] = cols 0x1F..0, [0x4230] = rows 0x13..0). */
@@ -250,7 +250,7 @@ int32_t entity_spawn_from_map(const uint8_t *map, uint32_t style,
  * primary / step) freshly latched from the baked slots, `endX` = the
  * handler's endpoint word (DX: handler 0 passes x1, handler 1 passes
  * x0).  Everything below is the listing, step for step. */
-/* The handler tables are contiguous in DS (0x64E4 / 0x64F8, eight words per
+/** The handler tables are contiguous in DS (0x64E4 / 0x64F8, eight words per
  * record), and the tail reads past its own row - 1000:CB0E onward consumes
  * wp[5..9], which for handler 0 runs into slot 3.  The port therefore addresses
  * them flat. */
@@ -262,12 +262,12 @@ static uint16_t _ent_word(uint32_t slot, uint32_t off, uint32_t k)
     return i < ENT_MAX * 8u ? flat[i] : 0u;
 }
 
-/* The entity's index, for the +0xA carry link (the port's stand-in for the
+/** The entity's index, for the +0xA carry link (the port's stand-in for the
  * original's DS pointer 0x64C4 + 0x10*n). */
 static uint32_t _ent_index(const Entity *ep)
 { return (uint32_t)(ep - (const Entity *)_ents[0]); }
 
-/* 1000:CA43..CB77 - the tail's interaction pass, run on every walk-branch tick
+/** 1000:CA43..CB77 - the tail's interaction pass, run on every walk-branch tick
  * that does not reach the endpoint.  It walks the eight static placed records
  * and takes the first one that
  *   - is active ([+6] bit 7 clear),
@@ -327,6 +327,7 @@ static void _entity_tail_interact(Entity *ep, uint32_t slot, uint32_t off)
     }
 }
 
+/** @brief One entity walk tick and the endpoint flip. */
 static void _entity_tail(Entity *ep, uint32_t slot, uint32_t off, uint16_t endX)
 {
     uint16_t w0 = _ent_word(slot, off, 0);
@@ -364,7 +365,7 @@ static void _entity_tail(Entity *ep, uint32_t slot, uint32_t off, uint16_t endX)
         ep->waypoint = _ent_word(slot, off, 1); /* c9d5/c9d9 */
 }
 
-/* 1000:CB99: the carry animation stepper handlers 2 and 3 jump into.  The
+/** 1000:CB99: the carry animation stepper handlers 2 and 3 jump into.  The
  * record's fields are used as BYTES here: +0xA is a 4-tick hold, +0xB the
  * animation sub-step (stepped down by 0x10) and +0xC a word frame counter that
  * walks up to the target in [0x423C].  On reaching it the target drops by 0xC
@@ -399,7 +400,7 @@ static void _entity_carry_anim(Entity *ep)
     ep->handler = _sel_secondary; /* cbe2/cbe5: [0x4238] */
 }
 
-/* The three table reads for one cell index; 0 = the indices are outside the
+/** The three table reads for one cell index; 0 = the indices are outside the
  * bank (the original would read whatever follows it in memory). */
 int32_t entity_frame_info(uint32_t a, uint32_t *src, uint32_t *rows,
                           uint32_t *yoff)
@@ -413,7 +414,7 @@ int32_t entity_frame_info(uint32_t a, uint32_t *src, uint32_t *rows,
     return (*src <= _ent_bank_size) ? 1 : 0;
 }
 
-/* 1000:58D1's sprite-pixel test: the REX bank pixel at the (x,y) offset in
+/** 1000:58D1's sprite-pixel test: the REX bank pixel at the (x,y) offset in
  * the sprite whose descriptor entity_frame_info(a) returned. */
 int32_t entity_sprite_pixel(uint32_t src, uint32_t rows, uint32_t x, uint32_t y)
 {
@@ -423,17 +424,18 @@ int32_t entity_sprite_pixel(uint32_t src, uint32_t rows, uint32_t x, uint32_t y)
     return _ent_bank[idx] != 0u;
 }
 
-/* the mutable entity record (the collision pass writes it). */
+/** the mutable entity record (the collision pass writes it). */
 Entity *entity_at_mut(uint32_t i)
 { return i < _ent_count ? (Entity *)_ents[i] : NULL; }
 
+/** @brief Publish the REX.DAT frame bank. */
 void entity_publish_bank(const uint8_t *bank, uint32_t size)
 {
     _ent_bank = bank;
     _ent_bank_size = size;
 }
 
-/* 1000:5823 / 0x5894: the entity pass.  Runs after the placed records
+/** 1000:5823 / 0x5894: the entity pass.  Runs after the placed records
  * (render_objects 0x5D56 calls 0x6421 then 0x5823), before the bar. */
 void entity_render(uint8_t *page, int32_t scrollX, int32_t scrollY)
 {
@@ -457,7 +459,7 @@ void entity_render(uint8_t *page, int32_t scrollX, int32_t scrollY)
     }
 }
 
-/* --- the dispatch (1000:C93C) ------------------------------------------- */
+/** --- the dispatch (1000:C93C) ------------------------------------------- */
 void entity_tick(void)
 {
     /* 1000:C944: AX = [0x64C2]-1, DEC/JNS - the entity table is walked
@@ -501,22 +503,24 @@ void entity_tick(void)
     }
 }
 
-/* --- the interface ------------------------------------------------------ */
+/** --- the interface ------------------------------------------------------ */
 int32_t entity_init(const OSystem *osys)
 {
     (void)osys;
     return 0;
 }
 
+/** @brief Accessor: one entity record, NULL past the count. */
 const Entity *entity_at(uint32_t i)
 {
     if (i >= _ent_count) return NULL;
     return (const Entity *)_ents[i];
 }
 
+/** @brief Accessor: the live entity count. */
 uint32_t entity_count(void) { return _ent_count; }
 
-/* Save +0x1656+0x28 = [0x64C2] (u16) + the first seven 0x10-byte records
+/** Save +0x1656+0x28 = [0x64C2] (u16) + the first seven 0x10-byte records
  * (0x64C4..0x6534).  The original copies 0x70 bytes, i.e. slots 0..6. */
 void entity_save_fixed(uint8_t *dst)
 {
@@ -525,6 +529,7 @@ void entity_save_fixed(uint8_t *dst)
     for (uint32_t i = 0; i < 7u; i++) memcpy(dst + 2u + i * 16u, _ents[i], 16u);
 }
 
+/** @brief Restore the entity table from a save. */
 void entity_load_fixed(const uint8_t *src)
 {
     if (!src) return;

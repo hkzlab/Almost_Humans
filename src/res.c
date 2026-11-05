@@ -92,14 +92,17 @@ static const uint8_t _res_movie_disc_table[10] = {
  * ONE volume-file name from it. */
 static uint32_t _res_current_disc = 0;
 
+/** @brief Set the current disc. */
 void res_set_disc(uint32_t disc) { _res_current_disc = disc; }
 
+/** @brief The disc that holds one movie file. */
 uint32_t res_movie_disc(uint32_t idx)
 {
     if (idx >= sizeof _res_movie_disc_table) return 0xFF;
     return _res_movie_disc_table[idx];
 }
 
+/** @brief Read n bytes from the volume at an absolute offset. */
 static int32_t _vol_sixteen(VolReader *r, uint32_t at, uint8_t *dst, uint32_t n)
 {
     uint32_t got = g_fs.read(r->v, at, dst, n);
@@ -107,6 +110,7 @@ static int32_t _vol_sixteen(VolReader *r, uint32_t at, uint8_t *dst, uint32_t n)
     return 0;
 }
 
+/** @brief Read one little-endian word from the volume cursor. */
 static uint16_t _vol_word(VolReader *r)
 {
     uint8_t tmp[2];
@@ -115,10 +119,11 @@ static uint16_t _vol_word(VolReader *r)
     return rd_le_u16(tmp);
 }
 
-/* Volume reader adapter: reads u16 words at VolReader::pos. */
+/** Volume reader adapter: reads u16 words at VolReader::pos. */
 static uint16_t _vol_word_reader(void *ctx)
 { return _vol_word((VolReader *)ctx); }
 
+/** @brief Read one bit from the LZ stream. */
 static uint32_t _lz_bit(LzState *s)
 {
     uint32_t bit = s->buf & 1u;
@@ -132,6 +137,7 @@ static uint32_t _lz_bit(LzState *s)
     return bit;
 }
 
+/** @brief Read n bits from the LZ stream. */
 static uint32_t _lz_bits(LzState *s, uint32_t n)
 {
     uint32_t v = 0;
@@ -139,6 +145,7 @@ static uint32_t _lz_bits(LzState *s, uint32_t n)
     return v;
 }
 
+/** @brief Copy n literal bytes from the LZ stream. */
 static void _lz_literals(LzState *s, uint32_t n)
 {
     while (n--) {
@@ -154,6 +161,7 @@ static void _lz_literals(LzState *s, uint32_t n)
     }
 }
 
+/** @brief Copy one LZ back-reference of n bytes. */
 static void _lz_match(LzState *s, uint32_t n, uint32_t distbits)
 {
     uint32_t d = _lz_bits(s, distbits);
@@ -184,7 +192,7 @@ static void _lz_match(LzState *s, uint32_t n, uint32_t distbits)
  * checksum gate, so only corrupt data reaches this — bound the read when
  * handling untrusted RSCs. */
 
-/* One compressed block: `clen` bytes, checker fresh per block exactly as
+/** One compressed block: `clen` bytes, checker fresh per block exactly as
  * decode_bitstream resets BP to the stream's checksum field (the 91c7 XOR
  * is dead — 91c9 MOV BP,AX overwrites it), then XORs the bit-buffer word
  * and every refill word.  Returns the block's final accumulator. */
@@ -210,6 +218,7 @@ static uint16_t _lz_block(LzState *s, uint32_t clen)
     return s->chk;
 }
 
+/** @brief The in-memory word reader for the LZ decoder. */
 static uint16_t _mem_word_reader(void *ctx)
 {
     MemRd *mr = (MemRd *)ctx;
@@ -224,7 +233,7 @@ static uint16_t _mem_word_reader(void *ctx)
     return w;
 }
 
-/* Decode one LZW object from a memory buffer:
+/** Decode one LZW object from a memory buffer:
  *   [u16 decompressed_size][u16 checksum][u16 bit buffer][LZW bits]
  * Returns the decompressed size written to `out`, or -1 on failure.
  * *chkOut mirrors the machine's final BP accumulator. */
@@ -264,7 +273,7 @@ int32_t res_decode_lzw_mem(const uint8_t *data, uint32_t data_size,
 
 /* --- the chunk directory and the block loop -------------------------- */
 
-/* The chunk name is uppercased and SPACE-padded to its 18 bytes in the
+/** The chunk name is uppercased and SPACE-padded to its 18 bytes in the
  * record (the live DS:0x4799 header: `MUS\LEVJ.ALB      `), so the compare
  * folds case and accepts 0 or ' ' as the pad. */
 static int32_t _name_equal(const char *req, const uint8_t *rec /* 18 bytes */)
@@ -281,7 +290,7 @@ static int32_t _name_equal(const char *req, const uint8_t *rec /* 18 bytes */)
     return *a == 0;
 }
 
-/* Decode the chunk whose record lives at `off` in volume `r->v` into a
+/** Decode the chunk whose record lives at `off` in volume `r->v` into a
  * malloc'd buffer of `length` bytes (caller frees).  NULL = failure.
  * `chkOut` receives the resource-level BP: the accumulator runs the way
  * resource_decode_chunk drives it — the flag word XORs in for both paths
@@ -334,6 +343,7 @@ static uint8_t *_res_decode_chunk(VolReader *r, uint32_t off,
     return out;
 }
 
+/** @brief Load and decode one named resource from the current disc. */
 uint8_t *res_load_chunk(const char *name, uint32_t *sizeOut, uint16_t *chkOut)
 {
     uint8_t *result = NULL;
@@ -364,13 +374,14 @@ uint8_t *res_load_chunk(const char *name, uint32_t *sizeOut, uint16_t *chkOut)
     return result;
 }
 
+/** @brief Bind the resource module to the backend. */
 int32_t res_init(const OSystem *osys)
 {
     (void)osys;
     return 0;
 }
 
-/* the disc-presence probe: draw_status_indicator's open test (1000:20CF)
+/** the disc-presence probe: draw_status_indicator's open test (1000:20CF)
  * opens the volume file for the disc and closes it; 0 = the disc is not
  * available (the "PUT THE DISK INTO DRIVE n" screen). */
 int32_t res_volume_present(uint32_t disc)

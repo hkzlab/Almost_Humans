@@ -54,10 +54,11 @@ static const struct {
     { 20000u, "SIMON HIRST" },   { 10000u, "CRAIG MASSEY" }
 };
 
+/** @brief Accessor: one high-score entry. */
 static uint8_t *_hiscore_entry(uint32_t i)
 { return _hiscore_table + 0x154u + i * HIS_ENTRY; }
 
-/* 1000:06DE crypt_table_38a — the involution, same routine for both
+/** 1000:06DE crypt_table_38a — the involution, same routine for both
  * directions: [di] ^= bl; bl = rol8(bl,1) + 3. */
 void hiscore_obfuscate(uint8_t *p, uint32_t n)
 {
@@ -69,10 +70,11 @@ void hiscore_obfuscate(uint8_t *p, uint32_t n)
     }
 }
 
+/** @brief Crypt/decrypt the high-score table in place. */
 static void _hiscore_crypt(void)
 { hiscore_obfuscate(_hiscore_table, HIS_TABLE); }
 
-/* the shipped state: every level 9:99 and the ten defaults */
+/** the shipped state: every level 9:99 and the ten defaults */
 static void _hiscore_defaults(void)
 {
     memset(_hiscore_table, 0, sizeof _hiscore_table);
@@ -88,14 +90,14 @@ static void _hiscore_defaults(void)
     }
 }
 
-/* Restore the shipped state (tests and a fresh install). */
+/** Restore the shipped state (tests and a fresh install). */
 void hiscore_reset(void)
 {
     _hiscore_defaults();
     _hiscore_loaded = 1;
 }
 
-/* 1000:069F load_file_to_buffer: DS:0x38A <- 520 bytes, then decrypt.  A
+/** 1000:069F load_file_to_buffer: DS:0x38A <- 520 bytes, then decrypt.  A
  * missing or short file leaves the shipped defaults in place. */
 void hiscore_init(void)
 {
@@ -115,7 +117,7 @@ void hiscore_init(void)
     }
 }
 
-/* Re-read the file (a new game / a fresh boot); tests use it to prove the
+/** Re-read the file (a new game / a fresh boot); tests use it to prove the
  * save round-trip without a second process. */
 void hiscore_reload(void)
 {
@@ -123,7 +125,7 @@ void hiscore_reload(void)
     hiscore_init();
 }
 
-/* 1000:06CC decrypt_region_38a: encrypt in place, write, restore. */
+/** 1000:06CC decrypt_region_38a: encrypt in place, write, restore. */
 void hiscore_write(void)
 {
     FSSave *f;
@@ -138,7 +140,7 @@ void hiscore_write(void)
     _hiscore_crypt();
 }
 
-/* the per-level best as `1000:42E9` reads it: level N's u16 at 0x38A + 2*N */
+/** the per-level best as `1000:42E9` reads it: level N's u16 at 0x38A + 2*N */
 uint16_t hiscore_best(uint32_t level)
 {
     hiscore_init();
@@ -146,6 +148,7 @@ uint16_t hiscore_best(uint32_t level)
     return rd_le_u16(_hiscore_table + 2u + 2u * level);
 }
 
+/** @brief Record the best time for one level. */
 void hiscore_set_best(uint32_t level, uint16_t value)
 {
     hiscore_init();
@@ -153,8 +156,10 @@ void hiscore_set_best(uint32_t level, uint16_t value)
     wr_le_u16(_hiscore_table + 2u + 2u * level, value);
 }
 
+/** @brief Accessor: the table's entry count. */
 uint32_t hiscore_count(void) { return HIS_TOPN; }
 
+/** @brief Accessor: one entry's score. */
 uint32_t hiscore_score(uint32_t i)
 {
     const uint8_t *e;
@@ -165,13 +170,14 @@ uint32_t hiscore_score(uint32_t i)
     return rd_le_u32(e);
 }
 
+/** @brief Accessor: one entry's name. */
 const char *hiscore_name(uint32_t i)
 {
     hiscore_init();
     return i < HIS_TOPN ? (const char *)_hiscore_entry(i) + 4 : "";
 }
 
-/* 1000:0486's sanitiser: 0x1A -> space, 0x1B -> '.' */
+/** 1000:0486's sanitiser: 0x1A -> space, 0x1B -> '.' */
 static char _hiscore_char(char c)
 {
     if (c == '\x1A') return ' ';
@@ -179,12 +185,12 @@ static char _hiscore_char(char c)
     return c;
 }
 
-/* 1000:01CD: does the score make the table?  The walk only gives up when the
+/** 1000:01CD: does the score make the table?  The walk only gives up when the
  * candidate is BELOW the last entry, so an equal score still displaces it. */
 int32_t hiscore_qualifies(uint32_t score)
 { return score >= hiscore_score(HIS_TOPN - 1u); }
 
-/* 1000:01CD..0x0230: insert, shifting 18-byte entries down one slot.  Returns
+/** 1000:01CD..0x0230: insert, shifting 18-byte entries down one slot.  Returns
  * the slot taken, or -1 when the score beats none of the ten. */
 int32_t hiscore_insert(uint32_t score, const char *name)
 {
@@ -216,7 +222,7 @@ int32_t hiscore_insert(uint32_t score, const char *name)
     return took;
 }
 
-/* --- 1000:0486: the name-entry grid -------------------------------------
+/** --- 1000:0486: the name-entry grid -------------------------------------
  *
  * The insert screen is a cursor over 0x1C columns: 0x00..0x19 are 'A'..'Z',
  * 0x1A is space, 0x1B is '.', 0x1C deletes the last character and 0x1D
@@ -237,6 +243,7 @@ static void _name_put(char *name, uint32_t *len, char c)
     *len = n;
 }
 
+/** @brief Apply one typed character to a name; 0 = done. */
 int32_t hiscore_name_apply(char *name, uint32_t column, uint32_t *len)
 {
     uint32_t n = *len;

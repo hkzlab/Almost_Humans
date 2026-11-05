@@ -27,6 +27,7 @@ extern const uint8_t *osys_null_palette(void);
 
 extern const OSystem g_osys_null;
 
+/** @brief XOR the little-endian words of a byte range. */
 static uint32_t _xor16(const uint8_t *p, uint32_t n)
 {
     uint32_t v = 0;
@@ -35,6 +36,7 @@ static uint32_t _xor16(const uint8_t *p, uint32_t n)
     return v;
 }
 
+/** @brief Read a whole file into a malloc'd buffer; NULL on error. */
 static uint8_t *_read_file(const char *path, uint32_t *size)
 {
     FILE *f = fopen(path, "rb");
@@ -53,7 +55,7 @@ static uint8_t *_read_file(const char *path, uint32_t *size)
     return buf;
 }
 
-/* Drive an intro to its first played frame: the panel's 0x20-entry fade-in,
+/** Drive an intro to its first played frame: the panel's 0x20-entry fade-in,
  * the 210-tick dwell and the 0x20-entry black fade all run before the
  * prologue frame lands, and every fade is stepped by palette_tick (the
  * ISR's).  Returns 1 once the page has changed from the panel. */
@@ -70,6 +72,7 @@ static int32_t _scene_to_first_frame(uint32_t idx)
     return 0;
 }
 
+/** @brief Run the intro scene tests. */
 int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";

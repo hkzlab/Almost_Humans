@@ -57,6 +57,7 @@ static int32_t _saw_pause;
  * up even with a direction held, and the page must be seen at all */
 static int32_t _saw_goal, _goal_moved, _goal_ticks, _goal_x;
 
+/** @brief Read a whole file into a malloc'd buffer; NULL on error. */
 static uint8_t *_read_file(const char *path, uint32_t *size)
 {
     FILE *f = fopen(path, "rb");
@@ -75,6 +76,7 @@ static uint8_t *_read_file(const char *path, uint32_t *size)
     return buf;
 }
 
+/** @brief Write a page and its palette as a binary PPM for inspection. */
 static void _dump_ppm(const char *name, const uint8_t *page)
 {
     char path[512];
@@ -94,6 +96,7 @@ static void _dump_ppm(const char *name, const uint8_t *page)
     _dumped++;
 }
 
+/** @brief The null backend's present hook: record the observed flow events. */
 static void _present_hook(uint32_t poll)
 {
     /* D-15: the ESC at 8000 must have the pause block up on the next present;
@@ -117,6 +120,7 @@ static void _present_hook(uint32_t poll)
     }
 }
 
+/** @brief Run the end-to-end smoke test. */
 int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";

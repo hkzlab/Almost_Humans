@@ -259,7 +259,7 @@ static uint32_t _boot_gt_bank; /* the 4-bank palette-cycle counter        */
 static uint8_t *_boot_itb; /* intro\itb.bit held until its stage      */
 static uint32_t _boot_hold; /* the stages' hold counters (c0b8's CX)   */
 
-/* --- AL expander: blit_background_data (1000:B2EB) --------------------
+/** --- AL expander: blit_background_data (1000:B2EB) --------------------
  *
  * Source = AL stream, destination = page.  Grammar (from the listing):
  *
@@ -332,6 +332,7 @@ static void _scene_al_expand(const uint8_t *src, uint32_t src_size,
     }
 }
 
+/** @brief Load one .ANI newspaper into the scene decoder. */
 static int32_t _ani_load(Ani *a, uint32_t ani_idx)
 {
     char name[32];
@@ -355,7 +356,7 @@ static int32_t _ani_load(Ani *a, uint32_t ani_idx)
     return 0;
 }
 
-/* Decode the LZW object at table entry `idx` into `out` (capacity
+/** Decode the LZW object at table entry `idx` into `out` (capacity
  * `out_size`).  Returns the decompressed size, or -1 on failure.
  * *chkOut receives the object's checksum accumulator (0 = the game's
  * scene-object test passes, 1000:B444). */
@@ -367,9 +368,10 @@ static int32_t _ani_decode_object(const Ani *a, uint32_t idx, uint8_t *out,
                               out_size, chkOut);
 }
 
+/** @brief Test seam: skip the intro's per-frame waits. */
 void scene_set_fast_mode(int32_t on) { _scene_fast = on ? 1u : 0u; }
 
-/* Start a NEW cutscene on the next scene_play_level_intro call: cd_file_op has
+/** Start a NEW cutscene on the next scene_play_level_intro call: cd_file_op has
  * no cache of its own, so two consecutive levels with the same intro index
  * must reload it.  The per-tick player otherwise keeps the finished index
  * (a finished intro stays finished). */
@@ -379,7 +381,7 @@ void scene_reset_intro(void)
     _scene_phase = SCENE_IDLE;
 }
 
-/* play_scene_sequence's pre-frame palette fade (1000:B263), shared by the
+/** play_scene_sequence's pre-frame palette fade (1000:B263), shared by the
  * level's .ANI and the boot's logo: fast mode = 4 entries div 2, otherwise
  * all 256 entries div 0x19. */
 static void _scene_palette_fade(const uint8_t *target)
@@ -388,7 +390,7 @@ static void _scene_palette_fade(const uint8_t *target)
     else palette_build_fade(0u, 0x100u, 0x19u, target);
 }
 
-/* cd_file_op's key exit (1000:B157): a 0x100-entry fade to [0x48BC]
+/** cd_file_op's key exit (1000:B157): a 0x100-entry fade to [0x48BC]
  * (black) before the function returns. */
 static void _scene_quit_fade(void)
 {
@@ -396,21 +398,24 @@ static void _scene_quit_fade(void)
     _scene_phase = SCENE_QUIT_FADE;
 }
 
+/** @brief Bind the scene module to the backend. */
 int32_t scene_init(const OSystem *osys)
 {
     _scene_osys = osys;
     return 0;
 }
 
+/** @brief The boot intro's key gate: any key or fire. */
 static int32_t _boot_key_state(void)
 {
     return _scene_last_input.lastKey != 0u ||
            (_scene_last_input.joyBits & 0x80u) != 0u;
 }
 
+/** @brief Latch this tick's input for the scene waits. */
 void scene_note_input(const InputState *in) { _scene_last_input = *in; }
 
-/* Any key or fire: the original's [0x48A3] / +0x5ACE bit-7 checks.  (The
+/** Any key or fire: the original's [0x48A3] / +0x5ACE bit-7 checks.  (The
  * level intro's skip polls — its contract predates the boot's flag-cache
  * model; the boot's waits use _boot_key_state instead.) */
 static int32_t _scene_key_held(void)
@@ -420,6 +425,7 @@ static int32_t _scene_key_held(void)
     return in.lastKey != 0 || (in.joyBits & 0x80u) != 0;
 }
 
+/** @brief Release the current intro scene's assets. */
 static void _scene_unload(void)
 {
     free(_ani_data);
@@ -439,7 +445,7 @@ static void _scene_unload(void)
     memset(&_ani, 0, sizeof _ani);
 }
 
-/* Load ANI<index>.ANI + the background assets, draw the background and
+/** Load ANI<index>.ANI + the background assets, draw the background and
  * the palette onto page 0.  Returns 0 on success. */
 static int32_t _scene_start(uint32_t index, int32_t initial)
 {
@@ -524,6 +530,7 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
     return 0;
 }
 
+/** @brief Play one level's .ANI newspaper for a frame; 1 = showing. */
 int32_t scene_play_level_intro(uint32_t introIndex)
 {
     /* cd_file_op's head (1000:AFFD): the ANIMATIONS board (cell 5,
@@ -728,7 +735,7 @@ int32_t scene_play_level_intro(uint32_t introIndex)
     }
 }
 
-/* One gametek group: place_scene_obj (1000:B3F9) decodes the object out of
+/** One gametek group: place_scene_obj (1000:B3F9) decodes the object out of
  * the RSC's u32 table (the same machine as res_decode_lzw_mem — the b444
  * checksum gate) and the object's RLE stream expands over the whole page
  * (blit_background_data 1000:B2EB — _scene_al_expand is that machine,
@@ -745,7 +752,7 @@ static int32_t _boot_gt_show(uint32_t idx)
     return 1;
 }
 
-/* present_frame (1000:BDBC) for the idi/first cards: load, the file's own
+/** present_frame (1000:BDBC) for the idi/first cards: load, the file's own
  * palette into the working palette (8d24, RAM only), the image on the page.
  * The DAC moves when the caller's fade targets the working palette. */
 static int32_t _boot_card_show(const char *name)
@@ -762,7 +769,7 @@ static int32_t _boot_card_show(const char *name)
     return 1;
 }
 
-/* c0c6 (input_abort_check): every c0af/c0b8 wait polls the key each tick;
+/** c0c6 (input_abort_check): every c0af/c0b8 wait polls the key each tick;
  * a held key or fire bit jumps b60a — the whole remaining boot (the cards,
  * the caveman scene) is skipped, the final fade runs, done. */
 static int32_t _boot_abort_poll(void)
@@ -772,6 +779,7 @@ static int32_t _boot_abort_poll(void)
     return 1;
 }
 
+/** @brief Release the boot intro's loaded assets. */
 static void _boot_unload(void)
 {
     free(_boot_bac);
@@ -806,7 +814,7 @@ static void _boot_unload(void)
     _boot_itb = NULL;
 }
 
-/* blit_sprite_transparent (1000:BAA5): a width x height sprite at page
+/** blit_sprite_transparent (1000:BAA5): a width x height sprite at page
  * (worldX - scroll, pageYOff); 0 bytes are transparent; the sprite clips
  * at the page's right edge and is off-screen once X wraps. */
 static void _boot_blit_sprite(const uint8_t *spr, uint32_t width,
@@ -830,7 +838,7 @@ static void _boot_blit_sprite(const uint8_t *spr, uint32_t width,
     }
 }
 
-/* copy_rows_0x140 (1000:B9F8): the scroll render — the bac screen wrapped
+/** copy_rows_0x140 (1000:B9F8): the scroll render — the bac screen wrapped
  * horizontally by `scroll`: each of the 184 rows shows
  * bac[row][scroll..320) then bac[row][0..scroll), in 92 two-row pairs
  * (each pair: two DX-byte copies + two BP advances; DX + BP = 320). */
@@ -865,7 +873,7 @@ static void _boot_scroll_render(uint8_t *page, const uint8_t *bac,
     }
 }
 
-/* One display-list record: the stored index INCs (16-bit — a 0xFFFF index
+/** One display-list record: the stored index INCs (16-bit — a 0xFFFF index
  * wraps to object 0, the display-list object itself), the object LZW-
  * decodes to [u16 width][u16 height][bytes] and transparent-blits at
  * `dest` with the 320-byte row stride (1000:B955's inner blit). */
@@ -907,7 +915,7 @@ static void _boot_blit_record(const uint8_t *rsc, uint32_t rscSize,
     }
 }
 
-/* blit_display_list (1000:B955): blit the current group's records; returns
+/** blit_display_list (1000:B955): blit the current group's records; returns
  * the position after the group's 0xFFFF terminator.  The records are the
  * decoded object 0's OWN TAIL — §8.7a: nobody builds the list at runtime,
  * `MOV SI,[0x6468]` ([0x6468] = obj0 base+2) walks the scratch segment, so
@@ -936,7 +944,7 @@ static uint32_t _boot_blit_group(const uint8_t *listBuf, uint32_t listSize,
     return si;
 }
 
-/* The seek (cmd 4): walk `frame` 0xFFFF group terminators from the list
+/** The seek (cmd 4): walk `frame` 0xFFFF group terminators from the list
  * start — the group for `frame`.  The terminators live in the decoded
  * object 0's tail (§8.7a: the list is consumed straight out of the decoded
  * object, [0x6468] runs in the scratch segment), so the walk bounds
@@ -955,7 +963,7 @@ static uint32_t _boot_seek(const uint8_t *listBuf, uint32_t listSize,
     return si;
 }
 
-/* the bar text (run_screen_transition's builder, 1000:B89D -> B8A8): the
+/** the bar text (run_screen_transition's builder, 1000:B89D -> B8A8): the
  * words' 1-bit block at [0x8689 + arg*0x258] — 16 rows × 40 bytes, each
  * bit = one pixel, MSB first, colour 0xE0+row (bac's grey gradient bank)
  * or black — written into the visible bar, rows 182-197, once per
@@ -973,7 +981,7 @@ static void _boot_bar_draw(uint32_t arg)
     }
 }
 
-/* deplanarise_bitmap (1000:BB05) — the present.  The visible page (chain-4
+/** deplanarise_bitmap (1000:BB05) — the present.  The visible page (chain-4
  * mode 13h, pitch 80 bytes/row/plane) is filled from the pool's rows 4-183
  * (SI+0x500, 180 rows): visible row v = pool row v+4.  The visible rows
  * 180-199 are outside every present — the bar (run_screen_transition's
@@ -989,6 +997,7 @@ static void _boot_compose_present(uint8_t *page)
     memset(page + 198u * 320u, 0, 2u * 320u); /* rows 198-199    */
 }
 
+/** @brief Play the power-on boot intro chain for one frame; 1 = showing. */
 int32_t scene_play_boot_intro(void)
 {
     if (_boot_phase == BOOT_DONE) {
@@ -1501,11 +1510,11 @@ int32_t scene_play_boot_intro(void)
     return 0;
 }
 
-/* probe hook: the boot state machine's current phase (read-only, for the
+/** probe hook: the boot state machine's current phase (read-only, for the
  * tests and the diagnostics) */
 uint32_t scene_boot_phase_for_probe(void) { return (uint32_t)_boot_phase; }
 
-/* probe hook: the AL expander, for the offline byte-comparisons against the
+/** probe hook: the AL expander, for the offline byte-comparisons against the
  * validated python decoder (tools/ani_lzw.py) */
 void scene_al_expand_for_probe(const uint8_t *src, uint32_t src_size,
                                uint8_t *dst, uint32_t dst_size)

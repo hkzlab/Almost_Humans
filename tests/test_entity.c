@@ -52,6 +52,7 @@ static const uint8_t _style6_flags[32] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
+/** @brief Print one failure and count it. */
 static void _failf(const char *what, uint32_t id, int64_t got, int64_t want)
 {
     fprintf(stderr,
@@ -59,6 +60,7 @@ static void _failf(const char *what, uint32_t id, int64_t got, int64_t want)
             what, got, want);
     _bad = 1;
 }
+/** @brief The style-6 spawn prologue's bonus test for one matched cell. */
 static uint32_t _prologue_bonus(const LevelData *d, uint32_t matchIdx)
 {
     if (d->style != 6u) return 0;
@@ -69,6 +71,7 @@ static uint32_t _prologue_bonus(const LevelData *d, uint32_t matchIdx)
     return 0;
 }
 
+/** @brief Count the cells equal to one tile byte in the 640-cell map. */
 static uint32_t _count_tiles(const uint8_t *map, uint32_t tile)
 {
     uint32_t n = 0;
@@ -77,6 +80,7 @@ static uint32_t _count_tiles(const uint8_t *map, uint32_t tile)
     return n;
 }
 
+/** @brief Run the entity table tests. */
 int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";

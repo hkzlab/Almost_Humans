@@ -49,6 +49,7 @@ extern const OSystem g_osys_null;
  * from a traced run when the dumps are next used. */
 static const uint32_t _dump_ticks[] = { 281, 581, 1247, 1340, 1460 };
 
+/** @brief Read a whole file into a malloc'd buffer; NULL on error. */
 static uint8_t *_read_file(const char *path, uint32_t *size)
 {
     FILE *f = fopen(path, "rb");
@@ -67,6 +68,7 @@ static uint8_t *_read_file(const char *path, uint32_t *size)
     return buf;
 }
 
+/** @brief Write a page and its palette as a binary PPM for inspection. */
 static void _dump_ppm(const char *dir, uint32_t tick, const uint8_t *page,
                       const uint8_t *pal6)
 {
@@ -85,6 +87,7 @@ static void _dump_ppm(const char *dir, uint32_t tick, const uint8_t *page,
     fclose(f);
 }
 
+/** @brief Run the boot chain tests. */
 int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";

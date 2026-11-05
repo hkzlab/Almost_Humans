@@ -8,16 +8,19 @@
 
 static const OSystem *_video_osys;
 
+/** @brief Bind the video module to the backend. */
 int32_t video_init(const OSystem *osys)
 {
     _video_osys = osys;
     return 0;
 }
 
+/** @brief The video module's per-tick hook (nothing to do). */
 void video_tick(void) {}
 
+/** @brief Accessor: one display page. */
 uint8_t *video_page(int32_t which) { return _video_osys->videoPage(which); }
 
-/* The mode sets the core performs: the CRTC field the backend must present.
+/** The mode sets the core performs: the CRTC field the backend must present.
  * The pages stay 320x200x8; a mode-X screen's rows 192..199 are not shown. */
 void video_set_mode(VideoMode mode) { _video_osys->videoSetMode(mode); }

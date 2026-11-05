@@ -137,6 +137,7 @@ static const uint8_t _key_list[][2] = {
     { 0x42, 0x01 },
 };
 
+/** @brief Load the shipped defaults and bind the resource modules. */
 int32_t resources_init(const OSystem *osys)
 {
     menu_init(osys);
@@ -152,7 +153,7 @@ int32_t resources_init(const OSystem *osys)
     return res_init_state;
 }
 
-/* The ISR body: the fixed per-tick work, in the original's order (the flip
+/** The ISR body: the fixed per-tick work, in the original's order (the flip
  * apply happens inside video/palette's charge; the content modules are
  * real).  The entity update is NOT here: the
  * original runs it from the level's per-frame body (update_world
@@ -167,10 +168,12 @@ static void _game_tick(void)
      * (the foreground).  Calling it here as well ran the clock and the
      * slides at twice the tick rate. */
 }
+/** @brief Accessor: the goal page is showing. */
 int32_t gameflow_goal_page_up(void) { return _goal_showing; }
+/** @brief Accessor: a scripted key wait is active. */
 int32_t gameflow_key_wait_active(void) { return _key_wait_stage != 0; }
 
-/* one tick of 1000:3954's three wait loops; returns 1 while the wait owns the
+/** one tick of 1000:3954's three wait loops; returns 1 while the wait owns the
  * input. */
 static int32_t _key_wait_step(const InputState *in)
 {
@@ -193,13 +196,13 @@ static int32_t _key_wait_step(const InputState *in)
     return 1;
 }
 
-/* test seam: the pause/time-up RESTART THIS GAME arm set [0x1809] = 0xFF. */
+/** test seam: the pause/time-up RESTART THIS GAME arm set [0x1809] = 0xFF. */
 int32_t gameflow_restart_pending(void) { return _restart_game; }
 
-/* test seam: the restart left the party screen pending (1000:3073). */
+/** test seam: the restart left the party screen pending (1000:3073). */
 int32_t gameflow_party_pending(void) { return !_party_tried; }
 
-/* level_restore (1000:35AF): [0x11FC] := [0x1970] — the members the level
+/** level_restore (1000:35AF): [0x11FC] := [0x1970] — the members the level
  * started with — then JMP level_start (1000:3032), which re-picks the time
  * and re-enters the level WITHOUT the party path.  The port reloads the
  * record (the header is the same file record; the original skips the read)
@@ -220,11 +223,11 @@ static void _level_restart(void)
     _party_playing = 0;
 }
 
-/* The briefing's YOUR SCORE IS value: the low word of [0x592]/[0x594],
+/** The briefing's YOUR SCORE IS value: the low word of [0x592]/[0x594],
  * which score_prepare maintains across levels. */
 uint32_t gameflow_party_score(void) { return score_total_lo(); }
 
-/* The briefing's code line (0x1189): load_level (1000:30BC) copies the level
+/** The briefing's code line (0x1189): load_level (1000:30BC) copies the level
  * record's author there (1000:312C), and level_intro_screen draws it. */
 const char *gameflow_party_tribe(void)
 {
@@ -233,6 +236,7 @@ const char *gameflow_party_tribe(void)
     return d ? d->author : "";
 }
 
+/** @brief Enter the frontend room. */
 static GameFlow _room_enter(void)
 {
     _room_disc_pending = 1;
@@ -240,7 +244,7 @@ static GameFlow _room_enter(void)
     return FLOW_MENU;
 }
 
-/* dispatch_by_result_a167 (1000:38EA): the pause menu's five 0-based
+/** dispatch_by_result_a167 (1000:38EA): the pause menu's five 0-based
  * results.  Returns the flow the action leaves (FLOW_MENU for RESTART THIS
  * GAME) and sets *quit for QUIT THIS GAME. */
 GameFlow gameflow_pause_action(int32_t choice, int32_t *quit)
@@ -266,7 +270,7 @@ GameFlow gameflow_pause_action(int32_t choice, int32_t *quit)
     return FLOW_LEVEL;
 }
 
-/* 1000:386E.  Returns 1 when an entry ran (a non-bit7 entry whose gate [0xC]
+/** 1000:386E.  Returns 1 when an entry ran (a non-bit7 entry whose gate [0xC]
  * is closed returns 0 before the dispatch, 1000:38AD). */
 int32_t gameflow_key_list(const InputState *in)
 {
@@ -299,7 +303,7 @@ int32_t gameflow_key_list(const InputState *in)
     return 0;
 }
 
-/* input_dispatch_loop 34F9's inline time-up dispatch: 0 restart this level
+/** input_dispatch_loop 34F9's inline time-up dispatch: 0 restart this level
  * (level_restore), 1 restart this game (the room), 2 quit. */
 GameFlow gameflow_time_up_action(int32_t choice, int32_t *quit)
 {
@@ -317,7 +321,7 @@ GameFlow gameflow_time_up_action(int32_t choice, int32_t *quit)
     return FLOW_LEVEL;
 }
 
-/* entry 14E6/14FF: the post-level newspaper.  A lost level goes to the
+/** entry 14E6/14FF: the post-level newspaper.  A lost level goes to the
  * ending ([0x138E]==0 at 14E6); a won one plays its header +1 index unless
  * that byte is negative (0xFF = none; cd_file_op's own CMP AL,0x80 path). */
 uint32_t gameflow_post_level_scene(int32_t won, uint32_t introIndex)
@@ -327,17 +331,17 @@ uint32_t gameflow_post_level_scene(int32_t won, uint32_t introIndex)
     return introIndex;
 }
 
-/* entry 150C/1512: [0x1e]=7 when the levels run out (COMPLETE); the lost
+/** entry 150C/1512: [0x1e]=7 when the levels run out (COMPLETE); the lost
  * path reaches 1512 with [0x1e]=6 (the restart-game arm set it at 14BE). */
 uint32_t gameflow_ending_scene(int32_t won) { return won ? 7u : 6u; }
 
-/* level_run 3060/3062: load_level leaves [0x17FB] (the humans needed) and
+/** level_run 3060/3062: load_level leaves [0x17FB] (the humans needed) and
  * [0x11FC] (the tribe); need > members takes the briefing's GAME OVER
  * variant and the level is NOT started. */
 int32_t gameflow_tribe_too_small(uint32_t need, uint32_t members)
 { return need > members; }
 
-/* entry LAB_00CD's post-level step: [0x22]++ / [0x26]-- (0xA0 - [0x22]).
+/** entry LAB_00CD's post-level step: [0x22]++ / [0x26]-- (0xA0 - [0x22]).
  * While the window has levels left the PLAY arm runs again — the next level
  * of the 160.  When they run out, COMPLETE: cd_file_op([0x1E]) (the ending
  * scene), draw_status_indicator, menu_loop (the MAP screen), then the
@@ -352,9 +356,10 @@ GameFlow gameflow_after_level(uint32_t *levelCurrent)
     return FLOW_ATTRACT;
 }
 
-/* --- the flow state machine ------------------------------------------ */
+/** --- the flow state machine ------------------------------------------ */
 uint32_t gameflow_level_for_probe(void) { return _level_current; }
 
+/** @brief One flow step: run the current state and return the next. */
 GameFlow gameflow_step(GameFlow state, const InputState *input)
 {
     switch (state) {
@@ -418,7 +423,7 @@ GameFlow gameflow_step(GameFlow state, const InputState *input)
     return state;
 }
 
-/* entry's post-level step after check_highscore: the finished level's
+/** entry's post-level step after check_highscore: the finished level's
  * newspaper (1000:00FF), the lost ending (14E6, scene 6), or the next
  * level / COMPLETE (7). */
 static GameFlow _post_level_step(GameFlow state)
@@ -813,6 +818,7 @@ static int32_t _game_frame(const OSystem *osys, GameFlow *state,
     return 1;
 }
 
+/** @brief The application entry: boot, then the foreground flow loop. */
 int32_t game_main(const OSystem *osys)
 {
     // Initialize the video mode

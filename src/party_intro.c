@@ -201,6 +201,7 @@ static uint32_t _swap_next; /* the 2bda's tail's next _phase        */
 static int32_t _game_over_mode; /* level_intro_screen 2739's variant   */
 static uint32_t _sw_phase = SW_FADEWAIT;
 
+/** @brief Restore the intro's cue scripts from a save. */
 void party_intro_seed_scripts(const uint8_t *bytes, uint32_t len)
 {
     /* the [live] pointer table: the DS offsets into the first body 0x1036 */
@@ -216,6 +217,7 @@ void party_intro_seed_scripts(const uint8_t *bytes, uint32_t len)
     }
 }
 
+/** @brief Restore the intro slots from the raw 128-byte save block. */
 void party_intro_seed_slots(const uint8_t *raw) /* the 128 B at DS:0xFA8 */
 {
     if (!raw) {
@@ -234,13 +236,14 @@ void party_intro_seed_slots(const uint8_t *raw) /* the 128 B at DS:0xFA8 */
     }
 }
 
+/** @brief Seed the intro slots from the live party state. */
 static void _seed_slots_live(void)
 {
     party_intro_seed_slots(_slots_file);
     party_intro_seed_scripts(_scripts_file, sizeof _scripts_file);
 }
 
-/* === 2b1b format_score + 2b70 ================================================ */
+/** === 2b1b format_score + 2b70 ================================================ */
 void party_intro_format_score(uint32_t v, char *out)
 {
     static const uint32_t divs[8] = { 100000000u, 10000000u, 1000000u, 100000u,
@@ -260,7 +263,7 @@ void party_intro_format_score(uint32_t v, char *out)
     *out = '\0';
 }
 
-/* the party's in-place number formatter (1000:3F1B): writes `width`
+/** the party's in-place number formatter (1000:3F1B): writes `width`
  * characters at `dst` (zero- or space-padded) and returns; the string's
  * tail is untouched, and a number wider than the field spills into it —
  * both exactly as the original does (its "HUMANS TO COMPLETE" and
@@ -277,7 +280,7 @@ static char *_put_number(char *dst, uint32_t v)
     return dst + n; /* the formatter's SI          */
 }
 
-/* the string appender at 0x2660: the tail replaces whatever the template
+/** the string appender at 0x2660: the tail replaces whatever the template
  * had after the digits (" MEMBERS!" for the tribe line) */
 static char *_append_str(char *dst, const char *src)
 {
@@ -286,10 +289,11 @@ static char *_append_str(char *dst, const char *src)
     return dst;
 }
 
-/* === the _vram-layer helpers ================================================== */
+/** === the _vram-layer helpers ================================================== */
 static void _clear_canvas(void) /* 2af5: rows 20..87 = 0x640..0x1B80 */
 { memset(_canvas + 0x640u, 0, 68u * 80u); }
 
+/** @brief The intro's page flip. */
 static void _flip_page(void) /* 87f8                                */
 {
     uint16_t t = _page_draw;
@@ -297,7 +301,7 @@ static void _flip_page(void) /* 87f8                                */
     _page_disp = t;
 }
 
-/* 2ed7 deplanarise_intro_page: the .BIT rows plane-baked at pitch 88 +8 */
+/** 2ed7 deplanarise_intro_page: the .BIT rows plane-baked at pitch 88 +8 */
 static void _bake_page(const uint8_t *bit, uint32_t pagebase)
 {
     for (uint32_t r = 0; r < 200u; r++) {
@@ -312,7 +316,7 @@ static void _bake_page(const uint8_t *bit, uint32_t pagebase)
     }
 }
 
-/* 2c1d draw_intro_frame — the closed funnel */
+/** 2c1d draw_intro_frame — the closed funnel */
 static void _band_stamp(uint32_t pagebase)
 {
     for (uint32_t row = 0; row < 68u; row++) {
@@ -332,7 +336,7 @@ static void _band_stamp(uint32_t pagebase)
     }
 }
 
-/* 29d9 blit_slot_colour_block: 24 rows × 4 bytes; frame clamps 0x1C */
+/** 29d9 blit_slot_colour_block: 24 rows × 4 bytes; frame clamps 0x1C */
 static void _blit_slot(uint32_t frame)
 {
     if (frame > 0x1Cu) frame = 0x1Cu;
@@ -359,7 +363,7 @@ static void _blit_slot(uint32_t frame)
     }
 }
 
-/* 2a3a draw_scrolling_marquee */
+/** 2a3a draw_scrolling_marquee */
 static void _marquee(void)
 {
     _marq_phase++;
@@ -394,7 +398,7 @@ static void _marquee(void)
     }
 }
 
-/* 28e9 animate_entities — verbatim: every tick, per slot */
+/** 28e9 animate_entities — verbatim: every tick, per slot */
 static void _anim_entities(void)
 {
     for (uint32_t i = 0; i < 8u; i++) {
@@ -428,7 +432,7 @@ static void _anim_entities(void)
     _flip_page();
 }
 
-/* 2e94 _draw_text_ramped — _canvas-resident per the original: the glyph
+/** 2e94 _draw_text_ramped — _canvas-resident per the original: the glyph
  * stroke lands in the CANVAS only (the = "2c1d never runs here"); the
  * per-call 28e9 animates the _slots/_marquee and flips, but the TEXT does
  * not reach the display until the next 2C1D (inside 2b9c/2bda) — the
@@ -442,7 +446,7 @@ static void _draw_text_ramped(const char *s, uint32_t centreX, uint32_t row)
                                             * the _canvas glyph is NOT rendered */
 }
 
-/* 28d0 palette_copy_low_to_upper: 4 × 0x60 bytes .PAL[0..31] ->
+/** 28d0 palette_copy_low_to_upper: 4 × 0x60 bytes .PAL[0..31] ->
  * .PAL[128..255] (so the window fade targets the blues, not the file's grey
  * upper half). */
 static void _copy_palette(void)
@@ -451,7 +455,7 @@ static void _copy_palette(void)
         memcpy(_pal_upper + p * 0x60u, _workpal, 0x60u);
 }
 
-/* 2b9c _intro_anim: the backdrop band twice, then the snapshot restore and
+/** 2b9c _intro_anim: the backdrop band twice, then the snapshot restore and
  * the 0x80..0xFF window fade toward it — 0x1208 (25bc) is the .PAL's own
  * upper half, so the text window dissolves from the 28d0 blues into the
  * file's grey ramp (the fade-in). */
@@ -465,7 +469,7 @@ static void _intro_anim(void)
     palette_build_fade(0x80u, 0x80u, 0x28u, _pal_upper); /* 2bca: BX=0x80 */
 }
 
-/* 2bda fade_and_animate — verbatim _phase-split: 2bda runs [28d0]; builds
+/** 2bda fade_and_animate — verbatim _phase-split: 2bda runs [28d0]; builds
  * the window fade; THEN BLOCKS ON ITS OWN FADE ({28e9; 8b9a; JC} at
  * 2bec..2bf2) before the 0xE0 mask reset (2bf4), the 2af5 clear (2c01)
  * and the two 2c1d band redraws (2c04..2c1c).  The clear/redraw tail is
@@ -484,7 +488,7 @@ static void _swap_begin(uint32_t next)
 
 /* === the asset prep ========================================================== */
 
-/* 27eb expand_nibbles_to_bytes */
+/** 27eb expand_nibbles_to_bytes */
 static int32_t _expand_nibbles(const uint8_t *src, uint32_t n, uint8_t *dst)
 {
     if (n < 0x570u) return 0;
@@ -508,7 +512,7 @@ static int32_t _expand_nibbles(const uint8_t *src, uint32_t n, uint8_t *dst)
     return 1;
 }
 
-/* 28c2 shift_right_1 */
+/** 28c2 shift_right_1 */
 static void _shift_right1(uint8_t *d)
 {
     uint32_t c = 0;
@@ -519,7 +523,7 @@ static void _shift_right1(uint8_t *d)
     }
 }
 
-/* 288d _expand_pixels into ES:DI */
+/** 288d _expand_pixels into ES:DI */
 static void _expand_pixels(const uint8_t *src, uint32_t *dip)
 {
     uint32_t di = *dip;
@@ -542,7 +546,7 @@ static void _expand_pixels(const uint8_t *src, uint32_t *dip)
     *dip = di;
 }
 
-/* 283e rescale_bitmap_rows */
+/** 283e rescale_bitmap_rows */
 static void _rescale_rows(const uint8_t *src)
 {
     uint32_t di = 0;
@@ -558,7 +562,7 @@ static void _rescale_rows(const uint8_t *src)
     }
 }
 
-/* === the API ================================================================= */
+/** === the API ================================================================= */
 void party_intro_set_values(uint32_t level, uint32_t need, uint32_t members,
                             uint32_t score, const char *tribe)
 {
@@ -579,9 +583,12 @@ void party_intro_set_values(uint32_t level, uint32_t need, uint32_t members,
     memcpy(_s_fire, "PRESS FIRE TO START LEVEL....", 30);
 }
 
+/** @brief Set the briefing's GAME OVER variant. */
 void party_intro_set_game_over(int32_t on) { _game_over_mode = on ? 1 : 0; }
+/** @brief Accessor: the briefing's score. */
 uint32_t party_intro_score(void) { return _g_score; }
 
+/** @brief Load one intro asset by name. */
 static uint8_t *_load(const char *name)
 {
     uint32_t sz = 0;
@@ -589,12 +596,14 @@ static uint8_t *_load(const char *name)
     return res_load_chunk(name, &sz, &ck);
 }
 
-/* the palette buffers, exposed for the fade-ladder harness: the port's
+/** the palette buffers, exposed for the fade-ladder harness: the port's
  * 0x4bbc/0x4d3c(+0x180)/0x1208 stand-ins (read-only diagnostics, see
  * test_fadeladder) */
 const uint8_t *party_intro_workpal(void) { return _workpal; }
+/** @brief Accessor: the upper palette half. */
 const uint8_t *party_intro_pal_upper(void) { return _pal_upper; }
 
+/** @brief Load and start the party briefing screen; 1 = playing. */
 int32_t party_intro_start(void)
 {
     char name[24];
@@ -675,7 +684,7 @@ int32_t party_intro_start(void)
 
 /* === the ticker =============================================================== */
 
-/* the game_main hook's per-tick compose into the flat page (the attract's
+/** the game_main hook's per-tick compose into the flat page (the attract's
  * contract: the tick draws, videoPresent(0) shows) */
 int32_t party_intro_tick(const InputState *in)
 {
@@ -866,7 +875,7 @@ int32_t party_intro_tick(const InputState *in)
     return 1;
 }
 
-/* the closed layout law, exposed for the byte-exact fixtures: the page's
+/** the closed layout law, exposed for the byte-exact fixtures: the page's
  * pixel (x,y) = _vram[pagebase + 8 + y*88 + (x>>2)][x&3] of the DISPLAY
  * page (_page_disp — the just-flipped bake target). */
 void party_intro_compose(uint8_t *pg)

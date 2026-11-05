@@ -39,12 +39,14 @@
 
 extern const OSystem g_osys_null;
 
+/** @brief Store one little-endian 16-bit word. */
 static void _put16(uint8_t *p, uint32_t v)
 {
     p[0] = (uint8_t)v;
     p[1] = (uint8_t)(v >> 8);
 }
 
+/** @brief A zeroed input state (no key, fire released). */
 static InputState _idle(void)
 {
     InputState in;
@@ -52,6 +54,7 @@ static InputState _idle(void)
     return in;
 }
 
+/** @brief Run one flow step and its palette ISR step. */
 static int32_t _tick(GameFlow *s, const InputState *in)
 {
     *s = gameflow_step(*s, in);
@@ -59,7 +62,7 @@ static int32_t _tick(GameFlow *s, const InputState *in)
     return *s == FLOW_LEVEL;
 }
 
-/* Hold `dirBit` until the rail arrival changes the cell (or the room hands
+/** Hold `dirBit` until the rail arrival changes the cell (or the room hands
  * over to LEVEL).  One _idle _tick afterwards so the rail cannot re-arm. */
 static int32_t _walk_to(GameFlow *s, uint32_t dirBit, uint32_t want,
                         const char *what)
@@ -81,6 +84,7 @@ static int32_t _walk_to(GameFlow *s, uint32_t dirBit, uint32_t want,
     return 0;
 }
 
+/** @brief Press and release ACTION for one flow step. */
 static int32_t _press_action(GameFlow *s)
 {
     InputState in = _idle();
@@ -90,6 +94,7 @@ static int32_t _press_action(GameFlow *s)
     return over | _tick(s, &rel);
 }
 
+/** @brief Run the save/restore tests. */
 int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";

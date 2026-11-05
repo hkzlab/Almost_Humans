@@ -42,12 +42,14 @@ extern VideoMode osys_null_video_mode(void);
 
 extern const OSystem g_osys_null;
 
+/** @brief Run one frontend tick and its palette ISR step. */
 static void _tick(const InputState *in)
 {
     frontend_tick(in);
     palette_tick();                 /* game_tick's ISR body */
 }
 
+/** @brief A zeroed input state (no key, fire released). */
 static InputState _idle(void)
 {
     InputState in;
@@ -55,7 +57,7 @@ static InputState _idle(void)
     return in;
 }
 
-/* Hold `dirBit` until the rail arrival changes the cell; one _idle _tick is
+/** Hold `dirBit` until the rail arrival changes the cell; one _idle _tick is
  * left afterwards so the rail cannot re-arm from the held key. */
 static int32_t _walk_to(uint32_t dirBit, uint32_t want, const char *what)
 {
@@ -76,7 +78,7 @@ static int32_t _walk_to(uint32_t dirBit, uint32_t want, const char *what)
     return 0;
 }
 
-/* One ACTION press + release (the original spins on the held key; the port
+/** One ACTION press + release (the original spins on the held key; the port
  * latches one cycle per press).  The release _tick is the next frame web's
  * pass, so the music gate sees the new counter there. */
 static void _press_action(void)
@@ -88,7 +90,7 @@ static void _press_action(void)
     _tick(&rel);
 }
 
-/* (b): the shipped cell's opaque pixels must be on the composed page at the
+/** (b): the shipped cell's opaque pixels must be on the composed page at the
  * badge's place — skipping the 16x16 block the walker's own sprite overlays
  * (room_draw_character draws him in front of the sign; the sign's copy in
  * code2.raw is patched too, so the rest of his 27x20 backdrop box must still
@@ -136,6 +138,7 @@ static int32_t _check_badge(const char *what, uint32_t dest, const uint8_t *spr,
     return 0;
 }
 
+/** @brief Run the frontend room tests. */
 int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";

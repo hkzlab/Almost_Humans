@@ -46,12 +46,14 @@ extern const uint8_t *osys_null_palette(void);
 
 extern const OSystem g_osys_null;
 
+/** @brief Store one little-endian 16-bit word. */
 static void _put16(uint8_t *p, uint32_t v)
 {
     p[0] = (uint8_t)v;
     p[1] = (uint8_t)(v >> 8);
 }
 
+/** @brief Write a page and its palette as a binary PPM for inspection. */
 static void _dump_ppm(const char *dir, const char *name, const uint8_t *page,
                       const uint8_t *pal)
 {
@@ -71,7 +73,7 @@ static void _dump_ppm(const char *dir, const char *name, const uint8_t *page,
     fclose(f);
 }
 
-/* draw_map_object's outline pass (1000:9FA7 -> 9FB1): a text pixel is any
+/** draw_map_object's outline pass (1000:9FA7 -> 9FB1): a text pixel is any
  * byte in [0xF4,0xFB]; each of its four in-page neighbours is either text or
  * 0 (the black outline).  Counts the text and outline pixels and the number
  * of neighbours that are neither. */
@@ -97,6 +99,7 @@ static void _text_outline(const uint8_t *page, uint32_t *text,
         }
 }
 
+/** @brief A zeroed input state (no key, fire released). */
 static InputState _idle(void)
 {
     InputState in;
@@ -104,7 +107,7 @@ static InputState _idle(void)
     return in;
 }
 
-/* one tick with the given joy bits; the release tick afterwards makes the
+/** one tick with the given joy bits; the release tick afterwards makes the
  * next one a fresh _press (the original waits for the key release) */
 static int32_t _press(uint32_t bits)
 {
@@ -116,12 +119,14 @@ static int32_t _press(uint32_t bits)
     return up;
 }
 
+/** @brief Open the pause menu and report whether it took. */
 static int32_t _open_pause(void)
 {
     menu_open_pause();
     return menu_active();
 }
 
+/** @brief Run the pause menu tests. */
 int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";

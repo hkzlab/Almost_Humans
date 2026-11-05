@@ -76,18 +76,24 @@ static uint32_t _row, _col;        /* [0x5E3B], [0x5E3D]                  */
 static int32_t _result = -1;     /* the 0-based pause choice            */
 static uint32_t _slot;            /* the grid's game number 1..20        */
 static uint32_t _prev_bits;        /* the press-edge latch                */
-static int32_t _time_up_kind;      /* the open dialog is the time-up one  */
+static int32_t _time_up_kind;      /** the open dialog is the time-up one  */
 
+/** @brief Bind the menu module to the backend. */
 void menu_init(const OSystem *osys) { _menu_osys = osys; }
 
+/** @brief Accessor: the pause/time-up menu is up. */
 int32_t menu_active(void)
 {
     return _phase == MENU_PAUSE || _phase == MENU_GRID ||
            _phase == MENU_TIMEOUT;
 }
+/** @brief Accessor: the menu is the time-up variant. */
 int32_t menu_time_up(void) { return _time_up_kind; }
+/** @brief Accessor: the selected entry. */
 int32_t menu_result(void) { return _result; }
+/** @brief Accessor: the selected slot. */
 uint32_t menu_slot(void) { return _slot; }
+/** @brief Close the menu. */
 void menu_close(void)
 {
     _phase = MENU_NONE;
@@ -96,6 +102,7 @@ void menu_close(void)
     _time_up_kind = 0;
 }
 
+/** @brief Open the pause menu. */
 void menu_open_pause(void)
 {
     _phase = MENU_PAUSE;
@@ -106,7 +113,7 @@ void menu_open_pause(void)
     statusbar_set_active(0);         /* [0x5B12] := 0                     */
 }
 
-/* input_dispatch_loop 34F9: [0x5E44] != 0 shows the 3-option time-up block
+/** input_dispatch_loop 34F9: [0x5E44] != 0 shows the 3-option time-up block
  * (A167's loop; the _result is dispatched inline, 0-based: 0 restart this
  * level -> level_restore, 1 restart this game -> the room, 2 quit). */
 void menu_open_time_up(void)
@@ -119,6 +126,7 @@ void menu_open_time_up(void)
     statusbar_set_active(0);
 }
 
+/** @brief Draw the menu. */
 void menu_draw(void)
 {
     uint8_t *page = _menu_osys ? _menu_osys->videoPage(0) : NULL;
@@ -130,6 +138,7 @@ void menu_draw(void)
         textpage_draw(page, _time_up_block, (int32_t)_row, 0u, 0);
 }
 
+/** @brief One menu tick; 1 = still up. */
 int32_t menu_tick(const InputState *in)
 {
     if (_phase == MENU_DONE || _phase == MENU_NONE) return 0;

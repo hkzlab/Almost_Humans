@@ -77,9 +77,10 @@ static const uint8_t _marker_r[88] = {
     0xE3, 0xE3, 0xE4, 0xE4, 0xE4, 0xE4, 0xE4, 0xE4, 0xE4, 0xE3, 0xE4,
 };
 
+/** @brief Publish the text box's tile bank. */
 void textpage_publish_box(const uint8_t *box) { _tp_box = box; }
 
-/* One line's measure: the advance sum (draw_text's own walk). */
+/** One line's measure: the advance sum (draw_text's own walk). */
 static uint32_t _line_advance(const char *p, const char **end)
 {
     char buf[64];
@@ -93,7 +94,7 @@ static uint32_t _line_advance(const char *p, const char **end)
     return font_text_width(buf);
 }
 
-/* draw_scroll_text (1000:A08E): the max line advance -> [0x5BB2] (tiles),
+/** draw_scroll_text (1000:A08E): the max line advance -> [0x5BB2] (tiles),
  * the line count -> [0x5BB4].  Lines are CR-separated, NUL-terminated. */
 static void _scroll_text_measure(const char *text, uint32_t *tiles,
                                  uint32_t *lines)
@@ -116,7 +117,7 @@ static void _scroll_text_measure(const char *text, uint32_t *tiles,
     *lines = nlines;
 }
 
-/* blit_text_tile (1000:47D5) writes through write mode 2 with the OR ALU
+/** blit_text_tile (1000:47D5) writes through write mode 2 with the OR ALU
  * (GC3 := 0x10 at 1000:9F76) and the bit mask = DL, so a glyph pixel is
  * `destination | mask`, never a solid colour: the shading comes from
  * whatever the box tile already put there.  `mask` != 0 selects that path;
@@ -145,18 +146,18 @@ static void _draw_line(uint8_t *page, const char *line, uint32_t centreX,
     }
 }
 
-/* One centred line on the page at `row` in a solid `colour` (not the
+/** One centred line on the page at `row` in a solid `colour` (not the
  * blit_text_tile path — used where there is no box underneath). */
 void textpage_draw_line(uint8_t *page, const char *line, uint32_t row,
                         uint8_t colour)
 { _draw_line(page, line, 0xA0u, row, colour, 0); }
 
-/* The same line centred on an arbitrary x (draw_text's AX). */
+/** The same line centred on an arbitrary x (draw_text's AX). */
 void textpage_draw_line_at(uint8_t *page, const char *line, uint32_t centreX,
                            uint32_t row, uint8_t colour)
 { _draw_line(page, line, centreX, row, colour, 0); }
 
-/* One centred line blitted the original way: `mask` OR'd into the page.
+/** One centred line blitted the original way: `mask` OR'd into the page.
  * The box's fill tile is a vertical ramp EB..E4..EB (all the same red in the
  * palette) so the text becomes the grey ramp FB..F4..FB; that is why the
  * level's goal text is shaded and not flat white. */
@@ -164,12 +165,12 @@ void textpage_draw_line_mask(uint8_t *page, const char *line, uint32_t row,
                              uint8_t mask)
 { _draw_line(page, line, 0xA0u, row, mask, 1); }
 
-/* The same masked line centred on an arbitrary x. */
+/** The same masked line centred on an arbitrary x. */
 void textpage_draw_line_mask_at(uint8_t *page, const char *line,
                                 uint32_t centreX, uint32_t row, uint8_t mask)
 { _draw_line(page, line, centreX, row, mask, 1); }
 
-/* One 16x16 box tile (blit_sprite_planar A10E's layout). */
+/** One 16x16 box tile (blit_sprite_planar A10E's layout). */
 static void _blit_box_tile(uint8_t *page, uint32_t x0, uint32_t y0,
                            const uint8_t *tile)
 {
@@ -184,7 +185,7 @@ static void _blit_box_tile(uint8_t *page, uint32_t x0, uint32_t y0,
     }
 }
 
-/* The marker pair (A203/A266): 8x11, colour bytes as shipped. */
+/** The marker pair (A203/A266): 8x11, colour bytes as shipped. */
 static void _blit_marker(uint8_t *page, uint32_t x0, uint32_t y0,
                          const uint8_t *pat)
 {
@@ -199,7 +200,7 @@ static void _blit_marker(uint8_t *page, uint32_t x0, uint32_t y0,
     }
 }
 
-/* text_page_outline (1000:9FB1, called at the tail of draw_map_object 9EA3):
+/** text_page_outline (1000:9FB1, called at the tail of draw_map_object 9EA3):
  * a glyph pixel is any byte in [0xF4,0xFC) — the bar bank's grey ramp; every
  * 4-neighbour that is not one of those (< 0xF4) is set to 0, which is the
  * black outline the original draws around the box text.  The original walks
@@ -230,6 +231,7 @@ static void _draw_outline(uint8_t *page, uint32_t top, uint32_t left,
         }
 }
 
+/** @brief Draw a page of text into the page buffer. */
 void textpage_draw(uint8_t *page, const char *text, int32_t cursorRow,
                    uint32_t cursorCol, int32_t grid)
 {

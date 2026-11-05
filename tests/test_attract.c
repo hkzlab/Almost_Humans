@@ -34,6 +34,7 @@ extern const uint8_t *osys_null_page(int32_t which);
 
 extern const OSystem g_osys_null;
 
+/** @brief Read a whole file into a malloc'd buffer; NULL on error. */
 static uint8_t *_read_file(const char *path, uint32_t *size)
 {
     FILE *f = fopen(path, "rb");
@@ -52,6 +53,7 @@ static uint8_t *_read_file(const char *path, uint32_t *size)
     return buf;
 }
 
+/** @brief Return the first differing byte index, or -1 when equal. */
 static int32_t _first_diff(const uint8_t *a, const uint8_t *b, uint32_t n)
 {
     for (uint32_t i = 0; i < n; i++)
@@ -59,6 +61,7 @@ static int32_t _first_diff(const uint8_t *a, const uint8_t *b, uint32_t n)
     return -1;
 }
 
+/** @brief Run the attract-frame comparison test. */
 int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";

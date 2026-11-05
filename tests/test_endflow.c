@@ -38,6 +38,7 @@ extern const OSystem g_osys_null;
 static int32_t _outcome;
 static int32_t _grey_seen, _black_seen, _card_seen, _seen_card_after_black;
 
+/** @brief The null backend's present hook: drive the forced input and record the frame. */
 static void _hook(uint32_t poll)
 {
     const uint8_t *pal = osys_null_palette();
@@ -81,6 +82,7 @@ static void _hook(uint32_t poll)
     }
 }
 
+/** @brief Run the ending/restart flow tests. */
 int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";

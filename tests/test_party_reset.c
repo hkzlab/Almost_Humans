@@ -19,6 +19,7 @@
 
 extern const OSystem g_osys_null;
 
+/** @brief Run the party-reset regression test. */
 int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";

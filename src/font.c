@@ -38,15 +38,17 @@ static const uint8_t _advance[45] = { 7, 8, 8, 8,  7, 7, 8, 8, 3,   7, 8,  7,
  * game_loop prologue and the front-end later; _blit_glyph's only source). */
 static const uint8_t *_glyphs;
 
+/** @brief Bind the font module to the backend. */
 int32_t font_init(const OSystem *osys)
 {
     (void)osys;
     return 0;
 }
 
+/** @brief Publish the TEXT.SPR glyph bank. */
 void font_publish(const uint8_t *textSpr) { _glyphs = textSpr; }
 
-/* The _charset lookup: the match index, or 44 (the terminator slot) when
+/** The _charset lookup: the match index, or 44 (the terminator slot) when
  * the character is not in the table (draw_text's scan stops there). */
 static uint32_t _charset_index(uint8_t c)
 {
@@ -55,7 +57,7 @@ static uint32_t _charset_index(uint8_t c)
     return 44u;
 }
 
-/* The nibble scatter's net effect (the 4x SHL/RCR + 4x SHR of 1000:4a3c,
+/** The nibble scatter's net effect (the 4x SHL/RCR + 4x SHR of 1000:4a3c,
  * and the 4x SHR/RCL of 1000:4a5b): the nibble, 4-bit-reversed. */
 static uint8_t _rev4(uint32_t v)
 {
@@ -64,7 +66,7 @@ static uint8_t _rev4(uint32_t v)
                      ((v >> 2) & 1u) << 1 | ((v >> 3) & 1u));
 }
 
-/* _blit_glyph (1000:49FC) — one 16-row glyph into the arena.  `x` is the
+/** _blit_glyph (1000:49FC) — one 16-row glyph into the arena.  `x` is the
  * screen-pixel column (the doubled scale), `row` the arena row (0..199). */
 static void _blit_glyph(uint8_t *arena, int32_t x, uint32_t row, uint32_t gi)
 {
@@ -104,7 +106,7 @@ static void _blit_glyph(uint8_t *arena, int32_t x, uint32_t row, uint32_t gi)
     }
 }
 
-/* draw_text's own measure: the sum of the _advance table (the same walk
+/** draw_text's own measure: the sum of the _advance table (the same walk
  * draw_text does before centring).  STOPs at CR/NUL, like draw_text. */
 uint32_t font_text_width(const char *s)
 {
@@ -114,7 +116,7 @@ uint32_t font_text_width(const char *s)
     return w;
 }
 
-/* draw_text (1000:4989): centre `s` on centreX and blit it at arena row
+/** draw_text (1000:4989): centre `s` on centreX and blit it at arena row
  * `row`.  Unknown characters _advance by the terminator slot but draw
  * nothing (the two search loops' no-match paths). */
 void font_draw_text(uint8_t *arena, const char *s, uint32_t centreX,

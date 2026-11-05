@@ -41,15 +41,16 @@
 #define SAVE_HDR 0x0Du           /* the 13-byte header               */
 
 static uint8_t _save_buf[SAVE_LEN];   /* the [0x1C92] buffer          */
-static int32_t _save_loaded;          /* [0x34]: a save is present    */
+static int32_t _save_loaded;          /** [0x34]: a save is present    */
 
+/** @brief Bind the save module to the backend. */
 int32_t save_init(const OSystem *osys)
 {
     (void)osys;
     return 0;
 }
 
-/* entry:004C: slot 1..20 -> the letter 'A'+(n-1); 0 = GAME OFF.  Resets the
+/** entry:004C: slot 1..20 -> the letter 'A'+(n-1); 0 = GAME OFF.  Resets the
  * state first, so a failed/absent slot leaves the fresh-game path. */
 int32_t save_load_slot(uint32_t slot)
 {
@@ -66,17 +67,22 @@ int32_t save_load_slot(uint32_t slot)
     return 1;
 }
 
-/* level_run's tail (1000:30B4): [0x34] := 0 after the level has started —
+/** level_run's tail (1000:30B4): [0x34] := 0 after the level has started —
  * a later "restart this level" takes the LEVEL board's time again. */
 void save_consume(void) { _save_loaded = 0; }
 
+/** @brief Accessor: a save is loaded. */
 int32_t save_present(void) { return _save_loaded; }
+/** @brief Accessor: the saved level word. */
 uint16_t save_level(void) { return rd_le_u16(_save_buf + 0x00); }
+/** @brief Accessor: the saved time word. */
 uint16_t save_time(void) { return rd_le_u16(_save_buf + 0x07); }
+/** @brief Accessor: the saved member count. */
 uint32_t save_members(void) { return rd_le_u16(_save_buf + 0x0B); }
+/** @brief Accessor: the save blob. */
 const uint8_t *save_blob(void) { return _save_buf; }
 
-/* SAVE GAME (save_progress 1FE7:0000, re_formats.md §10.0): the 13-byte
+/** SAVE GAME (save_progress 1FE7:0000, re_formats.md §10.0): the 13-byte
  * header from the port's live state + the five state ranges. */
 int32_t save_write_slot(uint32_t slot, uint32_t level, uint16_t timeWord,
                         uint32_t members)
@@ -110,7 +116,7 @@ int32_t save_write_slot(uint32_t slot, uint32_t level, uint16_t timeWord,
     return put == SAVE_LEN;
 }
 
-/* entry:004C / load_level_record_a+_b: put the saved ranges back after the
+/** entry:004C / load_level_record_a+_b: put the saved ranges back after the
  * level has been loaded and its map spawns have run. */
 void save_restore_state(void)
 {
