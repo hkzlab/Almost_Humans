@@ -7030,8 +7030,20 @@ int main(int argc, char **argv)
             _check(stray == 0u, "D-210: the frame writes only the five bands");
         }
         _flow_dump_ppm("map_frame.ppm", video_page(0));
-        k.lastKey = 1;
-        _check(map_tick(&k) == 0, "a key leaves the MAP screen");
+        /* D-220 (closed 2026-11-05): the key starts 1000:062B's 0x100-entry
+         * fade to black (div 0x23), then the 0x4B-frame hold and the save. */
+        {
+            uint32_t f = 0, e = 0, d = 0, t = 0, guard = 0;
+
+            k.lastKey = 1;
+            _check(map_tick(&k) == 1, "D-220: the key starts the exit fade");
+            _check(map_fade_at(map_fade_starts() - 1u, &f, &e, &d, &t) &&
+                       f == 0u && e == 0x100u && d == 0x23u,
+                   "D-220: 1000:062B fades all 256 entries (0x23)");
+            k.lastKey = 0;
+            while (map_tick(&k) == 1 && guard++ < 3000u) palette_tick();
+            _check(guard < 3000u, "D-220: the fade and hold end the MAP");
+        }
     }
 
 

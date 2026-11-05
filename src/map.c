@@ -60,7 +60,8 @@ enum {
     MAP_ENTER, /* 1000:049A..0x0516: the spin + white fade after Enter */
     MAP_LIST_HEADER,
     MAP_LIST,
-    MAP_EXIT
+    MAP_EXIT, /* 1000:062B: fade all 256 entries to black, hold, save */
+    MAP_EXIT_FADE
 };
 struct MapFade {
     uint32_t first, entries, div, target;
@@ -123,6 +124,8 @@ static uint32_t _map_enter_bx; /* the 0x04B9/0x0515 counter */
 static uint8_t _map_white[0xC0]; /* the 0x48BC ramp during the spin */
 /* 1000:0577/0x0595: the offscreen list page (cleared, then the rows). */
 static uint8_t _map_off[MAP_PAGE];
+/* 1000:063A/0x063D: the 0x4B-frame hold after the exit fade (present_frames_75). */
+static uint32_t _map_exit_hold;
 
 /* 1000:048/0x04A: the ring angle and its per-draw step.  `_map_col` is the
  * cell index derived from the angle (`(0x10E - angle) / 0x0C`). */
@@ -1363,6 +1366,7 @@ int32_t map_begin(void)
     _map_list_step = 0u;
     _map_enter_phase = 0u;
     _map_enter_bx = 0u;
+    _map_exit_hold = 0u;
     memset(_map_off, 0, sizeof _map_off);
     g_map_box_bottom = 0x130u; /* 1000:0518's [0x8AE] */
     g_map_panel = 0u; /* 0 = the entry animation */
@@ -1428,6 +1432,37 @@ static void _map_enter_begin(void)
     _map_phase = MAP_ENTER;
 }
 
+/** @brief 1000:062B: fade all 256 DAC entries to the zeroed 0x48BC ramp.
+ *
+ * `0x062B` targets `0x48BC` with `BP=0x23` and `CX=0x100`; `0x063A` waits for it, `0x063D`
+ * presents 0x4B frames (`present_frames_75`), then 0x8389 stops the music and `0x06CC` saves.
+ */
+static void _map_exit_begin(void)
+{
+    _map_build_fade_to(0u, 0x100u, 0x23u, _map_black, 0xFFFFu); /* 0x062B */
+    _map_exit_hold = 0x4Bu; /* 0x063D */
+    _map_phase = MAP_EXIT_FADE;
+}
+
+/** @brief 1000:063D..0x0650: save the table and release the map assets. */
+static void _map_close(void)
+{
+    _map_up = 0;
+    hiscore_write(); /* 0x06CC */
+    free(_map_high);
+    _map_high = NULL;
+    free(_map_font);
+    _map_font = NULL;
+    free(_alpha_packed);
+    _alpha_packed = NULL;
+    free(_alpha_sheet);
+    _alpha_sheet = NULL;
+    free(_band_sheet);
+    _band_sheet = NULL;
+    _map_stage_ready = 0;
+    font_publish(NULL);
+}
+
 /**
  * @brief 1000:040B: one grid column applied to the 13-character buffer.
  *
@@ -1470,20 +1505,16 @@ int32_t map_tick(const InputState *in)
     _map_palette_animate(); /* 1000:09DA, every menu-loop iteration */
 
     if (_map_phase == MAP_EXIT) {
-        _map_up = 0; /* 1000:062B: fade/save, no list */
-        hiscore_write();
-        free(_map_high);
-        _map_high = NULL;
-        free(_map_font);
-        _map_font = NULL;
-        free(_alpha_packed);
-        _alpha_packed = NULL;
-        free(_alpha_sheet);
-        _alpha_sheet = NULL;
-        free(_band_sheet);
-        _band_sheet = NULL;
-        _map_stage_ready = 0;
-        font_publish(NULL);
+        _map_exit_begin(); /* 1000:062B: fade/save, no list */
+        return 1;
+    }
+    if (_map_phase == MAP_EXIT_FADE) {
+        if (palette_fade_active()) return 1; /* 0x062B..0x063A */
+        if (_map_exit_hold > 0u) { /* 0x063D present_frames_75 */
+            _map_exit_hold--;
+            return 1;
+        }
+        _map_close(); /* 0x06CC */
         return 0;
     }
     if (_map_phase == MAP_CONGRATS) {
@@ -1746,21 +1777,8 @@ int32_t map_tick(const InputState *in)
     }
 
     if (in->lastKey || (in->joyBits & 0x80u)) {
-        _map_up = 0;
-        hiscore_write(); /* 1000:062B decrypt_region_38a: the table is saved
-                              * when menu_loop is left */
-        free(_map_high);
-        _map_high = NULL;
-        free(_map_font);
-        _map_font = NULL;
-        free(_alpha_packed);
-        _alpha_packed = NULL;
-        free(_alpha_sheet);
-        _alpha_sheet = NULL;
-        free(_band_sheet);
-        _band_sheet = NULL;
-        font_publish(NULL);
-        return 0;
+        _map_exit_begin(); /* 1000:062B: fade all 256 entries, then save */
+        return 1;
     }
     return 1;
 }
