@@ -502,6 +502,242 @@ void map_draw_box_edges(uint8_t *page, uint32_t row)
     }
 }
 
+/* --- the band's staging page and its four-strip animation (1000:09DA/0A72/
+ * 07B2/0E77/0EBE/0EEC/0F3E) ----------------------------------------------
+ *
+ * `1000:12D3` parks BAND.SPR's four planes at A000:0xC000 (76 rows of 80 byte
+ * addresses).  The page is only read by `blit_palette_fade_row` (`1000:0A72`):
+ * for a channel's 8-bit phase it copies 320 contiguous byte addresses from
+ * `0xC000 + phase*0x140` into the page at `0x2DB8/ch*8 + [0x5AC4]`, laid out
+ * as 40 rows of 8 byte addresses at the page's 80-byte row stride (the 0x48
+ * gap plus the 8 copied bytes).  A byte address is a 4-pixel group, so the
+ * strip is 32 px wide and 40 rows tall at x = 96+32*ch, y = 146.
+ *
+ * `palette_animate` ticks the four scripts first, then compares each channel
+ * word with its `[0xA0..0xA6]` shadow and blits on a change; `palette_reset`
+ * seeds the shadows and animates twice.  The scripts' state bytes are the
+ * image's `[0x75]..[0x8B]` (the tables at 0x80/0x8A are `{1,0,1,0,0xFF}`), and
+ * the driver events (not ported) set the 0x75/0x79/0x7E/0x88 triggers.
+ */
+#define MAP_STAGE_ADDRS 6080u
+static uint8_t _map_stage[MAP_STAGE_ADDRS][4];
+static int32_t _map_stage_ready;
+
+/* the channel words [0x90]/[0x92]/[0x94]/[0x96], their previous-value shadows
+ * [0x98..0x9E] and the compared shadows [0xA0..0xA6]. */
+static uint16_t _map_ch[4], _map_prev_ch[4], _map_shadow[4];
+
+/* the four scripts' state bytes, from the image's [0x75]..[0x8B]. */
+static uint8_t _map_b75, _map_b76, _map_b77, _map_b78, _map_b79, _map_b7b;
+static uint8_t _map_b7c, _map_b7d, _map_b7e, _map_b7f, _map_b81;
+static uint8_t _map_b86, _map_b87, _map_b88, _map_b89, _map_b8b;
+
+/** @brief 1000:12D3: de-interleave BAND.SPR's four plane bytes into the
+ * staging page (plane p of byte address i is source[i*4+p]).
+ */
+static void _map_stage_fill(void)
+{
+    if (!_band_sheet) return;
+    for (uint32_t i = 0; i < MAP_STAGE_ADDRS; i++)
+        for (uint32_t p = 0; p < 4u; p++)
+            _map_stage[i][p] = _band_sheet[(i * 4u + p) & 0xFFFFu];
+    _map_stage_ready = 1;
+}
+
+/** @brief the colour of pixel j of the staging page's byte address a: bit j of
+ * each plane is the pixel's bit p (the flat `4*address + plane` model).
+ *
+ * @param a the staging byte address
+ * @param j the pixel within the 4-pixel group
+ * @return the colour
+ */
+static uint8_t _map_stage_pixel(uint32_t a, uint32_t j)
+{
+    uint8_t c = 0;
+
+    for (uint32_t p = 0; p < 4u; p++)
+        c |= (uint8_t)(((_map_stage[a][p] >> j) & 1u) << p);
+    return c;
+}
+
+/** @brief 1000:0A72: one channel's 8-byte x 40-row strip from the staging page
+ * at `phase*0x140` byte addresses into the page at `0x2DB8 + ch*8`.
+ *
+ * @param phase the channel's 8-bit phase
+ * @param ch the channel (0..3)
+ * @param page the page buffer
+ */
+static void _map_blit_strip(uint16_t phase, uint32_t ch, uint8_t *page)
+{
+    uint32_t src = (uint32_t)(phase & 0xFFu) * 0x140u;
+    uint32_t dst = 0x2DB8u + ch * 8u;
+
+    if (!page || !_map_stage_ready) return;
+    for (uint32_t r = 0; r < 40u; r++)
+        for (uint32_t c = 0; c < 8u; c++) {
+            uint32_t a = src + r * 8u + c;
+            uint32_t da = dst + r * 80u + c; /* the 0x48 gap + 8 bytes */
+            uint32_t px = (da / 80u) * 320u + (da % 80u) * 4u;
+
+            if (a >= MAP_STAGE_ADDRS) continue;
+            if (da / 80u >= 200u) continue;
+            for (uint32_t j = 0; j < 4u; j++)
+                page[px + j] = _map_stage_pixel(a, j);
+        }
+}
+
+/** @brief 1000:0E77 anim_tick_1: the [0x94] channel's 10-frame cycler (the
+ * event byte [0x75] takes precedence, writing `[0x76]&3 + 2`).
+ */
+static void _map_anim_tick_1(void)
+{
+    if (_map_b75) {
+        _map_b75 = 0u;
+        _map_b76++;
+        _map_ch[2] = (uint16_t)((_map_b76 & 3u) + 2u);
+        _map_b77 = 0x0Au;
+        return;
+    }
+    if ((int8_t)(--_map_b77) >= 0) return;
+    if (_map_ch[2] < 2u) {
+        _map_ch[2] ^= 0x0100u; /* XOR word [0x95],1 */
+        _map_b77 = 0x0Au;
+    } else {
+        _map_ch[2] = 1u;
+        _map_b77 = 0x0Au;
+    }
+}
+
+/** @brief 1000:0EBE anim_tick_2: the [0x90] channel's 5-frame cycler.
+ */
+static void _map_anim_tick_2(void)
+{
+    uint16_t ax = 1u;
+
+    if ((int8_t)(--_map_b78) >= 0) return;
+    _map_b78 = 5u;
+    if (_map_b79) {
+        ax = 2u;
+        _map_b7b++;
+        if (!(_map_b7b & 1u)) ax = 0u;
+    }
+    _map_b79 = 0u;
+    _map_ch[0] = ax;
+}
+
+/** @brief the two table-walking ticks (1000:0EEC `fall_entry_b` for [0x92],
+ * 1000:0F3E `anim_tick_4` for [0x96]).  0x80's and 0x8A's tables are both
+ * `{1, 0, 1, 0, 0xFF}`; the 0xFF entry wraps the walk and decrements the
+ * repeat counter.
+ *
+ * @param ch the channel index (1 or 3)
+ * @param timer the script's 5-frame counter
+ * @param repeat the repeat counter byte
+ * @param idx the table cursor byte
+ * @param step the phase counter byte
+ * @param next the phase byte written on each wrap
+ */
+static void _map_anim_table_tick(uint32_t ch, uint8_t *timer, uint8_t *repeat,
+                                 uint8_t *idx, uint8_t *step, uint8_t *next)
+{
+    static const uint8_t table[8] = { 1u, 0u, 1u, 0u, 0xFFu, 0u, 0u, 0u };
+    uint8_t bl;
+
+    if ((int8_t)(--*timer) >= 0) return;
+    *timer = 5u;
+    if (*repeat == 0u) {
+        _map_ch[ch] = 0u;
+        return;
+    }
+    bl = 0u;
+    if (*idx == 0u) {
+        (*step)++;
+        bl = (uint8_t)((*step & 3u) + 1u);
+        *next = bl;
+    }
+    bl = (uint8_t)(*idx & 7u); /* the image's 0x80..0x87 window */
+    _map_ch[ch] = table[bl];
+    if (table[(uint32_t)bl + 1u] & 0x80u) {
+        bl = 0u;
+        (*repeat)--;
+    } else {
+        bl++;
+    }
+    *idx = bl;
+}
+
+/** @brief 1000:0E6B tick_effects: the four scripts' per-frame tail.
+ */
+static void _map_anim_ticks(void)
+{
+    _map_anim_tick_1();
+    _map_anim_tick_2();
+    _map_anim_table_tick(1u, &_map_b7c, &_map_b7e, &_map_b7f, &_map_b7d,
+                         &_map_b81);
+    _map_anim_table_tick(3u, &_map_b86, &_map_b88, &_map_b89, &_map_b87,
+                         &_map_b8b);
+}
+
+/** @brief 1000:09DA palette_animate: tick the scripts, then blit a channel
+ * whose word changed from its shadow.
+ */
+static void _map_palette_animate(void)
+{
+    static const uint16_t off[4] = { 0u, 3u, 8u, 0x0Eu };
+    uint8_t *page = video_page(0);
+
+    _map_anim_ticks();
+    for (uint32_t ch = 0; ch < 4u; ch++) {
+        if (_map_ch[ch] == _map_shadow[ch]) continue;
+        _map_prev_ch[ch] = _map_shadow[ch]; /* 0xA0 = the old 0x98 */
+        _map_shadow[ch] = _map_ch[ch];
+        _map_blit_strip((uint16_t)(_map_ch[ch] + off[ch]), ch, page);
+    }
+}
+
+/** @brief 1000:07B2 palette_reset: seed the shadows and animate twice (the
+ * original's two planar page copies are the flat page itself in the port).
+ */
+void map_palette_reset(void)
+{
+    for (uint32_t i = 0; i < 4u; i++) {
+        _map_shadow[i] = 0xFFFFu;
+        _map_prev_ch[i] = 0xFFFEu;
+    }
+    _map_palette_animate();
+    _map_palette_animate();
+}
+
+/** @brief Accessor: one animation channel word (the test seam).
+ *
+ * @param ch the channel (0..3)
+ * @return the word, or 0 out of range
+ */
+uint16_t map_anim_channel_for_probe(uint32_t ch)
+{ return ch < 4u ? _map_ch[ch] : 0u; }
+
+/** @brief Advance the band animation one frame (the test seam for 1000:09DA).
+ */
+void map_anim_tick_for_probe(void) { _map_palette_animate(); }
+
+/** @brief Accessor: the staging page is filled (the test seam).
+ *
+ * @return 1 when ready
+ */
+int32_t map_stage_ready_for_probe(void) { return _map_stage_ready; }
+
+/** @brief Accessor: one staging-page byte (the test seam).
+ *
+ * @param addr the byte address
+ * @param plane the plane (0..3)
+ * @return the byte, or 0 out of range
+ */
+uint8_t map_stage_at(uint32_t addr, uint32_t plane)
+{
+    if (addr >= MAP_STAGE_ADDRS || plane >= 4u) return 0u;
+    return _map_stage[addr][plane];
+}
+
 /** @brief draw_score_block (1000:0651): the rank is centred at x=0x20, the name at
  * x=0x82, the 32-bit score at x=0x102, row pitch [0x36]=0x14 from base
  * [0x38]=0; the header is blit_text_tile at x=0xA0, y=0x14.
@@ -646,6 +882,8 @@ static void _map_page_reset(uint8_t *page)
     if (_map_high)
         memcpy(page, _map_high,
                _map_high_size < MAP_PAGE ? _map_high_size : MAP_PAGE);
+    /* 1000:0221/0x02E6: the band strips sit under the art that follows. */
+    if (_map_stage_ready) map_palette_reset();
 }
 
 /** @brief the whole screen: high.bit's page, then the state's own art and the
@@ -697,6 +935,9 @@ int32_t map_begin(void)
     free(_band_sheet);
     _band_sheet = NULL;
     _band_sheet = res_load_chunk("APL\\BAND.SPR", NULL, NULL);
+    _map_stage_ready = 0;
+    _map_stage_fill(); /* 1000:12D3 */
+    map_palette_reset(); /* 1000:0221: the strips under the page art */
 
     /* 1000:01CD: the running total is offered to the table.  A qualifying one
      * opens the name entry first, then the list. */
@@ -752,6 +993,7 @@ int32_t map_tick(const InputState *in)
         _map_armed = 1;
         return 1;
     }
+    _map_palette_animate(); /* 1000:09DA, every menu-loop iteration */
 
     if (_map_phase == MAP_EXIT) {
         _map_up = 0; /* 1000:062B: fade/save, no list */
@@ -766,6 +1008,7 @@ int32_t map_tick(const InputState *in)
         _alpha_sheet = NULL;
         free(_band_sheet);
         _band_sheet = NULL;
+        _map_stage_ready = 0;
         font_publish(NULL);
         return 0;
     }

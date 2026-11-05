@@ -6233,6 +6233,70 @@ int main(int argc, char **argv)
             }
         }
     }
+    /* D-34: the band staging page (1000:12D3) and the four-strip animation
+     * (1000:07B2/09DA/0A72/0E77/0EBE/0EEC/0F3E).  The strips sit at
+     * x = 96+32*ch, y = 146..185, under the page art. */
+    {
+        static uint8_t band[24320];
+        char bp[512];
+        snprintf(bp, sizeof bp, "%s/HUMANS.000/APL/BAND.SPR", fix_dir);
+        FILE *bf = fopen(bp, "rb");
+        size_t bn = bf ? fread(band, 1, sizeof band, bf) : 0;
+        if (bf) fclose(bf);
+
+        _check(map_stage_ready_for_probe() == 1,
+               "D-34: the band stage is filled (1000:12D3)");
+        if (bn == sizeof band) {
+            uint32_t bad = 0;
+
+            for (uint32_t i = 0; i < 6080u; i += 97u)
+                for (uint32_t p = 0; p < 4u; p++)
+                    if (map_stage_at(i, p) != band[i * 4u + p]) bad++;
+            _check(bad == 0u,
+                   "D-34: the stage is the sheet's 4-plane interleave");
+        }
+        _check(map_anim_channel_for_probe(0u) == 1u &&
+                   map_anim_channel_for_probe(1u) == 0u &&
+                   map_anim_channel_for_probe(2u) == 0x0100u &&
+                   map_anim_channel_for_probe(3u) == 0u,
+               "D-34: 1000:07B2 seeds [0x90]=1 and [0x94]=0x100");
+        {
+            const uint8_t *pg = osys_null_page(0);
+            uint32_t bad2 = 0, n2 = 0;
+
+            for (uint32_t ch = 0; ch < 4u; ch++) {
+                uint32_t v = map_anim_channel_for_probe(ch);
+                uint32_t phase = v + (ch == 0u   ? 0u
+                                      : ch == 1u ? 3u
+                                      : ch == 2u ? 8u
+                                                 : 0x0Eu);
+
+                for (uint32_t r = 0; r < 40u; r++)
+                    for (uint32_t c = 0; c < 8u; c++) {
+                        uint32_t a = (phase & 0xFFu) * 0x140u + r * 8u + c;
+                        uint32_t x = 96u + 32u * ch + c * 4u;
+                        uint32_t y = 146u + r;
+
+                        for (uint32_t j = 0; j < 4u; j++) {
+                            uint8_t want = 0;
+
+                            for (uint32_t p = 0; p < 4u; p++)
+                                want |=
+                                    (uint8_t)(((map_stage_at(a, p) >> j) & 1u)
+                                              << p);
+                            n2++;
+                            if (pg[y * 320u + x + j] != want) bad2++;
+                        }
+                    }
+            }
+            _check(n2 != 0u && bad2 == 0u,
+                   "D-34: the four strips carry the staged pixels");
+        }
+        for (uint32_t i = 0; i < 10u; i++) map_anim_tick_for_probe();
+        _check(map_anim_channel_for_probe(2u) == 1u,
+               "D-34: 1000:0E77 steps [0x94] 0x100 -> 1 after 10 frames");
+    }
+
     {
         InputState k;
         memset(&k, 0, sizeof k);

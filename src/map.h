@@ -33,4 +33,13 @@ void map_draw_name(uint8_t *page); /* 1000:0CBE (ring + typed)   */
 extern uint32_t g_map_box_bottom; /* [0x8AE]                    */
 extern uint32_t g_map_panel; /* [0x8A2]: 1..6              */
 
+/* --- the band's staging page and four-strip animation (1000:12D3/09DA/
+ * 0A72/07B2/0E77/0EBE/0EEC/0F3E) --------------------------------------- */
+void map_palette_reset(void); /* 1000:07B2: shadows + two blits  */
+uint16_t
+map_anim_channel_for_probe(uint32_t ch); /* [0x90]/[0x92]/[0x94]/[0x96] */
+void map_anim_tick_for_probe(void); /* one 1000:09DA frame */
+int32_t map_stage_ready_for_probe(void); /* the staging page is filled */
+uint8_t map_stage_at(uint32_t addr, uint32_t plane); /* 1000:12D3 plane byte */
+
 #endif /* HUMANSRE_MAP_H */
