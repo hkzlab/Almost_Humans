@@ -47,7 +47,6 @@ uint32_t map_intro_step_for_probe(void); /* the opening step   */
 uint32_t map_enter_step_for_probe(void); /* the Enter phase    */
 uint32_t map_enter_bx_for_probe(void); /* the Enter spin BX  */
 uint8_t *map_off_page_for_probe(void); /* the offscreen page */
-uint32_t map_wheel_rotation_for_probe(uint32_t cell); /* D-221's tilt */
 int32_t map_glyph_for_probe(uint32_t i, int32_t *tx, int32_t *ty, int32_t *cx,
                             int32_t *cy); /* the [0x596] entry  */
 uint32_t map_name_fire_wait_for_probe(void); /* [0x5AC8] model */

@@ -6498,18 +6498,52 @@ int main(int argc, char **argv)
                        "D-205: 20 x 0x12 steps return to 0x10E and hold");
                 _check(map_name_col_for_probe() == 0u,
                        "D-205: the rested ring selects cell 0");
-                /* D-221 (closed 2026-11-05): 1000:0F93 turns the glyph in
-                 * 45-degree sectors: the top three cells are 0 (29,0,1), the
-                 * next four are 45 (2..5), then the 90/135/... groups. */
-                _check(map_wheel_rotation_for_probe(29u) == 0u &&
-                           map_wheel_rotation_for_probe(0u) == 0u &&
-                           map_wheel_rotation_for_probe(1u) == 0u &&
-                           map_wheel_rotation_for_probe(2u) == 45u &&
-                           map_wheel_rotation_for_probe(5u) == 45u &&
-                           map_wheel_rotation_for_probe(6u) == 90u &&
-                           map_wheel_rotation_for_probe(14u) == 180u &&
-                           map_wheel_rotation_for_probe(25u) == 315u,
-                       "D-221: the wheel rotates in 45-degree sector steps");
+                /* D-222 (closed 2026-11-05): 1000:0F93's block table
+                 * [0xA8..0xAF] is zero in the image and live at the name
+                 * screen, so every cell is block 0 and stays upright.  Compare
+                 * the right-hand cell (7) with the unrotated sheet. */
+                {
+                    static uint8_t packed[0x2000], sheet[0x10000];
+                    static uint8_t page[320u * 200u];
+                    char ap[512];
+                    FILE *af;
+                    size_t an = 0;
+                    uint32_t src, dst, want_ink = 0, ok_ink = 0;
+
+                    snprintf(ap, sizeof ap, "%s/HUMANS.000/APL/ALPHA.SPR",
+                             fix_dir);
+                    af = fopen(ap, "rb");
+                    if (af) {
+                        an = fread(packed, 1, sizeof packed, af);
+                        fclose(af);
+                    }
+                    if (an != 0u) {
+                        memset(sheet, 0, sizeof sheet);
+                        alpha_expand(packed, sheet);
+                        alpha_cell(7u, (0x10Eu + 7u * 0x0Cu) % 0x168u, &src,
+                                   &dst);
+                        memset(page, 0, sizeof page);
+                        map_name_set_angle_for_probe(0x10Eu);
+                        map_draw_name(page);
+                        for (uint32_t r = 0; r < 11u; r++)
+                            for (uint32_t c = 0; c < 4u; c++) {
+                                uint32_t v =
+                                    sheet[(src + r * 4u + c) & 0xFFFFu];
+
+                                for (uint32_t b = 0; b < 4u; b++)
+                                    if ((v >> b) & 1u) {
+                                        uint32_t px = (dst / 80u + r) * 320u +
+                                                      (dst % 80u) * 4u +
+                                                      c * 4u + b;
+
+                                        want_ink++;
+                                        if (page[px] & 0x20u) ok_ink++;
+                                    }
+                            }
+                        _check(want_ink != 0u && ok_ink * 10u >= want_ink * 9u,
+                               "D-222: the wheel uses block 0 (upright)");
+                    }
+                }
             }
             /* D-208 (closed 2026-11-05): 1000:0CBE's two cell lists.  Draw
              * three angles on a zeroed page; the third draw clears the first

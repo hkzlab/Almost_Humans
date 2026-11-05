@@ -502,87 +502,13 @@ static void _alpha_blit_cell(uint8_t *page, uint32_t src, uint32_t dst)
     }
 }
 
-/** @brief One cell blitted at one of the eight 45-degree rotation steps.
- *
- * `rotate_spinner_cell` (`1000:0F93`) turns the glyph in **45-degree steps**:
- * `(angle+0x16)/0x2D` picks one of the eight `0x800`-byte sheet blocks.  The
- * ASM draws the block's rows 3..13 (source `+0x0C`, destination `+0xF0`).
- * The sheet carries only the 0-degree alphabet (block 0) and the -45-degree
- * one (block 1) in this image, so steps 0 and 1 draw those visible rows
- * verbatim; the other six are the exact quarter turns of the **full 16x16
- * cell**, drawn from the cell's row 0 (`dst - 3 rows`) so the turned art is
- * not clipped by the 11-row window.
- *
- * @param page the page buffer
- * @param src the cell source (cell + 0x0C + plane*0x4000)
- * @param dst the destination buffer
- * @param step the rotation step (0..7, 45 degrees each)
- */
-static void _alpha_blit_cell_rot(uint8_t *page, uint32_t src, uint32_t dst,
-                                 uint32_t step)
-{
-    uint8_t bits[16][16];
-    uint32_t base = src - 0x0Cu + ((step & 1u) ? 0x800u : 0u);
-    uint32_t quarter = (step >> 1) & 3u;
-    uint32_t x0 = (dst % 80u) * 4u;
-    uint32_t y0 = dst / 80u;
-
-    if (!page) return;
-    for (uint32_t r = 0; r < 16u; r++)
-        for (uint32_t c = 0; c < 4u; c++) {
-            uint32_t v = _alpha_sheet[(base + r * 4u + c) & 0xFFFFu];
-
-            for (uint32_t b = 0; b < 4u; b++)
-                bits[c * 4u + b][r] = (uint8_t)((v >> b) & 1u);
-        }
-    if (quarter == 0u) {
-        /* the ASM's window: block rows 3..13 at dst */
-        for (int32_t y = 3; y <= 13; y++)
-            for (int32_t x = 0; x < 16; x++) {
-                if (!bits[x][y]) continue;
-                if (y0 + (uint32_t)(y - 3) > 199u) continue;
-                page[(y0 + (uint32_t)(y - 3)) * 320u + x0 + (uint32_t)x] |=
-                    0x20u;
-            }
-        return;
-    }
-    /* derived steps: the full cell, from the cell's row 0 (dst - 3 rows) */
-    for (int32_t y = 0; y < 16; y++)
-        for (int32_t x = 0; x < 16; x++) {
-            int32_t sx, sy;
-
-            if (quarter == 1u) { /* 90 clockwise */
-                sx = y;
-                sy = 15 - x;
-            } else if (quarter == 2u) { /* 180 */
-                sx = 15 - x;
-                sy = 15 - y;
-            } else { /* 270 clockwise */
-                sx = 15 - y;
-                sy = x;
-            }
-            if (!bits[sx][sy]) continue;
-            if ((int32_t)y0 + y - 3 < 0) continue;
-            if ((int32_t)y0 + y - 3 > 199) continue;
-            page[((uint32_t)((int32_t)y0 + y - 3)) * 320u + x0 + (uint32_t)x] |=
-                0x20u;
-        }
-}
-
-/** @brief Clear the wheel/name bit-5 layer (the rotated cells overrun the
- * original 11-row footprint, so the region is cleared each draw).
- *
- * @param page the page buffer
- */
-static void _map_wheel_clear(uint8_t *page)
-{
-    for (uint32_t y = 0; y < 156u; y++)
-        for (uint32_t x = 72u; x < 242u; x++)
-            page[y * 320u + x] &= (uint8_t)~0x20u;
-}
-
 /**
  * @brief Draw the 30-cell letter wheel and optionally record its cells.
+ *
+ * `rotate_spinner_cell` (`1000:0F93`) selects a sheet block through
+ * `byte[0xA8 + (angle+0x16)/0x2D]`; this image's table is **all zero**
+ * (confirmed live at the name screen), so every cell uses block 0 and the
+ * glyphs stay upright.  The block's rows 3..13 are drawn at `dst`.
  *
  * @param page the page buffer
  * @param base the ring angle ([0x48])
@@ -592,11 +518,10 @@ static void _map_wheel_draw(uint8_t *page, uint32_t base, int32_t record)
 {
     if (!page || !_alpha_sheet) return;
     for (uint32_t i = 0; i < 30u; i++) {
-        uint32_t a = (base + i * 0x0Cu) % 0x168u;
         uint32_t src, dst;
 
-        alpha_cell(i, a, &src, &dst);
-        _alpha_blit_cell_rot(page, src, dst, (((a + 0x16u) / 0x2Du) + 2u) % 8u);
+        alpha_cell(i, (base + i * 0x0Cu) % 0x168u, &src, &dst);
+        _alpha_blit_cell(page, src, dst);
         if (record) _map_dirty_add(dst);
     }
 }
@@ -1101,13 +1026,6 @@ uint32_t map_enter_bx_for_probe(void) { return _map_enter_bx; }
  * @param cell the ring cell (0..29)
  * @return the clockwise rotation in degrees (0 at the top)
  */
-uint32_t map_wheel_rotation_for_probe(uint32_t cell)
-{
-    uint32_t a = (_map_angle + cell * 0x0Cu) % 0x168u;
-
-    return ((((a + 0x16u) / 0x2Du) + 2u) % 8u) * 0x2Du;
-}
-
 /** @brief Accessor: the offscreen list page (the test seam).
  *
  * @return the 1000:8A4-style page buffer
@@ -1333,7 +1251,6 @@ void map_draw_name(uint8_t *page)
 {
     if (!page) return;
     _map_dirty_begin(page);
-    _map_wheel_clear(page);
     _map_wheel_draw(page, _map_angle, 1);
     _map_name_draw(page, 1);
 }
