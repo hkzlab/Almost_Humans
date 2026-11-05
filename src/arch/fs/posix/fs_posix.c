@@ -29,7 +29,12 @@ const FSModule g_fs = { _posix_open_volume, _posix_close_volume,
                         _posix_close_save,  _posix_open_named,
                         _posix_create_named };
 
-/** @brief Open the volume directory for one disc. */
+/**
+ * @brief Open the volume directory for one disc.
+ *
+ * @param disc the disc number
+ * @return the pointer, or NULL when unavailable
+ */
 static FSVolume *_posix_open_volume(uint32_t disc)
 {
     char name[32];
@@ -37,20 +42,37 @@ static FSVolume *_posix_open_volume(uint32_t disc)
     return (FSVolume *)fopen(name, "rb");
 }
 
-/** @brief Close a volume stream. */
+/**
+ * @brief Close a volume stream.
+ *
+ * @param v the volume handle
+ */
 static void _posix_close_volume(FSVolume *v)
 {
     if (v) fclose((FILE *)v);
 }
 
-/** @brief The volume's byte size. */
+/**
+ * @brief The volume's byte size.
+ *
+ * @param v the volume handle
+ * @return the volume's byte size
+ */
 static uint32_t _posix_volume_size(FSVolume *v)
 {
     if (fseek((FILE *)v, 0, SEEK_END)) return 0;
     return (uint32_t)ftell((FILE *)v);
 }
 
-/** @brief Read n bytes from a volume at an absolute offset. */
+/**
+ * @brief Read n bytes from a volume at an absolute offset.
+ *
+ * @param v the volume handle
+ * @param off the offset
+ * @param dst the destination buffer
+ * @param n the count
+ * @return the bytes read
+ */
 static uint32_t _posix_read(FSVolume *v, uint32_t off, uint8_t *dst, uint32_t n)
 {
     /* long is fseek's parameter type, not a host-dependent integer here. */
@@ -58,9 +80,13 @@ static uint32_t _posix_read(FSVolume *v, uint32_t off, uint8_t *dst, uint32_t n)
     return (uint32_t)fread(dst, 1, n, (FILE *)v);
 }
 
-/** The save files: the original's `\HUMANS\CDROM\saveX` mapped onto the game
+/** @brief The save files: the original's `\HUMANS\CDROM\saveX` mapped onto the game
  * directory as SAVEA..SAVET (the slot letter is the game's law, the
- * filename is this module's business). */
+ * filename is this module's business).
+ *
+ * @param letter the slot letter
+ * @return the pointer, or NULL when unavailable
+ */
 static FSSave *_posix_open_save(char letter)
 {
     char name[16];
@@ -69,7 +95,15 @@ static FSSave *_posix_open_save(char letter)
     return (FSSave *)fopen(name, "rb");
 }
 
-/** @brief Read n bytes from a save. */
+/**
+ * @brief Read n bytes from a save.
+ *
+ * @param s the save handle
+ * @param off the offset
+ * @param dst the destination buffer
+ * @param n the count
+ * @return the bytes read
+ */
 static uint32_t _posix_save_read(FSSave *s, uint32_t off, uint8_t *dst,
                                  uint32_t n)
 {
@@ -77,7 +111,12 @@ static uint32_t _posix_save_read(FSSave *s, uint32_t off, uint8_t *dst,
     return (uint32_t)fread(dst, 1, n, (FILE *)s);
 }
 
-/** @brief Create the save file for one slot letter. */
+/**
+ * @brief Create the save file for one slot letter.
+ *
+ * @param letter the slot letter
+ * @return the pointer, or NULL when unavailable
+ */
 static FSSave *_posix_create_save(char letter)
 {
     char name[16];
@@ -86,7 +125,15 @@ static FSSave *_posix_create_save(char letter)
     return (FSSave *)fopen(name, "wb");
 }
 
-/** @brief Write n bytes to a save. */
+/**
+ * @brief Write n bytes to a save.
+ *
+ * @param s the save handle
+ * @param off the offset
+ * @param src the source buffer
+ * @param n the count
+ * @return the bytes written
+ */
 static uint32_t _posix_save_write(FSSave *s, uint32_t off, const uint8_t *src,
                                   uint32_t n)
 {
@@ -94,16 +141,30 @@ static uint32_t _posix_save_write(FSSave *s, uint32_t off, const uint8_t *src,
     return (uint32_t)fwrite(src, 1, n, (FILE *)s);
 }
 
-/** @brief Close a save stream. */
+/**
+ * @brief Close a save stream.
+ *
+ * @param s the save handle
+ */
 static void _posix_close_save(FSSave *s)
 {
     if (s) fclose((FILE *)s);
 }
 
-/** the game-directory runtime files (HISCORES.HUM): the name is the game's */
+/**
+ * @brief the game-directory runtime files (HISCORES.HUM): the name is the game's
+ *
+ * @param name the name
+ * @return the pointer, or NULL when unavailable
+ */
 static FSSave *_posix_open_named(const char *name)
 { return (FSSave *)fopen(name, "rb"); }
 
-/** @brief Create a named save file. */
+/**
+ * @brief Create a named save file.
+ *
+ * @param name the name
+ * @return the pointer, or NULL when unavailable
+ */
 static FSSave *_posix_create_named(const char *name)
 { return (FSSave *)fopen(name, "wb"); }

@@ -47,10 +47,22 @@ extern const uint8_t *osys_null_palette(void);
 
 extern const OSystem g_osys_null;
 
-/** @brief Store one little-endian 16-bit word. */
+/**
+ * @brief Store one little-endian 16-bit word.
+ *
+ * @param p the destination bytes
+ * @param v the value
+ */
 static void _put16(uint8_t *p, uint32_t v) { wr_le_u16(p, (uint16_t)v); }
 
-/** @brief Write a page and its palette as a binary PPM for inspection. */
+/**
+ * @brief Write a page and its palette as a binary PPM for inspection.
+ *
+ * @param dir the direction
+ * @param name the name
+ * @param page the page buffer
+ * @param pal the palette
+ */
 static void _dump_ppm(const char *dir, const char *name, const uint8_t *page,
                       const uint8_t *pal)
 {
@@ -70,10 +82,16 @@ static void _dump_ppm(const char *dir, const char *name, const uint8_t *page,
     fclose(f);
 }
 
-/** draw_map_object's outline pass (1000:9FA7 -> 9FB1): a text pixel is any
+/** @brief draw_map_object's outline pass (1000:9FA7 -> 9FB1): a text pixel is any
  * byte in [0xF4,0xFB]; each of its four in-page neighbours is either text or
  * 0 (the black outline).  Counts the text and outline pixels and the number
- * of neighbours that are neither. */
+ * of neighbours that are neither.
+ *
+ * @param page the page buffer
+ * @param text the text
+ * @param outline the outline buffer
+ * @param violations the violation count
+ */
 static void _text_outline(const uint8_t *page, uint32_t *text,
                           uint32_t *outline, uint32_t *violations)
 {
@@ -96,7 +114,11 @@ static void _text_outline(const uint8_t *page, uint32_t *text,
         }
 }
 
-/** @brief A zeroed input state (no key, fire released). */
+/**
+ * @brief A zeroed input state (no key, fire released).
+ *
+ * @return the zeroed input state
+ */
 static InputState _idle(void)
 {
     InputState in;
@@ -104,8 +126,12 @@ static InputState _idle(void)
     return in;
 }
 
-/** one tick with the given joy bits; the release tick afterwards makes the
- * next one a fresh _press (the original waits for the key release) */
+/** @brief one tick with the given joy bits; the release tick afterwards makes the
+ * next one a fresh _press (the original waits for the key release)
+ *
+ * @param bits the bit count
+ * @return 1 when the room exited, 0 otherwise
+ */
 static int32_t _press(uint32_t bits)
 {
     InputState in = _idle();
@@ -116,14 +142,24 @@ static int32_t _press(uint32_t bits)
     return up;
 }
 
-/** @brief Open the pause menu and report whether it took. */
+/**
+ * @brief Open the pause menu and report whether it took.
+ *
+ * @return 1 when the pause menu is up, 0 otherwise
+ */
 static int32_t _open_pause(void)
 {
     menu_open_pause();
     return menu_active();
 }
 
-/** @brief Run the pause menu tests. */
+/**
+ * @brief Run the pause menu tests.
+ *
+ * @param argc the argument count
+ * @param argv the argument vector
+ * @return 0 on success, 1 on failure
+ */
 int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";

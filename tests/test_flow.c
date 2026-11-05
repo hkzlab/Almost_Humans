@@ -37,7 +37,12 @@ extern const OSystem g_osys_null;
 
 static int32_t _bad;
 
-/** @brief Write a page and its palette as a binary PPM for inspection. */
+/**
+ * @brief Write a page and its palette as a binary PPM for inspection.
+ *
+ * @param path the path
+ * @param page the page buffer
+ */
 static void _flow_dump_ppm(const char *path, const uint8_t *page)
 {
     FILE *f = fopen(path, "wb");
@@ -54,7 +59,12 @@ static void _flow_dump_ppm(const char *path, const uint8_t *page)
     fclose(f);
 }
 
-/** @brief Assert one condition and count a failure. */
+/**
+ * @brief Assert one condition and count a failure.
+ *
+ * @param ok the condition
+ * @param what the check description
+ */
 static void _check(int32_t ok, const char *what)
 {
     if (!ok) {
@@ -63,17 +73,37 @@ static void _check(int32_t ok, const char *what)
     }
 }
 
-/** the record-word helpers, also used by the walk/marker blocks below */
+/**
+ * @brief the record-word helpers, also used by the walk/marker blocks below
+ *
+ * @param r the record buffer
+ * @param o the offset
+ * @return the stored word
+ */
 static uint32_t _tf_rd16(const uint8_t *r, uint32_t o)
 { return (uint32_t)(rd_le_u16(r + o)); }
-/** @brief Store one little-endian 16-bit word. */
+/**
+ * @brief Store one little-endian 16-bit word.
+ *
+ * @param r the record buffer
+ * @param o the offset
+ * @param v the word
+ */
 static void _tf_wr16(uint8_t *r, uint32_t o, uint32_t v)
 { wr_le_u16(r + o, (uint16_t)v); }
 
-/** D-86: one full-charge leap from (x, y) on the loaded level - 64 held frames
+/** @brief D-86: one full-charge leap from (x, y) on the loaded level - 64 held frames
  * of the fire column (1000:EE07) then the release (1000:EFD7 -> 0xEFE4) - and
  * the leftmost x / smallest y it reaches before the leap state (type 0x1A)
- * ends.  The caller must set the level up (object_init + the action row). */
+ * ends.  The caller must set the level up (object_init + the action row).
+ *
+ * @param x the x coordinate
+ * @param y the y coordinate
+ * @param minx the minimum x
+ * @param apex the apex value
+ * @param endType the end type
+ * @param endFrame the end frame
+ */
 static void _tf_leap(int32_t x, int32_t y, uint32_t *minx, uint32_t *apex,
                      uint32_t *endType, uint32_t *endFrame)
 {
@@ -112,7 +142,13 @@ static void _tf_leap(int32_t x, int32_t y, uint32_t *minx, uint32_t *apex,
     *endFrame = _tf_rd16(a, 4u);
 }
 
-/** @brief Run the foreground flow tests. */
+/**
+ * @brief Run the foreground flow tests.
+ *
+ * @param argc the argument count
+ * @param argv the argument vector
+ * @return 0 on success, 1 on failure
+ */
 int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";

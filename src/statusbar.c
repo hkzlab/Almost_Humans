@@ -141,25 +141,44 @@ static const uint8_t _action_gold[40] = {
     0xD9, 0xD8, 0xD7, 0xD6, 0xD5, 0xD4, 0xD3, 0xD2, 0xD1, 0xD0,
 };
 
-/** 1000:F5E3: the "anything collected" test ([0x5B25] | [0x5B26] != 0). */
+/**
+ * @brief 1000:F5E3: the "anything collected" test ([0x5B25] | [0x5B26] != 0).
+ *
+ * @return 1 when any tribe counter is non-zero, 0 otherwise
+ */
 int32_t statusbar_tribe_active(void) { return (_td[0] | _td[1]) != 0; }
-/** The two digits as the number the check_highscore arithmetic reads (1000:41B8:
- * `[0x5B25]*10 + [0x5B26]`). */
+/** @brief The two digits as the number the check_highscore arithmetic reads (1000:41B8:
+ * `[0x5B25]*10 + [0x5B26]`).
+ *
+ * @return the two-digit tribe value
+ */
 uint32_t statusbar_tribe_value(void) { return (uint32_t)_td[0] * 10u + _td[1]; }
-/** @brief Accessor: one tribe-count digit. */
+/**
+ * @brief Accessor: one tribe-count digit.
+ *
+ * @param i the index
+ * @return One tribe-count digit.
+ */
 uint32_t statusbar_tribe_digit(uint32_t i) { return _td[i & 1u]; }
-/** The odometer's digits are [0x5B25]/[0x5B26]; the game only writes them through
+/** @brief The odometer's digits are [0x5B25]/[0x5B26]; the game only writes them through
  * statusbar_start (members - required) and the roll animation.  This setter is
  * a test seam for the object machine's level-end probe, whose two branches key
- * on that word. */
+ * on that word.
+ *
+ * @param tens the tens digit
+ * @param ones the ones digit
+ */
 void statusbar_set_tribe_digits(uint32_t tens, uint32_t ones)
 {
     _td[0] = (uint8_t)(tens % 10u);
     _td[1] = (uint8_t)(ones % 10u);
 }
 
-/** 0x5B22..0x5B29, the save's +0x17F0 block: state, the two slide
- * countdowns, the two digits, the two phase bytes and the 0x5B28 gap. */
+/** @brief 0x5B22..0x5B29, the save's +0x17F0 block: state, the two slide
+ * countdowns, the two digits, the two phase bytes and the 0x5B28 gap.
+ *
+ * @param out the output buffer
+ */
 void statusbar_save_params(uint8_t *out)
 {
     if (!out) return;
@@ -173,7 +192,11 @@ void statusbar_save_params(uint8_t *out)
     out[7] = (uint8_t)_td_phase[1];
 }
 
-/** @brief Load the bar's per-level parameters. */
+/**
+ * @brief Load the bar's per-level parameters.
+ *
+ * @param in the input state
+ */
 void statusbar_load_params(const uint8_t *in)
 {
     if (!in) return;
@@ -186,14 +209,26 @@ void statusbar_load_params(const uint8_t *in)
     _td_phase[1] = in[7];
 }
 
-/** @brief Bind the status bar to the backend. */
+/**
+ * @brief Bind the status bar to the backend.
+ *
+ * @param osys the backend interface
+ * @return 0 on success
+ */
 int32_t statusbar_init(const OSystem *osys)
 {
     _sb_osys = osys;
     return 0;
 }
 
-/** @brief Write one 8-pixel mark row into the status band. */
+/**
+ * @brief Write one 8-pixel mark row into the status band.
+ *
+ * @param page the page buffer
+ * @param at the byte offset
+ * @param x the x coordinate
+ * @param src the source buffer
+ */
 static void _mark_row(uint8_t *page, uint32_t at, uint32_t x,
                       const uint8_t *src)
 {
@@ -201,11 +236,14 @@ static void _mark_row(uint8_t *page, uint32_t at, uint32_t x,
         page[at * 320u + x + j] = (uint8_t)(0xC0u | src[j]);
 }
 
-/** stamp_statusbar_plane_bits (1000:9846) + copy_8rows_2bytes_to_vga
+/** @brief stamp_statusbar_plane_bits (1000:9846) + copy_8rows_2bytes_to_vga
  * (1000:98D1): one mark = 16 consecutive _strip bytes laid out 8 px per
  * row, 8 rows.  The _strip values are the low nibbles {03,07,0E} = the
  * paper/antialias/ink greys; the +0xC0 tag carries them into the bank
- * level_video_init loaded. */
+ * level_video_init loaded.
+ *
+ * @param page the page buffer
+ */
 static void _stamp_marks(uint8_t *page)
 {
     const uint16_t ph[5] = { _cd_phase[0], _cd_phase[1], _cd_phase[2],
@@ -220,12 +258,15 @@ static void _stamp_marks(uint8_t *page)
     }
 }
 
-/** The bar's background: _panel4's top 40 rows, +0xC0-tagged (shift_screen_up
+/** @brief The bar's background: _panel4's top 40 rows, +0xC0-tagged (shift_screen_up
  * 1000:99D8 + blit_area_if_dirty 1000:9A18).  The page's rows 192..199 stay
  * the world's — the original's visible mode is 192 rows and its page holds
  * unpainted memory below the band; the flat page has no such band, so the
  * present's crop decides (the 200-row page also serves the boot intro's
- * rows 182..197). */
+ * rows 182..197).
+ *
+ * @param page the page buffer
+ */
 static void _draw_band(uint8_t *page)
 {
     for (uint32_t y = 0; y < BAR_ROWS; y++) {
@@ -238,7 +279,7 @@ static void _draw_band(uint8_t *page)
         for (uint32_t x = 0; x < 320u; x++) dst[x] = (uint8_t)(0xC0u | src[x]);
     }
 }
-/** 1000:3747: the jump/throw charge bar, drawn into the bar band from the
+/** @brief 1000:3747: the jump/throw charge bar, drawn into the bar band from the
  * acting record's `+0xE`.  Two halves, differing in both art and position:
  *
  *  - `+0xE` < 0x100 (0x374B): a generated 2-px-wide, 10-row stroke at band row
@@ -251,7 +292,10 @@ static void _draw_band(uint8_t *page)
  *    `0x3EE0 + len` (source rows 0x140 apart, the two pixels 4 apart), placed
  *    at band row 10, column `24 + (len >> 2)`, plane `len & 3`.
  *
- * The port is per-pixel, so a planar byte becomes the pixel `4*col + plane`. */
+ * The port is per-pixel, so a planar byte becomes the pixel `4*col + plane`.
+ *
+ * @param v the charge value
+ */
 void statusbar_charge_bar(uint32_t v)
 {
     static const uint8_t shade[10] = { 0xDF, 0xE0, 0xE1, 0xE2, 0xE3,
@@ -304,15 +348,25 @@ void statusbar_charge_bar(uint32_t v)
     }
 }
 
-/** 1000:3933's tail: step the selected cell - the program's cursor byte - with
+/** @brief 1000:3933's tail: step the selected cell - the program's cursor byte - with
  * the wrap to 1 past the count.  The bar is redrawn every tick, so the store is
- * the whole effect. */
+ * the whole effect.
+ */
 void statusbar_cycle_action(void) { object_step_action_cell(); /* 1000:3941 */ }
 
-/** [0x5B56] itself, for the tests: the group the bar's next draw uses. */
+/**
+ * @brief [0x5B56] itself, for the tests: the group the bar's next draw uses.
+ *
+ * @return the action group index
+ */
 uint32_t statusbar_action_group(void) { return object_action_program(); }
 
-/** the group's icon count (its header's first byte), for the tests. */
+/**
+ * @brief the group's icon count (its header's first byte), for the tests.
+ *
+ * @param group the group
+ * @return the icon count
+ */
 uint32_t statusbar_action_count(uint32_t group)
 {
     const uint8_t *h = object_program_header(group);
@@ -320,7 +374,12 @@ uint32_t statusbar_action_count(uint32_t group)
     return h ? (uint32_t)h[0] : 0u;
 }
 
-/** the group's selected-cell byte, for the tests (0 past the table). */
+/**
+ * @brief the group's selected-cell byte, for the tests (0 past the table).
+ *
+ * @param group the group
+ * @return the selected cell byte
+ */
 uint32_t statusbar_action_cell(uint32_t group)
 {
     const uint8_t *h = object_program_header(group);
@@ -328,8 +387,15 @@ uint32_t statusbar_action_cell(uint32_t group)
     return h ? (uint32_t)h[1] : 0u;
 }
 
-/** 0xAFFE: one frame pixel — the mask byte when it is non-zero, else the
- * destination shaded by `d` and clamped to the bar bank. */
+/** @brief 0xAFFE: one frame pixel — the mask byte when it is non-zero, else the
+ * destination shaded by `d` and clamped to the bar bank.
+ *
+ * @param page the page buffer
+ * @param x the x coordinate
+ * @param y the y coordinate
+ * @param d the offset
+ * @param mask the mask
+ */
 static void _frame_px(uint8_t *page, uint32_t x, uint32_t y, int32_t d,
                       uint8_t mask)
 {
@@ -347,11 +413,20 @@ static void _frame_px(uint8_t *page, uint32_t x, uint32_t y, int32_t d,
     page[at] = (uint8_t)v;
 }
 
-/** 0xAF7D / 0xAF6E: the four edges in the original's order (top -4, left +4,
+/** @brief 0xAF7D / 0xAF6E: the four edges in the original's order (top -4, left +4,
  * bottom +4, right -4).  Only the vertical runs advance the mask (0xAFF6's
  * INC SI per row); a horizontal run re-uses one byte for the whole edge
  * (0xAFF5 loops without touching SI), and the bottom edge reads the byte at
- * base+h because BX was stepped by the height first (0xAFAE). */
+ * base+h because BX was stepped by the height first (0xAFAE).
+ *
+ * @param page the page buffer
+ * @param x the x coordinate
+ * @param y the y coordinate
+ * @param w the width
+ * @param h the height
+ * @param mask the mask
+ * @param base the base offset
+ */
 static void _frame_box(uint8_t *page, uint32_t x, uint32_t y, uint32_t w,
                        uint32_t h, const uint8_t *mask, uint32_t base)
 {
@@ -367,7 +442,14 @@ static void _frame_box(uint8_t *page, uint32_t x, uint32_t y, uint32_t w,
         _frame_px(page, x + w, y + i, -4, mask ? mask[base + i] : 0u);
 }
 
-/** @brief Draw one ACTION icon at (x, y). */
+/**
+ * @brief Draw one ACTION icon at (x, y).
+ *
+ * @param page the page buffer
+ * @param x the x coordinate
+ * @param y the y coordinate
+ * @param cell the map cell
+ */
 static void _draw_action_icon(uint8_t *page, uint32_t x, uint32_t y,
                               uint32_t cell)
 {
@@ -383,7 +465,11 @@ static void _draw_action_icon(uint8_t *page, uint32_t x, uint32_t y,
         }
 }
 
-/** @brief Draw the action row's icons. */
+/**
+ * @brief Draw the action row's icons.
+ *
+ * @param page the page buffer
+ */
 static void _draw_actions(uint8_t *page)
 {
     const uint8_t *g = object_action_header();
@@ -407,11 +493,12 @@ static void _draw_actions(uint8_t *page)
     }
 }
 
-/** tick_state_machine_5b22 (1000:9767): the tribe odometer.  The value
+/** @brief tick_state_machine_5b22 (1000:9767): the tribe odometer.  The value
  * changes are instant; the phases then slide one 16-byte cell over 8
  * frames so the new digit rolls in.  [0x5B22]: 0 idle, 0xFF roll down
  * (armed by object_record_init 1000:F682 when a follower joins), 1 roll
- * up (no reachable arm), 2/3 slide in progress. */
+ * up (no reachable arm), 2/3 slide in progress.
+ */
 static void _odometer_tick(void)
 {
     /* the guard tests the word at [0x5B25]: both digits zero -> stop */
@@ -483,7 +570,9 @@ static void _odometer_tick(void)
  * down one cell ([0x5B16] := 8 unconditionally); the carry rolls 0->9
  * (phase 0xB0, one cell above the target) and 0->5 (0x70, in PANELN2);
  * a minutes underflow is the time-up. */
-/** 1000:96C6: the _elapsed clock's per-second step (ones 0..9, tens 0..5). */
+/**
+ * @brief 1000:96C6: the _elapsed clock's per-second step (ones 0..9, tens 0..5).
+ */
 static void _elapsed_tick(void)
 {
     if (++_elapsed[0] == 10u) {
@@ -495,7 +584,9 @@ static void _elapsed_tick(void)
     }
 }
 
-/** @brief Tick the status bar's clock and its time-up flag. */
+/**
+ * @brief Tick the status bar's clock and its time-up flag.
+ */
 static void _clock_tick(void)
 {
     _cd_slide[2] = 8;
@@ -517,9 +608,10 @@ static void _clock_tick(void)
     }
 }
 
-/** The INT 8 hook at 1000:96AD (gated on [0x5B12]) + the JMP to the stamp:
+/** @brief The INT 8 hook at 1000:96AD (gated on [0x5B12]) + the JMP to the stamp:
  * the marks are stamped every frame — frozen at their last state once the
- * bar goes inactive, exactly as the original's page keeps them. */
+ * bar goes inactive, exactly as the original's page keeps them.
+ */
 void statusbar_tick(void)
 {
     uint8_t *page;
@@ -565,7 +657,7 @@ void statusbar_tick(void)
     _stamp_marks(page);
 }
 
-/** build_statusbar_layout (1000:961B) + level_start's time pick (1000:9589):
+/** @brief build_statusbar_layout (1000:961B) + level_start's time pick (1000:9589):
  * `packedTimeBcd` = the level's chosen limit, AH = minutes, AL = BCD
  * seconds.  The caller picks the header's timeA/B/C by the LEVEL board's
  * counter (`[0x5E65]`, `frontend_option(FRONTEND_OPT_LEVEL)`), and the
@@ -573,7 +665,12 @@ void statusbar_tick(void)
  * replaces both with its `+0x07` word and `+0x0B` members (`level.c`).
  * The tribe digits = [0x11FC] - [0x17FB] (members - required), DIV/MOD 10 —
  * the caller owns both counts: the required = the map's 0xAA-tile count
- * (load_level 1000:315F). */
+ * (load_level 1000:315F).
+ *
+ * @param packedTimeBcd the packed BCD time
+ * @param tribeMembers the tribe member count
+ * @param tribeRequired the required member count
+ */
 void statusbar_start(uint16_t packedTimeBcd, uint32_t tribeMembers,
                      uint32_t tribeRequired)
 {
@@ -651,40 +748,63 @@ void statusbar_start(uint16_t packedTimeBcd, uint32_t tribeMembers,
     _time_up = 0;
 }
 
-/** The live +0xC0 palette bank's source (level_video_init 1000:32CD's copy
- * of _panel4's own palette): install at DAC entries 0xC0..0xFF. */
+/** @brief The live +0xC0 palette bank's source (level_video_init 1000:32CD's copy
+ * of _panel4's own palette): install at DAC entries 0xC0..0xFF.
+ *
+ * @return the pointer, or NULL when unavailable
+ */
 const uint8_t *statusbar_palette(void)
 { return _panel4 ? _panel4 + 0xFA00u : NULL; }
 
-/** object_record_init's arm (1000:F682: [0x5B22] := 0xFF): a follower
- * joined — the displayed counter rolls down by one. */
+/** @brief object_record_init's arm (1000:F682: [0x5B22] := 0xFF): a follower
+ * joined — the displayed counter rolls down by one.
+ */
 void statusbar_arm_odometer(void) { _odo_state = 0xFF; }
 
-/** @brief Accessor: the countdown reached zero. */
+/**
+ * @brief Accessor: the countdown reached zero.
+ *
+ * @return The countdown reached zero.
+ */
 int32_t statusbar_time_up(void) { return _time_up; }
 
-/** [0x5B12]: the ticking gate.  The in-level dialogs clear it (A167's head)
- * and restore it on return; the band keeps drawing while it is clear. */
+/** @brief [0x5B12]: the ticking gate.  The in-level dialogs clear it (A167's head)
+ * and restore it on return; the band keeps drawing while it is clear.
+ *
+ * @param on the on/off flag
+ */
 void statusbar_set_active(int32_t on) { _active = on ? 1 : 0; }
-/** @brief Set the bar's split row. */
+/**
+ * @brief Set the bar's split row.
+ *
+ * @param row the row
+ */
 void statusbar_set_split(uint32_t row)
 {
     _bar_split = row > 200u ? 200u : row;
     _bar_hidden = 0; /* an explicit split re-composes it */
 }
-/** draw_level_text 0x342B: park the split at 0xC9 (off-screen) so the bar is
+/** @brief draw_level_text 0x342B: park the split at 0xC9 (off-screen) so the bar is
  * not composed; the level's ISR hook (0x331E) is already uninstalled, so it
- * stays hidden. */
+ * stays hidden.
+ */
 void statusbar_hide(void)
 {
     _bar_hidden = 1;
     _bar_split = 0xC9u;
 }
-/** @brief Accessor: the bar's split row. */
+/**
+ * @brief Accessor: the bar's split row.
+ *
+ * @return The bar's split row.
+ */
 uint32_t statusbar_split(void) { return _bar_split; }
 
-/** The countdown word the save writes at +0x07: minutes << 8 | BCD seconds
- * (the original's [0x5B19] and [0x5B1A]*16 + [0x5B1B]). */
+/** @brief The countdown word the save writes at +0x07: minutes << 8 | BCD seconds
+ * (the original's [0x5B19] and [0x5B1A]*16 + [0x5B1B]).
+ *
+ * @return the countdown word
+ */
 uint16_t statusbar_time_word(void)
 {
     return (uint16_t)(((uint32_t)_cd[0] << 8) |
@@ -692,8 +812,11 @@ uint16_t statusbar_time_word(void)
                       ((uint32_t)_cd[2] & 0x0Fu));
 }
 
-/** [0x1E84] after check_highscore's repack (1000:42CE): the *_elapsed* clock as
- * minutes<<8 | tens<<4 | ones — the value the per-level best compares. */
+/** @brief [0x1E84] after check_highscore's repack (1000:42CE): the *_elapsed* clock as
+ * minutes<<8 | tens<<4 | ones — the value the per-level best compares.
+ *
+ * @return the elapsed time word
+ */
 uint16_t statusbar_elapsed_word(void)
 {
     return (uint16_t)(((uint32_t)_elapsed[2] << 8) |

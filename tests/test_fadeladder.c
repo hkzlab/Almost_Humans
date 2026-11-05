@@ -39,7 +39,12 @@
 
 extern const OSystem g_osys_null;
 
-/** @brief Print the DAC window around the ladder for one tick. */
+/**
+ * @brief Print the DAC window around the ladder for one tick.
+ *
+ * @param dac the DAC palette
+ * @param tick the tick count
+ */
 static void _dump_window(const uint8_t *dac, uint32_t tick)
 {
     printf("--- tick %u (active=%d):\n", tick, palette_fade_active());
@@ -58,7 +63,13 @@ static void _dump_window(const uint8_t *dac, uint32_t tick)
         dac[0xffu * 3u], dac[0xffu * 3u + 1u], dac[0xffu * 3u + 2u]);
 }
 
-/** @brief Run the palette fade-ladder tests. */
+/**
+ * @brief Run the palette fade-ladder tests.
+ *
+ * @param argc the argument count
+ * @param argv the argument vector
+ * @return 0 on success, 1 on failure
+ */
 int main(int argc, char **argv)
 {
     (void)argc;

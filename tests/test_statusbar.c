@@ -51,7 +51,13 @@ static uint8_t _strip[1280];
 static uint8_t _panel4[12800 + 0xFA00 + 768]; /* art + the palette */
 static uint8_t _icons3[4608];                /** APL\ICONS3.SPR, 12 x 0x180 */
 
-/** @brief Read a whole file into a malloc'd buffer; NULL on error. */
+/**
+ * @brief Read a whole file into a malloc'd buffer; NULL on error.
+ *
+ * @param path the path
+ * @param size the size
+ * @return the pointer, or NULL when unavailable
+ */
 static uint8_t *_read_file(const char *path, uint32_t *size)
 {
     FILE *f = fopen(path, "rb");
@@ -72,7 +78,12 @@ static uint8_t *_read_file(const char *path, uint32_t *size)
     return b;
 }
 
-/** @brief Load the status bar's shipped sprite fixtures. */
+/**
+ * @brief Load the status bar's shipped sprite fixtures.
+ *
+ * @param fix_dir the fixture directory
+ * @return 0 on success, -1 when a fixture is missing
+ */
 static int32_t _load_fixtures(const char *fix_dir)
 {
     char path[512];
@@ -107,7 +118,13 @@ static int32_t _load_fixtures(const char *fix_dir)
     return 0;
 }
 
-/** the model: mark m's 8x8 glyph at phase ph (+ the atlas bias) */
+/**
+ * @brief the model: mark m's 8x8 glyph at phase ph (+ the atlas bias)
+ *
+ * @param page the page buffer
+ * @param m the mask
+ * @param phase the phase
+ */
 static void _model_mark(uint8_t *page, uint32_t m, uint32_t phase)
 {
     uint32_t base = 4u * (phase + MARK_BIAS(m));
@@ -117,7 +134,11 @@ static void _model_mark(uint8_t *page, uint32_t m, uint32_t phase)
                 (uint8_t)(0xC0u | _strip[base + 8u * r + j]);
 }
 
-/** @brief Paint the model status band from PANEL4. */
+/**
+ * @brief Paint the model status band from PANEL4.
+ *
+ * @param page the page buffer
+ */
 static void _model_band(uint8_t *page)
 {
     for (uint32_t y = 0; y < 40u; y++)
@@ -126,8 +147,13 @@ static void _model_band(uint8_t *page)
                 (uint8_t)(0xC0u | _panel4[y * 320u + x]);
 }
 
-/** the five phases: M, S-tens (+0xC0 at stamp time), S-ones, tribe tens,
- * tribe ones */
+/** @brief the five phases: M, S-tens (+0xC0 at stamp time), S-ones, tribe tens,
+ * tribe ones
+ *
+ * @param out the output buffer
+ * @param packed the packed time
+ * @param diff the difference
+ */
 static void _model_phases(uint8_t *out, uint32_t packed, uint32_t diff)
 {
     out[0] = (uint8_t)(((packed >> 8) + 1u) * 16u);
@@ -137,7 +163,12 @@ static void _model_phases(uint8_t *out, uint32_t packed, uint32_t diff)
     out[4] = (uint8_t)((diff % 10u + 1u) * 16u);
 }
 
-/** @brief Build the model page: blank, the band, then the five phases. */
+/**
+ * @brief Build the model page: blank, the band, then the five phases.
+ *
+ * @param page the page buffer
+ * @param ph the phase index
+ */
 static void _model_page(uint8_t *page, const uint8_t *ph)
 {
     memset(page, 0, 320u * 200u);
@@ -145,7 +176,14 @@ static void _model_page(uint8_t *page, const uint8_t *ph)
     for (uint32_t m = 0; m < 5u; m++) _model_mark(page, m, ph[m]);
 }
 
-/** @brief Compare the status band with the model and report the first diffs. */
+/**
+ * @brief Compare the status band with the model and report the first diffs.
+ *
+ * @param what the check description
+ * @param page the page buffer
+ * @param model the model page
+ * @return 1 when any row differs, 0 otherwise
+ */
 static int32_t _diff_rows(const char *what, const uint8_t *page,
                           const uint8_t *model)
 {
@@ -165,11 +203,15 @@ static int32_t _diff_rows(const char *what, const uint8_t *page,
     return bad != 0;
 }
 
-/** The bar's action row (blit_sprite_loop 1000:990A): [0x5B56] = 1 at the
+/** @brief The bar's action row (blit_sprite_loop 1000:990A): [0x5B56] = 1 at the
  * level start selects 202F:0x5B2B's group 1 = ICONS3 cells 1 and 0, drawn at
  * (x+4, bar row 9) inside a 23x31 embossed slot, with the gold 0x5B57 ramp
  * frame on slot 0 only.  The slot x = (0x140-(2*23+12))/2 = 131, the pitch
- * 4+0x1F = 35. */
+ * 4+0x1F = 35.
+ *
+ * @param page the page buffer
+ * @return 0 when the check passes, 1 otherwise
+ */
 static int32_t _check_actions(const uint8_t *page)
 {
     static const uint32_t cell[2] = { 1u, 0u };
@@ -228,7 +270,14 @@ static int32_t _check_actions(const uint8_t *page)
     return bad;
 }
 
-/** @brief Write a page and its palette as a binary PPM for inspection. */
+/**
+ * @brief Write a page and its palette as a binary PPM for inspection.
+ *
+ * @param dir the direction
+ * @param name the name
+ * @param page the page buffer
+ * @param pal the palette
+ */
 static void _dump_ppm(const char *dir, const char *name, const uint8_t *page,
                       const uint8_t *pal)
 {
@@ -248,7 +297,13 @@ static void _dump_ppm(const char *dir, const char *name, const uint8_t *page,
     fclose(f);
 }
 
-/** @brief Run the status bar tests. */
+/**
+ * @brief Run the status bar tests.
+ *
+ * @param argc the argument count
+ * @param argv the argument vector
+ * @return 0 on success, 1 on failure
+ */
 int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";

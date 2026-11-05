@@ -179,52 +179,89 @@ static const uint8_t _ramp0[768]; /* the 0x48BC ramp: zeroed = black     */
 static uint32_t _split_row = 200; /** [0x5B0A]: the CRTC split (0x88 on the
                                    * name screen — the fixed band below) */
 
-/** @brief Bind the frontend module to the backend. */
+/**
+ * @brief Bind the frontend module to the backend.
+ *
+ * @param osys the backend interface
+ * @return 0 on success
+ */
 int32_t frontend_init(const OSystem *osys)
 {
     (void)osys;
     return 0;
 }
 
-/** @brief Accessor: the level-code cursor. */
+/**
+ * @brief Accessor: the level-code cursor.
+ *
+ * @return The level-code cursor.
+ */
 uint32_t frontend_selected_level(void) { return _code_index; }
 
-/** entry's JMP LAB_002B: the room's setup runs again from the top (the
+/** @brief entry's JMP LAB_002B: the room's setup runs again from the top (the
  * counters persist — frontend_room_setup seeds none of them).  The next
- * frontend_tick re-loads the assets (FE_LOAD). */
+ * frontend_tick re-loads the assets (FE_LOAD).
+ */
 void frontend_restart(void)
 {
     _phase = FE_LOAD;
     _fire_latch = 0;
 }
 
-/** The four option counters — the read side's one accessor.  Consumers:
+/** @brief The four option counters — the read side's one accessor.  Consumers:
  * level.c (LEVEL: the time-limit pick + the 12/10/8 tribe), audio.c (MUSIC:
  * the _frame web's gate), scene.c (ANIMATIONS: cd_file_op's early RET).  The
  * RESTORE GAME _slot is carried out here and consumed by entry 1000:004C's
- * save load, which the port's save.c does not have yet (M6). */
+ * save load, which the port's save.c does not have yet (M6).
+ *
+ * @param idx the index
+ * @return the option counter
+ */
 uint32_t frontend_option(uint32_t idx)
 { return idx < 4u ? _opt_counter[idx] : 0u; }
 
-/** [0x4220] — the rail node, exposed for the option read-side test's walk
- * legs (the same role as attract_phase_for_probe). */
+/** @brief [0x4220] — the rail node, exposed for the option read-side test's walk
+ * legs (the same role as attract_phase_for_probe).
+ *
+ * @return the current option cell
+ */
 uint32_t frontend_cell_for_probe(void) { return _cell; }
 
-/** the name screen's _phase and typed buffer, for the input-law tests */
+/**
+ * @brief the name screen's _phase and typed buffer, for the input-law tests
+ *
+ * @return 1 when the name screen is up, 0 otherwise
+ */
 int32_t frontend_name_screen_for_probe(void) { return _phase == FE_NAME; }
-/** @brief Accessor: the typed high-score name. */
+/**
+ * @brief Accessor: the typed high-score name.
+ *
+ * @return The typed high-score name.
+ */
 const char *frontend_name_for_probe(void) { return _name_buf; }
 
-/** --- the VRAM primitives ---------------------------------------------- */
+/**
+ * @brief --- the VRAM primitives ----------------------------------------------
+ *
+ * @param rowBase the row base
+ * @param px the x position
+ * @param v the value
+ */
 static void _put_pixel(uint32_t rowBase, uint32_t px, uint8_t v)
 { _vram[(rowBase + (px >> 2)) & 0xFFFFu][px & 3u] = v; }
 
-/** blit_planar_strip (1000:AEAD): planarise chunky 640-px rows into the
+/** @brief blit_planar_strip (1000:AEAD): planarise chunky 640-px rows into the
  * page at `base` — dest[base + r*160 + c] plane p = src[r*640 + c*4 + p].
  * `size` is the whole loaded chunk, so the 200-row backdrop copy reads the 8
  * rows past the 192-row image out of its palette tail, as `1000:AEDB`'s row
  * loop does; only the bytes past the chunk (the original's uninitialised
- * pool) are written as zeros.  The room's 320x192 field never shows them. */
+ * pool) are written as zeros.  The room's 320x192 field never shows them.
+ *
+ * @param src the source buffer
+ * @param size the size
+ * @param base the base offset
+ * @param rows the row count
+ */
 static void _planarise_rows(const uint8_t *src, uint32_t size, uint32_t base,
                             uint32_t rows)
 {
@@ -244,14 +281,17 @@ static void _planarise_rows(const uint8_t *src, uint32_t size, uint32_t base,
         }
 }
 
-/** The present: the 200-row window, flat — pixel x of the window = the
+/** @brief The present: the 200-row window, flat — pixel x of the window = the
  * world pixel (_scroll + x), i.e. set_display_ptr's byte start (882D:
  * [0x5AC4] + [0x2]*88 + [0x0]/4) plus the pel-pan _phase ([0x0] & 3 —
  * 8848/884a).  Rows >= _split_row ([0x5B0A]) are the CRTC split's FIXED
  * band: they display from ABSOLUTE _vram 0 (the level's status bar and the
  * name screen's human stage both live there), unpanned.  The room is
  * double-buffered (present_page 1000:8809 swaps after showing); the name
- * screen's cursor+present double-swap cancels, so it passes 0. */
+ * screen's cursor+present double-swap cancels, so it passes 0.
+ *
+ * @param swapPages the page swap flag
+ */
 static void _compose(int32_t swapPages)
 {
     uint8_t *page = video_page(0);
@@ -278,7 +318,16 @@ static void _compose(int32_t swapPages)
     }
 }
 
-/** @brief Copy a rectangular, zero-transparent cell block to the page. */
+/**
+ * @brief Copy a rectangular, zero-transparent cell block to the page.
+ *
+ * @param dst the destination buffer
+ * @param src the source buffer
+ * @param srcStride the source row stride
+ * @param w the width
+ * @param h the height
+ * @param dx the x delta
+ */
 static void _page_cells(uint32_t dst, const uint8_t *src, uint32_t srcStride,
                         uint32_t w, uint32_t h, uint32_t dx)
 {
@@ -290,7 +339,14 @@ static void _page_cells(uint32_t dst, const uint8_t *src, uint32_t srcStride,
         }
 }
 
-/** @brief Patch a zero-transparent cell block into the loaded code2 image. */
+/**
+ * @brief Patch a zero-transparent cell block into the loaded code2 image.
+ *
+ * @param pOff the destination offset
+ * @param src the source buffer
+ * @param w the width
+ * @param h the height
+ */
 static void _patch_code2(uint32_t pOff, const uint8_t *src, uint32_t w,
                          uint32_t h)
 {
@@ -302,7 +358,7 @@ static void _patch_code2(uint32_t pOff, const uint8_t *src, uint32_t w,
         }
 }
 
-/** place_4_sprites_to_vga (1000:A684) — the option-value badges at the
+/** @brief place_4_sprites_to_vga (1000:A684) — the option-value badges at the
  * MUSIC / LEVEL / RESTORE GAME / ANIMATIONS signs.  The entry table at
  * 202F:0x5E54
  * (10 bytes apart, verbatim): {u16 dest, u16 srcOff, u8 w, u8 h,
@@ -314,7 +370,8 @@ static void _patch_code2(uint32_t pOff, const uint8_t *src, uint32_t w,
  * _codeb1 6144 = 4x(48x32) (MUSIC's ON/OFF + ANIMATIONS' ON/OFF), _codeb2
  * 7680 = 3x(80x32) (LEVEL's EASY/NORMAL/HARD), _restore 32256 =
  * 21x(48x32) (RESTORE GAME's OFF/1..20); the 4th entry is _codeb1's cells
- * 2..3 at srcOff 0xC00. */
+ * 2..3 at srcOff 0xC00.
+ */
 static void _draw_option_sprites(void)
 {
     static const struct {
@@ -358,7 +415,7 @@ static void _draw_option_sprites(void)
     }
 }
 
-/** name_screen_anim_frame's two human draws (via name_entry_render's ADB6
+/** @brief name_screen_anim_frame's two human draws (via name_entry_render's ADB6
  * entry): a 20x20 cut of _code2's human strip bank — rows 0..19 at column
  * (0x9E - nibble), the nibble from the NEXT TWO _slot bytes — copied to
  * the SAME x; on the name screen to the fixed band (rows 0..19/16..35),
@@ -366,7 +423,8 @@ static void _draw_option_sprites(void)
  * 152..171 — the middle pair of the four-human stack holding the board).
  * The stager's OVERLAY pass (AE6E..AE9E) then composites _codehum _frame 2
  * (CS:[0xadb4]=0, 16 rows of 16 bytes, nonzero-only) at scratch rows 1..16,
- * cols 2..17 — ported here as the same overlay. */
+ * cols 2..17 — ported here as the same overlay.
+ */
 static void _draw_humans(void)
 {
     if (!_code2 || _code2_size < 0x17C00u + 20u * 640u) return;
@@ -400,7 +458,12 @@ static void _draw_humans(void)
 
 /* --- the name ----------------------------------------------------------- */
 
-/** @brief Write mode 2 on one chained-page byte, bits 0..3. */
+/**
+ * @brief Write mode 2 on one chained-page byte, bits 0..3.
+ *
+ * @param addr the record address
+ * @param v the byte value
+ */
 static void _wm2_set(uint32_t addr, uint8_t v)
 {
     for (uint32_t p = 0; p < 4u; p++)
@@ -408,7 +471,7 @@ static void _wm2_set(uint32_t addr, uint8_t v)
             (uint8_t)((_vram[addr][p] & 0x7F) | ((v >> p) & 1u) << 7);
 }
 
-/** name_entry_blit (1000:AB8D) — the typed name IS displayed: the last
+/** @brief name_entry_blit (1000:AB8D) — the typed name IS displayed: the last
  * claim ("never displayed, live-verified") misidentified this routine's
  * purpose; its callers were verified across the room path (addchar,
  * backspace, ESC-clear, the match's miss path, the room backdrop build)
@@ -418,7 +481,8 @@ static void _wm2_set(uint32_t addr, uint8_t v)
  * +160/row under vga_set_write_mode2's bit-mask 0x80 (299b: OUT DX,AX
  * with AH=0x80).  Each write sets the color-index TOP bit of the 4 dest
  * pixels from the _arena byte's bits 3..0 — the bright-variant palette
- * (0x80+n) the dark bar's pixels sit in.  Ported verbatim. */
+ * (0x80+n) the dark bar's pixels sit in.  Ported verbatim.
+ */
 static void _draw_name_line(void)
 {
     /* AB8D's exact sequence: clear the _arena's first 1600 bytes, draw the
@@ -436,8 +500,9 @@ static void _draw_name_line(void)
         }
 }
 
-/** name_entry_init (1000:AAC9): the "DARWIN" seed AND four zero words at
- * 0x61E6..0x61ED - the whole 14-byte buffer, not just the terminator. */
+/** @brief name_entry_init (1000:AAC9): the "DARWIN" seed AND four zero words at
+ * 0x61E6..0x61ED - the whole 14-byte buffer, not just the terminator.
+ */
 static void _name_reset(void)
 {
     memset(_name_buf, 0, sizeof _name_buf);
@@ -445,10 +510,13 @@ static void _name_reset(void)
     _draw_name_line();
 }
 
-/** name_entry_addchar (1000:AB1E): append at the first NUL.  The BX = 13 walk
+/** @brief name_entry_addchar (1000:AB1E): append at the first NUL.  The BX = 13 walk
  * writes the 14th character at index 13; a full buffer overwrites index 13.
  * (The original's buffer is 0x61E0..0x61ED, terminated by the fixed zero at
- * 0x61EE; _name_buf[14] is that zero.) */
+ * 0x61EE; _name_buf[14] is that zero.)
+ *
+ * @param c the character
+ */
 static void _name_addchar(uint8_t c)
 {
     uint32_t i = 0;
@@ -463,7 +531,9 @@ static void _name_addchar(uint8_t c)
     _draw_name_line();
 }
 
-/** menu_action_backspace (1000:AB00): erase the last char. */
+/**
+ * @brief menu_action_backspace (1000:AB00): erase the last char.
+ */
 static void _name_erase(void)
 {
     int32_t i = 13;
@@ -472,10 +542,13 @@ static void _name_erase(void)
     _draw_name_line();
 }
 
-/** menu_code_match (1000:AB39): walk _codes.bin's NUL strings against the
+/** @brief menu_code_match (1000:AB39): walk _codes.bin's NUL strings against the
  * name; a full match returns nonzero with _code_index = the 1-based index
  * (string i = level i); exhausted -> reset DARWIN, _code_index = 161 (the
- * original's own edge: [0x5F09] counts past every miss). */
+ * original's own edge: [0x5F09] counts past every miss).
+ *
+ * @return 1 on a match, 0 otherwise
+ */
 static int32_t _code_match(void)
 {
     _code_index = 1;
@@ -501,7 +574,7 @@ static int32_t _code_match(void)
 
 /* --- the character draw (room_draw_character 1000:AD40) ---------------- */
 
-/** The floor adjust (the tail A85A..A885) + the record publish + the draw.
+/** @brief The floor adjust (the tail A85A..A885) + the record publish + the draw.
  * The _frame is the record's unless x < 0x10B (the idle pose), the draw x
  * clamped >= 0x108.  The box (sprite_stage_rows 1000:AE39 +
  * sprite_blit_4plane 1000:ADC8) is the BACKDROP RESTORED FROM _code2.raw
@@ -511,7 +584,8 @@ static int32_t _code_match(void)
  * only the sprite's NONZERO bytes (box rows 1..24, cols 2..17); the blit
  * writes all 27 rows x 20 cols unconditionally.  The 2-col backdrop
  * margins are what make the page alternation seam-free: the 2-px-per-
- * 2-frames trail lands on pure backdrop. */
+ * 2-frames trail lands on pure backdrop.
+ */
 static void _draw_character(void)
 {
     uint16_t rx = _char_x, ry = _char_y;
@@ -547,7 +621,9 @@ static void _draw_character(void)
 
 /* --- the walk (update_object_fields 1000:A75B + the steppers) ----------- */
 
-/** set_scroll_x (1000:AA05): y >= 0x64 -> min(x-0x92, 0x140), else 0x140. */
+/**
+ * @brief set_scroll_x (1000:AA05): y >= 0x64 -> min(x-0x92, 0x140), else 0x140.
+ */
 static void _set_scroll(void)
 {
     uint32_t s = 0x140u;
@@ -558,9 +634,12 @@ static void _set_scroll(void)
     _scroll = s;
 }
 
-/** walk_step_horizontal (1000:A8D3) / _vertical (1000:A963), entered via
+/** @brief walk_step_horizontal (1000:A8D3) / _vertical (1000:A963), entered via
  * the presets at 0x5EBD: step = -1 left/up, +1 right/down; the _frame
- * cycle and the rail-arrival tests verbatim. */
+ * cycle and the rail-arrival tests verbatim.
+ *
+ * @param dir the direction
+ */
 static void _walk_step(uint32_t dir)
 {
     int16_t step = (dir == 1u || dir == 3u) ? 1 : -1;
@@ -617,7 +696,11 @@ static void _walk_step(uint32_t dir)
     }
 }
 
-/** @brief The frontend room's cursor walk for one tick. */
+/**
+ * @brief The frontend room's cursor walk for one tick.
+ *
+ * @param in the input state
+ */
 static void _room_walk(const InputState *in)
 {
     uint32_t dir = 4;
@@ -655,8 +738,9 @@ static void _room_walk(const InputState *in)
 
 /* --- the options (the A5DE action block) -------------------------------- */
 
-/** The action key at rest cycles the _cell's counter, once per press (the
- * original spins on the held key). */
+/** @brief The action key at rest cycles the _cell's counter, once per press (the
+ * original spins on the held key).
+ */
 static void _cycle_option(void)
 {
     uint32_t idx = _cell_opts[_cell][0], cnt = _cell_opts[_cell][1];
@@ -668,14 +752,15 @@ static void _cycle_option(void)
 
 /* --- the name screen ----------------------------------------------------- */
 
-/** name_screen_anim_frame (1000:ACB9): the _slot advances +3 every 5 ticks
+/** @brief name_screen_anim_frame (1000:ACB9): the _slot advances +3 every 5 ticks
  * (a 0 table byte wraps to _slot 0); the pan := (byte & 0xF) - 4.  Its two
  * draws are the two humans (1000:ADB6 -> sprite_stage_rows), which the port
  * makes in _draw_humans: the 20x20 strips at _code2 + 0x15400 / + 0x17C00,
  * source column 0x9E - nibble, into the name page's 0x000 / 0xA00 windows or
  * (room) page rows 136.. through ADB6's [0x6267]-clear offset.  (An earlier
  * note here called them "decor sprites ... not ported": that was stale - the
- * routine below is their port.) */
+ * routine below is their port.)
+ */
 static void _anim_frame(void)
 {
     _slot_cnt = (uint16_t)(_slot_cnt - 1u);
@@ -692,7 +777,9 @@ static void _anim_frame(void)
     if (_name_screen) _scroll = (uint16_t)((_slot_tab[_slot] & 0x0Fu) - 4u);
 }
 
-/** @brief Open the high-score name entry screen. */
+/**
+ * @brief Open the high-score name entry screen.
+ */
 static void _name_screen_enter(void)
 {
     _name_screen = 1;
@@ -720,7 +807,9 @@ static void _name_screen_enter(void)
     _phase = FE_NAME;
 }
 
-/** --- the phases ---------------------------------------------------------- */
+/**
+ * @brief --- the phases ----------------------------------------------------------
+ */
 static void _start_exit(void)
 {
     /* the event loop's exit tail (AA86..): the fade to the 0x48BC ramp
@@ -730,7 +819,9 @@ static void _start_exit(void)
     _phase = FE_EXITFADE;
 }
 
-/** @brief The RESTORE/LOAD slot keyboard: pick and load a save. */
+/**
+ * @brief The RESTORE/LOAD slot keyboard: pick and load a save.
+ */
 static void _do_load(void)
 {
     uint8_t *textSpr = NULL;
@@ -797,7 +888,12 @@ static void _do_load(void)
     }
 }
 
-/** @brief One frontend tick: the room, the name screen or the load. */
+/**
+ * @brief One frontend tick: the room, the name screen or the load.
+ *
+ * @param in the input state
+ * @return 1 while the frontend keeps running
+ */
 int32_t frontend_tick(const InputState *in)
 {
     switch (_phase) {

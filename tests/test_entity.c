@@ -53,7 +53,14 @@ static const uint8_t _style6_flags[32] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
-/** @brief Print one failure and count it. */
+/**
+ * @brief Print one failure and count it.
+ *
+ * @param what the check description
+ * @param id the identifier
+ * @param got the observed value
+ * @param want the wanted value
+ */
 static void _failf(const char *what, uint32_t id, int64_t got, int64_t want)
 {
     fprintf(stderr,
@@ -61,7 +68,13 @@ static void _failf(const char *what, uint32_t id, int64_t got, int64_t want)
             what, got, want);
     _bad = 1;
 }
-/** @brief The style-6 spawn prologue's bonus test for one matched cell. */
+/**
+ * @brief The style-6 spawn prologue's bonus test for one matched cell.
+ *
+ * @param d the level record
+ * @param matchIdx the matched map index
+ * @return 1 when the cell carries the bonus, 0 otherwise
+ */
 static uint32_t _prologue_bonus(const LevelData *d, uint32_t matchIdx)
 {
     if (d->style != 6u) return 0;
@@ -72,7 +85,13 @@ static uint32_t _prologue_bonus(const LevelData *d, uint32_t matchIdx)
     return 0;
 }
 
-/** @brief Count the cells equal to one tile byte in the 640-cell map. */
+/**
+ * @brief Count the cells equal to one tile byte in the 640-cell map.
+ *
+ * @param map the 640-cell map
+ * @param tile the tile byte
+ * @return the number of matching cells
+ */
 static uint32_t _count_tiles(const uint8_t *map, uint32_t tile)
 {
     uint32_t n = 0;
@@ -81,7 +100,13 @@ static uint32_t _count_tiles(const uint8_t *map, uint32_t tile)
     return n;
 }
 
-/** @brief Run the entity table tests. */
+/**
+ * @brief Run the entity table tests.
+ *
+ * @param argc the argument count
+ * @param argv the argument vector
+ * @return 0 on success, 1 on failure
+ */
 int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";

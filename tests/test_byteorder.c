@@ -9,7 +9,12 @@
 
 static int32_t _bad;
 
-/** @brief Assert one condition and count a failure. */
+/**
+ * @brief Assert one condition and count a failure.
+ *
+ * @param ok the condition
+ * @param what the check description
+ */
 static void _check(int32_t ok, const char *what)
 {
     if (!ok) {
@@ -18,7 +23,11 @@ static void _check(int32_t ok, const char *what)
     }
 }
 
-/** @brief Run the endian-accessor unit tests. */
+/**
+ * @brief Run the endian-accessor unit tests.
+ *
+ * @return 0 on success, 1 on failure
+ */
 int main(void)
 {
     uint8_t b[4];

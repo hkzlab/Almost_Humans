@@ -16,7 +16,12 @@
 
 static InputState _cur;
 
-/** @brief Map a key event onto the joystick bit word. */
+/**
+ * @brief Map a key event onto the joystick bit word.
+ *
+ * @param k the loop counter
+ * @param down the key-down flag
+ */
 static void _joy_bits(SDL_Keycode k, int32_t down)
 {
     uint32_t mask;
@@ -41,9 +46,13 @@ static void _joy_bits(SDL_Keycode k, int32_t down)
     else _cur.joyBits &= (uint8_t)~mask;
 }
 
-/** The PC set-1 scancode of a make, for the keys the level's key list
+/** @brief The PC set-1 scancode of a make, for the keys the level's key list
  * (DS:0x1989, scan_id_list 1000:386E) binds.  Only those are mapped: the
- * port's other screens read the translated ASCII in lastKey. */
+ * port's other screens read the translated ASCII in lastKey.
+ *
+ * @param k the loop counter
+ * @return the PC set-1 scancode, or 0 when unmapped
+ */
 static uint8_t _scan_code(SDL_Keycode k)
 {
     switch (k) {
@@ -66,7 +75,12 @@ static uint8_t _scan_code(SDL_Keycode k)
     return 0u;
 }
 
-/** @brief Map an SDL keycode onto the DOS scan code. */
+/**
+ * @brief Map an SDL keycode onto the DOS scan code.
+ *
+ * @param k the loop counter
+ * @return the DOS key code, or 0 when unhandled
+ */
 static uint8_t _key_code(SDL_Keycode k)
 {
     switch (k) {
@@ -83,7 +97,11 @@ static uint8_t _key_code(SDL_Keycode k)
     return 0u;
 }
 
-/** @brief Pump SDL events into the input state. */
+/**
+ * @brief Pump SDL events into the input state.
+ *
+ * @param out the output buffer
+ */
 void sdl3_events_poll(InputState *out)
 {
     SDL_Event ev;
@@ -119,5 +137,7 @@ void sdl3_events_poll(InputState *out)
     _cur.keyScan = 0u;
 }
 
-/** @brief Clear the input state. */
+/**
+ * @brief Clear the input state.
+ */
 void sdl3_events_init(void) { memset(&_cur, 0, sizeof _cur); }

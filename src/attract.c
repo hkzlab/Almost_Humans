@@ -115,19 +115,36 @@ static int32_t _wipe_dir;
 
 /* --- the shipped DS tables (re_formats.md §9.4, extracted 2026-10-25) -- */
 
-/** 202F:0x4DE — the top-10 (re_formats.md §11): the shipped defaults live in
- * hiscore.c, which HISCORES.HUM overrides once a game has been played. */
+/** @brief 202F:0x4DE — the top-10 (re_formats.md §11): the shipped defaults live in
+ * hiscore.c, which HISCORES.HUM overrides once a game has been played.
+ *
+ * @return the number of attract high-score rows
+ */
 uint32_t attract_hiscore_count(void) { return 10u; }
-/** @brief Accessor: one high-score score. */
+/**
+ * @brief Accessor: one high-score score.
+ *
+ * @param i the index
+ * @return One high-score score.
+ */
 uint32_t attract_hiscore_score(uint32_t i) { return hiscore_score(i); }
-/** @brief Accessor: one high-score name. */
+/**
+ * @brief Accessor: one high-score name.
+ *
+ * @param i the index
+ * @return One high-score name.
+ */
 const char *attract_hiscore_name(uint32_t i) { return hiscore_name(i); }
 
 /* 202F:0x38C — 160 per-level records of [seconds][minutes] (two
  * pseudo-decimal nibbles / one digit), shipped as 99 09 ("9:99") for every
  * level. */
-/** 202F:0x38C — the per-level bests: `hiscore_best(level)` (the same 160 u16
- * the score screen compares against). */
+/** @brief 202F:0x38C — the per-level bests: `hiscore_best(level)` (the same 160 u16
+ * the score screen compares against).
+ *
+ * @param levelMinus1 the zero-based level
+ * @param rec the record
+ */
 static void _fastest_time(uint32_t levelMinus1, uint8_t rec[2])
 {
     uint16_t v = hiscore_best(levelMinus1 + 1u);
@@ -135,21 +152,33 @@ static void _fastest_time(uint32_t levelMinus1, uint8_t rec[2])
     wr_le_u16(rec, v); /* [seconds][minutes] */
 }
 
-/** [0x1E7C] and [0xD3D] are not carried: in the decoded image they are
+/** @brief [0x1E7C] and [0xD3D] are not carried: in the decoded image they are
  * write-only (the cycle/effect tag and the skip flag — the writers are in
  * re_map.md § "The ATTRACT loop decoded"; no reader is traced), so the
- * port records their semantics in comments instead of dead state. */
+ * port records their semantics in comments instead of dead state.
+ *
+ * @param osys the backend interface
+ * @return 0 on success
+ */
 int32_t attract_init(const OSystem *osys)
 {
     (void)osys;
     return 0;
 }
 
-/** @brief Accessor: the attract phase. */
+/**
+ * @brief Accessor: the attract phase.
+ *
+ * @return The attract phase.
+ */
 uint32_t attract_phase_for_probe(void) { return (uint32_t)_phase; }
 
-/** the strip probe: the 192-KB work area and [0xD39] (the rows built) —
- * the byte-exact fixture test compares these against the sim's dump. */
+/** @brief the strip probe: the 192-KB work area and [0xD39] (the rows built) —
+ * the byte-exact fixture test compares these against the sim's dump.
+ *
+ * @param rowsOut the output row count
+ * @return the pointer, or NULL when unavailable
+ */
 const uint8_t *attract_strip_for_probe(uint32_t *rowsOut)
 {
     if (rowsOut) *rowsOut = _rows_built;
@@ -158,12 +187,18 @@ const uint8_t *attract_strip_for_probe(uint32_t *rowsOut)
 
 /* --- the VRAM primitives ------------------------------------------------ */
 
-/** _clear_vram (1000:833A): map mask 0xF, 64 KB zeroed. */
+/**
+ * @brief _clear_vram (1000:833A): map mask 0xF, 64 KB zeroed.
+ */
 static void _clear_vram(void) { memset(_vram, 0, sizeof _vram); }
 
-/** blit_planar_to_vga (1000:888E): one 320x200 chunky image planarised into
+/** @brief blit_planar_to_vga (1000:888E): one 320x200 chunky image planarised into
  * the 16000-byte block at `dest` — dest[base + r*80 + c] plane p
- * = src[r*320 + c*4 + p]. */
+ * = src[r*320 + c*4 + p].
+ *
+ * @param src the source buffer
+ * @param dest the destination
+ */
 static void _blit_planar(const uint8_t *src, uint32_t dest)
 {
     for (uint32_t r = 0; r < 200u; r++) {
@@ -179,10 +214,11 @@ static void _blit_planar(const uint8_t *src, uint32_t dest)
     }
 }
 
-/** begin_page_flip (1000:8821) + the swap (1000:87C7): the display target is
+/** @brief begin_page_flip (1000:8821) + the swap (1000:87C7): the display target is
  * the drawing page, then the pair swaps.  The original's spin until the ISR
  * applies [0x4106] is implicit: the port composes from _display_start at the
- * tick's present. */
+ * tick's present.
+ */
 static void _flip_page(void)
 {
     uint32_t t = _page_draw;
@@ -191,10 +227,16 @@ static void _flip_page(void)
     _page_disp = t;
 }
 
-/** _wait_page (1000:195B): _display_start := [0xD3B]*80, no page-pair change. */
+/**
+ * @brief _wait_page (1000:195B): _display_start := [0xD3B]*80, no page-pair change.
+ *
+ * @param row the row
+ */
 static void _wait_page(uint32_t row) { _display_start = row * 80u; }
 
-/** The present: the 200-row window at _display_start, flat. */
+/**
+ * @brief The present: the 200-row window at _display_start, flat.
+ */
 static void _compose_window(void)
 {
     uint8_t *page = video_page(0);
@@ -207,7 +249,9 @@ static void _compose_window(void)
     }
 }
 
-/** @brief One step of the attract wipe effect. */
+/**
+ * @brief One step of the attract wipe effect.
+ */
 static void _wipe_step(void)
 {
     uint32_t pos = _wipe_pos, speed = _wipe_speed;
@@ -238,8 +282,12 @@ static void _wipe_step(void)
 
 /* --- the text helpers --------------------------------------------------- */
 
-/** _format_decimal (1000:0AEC): value DX:CX; >= 10000 prints the quotient
- * then exactly 4 zero-padded remainder digits, else the plain digits. */
+/** @brief _format_decimal (1000:0AEC): value DX:CX; >= 10000 prints the quotient
+ * then exactly 4 zero-padded remainder digits, else the plain digits.
+ *
+ * @param v the value
+ * @param out the output buffer
+ */
 static void _format_decimal(uint32_t v, char *out)
 {
     uint32_t n = 0;
@@ -268,8 +316,11 @@ static void _format_decimal(uint32_t v, char *out)
     out[n] = 0;
 }
 
-/** _draw_score_block (1000:0651): [0x36]=0x10, [0x38]=0x18 (set by
- * intro_frame_1); rank x=0x20, name x=0x82, score x=0x102. */
+/** @brief _draw_score_block (1000:0651): [0x36]=0x10, [0x38]=0x18 (set by
+ * intro_frame_1); rank x=0x20, name x=0x82, score x=0x102.
+ *
+ * @param ar the 80x200 source arena
+ */
 static void _draw_score_block(uint8_t *ar)
 {
     uint32_t row = 0x18u;
@@ -284,8 +335,14 @@ static void _draw_score_block(uint8_t *ar)
     }
 }
 
-/** draw_number_hex's string builders (1000:1693..16D0): the 3-digit level
- * number, the minutes digit behind 0xC73's '0', the seconds nibbles. */
+/** @brief draw_number_hex's string builders (1000:1693..16D0): the 3-digit level
+ * number, the minutes digit behind 0xC73's '0', the seconds nibbles.
+ *
+ * @param ar the 80x200 source arena
+ * @param levelMinus1 the zero-based level
+ * @param rec the record
+ * @param row the row
+ */
 static void _draw_times_row(uint8_t *ar, uint32_t levelMinus1,
                             const uint8_t *rec, uint32_t row)
 {
@@ -310,7 +367,13 @@ static void _draw_times_row(uint8_t *ar, uint32_t levelMinus1,
 
 /* --- effect 2's present path -------------------------------------------- */
 
-/** @brief Splat the four bits of one 1bpp byte as four pixels. */
+/**
+ * @brief Splat the four bits of one 1bpp byte as four pixels.
+ *
+ * @param d the destination pixels
+ * @param b the source byte
+ * @param dl the colour
+ */
 static void _splat_bits(uint8_t *d, uint8_t b, uint32_t dl)
 {
     for (uint32_t bit = 0; bit < 4u; bit++) {
@@ -319,8 +382,11 @@ static void _splat_bits(uint8_t *d, uint8_t b, uint32_t dl)
     }
 }
 
-/** _blit_80x200 (1000:17FB): the _arena's bits 0..3 (4 px per byte, bit 0 the
- * leftmost) splat colour over _page_b, 320 B per row from dest offset 4. */
+/** @brief _blit_80x200 (1000:17FB): the _arena's bits 0..3 (4 px per byte, bit 0 the
+ * leftmost) splat colour over _page_b, 320 B per row from dest offset 4.
+ *
+ * @param ar the 80x200 source arena
+ */
 static void _blit_80x200(const uint8_t *ar)
 {
     uint32_t dl = 0xFDu;
@@ -341,10 +407,14 @@ static void _blit_80x200(const uint8_t *ar)
     if (_colour1881 < 0x40u) _colour1881 = (uint8_t)(_colour1881 + 0x40u);
 }
 
-/** blit_sprite_planes (1000:1795): an 8x16 chunk of _page_b planarised into
+/** @brief blit_sprite_planes (1000:1795): an 8x16 chunk of _page_b planarised into
  * _vram at _page_draw + row*80 + x/4, plane (x+j)&3.  The source/dest read
  * past a row's edge into the next row exactly as the original's flat
- * offsets do (the right-sweeping columns start at 319). */
+ * offsets do (the right-sweeping columns start at 319).
+ *
+ * @param x the x coordinate
+ * @param row the row
+ */
 static void _blit_strip8(uint32_t x, uint32_t row)
 {
     for (uint32_t j = 0; j < 8u; j++) {
@@ -357,9 +427,12 @@ static void _blit_strip8(uint32_t x, uint32_t row)
     }
 }
 
-/** _wipe_row (1000:1722): eleven 16-row chunks tiling rows 8..183,
+/** @brief _wipe_row (1000:1722): eleven 16-row chunks tiling rows 8..183,
  * alternating between the right-sweeping column (the arg_swap variant,
- * x = 319-4k) and the left-sweeping one (x = 4k) — the criss-cross. */
+ * x = 319-4k) and the left-sweeping one (x = 4k) — the criss-cross.
+ *
+ * @param k the loop counter
+ */
 static void _wipe_row(uint32_t k)
 {
     static const uint32_t rows[11] = { 0x8u,  0x18u, 0x28u, 0x38u, 0x48u, 0x58u,
@@ -370,14 +443,20 @@ static void _wipe_row(uint32_t k)
         _blit_strip8((i & 1u) ? xs : xd, rows[i]);
 }
 
-/** --- the per-effect loads ------------------------------------------------ */
+/**
+ * @brief --- the per-effect loads ------------------------------------------------
+ */
 static void _unload_img(void)
 {
     free(_img_buf);
     _img_buf = NULL;
 }
 
-/** effect 1 (1000:1406): the load + the wipe setup.  Returns 0 = skip. */
+/**
+ * @brief effect 1 (1000:1406): the load + the wipe setup.  Returns 0 = skip.
+ *
+ * @return 0 when the effect is skipped, 1 when it runs
+ */
 static int32_t _e1_load(void)
 {
     _clear_vram();
@@ -406,7 +485,11 @@ static int32_t _e1_load(void)
     return 1;
 }
 
-/** effect 3 (1000:18CA + intro_setup 1000:1903).  Returns 0 = skip. */
+/**
+ * @brief effect 3 (1000:18CA + intro_setup 1000:1903).  Returns 0 = skip.
+ *
+ * @return 0 when the effect is skipped, 1 when it runs
+ */
 static int32_t _e3_load(void)
 {
     _clear_vram();
@@ -426,7 +509,11 @@ static int32_t _e3_load(void)
     return 1;
 }
 
-/** effect 2 (1000:1514): the greyscale gameint + scorepal.  Returns 0 = skip. */
+/**
+ * @brief effect 2 (1000:1514): the greyscale gameint + scorepal.  Returns 0 = skip.
+ *
+ * @return 0 when the effect is skipped, 1 when it runs
+ */
 static int32_t _e2_load(void)
 {
     _page_draw = 0u;
@@ -471,8 +558,11 @@ static int32_t _e2_load(void)
     return 1;
 }
 
-/** _fill_pattern (1000:1AFC) — draw_char_advance's blank path: the tile's 16
- * rows of [sig 0xFF, mask 0x20]; the data bytes keep the zeroed strip. */
+/** @brief _fill_pattern (1000:1AFC) — draw_char_advance's blank path: the tile's 16
+ * rows of [sig 0xFF, mask 0x20]; the data bytes keep the zeroed strip.
+ *
+ * @param tile the tile byte
+ */
 static void _fill_pattern(uint8_t *tile)
 {
     for (uint32_t r = 0; r < 16u; r++) {
@@ -481,12 +571,15 @@ static void _fill_pattern(uint8_t *tile)
     }
 }
 
-/** _fill_pattern_clip (1000:1B13) — the text path: rows 0..3 the [0xFF, 0xE0]
+/** @brief _fill_pattern_clip (1000:1B13) — the text path: rows 0..3 the [0xFF, 0xE0]
  * band above the text (the presenter clamps the background to index & 0x1F
  * there, erasing stale ink), rows 4..14 the [0..10, 0x20] per-row
  * signatures (adjacent glyph rows always mismatch the cache, so ink rows
  * are always redrawn).  The original's dead MOV BX,0xD2E (1b1a — BX pushed
- * and never read) is dropped. */
+ * and never read) is dropped.
+ *
+ * @param tile the tile byte
+ */
 static void _fill_pattern_clip(uint8_t *tile)
 {
     for (uint32_t r = 0; r < 15u; r++) {
@@ -495,12 +588,13 @@ static void _fill_pattern_clip(uint8_t *tile)
     }
 }
 
-/** the screenful of 1A07: clear_bitmaps_6 (the 192-KB zero), [0xD39]:=0,
+/** @brief the screenful of 1A07: clear_bitmaps_6 (the 192-KB zero), [0xD39]:=0,
  * the fill loop — strcpy_cae (1AA4) + draw_char_advance (1AB9) per line
  * until the next _credtext byte is 0xFF or _rows_built >= 0x989 (the max
  * build 2456 rows * 80 B fits the strip exactly) — and the INC SI at
  * 1a37 that walks the cursor onto the terminator (the shipped file's
- * four-byte 0xFF run absorbs it). */
+ * four-byte 0xFF run absorbs it).
+ */
 static void _e4_fill(void)
 {
     char scratch[1024]; /* 0xCAE; bounded only in the port */
@@ -533,7 +627,13 @@ static void _e4_fill(void)
     _cred_cursor++; /* 1a37: INC SI                    */
 }
 
-/** @brief Mask four planes of one strip byte with one colour. */
+/**
+ * @brief Mask four planes of one strip byte with one colour.
+ *
+ * @param px the x position
+ * @param v the sheet byte
+ * @param mask the mask
+ */
 static void _mask_four(uint8_t *px, uint8_t v, uint8_t mask)
 {
     for (uint32_t j = 0; j < 4u; j++)
@@ -541,7 +641,7 @@ static void _mask_four(uint8_t *px, uint8_t v, uint8_t mask)
             (uint8_t)((px[j] & (uint8_t)~mask) | (((v >> j) & 1u) ? mask : 0u));
 }
 
-/** _blit_scroll (1000:1B58): present strip row `row` — the 200-row window
+/** @brief _blit_scroll (1000:1B58): present strip row `row` — the 200-row window
  * written into the draw page's scanline bytes 20..79 (screen x 80..319),
  * VGA write mode 2 with the row's own bit mask: each 1-bpp source byte
  * sets 4 pixels, plane j := (latch & ~M) | (bit j of the byte ? M : 0).
@@ -551,7 +651,10 @@ static void _mask_four(uint8_t *px, uint8_t v, uint8_t mask)
  * malformed _credtext (a scroll target below 200 rows), unreachable with
  * the shipped data (_rows_built = 1579).  The original's trailing [0x5AC8]
  * spin (one ISR tick) and JMP flip_page_swap are this port's tick
- * boundary and the caller's _flip_page(). */
+ * boundary and the caller's _flip_page().
+ *
+ * @param row the row
+ */
 static void _blit_scroll(uint32_t row)
 {
     uint32_t src = (row * 80u) % sizeof _e4strip;
@@ -571,10 +674,13 @@ static void _blit_scroll(uint32_t row)
     }
 }
 
-/** effect 4 (1000:19AF): the loads, the fades, and the first screenful's
+/** @brief effect 4 (1000:19AF): the loads, the fades, and the first screenful's
  * fill (the 1a01..1a38 stretch runs inside the load instant, with the
  * fade-in animating on the tick, exactly as the original's straight-line
- * code).  Returns 0 = skip. */
+ * code).  Returns 0 = skip.
+ *
+ * @return 0 when the effect is skipped, 1 when it runs
+ */
 static int32_t _e4_load(void)
 {
     /* 19b9/19be: [0xD3D]:=0, [0x1E7C]:=8 — both write-only (no reader is
@@ -611,7 +717,9 @@ static int32_t _e4_load(void)
     return 1;
 }
 
-/** game_loop's prologue + LAB_000E's disc reset: run at every (re)entry. */
+/**
+ * @brief game_loop's prologue + LAB_000E's disc reset: run at every (re)entry.
+ */
 static void _attract_restart(void)
 {
     video_set_mode(VIDEO_MODE_13H); /* 132f: vga_set_mode_13h (1000:8300) */
@@ -627,7 +735,9 @@ static void _attract_restart(void)
     _phase = ATTRACT_E1_LOAD;
 }
 
-/** @brief Advance the attract cycle's 1->3->2->4 effect. */
+/**
+ * @brief Advance the attract cycle's 1->3->2->4 effect.
+ */
 static void _next_effect(void)
 {
     /* the cycle boundary (13AB/13BE in the original) also sets the
@@ -642,23 +752,32 @@ static void _next_effect(void)
     /* the next effect's LOAD runs on the following tick */
 }
 
-/** the local poll (the skip tests inside the slide 198C..1998 and effect
+/** @brief the local poll (the skip tests inside the slide 198C..1998 and effect
  * 4's scroll 1A58..1A67): the same bits as the escape, a different
- * consequence — it skips the current hold, it does NOT exit the attract. */
+ * consequence — it skips the current hold, it does NOT exit the attract.
+ *
+ * @param in the input state
+ * @return 1 when a key or fire is held, 0 otherwise
+ */
 static int32_t _local_key(const InputState *in)
 { return in->lastKey != 0u || (in->joyBits & 0x80u) != 0u; }
 
-/** attract_exit (1000:13E9): the escape test — the configured action key
+/** @brief attract_exit (1000:13E9): the escape test — the configured action key
  * ([0x5ACE] bit 7) or any held key ([0x48A3]).  Polled ONLY at the
  * original's poll points: the fade waits (fade_wait 1000:13E0) and the
- * holds (fade_step_frames 1000:13FB), once per tick of those phases. */
+ * holds (fade_step_frames 1000:13FB), once per tick of those phases.
+ *
+ * @param in the input state
+ * @return 1 when the escape action is pressed, 0 otherwise
+ */
 static int32_t _escape_test(const InputState *in)
 { return (in->joyBits & 0x80u) != 0u || in->lastKey != 0u; }
 
-/** the longjmp 1000:13B2: restore the saved page pair, the one fade of all
+/** @brief the longjmp 1000:13B2: restore the saved page pair, the one fade of all
  * 256 entries to the zeroed 0x48BC ramp (black) div 0x23 — the running
  * fade/state is abandoned exactly as the longjmp does — then wait without
- * further polling (wait_palette_fade_done 1000:8B8B). */
+ * further polling (wait_palette_fade_done 1000:8B8B).
+ */
 static void _latch_escape(void)
 {
     _page_draw = _saved_draw;
@@ -667,7 +786,12 @@ static void _latch_escape(void)
     _phase = ATTRACT_ESCAPE;
 }
 
-/** @brief One attract tick; 1 = still playing. */
+/**
+ * @brief One attract tick; 1 = still playing.
+ *
+ * @param in the input state
+ * @return 1 while the attract cycle is playing
+ */
 int32_t attract_tick(const InputState *in)
 {
     if (_phase == ATTRACT_DONE || _phase == ATTRACT_IDLE)

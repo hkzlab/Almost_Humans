@@ -38,7 +38,11 @@ const OSystem g_osys_sdl3 = { sdl3_video_set_mode,
                               sdl3_audio_stop,
                               _fatal };
 
-/** @brief Report a backend failure and exit. */
+/**
+ * @brief Report a backend failure and exit.
+ *
+ * @param msg the message
+ */
 static void _fatal(const char *msg)
 {
     SDL_LogCritical(SDL_LOG_CATEGORY_APPLICATION, "%s", msg);
@@ -50,7 +54,13 @@ static void _fatal(const char *msg)
  * Usage: humans-sdl3 [path-to-game-resources]
  * The path is chdir'd into so the filesystem module finds the volume files
  * (HUMANS.000/001/002); without it the current directory is used. */
-/** @brief The SDL3 executable: run the core with the SDL backend. */
+/**
+ * @brief The SDL3 executable: run the core with the SDL backend.
+ *
+ * @param argc the argument count
+ * @param argv the argument vector
+ * @return 0 on success, 1 on failure
+ */
 int main(int argc, char **argv)
 {
     if (argc == 2) {

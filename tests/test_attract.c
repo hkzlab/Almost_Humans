@@ -34,7 +34,13 @@ extern const uint8_t *osys_null_page(int32_t which);
 
 extern const OSystem g_osys_null;
 
-/** @brief Read a whole file into a malloc'd buffer; NULL on error. */
+/**
+ * @brief Read a whole file into a malloc'd buffer; NULL on error.
+ *
+ * @param path the path
+ * @param size the size
+ * @return the pointer, or NULL when unavailable
+ */
 static uint8_t *_read_file(const char *path, uint32_t *size)
 {
     FILE *f = fopen(path, "rb");
@@ -53,7 +59,14 @@ static uint8_t *_read_file(const char *path, uint32_t *size)
     return buf;
 }
 
-/** @brief Return the first differing byte index, or -1 when equal. */
+/**
+ * @brief Return the first differing byte index, or -1 when equal.
+ *
+ * @param a the first buffer
+ * @param b the second buffer
+ * @param n the count
+ * @return the first differing index, or -1 when equal
+ */
 static int32_t _first_diff(const uint8_t *a, const uint8_t *b, uint32_t n)
 {
     for (uint32_t i = 0; i < n; i++)
@@ -61,7 +74,13 @@ static int32_t _first_diff(const uint8_t *a, const uint8_t *b, uint32_t n)
     return -1;
 }
 
-/** @brief Run the attract-frame comparison test. */
+/**
+ * @brief Run the attract-frame comparison test.
+ *
+ * @param argc the argument count
+ * @param argv the argument vector
+ * @return 0 on success, 1 on failure
+ */
 int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";

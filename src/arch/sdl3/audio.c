@@ -5,17 +5,28 @@
 
 #include <SDL3/SDL.h>
 
-/** @brief Start the audio device. */
+/**
+ * @brief Start the audio device.
+ *
+ * @return 0 on success
+ */
 int32_t sdl3_audio_start(void)
 {
     SDL_Log("audio: stub (M5)");
     return 0;
 }
-/** @brief Start one of the game's tunes. */
+/**
+ * @brief Start one of the game's tunes.
+ *
+ * @param id the identifier
+ * @return 0 on success
+ */
 int32_t sdl3_audio_play_tune(uint32_t id)
 {
     (void)id;
     return 0;
 }
-/** @brief Stop the audio device (no mixer yet). */
+/**
+ * @brief Stop the audio device (no mixer yet).
+ */
 void sdl3_audio_stop(void) {}

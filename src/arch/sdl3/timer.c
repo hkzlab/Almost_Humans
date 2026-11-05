@@ -32,7 +32,9 @@ static int32_t _probe;
 static uint32_t _probe_ticks;
 static Uint64 _probe_window_start_ns;
 
-/** @brief Run the fixed-tick callback and advance the tick counter. */
+/**
+ * @brief Run the fixed-tick callback and advance the tick counter.
+ */
 static void _fire_tick(void)
 {
     SDL_AddAtomicInt(&_tick_count, 1); /* the ISR's INC [0x5AC8] (1000:8AA4) */
@@ -50,7 +52,12 @@ static void _fire_tick(void)
     }
 }
 
-/** @brief The backend's tick thread: fire the callback at the fixed rate. */
+/**
+ * @brief The backend's tick thread: fire the callback at the fixed rate.
+ *
+ * @param arg the argument
+ * @return 0 when the thread exits
+ */
 static int32_t SDLCALL _tick_thread_fn(void *arg)
 {
     (void)arg;
@@ -74,7 +81,12 @@ static int32_t SDLCALL _tick_thread_fn(void *arg)
     return 0;
 }
 
-/** @brief Start the fixed-tick timer. */
+/**
+ * @brief Start the fixed-tick timer.
+ *
+ * @param ticksPerSec the ticks per second
+ * @param tick the tick count
+ */
 void sdl3_timer_start(uint32_t ticksPerSec, TickFn tick)
 {
     _the_tick = tick;
@@ -92,7 +104,11 @@ void sdl3_timer_start(uint32_t ticksPerSec, TickFn tick)
     SDL_DetachThread(SDL_CreateThread(_tick_thread_fn, "humansre-tick", NULL));
 }
 
-/** @brief Block until the next fixed tick has fired. */
+/**
+ * @brief Block until the next fixed tick has fired.
+ *
+ * @param lastSeen the last seen tick
+ */
 void sdl3_tick_sync(uint32_t *lastSeen)
 {
     while (1) {

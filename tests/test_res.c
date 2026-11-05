@@ -23,7 +23,12 @@
 #include <string.h>
 #include <limits.h>
 
-/** @brief Report whether the fixture volume HUMANS.000 is absent. */
+/**
+ * @brief Report whether the fixture volume HUMANS.000 is absent.
+ *
+ * @param dir the direction
+ * @return 1 when the volume is absent, 0 otherwise
+ */
 static int32_t _data_missing(const char *dir)
 {
     char path[512];
@@ -34,7 +39,13 @@ static int32_t _data_missing(const char *dir)
     return 0;
 }
 
-/** @brief Read a whole file into a malloc'd buffer; NULL on error. */
+/**
+ * @brief Read a whole file into a malloc'd buffer; NULL on error.
+ *
+ * @param path the path
+ * @param size the size
+ * @return the pointer, or NULL when unavailable
+ */
 static uint8_t *_read_file(const char *path, uint32_t *size)
 {
     FILE *f = fopen(path, "rb");
@@ -53,7 +64,15 @@ static uint8_t *_read_file(const char *path, uint32_t *size)
     return buf;
 }
 
-/** @brief Decode one resource and compare it with the fixture and its checksum. */
+/**
+ * @brief Decode one resource and compare it with the fixture and its checksum.
+ *
+ * @param name the name
+ * @param disc the disc number
+ * @param expect_path the expected fixture path
+ * @param want_chk the wanted checksum
+ * @return 0 on success, 1 on a mismatch
+ */
 static int32_t _check_chunk(const char *name, uint32_t disc,
                             const char *expect_path, uint16_t want_chk)
 {
@@ -90,7 +109,13 @@ static int32_t _check_chunk(const char *name, uint32_t disc,
     return bad;
 }
 
-/** @brief Run the resource decoder tests. */
+/**
+ * @brief Run the resource decoder tests.
+ *
+ * @param argc the argument count
+ * @param argv the argument vector
+ * @return 0 on success, 1 on failure
+ */
 int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : "."; /* HUMANS.00N        */

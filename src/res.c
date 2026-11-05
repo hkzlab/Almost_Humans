@@ -92,17 +92,34 @@ static const uint8_t _res_movie_disc_table[10] = {
  * ONE volume-file name from it. */
 static uint32_t _res_current_disc = 0;
 
-/** @brief Set the current disc. */
+/**
+ * @brief Set the current disc.
+ *
+ * @param disc the disc number
+ */
 void res_set_disc(uint32_t disc) { _res_current_disc = disc; }
 
-/** @brief The disc that holds one movie file. */
+/**
+ * @brief The disc that holds one movie file.
+ *
+ * @param idx the index
+ * @return the disc number, or 0xFF when out of range
+ */
 uint32_t res_movie_disc(uint32_t idx)
 {
     if (idx >= sizeof _res_movie_disc_table) return 0xFF;
     return _res_movie_disc_table[idx];
 }
 
-/** @brief Read n bytes from the volume at an absolute offset. */
+/**
+ * @brief Read n bytes from the volume at an absolute offset.
+ *
+ * @param r the volume reader
+ * @param at the byte offset
+ * @param dst the destination buffer
+ * @param n the count
+ * @return 0 on success, -1 on a short read
+ */
 static int32_t _vol_sixteen(VolReader *r, uint32_t at, uint8_t *dst, uint32_t n)
 {
     uint32_t got = g_fs.read(r->v, at, dst, n);
@@ -110,7 +127,12 @@ static int32_t _vol_sixteen(VolReader *r, uint32_t at, uint8_t *dst, uint32_t n)
     return 0;
 }
 
-/** @brief Read one little-endian word from the volume cursor. */
+/**
+ * @brief Read one little-endian word from the volume cursor.
+ *
+ * @param r the volume reader
+ * @return the word
+ */
 static uint16_t _vol_word(VolReader *r)
 {
     uint8_t tmp[2];
@@ -119,11 +141,21 @@ static uint16_t _vol_word(VolReader *r)
     return rd_le_u16(tmp);
 }
 
-/** Volume reader adapter: reads u16 words at VolReader::pos. */
+/**
+ * @brief Volume reader adapter: reads u16 words at VolReader::pos.
+ *
+ * @param ctx the reader context
+ * @return the next word
+ */
 static uint16_t _vol_word_reader(void *ctx)
 { return _vol_word((VolReader *)ctx); }
 
-/** @brief Read one bit from the LZ stream. */
+/**
+ * @brief Read one bit from the LZ stream.
+ *
+ * @param s the LZ decoder state
+ * @return the bit
+ */
 static uint32_t _lz_bit(LzState *s)
 {
     uint32_t bit = s->buf & 1u;
@@ -137,7 +169,13 @@ static uint32_t _lz_bit(LzState *s)
     return bit;
 }
 
-/** @brief Read n bits from the LZ stream. */
+/**
+ * @brief Read n bits from the LZ stream.
+ *
+ * @param s the LZ decoder state
+ * @param n the count
+ * @return the n-bit value
+ */
 static uint32_t _lz_bits(LzState *s, uint32_t n)
 {
     uint32_t v = 0;
@@ -145,7 +183,12 @@ static uint32_t _lz_bits(LzState *s, uint32_t n)
     return v;
 }
 
-/** @brief Copy n literal bytes from the LZ stream. */
+/**
+ * @brief Copy n literal bytes from the LZ stream.
+ *
+ * @param s the LZ decoder state
+ * @param n the count
+ */
 static void _lz_literals(LzState *s, uint32_t n)
 {
     while (n--) {
@@ -161,7 +204,13 @@ static void _lz_literals(LzState *s, uint32_t n)
     }
 }
 
-/** @brief Copy one LZ back-reference of n bytes. */
+/**
+ * @brief Copy one LZ back-reference of n bytes.
+ *
+ * @param s the LZ decoder state
+ * @param n the count
+ * @param distbits the distance bit count
+ */
 static void _lz_match(LzState *s, uint32_t n, uint32_t distbits)
 {
     uint32_t d = _lz_bits(s, distbits);
@@ -192,10 +241,15 @@ static void _lz_match(LzState *s, uint32_t n, uint32_t distbits)
  * checksum gate, so only corrupt data reaches this — bound the read when
  * handling untrusted RSCs. */
 
-/** One compressed block: `clen` bytes, checker fresh per block exactly as
+/** @brief One compressed block: `clen` bytes, checker fresh per block exactly as
  * decode_bitstream resets BP to the stream's checksum field (the 91c7 XOR
  * is dead — 91c9 MOV BP,AX overwrites it), then XORs the bit-buffer word
- * and every refill word.  Returns the block's final accumulator. */
+ * and every refill word.  Returns the block's final accumulator.
+ *
+ * @param s the LZ decoder state
+ * @param clen the block length
+ * @return the block's checksum accumulator
+ */
 static uint16_t _lz_block(LzState *s, uint32_t clen)
 {
     s->base = s->p;
@@ -218,7 +272,12 @@ static uint16_t _lz_block(LzState *s, uint32_t clen)
     return s->chk;
 }
 
-/** @brief The in-memory word reader for the LZ decoder. */
+/**
+ * @brief The in-memory word reader for the LZ decoder.
+ *
+ * @param ctx the reader context
+ * @return the next word
+ */
 static uint16_t _mem_word_reader(void *ctx)
 {
     MemRd *mr = (MemRd *)ctx;
@@ -233,10 +292,19 @@ static uint16_t _mem_word_reader(void *ctx)
     return w;
 }
 
-/** Decode one LZW object from a memory buffer:
+/** @brief Decode one LZW object from a memory buffer:
  *   [u16 decompressed_size][u16 checksum][u16 bit buffer][LZW bits]
  * Returns the decompressed size written to `out`, or -1 on failure.
- * *chkOut mirrors the machine's final BP accumulator. */
+ * *chkOut mirrors the machine's final BP accumulator.
+ *
+ * @param data the data buffer
+ * @param data_size the data size
+ * @param off the offset
+ * @param out the output buffer
+ * @param out_size the output size
+ * @param chkOut the output checksum
+ * @return the decoded size, or -1 on a bad object
+ */
 int32_t res_decode_lzw_mem(const uint8_t *data, uint32_t data_size,
                            uint32_t off, uint8_t *out, uint32_t out_size,
                            uint16_t *chkOut)
@@ -273,9 +341,14 @@ int32_t res_decode_lzw_mem(const uint8_t *data, uint32_t data_size,
 
 /* --- the chunk directory and the block loop -------------------------- */
 
-/** The chunk name is uppercased and SPACE-padded to its 18 bytes in the
+/** @brief The chunk name is uppercased and SPACE-padded to its 18 bytes in the
  * record (the live DS:0x4799 header: `MUS\LEVJ.ALB      `), so the compare
- * folds case and accepts 0 or ' ' as the pad. */
+ * folds case and accepts 0 or ' ' as the pad.
+ *
+ * @param req the required count
+ * @param bytes the byte buffer
+ * @return 1 on a match, 0 otherwise
+ */
 static int32_t _name_equal(const char *req, const uint8_t *rec /* 18 bytes */)
 {
     const char *a = req;
@@ -290,12 +363,20 @@ static int32_t _name_equal(const char *req, const uint8_t *rec /* 18 bytes */)
     return *a == 0;
 }
 
-/** Decode the chunk whose record lives at `off` in volume `r->v` into a
+/** @brief Decode the chunk whose record lives at `off` in volume `r->v` into a
  * malloc'd buffer of `length` bytes (caller frees).  NULL = failure.
  * `chkOut` receives the resource-level BP: the accumulator runs the way
  * resource_decode_chunk drives it — the flag word XORs in for both paths
  * (1000:9193), stored blocks XOR their payload words (1000:919f..91a7)
- * and each LZ block RESETS the accumulator (the MOV BP,AX at 91c9). */
+ * and each LZ block RESETS the accumulator (the MOV BP,AX at 91c9).
+ *
+ * @param r the volume reader
+ * @param off the offset
+ * @param bytes the byte buffer
+ * @param length the length
+ * @param chkOut the output checksum
+ * @return the decoded buffer, or NULL on failure
+ */
 static uint8_t *_res_decode_chunk(VolReader *r, uint32_t off,
                                   const uint8_t *rec /* 0x40 bytes */,
                                   uint32_t length, uint16_t *chkOut)
@@ -343,7 +424,14 @@ static uint8_t *_res_decode_chunk(VolReader *r, uint32_t off,
     return out;
 }
 
-/** @brief Load and decode one named resource from the current disc. */
+/**
+ * @brief Load and decode one named resource from the current disc.
+ *
+ * @param name the name
+ * @param sizeOut the output size
+ * @param chkOut the output checksum
+ * @return the decoded buffer, or NULL on failure
+ */
 uint8_t *res_load_chunk(const char *name, uint32_t *sizeOut, uint16_t *chkOut)
 {
     uint8_t *result = NULL;
@@ -374,16 +462,25 @@ uint8_t *res_load_chunk(const char *name, uint32_t *sizeOut, uint16_t *chkOut)
     return result;
 }
 
-/** @brief Bind the resource module to the backend. */
+/**
+ * @brief Bind the resource module to the backend.
+ *
+ * @param osys the backend interface
+ * @return 0 on success
+ */
 int32_t res_init(const OSystem *osys)
 {
     (void)osys;
     return 0;
 }
 
-/** the disc-presence probe: draw_status_indicator's open test (1000:20CF)
+/** @brief the disc-presence probe: draw_status_indicator's open test (1000:20CF)
  * opens the volume file for the disc and closes it; 0 = the disc is not
- * available (the "PUT THE DISK INTO DRIVE n" screen). */
+ * available (the "PUT THE DISK INTO DRIVE n" screen).
+ *
+ * @param disc the disc number
+ * @return 1 when the volume opens, 0 otherwise
+ */
 int32_t res_volume_present(uint32_t disc)
 {
     FSVolume *v = g_fs.openVolume(disc);

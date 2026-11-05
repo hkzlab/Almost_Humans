@@ -13,7 +13,13 @@
 
 extern const OSystem g_osys_null;
 
-/** @brief Write a page and its palette as a binary PPM for inspection. */
+/**
+ * @brief Write a page and its palette as a binary PPM for inspection.
+ *
+ * @param path the path
+ * @param page the page buffer
+ * @param pal6 the 6-bit palette
+ */
 static void _dump_ppm(const char *path, const uint8_t *page,
                       const uint8_t *pal6)
 {
@@ -33,7 +39,13 @@ static void _dump_ppm(const char *path, const uint8_t *page,
     fclose(f);
 }
 
-/** @brief Diagnostic: load the name screen and dump its page. */
+/**
+ * @brief Diagnostic: load the name screen and dump its page.
+ *
+ * @param argc the argument count
+ * @param argv the argument vector
+ * @return 0 on success, 1 on failure
+ */
 int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";

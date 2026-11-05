@@ -38,18 +38,31 @@ static const uint8_t _advance[45] = { 7, 8, 8, 8,  7, 7, 8, 8, 3,   7, 8,  7,
  * game_loop prologue and the front-end later; _blit_glyph's only source). */
 static const uint8_t *_glyphs;
 
-/** @brief Bind the font module to the backend. */
+/**
+ * @brief Bind the font module to the backend.
+ *
+ * @param osys the backend interface
+ * @return 0 on success
+ */
 int32_t font_init(const OSystem *osys)
 {
     (void)osys;
     return 0;
 }
 
-/** @brief Publish the TEXT.SPR glyph bank. */
+/**
+ * @brief Publish the TEXT.SPR glyph bank.
+ *
+ * @param textSpr the TEXT.SPR glyph bank
+ */
 void font_publish(const uint8_t *textSpr) { _glyphs = textSpr; }
 
-/** The _charset lookup: the match index, or 44 (the terminator slot) when
- * the character is not in the table (draw_text's scan stops there). */
+/** @brief The _charset lookup: the match index, or 44 (the terminator slot) when
+ * the character is not in the table (draw_text's scan stops there).
+ *
+ * @param c the character
+ * @return the glyph index, or 44 when not found
+ */
 static uint32_t _charset_index(uint8_t c)
 {
     for (uint32_t i = 0; i < 44u; i++)
@@ -57,8 +70,12 @@ static uint32_t _charset_index(uint8_t c)
     return 44u;
 }
 
-/** The nibble scatter's net effect (the 4x SHL/RCR + 4x SHR of 1000:4a3c,
- * and the 4x SHR/RCL of 1000:4a5b): the nibble, 4-bit-reversed. */
+/** @brief The nibble scatter's net effect (the 4x SHL/RCR + 4x SHR of 1000:4a3c,
+ * and the 4x SHR/RCL of 1000:4a5b): the nibble, 4-bit-reversed.
+ *
+ * @param v the four-pixel byte
+ * @return the scattered nibble
+ */
 static uint8_t _rev4(uint32_t v)
 {
     v &= 0xFu;
@@ -66,8 +83,14 @@ static uint8_t _rev4(uint32_t v)
                      ((v >> 2) & 1u) << 1 | ((v >> 3) & 1u));
 }
 
-/** _blit_glyph (1000:49FC) — one 16-row glyph into the arena.  `x` is the
- * screen-pixel column (the doubled scale), `row` the arena row (0..199). */
+/** @brief _blit_glyph (1000:49FC) — one 16-row glyph into the arena.  `x` is the
+ * screen-pixel column (the doubled scale), `row` the arena row (0..199).
+ *
+ * @param arena the text arena
+ * @param x the x coordinate
+ * @param row the row
+ * @param gi the glyph index
+ */
 static void _blit_glyph(uint8_t *arena, int32_t x, uint32_t row, uint32_t gi)
 {
     if (!_glyphs) return;
@@ -106,8 +129,12 @@ static void _blit_glyph(uint8_t *arena, int32_t x, uint32_t row, uint32_t gi)
     }
 }
 
-/** draw_text's own measure: the sum of the _advance table (the same walk
- * draw_text does before centring).  STOPs at CR/NUL, like draw_text. */
+/** @brief draw_text's own measure: the sum of the _advance table (the same walk
+ * draw_text does before centring).  STOPs at CR/NUL, like draw_text.
+ *
+ * @param s the text
+ * @return the text width in pixels
+ */
 uint32_t font_text_width(const char *s)
 {
     uint32_t w = 0;
@@ -116,9 +143,15 @@ uint32_t font_text_width(const char *s)
     return w;
 }
 
-/** draw_text (1000:4989): centre `s` on centreX and blit it at arena row
+/** @brief draw_text (1000:4989): centre `s` on centreX and blit it at arena row
  * `row`.  Unknown characters _advance by the terminator slot but draw
- * nothing (the two search loops' no-match paths). */
+ * nothing (the two search loops' no-match paths).
+ *
+ * @param arena the text arena
+ * @param s the text
+ * @param centreX the centring x
+ * @param row the row
+ */
 void font_draw_text(uint8_t *arena, const char *s, uint32_t centreX,
                     uint32_t row)
 {

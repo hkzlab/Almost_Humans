@@ -214,18 +214,33 @@ static uint8_t *_band_sheet; /* apl\band.spr: 304 rows x 80 bytes      */
 uint32_t g_map_box_bottom; /* [0x8AE]                                */
 uint32_t g_map_panel; /** [0x8A2]: 1..6                          */
 
-/** @brief Accessor: the running score as one 32-bit value. */
+/**
+ * @brief Accessor: the running score as one 32-bit value.
+ *
+ * @return The running score as one 32-bit value.
+ */
 static uint32_t _map_score(void)
 { return ((uint32_t)score_total_hi() << 16) | score_total_lo(); }
 
-/** @brief Rotate a word right by p positions (XCHG/SHR/XCHG). */
+/**
+ * @brief Rotate a word right by p positions (XCHG/SHR/XCHG).
+ *
+ * @param bx the x value
+ * @param p the rotation count
+ * @return the rotated word
+ */
 static uint16_t _alpha_ror16(uint16_t bx, uint32_t p)
 {
     for (uint32_t r = 0; r < p; r++) bx = (uint16_t)((bx >> 1) | (bx << 15));
     return bx;
 }
 
-/** @brief SHL AH / RCR AL over four steps; the high nibble of the result. */
+/**
+ * @brief SHL AH / RCR AL over four steps; the high nibble of the result.
+ *
+ * @param ah the byte to rotate
+ * @return the high nibble after the four rotates
+ */
 static uint8_t _alpha_hi_right(uint8_t ah)
 {
     uint8_t al = 0;
@@ -237,7 +252,12 @@ static uint8_t _alpha_hi_right(uint8_t ah)
     return (uint8_t)(al >> 4);
 }
 
-/** @brief SHR AH / RCL AL over four steps; the low nibble of the result. */
+/**
+ * @brief SHR AH / RCL AL over four steps; the low nibble of the result.
+ *
+ * @param ah the byte to rotate
+ * @return the low nibble after the four rotates
+ */
 static uint8_t _alpha_lo_left(uint8_t ah)
 {
     uint8_t al = 0;
@@ -249,8 +269,12 @@ static uint8_t _alpha_lo_left(uint8_t ah)
     return (uint8_t)(al & 0x0Fu);
 }
 
-/** 1000:0705 expand_nibbles_4plane: the packed 4bpp sheet into four planes of
- * 0x4000 bytes (a literal port of the bit twiddling). */
+/** @brief 1000:0705 expand_nibbles_4plane: the packed 4bpp sheet into four planes of
+ * 0x4000 bytes (a literal port of the bit twiddling).
+ *
+ * @param src the source buffer
+ * @param dst the destination buffer
+ */
 void alpha_expand(const uint8_t *src, uint8_t *dst)
 {
     for (uint32_t p = 0; p < 4u; p++) {
@@ -269,17 +293,31 @@ void alpha_expand(const uint8_t *src, uint8_t *dst)
     }
 }
 
-/** @brief Splat one nibble as four page pixels. */
+/**
+ * @brief Splat one nibble as four page pixels.
+ *
+ * @param page the page buffer
+ * @param px the x position
+ * @param py the y position
+ * @param v the nibble
+ */
 static void _splat_four(uint8_t *page, uint32_t px, uint32_t py, uint32_t v)
 {
     for (uint32_t bit = 0; bit < 4u; bit++)
         if ((v >> bit) & 1u) page[py * 320u + px + bit] = 0x0Fu;
 }
 
-/** 1000:119F cos_scaled (angle + 0x5A, wrapped) / 1000:11AA sin_scaled:
+/** @brief 1000:119F cos_scaled (angle + 0x5A, wrapped) / 1000:11AA sin_scaled:
  * CX + (sin[a] * DX) >> 14, with the negative half's extra `- DX*4` (the
  * listing's asymmetry, kept).  The 14 is the 14 `SHR DX,1`/`RCR AX,1` pairs
- * at 0x11B7..0x11ED and 0x11FC..0x1232. */
+ * at 0x11B7..0x11ED and 0x11FC..0x1232.
+ *
+ * @param angle the rotation angle
+ * @param cx the x value
+ * @param dx the x delta
+ * @param plus90 the angle plus 90 degrees
+ * @return the scaled coordinate
+ */
 static uint32_t _alpha_rot(uint32_t angle, uint32_t cx, uint32_t dx,
                            int32_t plus90)
 {
@@ -292,9 +330,15 @@ static uint32_t _alpha_rot(uint32_t angle, uint32_t cx, uint32_t dx,
     return r;
 }
 
-/** 1000:0F93: the ring angle -> (destination byte, source offset).  The x is
+/** @brief 1000:0F93: the ring angle -> (destination byte, source offset).  The x is
  * `157 + 132*cos` px, the y `79 + 124*sin` quarter-rows; the page stride is 80
- * and the `+0xF0` adds three rows. */
+ * and the `+0xF0` adds three rows.
+ *
+ * @param cell the map cell
+ * @param angle the rotation angle
+ * @param src the source buffer
+ * @param dst the destination buffer
+ */
 void alpha_cell(uint32_t cell, uint32_t angle, uint32_t *src, uint32_t *dst)
 {
     uint32_t bp = (_alpha_rot(angle, 0x9Du, 0x42u, 1) - 8u) & 0xFFFFu;
@@ -304,9 +348,14 @@ void alpha_cell(uint32_t cell, uint32_t angle, uint32_t *src, uint32_t *dst)
     *src = (cell * 0x40u + 0x0Cu + (bp & 3u) * 0x4000u) & 0xFFFFu;
 }
 
-/** one 16x4-byte cell at page byte `dst`.  The four plane passes write the same
+/** @brief one 16x4-byte cell at page byte `dst`.  The four plane passes write the same
  * bytes to all four planes, so a byte's four bits are the four pixels of its
- * group: bit k set -> the pixel is 0x0F, clear -> untouched (transparent). */
+ * group: bit k set -> the pixel is 0x0F, clear -> untouched (transparent).
+ *
+ * @param page the page buffer
+ * @param src the source buffer
+ * @param dst the destination buffer
+ */
 static void _alpha_blit_cell(uint8_t *page, uint32_t src, uint32_t dst)
 {
     for (uint32_t r = 0; r < 16u; r++) {
@@ -323,7 +372,12 @@ static void _alpha_blit_cell(uint8_t *page, uint32_t src, uint32_t dst)
     }
 }
 
-/** @brief Draw the letter wheel. */
+/**
+ * @brief Draw the letter wheel.
+ *
+ * @param page the page buffer
+ * @param base the base offset
+ */
 void alpha_draw_wheel(uint8_t *page, uint32_t base)
 {
     if (!page || !_alpha_sheet) return;
@@ -335,10 +389,14 @@ void alpha_draw_wheel(uint8_t *page, uint32_t base)
     }
 }
 
-/** 1000:0CBE init_display_lists' name pass: the typed characters at row 0x45,
+/** @brief 1000:0CBE init_display_lists' name pass: the typed characters at row 0x45,
  * 9 px apart, x centred as `-8 - ((len*9 - 1)/2 - 0xA0)`, each glyph drawn
  * through queue_dirty_job (0x0F8F): dest = y*80 + 0xF0 + x/4, source =
- * column*0x40 + 0xC + (x&3)*0x4000. */
+ * column*0x40 + 0xC + (x&3)*0x4000.
+ *
+ * @param page the page buffer
+ * @param name the name
+ */
 void alpha_draw_name(uint8_t *page, const char *name)
 {
     uint32_t len = 0, x;
@@ -365,14 +423,25 @@ void alpha_draw_name(uint8_t *page, const char *name)
 
 /** 1000:12D3: the 1:1 band copy (6080 bytes, four plane passes, source stride
  * 4).  The output is the 76-row band at the page origin. */
-/** @brief Write one 4-pixel nibble of the band at (row, col). */
+/**
+ * @brief Write one 4-pixel nibble of the band at (row, col).
+ *
+ * @param page the page buffer
+ * @param row the row
+ * @param col the column
+ * @param v the sheet nibble
+ */
 static void _band_write(uint8_t *page, uint32_t row, uint32_t col, uint32_t v)
 {
     for (uint32_t j = 0; j < 4u; j++)
         if ((v >> j) & 1u) page[row * 320u + col * 4u + j] = 0x0Fu;
 }
 
-/** @brief Fill the 76-row band from the band sheet. */
+/**
+ * @brief Fill the 76-row band from the band sheet.
+ *
+ * @param page the page buffer
+ */
 void map_band_fill(uint8_t *page)
 {
     if (!page || !_band_sheet) return;
@@ -385,7 +454,15 @@ void map_band_fill(uint8_t *page)
     }
 }
 
-/** @brief Write the masked four pixels of one sheet byte. */
+/**
+ * @brief Write the masked four pixels of one sheet byte.
+ *
+ * @param page the page buffer
+ * @param row the row
+ * @param col the column
+ * @param v the sheet byte
+ * @param mask the mask
+ */
 static void _blit_four(uint8_t *page, uint32_t row, uint32_t col, uint32_t v,
                        uint32_t mask)
 {
@@ -394,7 +471,14 @@ static void _blit_four(uint8_t *page, uint32_t row, uint32_t col, uint32_t v,
             page[row * 320u + col * 4u + j] = 0x0Fu;
 }
 
-/** @brief One blit-row pass: the three runs and their gaps. */
+/**
+ * @brief One blit-row pass: the three runs and their gaps.
+ *
+ * @param page the page buffer
+ * @param d the destination cursor (in/out)
+ * @param s the source cursor (in/out)
+ * @param mask the mask
+ */
 static void _blit_runs(uint8_t *page, uint32_t *d, uint32_t *s, uint32_t mask)
 {
     static const uint32_t runs[3] = { 4u, 31u, 15u };
@@ -414,7 +498,14 @@ static void _blit_runs(uint8_t *page, uint32_t *d, uint32_t *s, uint32_t mask)
     }
 }
 
-/** 1000:0874 vga_blit_row: 14 x (4 / +7 / 31 / +9 / 15 / +0xE) MOVSB runs. */
+/**
+ * @brief 1000:0874 vga_blit_row: 14 x (4 / +7 / 31 / +9 / 15 / +0xE) MOVSB runs.
+ *
+ * @param page the page buffer
+ * @param dstByte the destination byte
+ * @param srcByte the source byte
+ * @param mask the mask
+ */
 static void _map_blit_row(uint8_t *page, uint32_t dstByte, uint32_t srcByte,
                           uint32_t mask)
 {
@@ -423,7 +514,12 @@ static void _map_blit_row(uint8_t *page, uint32_t dstByte, uint32_t srcByte,
     for (uint32_t iter = 0; iter < 14u; iter++) _blit_runs(page, &d, &s, mask);
 }
 
-/** 1000:07E6: the five frame rows from sheet row `[0x8AE]`. */
+/**
+ * @brief 1000:07E6: the five frame rows from sheet row `[0x8AE]`.
+ *
+ * @param page the page buffer
+ * @param row the row
+ */
 void map_draw_box_edges(uint8_t *page, uint32_t row)
 {
     static const uint32_t dstByte[5] = { 0xE66u, 0x14A6u, 0x1AE6u, 0x2126u,
@@ -438,9 +534,12 @@ void map_draw_box_edges(uint8_t *page, uint32_t row)
     }
 }
 
-/** draw_score_block (1000:0651): the rank is centred at x=0x20, the name at
+/** @brief draw_score_block (1000:0651): the rank is centred at x=0x20, the name at
  * x=0x82, the 32-bit score at x=0x102, row pitch [0x36]=0x14 from base
- * [0x38]=0; the header is blit_text_tile at x=0xA0, y=0x14. */
+ * [0x38]=0; the header is blit_text_tile at x=0xA0, y=0x14.
+ *
+ * @param page the page buffer
+ */
 void map_draw_list(uint8_t *page)
 {
     uint32_t row = 0u;
@@ -458,7 +557,11 @@ void map_draw_list(uint8_t *page)
     }
 }
 
-/** 1000:021E..1000:0266: the seven-line congratulation page. */
+/**
+ * @brief 1000:021E..1000:0266: the seven-line congratulation page.
+ *
+ * @param page the page buffer
+ */
 void map_draw_congrats(uint8_t *page)
 {
     for (uint32_t i = 0; i < 7u; i++)
@@ -466,11 +569,22 @@ void map_draw_congrats(uint8_t *page)
                                    0x19u + 0x10u * i, 0x20u);
 }
 
-/** Test/probe seam: 1 after the first draw, 2 after the flip's redraw. */
+/**
+ * @brief Test/probe seam: 1 after the first draw, 2 after the flip's redraw.
+ *
+ * @return the draw pass (1 or 2)
+ */
 uint32_t map_congrats_draws(void) { return _map_congrats_draws; }
 
-/** 1000:1251: a rectangle outline in the flat page.  The top edge ORs 0x40,
- * the left and bottom 0x50, the right 0x40 (1000:1263..1298). */
+/** @brief 1000:1251: a rectangle outline in the flat page.  The top edge ORs 0x40,
+ * the left and bottom 0x50, the right 0x40 (1000:1263..1298).
+ *
+ * @param page the page buffer
+ * @param x the x coordinate
+ * @param y the y coordinate
+ * @param w the width
+ * @param h the height
+ */
 void map_draw_rect(uint8_t *page, uint32_t x, uint32_t y, uint32_t w,
                    uint32_t h)
 {
@@ -485,11 +599,28 @@ void map_draw_rect(uint8_t *page, uint32_t x, uint32_t y, uint32_t w,
     }
 }
 
-/** @brief Accessor: the MAP transition step. */
+/**
+ * @brief Accessor: the MAP transition step.
+ *
+ * @return The MAP transition step.
+ */
 uint32_t map_transition_step(void) { return _map_trans; }
-/** @brief Accessor: the MAP fade's start count. */
+/**
+ * @brief Accessor: the MAP fade's start count.
+ *
+ * @return The MAP fade's start count.
+ */
 uint32_t map_fade_starts(void) { return _map_fade_starts; }
-/** @brief Accessor: one MAP fade entry. */
+/**
+ * @brief Accessor: one MAP fade entry.
+ *
+ * @param i the index
+ * @param first the first entry
+ * @param entries the entry count
+ * @param div the divisor
+ * @param target the target value
+ * @return One MAP fade entry.
+ */
 int32_t map_fade_at(uint32_t i, uint32_t *first, uint32_t *entries,
                     uint32_t *div, uint32_t *target)
 {
@@ -501,8 +632,14 @@ int32_t map_fade_at(uint32_t i, uint32_t *first, uint32_t *entries,
     return 1;
 }
 
-/** 1000:0273/028C/029B/02AD/02BF/02F5/0307: palette_build_fade with the
- * working palette's offset as the target (0x4BBC + N). */
+/** @brief 1000:0273/028C/029B/02AD/02BF/02F5/0307: palette_build_fade with the
+ * working palette's offset as the target (0x4BBC + N).
+ *
+ * @param first the first entry
+ * @param entries the entry count
+ * @param div the divisor
+ * @param targetOff the target offset
+ */
 static void _map_build_fade(uint32_t first, uint32_t entries, uint32_t div,
                             uint32_t targetOff)
 {
@@ -516,7 +653,11 @@ static void _map_build_fade(uint32_t first, uint32_t entries, uint32_t div,
     _map_fade_starts++;
 }
 
-/** @brief Draw the typed name ring. */
+/**
+ * @brief Draw the typed name ring.
+ *
+ * @param page the page buffer
+ */
 void map_draw_name(uint8_t *page)
 {
     /* 1000:0CBE: the 30-cell ring from apl\alpha.spr, then the typed name in
@@ -526,8 +667,11 @@ void map_draw_name(uint8_t *page)
     alpha_draw_name(page, _map_name);
 }
 
-/** 1000:02C5 / 1000:0B85: the page is reset to HIGH.BIT whenever the screen
- * changes (the congratulations page is not left under the name ring). */
+/** @brief 1000:02C5 / 1000:0B85: the page is reset to HIGH.BIT whenever the screen
+ * changes (the congratulations page is not left under the name ring).
+ *
+ * @param page the page buffer
+ */
 static void _map_page_reset(uint8_t *page)
 {
     memset(page, 0, MAP_PAGE);
@@ -536,8 +680,9 @@ static void _map_page_reset(uint8_t *page)
                _map_high_size < MAP_PAGE ? _map_high_size : MAP_PAGE);
 }
 
-/** the whole screen: the band layer (1000:12D3), the card, then the state's
- * own art and the box frame (1000:07E6). */
+/** @brief the whole screen: the band layer (1000:12D3), the card, then the state's
+ * own art and the box frame (1000:07E6).
+ */
 static void _map_redraw(void)
 {
     uint8_t *page = video_page(0);
@@ -549,7 +694,11 @@ static void _map_redraw(void)
     if (_map_phase == MAP_LIST) map_draw_box_edges(page, g_map_box_bottom);
 }
 
-/** @brief Open the MAP screen. */
+/**
+ * @brief Open the MAP screen.
+ *
+ * @return 1 when the MAP screen opened, 0 otherwise
+ */
 int32_t map_begin(void)
 {
     if (_map_up) return 1;
@@ -602,7 +751,11 @@ int32_t map_begin(void)
     return 1;
 }
 
-/** 1000:040B: one grid column applied to the 13-character buffer. */
+/**
+ * @brief 1000:040B: one grid column applied to the 13-character buffer.
+ *
+ * @param column the column
+ */
 static void _map_apply(uint32_t column)
 {
     uint8_t *page;
@@ -619,7 +772,12 @@ static void _map_apply(uint32_t column)
     else if (_map_phase == MAP_LIST) map_draw_list(page);
 }
 
-/** @brief One MAP tick; 1 = still up. */
+/**
+ * @brief One MAP tick; 1 = still up.
+ *
+ * @param in the input state
+ * @return 1 while the MAP screen is up
+ */
 int32_t map_tick(const InputState *in)
 {
     if (!_map_up) return 0;

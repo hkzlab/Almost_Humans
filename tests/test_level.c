@@ -32,7 +32,14 @@ extern const OSystem g_osys_null;
 
 static uint8_t *_file_image;
 
-/** @brief Read one fixture-relative file; NULL on error. */
+/**
+ * @brief Read one fixture-relative file; NULL on error.
+ *
+ * @param fix_dir the fixture directory
+ * @param rel the release flag
+ * @param size the size
+ * @return the pointer, or NULL when unavailable
+ */
 static uint8_t *_read_fixture(const char *fix_dir, const char *rel,
                               uint32_t *size)
 {
@@ -54,7 +61,13 @@ static uint8_t *_read_fixture(const char *fix_dir, const char *rel,
     return b;
 }
 
-/** @brief Load one shipped LEVELS/L?.BIN fixture file. */
+/**
+ * @brief Load one shipped LEVELS/L?.BIN fixture file.
+ *
+ * @param fix_dir the fixture directory
+ * @param fileIdx the fixture file index
+ * @return 0 on success, -1 when unreadable
+ */
 static int32_t _load_fixture(const char *fix_dir, uint32_t fileIdx)
 {
     char path[512];
@@ -77,7 +90,13 @@ static int32_t _load_fixture(const char *fix_dir, uint32_t fileIdx)
     return 0;
 }
 
-/** @brief Run the level load and play tests. */
+/**
+ * @brief Run the level load and play tests.
+ *
+ * @param argc the argument count
+ * @param argv the argument vector
+ * @return 0 on success, 1 on failure
+ */
 int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";

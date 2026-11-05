@@ -64,6 +64,12 @@
  * In an unoptimised clang build nothing is inlined, so these become calls;
  * that is a debug-build cost, not a property of the generated code.
  */
+/**
+ * @brief Load a 16-bit word from a byte pointer in host order.
+ *
+ * @param p the source bytes
+ * @return the loaded word
+ */
 static inline uint16_t bo_ld16(const uint8_t *p)
 {
     uint16_t v;
@@ -71,6 +77,12 @@ static inline uint16_t bo_ld16(const uint8_t *p)
     return v;
 }
 
+/**
+ * @brief Load a 32-bit word from a byte pointer in host order.
+ *
+ * @param p the source bytes
+ * @return the loaded word
+ */
 static inline uint32_t bo_ld32(const uint8_t *p)
 {
     uint32_t v;
@@ -78,12 +90,36 @@ static inline uint32_t bo_ld32(const uint8_t *p)
     return v;
 }
 
+/**
+ * @brief Store a 16-bit word in host order.
+ *
+ * @param p the destination bytes
+ * @param v the word
+ */
 static inline void bo_st16(uint8_t *p, uint16_t v) { memcpy(p, &v, sizeof v); }
+/**
+ * @brief Store a 32-bit word in host order.
+ *
+ * @param p the destination bytes
+ * @param v the word
+ */
 static inline void bo_st32(uint8_t *p, uint32_t v) { memcpy(p, &v, sizeof v); }
 
+/**
+ * @brief Byte-swap a 16-bit value.
+ *
+ * @param v the value to swap
+ * @return the byte-swapped value
+ */
 static inline uint16_t bo_bswap16(uint16_t v)
 { return (uint16_t)((uint16_t)(v >> 8) | (uint16_t)(v << 8)); }
 
+/**
+ * @brief Byte-swap a 32-bit value.
+ *
+ * @param v the value to swap
+ * @return the byte-swapped value
+ */
 static inline uint32_t bo_bswap32(uint32_t v)
 {
     return (v >> 24) | ((v & 0x0000FF00u) << 8) | ((v & 0x00FF0000u) >> 8) |
@@ -92,54 +128,222 @@ static inline uint32_t bo_bswap32(uint32_t v)
 
 /* Map a value in the named order to/from the host's order. */
 #if BYTEORDER_HOST_LITTLE
+/**
+ * @brief Convert a little-endian 16-bit value to host order.
+ *
+ * @param v the little-endian value
+ * @return the host-order value
+ */
 static inline uint16_t bo_le16(uint16_t v) { return v; }
+/**
+ * @brief Convert a little-endian 32-bit value to host order.
+ *
+ * @param v the little-endian value
+ * @return the host-order value
+ */
 static inline uint32_t bo_le32(uint32_t v) { return v; }
+/**
+ * @brief Convert a big-endian 16-bit value to host order.
+ *
+ * @param v the big-endian value
+ * @return the host-order value
+ */
 static inline uint16_t bo_be16(uint16_t v) { return bo_bswap16(v); }
+/**
+ * @brief Convert a big-endian 32-bit value to host order.
+ *
+ * @param v the big-endian value
+ * @return the host-order value
+ */
 static inline uint32_t bo_be32(uint32_t v) { return bo_bswap32(v); }
 #else
+/**
+ * @brief Convert a little-endian 16-bit value to host order.
+ *
+ * @param v the little-endian value
+ * @return the host-order value
+ */
 static inline uint16_t bo_le16(uint16_t v) { return bo_bswap16(v); }
+/**
+ * @brief Convert a little-endian 32-bit value to host order.
+ *
+ * @param v the little-endian value
+ * @return the host-order value
+ */
 static inline uint32_t bo_le32(uint32_t v) { return bo_bswap32(v); }
+/**
+ * @brief Convert a big-endian 16-bit value to host order.
+ *
+ * @param v the big-endian value
+ * @return the host-order value
+ */
 static inline uint16_t bo_be16(uint16_t v) { return v; }
+/**
+ * @brief Convert a big-endian 32-bit value to host order.
+ *
+ * @param v the big-endian value
+ * @return the host-order value
+ */
 static inline uint32_t bo_be32(uint32_t v) { return v; }
 #endif
 
 /* --- reads ----------------------------------------------------------- */
+/**
+ * @brief Read one byte.
+ *
+ * @param p the source bytes
+ * @return the byte
+ */
 static inline uint8_t rd_u8(const uint8_t *p) { return *p; }
+/**
+ * @brief Read one signed byte.
+ *
+ * @param p the source bytes
+ * @return the signed byte
+ */
 static inline int8_t rd_i8(const uint8_t *p) { return (int8_t)*p; }
 
+/**
+ * @brief Read a little-endian 16-bit word.
+ *
+ * @param p the source bytes
+ * @return the word
+ */
 static inline uint16_t rd_le_u16(const uint8_t *p)
 { return bo_le16(bo_ld16(p)); }
+/**
+ * @brief Read a little-endian signed 16-bit word.
+ *
+ * @param p the source bytes
+ * @return the signed word
+ */
 static inline int16_t rd_le_i16(const uint8_t *p)
 { return (int16_t)rd_le_u16(p); }
+/**
+ * @brief Read a big-endian 16-bit word.
+ *
+ * @param p the source bytes
+ * @return the word
+ */
 static inline uint16_t rd_be_u16(const uint8_t *p)
 { return bo_be16(bo_ld16(p)); }
+/**
+ * @brief Read a big-endian signed 16-bit word.
+ *
+ * @param p the source bytes
+ * @return the signed word
+ */
 static inline int16_t rd_be_i16(const uint8_t *p)
 { return (int16_t)rd_be_u16(p); }
 
+/**
+ * @brief Read a little-endian 32-bit word.
+ *
+ * @param p the source bytes
+ * @return the word
+ */
 static inline uint32_t rd_le_u32(const uint8_t *p)
 { return bo_le32(bo_ld32(p)); }
+/**
+ * @brief Read a little-endian signed 32-bit word.
+ *
+ * @param p the source bytes
+ * @return the signed word
+ */
 static inline int32_t rd_le_i32(const uint8_t *p)
 { return (int32_t)rd_le_u32(p); }
+/**
+ * @brief Read a big-endian 32-bit word.
+ *
+ * @param p the source bytes
+ * @return the word
+ */
 static inline uint32_t rd_be_u32(const uint8_t *p)
 { return bo_be32(bo_ld32(p)); }
+/**
+ * @brief Read a big-endian signed 32-bit word.
+ *
+ * @param p the source bytes
+ * @return the signed word
+ */
 static inline int32_t rd_be_i32(const uint8_t *p)
 { return (int32_t)rd_be_u32(p); }
 
 /* --- writes ---------------------------------------------------------- */
+/**
+ * @brief Write one byte.
+ *
+ * @param p the destination bytes
+ * @param v the byte
+ */
 static inline void wr_u8(uint8_t *p, uint8_t v) { *p = v; }
+/**
+ * @brief Write one signed byte.
+ *
+ * @param p the destination bytes
+ * @param v the signed byte
+ */
 static inline void wr_i8(uint8_t *p, int8_t v) { *p = (uint8_t)v; }
 
+/**
+ * @brief Write a little-endian 16-bit word.
+ *
+ * @param p the destination bytes
+ * @param v the word
+ */
 static inline void wr_le_u16(uint8_t *p, uint16_t v) { bo_st16(p, bo_le16(v)); }
+/**
+ * @brief Write a little-endian signed 16-bit word.
+ *
+ * @param p the destination bytes
+ * @param v the signed word
+ */
 static inline void wr_le_i16(uint8_t *p, int16_t v)
 { wr_le_u16(p, (uint16_t)v); }
+/**
+ * @brief Write a big-endian 16-bit word.
+ *
+ * @param p the destination bytes
+ * @param v the word
+ */
 static inline void wr_be_u16(uint8_t *p, uint16_t v) { bo_st16(p, bo_be16(v)); }
+/**
+ * @brief Write a big-endian signed 16-bit word.
+ *
+ * @param p the destination bytes
+ * @param v the signed word
+ */
 static inline void wr_be_i16(uint8_t *p, int16_t v)
 { wr_be_u16(p, (uint16_t)v); }
 
+/**
+ * @brief Write a little-endian 32-bit word.
+ *
+ * @param p the destination bytes
+ * @param v the word
+ */
 static inline void wr_le_u32(uint8_t *p, uint32_t v) { bo_st32(p, bo_le32(v)); }
+/**
+ * @brief Write a little-endian signed 32-bit word.
+ *
+ * @param p the destination bytes
+ * @param v the signed word
+ */
 static inline void wr_le_i32(uint8_t *p, int32_t v)
 { wr_le_u32(p, (uint32_t)v); }
+/**
+ * @brief Write a big-endian 32-bit word.
+ *
+ * @param p the destination bytes
+ * @param v the word
+ */
 static inline void wr_be_u32(uint8_t *p, uint32_t v) { bo_st32(p, bo_be32(v)); }
+/**
+ * @brief Write a big-endian signed 32-bit word.
+ *
+ * @param p the destination bytes
+ * @param v the signed word
+ */
 static inline void wr_be_i32(uint8_t *p, int32_t v)
 { wr_be_u32(p, (uint32_t)v); }
 

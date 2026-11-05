@@ -28,7 +28,13 @@ extern const uint8_t *osys_null_palette(void);
 
 extern const OSystem g_osys_null;
 
-/** @brief XOR the little-endian words of a byte range. */
+/**
+ * @brief XOR the little-endian words of a byte range.
+ *
+ * @param p the byte range
+ * @param n the count
+ * @return the XOR of the words
+ */
 static uint32_t _xor16(const uint8_t *p, uint32_t n)
 {
     uint32_t v = 0;
@@ -37,7 +43,13 @@ static uint32_t _xor16(const uint8_t *p, uint32_t n)
     return v;
 }
 
-/** @brief Read a whole file into a malloc'd buffer; NULL on error. */
+/**
+ * @brief Read a whole file into a malloc'd buffer; NULL on error.
+ *
+ * @param path the path
+ * @param size the size
+ * @return the pointer, or NULL when unavailable
+ */
 static uint8_t *_read_file(const char *path, uint32_t *size)
 {
     FILE *f = fopen(path, "rb");
@@ -56,10 +68,14 @@ static uint8_t *_read_file(const char *path, uint32_t *size)
     return buf;
 }
 
-/** Drive an intro to its first played frame: the panel's 0x20-entry fade-in,
+/** @brief Drive an intro to its first played frame: the panel's 0x20-entry fade-in,
  * the 210-tick dwell and the 0x20-entry black fade all run before the
  * prologue frame lands, and every fade is stepped by palette_tick (the
- * ISR's).  Returns 1 once the page has changed from the panel. */
+ * ISR's).  Returns 1 once the page has changed from the panel.
+ *
+ * @param idx the index
+ * @return 0 when the first frame was reached, 1 otherwise
+ */
 static int32_t _scene_to_first_frame(uint32_t idx)
 {
     static uint8_t panel[64000];
@@ -73,7 +89,13 @@ static int32_t _scene_to_first_frame(uint32_t idx)
     return 0;
 }
 
-/** @brief Run the intro scene tests. */
+/**
+ * @brief Run the intro scene tests.
+ *
+ * @param argc the argument count
+ * @param argv the argument vector
+ * @return 0 on success, 1 on failure
+ */
 int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";

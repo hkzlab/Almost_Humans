@@ -3,5 +3,9 @@
 
 extern const OSystem g_osys_null;
 
-/** @brief The headless executable: run the core with the null backend. */
+/**
+ * @brief The headless executable: run the core with the null backend.
+ *
+ * @return 0 on success, 1 on failure
+ */
 int main(void) { return game_main(&g_osys_null); }

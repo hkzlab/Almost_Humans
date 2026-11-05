@@ -40,10 +40,19 @@
 
 extern const OSystem g_osys_null;
 
-/** @brief Store one little-endian 16-bit word. */
+/**
+ * @brief Store one little-endian 16-bit word.
+ *
+ * @param p the destination bytes
+ * @param v the value
+ */
 static void _put16(uint8_t *p, uint32_t v) { wr_le_u16(p, (uint16_t)v); }
 
-/** @brief A zeroed input state (no key, fire released). */
+/**
+ * @brief A zeroed input state (no key, fire released).
+ *
+ * @return the zeroed input state
+ */
 static InputState _idle(void)
 {
     InputState in;
@@ -51,7 +60,13 @@ static InputState _idle(void)
     return in;
 }
 
-/** @brief Run one flow step and its palette ISR step. */
+/**
+ * @brief Run one flow step and its palette ISR step.
+ *
+ * @param s the state
+ * @param in the input state
+ * @return 1 when the flow state is FLOW_LEVEL, 0 otherwise
+ */
 static int32_t _tick(GameFlow *s, const InputState *in)
 {
     *s = gameflow_step(*s, in);
@@ -59,8 +74,15 @@ static int32_t _tick(GameFlow *s, const InputState *in)
     return *s == FLOW_LEVEL;
 }
 
-/** Hold `dirBit` until the rail arrival changes the cell (or the room hands
- * over to LEVEL).  One _idle _tick afterwards so the rail cannot re-arm. */
+/** @brief Hold `dirBit` until the rail arrival changes the cell (or the room hands
+ * over to LEVEL).  One _idle _tick afterwards so the rail cannot re-arm.
+ *
+ * @param s the state
+ * @param dirBit the direction bit
+ * @param want the wanted value
+ * @param what the check description
+ * @return 1 when the cell changed, 0 when the room exited
+ */
 static int32_t _walk_to(GameFlow *s, uint32_t dirBit, uint32_t want,
                         const char *what)
 {
@@ -81,7 +103,12 @@ static int32_t _walk_to(GameFlow *s, uint32_t dirBit, uint32_t want,
     return 0;
 }
 
-/** @brief Press and release ACTION for one flow step. */
+/**
+ * @brief Press and release ACTION for one flow step.
+ *
+ * @param s the state
+ * @return 1 when the next flow step leaves the room, 0 otherwise
+ */
 static int32_t _press_action(GameFlow *s)
 {
     InputState in = _idle();
@@ -91,7 +118,13 @@ static int32_t _press_action(GameFlow *s)
     return over | _tick(s, &rel);
 }
 
-/** @brief Run the save/restore tests. */
+/**
+ * @brief Run the save/restore tests.
+ *
+ * @param argc the argument count
+ * @param argv the argument vector
+ * @return 0 on success, 1 on failure
+ */
 int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";

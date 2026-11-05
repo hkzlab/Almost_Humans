@@ -19,7 +19,13 @@
 
 extern const OSystem g_osys_null;
 
-/** @brief Run the party-reset regression test. */
+/**
+ * @brief Run the party-reset regression test.
+ *
+ * @param argc the argument count
+ * @param argv the argument vector
+ * @return 0 on success, 1 on failure
+ */
 int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";

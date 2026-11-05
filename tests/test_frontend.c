@@ -42,14 +42,22 @@ extern VideoMode osys_null_video_mode(void);
 
 extern const OSystem g_osys_null;
 
-/** @brief Run one frontend tick and its palette ISR step. */
+/**
+ * @brief Run one frontend tick and its palette ISR step.
+ *
+ * @param in the input state
+ */
 static void _tick(const InputState *in)
 {
     frontend_tick(in);
     palette_tick();                 /* game_tick's ISR body */
 }
 
-/** @brief A zeroed input state (no key, fire released). */
+/**
+ * @brief A zeroed input state (no key, fire released).
+ *
+ * @return the zeroed input state
+ */
 static InputState _idle(void)
 {
     InputState in;
@@ -57,8 +65,14 @@ static InputState _idle(void)
     return in;
 }
 
-/** Hold `dirBit` until the rail arrival changes the cell; one _idle _tick is
- * left afterwards so the rail cannot re-arm from the held key. */
+/** @brief Hold `dirBit` until the rail arrival changes the cell; one _idle _tick is
+ * left afterwards so the rail cannot re-arm from the held key.
+ *
+ * @param dirBit the direction bit
+ * @param want the wanted value
+ * @param what the check description
+ * @return 0 when the target was reached, 1 otherwise
+ */
 static int32_t _walk_to(uint32_t dirBit, uint32_t want, const char *what)
 {
     uint32_t start = frontend_cell_for_probe();
@@ -78,9 +92,10 @@ static int32_t _walk_to(uint32_t dirBit, uint32_t want, const char *what)
     return 0;
 }
 
-/** One ACTION press + release (the original spins on the held key; the port
+/** @brief One ACTION press + release (the original spins on the held key; the port
  * latches one cycle per press).  The release _tick is the next frame web's
- * pass, so the music gate sees the new counter there. */
+ * pass, so the music gate sees the new counter there.
+ */
 static void _press_action(void)
 {
     InputState in = _idle();
@@ -90,13 +105,26 @@ static void _press_action(void)
     _tick(&rel);
 }
 
-/** (b): the shipped cell's opaque pixels must be on the composed page at the
+/** @brief (b): the shipped cell's opaque pixels must be on the composed page at the
  * badge's place — skipping the 16x16 block the walker's own sprite overlays
  * (room_draw_character draws him in front of the sign; the sign's copy in
  * code2.raw is patched too, so the rest of his 27x20 backdrop box must still
  * carry the new badge).  set_scroll is 0x140 at all four cells this test
  * visits (the upper walkway y < 0x64 gives 0x140, and the floor targets
- * 466/520 clamp to it), so world x = col*4 maps to page x = col*4-0x140. */
+ * 466/520 clamp to it), so world x = col*4 maps to page x = col*4-0x140.
+ *
+ * @param what the check description
+ * @param dest the destination
+ * @param spr the sprite index
+ * @param size the size
+ * @param srcOff the source offset
+ * @param w the width
+ * @param h the height
+ * @param cell the map cell
+ * @param charX the character x
+ * @param charY the character y
+ * @return 0 when the check passes, 1 otherwise
+ */
 static int32_t _check_badge(const char *what, uint32_t dest, const uint8_t *spr,
                             uint32_t size, uint32_t srcOff, uint32_t w,
                             uint32_t h, uint32_t cell, uint32_t charX,
@@ -138,7 +166,13 @@ static int32_t _check_badge(const char *what, uint32_t dest, const uint8_t *spr,
     return 0;
 }
 
-/** @brief Run the frontend room tests. */
+/**
+ * @brief Run the frontend room tests.
+ *
+ * @param argc the argument count
+ * @param argv the argument vector
+ * @return 0 on success, 1 on failure
+ */
 int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";

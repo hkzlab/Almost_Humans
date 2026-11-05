@@ -27,7 +27,11 @@
 
 extern const OSystem g_osys_null;
 
-/** @brief A zeroed input state (no key, fire released). */
+/**
+ * @brief A zeroed input state (no key, fire released).
+ *
+ * @return the zeroed input state
+ */
 static InputState _make_input(void)
 {
     InputState in;
@@ -35,7 +39,15 @@ static InputState _make_input(void)
     return in;              /* joyBits 0 = fire released, lastKey 0 = none */
 }
 
-/** @brief Compare a flow state with the wanted one and report a miss. */
+/**
+ * @brief Compare a flow state with the wanted one and report a miss.
+ *
+ * @param got the observed value
+ * @param want the wanted value
+ * @param tick the tick count
+ * @param what the check description
+ * @return 0 on a match, 1 on a mismatch
+ */
 static int32_t _expect_state(GameFlow got, GameFlow want, uint32_t tick,
                              const char *what)
 {
@@ -45,7 +57,12 @@ static int32_t _expect_state(GameFlow got, GameFlow want, uint32_t tick,
     return 1;
 }
 
-/** the effect a phase belongs to: 1, 3, 2, 4 (the enum groups) */
+/**
+ * @brief the effect a phase belongs to: 1, 3, 2, 4 (the enum groups)
+ *
+ * @param phase the phase
+ * @return the effect number (1, 2, 3 or 4), 0 when none
+ */
 static uint32_t _effect_of(uint32_t phase)
 {
     if (phase >= ATTRACT_E1_LOAD && phase <= ATTRACT_E1_OUT) return 1u;
@@ -55,7 +72,11 @@ static uint32_t _effect_of(uint32_t phase)
     return 0u;
 }
 
-/** @brief Run the attract loop tests. */
+/**
+ * @brief Run the attract loop tests.
+ *
+ * @return 0 on success, 1 on failure
+ */
 int main(void)
 {
     int32_t bad = 0;

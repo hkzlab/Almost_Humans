@@ -134,7 +134,11 @@ static uint16_t _score_hold;
  * back to all four - left the card behind the stamp as 4-px blocks. */
 static uint8_t _stamp_under[24u * 64u];
 
-/** 1000:41B8..41E6: the member count the score uses. */
+/**
+ * @brief 1000:41B8..41E6: the member count the score uses.
+ *
+ * @return the member count
+ */
 uint32_t score_members(void)
 {
     uint32_t n = statusbar_tribe_value();
@@ -155,11 +159,17 @@ uint32_t score_members(void)
     return n;
 }
 
-/** 1000:C9B9: handler 4 adds 0x7D0 to the level's score term [0x1DCA]. */
+/**
+ * @brief 1000:C9B9: handler 4 adds 0x7D0 to the level's score term [0x1DCA].
+ *
+ * @param v the level score
+ */
 void score_add_level_term(uint16_t v)
 { _score_level_term = (uint16_t)(_score_level_term + v); }
 
-/** 1000:41EA..4235: the level's two terms. */
+/**
+ * @brief 1000:41EA..4235: the level's two terms.
+ */
 static void _score_terms(void)
 {
     uint32_t levelNo = gameflow_level_for_probe() + 1u;
@@ -186,15 +196,21 @@ static void _score_terms(void)
     }
 }
 
-/** 1000:42CE..4352: the best-time comparison, the NEW RECORD flag and the
- * running total. */
+/** @brief 1000:42CE..4352: the best-time comparison, the NEW RECORD flag and the
+ * running total.
+ *
+ * @param lo the low word
+ * @param hi the high word
+ */
 void score_set_total(uint32_t lo, uint32_t hi)
 {
     _score_total_lo = (uint16_t)lo;
     _score_total_hi = (uint16_t)hi;
 }
 
-/** @brief Build the score screen's card. */
+/**
+ * @brief Build the score screen's card.
+ */
 void score_prepare(void)
 {
     uint32_t levelNo = gameflow_level_for_probe() + 1u;
@@ -228,10 +244,18 @@ void score_prepare(void)
  * counter toggles [0x1DC4], the RECORD sprite's on/off phase.  The two drawing
  * halves at 0x4697 / 0x46FC are ported by `score_stamp_draw`/`stampCopy`
  * (below), which keep the same 0x3CA0 address and the four plane passes. */
-/** the stamp's current phase ([0x1DC4]): 1 = drawn */
+/**
+ * @brief the stamp's current phase ([0x1DC4]): 1 = drawn
+ *
+ * @return the current blink phase (1 = stamp drawn)
+ */
 int32_t score_blink_on(void) { return _score_blink_phase; }
 
-/** @brief Advance the score screen's blink. */
+/**
+ * @brief Advance the score screen's blink.
+ *
+ * @return the new blink phase
+ */
 int32_t score_blink_tick(void)
 {
     if (!_score_is_record) return 0;
@@ -241,7 +265,11 @@ int32_t score_blink_tick(void)
     return _score_blink_phase;
 }
 
-/** 1000:475D tick_score_counters: one 10-point step of the displayed total. */
+/**
+ * @brief 1000:475D tick_score_counters: one 10-point step of the displayed total.
+ *
+ * @return 1 while the counters still step, 0 when done
+ */
 int32_t score_counters_run(void)
 {
     if (_score_delay) {
@@ -282,23 +310,55 @@ int32_t score_counters_run(void)
     return (_score_screen_timer & 0x8000u) ? 0 : 1;
 }
 
-/** @brief Accessor: the score set a record. */
+/**
+ * @brief Accessor: the score set a record.
+ *
+ * @return The score set a record.
+ */
 int32_t score_is_record(void) { return _score_is_record; }
-/** @brief Accessor: the best score for one level. */
+/**
+ * @brief Accessor: the best score for one level.
+ *
+ * @param level the level number
+ * @return The best score for one level.
+ */
 uint16_t score_best_for(uint32_t level) { return hiscore_best(level); }
-/** @brief Accessor: the best time. */
+/**
+ * @brief Accessor: the best time.
+ *
+ * @return The best time.
+ */
 uint16_t score_best_time(void) { return _score_best_time; }
-/** @brief Accessor: the total score's low word. */
+/**
+ * @brief Accessor: the total score's low word.
+ *
+ * @return The total score's low word.
+ */
 uint32_t score_total_lo(void) { return _score_total_lo; }
-/** @brief Accessor: the total score's high word. */
+/**
+ * @brief Accessor: the total score's high word.
+ *
+ * @return The total score's high word.
+ */
 uint32_t score_total_hi(void) { return _score_total_hi; }
-/** @brief Accessor: the shown score's low word. */
+/**
+ * @brief Accessor: the shown score's low word.
+ *
+ * @return The shown score's low word.
+ */
 uint32_t score_shown_lo(void) { return _score_shown_lo; }
-/** @brief Accessor: the shown score's high word. */
+/**
+ * @brief Accessor: the shown score's high word.
+ *
+ * @return The shown score's high word.
+ */
 uint32_t score_shown_hi(void) { return _score_shown_hi; }
 
-/** check_highscore's score terms (1000:41AE).  [0x1F41] = the level number
- * (1-based, the same value draw_level_text prints), [0x11FC] = the members. */
+/** @brief check_highscore's score terms (1000:41AE).  [0x1F41] = the level number
+ * (1-based, the same value draw_level_text prints), [0x11FC] = the members.
+ *
+ * @return the level's score
+ */
 uint32_t score_level_score(void)
 {
     uint16_t t;
@@ -326,7 +386,12 @@ uint32_t score_level_score(void)
     return bonus;
 }
 
-/** @brief Draw the record stamp. */
+/**
+ * @brief Draw the record stamp.
+ *
+ * @param page the page buffer
+ * @param on the on/off flag
+ */
 void score_stamp_draw(uint8_t *page, int32_t on)
 {
     uint32_t r, j;
@@ -367,7 +432,7 @@ void score_stamp_draw(uint8_t *page, int32_t on)
         }
 }
 
-/** --- 1000:462D / 1000:4578: the score screen's digit columns ------------
+/** @brief --- 1000:462D / 1000:4578: the score screen's digit columns ------------
  *
  * `blit_score_block` (0x462D): `SI = digit*256` into SCORE.SPR (ten 0x100-byte
  * slots).  The page address is a 4-pixel group (plane p = pixel 4j+p).  Each
@@ -379,6 +444,11 @@ void score_stamp_draw(uint8_t *page, int32_t on)
  * value from [0x4228]/[0x422A] drawn as DX digits at (AX, BX), right to left
  * in 4-address (16 px) steps; the value is divided by 10000 first, then by 10,
  * and an exhausted value keeps drawing block 0 (zero-padded).
+ *
+ * @param page the page buffer
+ * @param digit the digit
+ * @param x the x coordinate
+ * @param y the y coordinate
  */
 static void _score_digit_block(uint8_t *page, uint32_t digit, int32_t x,
                                int32_t y)
@@ -404,7 +474,15 @@ static void _score_digit_block(uint8_t *page, uint32_t digit, int32_t x,
         }
 }
 
-/** @brief Draw one score column. */
+/**
+ * @brief Draw one score column.
+ *
+ * @param page the page buffer
+ * @param value the value
+ * @param x the x coordinate
+ * @param y the y coordinate
+ * @param digits the digit count
+ */
 void score_column(uint8_t *page, uint32_t value, int32_t x, int32_t y,
                   uint32_t digits)
 {
@@ -418,8 +496,11 @@ void score_column(uint8_t *page, uint32_t value, int32_t x, int32_t y,
     }
 }
 
-/** 1000:4471 draw_score_columns: the level term, the time term and the running
- * total.  Column x is the pixel origin; each digit is 16 px wide. */
+/** @brief 1000:4471 draw_score_columns: the level term, the time term and the running
+ * total.  Column x is the pixel origin; each digit is 16 px wide.
+ *
+ * @param page the page buffer
+ */
 void score_draw_columns(uint8_t *page)
 {
     score_column(page, _score_level_term, 0xE0, 0x10, 5u); /* (0xE0, 0x10) */
@@ -428,7 +509,7 @@ void score_draw_columns(uint8_t *page)
                  0xA0, 0x74, 9u); /* (0xA0, 0x74) */
 }
 
-/** --- 1000:44BB / 1000:450F: the elapsed and best times -------------------
+/** @brief --- 1000:44BB / 1000:450F: the elapsed and best times -------------------
  *
  * `draw_scorenum_three_passes` (`0x44BB`) draws one word as **three digits** at
  * `(AX, BX)` on the 88-address page, `DI` addresses into the SCORENUM slot:
@@ -448,6 +529,11 @@ void score_draw_columns(uint8_t *page)
  * elapsed word `[0x1E84]` with `BP = 0` (slots 0..9) and `(0xF0, 0xB5)` the best
  * time `[0x1E88]` with `BP = 0x280` (slots 10..19) - one page address = 4 px,
  * so the digits sit at row 181, px 104..127 and px 264..287.
+ *
+ * @param page the page buffer
+ * @param digit the digit
+ * @param bp the page base
+ * @param off the column offset
  */
 static void _score_num_block(uint8_t *page, uint32_t digit, uint32_t bp,
                              uint32_t off)
@@ -471,7 +557,15 @@ static void _score_num_block(uint8_t *page, uint32_t digit, uint32_t bp,
     }
 }
 
-/** @brief Draw a three-digit number. */
+/**
+ * @brief Draw a three-digit number.
+ *
+ * @param page the page buffer
+ * @param ax the x accumulator
+ * @param value the value
+ * @param bx the x value
+ * @param bp the page base
+ */
 void score_draw_num3(uint8_t *page, uint32_t ax, uint16_t value, uint32_t bx,
                      uint32_t bp)
 {
@@ -482,12 +576,15 @@ void score_draw_num3(uint8_t *page, uint32_t ax, uint16_t value, uint32_t bx,
     _score_num_block(page, (uint32_t)(value & 0x0Fu), bp, off + 10u);
 }
 
-/** 1000:4403 reblit_framebuffer_88's card pass: SCORE.BIT is a chunky 320x200
+/** @brief 1000:4403 reblit_framebuffer_88's card pass: SCORE.BIT is a chunky 320x200
  * image (one byte per pixel); the four plane passes read `src[4j+p]` into
  * plane p at address j, i.e. pixel 4j+p = src[4j+p] - a plain 1:1 copy.  A
  * non-zero byte is drawn as 0xC0 + v, a zero byte is LEFT ALONE (the page
  * keeps the level caption).  The file's first 64 palette entries are the
- * card's own DAC 0xC0..0xFF bank. */
+ * card's own DAC 0xC0..0xFF bank.
+ *
+ * @param page the page buffer
+ */
 void score_draw_card(uint8_t *page)
 {
     if (!page || !_score_bit || _score_size < 320u * 200u) return;
@@ -501,7 +598,12 @@ void score_draw_card(uint8_t *page)
     }
 }
 
-/** @brief Open the score/record screen for one level's score. */
+/**
+ * @brief Open the score/record screen for one level's score.
+ *
+ * @param value the value
+ * @return 1 when the score screen opened, 0 otherwise
+ */
 int32_t score_begin(uint32_t value)
 {
     if (_score_phase != SCORE_OFF) return 1;
@@ -580,7 +682,12 @@ int32_t score_begin(uint32_t value)
     return 1;
 }
 
-/** @brief One score-screen tick; 1 = still up. */
+/**
+ * @brief One score-screen tick; 1 = still up.
+ *
+ * @param in the input state
+ * @return 1 while the score screen is up
+ */
 int32_t score_tick(const InputState *in)
 {
     static const uint8_t black[768];

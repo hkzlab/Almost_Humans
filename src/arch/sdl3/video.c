@@ -23,18 +23,29 @@ static uint32_t _lut[256];          /* the palette LUT, 6-bit expanded */
 static int32_t _present_probe;      /* HUMANSRE_RATE_PROBE: report the
                                          * loop/present rate every 5 s    */
 
-/** The field each mode scans out (osystem.h's VideoMode): mode 13h is the
+/** @brief The field each mode scans out (osystem.h's VideoMode): mode 13h is the
  * full 320x200 page, mode X shows only the top 192 rows — the rest of a
- * mode-X page is stale (the level's status bar ends on row 191). */
+ * mode-X page is stale (the level's status bar ends on row 191).
+ *
+ * @return 192 for mode X, 200 otherwise
+ */
 static int32_t _mode_rows(void)
 { return _vid_mode == VIDEO_MODE_X ? 192 : 200; }
 
-/** 6-bit -> 8-bit: the original's values are the DAC's; the expand is << 2 | >> 4 */
+/**
+ * @brief 6-bit -> 8-bit: the original's values are the DAC's; the expand is << 2 | >> 4
+ *
+ * @param v the 6-bit colour
+ * @return the expanded 8-bit colour
+ */
 static uint8_t _expand6(uint8_t v) { return (uint8_t)((v << 2) | (v >> 4)); }
 
-/** The texture is exactly the field's height: a taller texture with a
+/** @brief The texture is exactly the field's height: a taller texture with a
  * sub-rect would let the linear filter sample the hidden rows (visible as
- * a one-row bleed of stale pixels at the bottom edge in mode X). */
+ * a one-row bleed of stale pixels at the bottom edge in mode X).
+ *
+ * @param rows the row count
+ */
 static void _vid_make_texture(int32_t rows)
 {
     if (_tex) SDL_DestroyTexture(_tex);
@@ -43,7 +54,9 @@ static void _vid_make_texture(int32_t rows)
     _tex_rows = rows;
 }
 
-/** window + texture, created on the boot's first videoSetMode call */
+/**
+ * @brief window + texture, created on the boot's first videoSetMode call
+ */
 static void _vid_init_video(void)
 {
     if (!SDL_CreateWindowAndRenderer("Humans RE", 960, 720,
@@ -59,9 +72,12 @@ static void _vid_init_video(void)
     _present_probe = getenv("HUMANSRE_RATE_PROBE") != NULL;
 }
 
-/** The mode set: the 320x200 board fills 4:3 as 3x/3.6x; the 320x192 board
+/** @brief The mode set: the 320x200 board fills 4:3 as 3x/3.6x; the 320x192 board
  * fills the same window as 3x/3.75x, so the pixels keep the 4:3 display
- * geometry and the rows past the field are never presented. */
+ * geometry and the rows past the field are never presented.
+ *
+ * @param mode the mode
+ */
 void sdl3_video_set_mode(VideoMode mode)
 {
     if (!_win) _vid_init_video();
@@ -74,10 +90,19 @@ void sdl3_video_set_mode(VideoMode mode)
             _mode_rows());
 }
 
-/** @brief Accessor: one of the two display pages. */
+/**
+ * @brief Accessor: one of the two display pages.
+ *
+ * @param which the page selector
+ * @return One of the two display pages.
+ */
 static uint8_t *_vid_page(int32_t which) { return _pages[which & 1]; }
 
-/** @brief Present one page and apply its 6-bit palette. */
+/**
+ * @brief Present one page and apply its 6-bit palette.
+ *
+ * @param which the page selector
+ */
 static void _vid_present(int32_t which)
 {
     const uint8_t *p = _pages[which & 1];
@@ -112,7 +137,13 @@ static void _vid_present(int32_t which)
     }
 }
 
-/** @brief Upload a 6-bit palette range to the display. */
+/**
+ * @brief Upload a 6-bit palette range to the display.
+ *
+ * @param p6 the 6-bit palette
+ * @param first the first entry
+ * @param n the count
+ */
 void sdl3_video_set_palette(const uint8_t *p6, uint32_t first, uint32_t n)
 {
     for (uint32_t i = 0; i < n; i++) {
@@ -123,7 +154,16 @@ void sdl3_video_set_palette(const uint8_t *p6, uint32_t first, uint32_t n)
     }
 }
 
-/** @brief Accessor: one of the two display pages. */
+/**
+ * @brief Accessor: one of the two display pages.
+ *
+ * @param which the page selector
+ * @return One of the two display pages.
+ */
 uint8_t *sdl3_video_page(int32_t which) { return _vid_page(which); }
-/** @brief Present one page. */
+/**
+ * @brief Present one page.
+ *
+ * @param which the page selector
+ */
 void sdl3_video_present(int32_t which) { _vid_present(which); }

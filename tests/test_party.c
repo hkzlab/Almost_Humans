@@ -32,7 +32,13 @@ extern VideoMode osys_null_video_mode(void);
 
 extern const OSystem g_osys_null;
 
-/** @brief Read a whole file into a malloc'd buffer; NULL on error. */
+/**
+ * @brief Read a whole file into a malloc'd buffer; NULL on error.
+ *
+ * @param path the path
+ * @param size the size
+ * @return the pointer, or NULL when unavailable
+ */
 static uint8_t *_read_file(const char *path, uint32_t *size)
 {
     FILE *f = fopen(path, "rb");
@@ -51,7 +57,13 @@ static uint8_t *_read_file(const char *path, uint32_t *size)
     return buf;
 }
 
-/** @brief Run the party briefing tests. */
+/**
+ * @brief Run the party briefing tests.
+ *
+ * @param argc the argument count
+ * @param argv the argument vector
+ * @return 0 on success, 1 on failure
+ */
 int main(int argc, char **argv)
 {
     if (argc < 3) {
