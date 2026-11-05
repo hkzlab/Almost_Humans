@@ -3238,10 +3238,11 @@ int main(int argc, char **argv)
         }
         _check(log != NULL, "level 16's first A9 log record exists");
         /* the marker pair lands one cell right of the 0xA9 */
-        for (row = 0; row < 20u; row++)
+        for (row = 0; row < 20u; row++) {
             for (col = 0; col < 32u; col++)
-                if (level_map()[row * 32u + col] == 0xA9u) goto found;
-    found:
+                if (level_map()[row * 32u + col] == 0xA9u) break;
+            if (col < 32u) break;
+        }
         _check(row < 20u && level_map()[(row + 1u) * 32u + col] == 0x33u &&
                    level_map()[(row + 1u) * 32u + col + 1u] == 0xC2u &&
                    level_map()[(row + 1u) * 32u + col + 2u] == 0xC9u,

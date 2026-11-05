@@ -298,20 +298,27 @@ static uint8_t *_res_decode_chunk(VolReader *r, uint32_t off,
 
     r->pos = off;
     uint32_t done = 0;
+    int32_t failed = 0;
     while (done < length) {
         uint16_t flag = _vol_word(r);
         acc ^= flag; /* 1000:9193, both paths   */
         if (flag == 0) { /* stored raw  919f..91a7  */
             uint32_t take =
                 (uint32_t)block < length - done ? block : length - done;
-            if (_vol_sixteen(r, r->pos, out + done, (uint32_t)take)) goto fail;
+            if (_vol_sixteen(r, r->pos, out + done, (uint32_t)take)) {
+                failed = 1;
+                break;
+            }
             for (uint32_t i = 0; i < (take & ~1u); i += 2)
                 acc ^= rd_le_u16(out + done + i);
             r->pos += take;
             done += take;
         } else { /* LZ block               */
             uint32_t clen = _vol_word(r);
-            if (clen > length - done) goto fail;
+            if (clen > length - done) {
+                failed = 1;
+                break;
+            }
             /* _lz_block owns the cursor: p starts at the block's first
              * output byte and it advances p itself. */
             LzState st = { _vol_word_reader, r, out, 0, done, 0, 0, 0 };
@@ -319,12 +326,12 @@ static uint8_t *_res_decode_chunk(VolReader *r, uint32_t off,
             done += clen;
         }
     }
+    if (failed) {
+        free(out);
+        return NULL;
+    }
     if (chkOut) *chkOut = acc;
     return out;
-
-fail:
-    free(out);
-    return NULL;
 }
 
 uint8_t *res_load_chunk(const char *name, uint32_t *sizeOut, uint16_t *chkOut)

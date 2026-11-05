@@ -3323,77 +3323,18 @@ static int32_t _obj_land_probe(int16_t ax, int16_t bx, int16_t *cxOut)
     return cx >= 0;
 }
 
-static void _obj_move_scan(uint8_t *r, const uint8_t *tab, int16_t selC,
-                           int16_t selB)
+/* 1000:E27A: hide the record and clear its class byte. */
+/** @brief The move scan's kill tail: hide the record and clear its class. */
+static void _obj_move_kill(uint8_t *r, uint32_t idx)
 {
-    uint32_t idx = (uint32_t)((r - _obj_array) / OBJ_STRIDE);
-    int16_t ax, bx, cx, d;
+    r[6] = 0xFFu;
+    if (idx >= 9u && idx - 8u < sizeof _obj_slot_class)
+        _obj_slot_class[idx - 8u] = 0u;
+}
 
-    _obj_sum_step(tab, r, &ax, &bx);
-    if (ax < 0 || ax >= 0x200 || bx >= 0x150) goto kill; /* 1000:E045..E05A */
-    if (rd_le_u16(r + 0xEu) & 0x8000u) goto impact; /* 1000:E05D */
-    if (!_obj_land_probe(ax, bx, &cx)) goto impact; /* 1000:E068 */
-    d = (int16_t)(cx - bx);
-    if (d == 0) cx = 0;
-    else if (d < 0) cx = (int16_t)(-d);
-    else goto pair_b;
-    { /* 1000:E07B */
-        int16_t t = (int16_t)(selC + cx);
-
-        if (t >= 0 && t > (int16_t)rd_le_u16(r + 0xEu)) goto pair_b;
-    }
-    if (rd_le_u16(r + 0xEu) != 0u) _obj_driver_call(5); /* 1000:E097 */
-    { /* 1000:E0A7: the settled frame, and y by its pair-A dy change */
-        int16_t fi = (int16_t)(rd_le_u16(r + 4u) - 0x58u);
-
-        if (fi >= 0 && fi < 0x10) {
-            int32_t i = fi;
-            int32_t dyA = (int8_t)_obj_mover_tab[4 * i + 1];
-            int32_t nf = _obj_settle_frame[i];
-            int32_t dyNew = (int8_t)_obj_mover_tab[4 * (nf - 0x58) + 1];
-
-            wr_le_u16(r + 4u, (uint16_t)nf);
-            wr_le_u16(r + 2u, (uint16_t)((int16_t)rd_le_u16(r + 2u) +
-                                         (int16_t)(dyA - dyNew)));
-        }
-    }
-    goto settle;
-pair_b:
-    /* 1000:E102: pair B's projection, gated by the pair's sign and 0x68FE */
-    if (((uint16_t)tab[2] | ((uint16_t)tab[3] << 8)) & 0x8000u) goto impact;
-    if (!((uint16_t)(1u << ((rd_le_u16(r + 4u) - 0x58u) & 0x1Fu)) &
-          OBJ_PAIRB_FRAMES))
-        goto impact;
-    _obj_sum_step(tab + 2, r, &ax, &bx);
-    if (!_obj_land_probe(ax, bx, &cx)) goto impact;
-    d = (int16_t)(cx - bx);
-    if (d == 0) goto equal;
-    if (d > 0) goto impact;
-    cx = (int16_t)(-d);
-    {
-        int16_t t = (int16_t)(selB + cx);
-
-        if (t >= 0 && t > (int16_t)rd_le_u16(r + 0xEu)) goto impact;
-    }
-    goto settle;
-equal:
-    { /* 1000:E159 */
-        int16_t fi = (int16_t)(rd_le_u16(r + 4u) - 0x58u);
-        int32_t step = -1;
-
-        if ((uint16_t)fi < sizeof _obj_land_step)
-            step = _obj_land_step[(uint16_t)fi];
-        if (step >= 0) {
-            wr_le_u16(r + 2u, (uint16_t)((int16_t)rd_le_u16(r + 2u) + step));
-            wr_le_u16(r + 4u,
-                      (uint16_t)(rd_le_u16(r + 4u) + (fi < 8 ? 1u : 0xFFFFu)));
-        }
-    }
-    wr_le_u16(r + 0xEu, 0u); /* 1000:E17D */
-    wr_le_u16(r + 0xAu, 0u);
-    wr_le_u16(r + 0xCu, 0u);
-    return;
-settle:
+/** @brief The move scan's settle tail (1000:E0D8): apply the step. */
+static void _obj_move_settle(uint8_t *r, int16_t cx)
+{
     /* 1000:E0D8: x by +0xC, y by +0xE less the landing difference */
     wr_le_u16(r + 2u, (uint16_t)((int16_t)rd_le_u16(r + 2u) - cx +
                                  (int16_t)rd_le_u16(r + 0xEu)));
@@ -3402,8 +3343,31 @@ settle:
     wr_le_u16(r + 0xCu, 0u);
     wr_le_u16(r + 0xEu, 0u);
     wr_le_u16(r + 0xAu, 0u);
-    return;
-impact:
+}
+
+/** @brief The move scan's equal-distance landing (1000:E159). */
+static void _obj_move_equal(uint8_t *r)
+{
+    int16_t fi = (int16_t)(rd_le_u16(r + 4u) - 0x58u);
+    int32_t step = -1;
+
+    if ((uint16_t)fi < sizeof _obj_land_step)
+        step = _obj_land_step[(uint16_t)fi];
+    if (step >= 0) {
+        wr_le_u16(r + 2u, (uint16_t)((int16_t)rd_le_u16(r + 2u) + step));
+        wr_le_u16(r + 4u,
+                  (uint16_t)(rd_le_u16(r + 4u) + (fi < 8 ? 1u : 0xFFFFu)));
+    }
+    wr_le_u16(r + 0xEu, 0u); /* 1000:E17D */
+    wr_le_u16(r + 0xAu, 0u);
+    wr_le_u16(r + 0xCu, 0u);
+}
+
+/** @brief The move scan's impact tail (1000:E194): bounce or step. */
+static void _obj_move_impact(uint8_t *r, const uint8_t *tab, uint32_t idx)
+{
+    int16_t ax, bx;
+
     /* 1000:E194: the projected point is inside the terrain (or the landing
      * probe failed).  Probe the tile above and the cell's item word. */
     if (rd_le_u16(r + 0xAu) == 0u) {
@@ -3412,7 +3376,10 @@ impact:
         _obj_sum_step(tab, r, &ax, &bx);
         sub = (uint16_t)ax & 0xFu;
         si = ((uint16_t)ax >> 4) + 2u * ((uint16_t)bx & 0xFFF0u);
-        if (_obj_map_buffer_byte((int32_t)(si - 0x20u)) >= 0xF0u) goto kill;
+        if (_obj_map_buffer_byte((int32_t)(si - 0x20u)) >= 0xF0u) {
+            _obj_move_kill(r, idx);
+            return;
+        }
         word = level_item_word(_obj_map_buffer_byte((int32_t)si),
                                (uint16_t)bx & 0xFu);
         hi = (rd_le_u16(r + 0xCu) & 0x8000u) ? 0xFFFFu : 0u;
@@ -3447,13 +3414,102 @@ impact:
         wr_le_u16(r + 0u, (uint16_t)((int16_t)rd_le_u16(r + 0u) +
                                      (int16_t)rd_le_u16(r + 0xCu)));
     }
-    return;
-kill:
-    /* 1000:E27A/E27A: hide the record and clear its class byte */
-    r[6] = 0xFFu;
-    if (idx >= 9u && idx - 8u < sizeof _obj_slot_class)
-        _obj_slot_class[idx - 8u] = 0u;
 }
+
+/** @brief Pair B's projection (1000:E102), gated by the pair sign and frames. */
+static void _obj_move_pair_b(uint8_t *r, const uint8_t *tab, int16_t selB,
+                             uint32_t idx)
+{
+    int16_t ax, bx, cx, d;
+
+    if (((uint16_t)tab[2] | ((uint16_t)tab[3] << 8)) & 0x8000u) {
+        _obj_move_impact(r, tab, idx);
+        return;
+    }
+    if (!((uint16_t)(1u << ((rd_le_u16(r + 4u) - 0x58u) & 0x1Fu)) &
+          OBJ_PAIRB_FRAMES)) {
+        _obj_move_impact(r, tab, idx);
+        return;
+    }
+    _obj_sum_step(tab + 2, r, &ax, &bx);
+    if (!_obj_land_probe(ax, bx, &cx)) {
+        _obj_move_impact(r, tab, idx);
+        return;
+    }
+    d = (int16_t)(cx - bx);
+    if (d == 0) {
+        _obj_move_equal(r);
+        return;
+    }
+    if (d > 0) {
+        _obj_move_impact(r, tab, idx);
+        return;
+    }
+    cx = (int16_t)(-d);
+    {
+        int16_t t = (int16_t)(selB + cx);
+
+        if (t >= 0 && t > (int16_t)rd_le_u16(r + 0xEu)) {
+            _obj_move_impact(r, tab, idx);
+            return;
+        }
+    }
+    _obj_move_settle(r, cx);
+}
+
+/** @brief The landing scan for one move step (1000:E045..E27A). */
+static void _obj_move_scan(uint8_t *r, const uint8_t *tab, int16_t selC,
+                           int16_t selB)
+{
+    uint32_t idx = (uint32_t)((r - _obj_array) / OBJ_STRIDE);
+    int16_t ax, bx, cx, d;
+
+    _obj_sum_step(tab, r, &ax, &bx);
+    if (ax < 0 || ax >= 0x200 || bx >= 0x150) { /* 1000:E045..E05A */
+        _obj_move_kill(r, idx);
+        return;
+    }
+    if (rd_le_u16(r + 0xEu) & 0x8000u) { /* 1000:E05D */
+        _obj_move_impact(r, tab, idx);
+        return;
+    }
+    if (!_obj_land_probe(ax, bx, &cx)) { /* 1000:E068 */
+        _obj_move_impact(r, tab, idx);
+        return;
+    }
+    d = (int16_t)(cx - bx);
+    if (d == 0) cx = 0;
+    else if (d < 0) cx = (int16_t)(-d);
+    else {
+        _obj_move_pair_b(r, tab, selB, idx);
+        return;
+    }
+    { /* 1000:E07B */
+        int16_t t = (int16_t)(selC + cx);
+
+        if (t >= 0 && t > (int16_t)rd_le_u16(r + 0xEu)) {
+            _obj_move_pair_b(r, tab, selB, idx);
+            return;
+        }
+    }
+    if (rd_le_u16(r + 0xEu) != 0u) _obj_driver_call(5); /* 1000:E097 */
+    { /* 1000:E0A7: the settled frame, and y by its pair-A dy change */
+        int16_t fi = (int16_t)(rd_le_u16(r + 4u) - 0x58u);
+
+        if (fi >= 0 && fi < 0x10) {
+            int32_t i = fi;
+            int32_t dyA = (int8_t)_obj_mover_tab[4 * i + 1];
+            int32_t nf = _obj_settle_frame[i];
+            int32_t dyNew = (int8_t)_obj_mover_tab[4 * (nf - 0x58) + 1];
+
+            wr_le_u16(r + 4u, (uint16_t)nf);
+            wr_le_u16(r + 2u, (uint16_t)((int16_t)rd_le_u16(r + 2u) +
+                                         (int16_t)(dyA - dyNew)));
+        }
+    }
+    _obj_move_settle(r, cx);
+}
+
 
 /* 1000:CE88 compute_object_selectors: the pair-A/pair-B `dy` changes between
  * the old and the new frame, stored into [0x423C]/[0x4238]. */
@@ -3938,6 +3994,31 @@ static int32_t _obj_proj_cull(int32_t vx, int32_t x)
  * return address and RET returns one level up: the rest of the immediate
  * caller is abandoned.  It is not a corrupt return and the stack
  * balance is the normal one.  -2 signals that early-out to the callers. */
+/** @brief 1000:D584: off the page; from 0x160 the target takes the crash state. */
+static int32_t _obj_proj_offpage(uint8_t *r)
+{
+    if ((uint16_t)_obj_scan_y >= 0x160u) {
+        int32_t tgt = (int16_t)rd_le_u16(r + 0xEu);
+
+        *_obj_act_class = 0u;
+        r[6] = 0xFFu;
+        if (tgt >= 0) {
+            uint8_t *t = _obj_array + (uint32_t)tgt * OBJ_STRIDE;
+
+            wr_le_u16(t + 4u, 0x0028u);
+            wr_le_u16(t + 6u, 0u);
+            wr_le_u16(t + 8u, 0x0016u);
+            wr_le_u16(t + 0xAu, 5u);
+            _obj_driver_call(4);
+        }
+        _obj_scan_y = -1;
+        return -2; /* 0xD5D2: return one level up */
+    }
+    _obj_scan_y = -1;
+    return -1;
+}
+
+/** @brief 1000:D41B: advance the scratch position and snap it to the row. */
 static int32_t _obj_proj_advance(uint8_t *r, int16_t bx, int16_t cx)
 {
     uint32_t idx, sub;
@@ -3946,7 +4027,8 @@ static int32_t _obj_proj_advance(uint8_t *r, int16_t bx, int16_t cx)
 
     _obj_scan_y = (int16_t)(0x10 + cx);
     _obj_scan_x = (int16_t)(_obj_scan_x + bx);
-    if ((uint16_t)_obj_scan_y >= 0x140u) goto offpage; /* 1000:D42E */
+    if ((uint16_t)_obj_scan_y >= 0x140u) /* 1000:D42E */
+        return _obj_proj_offpage(r);
     _obj_scan_y &= (int16_t)0xFFF0;
     sub = (uint16_t)_obj_scan_x & 0xFu;
     idx = 2u * (uint16_t)_obj_scan_y + ((uint16_t)_obj_scan_x >> 4);
@@ -3976,7 +4058,7 @@ static int32_t _obj_proj_advance(uint8_t *r, int16_t bx, int16_t cx)
     page = (int32_t)(int8_t)(uint8_t)level_page_byte(
         _obj_map_buffer_byte((int32_t)idx), sub); /* 1000:D4DA */
     if (page < 0) { /* 1000:D50F */
-        if ((uint16_t)_obj_scan_y >= 0x130u) goto offpage;
+        if ((uint16_t)_obj_scan_y >= 0x130u) return _obj_proj_offpage(r);
         page = (int32_t)(int8_t)(uint8_t)level_page_byte(
             _obj_map_buffer_byte((int32_t)(idx + 0x20u)), sub);
         if (page < 0) { /* 1000:D535 */
@@ -4001,27 +4083,6 @@ static int32_t _obj_proj_advance(uint8_t *r, int16_t bx, int16_t cx)
     }
     _obj_scan_y = (int16_t)(_obj_scan_y - 0x10 + page); /* 1000:D4F7 */
     return _obj_scan_y;
-offpage:
-    /* 1000:D584: off the page; from 0x160 the target takes the crash state */
-    if ((uint16_t)_obj_scan_y >= 0x160u) {
-        int32_t tgt = (int16_t)rd_le_u16(r + 0xEu);
-
-        *_obj_act_class = 0u;
-        r[6] = 0xFFu;
-        if (tgt >= 0) {
-            uint8_t *t = _obj_array + (uint32_t)tgt * OBJ_STRIDE;
-
-            wr_le_u16(t + 4u, 0x0028u);
-            wr_le_u16(t + 6u, 0u);
-            wr_le_u16(t + 8u, 0x0016u);
-            wr_le_u16(t + 0xAu, 5u);
-            _obj_driver_call(4);
-        }
-        _obj_scan_y = -1;
-        return -2; /* 0xD5D2: return one level up */
-    }
-    _obj_scan_y = -1;
-    return -1;
 }
 
 /* 1000:D3E3 bounce_value_4230: reflect the velocity and lose 0x20. */
@@ -4182,6 +4243,7 @@ static void _obj_hit_dispatch(uint8_t *r, uint8_t *t, int16_t frame, int16_t vx,
  * (indexed by vy, clamped by the byte compare at 0x19) is added to y, and the
  * landing test resolves the target record through +0xE (the 0x3E24 pointer
  * table), writing its 0x28/0/0x16/5 state and dispatching the 0x666B op. */
+/** @brief 0xCEC3: the behaviour-4 projectile, phase 1 roll and phase 2 fall. */
 static void _obj_walk_projectile(uint8_t *r, uint32_t idx)
 {
     int16_t x = (int16_t)rd_le_u16(r + 0u);
@@ -4227,29 +4289,36 @@ static void _obj_walk_projectile(uint8_t *r, uint32_t idx)
             int32_t rc = _obj_proj_advance(r, x, y);
 
             if (rc == -2) return; /* 0xD4D4/0xD5D2: leave 1000:CEC3 */
-            if (rc < 0) goto failed;
-        }
-        cxreg = _obj_scan_y; /* 1000:CFD1 */
-        _obj_scan_x = 0;
-        _obj_scan_y = 0xC;
-        if (vx >= 0) _obj_scan_x = 0x10;
-        _obj_proj_burst(r, x, cxreg, &vx, &vy); /* 1000:CFEF */
-        { /* 1000:CFF2 */
-            int32_t tgt = (int16_t)rd_le_u16(r + 0xEu);
+            if (rc < 0) { /* 1000:D030: fall into phase 2 */
+                vy = 0x10;
+                wr_le_u16(r + 0x10u, (uint16_t)y);
+            } else {
+                cxreg = _obj_scan_y; /* 1000:CFD1 */
+                _obj_scan_x = 0;
+                _obj_scan_y = 0xC;
+                if (vx >= 0) _obj_scan_x = 0x10;
+                _obj_proj_burst(r, x, cxreg, &vx, &vy); /* 1000:CFEF */
+                { /* 1000:CFF2 */
+                    int32_t tgt = (int16_t)rd_le_u16(r + 0xEu);
 
-            if (tgt >= 0) {
-                _obj_foot_x = (uint16_t)(x + 8);
-                _obj_foot_y = (uint16_t)(cxreg + 0x10);
-                if (_obj_bg_mark(r) == 0) {
-                    _obj_settled[tgt][0] = (uint16_t)x;
-                    _obj_settled[tgt][1] = (uint16_t)(cxreg - 8);
+                    if (tgt >= 0) {
+                        _obj_foot_x = (uint16_t)(x + 8);
+                        _obj_foot_y = (uint16_t)(cxreg + 0x10);
+                        if (_obj_bg_mark(r) == 0) {
+                            _obj_settled[tgt][0] = (uint16_t)x;
+                            _obj_settled[tgt][1] = (uint16_t)(cxreg - 8);
+                        }
+                    }
                 }
+                /* 1000:D1C0: the phase-1 writeback ends the tick */
+                wr_le_u16(r + 0xAu, (uint16_t)vy);
+                wr_le_u16(r + 8u, (uint16_t)vx);
+                wr_le_u16(r + 4u, (uint16_t)frame);
+                wr_le_u16(r + 2u, (uint16_t)cxreg);
+                wr_le_u16(r + 0u, (uint16_t)x);
+                return;
             }
         }
-        goto writeback;
-    failed: /* 1000:D030 */
-        vy = 0x10;
-        wr_le_u16(r + 0x10u, (uint16_t)y);
     }
     /* phase 2 */
     vx = (int16_t)_obj_proj_cull(vx, x); /* 1000:D039 */
@@ -4262,59 +4331,68 @@ static void _obj_walk_projectile(uint8_t *r, uint32_t idx)
         y = (int16_t)(y + curve); /* 1000:D065 */
         cxreg = y;
         if (curve >= 0) { /* 1000:D069 */
+            int32_t tail = 135;
+
             _obj_scan_x = 8;
             {
                 int32_t rc = _obj_proj_advance(r, x, y);
 
                 if (rc == -2) return; /* 0xD4D4/0xD5D2: leave 1000:CEC3 */
-                if (rc < 0) goto tail135;
-            }
-            if (_obj_scan_y > y) goto tail135;
-            {
-                int16_t prev = (int16_t)rd_le_u16(r + 0x10u);
+                if (rc >= 0 && _obj_scan_y <= y) {
+                    int16_t prev = (int16_t)rd_le_u16(r + 0x10u);
 
-                _obj_scan_x = prev;
-                if (prev >= 0) {
-                    _obj_scan_x = (int16_t)(_obj_scan_x - _obj_scan_y);
-                    if ((int16_t)_obj_scan_x >= 0 &&
-                        (uint16_t)_obj_scan_x > 0x10u)
-                        goto tail135;
-                }
-                _obj_scan_x = (int16_t)-_obj_scan_x;
-                if ((int16_t)_obj_scan_x < 0) goto tail195;
-                if ((uint16_t)_obj_scan_x < 0x40u) goto tail195;
-                {
-                    int32_t tgt = (int16_t)rd_le_u16(r + 0xEu);
+                    _obj_scan_x = prev;
+                    if (prev >= 0) {
+                        _obj_scan_x = (int16_t)(_obj_scan_x - _obj_scan_y);
+                        if ((int16_t)_obj_scan_x >= 0 &&
+                            (uint16_t)_obj_scan_x > 0x10u)
+                            tail = 135;
+                    }
+                    if (tail != 135) {
+                        _obj_scan_x = (int16_t)-_obj_scan_x;
+                        if ((int16_t)_obj_scan_x < 0 ||
+                            (uint16_t)_obj_scan_x < 0x40u) {
+                            tail = 195;
+                        } else {
+                            int32_t tgt = (int16_t)rd_le_u16(r + 0xEu);
 
-                    _obj_scan_x = (int16_t)tgt;
-                    if (tgt < 0) goto tail195;
-                    { /* 1000:D0B5: the hit */
-                        uint8_t *t = _obj_array + (uint32_t)tgt * OBJ_STRIDE;
+                            _obj_scan_x = (int16_t)tgt;
+                            if (tgt < 0) {
+                                tail = 195;
+                            } else { /* 1000:D0B5: the hit */
+                                uint8_t *t =
+                                    _obj_array + (uint32_t)tgt * OBJ_STRIDE;
 
-                        wr_le_u16(r + 0xEu, 0xFFFFu);
-                        *_obj_act_class &= 0x7Fu;
-                        r[6] &= 0x7Fu;
-                        wr_le_u16(t + 0u, (uint16_t)(x > 8 ? x - 8 : 0));
-                        wr_le_u16(t + 2u, (uint16_t)(_obj_scan_y - 8));
-                        wr_le_u16(t + 4u, 0x0028u);
-                        wr_le_u16(t + 6u, 0u);
-                        wr_le_u16(t + 8u, 0x0016u);
-                        wr_le_u16(t + 0xAu, 5u);
-                        vy = 0;
-                        wr_le_u16(r + 0x10u, (uint16_t)y);
-                        _obj_scan_x = 4;
-                        goto tail127;
+                                wr_le_u16(r + 0xEu, 0xFFFFu);
+                                *_obj_act_class &= 0x7Fu;
+                                r[6] &= 0x7Fu;
+                                wr_le_u16(t + 0u,
+                                          (uint16_t)(x > 8 ? x - 8 : 0));
+                                wr_le_u16(t + 2u, (uint16_t)(_obj_scan_y - 8));
+                                wr_le_u16(t + 4u, 0x0028u);
+                                wr_le_u16(t + 6u, 0u);
+                                wr_le_u16(t + 8u, 0x0016u);
+                                wr_le_u16(t + 0xAu, 5u);
+                                vy = 0;
+                                wr_le_u16(r + 0x10u, (uint16_t)y);
+                                _obj_scan_x = 4;
+                                tail = 127;
+                            }
+                        }
                     }
                 }
-            tail195: /* 1000:D11B */
+            }
+            if (tail == 195) { /* 1000:D11B */
                 vy = -1;
                 _obj_scan_x = 5;
-            tail127: /* 1000:D127 */
+                tail = 127;
+            }
+            if (tail == 127) { /* 1000:D127 */
                 cxreg = _obj_scan_y;
                 r[7] = 0x99u;
                 _obj_driver_call((uint32_t)(uint16_t)_obj_scan_x);
             }
-        tail135:
+            /* 1000:D135 */
             vy = (int16_t)(vy + 1);
             _obj_scan_y = 0x10;
         } else { /* 1000:D141 */
@@ -4337,7 +4415,7 @@ static void _obj_walk_projectile(uint8_t *r, uint32_t idx)
             _obj_hit_dispatch(r, t, frame, vx, vy);
         }
     }
-writeback: /* 1000:D1C0 */
+    /* 1000:D1C0: the writeback */
     wr_le_u16(r + 0xAu, (uint16_t)vy);
     wr_le_u16(r + 8u, (uint16_t)vx);
     wr_le_u16(r + 4u, (uint16_t)frame);
@@ -5610,6 +5688,15 @@ static int32_t _obj_bg_mark(const uint8_t *actor)
  * feet line in CX for the distance test and masks BX to the row base
  * (`AND BX,0xFFF0`, 1000:D8D0); the page lookup and the step use the masked
  * value. */
+/** @brief 1000:D9B2: the settle's landing state (type 3, hold 1, frame 4). */
+static void _obj_cmd_settle_landed(uint8_t *actor)
+{
+    wr_le_u16(actor + 8u, 0x0003u);
+    wr_le_u16(actor + 0xAu, 0x0001u);
+    wr_le_u16(actor + 0xCu, 0x0004u);
+    wr_le_u16(actor + 0xEu, 0x0000u);
+}
+
 static void _obj_cmd_settle(uint8_t *actor)
 {
     int32_t x = (int16_t)rd_le_u16(actor + 0u);
@@ -5635,13 +5722,19 @@ static void _obj_cmd_settle(uint8_t *actor)
         line += 0x10;
         _obj_side = 0x20;
         b = level_page_byte(_obj_map_at_abs(ax, line, &sub), sub);
-        if (b & 0x80u) goto landed; /* 1000:D9B2 */
+        if (b & 0x80u) { /* 1000:D9B2 */
+            _obj_cmd_settle_landed(actor);
+            return;
+        }
     }
     bx = line + (int32_t)(int8_t)b; /* 1000:D967 */
     d = feet - bx; /* 1000:D96A: CX */
     if (d < 0) {
         d = -d;
-        if (d > 8) goto landed;
+        if (d > 8) {
+            _obj_cmd_settle_landed(actor);
+            return;
+        }
     }
     wr_le_u16(actor + 2u, (uint16_t)(bx - 0x18));
     _obj_foot_x = (uint16_t)(rd_le_u16(actor + 0u) + 8u);
@@ -5651,12 +5744,6 @@ static void _obj_cmd_settle(uint8_t *actor)
         rd_le_u16(actor + 0u);
     _obj_settled[(uint32_t)((actor - _obj_array) / OBJ_STRIDE)][1] =
         rd_le_u16(actor + 2u);
-    return;
-landed:
-    wr_le_u16(actor + 8u, 0x0003u); /* 1000:D9B2 */
-    wr_le_u16(actor + 0xAu, 0x0001u);
-    wr_le_u16(actor + 0xCu, 0x0004u);
-    wr_le_u16(actor + 0xEu, 0x0000u);
 }
 
 /* 1000:3E73's shade table: the recipe sprite's bytes as a 16x16 table.  Rows
@@ -6016,50 +6103,9 @@ static uint32_t _obj_anim_list_word(uint32_t off)
  * negative), frame 0x2D / type 0x21 / `+0xA` = 5, the acting-record flags, and
  * the 0xE389 probe on the landing.
  */
-static void _obj_level_end_probe(uint8_t *actor, int32_t bx)
+/** @brief 1000:F682: the level-end probe's goal form. */
+static void _obj_level_end_goal(uint8_t *t, uint32_t idx)
 {
-    uint8_t *t;
-    uint32_t idx;
-
-    _obj_lat = 0; /* 1000:F5BC */
-    if (bx >= 0) {
-        t = object_slot((uint32_t)bx);
-        idx = (uint32_t)bx;
-    } else {
-        t = actor;
-        idx = (uint32_t)((actor - _obj_array) / OBJ_STRIDE);
-    }
-    if (!t) return;
-    if (statusbar_tribe_active()) goto goal; /* 1000:F5E3 */
-    wr_le_u16(t + 0u, 0xFFFFu); /* 1000:F5EF: taken */
-    wr_le_u16(t + 2u, 0xFFFFu);
-    t[6] = 0xFFu;
-    wr_le_u16(t + 8u, 0x001Bu);
-    if (t[7]) { /* 1000:F603 */
-        uint32_t cls = t[7];
-
-        _obj_class_byte_set(cls, 0u); /* 0x3E5F + cls - 1 */
-        if (8u + cls < OBJ_SLOTS)
-            _obj_array[(8u + cls) * OBJ_STRIDE + 6] = 0xFFu;
-        t[7] = 0u;
-    }
-    if (idx != _obj_entity) return; /* 1000:F627 */
-    for (uint32_t i = 0; i < 8u; i++) { /* 1000:F630 */
-        uint8_t *r = object_slot(i);
-        uint32_t ty;
-
-        if (!r || (r[6] & 0x80u)) continue;
-        ty = rd_le_u16(r + 8u);
-        if (ty == 0x16u) continue;
-        if (ty >= 0x1Bu && ty <= 0x1Eu) continue;
-        if (ty == 0x21u) continue;
-        _obj_resolve_sprite(i); /* 1000:F664 -> 0x4147 */
-        return;
-    }
-    level_set_end(0); /* 1000:F66D */
-    return;
-
-goal: /* 1000:F682 */
     statusbar_arm_odometer(); /* [0x5B22] = 0xFF */
     wr_le_u16(t + 2u, _obj_sel_xoff); /* [0x4222] */
     wr_le_u16(t + 0u, _obj_side); /* [0x4220] */
@@ -6086,6 +6132,52 @@ goal: /* 1000:F682 */
         if (land >= 0)
             wr_le_u16(t + 2u, (uint16_t)(land - 0x18)); /* 1000:F6F2 */
     }
+}
+
+static void _obj_level_end_probe(uint8_t *actor, int32_t bx)
+{
+    uint8_t *t;
+    uint32_t idx;
+
+    _obj_lat = 0; /* 1000:F5BC */
+    if (bx >= 0) {
+        t = object_slot((uint32_t)bx);
+        idx = (uint32_t)bx;
+    } else {
+        t = actor;
+        idx = (uint32_t)((actor - _obj_array) / OBJ_STRIDE);
+    }
+    if (!t) return;
+    if (statusbar_tribe_active()) { /* 1000:F5E3 */
+        _obj_level_end_goal(t, idx);
+        return;
+    }
+    wr_le_u16(t + 0u, 0xFFFFu); /* 1000:F5EF: taken */
+    wr_le_u16(t + 2u, 0xFFFFu);
+    t[6] = 0xFFu;
+    wr_le_u16(t + 8u, 0x001Bu);
+    if (t[7]) { /* 1000:F603 */
+        uint32_t cls = t[7];
+
+        _obj_class_byte_set(cls, 0u); /* 0x3E5F + cls - 1 */
+        if (8u + cls < OBJ_SLOTS)
+            _obj_array[(8u + cls) * OBJ_STRIDE + 6] = 0xFFu;
+        t[7] = 0u;
+    }
+    if (idx != _obj_entity) return; /* 1000:F627 */
+    for (uint32_t i = 0; i < 8u; i++) { /* 1000:F630 */
+        uint8_t *r = object_slot(i);
+        uint32_t ty;
+
+        if (!r || (r[6] & 0x80u)) continue;
+        ty = rd_le_u16(r + 8u);
+        if (ty == 0x16u) continue;
+        if (ty >= 0x1Bu && ty <= 0x1Eu) continue;
+        if (ty == 0x21u) continue;
+        _obj_resolve_sprite(i); /* 1000:F664 -> 0x4147 */
+        return;
+    }
+    level_set_end(0); /* 1000:F66D */
 }
 
 static uint32_t _obj_tab_byte(const uint8_t *t, uint32_t n, uint32_t off)
@@ -6252,6 +6344,31 @@ static void _obj_tail_crash(uint8_t *actor)
     _obj_driver_call(4); /* 1000:DB28 */
 }
 
+/** @brief 1000:DB05: the type-3 tail's coast (no landing). */
+static void _obj_tail_type3_coast(uint8_t *actor, uint32_t dx)
+{
+    wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(actor + 2u) + dx));
+    wr_le_u16(actor + 0xEu, (uint16_t)(rd_le_u16(actor + 0xEu) + dx));
+    wr_le_u16(actor + 0xAu,
+              (uint16_t)(dx == rd_le_u16(actor + 0xCu) ? dx : dx + 1u));
+}
+
+/** @brief 1000:DAB2: the type-3 tail's landing. */
+static void _obj_tail_type3_land(uint8_t *actor, uint32_t bx)
+{
+    uint32_t sp;
+
+    wr_le_u16(actor + 2u, (uint16_t)(bx - 0x18u));
+    sp = rd_le_u16(actor + 0xEu);
+    if (sp >= 0x30u) {
+        _obj_tail_crash(actor);
+        return;
+    } /* 1000:DABF */
+    level_set_offset_word((uint16_t)(sp >> 3)); /* 1000:DAC7 */
+    _obj_tail_frame_to_type(actor); /* 1000:DACA */
+    _obj_driver_call(5);
+}
+
 /* 1000:D9E8 (type 3): the gravity tail.  The gate is the same 0x6EBE/row one
  * the settle uses; then a probe at (x + 8, y + 0x18) with the row above it, the
  * 0xF0..0xF2 platform snap (frame 0xCD / type 0x1C / effect 6), and otherwise
@@ -6296,22 +6413,35 @@ static void _obj_tail_type3(uint8_t *actor)
             return;
         }
     }
-    if (di >= 0x280u || !map) goto coast; /* 1000:DA63 */
+    if (di >= 0x280u || !map) { /* 1000:DA63 */
+        _obj_tail_type3_coast(actor, dx);
+        return;
+    }
     b = level_page_byte(_obj_map_buffer_byte(di), ax); /* 1000:DA71 */
     if (b & 0x80u) { /* 1000:DA85 */
         di += 0x20u;
-        if (di >= 0x280u) goto coast; /* 1000:DA8C */
+        if (di >= 0x280u) { /* 1000:DA8C */
+            _obj_tail_type3_coast(actor, dx);
+            return;
+        }
         b = level_page_byte(_obj_map_buffer_byte(di), ax);
-        if (b & 0x80u) goto coast; /* 1000:DAA6 */
+        if (b & 0x80u) { /* 1000:DAA6 */
+            _obj_tail_type3_coast(actor, dx);
+            return;
+        }
         bx += 0x10u; /* 1000:DAA8 */
         sc = (int32_t)(int8_t)(uint8_t)b;
         bx = (uint32_t)((int32_t)bx + sc);
         cx = (uint32_t)((int32_t)cx - (int32_t)bx);
         if ((int32_t)cx < 0) {
             cx = (uint32_t)-(int32_t)cx;
-            if (cx > dx) goto coast; /* 1000:DB01 */
+            if (cx > dx) { /* 1000:DB01 */
+                _obj_tail_type3_coast(actor, dx);
+                return;
+            }
         }
-        goto land; /* 1000:DAB2 */
+        _obj_tail_type3_land(actor, bx); /* 1000:DAB2 */
+        return;
     }
     if (b != 0u) { /* 1000:DAD6 */
         sc = (int32_t)(int8_t)(uint8_t)b;
@@ -6319,9 +6449,13 @@ static void _obj_tail_type3(uint8_t *actor)
         cx = (uint32_t)((int32_t)cx - (int32_t)bx);
         if ((int32_t)cx < 0) {
             cx = (uint32_t)-(int32_t)cx;
-            if (cx > dx) goto coast;
+            if (cx > dx) {
+                _obj_tail_type3_coast(actor, dx);
+                return;
+            }
         }
-        goto land;
+        _obj_tail_type3_land(actor, bx);
+        return;
     }
     /* b == 0: look two rows above (1000:DAD8) */
     if (di >= 0x40u) {
@@ -6334,9 +6468,13 @@ static void _obj_tail_type3(uint8_t *actor)
             cx = (uint32_t)((int32_t)cx - (int32_t)bx);
             if ((int32_t)cx < 0) {
                 cx = (uint32_t)-(int32_t)cx;
-                if (cx > dx) goto coast;
+                if (cx > dx) {
+                    _obj_tail_type3_coast(actor, dx);
+                    return;
+                }
             }
-            goto land;
+            _obj_tail_type3_land(actor, bx);
+            return;
         }
     }
     sc = 0; /* 1000:DA87: AX = 0 */
@@ -6344,27 +6482,12 @@ static void _obj_tail_type3(uint8_t *actor)
     cx = (uint32_t)((int32_t)cx - (int32_t)bx);
     if ((int32_t)cx < 0) {
         cx = (uint32_t)-(int32_t)cx;
-        if (cx > dx) goto coast;
-    }
-land: /* 1000:DAB2 */
-    wr_le_u16(actor + 2u, (uint16_t)(bx - 0x18u));
-    {
-        uint32_t sp = rd_le_u16(actor + 0xEu);
-
-        if (sp >= 0x30u) {
-            _obj_tail_crash(actor);
+        if (cx > dx) {
+            _obj_tail_type3_coast(actor, dx);
             return;
-        } /* 1000:DABF */
-        level_set_offset_word((uint16_t)(sp >> 3)); /* 1000:DAC7 */
+        }
     }
-    _obj_tail_frame_to_type(actor); /* 1000:DACA */
-    _obj_driver_call(5);
-    return;
-coast: /* 1000:DB05 */
-    wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(actor + 2u) + dx));
-    wr_le_u16(actor + 0xEu, (uint16_t)(rd_le_u16(actor + 0xEu) + dx));
-    wr_le_u16(actor + 0xAu,
-              (uint16_t)(dx == rd_le_u16(actor + 0xCu) ? dx : dx + 1u));
+    _obj_tail_type3_land(actor, bx);
 }
 
 /* 1000:DB7A: find the actor's span entry.  Returns the matched entry (even
@@ -6843,6 +6966,33 @@ static void _obj_carry_form(uint8_t *rec, uint32_t phase)
     _obj_driver_call(8); /* 1000:DCBF */
 }
 
+/** @brief 1000:DD3C: the type-15 carry give-back tail. */
+static void _obj_cmd_type15_give(uint8_t *actor)
+{
+    uint32_t cls = actor[7];
+    uint32_t slot;
+    uint8_t *rec;
+
+    actor[7] = 0u;
+    if (!cls) return;
+    _obj_class_byte_set(cls,
+                        _obj_class_byte_at(cls) & 0x7Fu); /* 0x3E5F + cls - 1 */
+    slot = 8u + cls; /* 0x3F17 + 0x12*(cls-1) */
+    if (slot >= OBJ_SLOTS) return;
+    rec = _obj_array + slot * OBJ_STRIDE;
+    wr_le_u16(rec + 0xAu, 1u);
+    wr_le_u16(rec + 0xEu, 0xFFFFu);
+    rec[6] &= 0x7Fu; /* 1000:DD63 */
+    wr_le_u16(actor + 0u, rd_le_u16(rec + 0u));
+    wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(rec + 2u) - 8u));
+    wr_le_u16(actor + 4u, 0x0103u);
+    wr_le_u16(actor + 8u, 0x001Eu);
+    wr_le_u16(actor + 0xAu, 6u);
+    wr_le_u16(actor + 0xCu, 0u);
+    wr_le_u16(actor + 0xEu, 0x000Au);
+}
+
+/** @brief 1000:DC38 (type 15): the carry record's give-back branch. */
 static void _obj_cmd_type15_tail(uint8_t *actor)
 {
     uint8_t *node = _obj_link_record(rd_le_u16(actor + 0xEu));
@@ -6866,7 +7016,10 @@ static void _obj_cmd_type15_tail(uint8_t *actor)
             if (d < 0) d = -d;
             if (d > 1) continue; /* 1000:DC83 */
             if (rd_le_u16(r + 8u) > 2u) continue; /* 1000:DC8A */
-            if ((int32_t)i == object_player()) goto give; /* 1000:DC91 */
+            if ((int32_t)i == object_player()) { /* 1000:DC91 */
+                _obj_cmd_type15_give(actor);
+                return;
+            }
             _obj_carry_form(r, phase); /* 1000:DC9A */
             return;
         }
@@ -6882,8 +7035,10 @@ static void _obj_cmd_type15_tail(uint8_t *actor)
         d = (int32_t)(int16_t)(uint16_t)(rd_le_u16(e + 0u) + 8u) - ax;
         if (d < 0) d = -d;
         if (d > 1) continue; /* 1000:DD0F */
-        if ((uint32_t)e[5] == (uint32_t)object_player())
-            goto give; /* 1000:DD27 */
+        if ((uint32_t)e[5] == (uint32_t)object_player()) { /* 1000:DD27 */
+            _obj_cmd_type15_give(actor);
+            return;
+        }
         {
             uint8_t *placed = object_slot(e[5]);
 
@@ -6894,31 +7049,6 @@ static void _obj_cmd_type15_tail(uint8_t *actor)
         return;
     }
     return;
-
-give: /* 1000:DD3C */
-    {
-        uint32_t cls = actor[7];
-        uint32_t slot;
-        uint8_t *rec;
-
-        actor[7] = 0u;
-        if (!cls) return;
-        _obj_class_byte_set(cls, _obj_class_byte_at(cls) &
-                                     0x7Fu); /* 0x3E5F + cls - 1 */
-        slot = 8u + cls; /* 0x3F17 + 0x12*(cls-1) */
-        if (slot >= OBJ_SLOTS) return;
-        rec = _obj_array + slot * OBJ_STRIDE;
-        wr_le_u16(rec + 0xAu, 1u);
-        wr_le_u16(rec + 0xEu, 0xFFFFu);
-        rec[6] &= 0x7Fu; /* 1000:DD63 */
-        wr_le_u16(actor + 0u, rd_le_u16(rec + 0u));
-        wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(rec + 2u) - 8u));
-        wr_le_u16(actor + 4u, 0x0103u);
-        wr_le_u16(actor + 8u, 0x001Eu);
-        wr_le_u16(actor + 0xAu, 6u);
-        wr_le_u16(actor + 0xCu, 0u);
-        wr_le_u16(actor + 0xEu, 0x000Au);
-    }
 }
 
 /* 1000:EA0F / 1000:EA4D: the two "ride" commands.  Both require the record's
@@ -7069,10 +7199,78 @@ static uint32_t _obj_type_tile_byte(uint32_t type)
     return _obj_type_tile[type < 35u ? type : 0u];
 }
 
+/** @brief 1000:F8AD: the fall machine's hard landing. */
+static void _obj_fall_hard_landing(uint8_t *actor)
+{
+    wr_le_u16(actor + 0u, (uint16_t)(rd_le_u16(actor + 0u) - 8u));
+    wr_le_u16(actor + 4u, 0x0028u);
+    wr_le_u16(actor + 8u, 0x0016u);
+    wr_le_u16(actor + 0xAu, 5u);
+    _obj_driver_call(4);
+}
+
+/** @brief 1000:F975: the fall machine's landing at y. */
+static void _obj_fall_land_at_y(uint8_t *actor, int32_t bx)
+{
+    wr_le_u16(actor + 2u, (uint16_t)bx);
+    wr_le_u16(actor + 0x10u, 0u);
+    if (rd_le_u16(actor + 0xCu) < 0x10u) wr_le_u16(actor + 0xCu, 0x0010u);
+}
+
+/** @brief 1000:F8D2: the fall machine's land pair. */
+static void _obj_fall_land_pair(uint8_t *actor)
+{
+    wr_le_u16(actor + 4u, (uint16_t)_obj_side); /* frame <- [0x4230] */
+    wr_le_u16(actor + 8u, _obj_sel_xoff); /* type  <- [0x4234] */
+    wr_le_u16(actor + 0xAu, 0u);
+    _obj_driver_call(5);
+}
+
+/** @brief 1000:F966: the fall machine's placement. */
+static void _obj_fall_place(uint8_t *actor, int32_t ax, int32_t bx)
+{
+    wr_le_u16(actor + 0u, (uint16_t)ax);
+    wr_le_u16(actor + 2u, (uint16_t)bx);
+    if (bx >= 0x140) _obj_fall_hard_landing(actor);
+}
+
+/** @brief 1000:F8EC: the fall machine's item-word probe. */
+static void _obj_fall_item_word(uint8_t *actor, int32_t ax, int32_t bx)
+{
+    int32_t px = ax + (int32_t)(int16_t)_obj_sel_frame;
+    int32_t py = bx + 0x18;
+    uint32_t tile = _obj_map_at_abs(px, py, NULL);
+    uint32_t item = level_item_word(tile, (uint32_t)((uint32_t)py & 0xFu));
+    uint32_t lo, hi, mask;
+
+    _obj_sel_type = item;
+    lo = 0xFFFFu;
+    hi = 0u;
+    if (!(rd_le_u16(actor + 0x10u) & 0x8000u)) {
+        lo = 0u;
+        hi = 0xFFFFu;
+    }
+    /* 1000:F90B/F950: the shift count is `(x + +0x10 + [0x4238]) & 0xF` -
+     * the *item* probe's sub-column, not the actor probe's `fine`. */
+    for (uint32_t i = 0; i < ((uint32_t)px & 0xFu); i++) { /* 1000:F952 */
+        uint32_t carry = lo & 1u;
+
+        lo >>= 1;
+        hi = (hi >> 1) | (carry << 15);
+    }
+    mask = hi;
+    if ((_obj_sel_type & mask) != 0u) { /* 1000:F964 -> F975 */
+        _obj_fall_land_at_y(actor, bx);
+        return;
+    }
+    _obj_fall_place(actor, ax, bx);
+}
+
+/** @brief 1000:F8CB: the fall machine. */
 static void _obj_fall_machine(uint8_t *actor)
 {
     int32_t ax, bx, col, d;
-    uint32_t row, fine, page, item, mask, lo, hi;
+    uint32_t row, fine, page;
     uint32_t probeY, above, below;
     uint32_t anim;
     int32_t vy;
@@ -7136,7 +7334,10 @@ static void _obj_fall_machine(uint8_t *actor)
         _obj_driver_call(6); /* 1000:F7A6 */
         return;
     }
-    if (bx >= 0x128) goto place; /* 1000:F7AE */
+    if (bx >= 0x128) { /* 1000:F7AE */
+        _obj_fall_place(actor, ax, bx);
+        return;
+    }
     below =
         _obj_map_at_abs(col, (int32_t)probeY, NULL); /* 1000:F7B9: the feet */
     page = level_page_byte(below, fine); /* 1000:F7F3 */
@@ -7148,97 +7349,64 @@ static void _obj_fall_machine(uint8_t *actor)
              * the same column, through the same `BP` (0x92A0 + fine). */
             uint32_t b2 = _obj_map_at_abs(col, (int32_t)row + 0x10, NULL);
 
-            if (level_page_byte(b2, fine) == 0u) goto land_at_y; /* 1000:F7EE */
+            if (level_page_byte(b2, fine) == 0u) { /* 1000:F7EE */
+                _obj_fall_land_at_y(actor, bx);
+                return;
+            }
         }
     }
-    if (page == 0u) goto zero_case; /* 1000:F80A */
-    if (page & 0x80u) { /* 1000:F80C JNS */
-        row += 0x10; /* 1000:F80E: `ADD CX,0x10` moves the ROW, not the probe
-                      * x; the cell read at 1000:F813 is `[DI+0x20]` - the
-                      * same column, one row down. */
-        page = level_page_byte(_obj_map_at_abs(col, (int32_t)row, NULL), fine);
-        if (page & 0x80u) goto item_word; /* 1000:F82F -> F8EC */
-    }
-    goto snap; /* 1000:F832 -> F87F */
-
-zero_case:
-    { /* 1000:F834 */
+    if (page == 0u) { /* 1000:F80A: the row above decides */
         uint32_t a2 = _obj_map_at_abs(col, (int32_t)row - 0x10, NULL);
         uint32_t want = _obj_type_tile_byte(rd_le_u16(actor + 8u));
         /* 1000:F83A/F84C park these two in [0x422C]/[0x422E] only to compare
          * them; the port compares the cells directly. */
-        if (want == a2) goto land_at_y; /* 1000:F856 */
-        if (level_page_byte(a2, fine) & 0x80u) goto snap;
-        row -= 0x10; /* 1000:F86F: the row word, for the snap's `d` */
-        page = level_page_byte(a2, fine);
+        if (want == a2) { /* 1000:F856 */
+            _obj_fall_land_at_y(actor, bx);
+            return;
+        }
+        if (!(level_page_byte(a2, fine) & 0x80u)) {
+            row -= 0x10; /* 1000:F86F: the row word, for the snap's `d` */
+            page = level_page_byte(a2, fine);
+        }
+    } else if (page & 0x80u) { /* 1000:F80C JNS */
+        row += 0x10; /* 1000:F80E: `ADD CX,0x10` moves the ROW, not the probe
+                      * x; the cell read at 1000:F813 is `[DI+0x20]` - the
+                      * same column, one row down. */
+        page = level_page_byte(_obj_map_at_abs(col, (int32_t)row, NULL), fine);
+        if (page & 0x80u) { /* 1000:F82F -> F8EC */
+            _obj_fall_item_word(actor, ax, bx);
+            return;
+        }
     }
-snap: /* 1000:F87F */
+    /* 1000:F87F: the snap */
     _obj_sel_type = (uint16_t)(int16_t)(int8_t)(uint8_t)page;
     d = (int32_t)(row + (uint32_t)(int16_t)(int8_t)(uint8_t)page) - 0x18 - bx;
-    if (d >= 0) goto item_word; /* 1000:F891 */
+    if (d >= 0) { /* 1000:F891 */
+        _obj_fall_item_word(actor, ax, bx);
+        return;
+    }
     d = -d;
-    if (d > 3) goto item_word;
+    if (d > 3) {
+        _obj_fall_item_word(actor, ax, bx);
+        return;
+    }
     bx -= d; /* 1000:F89A */
     wr_le_u16(actor + 0u, (uint16_t)ax);
     wr_le_u16(actor + 2u, (uint16_t)bx);
     {
         int32_t speed = (int16_t)rd_le_u16(actor + 0xEu);
 
-        if (speed < 0) goto land_pair; /* 1000:F8A6 */
-        if (speed >= 0x30) goto hard_landing; /* 1000:F8AB */
+        if (speed < 0) { /* 1000:F8A6 */
+            _obj_fall_land_pair(actor);
+            return;
+        }
+        if (speed >= 0x30) { /* 1000:F8AB */
+            _obj_fall_hard_landing(actor);
+            return;
+        }
         level_set_offset_word((uint16_t)((uint32_t)speed >> 3)); /* 1000:F8CE */
     }
-land_pair: /* 1000:F8D2 */
-    wr_le_u16(actor + 4u, (uint16_t)_obj_side); /* frame <- [0x4230] */
-    wr_le_u16(actor + 8u, _obj_sel_xoff); /* type  <- [0x4234] */
-    wr_le_u16(actor + 0xAu, 0u);
-    _obj_driver_call(5);
-    return;
-
-item_word:
-    { /* 1000:F8EC */
-        int32_t px = ax + (int32_t)(int16_t)_obj_sel_frame;
-        int32_t py = bx + 0x18;
-        uint32_t tile = _obj_map_at_abs(px, py, NULL);
-
-        item = level_item_word(tile, (uint32_t)((uint32_t)py & 0xFu));
-        _obj_sel_type = item;
-        lo = 0xFFFFu;
-        hi = 0u;
-        if (!(rd_le_u16(actor + 0x10u) & 0x8000u)) {
-            lo = 0u;
-            hi = 0xFFFFu;
-        }
-        /* 1000:F90B/F950: the shift count is `(x + +0x10 + [0x4238]) & 0xF` -
-         * the *item* probe's sub-column, not the actor probe's `fine`. */
-        for (uint32_t i = 0; i < ((uint32_t)px & 0xFu); i++) { /* 1000:F952 */
-            uint32_t carry = lo & 1u;
-
-            lo >>= 1;
-            hi = (hi >> 1) | (carry << 15);
-        }
-        mask = hi;
-        if ((_obj_sel_type & mask) != 0u)
-            goto land_at_y; /* 1000:F964 -> F975 */
-    }
-place: /* 1000:F966 */
-    wr_le_u16(actor + 0u, (uint16_t)ax);
-    wr_le_u16(actor + 2u, (uint16_t)bx);
-    if (bx >= 0x140) goto hard_landing;
-    return;
-
-hard_landing: /* 1000:F8AD */
-    wr_le_u16(actor + 0u, (uint16_t)(rd_le_u16(actor + 0u) - 8u));
-    wr_le_u16(actor + 4u, 0x0028u);
-    wr_le_u16(actor + 8u, 0x0016u);
-    wr_le_u16(actor + 0xAu, 5u);
-    _obj_driver_call(4);
-    return;
-
-land_at_y: /* 1000:F975 */
-    wr_le_u16(actor + 2u, (uint16_t)bx);
-    wr_le_u16(actor + 0x10u, 0u);
-    if (rd_le_u16(actor + 0xCu) < 0x10u) wr_le_u16(actor + 0xCu, 0x0010u);
+    _obj_fall_land_pair(actor);
 }
 
 /* 1000:F067 / 0xF078: the two fall-machine entries.  The first lands with
@@ -7392,19 +7560,20 @@ int32_t object_command_run(uint8_t *actor, uint8_t input)
     ObjCommand c = object_command_select(actor, input);
     uint32_t before = rd_le_u16(actor + 8u);
     int32_t ran = OBJ_CMD_NONE;
-
+    int32_t skip = 0;
 
     if (c.handler) {
         if (!_obj_cmd_call(actor, c.handler)) return OBJ_CMD_UNPORTED;
         ran = OBJ_CMD_HANDLER;
-        if (rd_le_u16(actor + 8u) != before) goto out; /* 1000:E4CC */
+        if (rd_le_u16(actor + 8u) != before) skip = 1; /* 1000:E4CC */
     }
-    if (c.hook) _obj_cmd_settle(actor); /* 1000:D8BD */
-    if (c.tail) {
-        if (!_obj_cmd_call(actor, c.tail)) return OBJ_CMD_UNPORTED;
-        ran = OBJ_CMD_TAIL;
+    if (!skip) {
+        if (c.hook) _obj_cmd_settle(actor); /* 1000:D8BD */
+        if (c.tail) {
+            if (!_obj_cmd_call(actor, c.tail)) return OBJ_CMD_UNPORTED;
+            ran = OBJ_CMD_TAIL;
+        }
     }
-out:
     if (_obj_out_state != 0u) { /* 1000:E4E4 */
         _obj_debounce =
             (uint8_t)_obj_pending; /* [0x197A] := the old [0x1979] */
