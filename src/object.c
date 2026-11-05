@@ -305,11 +305,6 @@ static uint8_t _obj_stack_mask[2]; /* 0x64AD / 0x64C1: in-a-stack bits */
 static uint32_t _obj_row_ofs;
 static int16_t _obj_side; /* [0x4230]: which side the settle stepped from */
 static int32_t _obj_lat; /* [0x6F1D]: sequence owns input */
-/* 0x649A / 0x64A2 / 0x64AE / 0x64B6: the four corner-pair blocks the 0xAF..0xB2
- * tiles write at load ({x, y, x, y} followed by a zeroed 12-byte entry, or just
- * {x, y}).  No ported consumer reads them yet - they are the level's "pair"
- * markers, and the write is all the original does. */
-static uint16_t _obj_pair_a[8], _obj_pair_b[2], _obj_pair_c[8], _obj_pair_d[2];
 static uint32_t _obj_bg_count;
 static uint32_t _obj_pending; /* [0x1979]                             */
 static uint32_t _obj_cursor = 1; /* [0x1988]                             */
@@ -1009,14 +1004,12 @@ static const uint8_t *_obj_e_sprite, *_obj_h_sprites;
  * (a y offset) and `BE16(2*idx + 0x30)` (the rows), then jumps to
  * `set_object_layer` (`0x5C5F`, mode 2) - the same blitter as the entity cells.
  *
- * **On shipped data the pass draws nothing**: `object_array_init` (`0x4CAB`)
- * writes 0xFFFF into both flag words (`[0x64AA]`, `[0x64BE]`) at every level
- * start, and the live game confirms it - read in play (level 1):
- *
- *   slot0 = 00 x16, ff ff, 00 00      slot1 = the same
- *
- * so the bit-15 test skips both.  The port models the slots and the init so the
- * behaviour is the same, and a test drives the body with the flag cleared.
+ * A level start disables both slots: `object_array_init` (`0x4CAB`) writes
+ * 0xFFFF into both flag words (`[0x64AA]`, `[0x64BE]`), which is the state the
+ * live game reads on level 1 (`00 x16, ff ff, 00 00`).  The 0xAF/0xB1 tile
+ * handlers clear that word again and fill the slot, so the slot is drawn (and
+ * patrols, see `object_camera_slots_tick`) on every level carrying the pair:
+ * 46 of the 160 shipped levels have 0xAF+0xB0 and 11 have 0xB1+0xB2.
  */
 static uint8_t _obj_ter_slot[2][0x14];
 
@@ -2585,7 +2578,14 @@ static void _obj_spawn_c1(uint32_t col, uint32_t row)
 }
 
 /**
- * @brief 1000:5310 / 1000:532F / 1000:5338 / 1000:5357: the four data-only tiles.
+ * @brief 1000:5310 / 1000:532F / 1000:5338 / 1000:5357: the four data-only
+ * tiles fill the two 0x649A / 0x64AE TER slots.
+ *
+ * 0xAF (and 0xB1) stores the cell in the slot's current and primary-target
+ * words (+0/+2, +4/+6) and zeroes +0xC..+0x12 — which includes the +0x10
+ * disable word, so the slot draws and the 0xC7A0 patrol starts.  It does NOT
+ * touch +8/+0xA.  0xB0 (and 0xB2) writes +8/+0xA of the same slot: the
+ * secondary target the patrol moves to while +0x10 is zero.
  *
  * @param tile the tile byte
  * @param x the x coordinate
@@ -2593,29 +2593,18 @@ static void _obj_spawn_c1(uint32_t col, uint32_t row)
  */
 static void _obj_write_pair(uint32_t tile, uint32_t x, uint32_t y)
 {
-    switch (tile) {
-    case 0xAFu:
-        _obj_pair_a[0] = (uint16_t)x;
-        _obj_pair_a[1] = (uint16_t)y;
-        _obj_pair_a[2] = (uint16_t)x;
-        _obj_pair_a[3] = (uint16_t)y;
-        _obj_pair_a[4] = _obj_pair_a[5] = _obj_pair_a[6] = _obj_pair_a[7] = 0u;
-        break;
-    case 0xB0u:
-        _obj_pair_b[0] = (uint16_t)x;
-        _obj_pair_b[1] = (uint16_t)y;
-        break;
-    case 0xB1u:
-        _obj_pair_c[0] = (uint16_t)x;
-        _obj_pair_c[1] = (uint16_t)y;
-        _obj_pair_c[2] = (uint16_t)x;
-        _obj_pair_c[3] = (uint16_t)y;
-        _obj_pair_c[4] = _obj_pair_c[5] = _obj_pair_c[6] = _obj_pair_c[7] = 0u;
-        break;
-    default:
-        _obj_pair_d[0] = (uint16_t)x;
-        _obj_pair_d[1] = (uint16_t)y;
-        break;
+    uint8_t *e = _obj_ter_slot[(tile == 0xB1u || tile == 0xB2u) ? 1u : 0u];
+
+    if (tile == 0xAFu || tile == 0xB1u) {
+        wr_le_u16(e + 0u, (uint16_t)x); /* 1000:5313/0x533B */
+        wr_le_u16(e + 2u, (uint16_t)y);
+        wr_le_u16(e + 4u, (uint16_t)x);
+        wr_le_u16(e + 6u, (uint16_t)y);
+        for (uint32_t i = 0xCu; i <= 0x12u; i += 2u) /* 1000:531E..0x532B */
+            wr_le_u16(e + i, 0u);
+    } else {
+        wr_le_u16(e + 8u, (uint16_t)x); /* 1000:5332/0x535A */
+        wr_le_u16(e + 0xAu, (uint16_t)y);
     }
 }
 
@@ -3167,6 +3156,54 @@ static void _obj_blit_frame(uint8_t *page, uint32_t frame, int32_t x, int32_t y)
                  y + (int32_t)sp->ybias);
 }
 
+/* 202F:0x3541 (8 bytes): the per-frame-group bit that gates the selected
+ * record's overlay sprite.  Frames 0x00..0x16 and 0x18..0x25 pass; 0x17,
+ * 0x26..0x3F and 0x40+ do not (the original reads past the table above
+ * 0x3F - the port's bound returns "no overlay"). */
+static const uint8_t _obj_ovl_bits[8] = { 0xFF, 0xFF, 0xFE, 0xFF,
+                                          0xFC, 0x00, 0x00, 0x00 };
+/* 202F:0x351D (one word per clamped frame): the sprite index 0x2E..0x31 in
+ * the low two bits, the x offset (twice SARed, i.e. /4) in the low byte and
+ * the y offset (SAR 8) in the high byte. */
+static const uint16_t _obj_ovl_word[0x12] = {
+    0x04FC, 0x03FC, 0x01FC, 0x0200, 0x04FC, 0x03FC, 0x0100, 0x0200, 0xFE01,
+    0xFF01, 0x0101, 0x0001, 0xFE01, 0xFF01, 0x0101, 0x0001, 0x0102, 0x0103,
+};
+
+/** @brief 1000:6495's second half: the SELECTED record (`[0x180A]`) draws one
+ * extra 0x2E..0x31 sprite, gated by the 0x3541 bit for its frame.
+ *
+ * @param page the page buffer
+ * @param scrollX the scroll x
+ * @param scrollY the scroll y
+ * @param r the record
+ * @param i the record index
+ */
+static void _obj_draw_player_overlay(uint8_t *page, int32_t scrollX,
+                                     int32_t scrollY, const uint8_t *r,
+                                     uint32_t i)
+{
+    uint32_t f = rd_le_u16(r + 4u), idx, spr;
+    int16_t w;
+    int32_t ox, oy;
+
+    if ((int32_t)i != _obj_player) return;
+    idx = f >> 3;
+    if (idx >= sizeof _obj_ovl_bits)
+        return; /* 0x40+: the original reads past */
+    if (!(_obj_ovl_bits[idx] & (uint8_t)(0x80u >> (f & 7u)))) return;
+    if (f > 0x10u) f = (f > 0x22u) ? 0x11u : 0x10u; /* 1000:64E1 */
+    w = (int16_t)_obj_ovl_word[f];
+    spr = ((uint32_t)w & 3u) + 0x2Eu; /* 1000:650F */
+    /* 0x6523/0x6536: the high byte SARed 8, added to CX (x); 0x6515/0x6521:
+     * the low byte twice SARed, added to DX (y) - 0x6625 is CX = x, DX = y. */
+    ox = (int32_t)w >> 8;
+    oy = (int32_t)(int8_t)(w & 0xFF) >> 2;
+    _obj_blit_frame(page, spr,
+                    (int32_t)(int16_t)rd_le_u16(r + 0u) - scrollX + ox,
+                    (int32_t)(int16_t)rd_le_u16(r + 2u) - scrollY + oy);
+}
+
 /** @brief 1000:653C draw_object_cell's class half: the class id names both the
  * behaviour class (0x3E5E) and the placed record (0x3F17 + 0x12*(id-1)) that
  * carries the extra sprite.  That record's x/y/frame are overwritten with the
@@ -3254,22 +3291,29 @@ static void _obj_draw_record(uint8_t *page, int32_t scrollX, int32_t scrollY,
     int32_t y = (int32_t)(int16_t)rd_le_u16(r + 2u) - scrollY;
     uint32_t frame = rd_le_u16(r + 4u);
 
-    if (r[6] & 0x80u) return; /* 1000:794C / 1000:6458 */
-    /* 1000:6450/1000:6467: the record's class slot (0x3E5E + record-8)
-     * skips it when bit 7 is set - the pickup's taken mark (1000:9D47).
-     * The carried record is drawn by its carrier's class overlay only. */
-    if (scan && (_obj_slot_class[i - 8u] & 0x80u)) return;
-    if (!r[7]) {
-        /* 1000:653C skips only the EARLY base draw when 0x3570[frame] bit 7
-         * is set; its tail (1000:6610) draws the base at 1000:661C instead.
-         * With no class overlay the record is always drawn exactly once, so
-         * the climb frames 0x23..0x25 (0x3570 = 0xC3/0xC4/0xC5) must draw. */
-        _obj_blit_frame(page, frame, x, y);
-        return;
+    /* 1000:653C's own gates.  They only skip the BASE draw: 0x6495 always
+     * continues to the player-overlay half below. */
+    if (!(r[6] & 0x80u) && /* 1000:794C / 1000:6458 */
+        !(scan && (_obj_slot_class[i - 8u] & 0x80u))) {
+        /* 1000:6450/1000:6467: the record's class slot (0x3E5E + record-8)
+         * skips it when bit 7 is set - the pickup's taken mark (1000:9D47).
+         * The carried record is drawn by its carrier's class overlay only. */
+        if (!r[7]) {
+            /* 1000:653C skips only the EARLY base draw when 0x3570[frame] bit
+             * 7 is set; its tail (1000:6610) draws the base at 1000:661C
+             * instead.  With no class overlay the record is always drawn
+             * exactly once, so the climb frames 0x23..0x25 (0x3570 =
+             * 0xC3/0xC4/0xC5) must draw. */
+            _obj_blit_frame(page, frame, x, y);
+        } else {
+            if (!(_obj_overlay_row(frame) & 0x80u))
+                _obj_blit_frame(page, frame, x, y);
+            _obj_draw_class_overlay(page, scrollX, scrollY, r);
+            if (_obj_overlay_row(frame) & 0x80u)
+                _obj_blit_frame(page, frame, x, y);
+        }
     }
-    if (!(_obj_overlay_row(frame) & 0x80u)) _obj_blit_frame(page, frame, x, y);
-    _obj_draw_class_overlay(page, scrollX, scrollY, r);
-    if (_obj_overlay_row(frame) & 0x80u) _obj_blit_frame(page, frame, x, y);
+    _obj_draw_player_overlay(page, scrollX, scrollY, r, i);
 }
 
 /** @brief 1000:C23C partition_entities_by_type: the eight placed slots split by their
@@ -3491,6 +3535,114 @@ void object_render_ter(uint8_t *page, int32_t scrollX, int32_t scrollY)
                            (int32_t)(int16_t)rd_le_u16(e + 0u) - 0xCu - scrollX,
                            (int32_t)(int16_t)rd_le_u16(e + 2u) + (int32_t)yoff -
                                scrollY);
+    }
+}
+
+/** @brief 1000:C7A0/0xC7A9 (iterate_camera_records / set_camera_from): run
+ * both 0x649A / 0x64AE TER slots for one world frame.
+ *
+ * 0xC7A0 calls 0xC7A9 for the first slot, `ADD SI,0x14`, and falls into the
+ * second (so the second RET returns to 0xC7A0's caller).  Per slot:
+ *
+ *  - `+0x10` bit 15 (0xFFFF from 0x4CAB) is the disabled state: no motion.
+ *  - Otherwise the move target is `+4/+6`, or `+8/+0xA` while `+0x10` is 0.
+ *  - Current `+0/+2` steps one unit toward the target on each axis (the
+ *    x/y pair is swapped between the two steps by the original, 0xC82E and
+ *    0xC868).  On arrival `+0x10` toggles its low byte 0x00 <-> 0xFF, so the
+ *    next frame's target is the other corner: the slot patrols the two cells
+ *    the 0xAF+0xB0 (or 0xB1+0xB2) tiles name.
+ *  - The `+0xE` counter reloads every 6 frames and then bumps `+0xC`; the
+ *    `+0xC` word is both that counter and the TER sprite index (0x5823/0x5C2F
+ *    pass it straight to the 0x2D7E index table), which is why the sprite
+ *    animates while it patrols.
+ *  - The slot's own `(new - old)` delta is added to the eight static 0x3E75
+ *    records and the 0x6F22 groups under the byte-swapped `+0x12` mask
+ *    (`0x80>>i` / `1<<(7-index)`).  The four tile handlers zero `+0x12`, so
+ *    the shipped data never sets a mask bit and the object layer does not
+ *    move — the shift is kept for a cross-loaded save that does.
+ */
+void object_camera_slots_tick(void)
+{
+    for (uint32_t s = 0; s < 2u; s++) {
+        uint8_t *e = _obj_ter_slot[s];
+        int32_t curx = (int16_t)rd_le_u16(e + 0u);
+        int32_t cury = (int16_t)rd_le_u16(e + 2u);
+        int32_t tx = (int16_t)rd_le_u16(e + 4u);
+        int32_t ty = (int16_t)rd_le_u16(e + 6u);
+        int32_t t2x = (int16_t)rd_le_u16(e + 8u);
+        int32_t t2y = (int16_t)rd_le_u16(e + 0xAu);
+        uint16_t dx = rd_le_u16(e + 0xCu);
+        uint16_t bp = rd_le_u16(e + 0xEu);
+        uint16_t phase = rd_le_u16(e + 0x10u);
+        uint16_t speed = 0u; /* [0x4236] */
+        uint16_t mask;
+        uint16_t bx, cx;
+        int32_t oldx = curx, oldy = cury;
+
+        if (phase & 0x8000u) { /* 0xC7F2: disabled -> straight to the tail */
+            mask = (uint16_t)((rd_le_u16(e + 0x12u) >> 8) |
+                              (rd_le_u16(e + 0x12u) << 8));
+        } else {
+            if (phase == 0u) { /* 0xC7F9: zero phase -> the secondary point */
+                tx = t2x;
+                ty = t2y;
+            }
+            if (curx == tx && cury == ty) {
+                phase ^= 0x00FFu; /* 0xC861: swap corners next frame */
+            } else {
+                if (cury != ty) { /* 0xC817: the y axis */
+                    if (ty > cury) cury++;
+                    else cury--;
+                }
+                if (curx != tx) { /* 0xC842: the x axis (post-swap) */
+                    if (tx > curx) {
+                        curx++;
+                        speed = 6u; /* 0xC859 */
+                    } else {
+                        curx--;
+                    }
+                }
+                if ((int16_t)(bp = (uint16_t)(bp - 1u)) < 0) { /* 0xC875 */
+                    bp = 5u;
+                    dx = (uint16_t)(dx + 1u);
+                    if (dx < speed) {
+                        dx = speed;
+                    } else if (dx >= (uint16_t)(speed + 6u)) {
+                        dx = speed;
+                    }
+                }
+            }
+            mask = (uint16_t)((rd_le_u16(e + 0x12u) >> 8) |
+                              (rd_le_u16(e + 0x12u) << 8));
+        }
+
+        wr_le_u16(e + 0x10u, phase);
+        wr_le_u16(e + 0xEu, bp);
+        wr_le_u16(e + 0xCu, dx);
+        wr_le_u16(e + 0u, (uint16_t)curx);
+        wr_le_u16(e + 2u, (uint16_t)cury);
+
+        bx = (uint16_t)(curx - oldx); /* 0xC8E0: the per-frame delta */
+        cx = (uint16_t)(cury - oldy);
+        if ((mask & 0xFFu) == 0u) continue;
+        for (uint32_t i = 0; i < 8u; i++) {
+            uint8_t *r = _obj_array + i * OBJ_STRIDE;
+
+            if (!(mask & (uint16_t)(0x80u >> i))) continue;
+            wr_le_u16(r + 2u, (uint16_t)(rd_le_u16(r + 2u) + cx));
+            wr_le_u16(r + 0u, (uint16_t)(rd_le_u16(r + 0u) + bx));
+        }
+        for (uint32_t i = 0; i < 8u; i++) {
+            uint8_t *g = (uint8_t *)_obj_register[i];
+            uint32_t index = g[5];
+            uint16_t bit;
+
+            if (index & 0x80u) continue;
+            bit = (uint16_t)(1u << ((7u - index) & 0x1Fu));
+            if (!(mask & bit)) continue;
+            wr_le_u16(g + 0u, (uint16_t)(rd_le_u16(g + 0u) + bx));
+            wr_le_u16(g + 2u, (uint16_t)(rd_le_u16(g + 2u) + cx));
+        }
     }
 }
 

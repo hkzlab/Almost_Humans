@@ -79,6 +79,7 @@ uint32_t level_view_y(void);
  * with the 16x16 shade table object.c builds from the recipe sprite. */
 void level_spark_begin(uint32_t ox, uint32_t oy, const uint8_t *shade);
 int32_t level_spark_active(void);
+uint8_t level_spark_strip_at(uint32_t col, uint32_t row, uint32_t plane);
 int32_t level_spark_peek(uint32_t *x, uint32_t *y, uint32_t *value);
 /* the 0x48BC queue as the original's 0x2C0-byte window, for object.c's DS
  * record model (offset 0 = 0x48BC). */

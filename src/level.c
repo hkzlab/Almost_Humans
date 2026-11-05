@@ -310,6 +310,13 @@ static uint32_t _spark_write,
 static uint32_t _spark_ox, _spark_oy; /* [0x1AFE] / [0x1B00]            */
 static uint8_t _spark_shade[16][16]; /* 0x19EA, from the recipe sprite */
 static int32_t _spark_on;
+/* 1000:3DC0's scratch strip (A000:F000): 0x12 addresses x 0x40 rows, the four
+ * plane bytes of each.  Saved from the page at (spark origin - 0x20) and
+ * restored over it before every particle frame; an expired cell paints its
+ * byte into it, so the pixel survives the restore (D-132). */
+static uint8_t _spark_strip[0x40][0x12][4];
+static int32_t _spark_strip_x, _spark_strip_y; /* [0x1AEA] / [0x1AEC] */
+static int32_t _spark_strip_on;
 
 static const OSystem *_level_osys;
 
@@ -390,12 +397,92 @@ static uint8_t _disk_pal[768];
 static const uint8_t _disk_black[768];
 static uint8_t *_disk_font;
 
-/** @brief 1000:3E73: clear the list, take the shade table and the origin (its tail is
- * the view set the claim already does).
+/** @brief 1000:3DC0: save the 0x12-address x 0x40-row page strip at
+ * (ox, oy) into the scratch buffer, four plane bytes per address.
  *
- * @param ox the x origin
- * @param oy the y origin
- * @param shade the shade table
+ * The original copies with Map Mask 0x0F and Bit Mask 0, i.e. each word is the
+ * freshly read latch, so the strip is an exact copy of the four planes.
+ *
+ * @param ox the strip origin x
+ * @param oy the strip origin y
+ */
+static void _spark_strip_save(int32_t ox, int32_t oy)
+{
+    _spark_strip_x = ox;
+    _spark_strip_y = oy;
+    _spark_strip_on = 1;
+    for (uint32_t row = 0; row < 0x40u; row++)
+        for (uint32_t col = 0; col < 0x12u; col++) {
+            int32_t sx = _spark_strip_x - (int32_t)_view_x + (int32_t)col * 4;
+            int32_t sy = _spark_strip_y - (int32_t)_view_y + (int32_t)row;
+
+            if (sx >= 0 && sx < (int32_t)VIEW_W && sy >= 0 &&
+                sy < (int32_t)VIEW_H) {
+                const uint8_t *px =
+                    _lvl_plane[(uint32_t)sy * 88u + ((uint32_t)sx >> 2)];
+
+                for (uint32_t p = 0; p < 4u; p++)
+                    _spark_strip[row][col][p] = px[p];
+            } else {
+                for (uint32_t p = 0; p < 4u; p++)
+                    _spark_strip[row][col][p] = 0u;
+            }
+        }
+}
+
+/** @brief 1000:3E29: copy the strip back over the page region it was saved
+ * from (the first step of every particle frame).
+ */
+static void _spark_strip_restore(void)
+{
+    if (!_spark_strip_on) return;
+    for (uint32_t row = 0; row < 0x40u; row++)
+        for (uint32_t col = 0; col < 0x12u; col++) {
+            int32_t sx = _spark_strip_x - (int32_t)_view_x + (int32_t)col * 4;
+            int32_t sy = _spark_strip_y - (int32_t)_view_y + (int32_t)row;
+
+            if (sx < 0 || sx >= (int32_t)VIEW_W || sy < 0 ||
+                sy >= (int32_t)VIEW_H)
+                continue;
+            {
+                uint8_t *px =
+                    _lvl_plane[(uint32_t)sy * 88u + ((uint32_t)sx >> 2)];
+
+                for (uint32_t p = 0; p < 4u; p++)
+                    px[p] = _spark_strip[row][col][p];
+            }
+        }
+}
+
+/** @brief 1000:4073: an expired cell's plane byte into the strip, so the next
+ * restore keeps it on the page for the rest of the claim.
+ *
+ * @param wx the cell's world x
+ * @param wy the cell's world y
+ * @param value the shade byte (0 is not stored)
+ */
+static void _spark_paint(uint32_t wx, uint32_t wy, uint8_t value)
+{
+    int32_t dx = (int32_t)wx - _spark_strip_x;
+    int32_t dy = (int32_t)wy - _spark_strip_y;
+    uint32_t col, row, plane;
+
+    if (!_spark_strip_on || value == 0u) return;
+    if (dx < 0 || dy < 0) return;
+    col = (uint32_t)dx >> 2;
+    row = (uint32_t)dy;
+    plane = (uint32_t)dx & 3u;
+    if (col >= 0x12u || row >= 0x40u) return;
+    _spark_strip[row][col][plane] = value;
+}
+
+/**
+ * @brief 1000:3E73's tail (`JMP 0x3DC0` at (x - 0x20, y - 0x20)): clear the
+ * list, take the shade table and the spark origin, and save the strip.
+ *
+ * @param ox the spark origin x
+ * @param oy the spark origin y
+ * @param shade the 16x16 shade table
  */
 void level_spark_begin(uint32_t ox, uint32_t oy, const uint8_t *shade)
 {
@@ -406,6 +493,8 @@ void level_spark_begin(uint32_t ox, uint32_t oy, const uint8_t *shade)
     _spark_ox = ox;
     _spark_oy = oy;
     _spark_on = 1;
+    /* 1000:3E73's tail: the strip origin is (origin - 0x20) in both axes. */
+    _spark_strip_save((int32_t)ox - 0x20, (int32_t)oy - 0x20);
 }
 
 /**
@@ -414,6 +503,20 @@ void level_spark_begin(uint32_t ox, uint32_t oy, const uint8_t *shade)
  * @return The spark effect is running.
  */
 int32_t level_spark_active(void) { return _spark_on; }
+
+/**
+ * @brief Test seam: one byte of 1000:3DC0's scratch strip.
+ *
+ * @param col the strip address column (0..0x11)
+ * @param row the strip row (0..0x3F)
+ * @param plane the plane byte (0..3)
+ * @return the byte, or 0 out of range
+ */
+uint8_t level_spark_strip_at(uint32_t col, uint32_t row, uint32_t plane)
+{
+    if (col >= 0x12u || row >= 0x40u || plane >= 4u) return 0u;
+    return _spark_strip[row][col][plane];
+}
 
 /**
  * @brief the same queue bytes the original keeps at 0x48BC, for object.c's DS window
@@ -484,7 +587,10 @@ static void _spark_step(void)
         d = _spark_path[_spark[i].age] & 7u;
         _spark[i].x = (uint16_t)(_spark[i].x + _spark_dir[d][0]);
         _spark[i].y = (uint16_t)(_spark[i].y + _spark_dir[d][1]);
-        if (++_spark[i].age >= 0x53u) _spark[i].live = 0;
+        if (++_spark[i].age >= 0x53u) {
+            _spark[i].live = 0;
+            _spark_paint(_spark[i].x, _spark[i].y, _spark[i].value);
+        }
     }
     if (_spark_spawned >= 0x100u && !live) _spark_on = 0;
 }
@@ -2145,7 +2251,11 @@ static void _render_world(void)
             _lvl_plane[y * 88u + (x >> 2)][x & 3u] =
                 (wx < WORLD_W && wy < WORLD_H) ? _world[wy * WORLD_W + wx] : 0u;
         }
-    if (_spark_on) _spark_draw();
+    if (_spark_on) {
+        _spark_strip_restore(); /* 1000:3E29 */
+        _spark_step(); /* 1000:3FB3 (spawns, ages, paints) */
+        _spark_draw(); /* 1000:3F4A's inline loop  */
+    }
     uint8_t *page = _level_osys->videoPage(0);
     for (uint32_t y = 0; y < VIEW_H; y++)
         for (uint32_t x = 0; x < VIEW_W; x++)
@@ -2340,6 +2450,7 @@ int32_t level_tick(void)
                                                     ? _goal_pan_joy
                                                     : _level_joy);
             object_update_list(); /* 1000:C295, 1000:80BD            */
+            object_camera_slots_tick(); /* 1000:C7A0, 1000:80C0     */
             entity_tick(); /* 1000:C93C, inside the [0xC] gate */
             object_goal_scan(); /* 1000:C2CE, the goal count        */
             object_marker_tick(); /* 1000:D64F, after the dispatch */
@@ -2359,9 +2470,8 @@ int32_t level_tick(void)
      * level_fade_in, drawn while the DAC is at black (the fade-out of 0..0xBF
      * runs first, 1000:3334).  Drawing here made the level appear at full
      * brightness for those frames and then fade to black and in again. */
-    /* 0x3FB3 is the play frame's flush; the chain's fades and the loading come
-     * before the first play frame, so the effect is not advanced there. */
-    if (_start_phase == LVSTART_PLAYING) _spark_step();
+    /* 0x3FB3 is the play frame's flush, inside 0x3F4A (see `_render_world`);
+     * the chain's fades and the loading come before the first play frame. */
     if (_start_phase != LVSTART_WARMUP && _start_phase != LVSTART_FADE_IN &&
         _start_phase != LVSTART_PLAYING) {
         /* the bar is up from the mode reset onward (1000:952C/957B), so it is

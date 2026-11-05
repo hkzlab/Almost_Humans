@@ -578,6 +578,55 @@ int main(int argc, char **argv)
                 _check(!level_spark_active(),
                        "the effect ends after its 0x53 life");
             }
+            /* D-132 (closed 2026-11-05): the claim's scratch strip.  1000:4073
+             * paints an expired cell's plane byte into the 0x12 x 0x40 strip
+             * that 1000:3DC0 saved, and 1000:3E29 restores it over the page
+             * before every frame, so the pixel outlives the particle. */
+            {
+                const uint8_t *page = osys_null_page(0);
+                uint8_t sh[256];
+
+                uint32_t ox = level_view_x() + 0x40u;
+                uint32_t oy = level_view_y() + 0x40u;
+
+                memset(sh, 0x5Au, sizeof sh);
+                level_spark_begin(ox, oy, sh);
+                /* entry 1 (offset 8): live, value 0xA5, age 0x52 (one step
+                 * from expiry), at (0x70, 0x80) - inside the strip, 0x10 px
+                 * left of the spawn cluster. */
+                level_spark_set_byte(0x08u, 0xFFu);
+                level_spark_set_byte(0x09u, 0xA5u);
+                level_spark_set_byte(0x0Au, (uint8_t)(ox - 0x10u));
+                level_spark_set_byte(0x0Bu, (uint8_t)((ox - 0x10u) >> 8));
+                level_spark_set_byte(0x0Cu, (uint8_t)oy);
+                level_spark_set_byte(0x0Du, (uint8_t)(oy >> 8));
+                level_spark_set_byte(0x0Eu, 0x52u);
+                level_spark_set_byte(0x0Fu, 0x00u);
+                level_tick(); /* the step expires it and paints the strip */
+                {
+                    uint32_t ex = (uint32_t)level_spark_byte(0x0Au) |
+                                  ((uint32_t)level_spark_byte(0x0Bu) << 8);
+                    uint32_t ey = (uint32_t)level_spark_byte(0x0Cu) |
+                                  ((uint32_t)level_spark_byte(0x0Du) << 8);
+                    int32_t col = ((int32_t)ex - ((int32_t)ox - 0x20)) >> 2;
+                    int32_t row = (int32_t)ey - ((int32_t)oy - 0x20);
+                    int32_t plane = ((int32_t)ex - ((int32_t)ox - 0x20)) & 3;
+                    uint32_t sx = ex - level_view_x();
+                    uint32_t sy = ey - level_view_y();
+
+                    _check(level_spark_byte(0x08u) == 0u,
+                           "D-132: the planted cell expires");
+                    _check(col >= 0 && col < 0x12 && row >= 0 && row < 0x40 &&
+                               level_spark_strip_at((uint32_t)col,
+                                                    (uint32_t)row,
+                                                    (uint32_t)plane) == 0xA5u,
+                           "D-132: the expired cell paints the strip");
+                    level_tick(); /* the restore puts it on the page */
+                    _check(sx < 320u && sy < 192u &&
+                               page[sy * 320u + sx] == 0xA5u,
+                           "D-132: the strip restores it over the page");
+                }
+            }
             spawned = object_live_count();
             _check(spawned == 9u, "the spawn appended one live record");
             if (spawned == 9u) {
@@ -3589,6 +3638,55 @@ int main(int argc, char **argv)
                        (rd_le_u16(object_slot(9) + 2)) == 20u &&
                        (rd_le_u16(object_slot(9) + 4)) == 0x005Bu,
                    "the aim pose carries the spear at (x-2,y-5), frame 0x5B");
+            /* D-125 (closed 2026-11-05): 1000:6495's second half.  Two
+             * frames pin the 0x351D word's axis split: frame 0x10 passes the
+             * 0x3541 bit with word 0x0102 (low 2 -> y += 2>>2 = 0, high 1 ->
+             * x += 1, so sprite 0x30 at (x+1, y)); frame 0x00's 0x04FC gives
+             * low 0xFC -> y += -1 and high 4 -> x += 4 (sprite 0x2E at
+             * (x+4, y-1)).  0x6625 takes CX = x and DX = y. */
+            object_init();
+            {
+                static const struct {
+                    uint32_t frame, spr, ox;
+                    int32_t oy;
+                } cases[2] = { { 0x00u, 0x2Eu, 4u, -1 },
+                               { 0x10u, 0x30u, 1u, 0 } };
+                uint8_t *p = object_slot(0);
+
+                for (uint32_t k = 0; k < 2u; k++) {
+                    uint32_t off = 0, rows = 0, ink = 0, wrong = 0;
+                    int32_t px = 100 + (int32_t)cases[k].ox;
+                    int32_t py = 25 + cases[k].oy;
+
+                    memset(p, 0, 0x12u);
+                    _tf_wr16(p, 0u, 100u);
+                    _tf_wr16(p, 2u, 25u);
+                    _tf_wr16(p, 4u, cases[k].frame);
+                    _tf_wr16(p, 8u, 0x0002u);
+                    object_set_player(0);
+                    object_set_action_entity(0u);
+                    memset(page, 0, sizeof page);
+                    object_render(page, 0, 0);
+                    object_frame_for_probe(cases[k].spr, &off, &rows);
+                    _check(off != 0u && rows == 14u,
+                           "D-125: the overlay sprite is 14 rows");
+                    for (uint32_t r = 0; r < rows; r++)
+                        for (uint32_t c = 0; c < 16u; c++) {
+                            /* descriptor law: four column blocks of rows*4 */
+                            uint8_t v = bank[off + (c & 3u) * rows * 4u +
+                                             r * 4u + (c >> 2)];
+
+                            if (!v) continue;
+                            ink++;
+                            if (page[(uint32_t)(py + (int32_t)r) * 320u +
+                                     (uint32_t)(px + (int32_t)c)] != v)
+                                wrong++;
+                        }
+                    _check(ink > 20u && wrong == 0u,
+                           "D-125: the overlay is drawn at the frame's offset");
+                }
+                object_set_player(-1);
+            }
             object_publish_bank(NULL, 0u);
         }
         free(bank);
@@ -6049,6 +6147,60 @@ int main(int argc, char **argv)
         }
         s0[0x10] = 0xFFu;
         s0[0x11] = 0xFFu; /* back off */
+    }
+
+    /* 10b. D-129 (closed 2026-11-05): 1000:5310/0x532F fill the 0x649A TER
+     * slot from an 0xAF+0xB0 tile pair, and update_world's second call
+     * (1000:80C0 -> 1000:C7A0/0xC7A9) patrols it between the two cells.
+     * Level 4 has 0xAF at (14,12) = (224,192) and 0xB0 at (23,13) =
+     * (368,208). */
+    if (level_load(4) == 0) {
+        uint8_t *s0 = object_ter_slot_at(0u);
+        uint8_t *s1 = object_ter_slot_at(1u);
+
+        _check(s0 && rd_le_u16(s0 + 0x10u) == 0u,
+               "D-129: the 0xAF tile enables TER slot 0 (clears +0x10)");
+        _check(s0 && rd_le_u16(s0 + 0x0u) == 224u &&
+                   rd_le_u16(s0 + 0x2u) == 192u &&
+                   rd_le_u16(s0 + 0x4u) == 224u && rd_le_u16(s0 + 0x6u) == 192u,
+               "D-129: the slot starts at the 0xAF cell");
+        _check(s0 && rd_le_u16(s0 + 0x8u) == 368u &&
+                   rd_le_u16(s0 + 0xAu) == 208u,
+               "D-129: the 0xB0 cell is the secondary target (+8/+0xA)");
+        _check(s1 && rd_le_u16(s1 + 0x10u) == 0xFFFFu,
+               "D-129: a level with no 0xB1 leaves slot 1 disabled");
+        /* the wiring: the world frame runs it (1000:80C0), so driving the
+         * start chain moves the slot without calling the tick by hand */
+        {
+            uint32_t moved = 0;
+
+            for (uint32_t i = 0; i < 400u && !moved; i++) {
+                level_begin();
+                level_tick();
+                palette_tick();
+                if (level_loading_screen()) level_loading_tick();
+                if (s0 && rd_le_u16(s0 + 0x0u) != 224u) moved = 1;
+            }
+            _check(moved != 0u,
+                   "D-129: the world frame advances the slot (1000:80C0)");
+        }
+        /* the interpolation itself, on a fresh slot */
+        if (level_load(4) == 0 && s0) {
+            object_camera_slots_tick();
+            _check(rd_le_u16(s0 + 0x0u) == 225u && rd_le_u16(s0 + 0x2u) == 193u,
+                   "D-129: one tick steps one pixel on both axes");
+            _check(rd_le_u16(s0 + 0xCu) == 6u,
+                   "D-129: the first +0xE wrap bumps the +0xC sprite index");
+            for (uint32_t i = 0; i < 143u; i++) object_camera_slots_tick();
+            _check(rd_le_u16(s0 + 0x0u) == 368u && rd_le_u16(s0 + 0x2u) == 208u,
+                   "D-129: 144 ticks reach the 0xB0 cell");
+            object_camera_slots_tick(); /* arrives: the phase toggles */
+            _check(rd_le_u16(s0 + 0x10u) == 0x00FFu,
+                   "D-129: arrival toggles +0x10's low byte");
+            object_camera_slots_tick();
+            _check(rd_le_u16(s0 + 0x0u) == 367u && rd_le_u16(s0 + 0x2u) == 207u,
+                   "D-129: the next frame patrols back toward 0xAF");
+        }
     }
 
     /* 9. menu_loop's MAP screen: the card loads, the high-score insert runs

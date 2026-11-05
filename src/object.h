@@ -70,6 +70,10 @@ void object_ter_slot_init(void);
 uint8_t *object_ter_slot_at(uint32_t i); /* NULL past the two slots */
 void object_publish_ter(const uint8_t *bank, uint32_t size);
 void object_render_ter(uint8_t *page, int32_t scrollX, int32_t scrollY);
+/* 1000:C7A0: the two 0x649A TER slots' patrol/interpolation (update_world's
+ * second call).  The handlers of the 0xAF+0xB0 / 0xB1+0xB2 tile pairs fill
+ * them; a disabled slot (bit 15 of +0x10) does nothing. */
+void object_camera_slots_tick(void);
 uint8_t *object_slot(uint32_t i); /* NULL past object_slots()      */
 uint32_t object_slots(void);
 uint32_t object_frame_slots(void); /* the sprite table bound (0x11E) */
