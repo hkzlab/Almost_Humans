@@ -57,6 +57,7 @@ enum {
     MAP_CONGRATS,
     MAP_NAME_FADE,
     MAP_NAME,
+    MAP_LIST_HEADER,
     MAP_LIST,
     MAP_EXIT
 };
@@ -102,8 +103,42 @@ static int32_t _map_step_dir; /* +1 = up (0x060C), -1 = down (0x05ED) */
 static uint32_t _map_congrats_draws;
 /* 1000:028C..030A: the name-entry transition's fade/rectangle steps. */
 static uint32_t _map_trans; /* 0..6; 6 = the ring is up */
+#define MAP_FADE_LOG 16u
 static uint32_t _map_fade_starts; /* the palette_build_fade calls made */
-static struct MapFade _map_fade_log[8];
+static struct MapFade _map_fade_log[MAP_FADE_LOG];
+/* the 0x48BC ramp: zeroed = black, the opening's 0x0239 target. */
+static const uint8_t _map_black[768];
+
+/* 1000:021E..0x0285: the opening's fade/animate steps. */
+#define MAP_INTRO_WAIT 4u
+static uint32_t _map_intro;
+/* the top-ten list's 0x0518 header frames (the 15 outlines) before 0x0577. */
+static uint32_t _map_list_step;
+
+/* 1000:048/0x04A: the ring angle and its per-draw step.  `_map_col` is the
+ * cell index derived from the angle (`(0x10E - angle) / 0x0C`). */
+static uint32_t _map_angle;
+static uint32_t _map_angle_step;
+static int32_t _map_spin; /* frames left in the entry spin (20 + 3) */
+
+/* 1000:0CBE's display list at [0x596]: {target x,y, current x,y}. */
+struct MapGlyph {
+    int32_t tx, ty;
+    int32_t cx, cy;
+};
+static struct MapGlyph _map_glyphs[NAME_MAX];
+
+/* 1000:0A1A/0A1C/0A1E: the double-buffered cell list.  Each entry is the
+ * mode-X byte address of one 11-row x 4-byte cell; 0x0BB0 clears the previous
+ * frame's list (bit 5 of each pixel), then 0x0CBE swaps the two. */
+#define MAP_DIRTY_MAX 64u
+static uint32_t _map_dirty[2][MAP_DIRTY_MAX];
+static uint32_t _map_dirty_n[2];
+static uint32_t _map_dirty_cur;
+static uint32_t _map_dirty_prev;
+/* the frame source is the offscreen page at 1000:0874's DS, [0x8A4], not the
+ * display it writes: snapshot it so the five bands never sample each other. */
+static uint8_t _map_frame_src[MAP_PAGE];
 
 /* --- the letter wheel: ALPHA.SPR + rotate_spinner_cell -------------------
  *
@@ -124,16 +159,19 @@ static struct MapFade _map_fade_log[8];
  *
  * `sin` is the 360-entry Q14 table at DS:0xB8 shifted right 14, so the radii
  * are 66 px and 62 rows: the ring is centred at px 156 / row 77, and the
- * `+0x0C` skips the file's 12-byte prologue.  The band table at DS:0xA8 is all
- * zeros in the image and nothing writes it, so `byte[0xA8 + (a+0x16)/45]` (the
- * `SHL AX,3` term) is zero.  Each cell is 16 rows x 4 bytes at a page stride of
- * 0x50 (80) - the map page has no overscan, unlike the level's 88.
+ * `+0x0C` skips the first 3 rows of each 0x40-byte cell (1000:0F8F draws 11
+ * rows = 44 MOVSBs).  The band table at DS:0xA8 is all zeros in the image and
+ * nothing writes it, so `byte[0xA8 + (a+0x16)/45]` (the `SHL AX,3` term) is
+ * zero.  Each cell is 11 rows x 4 bytes at a page stride of 0x50 (80) - the
+ * map page has no overscan, unlike the level's 88.
  *
  * The source byte's four bits are the four pixels of its 4-px group (the plane
- * passes write the same byte to all four planes, so the bits agree); a set bit
- * is 0x0F and a clear one leaves the page untouched.  The `BP & 3` plane picks
- * which of the four pre-shifted copies of the letter is used - that is what
- * gives the ring its sub-pixel horizontal placement.
+ * passes write the same byte to all four planes, so the bits agree).
+ * `1000:0F8F` sets write mode 2 + Data Rotate OR + Bit Mask 0x20, so a set bit
+ * ORs 0x20 into its pixel (the 0x20 colour bank) and a clear one leaves the
+ * page untouched; `1000:0BB0` clears bit 5 of the previous frame's cells.  The
+ * `BP & 3` plane picks which of the four pre-shifted copies of the letter is
+ * used - that is what gives the ring its sub-pixel horizontal placement.
  */
 
 /* the 360-entry Q14 sine table at DS:0xB8 (the image's exact values) */
@@ -189,29 +227,24 @@ static const int16_t _alpha_sin[360] = {
  * 6080-byte band (76 rows of 320 px) four planes deep.
  *
  * `draw_box_edges` (`1000:07E6`) then draws the five box frames.  Its source
- * row is `[0x8AE]` and the sheet is exactly **304 rows of 80 bytes** = BAND's
- * size, which is why the entry animation can run `[0x8AE]` from `0x130` (304)
- * down to 2.  Each frame makes five `vga_blit_row` (`1000:0874`) calls:
+ * is the offscreen page at `[0x8A4]` (`1000:0874` sets `DS = [0x8A4]`), read
+ * at `[0x8AE]*80 + 6`; the 304-row range is why the entry animation runs
+ * `[0x8AE]` from `0x130` (304) down to 2.  Each frame makes five
+ * `vga_blit_row` (`1000:0874`) calls:
  *
  *   dest   = { 0xE66, 0x14A6, 0x1AE6, 0x2126, 0x2766 }   (rows 46/66/86/106/126, col 6)
- *   mask   = { 0xA0,  0xB0,   0xE0,   0xF0,   0x30 }     (the GDC Bit Mask)
- *   source = [0x8AE]*80 + 6, plus 0x640 (20 rows) per call
+ *   mask   = { 0xA0,  0xB0,   0xE0,   0xF0,   0x30 }     (the GC Bit Mask)
+ *   source = page + [0x8AE]*80 + 6, plus 0x640 per call
  *
- * and `vga_blit_row` copies 14 iterations of `4 / +7 / 24 / +9 / 16 / +0xE`
- * MOVSB runs (74 destination bytes per iteration) with `Bit Mask = CH`, i.e.
- * each of the five rows writes only part of each byte's pixels and the five
- * together build the frame.
+ * and `vga_blit_row` copies 14 iterations of `4 / +7 / 31 / +9 / 15 / +0xE`
+ * MOVSB runs (80 byte addresses per iteration) with write mode 2 and
+ * `Bit Mask = CH`: source bits 0..3 drive the four pixels, and the mask
+ * selects the colour bits written (the rest come from the latch), so the
+ * frame tints the page's own text/art instead of overwriting it.
  *
  * The five frame blocks and `[0x8A2]` (1..6): each step is 0x14 frames of
  * `[0x8AE]` moving one unit per frame (`1000:05F4`/`0613`), so the band
  * scrolls through the fixed frame windows rather than changing contents.
- *
- * deviation: the original's destination is `A000:0xC000` in a four-plane page
- * the port does not model; the band is drawn as the same 76-row, 320-px layer
- * at the page origin, and the Bit Mask's bits 4..7 - which are pixels 0..3 of
- * a byte in this page's 4-px-per-byte layout - select which pixels of the
- * group a row writes.  The row positions, the run structure, the masks, the
- * source offsets and the animation are the listing's.
  */
 static uint8_t *_band_sheet; /* apl\band.spr: 304 rows x 80 bytes      */
 
@@ -298,17 +331,86 @@ void alpha_expand(const uint8_t *src, uint8_t *dst)
 }
 
 /**
- * @brief Splat one nibble as four page pixels.
+ * @brief OR the colour-5 overlay of a cell byte into four page pixels.
+ *
+ * `queue_dirty_job` (1000:0F8F) sets GC write mode 2, Bit Mask 0x20 and Data
+ * Rotate = OR (0x10), so source bit p writes plane p's bit 5 and leaves every
+ * other bit from the latch: a set bit gives `pixel | 0x20`, a clear one leaves
+ * the pixel untouched.  This is the 0x20 colour bank the ring/name use.
  *
  * @param page the page buffer
  * @param px the x position
  * @param py the y position
- * @param v the nibble
+ * @param v the nibble (one bit per pixel)
  */
 static void _splat_four(uint8_t *page, uint32_t px, uint32_t py, uint32_t v)
 {
     for (uint32_t bit = 0; bit < 4u; bit++)
-        if ((v >> bit) & 1u) page[py * 320u + px + bit] = 0x0Fu;
+        if ((v >> bit) & 1u) page[py * 320u + px + bit] |= 0x20u;
+}
+
+/** @brief Record one cell destination in the frame's list ([0x1A1A] cursor).
+ *
+ * @param dst the mode-X byte address
+ */
+static void _map_dirty_add(uint32_t dst)
+{
+    uint32_t n = _map_dirty_n[_map_dirty_cur];
+
+    if (n < MAP_DIRTY_MAX) {
+        _map_dirty[_map_dirty_cur][n] = dst;
+        _map_dirty_n[_map_dirty_cur] = n + 1u;
+    }
+}
+
+/** @brief 1000:0BB0 clear_dirty_rects: clear bit 5 of the previous frame's
+ * cells (11 rows x 4 byte addresses each, the same footprint as the draw).
+ *
+ * @param page the page buffer
+ */
+static void _map_dirty_clear(uint8_t *page)
+{
+    const uint32_t *list = _map_dirty[_map_dirty_prev];
+    uint32_t n = _map_dirty_n[_map_dirty_prev];
+
+    if (!page) return;
+    for (uint32_t i = 0; i < n; i++) {
+        uint32_t dst = list[i];
+
+        for (uint32_t r = 0; r < 11u; r++)
+            for (uint32_t c = 0; c < 4u; c++) {
+                uint32_t a = (dst + r * 80u + c) & 0xFFFFu;
+                uint32_t row = a / 80u, col = a % 80u;
+
+                if (row >= 200u) continue;
+                for (uint32_t p = 0; p < 4u; p++)
+                    page[row * 320u + col * 4u + p] &= (uint8_t)~0x20u;
+            }
+    }
+}
+
+/** @brief 1000:0CBE's opening: clear the previous list and swap the buffers.
+ *
+ * @param page the page buffer
+ */
+static void _map_dirty_begin(uint8_t *page)
+{
+    uint32_t fill;
+
+    _map_dirty_clear(page);
+    fill = _map_dirty_prev;
+    _map_dirty_prev = _map_dirty_cur;
+    _map_dirty_cur = fill;
+    _map_dirty_n[fill] = 0u;
+}
+
+/** @brief Reset both cell lists (screen entry; nothing to erase yet).
+ */
+static void _map_dirty_reset(void)
+{
+    _map_dirty_n[0] = _map_dirty_n[1] = 0u;
+    _map_dirty_cur = 0u;
+    _map_dirty_prev = 1u;
 }
 
 /** @brief 1000:119F cos_scaled (angle + 0x5A, wrapped) / 1000:11AA sin_scaled:
@@ -352,9 +454,9 @@ void alpha_cell(uint32_t cell, uint32_t angle, uint32_t *src, uint32_t *dst)
     *src = (cell * 0x40u + 0x0Cu + (bp & 3u) * 0x4000u) & 0xFFFFu;
 }
 
-/** @brief one 16x4-byte cell at page byte `dst`.  The four plane passes write the same
- * bytes to all four planes, so a byte's four bits are the four pixels of its
- * group: bit k set -> the pixel is 0x0F, clear -> untouched (transparent).
+/** @brief one 16x4-byte cell at page byte `dst`: 11 rows, the listing's 44
+ * MOVSBs (1000:0F8F).  The source's four bits are the four pixels of its
+ * 4-px group; a set bit ORs 0x20 and a clear one leaves the pixel.
  *
  * @param page the page buffer
  * @param src the source buffer
@@ -362,7 +464,7 @@ void alpha_cell(uint32_t cell, uint32_t angle, uint32_t *src, uint32_t *dst)
  */
 static void _alpha_blit_cell(uint8_t *page, uint32_t src, uint32_t dst)
 {
-    for (uint32_t r = 0; r < 16u; r++) {
+    for (uint32_t r = 0; r < 11u; r++) {
         uint32_t at = (dst + r * 80u) & 0xFFFFu;
 
         for (uint32_t c = 0; c < 4u; c++) {
@@ -377,12 +479,13 @@ static void _alpha_blit_cell(uint8_t *page, uint32_t src, uint32_t dst)
 }
 
 /**
- * @brief Draw the letter wheel.
+ * @brief Draw the 30-cell letter wheel and optionally record its cells.
  *
  * @param page the page buffer
- * @param base the base offset
+ * @param base the ring angle ([0x48])
+ * @param record non-zero to add each cell address to the dirty list
  */
-void alpha_draw_wheel(uint8_t *page, uint32_t base)
+static void _map_wheel_draw(uint8_t *page, uint32_t base, int32_t record)
 {
     if (!page || !_alpha_sheet) return;
     for (uint32_t i = 0; i < 30u; i++) {
@@ -390,56 +493,142 @@ void alpha_draw_wheel(uint8_t *page, uint32_t base)
 
         alpha_cell(i, (base + i * 0x0Cu) % 0x168u, &src, &dst);
         _alpha_blit_cell(page, src, dst);
+        if (record) _map_dirty_add(dst);
     }
 }
 
-/** @brief 1000:0CBE init_display_lists' name pass: the typed characters at row 0x45,
- * 9 px apart, x centred as `-8 - ((len*9 - 1)/2 - 0xA0)`, each glyph drawn
- * through queue_dirty_job (0x0F8F): dest = y*80 + 0xF0 + x/4, source =
- * column*0x40 + 0xC + (x&3)*0x4000.
+/**
+ * @brief Draw the letter wheel.
+ *
+ * @param page the page buffer
+ * @param base the base offset
+ */
+void alpha_draw_wheel(uint8_t *page, uint32_t base)
+{ _map_wheel_draw(page, base, 0); }
+
+/** @brief 1000:0CBE's name target x for `len` characters: 9 px apart, the run
+ * centred on 0xA0, `-8 - ((len*9 - 1)/2 - 0xA0)`.
+ *
+ * @param len the name length
+ * @return the first target x
+ */
+static int32_t _map_name_target_x(uint32_t len)
+{ return (int32_t)(-8 - (int32_t)(((int32_t)(len * 9u) - 1) / 2 - 0xA0)); }
+
+/**
+ * @brief One name glyph through queue_dirty_job: dest = y*80 + 0xF0 + x/4,
+ * source = column*0x40 + 0xC + (x&3)*0x4000.
+ *
+ * @param page the page buffer
+ * @param c the character
+ * @param x the current x
+ * @param y the current y
+ * @param record non-zero to add the address to the dirty list
+ * @return 1 when the character has a cell
+ */
+static int32_t _map_glyph_draw(uint8_t *page, char c, int32_t x, int32_t y,
+                               int32_t record)
+{
+    uint32_t col, src, dst;
+
+    if (c == ' ') col = 0x1Au;
+    else if (c == '.') col = 0x1Bu;
+    else if (c >= 'A' && c <= 'Z') col = (uint32_t)(c - 'A');
+    else return 0;
+    src = col * 0x40u + 0x0Cu + ((uint32_t)x & 3u) * 0x4000u;
+    dst = (uint32_t)(y + 3) * 80u + ((uint32_t)x >> 2);
+    _alpha_blit_cell(page, src, dst);
+    if (record) _map_dirty_add(dst);
+    return 1;
+}
+
+/** @brief 1000:0CBE init_display_lists' name pass, stateless: the typed
+ * characters at their final row-0x45 slots.
  *
  * @param page the page buffer
  * @param name the name
  */
 void alpha_draw_name(uint8_t *page, const char *name)
 {
-    uint32_t len = 0, x;
+    uint32_t len = 0;
+    int32_t x;
 
     while (name && name[len]) len++;
     if (!page || !_alpha_sheet || !len) return;
-    x = (uint32_t)(-8 - (int32_t)(((int32_t)(len * 9u) - 1) / 2 - 0xA0));
+    x = _map_name_target_x(len);
     for (uint32_t i = 0; i < len; i++) {
-        uint32_t c = (uint8_t)name[i];
-        uint32_t col;
+        _map_glyph_draw(page, name[i], x, 0x45, 0);
+        x += 9;
+    }
+}
 
-        if (c == ' ') col = 0x1Au;
-        else if (c == '.') col = 0x1Bu;
-        else if (c >= 'A' && c <= 'Z') col = c - 'A';
-        else {
-            x += 9u;
-            continue;
-        }
-        _alpha_blit_cell(page, col * 0x40u + 0x0Cu + (x & 3u) * 0x4000u,
-                         0x45u * 80u + 0xF0u + (x >> 2));
-        x += 9u;
+/** @brief One ≤4-px step of `current` toward `target` (1000:0D32..0x0D76).
+ *
+ * @param cur the current coordinate
+ * @param target the target coordinate
+ * @return the advanced coordinate
+ */
+static int32_t _map_step_toward(int32_t cur, int32_t target)
+{
+    int32_t d = target - cur;
+
+    if (d > 4) d = 4;
+    else if (d < -4) d = -4;
+    return cur + d;
+}
+
+/**
+ * @brief 1000:0CBE's name pass: refresh each target, advance the display
+ * list's current positions by ≤4 px and draw the glyphs there.
+ *
+ * @param page the page buffer
+ * @param record non-zero to add each glyph address to the dirty list
+ */
+static void _map_name_draw(uint8_t *page, int32_t record)
+{
+    uint32_t len = 0;
+    int32_t x;
+
+    while (_map_name[len]) len++;
+    if (len > NAME_MAX) len = NAME_MAX;
+    if (!page || !_alpha_sheet || !len) return;
+    x = _map_name_target_x(len);
+    for (uint32_t i = 0; i < len; i++) {
+        _map_glyphs[i].tx = x;
+        _map_glyphs[i].ty = 0x45;
+        _map_glyphs[i].cx =
+            _map_step_toward(_map_glyphs[i].cx, _map_glyphs[i].tx);
+        _map_glyphs[i].cy =
+            _map_step_toward(_map_glyphs[i].cy, _map_glyphs[i].ty);
+        _map_glyph_draw(page, _map_name[i], _map_glyphs[i].cx,
+                        _map_glyphs[i].cy, record);
+        x += 9;
     }
 }
 
 /**
- * @brief Write the masked four pixels of one sheet byte.
+ * @brief Write the masked four pixels of one page byte.
+ *
+ * 1000:0874 blits with GC write mode 2, Map Mask 0x0F and Bit Mask = the
+ * box's mask, Data Rotate = replace.  Write mode 2 sends source bits 0..3 to
+ * planes 0..3 (the four pixels of a page byte), and the Bit Mask picks which
+ * colour bits are written; the rest come from the latch.  So pixel p gets its
+ * mask bits set when source bit p is 1 and cleared when it is 0.
  *
  * @param page the page buffer
  * @param row the row
  * @param col the column
- * @param v the sheet byte
- * @param mask the mask
+ * @param v the source byte
+ * @param mask the Bit Mask
  */
 static void _blit_four(uint8_t *page, uint32_t row, uint32_t col, uint32_t v,
                        uint32_t mask)
 {
-    for (uint32_t j = 0; j < 4u; j++)
-        if (((mask >> (4u + j)) & 1u) && ((v >> j) & 1u))
-            page[row * 320u + col * 4u + j] = 0x0Fu;
+    for (uint32_t p = 0; p < 4u; p++) {
+        uint8_t *px = &page[row * 320u + col * 4u + p];
+
+        *px = (uint8_t)((*px & (uint8_t)~mask) | (((v >> p) & 1u) ? mask : 0u));
+    }
 }
 
 /**
@@ -457,7 +646,7 @@ static void _blit_runs(uint8_t *page, uint32_t *d, uint32_t *s, uint32_t mask)
 
     for (uint32_t k = 0; k < 3u; k++) {
         for (uint32_t n = 0; n < runs[k]; n++) {
-            uint32_t v = _band_sheet[(*s % 24320u)];
+            uint32_t v = (*s < MAP_PAGE) ? _map_frame_src[*s] : 0u;
             uint32_t row = (*d / 80u), col = (*d % 80u);
 
             if (row < 200u) _blit_four(page, row, col, v, mask);
@@ -486,10 +675,15 @@ static void _map_blit_row(uint8_t *page, uint32_t dstByte, uint32_t srcByte,
 }
 
 /**
- * @brief 1000:07E6: the five frame rows from sheet row `[0x8AE]`.
+ * @brief 1000:07E6: the five frame bands from page row `[0x8AE]`.
+ *
+ * The source is the offscreen page (`1000:0874` sets `DS = [0x8A4]`, the
+ * high.bit/score page), not the band sheet: the bands sample the page's own
+ * bytes at `[0x8AE]*80 + 6`.  The display is a different buffer in the
+ * original, so snapshot the page first (the port draws into the same buffer).
  *
  * @param page the page buffer
- * @param row the row
+ * @param row the source row ([0x8AE])
  */
 void map_draw_box_edges(uint8_t *page, uint32_t row)
 {
@@ -498,7 +692,8 @@ void map_draw_box_edges(uint8_t *page, uint32_t row)
     static const uint32_t mask[5] = { 0xA0u, 0xB0u, 0xE0u, 0xF0u, 0x30u };
     uint32_t src = row * 80u + 6u;
 
-    if (!page || !_band_sheet) return;
+    if (!page) return;
+    memcpy(_map_frame_src, page, MAP_PAGE);
     for (uint32_t i = 0; i < 5u; i++) {
         _map_blit_row(page, dstByte[i], src, mask[i]);
         src += 0x640u; /* ADD SI,0x640 */
@@ -742,6 +937,45 @@ uint32_t map_name_fire_wait_for_probe(void) { return _map_fire_wait; }
  */
 const char *map_name_for_probe(void) { return _map_name; }
 
+/** @brief Accessor: the opening step (the test seam).
+ *
+ * @return the 1000:021E..0x0285 step
+ */
+uint32_t map_intro_step_for_probe(void) { return _map_intro; }
+
+/** @brief Accessor: the ring angle [0x48] (the test seam).
+ *
+ * @return the angle
+ */
+uint32_t map_name_angle_for_probe(void) { return _map_angle; }
+
+/** @brief Set the ring angle (the test seam for the erase check).
+ *
+ * @param angle the new [0x48]
+ */
+void map_name_set_angle_for_probe(uint32_t angle)
+{ _map_angle = angle % 0x168u; }
+
+/** @brief Accessor: one typed-name display entry (the test seam).
+ *
+ * @param i the glyph index
+ * @param tx the target x
+ * @param ty the target y
+ * @param cx the current x
+ * @param cy the current y
+ * @return 1 when the index exists
+ */
+int32_t map_glyph_for_probe(uint32_t i, int32_t *tx, int32_t *ty, int32_t *cx,
+                            int32_t *cy)
+{
+    if (i >= NAME_MAX) return 0;
+    if (tx) *tx = _map_glyphs[i].tx;
+    if (ty) *ty = _map_glyphs[i].ty;
+    if (cx) *cx = _map_glyphs[i].cx;
+    if (cy) *cy = _map_glyphs[i].cy;
+    return 1;
+}
+
 /** @brief Accessor: the staging page is filled (the test seam).
  *
  * @return 1 when ready
@@ -762,7 +996,8 @@ uint8_t map_stage_at(uint32_t addr, uint32_t plane)
 
 /** @brief draw_score_block (1000:0651): the rank is centred at x=0x20, the name at
  * x=0x82, the 32-bit score at x=0x102, row pitch [0x36]=0x14 from base
- * [0x38]=0; the header is blit_text_tile at x=0xA0, y=0x14.
+ * [0x38]=0.  `1000:0577` clears the page first, so the final list has no
+ * header and no high.bit behind it.
  *
  * @param page the page buffer
  */
@@ -770,7 +1005,8 @@ void map_draw_list(uint8_t *page)
 {
     uint32_t row = 0u;
 
-    textpage_draw_line_mask_at(page, "THE TOP TEN TRIBES", 0xA0u, 0x14u, 0x20u);
+    if (!page) return;
+    memset(page, 0, MAP_PAGE); /* 1000:0577 */
     for (uint32_t i = 0; i < hiscore_count(); i++) {
         char buf[24];
 
@@ -781,6 +1017,25 @@ void map_draw_list(uint8_t *page)
         textpage_draw_line_mask_at(page, buf, 0x102u, row, 0x0Fu);
         row += 0x14u;
     }
+}
+
+/** @brief 1000:0518's header frames: the five `0x0B5F` calls (15 outlines at
+ * y = 0x2D + 0x14*i, x = 0x12/0x32/0xD6) and the title at 0xA0/0x14.  The
+ * page is then cleared at 0x0577, so these only live on the transition.
+ *
+ * @param page the page buffer
+ */
+void map_draw_list_header(uint8_t *page)
+{
+    if (!page) return;
+    for (uint32_t i = 0; i < 5u; i++) {
+        uint32_t y = 0x2Du + 0x14u * i;
+
+        map_draw_rect(page, 0x12u, y, 0x1Cu, 0x0Fu); /* 1000:0B5F */
+        map_draw_rect(page, 0x32u, y, 0xA0u, 0x0Fu);
+        map_draw_rect(page, 0xD6u, y, 0x58u, 0x0Fu);
+    }
+    textpage_draw_line_mask_at(page, "THE TOP TEN TRIBES", 0xA0u, 0x14u, 0x20u);
 }
 
 /**
@@ -850,12 +1105,33 @@ uint32_t map_fade_starts(void) { return _map_fade_starts; }
 int32_t map_fade_at(uint32_t i, uint32_t *first, uint32_t *entries,
                     uint32_t *div, uint32_t *target)
 {
-    if (i >= _map_fade_starts || i >= 8u) return 0;
+    if (i >= _map_fade_starts || i >= MAP_FADE_LOG) return 0;
     if (first) *first = _map_fade_log[i].first;
     if (entries) *entries = _map_fade_log[i].entries;
     if (div) *div = _map_fade_log[i].div;
     if (target) *target = _map_fade_log[i].target;
     return 1;
+}
+
+/** @brief Build a fade to an arbitrary target and log it.
+ *
+ * @param first the first entry
+ * @param entries the entry count
+ * @param div the divisor
+ * @param target the target palette
+ * @param targetId the logged target id
+ */
+static void _map_build_fade_to(uint32_t first, uint32_t entries, uint32_t div,
+                               const uint8_t *target, uint32_t targetId)
+{
+    palette_build_fade(first, entries, div, target);
+    if (_map_fade_starts < MAP_FADE_LOG) {
+        _map_fade_log[_map_fade_starts].first = first;
+        _map_fade_log[_map_fade_starts].entries = entries;
+        _map_fade_log[_map_fade_starts].div = div;
+        _map_fade_log[_map_fade_starts].target = targetId;
+    }
+    _map_fade_starts++;
 }
 
 /** @brief 1000:0273/028C/029B/02AD/02BF/02F5/0307: palette_build_fade with the
@@ -869,41 +1145,44 @@ int32_t map_fade_at(uint32_t i, uint32_t *first, uint32_t *entries,
 static void _map_build_fade(uint32_t first, uint32_t entries, uint32_t div,
                             uint32_t targetOff)
 {
-    palette_build_fade(first, entries, div, palette_working() + targetOff);
-    if (_map_fade_starts < 8u) {
-        _map_fade_log[_map_fade_starts].first = first;
-        _map_fade_log[_map_fade_starts].entries = entries;
-        _map_fade_log[_map_fade_starts].div = div;
-        _map_fade_log[_map_fade_starts].target = targetOff;
-    }
-    _map_fade_starts++;
+    _map_build_fade_to(first, entries, div, palette_working() + targetOff,
+                       targetOff);
 }
 
 /**
- * @brief Draw the typed name ring.
+ * @brief 1000:0CBE: clear the previous frame's cells, draw the 30-cell ring at
+ * the current angle and the typed name at its display-list positions.
  *
  * @param page the page buffer
  */
 void map_draw_name(uint8_t *page)
 {
-    /* 1000:0CBE: the 30-cell ring from apl\alpha.spr, then the typed name in
-     * the same glyph cells (row 0x45, 9 px apart).  The original draws no
-     * `NAME:` label and no top-ten list on this screen. */
-    alpha_draw_wheel(page, (uint32_t)(0x10Eu - _map_col * 0x0Cu) % 0x168u);
-    alpha_draw_name(page, _map_name);
+    if (!page) return;
+    _map_dirty_begin(page);
+    _map_wheel_draw(page, _map_angle, 1);
+    _map_name_draw(page, 1);
 }
 
-/** @brief 1000:02C5 / 1000:0B85: the page is reset to HIGH.BIT whenever the screen
- * changes (the congratulations page is not left under the name ring).
+/** @brief 1000:0B85: the page is reset to HIGH.BIT.
+ *
+ * @param page the page buffer
+ */
+static void _map_page_copy(uint8_t *page)
+{
+    if (!page) return;
+    memset(page, 0, MAP_PAGE);
+    if (_map_high)
+        memcpy(page, _map_high,
+               _map_high_size < MAP_PAGE ? _map_high_size : MAP_PAGE);
+}
+
+/** @brief 1000:02C5: HIGH.BIT plus the band strips' palette reset.
  *
  * @param page the page buffer
  */
 static void _map_page_reset(uint8_t *page)
 {
-    memset(page, 0, MAP_PAGE);
-    if (_map_high)
-        memcpy(page, _map_high,
-               _map_high_size < MAP_PAGE ? _map_high_size : MAP_PAGE);
+    _map_page_copy(page);
     /* 1000:0221/0x02E6: the band strips sit under the art that follows. */
     if (_map_stage_ready) map_palette_reset();
 }
@@ -916,10 +1195,11 @@ static void _map_redraw(void)
     uint8_t *page = video_page(0);
 
     if (!page) return;
-    if (_map_phase == MAP_CONGRATS) map_draw_congrats(page);
-    else if (_map_phase == MAP_NAME) map_draw_name(page);
-    else if (_map_phase == MAP_LIST) map_draw_list(page);
-    if (_map_phase == MAP_LIST) map_draw_box_edges(page, g_map_box_bottom);
+    if (_map_phase == MAP_NAME) map_draw_name(page);
+    else if (_map_phase == MAP_LIST) {
+        map_draw_list(page);
+        map_draw_box_edges(page, g_map_box_bottom);
+    }
 }
 
 /**
@@ -934,11 +1214,8 @@ int32_t map_begin(void)
     res_set_disc(0u); /* entry 0x151A [0xF7E]=0 */
     _map_high = res_load_chunk("LBM\\HIGH.BIT", &_map_high_size, NULL);
     uint8_t *page = video_page(0);
-    _map_page_reset(page);
-    if (_map_high && _map_high_size >= MAP_PAGE + 768u) {
+    if (_map_high && _map_high_size >= MAP_PAGE + 768u)
         palette_load_working(_map_high + MAP_PAGE); /* 1000:01C3/8D24 */
-        palette_set_dac(_map_high + MAP_PAGE, 0, 256);
-    }
 
     _map_font = res_load_chunk("APL\\TEXT.SPR", NULL, NULL);
     font_publish(_map_font);
@@ -953,53 +1230,91 @@ int32_t map_begin(void)
         _alpha_sheet = calloc(1, 65536u);
         if (_alpha_sheet) alpha_expand(_alpha_packed, _alpha_sheet);
     }
-    /* 1000:01B7: apl\band.spr, the frame's 304 x 80 sheet */
+    /* 1000:01B7: apl\band.spr, the 304 x 80 sheet */
     free(_band_sheet);
     _band_sheet = NULL;
     _band_sheet = res_load_chunk("APL\\BAND.SPR", NULL, NULL);
     _map_stage_ready = 0;
     _map_stage_fill(); /* 1000:12D3 */
-    map_palette_reset(); /* 1000:0221: the strips under the page art */
 
     /* 1000:01CD: the running total is offered to the table.  A qualifying one
      * opens the name entry first, then the list. */
     _map_name[0] = 0;
     _map_name_len = 0u;
     _map_col = 0u;
+    _map_angle = 0x10Eu;
+    _map_angle_step = 0u;
+    _map_spin = 0;
+    memset(_map_glyphs, 0, sizeof _map_glyphs);
+    _map_dirty_reset();
+    _map_fade_starts = 0u;
+    _map_intro = 0u;
+    _map_list_step = 0u;
     g_map_box_bottom = 0x130u; /* 1000:0518's [0x8AE] */
     g_map_panel = 0u; /* 0 = the entry animation */
     _map_step = 0;
     _map_step_dir = 0;
-    /* 1000:01CD: a total that beats none leaves via 0x062B without the list;
-     * a qualifying one gets the congratulation page, then the name entry. */
     _map_phase = hiscore_qualifies(_map_score()) ? MAP_CONGRATS : MAP_EXIT;
-    if (_map_phase == MAP_CONGRATS) _map_congrats_draws = 1;
-    _map_redraw(); /* 1000:024B: first pass */
+    _map_congrats_draws = 0u;
+    if (_map_phase == MAP_CONGRATS) {
+        /* 1000:021E..0x0233: high.bit, the strips, then the band's 0x10..0x1F
+         * colours fade in (the rest of the DAC is still the previous page's). */
+        _map_page_copy(page);
+        map_palette_reset(); /* 0x0221 */
+        _map_build_fade(0x10u, 0x10u, 0x1Eu, 0x30u); /* 0x0224 */
+    }
 
     _map_up = 1;
     _map_armed = 0;
     return 1;
 }
 
+/** @brief 1000:040B..0x0D76: the ring cell at an angle, `(0x10E-angle)/0x0C`.
+ *
+ * @return the cell index (0..29)
+ */
+static uint32_t _map_col_from_angle(void)
+{ return (((0x10Eu + 0x168u - _map_angle) % 0x168u) / 0x0Cu); }
+
+/** @brief 1000:0518's header: high.bit, the 15 outlines and the title.  The
+ * page is cleared at 0x0577 on the next tick before the rows are drawn.
+ */
+static void _map_list_begin(void)
+{
+    uint8_t *page = video_page(0);
+
+    _map_phase = MAP_LIST_HEADER;
+    _map_list_step = 0u;
+    if (!page) return;
+    _map_page_copy(page); /* 0x0526 */
+    map_draw_list_header(page); /* 0x052F..0x054E */
+    if (_map_stage_ready) map_palette_reset(); /* 0x053B */
+}
+
 /**
  * @brief 1000:040B: one grid column applied to the 13-character buffer.
  *
  * @param column the column
+ * @return 1 when Enter committed and the list header is up
  */
-static void _map_apply(uint32_t column)
+static int32_t _map_apply(uint32_t column)
 {
-    uint8_t *page;
+    uint32_t n0 = _map_name_len;
 
     if (hiscore_name_apply(_map_name, column, &_map_name_len)) {
         /* 0x1D: commit the 14-byte name and insert */
         hiscore_insert(_map_score(), _map_name);
-        _map_phase = MAP_LIST;
+        _map_list_begin();
+        return 1;
     }
-    page = video_page(0);
-    if (!page) return;
-    _map_page_reset(page);
-    if (_map_phase == MAP_NAME) map_draw_name(page);
-    else if (_map_phase == MAP_LIST) map_draw_list(page);
+    if (column != 0x1Cu) {
+        /* 1000:0452..0x0459: the new glyph starts at (0x95,0x16). */
+        uint32_t i = n0 < NAME_MAX ? n0 : NAME_MAX - 1u;
+
+        _map_glyphs[i].cx = 0x95;
+        _map_glyphs[i].cy = 0x16;
+    }
+    return 0;
 }
 
 /**
@@ -1035,14 +1350,42 @@ int32_t map_tick(const InputState *in)
         return 0;
     }
     if (_map_phase == MAP_CONGRATS) {
-        if (_map_congrats_draws < 2u) {
-            /* 1000:0251's second iteration; the present at the end of this
-             * tick is flip_page_swap's equivalent in the one-page tick model. */
-            _map_congrats_draws++;
-            _map_redraw();
-            if (_map_congrats_draws == 2u)
-                _map_build_fade(0u, 0x40u, 0x28u, 0u); /* 1000:0273 */
+        /* 1000:021E..0x0285: high.bit + palette_reset + the band's 0x10..0x1F
+         * fade (built in map_begin), 0x8C animates, the 0x20..0x3F fade to
+         * black, high.bit again, the text twice, then the 0..0x3F fade in. */
+        switch (_map_intro) {
+        case 0:
+            if (palette_fade_active()) return 1;
+            for (uint32_t i = 0; i < 0x8Cu; i++)
+                _map_palette_animate(); /* 0x0233 */
+            _map_build_fade_to(0x20u, 0x20u, 2u, _map_black,
+                               0xFFFFu); /* 0x0239 */
+            _map_intro = 1u;
             return 1;
+        case 1: {
+            uint8_t *page = video_page(0);
+
+            if (palette_fade_active()) return 1;
+            _map_page_copy(page); /* 0x024B */
+            map_draw_congrats(page); /* 0x024E, first pass */
+            _map_congrats_draws = 1u;
+            _map_intro = 2u;
+            return 1;
+        }
+        case 2: {
+            uint8_t *page = video_page(0);
+
+            map_draw_congrats(page); /* 0x0251's second pass after the flip */
+            _map_congrats_draws = 2u;
+            _map_build_fade(0u, 0x40u, 0x28u, 0u); /* 0x0273 */
+            _map_intro = 3u;
+            return 1;
+        }
+        case 3:
+            if (palette_fade_active()) return 1;
+            _map_intro = MAP_INTRO_WAIT;
+            return 1;
+        default: break;
         }
         if (in->lastKey || (in->joyBits & 0x80u)) {
             _map_phase = MAP_NAME_FADE; /* 1000:0285: the key wait */
@@ -1084,37 +1427,54 @@ int32_t map_tick(const InputState *in)
         }
         case 4:
             if (palette_fade_active()) return 1;
-            /* 1000:02FB/0307: the last fade starts and the ring goes up
-             * without waiting for it (1000:030A clears [0x5AC8] and falls in). */
+            /* 1000:02FB/030A: the last fade starts and the ring goes up
+             * without waiting for it ([0x5AC8] = 0x23 and the entry spin). */
             _map_build_fade(0x20u, 0x20u, 0x46u, 0x60u);
             _map_trans = 6;
             _map_phase = MAP_NAME;
             _map_fire_wait = 0x23u; /* 1000:030A: [0x5AC8] := 0x23 */
-            _map_redraw();
+            _map_angle = 0x10Eu; /* 1000:0310 */
+            _map_angle_step = 0x12u; /* 1000:0316 */
+            _map_spin = 23; /* 20 stepped draws + the three 0x0330 draws */
+            _map_col = 0u;
+            _map_dirty_reset();
             return 1;
         default:
             _map_phase = MAP_NAME;
             _map_fire_wait = 0x23u;
+            _map_angle = 0x10Eu;
+            _map_angle_step = 0x12u;
+            _map_spin = 23;
             return 1;
         }
     }
 
     if (_map_phase == MAP_NAME) {
+        /* 1000:031C..0x0342: the ring spins one full revolution (20 x 0x12)
+         * and then holds for the three 0x0330 draws. */
+        if (_map_spin > 0) {
+            _map_redraw();
+            if (_map_spin > 3) {
+                _map_angle =
+                    (_map_angle + _map_angle_step) % 0x168u; /* 0x0DF3 */
+            } else {
+                _map_angle_step = 0u; /* 1000:032A */
+            }
+            _map_spin--;
+            _map_col = _map_col_from_angle();
+            return 1;
+        }
         if (_map_fire_wait < 0xFFFFu) _map_fire_wait++; /* the [0x5AC8] tick */
 
-        if (in->joyBits & 0x04u) { /* left  */
-            /* 1000:03B5..0x03D7: [0x48] += 3 x4, redraw (0x0CBE) each step */
-            _map_col = (_map_col + GRID_CELLS - 1u) % GRID_CELLS;
-            _map_redraw();
-            return 1;
-        }
-        if (in->joyBits & 0x08u) { /* right */
-            /* 1000:03DA..0x03F8: [0x48] -= 3 x4, redraw each step */
-            _map_col = (_map_col + 1u) % GRID_CELLS;
-            _map_redraw();
-            return 1;
-        }
-        if (in->lastKey) {
+        int32_t committed = 0;
+
+        if (in->joyBits & 0x04u) { /* left: 1000:03DA, [0x48] -= 3 x4 */
+            _map_angle = (_map_angle + 0x168u - 0x0Cu) % 0x168u;
+            _map_col = _map_col_from_angle();
+        } else if (in->joyBits & 0x08u) { /* right: 1000:03B5, [0x48] += 3 x4 */
+            _map_angle = (_map_angle + 0x0Cu) % 0x168u;
+            _map_col = _map_col_from_angle();
+        } else if (in->lastKey) {
             uint32_t c = in->lastKey;
             uint32_t cell = 0xFFu;
 
@@ -1129,15 +1489,35 @@ int32_t map_tick(const InputState *in)
                  * then falls into the shared append at 0x040B (the typed
                  * path bypasses the fire debounce). */
                 _map_col = cell;
-                _map_apply(cell);
-                return 1;
+                _map_angle = (0x10Eu + 0x168u - cell * 0x0Cu) % 0x168u;
+                committed = _map_apply(cell);
             }
-        }
-        if ((in->joyBits & 0x80u) && _map_fire_wait >= 0x23u) {
+        } else if ((in->joyBits & 0x80u) && _map_fire_wait >= 0x23u) {
             /* 1000:03FB CMP [0x5AC8],0x23 / 0x0405 reset */
             _map_fire_wait = 0u;
-            _map_apply(_map_col);
+            committed = _map_apply(_map_col);
         }
+        if (committed) return 1;
+        _map_redraw(); /* 1000:033C */
+        return 1;
+    }
+
+    if (_map_phase == MAP_LIST_HEADER) {
+        /* 1000:0577: clear the page (the 15 outlines' lifetime ends here),
+         * then 0x0595's rows and the 0x12E-frame box animation. */
+        _map_list_step++;
+        if (_map_list_step == 1u) {
+            _map_redraw(); /* the header page is presented for one frame */
+            return 1;
+        }
+        uint8_t *page = video_page(0);
+
+        if (page) map_draw_list(page); /* 0x0577 + 0x0595 */
+        g_map_box_bottom = 0x130u; /* 0x059B */
+        g_map_panel = 0u;
+        _map_step = 0;
+        _map_step_dir = 0;
+        _map_phase = MAP_LIST;
         return 1;
     }
 

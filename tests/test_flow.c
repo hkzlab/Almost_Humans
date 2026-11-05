@@ -6330,26 +6330,37 @@ int main(int argc, char **argv)
                     if (page[i]) lit++;
                 _check(lit != 0u, "the congratulation page draws text");
             }
-            /* 1000:0251 MOV CX,2: the page is drawn twice with a flip between.
-             * In the one-present-per-tick model the flip is the present at the
-             * end of the tick; wipe the page and require the second pass to
-             * restore it before the key wait. */
-            _check(map_congrats_draws() == 1u,
-                   "1000:024B: the first congratulation pass is drawn");
+            /* D-206 (closed 2026-11-05): the opening chain 1000:021E..0x0285
+             * fades the band's 0x10..0x1F entries in, runs 0x8C animates,
+             * fades 0x20..0x3F to black, re-copies high.bit, draws the text
+             * twice, then fades 0..0x3F in.  Drive map_tick + palette_tick. */
             {
-                uint8_t *pg = (uint8_t *)osys_null_page(0);
-                uint32_t lit = 0;
+                uint32_t guard = 0;
 
-                memset(pg, 0, 320u * 200u);
                 k.lastKey = 0;
-                _check(map_tick(&k) == 1, "the flip tick keeps the page up");
+                while (map_intro_step_for_probe() < 4u && guard++ < 4000u) {
+                    map_tick(&k);
+                    palette_tick();
+                }
+                _check(guard < 4000u && map_intro_step_for_probe() == 4u,
+                       "D-206: the opening fade chain reaches the key wait");
                 _check(map_congrats_draws() == 2u,
-                       "1000:0251: the second congratulation pass is drawn");
-                for (uint32_t i = 0; i < 320u * 200u; i++)
-                    if (pg[i]) lit++;
-                _check(lit != 0u,
-                       "the second pass redraws the page after the flip");
+                       "1000:0251: the two congratulation passes are drawn");
             }
+            {
+                uint32_t f = 0, e = 0, d = 0, t = 0;
+
+                _check(map_fade_at(0u, &f, &e, &d, &t) && f == 0x10u &&
+                           e == 0x10u && d == 0x1Eu && t == 0x30u,
+                       "D-206: 1000:0224 fades the band's 0x10..0x1F in");
+                _check(map_fade_at(1u, &f, &e, &d, &t) && f == 0x20u &&
+                           e == 0x20u && d == 0x02u,
+                       "D-206: 1000:0239 fades 0x20..0x3F to black");
+                _check(map_fade_at(2u, &f, &e, &d, &t) && f == 0x00u &&
+                           e == 0x40u && d == 0x28u && t == 0x00u,
+                       "D-206: 1000:0273 fades the panel in");
+            }
+
             /* 1000:028C..030A: the key starts five palette fades, the
              * HIGH.BIT re-copy and the two rectangles; the ring comes up
              * after the fifth.  Drive map_tick + palette_tick together. */
@@ -6388,9 +6399,61 @@ int main(int argc, char **argv)
                     }
                 }
             }
+            /* D-205 (closed 2026-11-05): 1000:0310..0x0342 spins the ring one
+             * full revolution (20 x 0x12 = 0x168) and then holds for the three
+             * 0x0330 draws before the key loop. */
+            {
+                uint32_t a0 = map_name_angle_for_probe();
+                uint32_t moved = 0;
+
+                _check(a0 == 0x10Eu,
+                       "D-205: the ring starts at the resting angle 0x10E");
+                for (uint32_t i = 0; i < 23u; i++) {
+                    uint32_t before = map_name_angle_for_probe();
+
+                    map_tick(&k);
+                    if (map_name_angle_for_probe() != before) moved++;
+                }
+                _check(moved == 20u && map_name_angle_for_probe() == 0x10Eu,
+                       "D-205: 20 x 0x12 steps return to 0x10E and hold");
+                _check(map_name_col_for_probe() == 0u,
+                       "D-205: the rested ring selects cell 0");
+            }
+            /* D-208 (closed 2026-11-05): 1000:0CBE's two cell lists.  Draw
+             * three angles on a zeroed page; the third draw clears the first
+             * one's cells (the 0x0BB0 footprint), so an A-only pixel is gone. */
+            {
+                static uint8_t pa[320 * 200], pb[320 * 200], pc[320 * 200];
+                static uint8_t page[320 * 200];
+                uint32_t a = 0x10Eu, b = a + 6u, c = a + 0x0Cu;
+                uint32_t idx = 0xFFFFFFFFu;
+
+                memset(pa, 0, sizeof pa);
+                alpha_draw_wheel(pa, a);
+                memset(pb, 0, sizeof pb);
+                alpha_draw_wheel(pb, b);
+                memset(pc, 0, sizeof pc);
+                alpha_draw_wheel(pc, c);
+                for (uint32_t i = 0; i < 320u * 200u; i++)
+                    if (pa[i] && !pb[i] && !pc[i]) {
+                        idx = i;
+                        break;
+                    }
+                memset(page, 0, sizeof page);
+                map_name_set_angle_for_probe(a);
+                map_draw_name(page);
+                map_name_set_angle_for_probe(b);
+                map_draw_name(page);
+                map_name_set_angle_for_probe(c);
+                map_draw_name(page);
+                _check(idx != 0xFFFFFFFFu && page[idx] == 0u,
+                       "D-208: the previous ring cells are erased");
+                map_name_set_angle_for_probe(0x10Eu);
+            }
             /* D-202 (closed 2026-11-05): left/right move the ring cell and
-             * redraw the page (1000:03B5..0x03F8 call 0x0CBE).  The arrival
-             * cell is 0 (the ring is armed at 'A'). */
+             * redraw the page (1000:03B5..0x03F8 call 0x0CBE).  The original
+             * maps left (0x04) to [0x48] -= 3 x4 -> the next cell, right
+             * (0x08) to [0x48] += 3 x4 -> the previous one. */
             {
                 static uint8_t before[320u * 200u];
                 uint32_t c0 = map_name_col_for_probe();
@@ -6399,8 +6462,8 @@ int main(int argc, char **argv)
                 k.lastKey = 0;
                 k.joyBits = 0x08u; /* right */
                 map_tick(&k);
-                _check(map_name_col_for_probe() == (c0 + 1u) % 30u,
-                       "D-202: right moves the ring one cell");
+                _check(map_name_col_for_probe() == (c0 + 29u) % 30u,
+                       "D-202: right spins the ring to the previous cell");
                 _check(memcmp(before, osys_null_page(0), sizeof before) != 0u,
                        "D-202: the ring is redrawn after the move");
                 k.joyBits = 0x04u; /* left */
@@ -6437,6 +6500,15 @@ int main(int argc, char **argv)
             _check(map_name_col_for_probe() == 16u &&
                        map_name_for_probe()[0] == 'Q',
                    "D-201: the typed letter moves the ring and appends");
+            /* D-209 (closed 2026-11-05): the appended glyph starts at
+             * (0x95,0x16) and slides toward row 0x45 by ≤4 px per draw. */
+            {
+                int32_t tx = 0, ty = 0, cx = 0, cy = 0;
+
+                _check(map_glyph_for_probe(0u, &tx, &ty, &cx, &cy) &&
+                           ty == 0x45 && cy > 0x16 && cy < ty && cx < 0x95,
+                       "D-209: the new glyph slides in from (0x95,0x16)");
+            }
             k.lastKey = 'X';
             map_tick(&k);
             k.lastKey = 8u;
@@ -6476,17 +6548,39 @@ int main(int argc, char **argv)
                 {
                     uint32_t n = 0;
 
+                    /* the header's right part ("...TRIBES") reaches x≈0xF0;
+                     * row 1's name ends near 0xB4 and the score starts at
+                     * 0x102, so this window is header-only. */
+                    for (uint32_t r = 4u; r < 14u; r++)
+                        for (uint32_t x = 0xC0u; x < 0xF0u; x++)
+                            if (page[(0x14u + r) * 320u + x]) n++;
+                    _check(n == 0u,
+                           "1000:0577: the cleared list has no header");
+                }
+                /* D-98 (closed 2026-11-05): the 15 outlines live only on the
+                 * 0x0518 header frames, before 0x0577 clears the page. */
+                memset(page, 0, sizeof page);
+                map_draw_list_header(page);
+                {
+                    uint32_t n = 0;
+
                     for (uint32_t r = 4u; r < 14u; r++)
                         for (uint32_t x = 0x80u; x <= 0xC0u; x++)
                             if (page[(0x14u + r) * 320u + x]) n++;
-                    _check(n != 0u, "1000:0518: the header is at (0xA0,0x14)");
+                    _check(n != 0u,
+                           "1000:054E: the list header is at (0xA0,0x14)");
+                    _check((page[0x2Du * 320u + 0x12u] & 0x40u) != 0u &&
+                               (page[0x2Du * 320u + 0x32u] & 0x40u) != 0u &&
+                               (page[0x2Du * 320u + 0xD6u] & 0x40u) != 0u &&
+                               (page[0x7Du * 320u + 0x12u] & 0x40u) != 0u,
+                           "D-98: 1000:0B5F draws the 5 x 3 outlines");
                 }
                 /* 1000:0CBE: the name screen has the wheel and the typed
                  * name only - no list columns, no port-only NAME: line. */
                 memset(page, 0, sizeof page);
                 map_draw_name(page);
                 {
-                    uint32_t low = 0, wide = 0, nameInk = 0;
+                    uint32_t low = 0, wide = 0, ink = 0;
 
                     for (uint32_t y = 160u; y < 200u; y++)
                         for (uint32_t x = 0; x < 320u; x++)
@@ -6494,11 +6588,11 @@ int main(int argc, char **argv)
                     for (uint32_t y = 0; y < 160u; y++)
                         for (uint32_t x = 240u; x < 320u; x++)
                             if (page[y * 320u + x]) wide++;
-                    for (uint32_t y = 69u; y < 86u; y++)
-                        for (uint32_t x = 0; x < 320u; x++)
-                            if (page[y * 320u + x]) nameInk++;
+                    for (uint32_t y = 0; y < 160u; y++)
+                        for (uint32_t x = 0; x < 240u; x++)
+                            if (page[y * 320u + x]) ink++;
                     _check(
-                        low == 0u && wide == 0u && nameInk != 0u,
+                        low == 0u && wide == 0u && ink != 0u,
                         "1000:0CBE: the name screen has no list and no NAME line");
                 }
             }
@@ -6569,6 +6663,22 @@ int main(int argc, char **argv)
                     if (page[i]) lit++;
                 _check(lit == 46u,
                        "the 'A' glyph is 46 pixels of the shipped alpha cell");
+            }
+            /* D-207 (closed 2026-11-05): the cell writes bit 5 only (write
+             * mode 2 + Data Rotate OR + Bit Mask 0x20), so the background's
+             * other bits survive and a clear glyph bit leaves the pixel. */
+            {
+                uint32_t lit = 0, bad = 0;
+
+                memset(page, 0x11, sizeof page);
+                alpha_draw_name(page, "A");
+                for (uint32_t i = 0; i < sizeof page; i++) {
+                    if (page[i] == 0x31u) lit++;
+                    else if (page[i] != 0x11u) bad++;
+                }
+                _check(
+                    lit == 46u && bad == 0u,
+                    "D-207: the glyph ORs 0x20 and preserves the background");
             }
 
             /* the cursor spins the ring: the selected column sits at the top */
@@ -6654,35 +6764,45 @@ int main(int argc, char **argv)
         }
         /* 1000:07E6: the five frame rows, at rows 46/66/86/106/126 (the
          * 0xE66/0x14A6/0x1AE6/0x2126/0x2766 offsets on an 80-byte stride),
-         * each a 14-row band built from the 4/+7/31/+9/15/+0xE runs (the
-         * advance per row is 4+7+31+9+15+0xE = 80, one mode-X row). */
+         * each a 14-row band built from the 4/+7/31/+9/15/+0xE runs.  The
+         * source is the page itself ([0x8A4]); write mode 2 + the box's Bit
+         * Mask sets/clears only the masked colour bits, so the text survives. */
         {
             static uint8_t page[320 * 200];
             static const uint32_t want[5] = { 46u, 66u, 86u, 106u, 126u };
-            uint32_t hit[5] = { 0, 0, 0, 0, 0 }, stray = 0;
+            static const uint32_t masks[5] = { 0xA0u, 0xB0u, 0xE0u, 0xF0u,
+                                               0x30u };
+            uint32_t shared[5] = { 0, 0, 0, 0, 0 }, stray = 0;
             int32_t inBlock = 0;
 
-            memset(page, 0, sizeof page);
+            memset(page, 0x08, sizeof page); /* a known source bit (3) */
             map_draw_box_edges(page, 2u);
             for (uint32_t y = 0; y < 200u; y++) {
-                uint32_t n = 0;
-
-                for (uint32_t x = 0; x < 320u; x++)
-                    if (page[y * 320u + x]) n++;
                 inBlock = 0;
                 for (uint32_t k = 0; k < 5u; k++)
-                    if (y >= want[k] && y < want[k] + 14u) {
-                        inBlock = 1;
-                        hit[k] += n;
+                    if (y >= want[k] && y < want[k] + 14u) inBlock = 1;
+                for (uint32_t x = 0; x < 320u; x++) {
+                    uint8_t v = page[y * 320u + x];
+
+                    if (!inBlock) {
+                        if (v != 0x08u) stray++;
+                        continue;
                     }
-                if (n && !inBlock) stray++;
+                    /* the low nibble must survive, and no pixel may be the
+                     * old 0x0F overwrite */
+                    if ((v & 0x0Fu) != 0x08u || v == 0x0Fu) stray++;
+                    for (uint32_t k = 0; k < 5u; k++)
+                        if (v == (uint8_t)(0x08u | masks[k])) shared[k]++;
+                }
             }
-            _check(stray == 0u,
-                   "the frame blocks land at rows 46/66/86/106/126 (+14) only");
-            _check(hit[0] && hit[1] && hit[2] && hit[3] && hit[4],
-                   "all five frame blocks are drawn");
-            _check(hit[3] >= hit[4],
-                   "the 0xF0 block (all four pixels) is the widest mask");
+            _check(
+                stray == 0u,
+                "D-210: the frame writes only the five bands and keeps the text bits");
+            _check(shared[0] && shared[1] && shared[2] && shared[3] &&
+                       shared[4],
+                   "D-210: all five masks blend their colour bits");
+            _check(shared[3] != 0u,
+                   "D-210: the 0xF0 mask sets all four high bits");
         }
         _flow_dump_ppm("map_frame.ppm", video_page(0));
         k.lastKey = 1;

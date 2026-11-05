@@ -19,6 +19,7 @@ void alpha_draw_wheel(uint8_t *page, uint32_t base);
 void alpha_draw_name(uint8_t *page, const char *name);
 void map_draw_box_edges(uint8_t *page, uint32_t row); /* 1000:07E6    */
 void map_draw_list(uint8_t *page); /* draw_score_block 1000:0651 */
+void map_draw_list_header(uint8_t *page); /* 1000:0518's 0x0B5F rows  */
 void map_draw_congrats(uint8_t *page); /* 1000:021E..0266            */
 uint32_t map_congrats_draws(void); /* 1000:0251's two passes     */
 void map_draw_rect(uint8_t *page, uint32_t x, uint32_t y, uint32_t w,
@@ -40,6 +41,11 @@ uint16_t
 map_anim_channel_for_probe(uint32_t ch); /* [0x90]/[0x92]/[0x94]/[0x96] */
 void map_anim_tick_for_probe(void); /* one 1000:09DA frame */
 uint32_t map_name_col_for_probe(void); /* the name ring cell  */
+uint32_t map_name_angle_for_probe(void); /* the ring angle [0x48] */
+void map_name_set_angle_for_probe(uint32_t angle); /* the erase check */
+uint32_t map_intro_step_for_probe(void); /* the opening step   */
+int32_t map_glyph_for_probe(uint32_t i, int32_t *tx, int32_t *ty, int32_t *cx,
+                            int32_t *cy); /* the [0x596] entry  */
 uint32_t map_name_fire_wait_for_probe(void); /* [0x5AC8] model */
 const char *map_name_for_probe(void); /* the typed name      */
 int32_t map_stage_ready_for_probe(void); /* the staging page is filled */
