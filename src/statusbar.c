@@ -188,8 +188,12 @@ void statusbar_save_params(uint8_t *out)
 {
     if (!out) return;
     out[0] = _odo_state;
-    out[1] = _odo_slide[0];
-    out[2] = _odo_slide[1];
+    /* [0x5B23] is the always-armed counter (it animates the ones digit,
+     * [0x5B29]); [0x5B24] is the carry counter (the tens, [0x5B27]).  The
+     * port's `_odo_slide[1]` is the always one, so the save slots swap -
+     * D-108, closed 2026-11-05. */
+    out[1] = _odo_slide[1];
+    out[2] = _odo_slide[0];
     out[3] = _td[0];
     out[4] = _td[1];
     out[5] = (uint8_t)_td_phase[0];
@@ -206,8 +210,8 @@ void statusbar_load_params(const uint8_t *in)
 {
     if (!in) return;
     _odo_state = in[0];
-    _odo_slide[0] = in[1];
-    _odo_slide[1] = in[2];
+    _odo_slide[1] = in[1]; /* [0x5B23] = the always-armed counter (D-108) */
+    _odo_slide[0] = in[2]; /* [0x5B24] = the carry counter               */
     _td[0] = (uint8_t)(in[3] % 10u);
     _td[1] = (uint8_t)(in[4] % 10u);
     _td_phase[0] = in[5];

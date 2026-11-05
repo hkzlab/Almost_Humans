@@ -447,6 +447,19 @@ int main(int argc, char **argv)
      * (8 -> 7), sliding one glyph cell over 8 frames. */
     statusbar_arm_odometer();
     statusbar_tick(); /* the value rolls, phase stays  */
+    /* D-108 (closed 2026-11-05): the save's [0x5B23]/[0x5B24] slots are the
+     * always-armed / carry counters.  This tick armed only the always one. */
+    {
+        uint8_t blk[8];
+
+        statusbar_save_params(blk);
+        if (blk[1] != 8u || blk[2] != 0u) {
+            fprintf(
+                stderr,
+                "FAIL D-108: the armed slide counter is [0x5B23] (out[1])\n");
+            bad = 1;
+        }
+    }
     ph[0] = 0x60;
     ph[1] = 0x60;
     ph[2] = 0xA0;
@@ -743,7 +756,7 @@ int main(int argc, char **argv)
              * and the clean art one row above it. */
             {
                 uint8_t band12 = (uint8_t)(0xC0u | _panel4[12u * 320u + x]);
-                uint8_t trough = band12 >= 0xD4u ? 0xCFu
+                uint8_t trough = band12 >= 0xD4u  ? 0xCFu
                                  : band12 < 0xC4u ? 0xC0u
                                                   : (uint8_t)(band12 - 4u);
                 uint8_t art11 = (uint8_t)(0xC0u | _panel4[11u * 320u + x]);

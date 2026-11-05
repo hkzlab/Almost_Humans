@@ -2758,6 +2758,22 @@ static uint32_t _obj_style_nudge(const uint8_t *map, uint32_t col, uint32_t row)
 }
 
 /**
+ * @brief 1000:5662: the style-6 +3 row nudge for the cell at (col, row).
+ *
+ * Every handler that stores a tile-aligned y calls it first: the terrain
+ * spawns (0x52A2/0x52C7/0x52EB, 0x5481, 0x53BA ...) and the exit-marker
+ * stamper (0x54A9), which runs it before `ADD DX,0x10 / SUB DX,0x40`.  The
+ * lookup cell is the one directly below the matched tile; only a level of
+ * style 6 has the table.
+ *
+ * @param col the cell column
+ * @param row the cell row
+ * @return 3 when the nudge applies, 0 otherwise
+ */
+uint32_t object_style_y_nudge(uint32_t col, uint32_t row)
+{ return _obj_style_nudge(NULL, col, row); }
+
+/**
  * @brief Append the style record's decoration rows.
  *
  * @param map the 640-cell map
@@ -5156,24 +5172,24 @@ static void _obj_walk_marker(uint8_t *r)
 
         if (_obj_marker_mode) {
             if (f == 0x26u) {
-                wr_le_u16(r + 4u, f + 1u);
-                return;
+                wr_le_u16(r + 4u, f + 1u); /* 1000:C562 */
+            } else {
+                r[6] |= 0x80u; /* 1000:C557 */
+                if (map && rd_le_u16(r + 8u) < 640u)
+                    ((uint8_t *)map)[rd_le_u16(r + 8u)] = 0u;
             }
-            r[6] |= 0x80u;
+        } else if (r[6] & 0x80u) {
+            r[6] = 0u; /* 1000:C579: cleared, so the re-test below scans */
+        } else if (f != 0x26u) {
+            wr_le_u16(r + 4u, f - 1u); /* 1000:C570 */
             if (map && rd_le_u16(r + 8u) < 640u)
-                ((uint8_t *)map)[rd_le_u16(r + 8u)] = 0u;
-            return;
+                ((uint8_t *)map)[rd_le_u16(r + 8u)] = 0xBBu;
         }
-        if (r[6] & 0x80u) {
-            r[6] = 0u;
-            return;
-        }
-        if (f == 0x26u) return;
-        wr_le_u16(r + 4u, f - 1u);
-        if (map && rd_le_u16(r + 8u) < 640u)
-            ((uint8_t *)map)[rd_le_u16(r + 8u)] = 0xBBu;
-        return;
     }
+    /* 1000:C447: the helper 0xC541 may have set or cleared [r+6] bit 7, and
+     * the caller re-tests it here - the scan follows whenever it is clear.
+     * D-109: the port used to return from every 0xC541 arm, so the re-show
+     * frame (and the 0x26 arm with the flag clear) skipped the scan. */
     if (r[6] & 0x80u) return;
     {
         uint32_t mx = (uint32_t)(rd_le_u16(r + 0u) + 8u) & ~0xFu;

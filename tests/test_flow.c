@@ -25,6 +25,7 @@
 #include "video.h"
 #include "compat.h"
 #include "byteorder.h"
+#include "fs/fs.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -248,7 +249,47 @@ int main(int argc, char **argv)
                 }
             }
         }
-        for (uint32_t t = 0; t < 0x9Fu; t++) level_loading_tick();
+        for (uint32_t t = 0; t < 0x9Eu; t++) level_loading_tick();
+        /* D-111 (closed 2026-11-05): 1000:1EBD..1EC7 raises every walker's
+         * frame below 0x10 to 0x10 on the batch's last pass, before the draw.
+         * This tick is that pass (0xA0th), so walker 1 (x 0x40 + 0xA0, y
+         * 0x6E) is drawn at screen (0x90, 0x3C) with frame 0x10. */
+        {
+            char lp[512];
+            snprintf(lp, sizeof lp, "%s/HUMANS.001/APL/LOADING.APL", fix_dir);
+            FILE *f = fopen(lp, "rb");
+            uint8_t *bank = NULL;
+
+            if (f) {
+                fseek(f, 0, SEEK_END);
+                int64_t n = ftell(f);
+                fseek(f, 0, SEEK_SET);
+                bank = malloc((size_t)n);
+                if (!bank || fread(bank, 1, (size_t)n, f) != (size_t)n) {
+                    free(bank);
+                    bank = NULL;
+                }
+                fclose(f);
+            }
+            level_loading_tick(); /* the walkers' last pass */
+            if (bank) {
+                const uint8_t *page = osys_null_page(0);
+                const uint8_t *spr = bank + 0x400u + 0x10u * 0x180u;
+                uint32_t badpx = 0, nz = 0;
+
+                for (uint32_t r = 0; r < 24u; r++)
+                    for (uint32_t c = 0; c < 16u; c++)
+                        if (spr[r * 16u + c]) {
+                            nz++;
+                            if (page[(0x3Cu + r) * 320u + 0x90u + c] !=
+                                spr[r * 16u + c])
+                                badpx++;
+                        }
+                _check(nz != 0u && badpx == 0u,
+                       "D-111: the walkers show frame 0x10 on the last pass");
+                free(bank);
+            }
+        }
         _check(level_loading_screen(), "the letters phase follows");
         {
             uint32_t sz = 0;
@@ -271,7 +312,8 @@ int main(int argc, char **argv)
                    "LOADING.APL readable");
             if (bank) {
                 /* the state after one tick: the "L" at (0xB0, 0x1C) — the
-                 * template's y=0x1A plus one dy step */
+                 * template's y=0x1A plus one dy step.  The D-111 tick above
+                 * is the walkers' 0xA0th, so the letters still get 0x20. */
                 for (uint32_t k = 0; k < 0x20u; k++) level_loading_tick();
                 const uint8_t *page = osys_null_page(0);
                 const uint8_t *L = bank + 0x400u + 0x11u * 0x180u;
@@ -2869,6 +2911,61 @@ int main(int argc, char **argv)
         _check(strcmp(gameflow_party_tribe(), "CARLOS") == 0,
                "level 4's briefing code follows the level");
 
+    /* 6c2b2. D-112 (closed 2026-11-05): 1000:5662's style-6 +3 nudge, which
+     * the 0xB9 exit-marker stamper (0x54A9) runs before ADD DX,0x10 /
+     * SUB DX,0x40.  Level 28's 0xB9 at (8, 4) has cell 112 below (the 0x1F20
+     * bit is set); level 29's 0xB9 at (13, 3) has cell 15 (not set). */
+    if (level_load(28) == 0) {
+        _check(level_style() == 6u, "D-112: level 28 is style 6");
+        _check(object_style_y_nudge(8u, 4u) == 3u,
+               "D-112: the 0xB9 cell's nudge is 3 rows");
+        _check(level_exit_stamp_y(8u, 4u) == 4 * 16 + 3 - 0x30,
+               "D-112: the exit stamp is 3 rows higher");
+    }
+    if (level_load(29) == 0)
+        _check(object_style_y_nudge(13u, 3u) == 0u &&
+                   level_exit_stamp_y(13u, 3u) == 3 * 16 - 0x30,
+               "D-112: level 29's 0xB9 cell gets no nudge");
+
+    /* 6c2c. D-109 (closed 2026-11-05): 1000:C541's mode-0 re-show clears
+     * [r+6] bit 7 and returns to 1000:C447, which re-tests the now-clear flag
+     * and runs the (x-3, y-8) pickup scan; the port used to return from every
+     * 0xC541 arm and skip that frame's scan.  The same re-test covers the
+     * 0x26 arm too (it leaves the flag as it was). */
+    object_init();
+    if (level_load(0) == 0) {
+        uint8_t *m = object_slot(9u), *s0 = object_slot(0u);
+        const uint8_t *map = level_map();
+        uint8_t cell0 = map ? map[0] : 0u;
+
+        _check(m != NULL && s0 != NULL, "D-109: the spear is record 9");
+        if (m && s0) {
+            object_set_marker_mode(0);
+            object_set_slot_class(1u, 9u); /* record 9 -> behaviour 9 */
+            /* the static record on the marker's tile-aligned cell, type 0 */
+            memset(s0, 0, 0x12u);
+            _tf_wr16(s0, 0u, 96u);
+            _tf_wr16(s0, 2u, 92u);
+            _tf_wr16(s0, 4u, 0x10u);
+            _tf_wr16(s0, 8u, 0x0000u);
+            /* the marker: re-show bit set, frame != 0x26, map cell 0 */
+            memset(m, 0, 0x12u);
+            _tf_wr16(m, 0u, 100u);
+            _tf_wr16(m, 2u, 100u);
+            _tf_wr16(m, 4u, 0x10u);
+            m[6] = 0x80u;
+            _tf_wr16(m, 8u, 0x0000u);
+            while ((object_frame_counter_probe() & 3u) != 0u) object_tick(NULL);
+            object_update_list();
+            _check((m[6] & 0x80u) == 0u,
+                   "D-109: the re-show clears [+6] bit 7");
+            _check(_tf_rd16(m, 4u) == 0x28u && _tf_rd16(m, 8u) == 0x16u &&
+                       _tf_rd16(m, 0xAu) == 5u,
+                   "D-109: and runs the pickup scan (frame 0x28)");
+        }
+        if (map) ((uint8_t *)map)[0] = cell0;
+    }
+
     /* 6c3. D-64/D-65: a successful pickup sets [0x5B56] = [0x5B8A + class]
      * (class 5 -> 2, the bar's 4-icon spear group), and op 6 with the class
      * set runs the class path 1000:9D5D: the carried record is thrown at the
@@ -4571,6 +4668,37 @@ int main(int argc, char **argv)
             for (uint32_t i = 0; i < sizeof buf; i++)
                 if (buf[i] != (uint8_t)i) same = 0;
             _check(same, "1000:06DE is an involution (load and save share it)");
+        }
+
+        /* D-102: the blob is the original's 0x208 = 520 bytes; level N is at
+         * +2*N (1-based), the reserved word at +0, the entries at +0x154. */
+        hiscore_reset();
+        _check(hiscore_table_size() == 520u,
+               "the hi-score blob is 520 bytes (D-102)");
+        hiscore_set_best(1u, 0x1234u);
+        hiscore_set_best(160u, 0x5678u);
+        hiscore_write();
+        {
+            FSSave *f = g_fs.openNamed("HISCORES.HUM");
+            uint8_t raw[600];
+            uint32_t n = 0;
+
+            if (f) {
+                n = g_fs.saveRead(f, 0, raw, sizeof raw);
+                g_fs.closeSave(f);
+            }
+            _check(n == 520u, "the hi-score file is 520 bytes (D-102)");
+            if (n >= 322u) {
+                hiscore_obfuscate(raw, n);
+                _check(raw[0] == 0x99u && raw[1] == 0x09u,
+                       "the reserved word sits at +0 (D-102)");
+                _check(raw[2] == 0x34u && raw[3] == 0x12u,
+                       "level 1's u16 sits at +2 (D-102)");
+                _check(raw[320] == 0x78u && raw[321] == 0x56u,
+                       "level 160's u16 sits at +0x140 (D-102)");
+                _check(rd_le_u32(raw + 0x154u) == hiscore_score(0u),
+                       "the ten 18-byte entries start at +0x154 (D-102)");
+            }
         }
 
         hiscore_reset();

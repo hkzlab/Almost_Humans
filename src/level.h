@@ -145,6 +145,8 @@ uint16_t level_time_limit(void);
 uint32_t level_tribe_members(void);
 /* the stamped background image and the BD P block, for the exit/igloo test */
 const uint8_t *level_bg_for_probe(void);
+/* 1000:54A9: the 0xB9 exit stamp's top y (row*16 + 0x5662 - 0x30). */
+int32_t level_exit_stamp_y(uint32_t col, uint32_t row);
 const uint8_t *level_p_block_for_probe(void);
 uint32_t level_bg_index_for_probe(void);
 const uint8_t *level_c_block_for_probe(void);

@@ -924,9 +924,19 @@ static void _stamp_p_block(int32_t x, int32_t y)
         }
 }
 
+/** @brief 1000:54A9's stamp y for the exit cell at (col, row): the handler's
+ * `row*16`, then 0x5662's style-6 nudge, then `ADD DX,0x10 / SUB DX,0x40`.
+ *
+ * @param col the cell column
+ * @param row the cell row
+ * @return the stamped block's top y
+ */
+int32_t level_exit_stamp_y(uint32_t col, uint32_t row)
+{ return (int32_t)(row * 16u + object_style_y_nudge(col, row)) - 0x30; }
+
 /** @brief 1000:5159 load_terrain_a + 1000:54A9: every map cell 0xB9 stamps the BD
  * page's P block (64 x 64, zero transparent) into the background image at
- * (col*16, row*16 - 0x30) — the level's exit/igloo art.
+ * (col*16, level_exit_stamp_y(col, row)) — the level's exit/igloo art.
  */
 static void _level_stamp_exits(void)
 {
@@ -934,7 +944,7 @@ static void _level_stamp_exits(void)
     for (uint32_t row = 0; row < MAP_ROWS; row++)
         for (uint32_t col = 0; col < MAP_COLS; col++) {
             if (_level_data_cur.map[row * MAP_COLS + col] != 0xB9u) continue;
-            _stamp_p_block((int32_t)(col * 16u), (int32_t)(row * 16u) - 0x30);
+            _stamp_p_block((int32_t)(col * 16u), level_exit_stamp_y(col, row));
         }
 }
 
@@ -1479,6 +1489,10 @@ void level_loading_tick(void)
             y += dy;
             if (y > 0x56) y = 0x56;
         }
+        /* 1000:1EBD..1EC7: on the batch's LAST pass (BP == 1, i.e. this tick
+         * is the 0xA0th/0x56th) every frame below 0x10 is raised to 0x10
+         * before the cycle tests it (D-111, closed 2026-11-05). */
+        if (_load_left == 1u && spr < 0x10u) spr = 0x10u;
         if (_load_cx == 0 && spr < 0x10u) {
             spr++;
             if (spr == 8u) spr = 0u;

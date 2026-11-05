@@ -116,6 +116,8 @@ uint16_t object_pend_wait_for_probe(uint32_t i); /* and its waits         */
 uint8_t object_ds_tail5105(uint32_t off); /* 0x5105..0x5114 (objCmdEnter)  */
 void object_set_slot_class_for_probe(uint32_t slot, uint8_t cls);
 void object_set_slot_class(uint32_t slot, uint32_t cls);
+/* 1000:5662: the style-6 +3 row nudge for the cell at (col, row). */
+uint32_t object_style_y_nudge(uint32_t col, uint32_t row);
 uint8_t object_beh_state_for_probe(uint32_t beh); /* DS:0x6EB6 window       */
 int32_t object_test_dispatch(uint16_t mode); /* 1000:35D6: 1 = goal met       */
 /* render_objects' object pass (1000:5D56 -> 0x653C): the base sprite of every
