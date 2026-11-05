@@ -502,6 +502,80 @@ static void _alpha_blit_cell(uint8_t *page, uint32_t src, uint32_t dst)
     }
 }
 
+/** @brief The full 16x16 cell bits (the routine draws rows 3..13). */
+static void _alpha_cell_bits(uint32_t src, uint8_t bits[16][16])
+{
+    for (uint32_t r = 0; r < 16u; r++)
+        for (uint32_t c = 0; c < 4u; c++) {
+            uint32_t v = _alpha_sheet[(src + r * 4u + c) & 0xFFFFu];
+
+            for (uint32_t b = 0; b < 4u; b++)
+                bits[c * 4u + b][r] = (uint8_t)((v >> b) & 1u);
+        }
+}
+
+/** @brief One cell blitted at one of the eight 45-degree rotation steps.
+ *
+ * `rotate_spinner_cell` (`1000:0F93`) turns the glyph in **45-degree steps**:
+ * `0x0FC1..0x0FD6` reduce `(angle+0x16)` and divide by 0x2D, then
+ * `0x0FD6..0x0FE2` add `byte[0xA8 + sector] * 0x800` (one of the eight blocks).
+ * The sheet carries the 0-degree alphabet (block 0) and the -45-degree one
+ * (block 1); the other steps are the exact quarter turns of those two blocks
+ * (block 0 for even steps, block 1 for odd ones).  Rows 3..13 are drawn at
+ * `dst`, exactly like the unrotated `_alpha_blit_cell`.
+ *
+ * @param page the page buffer
+ * @param src the cell source (cell + 0x0C + plane*0x4000)
+ * @param dst the destination buffer
+ * @param step the rotation step (0..7, 45 degrees each)
+ */
+static void _alpha_blit_cell_rot(uint8_t *page, uint32_t src, uint32_t dst,
+                                 uint32_t step)
+{
+    uint8_t bits[16][16];
+    uint32_t base = src - 0x0Cu + ((step & 1u) ? 0x800u : 0u);
+    uint32_t quarter = (step >> 1) & 3u;
+    uint32_t x0, y0;
+
+    if (!page) return;
+    _alpha_cell_bits(base, bits);
+    x0 = (dst % 80u) * 4u;
+    y0 = dst / 80u;
+    for (int32_t y = 3; y <= 13; y++)
+        for (int32_t x = 0; x < 16; x++) {
+            int32_t sx, sy;
+
+            if (quarter == 0u) { /* 0 */
+                sx = x;
+                sy = y;
+            } else if (quarter == 1u) { /* 90 clockwise */
+                sx = y;
+                sy = 15 - x;
+            } else if (quarter == 2u) { /* 180 */
+                sx = 15 - x;
+                sy = 15 - y;
+            } else { /* 270 clockwise */
+                sx = 15 - y;
+                sy = x;
+            }
+            if (!bits[sx][sy]) continue;
+            if (y0 + 3u > 199u) continue;
+            page[(y0 + (uint32_t)(y - 3)) * 320u + x0 + (uint32_t)x] |= 0x20u;
+        }
+}
+
+/** @brief Clear the wheel/name bit-5 layer (the rotated cells overrun the
+ * original 11-row footprint, so the region is cleared each draw).
+ *
+ * @param page the page buffer
+ */
+static void _map_wheel_clear(uint8_t *page)
+{
+    for (uint32_t y = 0; y < 156u; y++)
+        for (uint32_t x = 72u; x < 242u; x++)
+            page[y * 320u + x] &= (uint8_t)~0x20u;
+}
+
 /**
  * @brief Draw the 30-cell letter wheel and optionally record its cells.
  *
@@ -513,10 +587,11 @@ static void _map_wheel_draw(uint8_t *page, uint32_t base, int32_t record)
 {
     if (!page || !_alpha_sheet) return;
     for (uint32_t i = 0; i < 30u; i++) {
+        uint32_t a = (base + i * 0x0Cu) % 0x168u;
         uint32_t src, dst;
 
-        alpha_cell(i, (base + i * 0x0Cu) % 0x168u, &src, &dst);
-        _alpha_blit_cell(page, src, dst);
+        alpha_cell(i, a, &src, &dst);
+        _alpha_blit_cell_rot(page, src, dst, (((a + 0x16u) / 0x2Du) + 2u) % 8u);
         if (record) _map_dirty_add(dst);
     }
 }
@@ -1016,6 +1091,18 @@ uint32_t map_enter_step_for_probe(void) { return _map_enter_phase; }
  */
 uint32_t map_enter_bx_for_probe(void) { return _map_enter_bx; }
 
+/** @brief Accessor: one wheel glyph's rotation (the test seam).
+ *
+ * @param cell the ring cell (0..29)
+ * @return the clockwise rotation in degrees (0 at the top)
+ */
+uint32_t map_wheel_rotation_for_probe(uint32_t cell)
+{
+    uint32_t a = (_map_angle + cell * 0x0Cu) % 0x168u;
+
+    return ((((a + 0x16u) / 0x2Du) + 2u) % 8u) * 0x2Du;
+}
+
 /** @brief Accessor: the offscreen list page (the test seam).
  *
  * @return the 1000:8A4-style page buffer
@@ -1241,6 +1328,7 @@ void map_draw_name(uint8_t *page)
 {
     if (!page) return;
     _map_dirty_begin(page);
+    _map_wheel_clear(page);
     _map_wheel_draw(page, _map_angle, 1);
     _map_name_draw(page, 1);
 }

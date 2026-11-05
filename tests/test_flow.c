@@ -4815,6 +4815,15 @@ int main(int argc, char **argv)
         _check(!hiscore_qualifies(9999u) && hiscore_qualifies(10000u),
                "a score equal to the last entry still displaces it");
 
+        /* 1000:0475/0x0486: Return with no letters commits the zeroed
+         * 14-byte buffer, so the table takes an empty name. */
+        {
+            int32_t e = hiscore_insert(120000u, "");
+
+            _check(e == 0 && hiscore_name(0u)[0] == 0,
+                   "1000:0475: Return with no letters inserts an empty name");
+        }
+        hiscore_reset();
         slot = hiscore_insert(55000u, "AB CD");
         _check(slot == 5, "55000 lands between 60000 and 50000");
         _check(hiscore_score(5u) == 55000u &&
@@ -6489,6 +6498,18 @@ int main(int argc, char **argv)
                        "D-205: 20 x 0x12 steps return to 0x10E and hold");
                 _check(map_name_col_for_probe() == 0u,
                        "D-205: the rested ring selects cell 0");
+                /* D-221 (closed 2026-11-05): 1000:0F93 turns the glyph in
+                 * 45-degree sectors: the top three cells are 0 (29,0,1), the
+                 * next four are 45 (2..5), then the 90/135/... groups. */
+                _check(map_wheel_rotation_for_probe(29u) == 0u &&
+                           map_wheel_rotation_for_probe(0u) == 0u &&
+                           map_wheel_rotation_for_probe(1u) == 0u &&
+                           map_wheel_rotation_for_probe(2u) == 45u &&
+                           map_wheel_rotation_for_probe(5u) == 45u &&
+                           map_wheel_rotation_for_probe(6u) == 90u &&
+                           map_wheel_rotation_for_probe(14u) == 180u &&
+                           map_wheel_rotation_for_probe(25u) == 315u,
+                       "D-221: the wheel rotates in 45-degree sector steps");
             }
             /* D-208 (closed 2026-11-05): 1000:0CBE's two cell lists.  Draw
              * three angles on a zeroed page; the third draw clears the first
