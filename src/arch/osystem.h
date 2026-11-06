@@ -26,12 +26,19 @@
 typedef struct InputState {
     uint8_t
         joyBits; /* +0x5ACE equivalent: bit0=up bit1=down bit2=left bit3=right, bit7=fire */
-    uint8_t lastKey; /* +0x48A3 equivalent: the last key code, 0 when none  */
+    uint8_t lastKey; /* +0x48A3's per-make code: the translated key of this
+                        * poll's key-down event, 0 when none.  The event
+                        * screens read-and-clear it (1000:AA4E/AA50). */
     uint8_t keyScan; /* the PC set-1 make scancode (the key list [0x1989]'s
                         * index; 0 = none).  lastKey is the translated ASCII
                         * code the text screens read — scan_id_list (1000:386E)
                         * indexes [0x42B7 + scancode] instead, so F1..F10 and
                         * the punctuation keys need this separate field. */
+    uint8_t keyHeld; /* +0x48A3's held level: 1 while a key the ISR maps
+                        * nonzero is physically down, 0 after any release.
+                        * The level-triggered readers test this (b2ba/c0c6,
+                        * attract_exit, cd_file_op); lastKey is the one-shot
+                        * copy the event screens consume. */
     uint8_t quit; /* the backend-level quit (window closed, ^C)          */
 } InputState;
 

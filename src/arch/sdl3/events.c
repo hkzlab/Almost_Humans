@@ -97,6 +97,38 @@ static uint8_t _key_code(SDL_Keycode k)
     return 0u;
 }
 
+/** @brief Does the original's scancode-to-code table (`202F:0x4260`) map this
+ * make to a nonzero `[0x48A3]`?  Its zero entries are the modifier/system
+ * keys plus Tab, backtick, F11 and F12; the level-triggered readers only
+ * test the byte for nonzero.  The shipped game's keys are covered.
+ * shortcut: the PC extended block's zero entries are not enumerated, add
+ * them if a held-key consumer ever needs one.
+ *
+ * @param k the SDL keycode
+ * @return 1 when the make sets `[0x48A3]` nonzero, 0 otherwise
+ */
+static int32_t _key_sets_held(SDL_Keycode k)
+{
+    switch (k) {
+    case SDLK_UNKNOWN:
+    case SDLK_TAB:
+    case SDLK_GRAVE:
+    case SDLK_LCTRL:
+    case SDLK_RCTRL:
+    case SDLK_LSHIFT:
+    case SDLK_RSHIFT:
+    case SDLK_LALT:
+    case SDLK_RALT:
+    case SDLK_LGUI:
+    case SDLK_RGUI:
+    case SDLK_PRINTSCREEN:
+    case SDLK_SYSREQ:
+    case SDLK_F11:
+    case SDLK_F12: return 0;
+    default: return 1;
+    }
+}
+
 /**
  * @brief Pump SDL events into the input state.
  *
@@ -112,6 +144,7 @@ void sdl3_events_poll(InputState *out)
             _joy_bits(ev.key.key, 1);
             _cur.lastKey = _key_code(ev.key.key);
             _cur.keyScan = _scan_code(ev.key.key);
+            _cur.keyHeld = (uint8_t)_key_sets_held(ev.key.key);
             break;
         case SDL_EVENT_KEY_UP:
             /* the ISR's 942F: EVERY key-up clears the flag — a tapped
@@ -121,6 +154,7 @@ void sdl3_events_poll(InputState *out)
             _joy_bits(ev.key.key, 0);
             _cur.lastKey = 0u;
             _cur.keyScan = 0u;
+            _cur.keyHeld = 0u;
             break;
         default: break;
         }
@@ -129,10 +163,11 @@ void sdl3_events_poll(InputState *out)
     /* The ISR's [0x48A3] is rewritten by every make — the BIOS typematic
      * repeats included — and the front-end consumes it (AA4E/AA50); between
      * makes it holds.  The SDL queue's KEY_DOWN events (the OS's typematic
-     * repeats included) are those makes: deliver each once, then the byte
-     * is clear until the next make lands.  Without this a held key latches
+     * repeats included) are those makes: deliver each once in lastKey, then
+     * clear it until the next make lands.  Without this a held key latches
      * and the name screen fills at tick rate instead of the typematic's
-     * delay-then-repeat. */
+     * delay-then-repeat.  keyHeld is the other half of the same byte: the
+     * level the boot/attract tests read, cleared only by the release. */
     _cur.lastKey = 0u;
     _cur.keyScan = 0u;
 }

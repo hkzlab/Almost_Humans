@@ -133,6 +133,10 @@ void object_publish_bank(const uint8_t *bank, uint32_t size);
  * type 2; 0xAB the spear, appended, frame 0x60, +8 = 0xFFFF, behaviour 5;
  * the rest per re_map.md); returns [0x3E73]. */
 uint32_t object_load_terrain_objects(uint8_t *map);
+/* 1000:3138/0x3149: seed the [0x1FA0] buffer's 32-byte gap (zero) and second
+ * map copy (this map) for the D-235 tail write/read.  Call after the map is
+ * copied and before object_load_terrain_objects. */
+void object_map_tail_reset(const uint8_t *map);
 uint32_t object_placed_humans(void); /* [0x3E20]                       */
 /* the map cell under a static record (0xF761 with AX = 8, BX = 0xC); the
  * score's object bonus reads it: 0xA8 -> +1000, 0xA7 -> +2000 (1000:55FA). */
@@ -195,6 +199,15 @@ int32_t object_selector_walk(uint8_t *actor, int32_t right);
 int32_t object_claim_begin(uint32_t recipe, int32_t actor);
 int32_t object_claim_active(void);
 int32_t object_claim_pan_active(void); /* the 1000:3D04 recolour frames */
+int32_t object_claim_anim_active(void); /* 1000:3BD6's 56 frames        */
+int32_t object_claim_flip_active(void); /* 1000:3CB5's re-blits         */
+/* 1 from the pan onward: the claim's page is frozen and must be presented
+ * (the pre-pan red/white phases only fade the DAC). */
+int32_t object_claim_page_frozen(void);
+/* 1 during CLAIM_SETTLE: the page is the final 0x3CB5 frame, leave it. */
+int32_t object_claim_settle_active(void);
+/* 1000:40CA: the selected + claimed records, over the claim's frozen page. */
+void object_claim_draw_records(uint8_t *page, int32_t scrollX, int32_t scrollY);
 void object_claim_tick(const uint8_t *levelPal);
 /* the scan at 4E91: the first record beside `actor` (|dx| <= 0x20,
  * |dy| <= 8, type <= 2, active) or -1. */

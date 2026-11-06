@@ -483,6 +483,7 @@ static void _spark_paint(uint32_t wx, uint32_t wy, uint8_t value)
  * @param oy the spark origin y
  * @param shade the 16x16 shade table
  */
+static void _bake_page_to_plane(void);
 void level_spark_begin(uint32_t ox, uint32_t oy, const uint8_t *shade)
 {
     memset(_spark, 0, sizeof _spark);
@@ -492,6 +493,9 @@ void level_spark_begin(uint32_t ox, uint32_t oy, const uint8_t *shade)
     _spark_ox = ox;
     _spark_oy = oy;
     _spark_on = 1;
+    /* 1000:3E73's tail saves the strip from the presented page - here, the
+     * claim's frozen black page plus the two records it drew last frame. */
+    _bake_page_to_plane();
     /* 1000:3E73's tail: the strip origin is (origin - 0x20) in both axes. */
     _spark_strip_save((int32_t)ox - 0x20, (int32_t)oy - 0x20);
 }
@@ -1334,6 +1338,10 @@ int32_t level_load(uint32_t levelId)
      * row below (the original works on its [0x1FA0] copy). */
     memset(_level_map_copy, 0, sizeof _level_map_copy);
     memcpy(_level_map_copy, _level_data_cur.map, sizeof _level_map_copy);
+    /* 1000:3146/0x3149: the second copy at +0x2A0 is the load-time map; the
+     * terrain walk below may write the live copy (and the gap), so seed the
+     * tail first. */
+    object_map_tail_reset(_level_map_copy);
     object_load_terrain_objects(_level_map_copy);
 
     /* the bar (level_start 1000:957B + build_statusbar_layout 1000:961B):
@@ -2227,6 +2235,31 @@ static void _stamp_tile(uint8_t *dst, const uint8_t *src)
     }
 }
 
+/** @brief the flat model's four plane passes: `_lvl_plane` -> the page.  One
+ * byte per pixel, `4*address + plane = pixel`. */
+static void _present_plane(void)
+{
+    uint8_t *page = _level_osys->videoPage(0);
+
+    if (!page) return;
+    for (uint32_t y = 0; y < VIEW_H; y++)
+        for (uint32_t x = 0; x < VIEW_W; x++)
+            page[y * VIEW_W + x] = _lvl_plane[y * 88u + (x >> 2)][x & 3u];
+}
+
+/** @brief the inverse of `_present_plane`, used once per claim: 1000:3E73's
+ * strip save reads the *page*, so the page must become the plane the spark
+ * restores from. */
+static void _bake_page_to_plane(void)
+{
+    const uint8_t *page = _level_osys->videoPage(0);
+
+    if (!page) return;
+    for (uint32_t y = 0; y < VIEW_H; y++)
+        for (uint32_t x = 0; x < VIEW_W; x++)
+            _lvl_plane[y * 88u + (x >> 2)][x & 3u] = page[y * VIEW_W + x];
+}
+
 /** @brief The _world pass: `render_level_frame`'s terrain + `render_objects` + the bar,
  * i.e. everything 1000:4C28's pre-draw and every play frame put on the page.
  * The original's `blit_bitmap_call` (`1000:4C28`) draws the level bitmap into
@@ -2269,9 +2302,7 @@ static void _render_world(void)
         _spark_draw(); /* 1000:3F4A's inline loop  */
     }
     uint8_t *page = _level_osys->videoPage(0);
-    for (uint32_t y = 0; y < VIEW_H; y++)
-        for (uint32_t x = 0; x < VIEW_W; x++)
-            page[y * VIEW_W + x] = _lvl_plane[y * 88u + (x >> 2)][x & 3u];
+    _present_plane();
 
     /* the object pass (render_objects 1000:5D56): the placed records' base
      * sprites over the terrain, before the bar */
@@ -2315,7 +2346,8 @@ void level_end_redraw_page(void)
 
 /** @brief 1000:3D5E: the claim's pan frames recolour every page byte below 0x80 to
  * 0x1E before the present (the original's four plane passes are one flat page
- * here).
+ * here).  The planar shadow is recoloured too: it is what the spark's strip
+ * save and the frozen frames compose from.
  */
 void level_claim_recolour(void)
 {
@@ -2324,6 +2356,33 @@ void level_claim_recolour(void)
     if (!page) return;
     for (uint32_t i = 0; i < VIEW_W * 200u; i++)
         if (page[i] < 0x80u) page[i] = 0x1Eu;
+    for (uint32_t i = 0; i < VIEW_H * 88u; i++)
+        for (uint32_t p = 0; p < 4u; p++)
+            if (_lvl_plane[i][p] < 0x80u) _lvl_plane[i][p] = 0x1Eu;
+}
+
+/** @brief the claim's frozen page (1000:3D04 -> 1000:3CB5): the original draws
+ * the world once, recolours it black on the pan, and then only presents the
+ * spark strip plus the selected/claimed records.  This is that frame in the
+ * flat model: the spark step, the plane->page present, 1000:40CA's two records
+ * during the animation, and the bar (which lives outside the recoloured page).
+ */
+void level_claim_frame(void)
+{
+    uint8_t *page;
+
+    if (!_level_loaded || !_level_osys) return;
+    page = _level_osys->videoPage(0);
+    if (!page) return;
+    if (_spark_on) { /* 1000:3F4A / 1000:40CA's restore */
+        _spark_strip_restore();
+        _spark_step();
+        _spark_draw();
+    }
+    _present_plane();
+    if (object_claim_anim_active()) /* 1000:40CA's two draw_object_entry */
+        object_claim_draw_records(page, (int32_t)_view_x, (int32_t)_view_y);
+    statusbar_tick(); /* the bar band: outside 1000:3D5E's page range */
 }
 
 /**
@@ -2490,9 +2549,33 @@ int32_t level_tick(void)
         return 1;
     }
 
-    _render_world();
-    if (object_claim_pan_active()) /* 1000:3D5E's recolour on both pan frames */
-        level_claim_recolour();
+    /* 1000:3D04/3D5E/3CB5: the original draws the world once, freezes it at
+     * the pan's recolour and only re-blits it at 0x3CB5.  The claim's other
+     * frames present the frozen page (1000:40CA / 1000:3F4A).
+     * The three phases before the pan (1000:3B34..3B8E) only fade the DAC:
+     * the last drawn page - sprites included - must be left alone. */
+    if (!object_claim_active() || object_claim_pan_active() ||
+        object_claim_flip_active()) {
+        _render_world();
+        if (object_claim_pan_active()) { /* 1000:3D5E's recolour on both pan frames */
+            uint8_t *page = _level_osys->videoPage(0);
+
+            level_claim_recolour();
+            /* 1000:3D30: 40CA redraws the two records AFTER the recolour, so
+             * the witchdoctor and the victim (frame 0x103, the surprised face)
+             * sit on the black page and persist through the fades/blinks. */
+            if (page) {
+                object_claim_draw_records(page, (int32_t)_view_x,
+                                          (int32_t)_view_y);
+                _bake_page_to_plane();
+            }
+        }
+    } else if (object_claim_page_frozen() &&
+               !object_claim_settle_active()) {
+        level_claim_frame();
+    }
+    /* CLAIM_SETTLE: the page is the final 1000:3CB5 frame (world + objects);
+     * the original only fades the DAC there (1000:3CDE), so leave it. */
 
     /* The [0x1979] dispatch is input_dispatch_loop's 1000:34C3..0x34E4, i.e.
      * game_main's play frame after scan_id_list and pause_toggle; level_tick

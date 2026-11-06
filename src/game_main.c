@@ -199,7 +199,7 @@ int32_t gameflow_key_wait_active(void) { return _key_wait_stage != 0; }
  */
 static int32_t _key_wait_step(const InputState *in)
 {
-    int32_t down = in->lastKey != 0u || in->keyScan != 0u;
+    int32_t down = in->keyHeld != 0u || in->lastKey != 0u || in->keyScan != 0u;
 
     switch (_key_wait_stage) {
     case 1:

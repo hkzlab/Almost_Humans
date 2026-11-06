@@ -24,7 +24,7 @@
 #define DUMP_N (sizeof _dump_at / sizeof _dump_at[0])
 
 enum {
-    SCRIPT_N = 8700
+    SCRIPT_N = 9500
 };
 
 extern void osys_null_input_script(const InputState *states, uint32_t n);
@@ -115,9 +115,9 @@ static void _dump_ppm(const char *name, const uint8_t *page)
  */
 static void _present_hook(uint32_t poll)
 {
-    /* D-15: the ESC at 8000 must have the pause block up on the next present;
-     * the Enter at 8050 selects CONTINUE and closes it. */
-    if (poll >= 8001u && poll <= 8051u && menu_active()) _saw_pause = 1;
+    /* D-15: the ESC at 8800 must have the pause block up on the next present;
+     * the Enter at 8850 selects CONTINUE and closes it. */
+    if (poll >= 8801u && poll <= 8851u && menu_active()) _saw_pause = 1;
     if (gameflow_goal_page_up()) {
         uint8_t *a = object_slot(object_action_entity());
         int32_t x = a ? (int32_t)(int16_t)(rd_le_u16(a + 0)) : -1;
@@ -165,50 +165,51 @@ int main(int argc, char **argv)
     int32_t bad = 0;
 
     /* the input script (per eventsPoll call):
-     *   0..6599    idle     — the boot intro plays (~5887 ticks: the
+     *   0..7399    idle     — the boot intro plays (~6687 ticks: the
      *                           gametek logo, the idi/first/itb cards, the
-     *                           scene), then the attract cycle starts
+     *                           scene — ~5887 plus D-248's ~800 extra scene
+     *                           ticks), then the attract cycle starts
      *                           (game_loop: effects 1->3->2->4)
-     *   6600       fire     — the attract escape (attract_exit 1000:13E9):
+     *   7400       fire     — the attract escape (attract_exit 1000:13E9):
      *                           the 13B2 fade (~35 ticks) then FLOW_MENU
      *                           (the room loads code2.raw + fades in)
-     *   6700..6950 right    — the room's confirm: the rails walk
+     *   7500..7750 right    — the room's confirm: the rails walk
      *                           0x1D2 -> 0x208 (cell 6) -> 0x280, the
      *                           right-edge exit matches "DARWIN" (level 1
      *                           = levelId 0) and fades out -> FLOW_LEVEL
      *                           (disk probe -> party -> LOADING -> level;
      *                           the newspaper is POST-level, entry 00FF)
-     *   7150       key      — leaves the party's SET1W window
-     *   7250..7700 key      — the level's goal page waits on any key
+     *   7950       key      — leaves the party's SET1W window
+     *   8000..8490 key      — the level's goal page waits on any key
      *                           (scroll_map 9E51); the page follows the
      *                           LOADING screen
-     *   7702..8698 idle      — the level proper
-     *   8699       quit     — game_main exits                                */
+     *   8502..9498 idle      — the level proper
+     *   9499       quit     — game_main exits                                */
     static InputState script[SCRIPT_N];
     memset(script, 0, sizeof script);
-    /* the attract cycle runs from the boot's end (~5887) until the fire
-     * at 6600 escapes it; the room then walks right off the edge */
-    script[6600].joyBits = 0x80u;         /* the attract escape */
-    for (uint32_t i = 6700; i <= 6950u; i++)
+    /* the attract cycle runs from the boot's end (~6687) until the fire
+     * at 7400 escapes it; the room then walks right off the edge */
+    script[7400].joyBits = 0x80u;         /* the attract escape */
+    for (uint32_t i = 7500; i <= 7750u; i++)
         script[i].joyBits = 0x08u; /* hold RIGHT: the room's confirm */
-    /* the party pre-screen (t≈6912..7571, per the probe's timeline): its
+    /* the party pre-screen (t≈7712..8371, per the probe's timeline): its
      * wait fires [0x48A3]-shaped aborts exactly like the original's
      * wait_frames_or_key — one key inside the first set's wait exits  */
-    script[7150].lastKey = 1u; /* the party's SET1W window    */
+    script[7950].lastKey = 1u; /* the party's SET1W window    */
     /* the LOADING screen follows, then the level's goal page.  Hold RIGHT
      * (no key) while the page is up: scroll_map (1000:9E51) polls input only,
-     * so the actor must stay put; the key at 7695 dismisses the page and the
+     * so the actor must stay put; the key at 8495 dismisses the page and the
      * play loop follows. */
-    for (uint32_t i = 7200u; i <= 7690u; i++) script[i].joyBits = 0x08u;
-    script[7695].lastKey = 1u;
+    for (uint32_t i = 8000u; i <= 8490u; i++) script[i].joyBits = 0x08u;
+    script[8495].lastKey = 1u;
     /* D-15: ESC opens the pause block in the play loop; Enter on row 0
      * (CONTINUE) closes it again. */
     /* D-41/D-42 through the real flow: F2 selects record 1 (the second
      * human), SPACE steps the action row's selected cell. */
-    script[7750].keyScan = 0x3Cu; /* F2 */
-    script[7760].keyScan = 0x39u; /* SPACE */
-    script[8000].keyScan = 0x01u; /* ESC: the key list's id 4 */
-    script[8050].lastKey = 0x0Du;
+    script[8550].keyScan = 0x3Cu; /* F2 */
+    script[8560].keyScan = 0x39u; /* SPACE */
+    script[8800].keyScan = 0x01u; /* ESC: the key list's id 4 */
+    script[8850].lastKey = 0x0Du;
     script[SCRIPT_N - 1].quit = 1u;
 
     _dump_dir = argc > 3 ? argv[3] : NULL;

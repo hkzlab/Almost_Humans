@@ -99,9 +99,11 @@ typedef enum {
  *   4. the display-list group (blit_display_list, 1000:B955): transparent
  *      overlays at the records' destinations; at the group terminator the
  *      dwell counts down and the next group + frame follow
- *   5. present, then the 2-tick frame wait
+ *   5. present, then the frame wait (2 ticks at 1000:b780; 4 in the port —
+ *      port_deviations.md D-248)
  * The quit cue (frame 385) ends it; the frame counter ran 0..386 live.
- * No key skip: the loop ends on the quit cue alone.
+ * A held key/fire also aborts the boot: c0c6 is polled after every frame's
+ * wait (1000:b787) and in the transition's fade wait (1000:c0af).
  *
  * The present (deplanarise_bitmap, 1000:BB05) shows the pool's rows 4-183
  * in the visible rows 0-179 — the port composes both stages into its flat
@@ -146,7 +148,7 @@ typedef enum {
     BOOT_FADEOUT, /* the post-dwell fade to the zeroed ramp (b6f2) */
     BOOT_BLACK, /* the 0x8C-tick black hold (c0b8)               */
     BOOT_FRAME, /* cues + scroll + sprites + display-list blit   */
-    BOOT_WAIT, /* the 2-tick frame wait                         */
+    BOOT_WAIT, /* the frame wait (4 ticks in the port; D-248)  */
     BOOT_SCENE_HOLD, /* the scene's final 0x8C-tick hold (b7a3)       */
     BOOT_TRANS, /* the transition's white-flash fade (b854)      */
     BOOT_TRANS_HOLD, /* the words redraw + 0xa-tick hold (b866-b871)  */
@@ -448,7 +450,7 @@ int32_t scene_init(const OSystem *osys)
  */
 static int32_t _boot_key_state(void)
 {
-    return _scene_last_input.lastKey != 0u ||
+    return _scene_last_input.keyHeld != 0u || _scene_last_input.lastKey != 0u ||
            (_scene_last_input.joyBits & 0x80u) != 0u;
 }
 
@@ -469,7 +471,7 @@ static int32_t _scene_key_held(void)
 {
     InputState in;
     _scene_osys->eventsPoll(&in);
-    return in.lastKey != 0 || (in.joyBits & 0x80u) != 0;
+    return in.keyHeld != 0u || in.lastKey != 0u || (in.joyBits & 0x80u) != 0;
 }
 
 /**
@@ -1121,6 +1123,22 @@ static void _boot_compose_present(uint8_t *page)
     memset(page + 198u * 320u, 0, 2u * 320u); /* rows 198-199    */
 }
 
+/** @brief update_scene (1000:B9B5): the scrolled bac over the pool rows 0-183
+ * plus the tree/apple sprites.  The caller advances the scroll when the cue
+ * script's scroll gate is on.
+ */
+static void _boot_scene_render(void)
+{
+    uint8_t *page = video_page(0);
+    _boot_scroll_render(page, _boot_bac, 0xE600u, _boot_scroll_pos, 0u);
+    _boot_scroll_render(page, _boot_bac, 0xE600u, _boot_scroll_pos,
+                        0x140u - (_boot_scroll_pos % 0x140u));
+    _boot_blit_sprite(_boot_treetop, 140u, 113u, 0x5A2u, 0x140u, page);
+    _boot_blit_sprite(_boot_treebot, 21u, 59u, 0x608u, 0x8E80u, page);
+    if (_boot_frame < 331u) /* the apple leaves at frame 331 */
+        _boot_blit_sprite(_boot_apple, 16u, 16u, 0x5B5u, 0x3700u, page);
+}
+
 /**
  * @brief Play the power-on boot intro chain for one frame; 1 = showing.
  *
@@ -1491,6 +1509,16 @@ int32_t scene_play_boot_intro(void)
         _boot_group_dwell = 1u;
         _boot_dwell_count = 1u;
         _boot_scroll_pos = 0u;
+        /* 1000:b71e-b739: render and present frame 0 before the cue loop,
+         * so the frame-0 transition flash runs over the scene, as the
+         * original does. */
+        _boot_scene_render();
+        (void)_boot_blit_group(_boot_list_buf, _boot_list_size, _boot_rsc,
+                               _boot_rsc_size, _boot_entries, _boot_entry_count,
+                               _boot_obj, _boot_list_pos, video_page(0));
+        _boot_compose_present(video_page(0));
+        _scene_osys->videoPresent(0);
+        _boot_list_pos = _boot_list_start; /* b748 */
         script_intro_start(&_boot_script);
         _boot_phase = BOOT_FRAME;
         return 1;
@@ -1540,18 +1568,9 @@ int32_t scene_play_boot_intro(void)
             palette_build_fade(0xE0u, 0x10u, 0x28u, palette_working() + 0x211u);
         /* update_scene (1000:B9B5): the scroll render + the sprites; the
          * scroll position advances after the render (when scroll is on) */
-        {
-            uint8_t *page = video_page(0);
-            _boot_scroll_render(page, _boot_bac, 0xE600u, _boot_scroll_pos, 0u);
-            _boot_scroll_render(page, _boot_bac, 0xE600u, _boot_scroll_pos,
-                                0x140u - (_boot_scroll_pos % 0x140u));
-            _boot_blit_sprite(_boot_treetop, 140u, 113u, 0x5A2u, 0x140u, page);
-            _boot_blit_sprite(_boot_treebot, 21u, 59u, 0x608u, 0x8E80u, page);
-            if (_boot_frame < 331u) /* the apple leaves at frame 331 */
-                _boot_blit_sprite(_boot_apple, 16u, 16u, 0x5B5u, 0x3700u, page);
-            if (script_scroll_on(&_boot_script))
-                _boot_scroll_pos += script_scroll_delta(&_boot_script);
-        }
+        _boot_scene_render();
+        if (script_scroll_on(&_boot_script))
+            _boot_scroll_pos += script_scroll_delta(&_boot_script);
         /* blit_display_list: the group's overlays; the dwell counts down
          * per frame — when it expires, the next group + frame */
         {
@@ -1572,13 +1591,18 @@ int32_t scene_play_boot_intro(void)
          * page below every present, untouched until the next transition */
         _boot_compose_present(video_page(0));
         _scene_osys->videoPresent(0);
-        _boot_wait_ticks = 2u; /* the 2-tick frame wait */
+        /* 1000:b780 waits `[0x5AC8] >= 2`; doubled only for this scene —
+         * port_deviations.md D-248 (requested slowdown) */
+        _boot_wait_ticks = 4u;
         _boot_phase = BOOT_WAIT;
         return 1;
     }
 
     case BOOT_WAIT:
-        if (--_boot_wait_ticks == 0) _boot_phase = BOOT_FRAME;
+        if (--_boot_wait_ticks == 0) {
+            if (_boot_abort_poll()) return 1; /* b787: c0c6            */
+            _boot_phase = BOOT_FRAME;
+        }
         return 1;
 
     case BOOT_SCENE_HOLD:
@@ -1591,6 +1615,7 @@ int32_t scene_play_boot_intro(void)
         return 1;
 
     case BOOT_TRANS:
+        if (_boot_abort_poll()) return 1; /* c0af (b863) */
         if (palette_fade_active()) return 1;
         /* b866: the words' block expands into BOTH visible pages — the
          * port folds it into its one page via the compose */
@@ -1618,11 +1643,12 @@ int32_t scene_play_boot_intro(void)
         return 0;
 
     case BOOT_ABORT:
-        /* the c0c6 -> b60a unwind: clear_fade_ramp (b90f) is a no-op here
-         * (_boot_ramp is never dirtied), then the final fade to the zeroed
-         * ramp, div 0x23 (b611-b61d), waited with the NON-aborting 8b8b —
-         * the remaining boot stages (the cards, the caveman scene) are
-         * skipped and the boot ends black */
+        /* the c0c6 -> b60a unwind: clear_fade_ramp (b90f) zeroes 0x48BC —
+         * the transition may have left its white ramp there — then the
+         * final fade to the zeroed ramp, div 0x23 (b611-b61d), waited with
+         * the NON-aborting 8b8b.  The remaining boot stages (the cards, the
+         * caveman scene) are skipped and the boot ends black. */
+        memset(_boot_ramp, 0, sizeof(_boot_ramp));
         palette_build_fade(0u, 256u, 0x23u, _boot_ramp);
         _boot_phase = BOOT_ABORT_FADE;
         return 1;

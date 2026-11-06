@@ -139,7 +139,8 @@ static struct {
  *           (`1000:3F4A`) looping `queue_dirty_cell_packed` (`1000:3FB3`) until
  *           `[0x1B02]`: 0x100 dirty cells queued from the 0x1B76 coordinate
  *           table over the 0x48BC list, shaded from 0x19EA — ported as
- *           `level_spark_begin`/`sparkStep`/`sparkDraw`
+ *           `level_spark_begin`/`sparkStep`/`sparkDraw`, with `CLAIM_REVEAL`
+ *           holding the sequence until the list finishes
  *   hold    41 frames, then 1..0xBF -> white div 5, one frame, the neighbour's
  *           `+6 = 0xFFFF`, `[0xC] = [0x5B12] = 0xFF`, two page frames, then
  *           1..0xBF -> the level div 0x28
@@ -155,6 +156,7 @@ enum {
     CLAIM_BLINK_WHITE, /* 1000:3BB3  the 0x80 bank -> white, div n        */
     CLAIM_BLINK_LEVEL, /* 1000:3BC3  the 0x80 bank -> the level, div n    */
     CLAIM_ANIM, /* 1000:3BD6  6 x 9 frames, `frame++` per pass     */
+    CLAIM_REVEAL, /* 1000:3C73  the blocking dirty-cell flush         */
     CLAIM_HOLD, /* 1000:3C7D  41 frames                            */
     CLAIM_WHITE_OUT, /* 1000:3C88  1..0xBF -> white, div 5              */
     CLAIM_FRAME2, /* 1000:3C9F  one frame, then the remove           */
@@ -2025,40 +2027,83 @@ int32_t object_type_equals(uint32_t type)
  * loader never writes** at `+0x280..+0x29F`, then a **full second copy of the
  * map at `+0x2A0`** (1000:3146 `ADD DI,0x20` / 1000:3149 `REP MOVSB`).  The
  * routines that probe a neighbour row (`1000:D9E8`'s `[DI-0x20]`/`[DI+0x20]`,
- * `1000:E2B5`, `1000:E039`) address that tail through this.  Before the buffer
- * and past the second copy are the port's bounds (port_deviations.md D-100).
+ * `1000:E2B5`, `1000:E039`) address that tail through this.
+ *
+ * The live first 640 bytes are `level_map()`; the tail is `_obj_map_tail`, seeded
+ * at level load (gap zero, second copy = the load-time map).  The `0xA9`
+ * handler is the only tail writer (`_obj_map_put`).  Reads before the buffer and
+ * past the second copy are the port's bounds (port_deviations.md D-233).
  *
  * @param idx the index
- * @return the map byte (0xFF off the map)
+ * @return the map byte (0xFF before the buffer, 0 past the second copy)
  */
-static uint32_t _obj_map_buffer_byte(int32_t idx)
-{
-    const uint8_t *map = level_map();
+static uint8_t _obj_map_tail[32u + 640u];
 
+/**
+ * @brief 1000:3138/0x3149: seed the buffer tail from a freshly loaded map.
+ *
+ * @param map the 640-byte map (NULL clears the second copy too)
+ */
+void object_map_tail_reset(const uint8_t *map)
+{
+    memset(_obj_map_tail, 0, 32u);
+    if (map) memcpy(_obj_map_tail + 32u, map, 640u);
+    else memset(_obj_map_tail + 32u, 0, 640u);
+}
+
+/**
+ * @brief The map buffer byte for an explicit 640-byte map (the spawn handlers get
+ * the map they are loading, not necessarily `level_map()`).
+ *
+ * @param map the 640-byte map
+ * @param idx the buffer index
+ * @return the map byte
+ */
+static uint32_t _obj_map_byte_at(const uint8_t *map, int32_t idx)
+{
     if (!map) return 0u;
     if (idx < 0) return 0xFFu;
     if (idx < 640) return map[idx];
-    if (idx < 672) return 0u;
-    if (idx < 1312) return map[idx - 672];
+    if (idx < 1312) return _obj_map_tail[idx - 640];
     return 0u;
+}
+
+static uint32_t _obj_map_buffer_byte(int32_t idx)
+{ return _obj_map_byte_at(level_map(), idx); }
+
+/**
+ * @brief Write one byte of the map buffer: the live 640-byte map, then the
+ * gap/second copy.  Outside 0..1311 the write is dropped (D-233).
+ *
+ * @param map the 640-byte map
+ * @param idx the buffer index
+ * @param value the byte
+ */
+static void _obj_map_put(uint8_t *map, uint32_t idx, uint8_t value)
+{
+    if (!map) return;
+    if (idx < 640u) map[idx] = value;
+    else if (idx < 1312u) _obj_map_tail[idx - 640u] = value;
 }
 
 /** @brief 1000:E361: the map cell at (x + 8, y + 0xC).  Returns the cell's *index* so
  * the callers that read a neighbour (`1000:3600`'s `[DI+0x20]`, one map row
- * below) can address it; 0xFFFF when the point is outside the map.
+ * below) can address it.  `1000:E369` only aligns y; it does not test the index,
+ * so the index runs onto the buffer's gap/second copy (see
+ * `_obj_map_buffer_byte`).
  *
  * @param rec the record
- * @return the cell index, or 0xFFFF off the map
+ * @return the cell index
  */
 static uint32_t _obj_map_cell_index(const uint8_t *rec)
 {
-    uint32_t x = (uint32_t)rd_le_u16(rec + 0u) + 8u;
-    uint32_t y = (uint32_t)rd_le_u16(rec + 2u) + 0xCu;
-    uint32_t cell;
+    /* 1000:E361: ADD AX,[SI] / ADD BX,[SI+2] are 16-bit, ADD DI,BX is 16-bit. */
+    uint32_t x = (uint32_t)(uint16_t)(rd_le_u16(rec + 0u) + 8u);
+    uint32_t y = (uint32_t)(uint16_t)(rd_le_u16(rec + 2u) + 0xCu);
 
-    if (!level_map() || y < 16u) return 0xFFFFu;
-    cell = 32u * (y / 16u) + (x / 16u);
-    return cell < 640u ? cell : 0xFFFFu;
+    if (!level_map()) return 0xFFFFu;
+    /* 1000:E369: MOV DI,BX / ADD DI,BX is 16-bit, so 2*y wraps. */
+    return (uint16_t)(2u * (y & 0xFFF0u)) + (x >> 4); /* no 640 bound */
 }
 
 /**
@@ -2069,17 +2114,16 @@ static uint32_t _obj_map_cell_index(const uint8_t *rec)
  */
 static uint32_t _obj_map_cell(const uint8_t *rec)
 {
-    const uint8_t *map = level_map();
-    uint32_t cell = _obj_map_cell_index(rec);
-
-    return cell < 640u && map ? map[cell] : 0xFFFFu;
+    if (!level_map()) return 0xFFFFu;
+    return _obj_map_buffer_byte((int32_t)_obj_map_cell_index(rec));
 }
 
 /** @brief The map cell under a record, for the score (55FA calls 0xF761 with AX = 8,
- * BX = 0xC on each of the eight static records): 0xFFFF outside the map.
+ * BX = 0xC on each of the eight static records): 0xFFFF for a non-static slot or
+ * when no level is loaded.
  *
  * @param slot the slot
- * @return the map cell, or 0xFFFF when out of range
+ * @return the map cell, or 0xFFFF when there is no record
  */
 uint32_t object_record_map_cell(uint32_t slot)
 {
@@ -2145,17 +2189,14 @@ int32_t object_low_phase_match(void)
          * wrong - see re_history.md. */
         const uint8_t *map = level_map();
         uint32_t cell = _obj_map_cell_index(_obj_actor());
-        int32_t goal = (cell < 640u && map && map[cell] == 0xA8u);
+        int32_t goal = map != NULL &&
+                       _obj_map_buffer_byte((int32_t)cell) == 0xA8u;
 
-        /* The original's buffer has a 32-byte gap at +0x280..+0x29F and the full
-         * map again at +0x2A0 (1000:3138), so the last row's below-cell reads the
-         * gap (0x00 = tile 0) — the port's row-0 wrap is D-100. */
-        if (!goal && cell < 640u && map) {
-            uint32_t below = cell + 32u;
-
-            if (below >= 640u) below -= 640u;
-            if (map[below] == 0xA8u) goal = 1;
-        }
+        /* 1000:3624: the original reads `[DI+0x20]` with no wrap, and for the
+         * last map row that is the buffer's 32-byte gap (0x00 = tile 0). */
+        if (!goal && map &&
+            _obj_map_buffer_byte((int32_t)(cell + 0x20u)) == 0xA8u)
+            goal = 1;
         if (!goal) {
             _low_phase_count = 0u; /* 1000:362C */
             return 0;
@@ -2287,6 +2328,43 @@ int32_t object_claim_active(void) { return _claim_phase != CLAIM_OFF; }
  */
 int32_t object_claim_pan_active(void) { return _claim_phase == CLAIM_PAN; }
 
+/**
+ * @brief Accessor: the claim's animation phase (1000:3BD6, the 56 frames).
+ *
+ * @return 1 while the claim is animating the neighbour.
+ */
+int32_t object_claim_anim_active(void) { return _claim_phase == CLAIM_ANIM; }
+
+/**
+ * @brief Accessor: the claim's page re-blit phase (1000:3CB5).
+ *
+ * @return 1 while the world must be re-composed.
+ */
+int32_t object_claim_flip_active(void) { return _claim_phase == CLAIM_FLIP; }
+
+/**
+ * @brief Accessor: the claim has reached the pan and its page is frozen.
+ *
+ * The three phases before the pan (`CLAIM_TO_RED`/`RED_BACK`/`TO_WHITE`) only
+ * fade the DAC in the original, so the last drawn page must be left alone
+ * (1000:3B34..1000:3B8E); from the pan onward the recoloured page is presented.
+ *
+ * @return 1 from CLAIM_WHITE_BACK through CLAIM_SETTLE.
+ */
+int32_t object_claim_page_frozen(void)
+{ return _claim_phase >= CLAIM_WHITE_BACK; }
+
+/**
+ * @brief Accessor: the claim's settle fade (1000:3CDE).
+ *
+ * The page is already the final `1000:3CB5` frame (world + objects); the
+ * settle only fades the DAC, so it must not be presented over the plane.
+ *
+ * @return 1 while the settle fade runs.
+ */
+int32_t object_claim_settle_active(void)
+{ return _claim_phase == CLAIM_SETTLE; }
+
 /** @brief One frame of the sequence; the fades advance through `palette_tick`, which
  * the level's own tick drives.  Every `palette_fade_active()` wait below is the
  * original's `0x9F8B` (spin while the fade runs).
@@ -2391,6 +2469,14 @@ void object_claim_tick(const uint8_t *levelPal)
                                   shade);
             }
         }
+        _claim_phase = CLAIM_REVEAL;
+        break;
+    case CLAIM_REVEAL: /* 1000:3C73: the blocking dirty-cell flush */
+        /* 1000:3C73 CALL 3F4A / 1000:3C76 TEST [0x1B02] / JZ 3C73: the reveal
+         * finishes before the 41-frame hold.  level_claim_frame advances the
+         * spark once per presented frame (3F4A's restore/step/draw/flip). */
+        if (level_spark_active()) return;
+        _claim_timer = 0u;
         _claim_phase = CLAIM_HOLD;
         break;
     case CLAIM_HOLD: /* 1000:3C7D: 0x28+1 */
@@ -2482,8 +2568,9 @@ static void _obj_append_spear(uint32_t col, uint32_t row)
     wr_le_u16(r + 2u, (uint16_t)(bx - 0x10));
 }
 
-/** @brief 1000:54D9 (0xBB): {x, y, +4 = 0x26, +6 = 0, +8 = the map cell - 1},
- * behaviour 9.
+/** @brief 1000:54D9 (0xBB): {x, y, +4 = 0x26, +6 = 0, +8 = the map cell},
+ * behaviour 9.  The original's `+8` is `SI - 1` (the map pointer); the port
+ * stores the matched cell index (D-123).
  *
  * @param col the column
  * @param row the row
@@ -2666,12 +2753,14 @@ static void _obj_spawn_b7(const uint8_t *map, uint32_t col, uint32_t row)
         for (uint32_t k = 0; k < 4u && !variant; k++) {
             int64_t c = (int64_t)cell + left[k];
 
-            if (c >= 0 && c < 640 && map[c] == 0xB6u) variant = 1;
+            /* 1000:541D..0x5431: [SI-5..SI-2], no range test (D-233). */
+            if (_obj_map_byte_at(map, (int32_t)c) == 0xB6u) variant = 1;
         }
         for (uint32_t k = 0; k < 4u && !variant; k++) {
             int64_t c = (int64_t)cell + right[k];
 
-            if (c >= 0 && c < 640 && map[c] == 0xB6u) variant = 2;
+            /* 1000:5434..0x5446: [SI]..[SI+3], no range test. */
+            if (_obj_map_byte_at(map, (int32_t)c) == 0xB6u) variant = 2;
         }
     }
     wr_le_u16(r + 0u, (uint16_t)(col * 16u));
@@ -2840,16 +2929,14 @@ static void _obj_append_row9(uint8_t *map, uint32_t col, uint32_t row)
      * for.  The handler's SI is one past the matched cell, so the pair lands at
      * (col+1, row+1) and (col+2, row+1) - live level 16 row 17 reads
      * 0x33 0xC2 0xC9 at cols 14..16 with the 0xA9 at col 14 (the 0x33 is the
-     * level's own tile, untouched).  The original's buffer carries a duplicated
-     * first row at +0x20, so its write always lands; the port's map is exactly
-     * 640 bytes, so the pair is bounds-checked instead. */
+     * level's own tile, untouched).  The original writes both with no range
+     * test; at row 18 col 30 the second lands in the gap and at row 19 both do,
+     * so both go through the buffer tail (_obj_map_put). */
     {
         uint32_t cell = row * OBJ_COLS + col;
 
-        if (cell + OBJ_COLS + 2u < 640u) {
-            map[cell + OBJ_COLS + 1u] = 0xC2u;
-            map[cell + OBJ_COLS + 2u] = 0xC9u;
-        }
+        _obj_map_put(map, cell + OBJ_COLS + 1u, 0xC2u);
+        _obj_map_put(map, cell + OBJ_COLS + 2u, 0xC9u);
     }
     if (_obj_bg_count < sizeof _obj_bg / sizeof _obj_bg[0]) {
         _obj_bg[_obj_bg_count].x = (uint16_t)(col * 16u);
@@ -3477,6 +3564,25 @@ void object_render(uint8_t *page, int32_t scrollX, int32_t scrollY)
 
     for (uint32_t k = 0; k < nf; k++) /* 1000:642E */
         _obj_draw_record(page, scrollX, scrollY, front[k], 0);
+}
+
+/** @brief 1000:40CA render_frame_objects: the claim's presented frames draw
+ * only the selected record (`[0x180A]`) and the claimed one (`[0x1AF2]`) over
+ * the frozen page — never the whole world.
+ *
+ * @param page the page buffer
+ * @param scrollX the scroll x
+ * @param scrollY the scroll y
+ */
+void object_claim_draw_records(uint8_t *page, int32_t scrollX, int32_t scrollY)
+{
+    int32_t cur = object_current();
+
+    if (!page || !_obj_bank) return;
+    if (_obj_player >= 0 && (uint32_t)_obj_player < OBJ_SLOTS)
+        _obj_draw_record(page, scrollX, scrollY, (uint32_t)_obj_player, 0);
+    if (cur >= 0 && (uint32_t)cur < OBJ_SLOTS)
+        _obj_draw_record(page, scrollX, scrollY, (uint32_t)cur, 0);
 }
 
 /**
@@ -4660,9 +4766,12 @@ static void _obj_stack8_move(uint8_t *r, int32_t vx, int32_t vy,
     ax = (int32_t)(int16_t)rd_le_u16(r + 0u) + vx;
     rowFine = (uint32_t)(bx + 0xC) & 0xFu;
     {
-        uint32_t ci = ((uint32_t)(bx + 0xC) >> 4) * 32u + ((uint32_t)ax >> 4);
+        /* 1000:C645..0xC662: DI = [0x1FA0] + 2*((bx+0xC) & 0xFFF0) + (ax>>4),
+         * all 16-bit, with no range test. */
+        uint32_t ci = (uint16_t)(2u * ((uint32_t)(bx + 0xC) & 0xFFF0u)) +
+                      (((uint32_t)ax & 0xFFFFu) >> 4);
 
-        tile = (map && ci < 640u) ? map[ci] : 0xFFu;
+        tile = map ? _obj_map_buffer_byte((int32_t)ci) : 0xFFu;
     }
     word = level_item_word(tile, rowFine);
     if (word != 0u) {
@@ -4812,24 +4921,33 @@ static uint8_t *_obj_act_class;
 static int32_t _obj_bg_mark(const uint8_t *actor);
 
 /**
- * @brief Cull or return the projectile velocity.
+ * @brief Cull the projectile and advance its x, as `1000:D1E3` does.
+ *
+ * The original writes `BX` (the record x): it adds `±(|vx| >> 3)` and puts the
+ * value back only when the cull fails.  On shipped data that is the wheel's
+ * only horizontal motion: the path handlers wind `+8` and this routine turns
+ * it into x steps.
  *
  * @param vx the x velocity
- * @param x the x coordinate
+ * @param x the x coordinate (in/out)
  * @return the velocity, or 0 when culled
  */
-static int32_t _obj_proj_cull(int32_t vx, int32_t x)
+static int32_t _obj_proj_cull(int32_t vx, int16_t *x)
 { /* 1000:D1E3 cull_entity_offscreen */
     int32_t off;
 
     if (vx < 0) {
         off = (-vx) >> 3;
-        if (x - off < 0) return 0;
-    } else {
-        off = vx >> 3;
-        if (x + off > 0x1EF) return 0;
+        *x = (int16_t)(*x - off);
+        if (*x >= 0) return vx;
+        *x = (int16_t)(*x + off);
+        return 0;
     }
-    return vx;
+    off = vx >> 3;
+    *x = (int16_t)(*x + off);
+    if ((uint16_t)*x < 0x1F0u) return vx;
+    *x = (int16_t)(*x - off);
+    return 0;
 }
 
 /* 1000:D41B advance_position_snap_row: BX/CX are deltas added to the scratch
@@ -5121,6 +5239,35 @@ static void _obj_hit_dispatch(uint8_t *r, uint8_t *t, int16_t frame, int16_t vx,
     }
 }
 
+/** @brief 1000:D162: position the projectile's target and run the hit op.
+ *
+ * Both behaviour-4 phases fall through to this shared tail: the target record
+ * (the wheel's rider, while mounted) is placed at `(x-8, y-0x10)` and gets the
+ * `0x666B` frame/state op.  Phase 1 calls it after the burst, which is what
+ * gives the mounted human its riding frames.
+ *
+ * @param r the projectile record
+ * @param x the projectile x
+ * @param y the projectile y
+ * @param frame the projectile frame
+ * @param vx the x velocity
+ * @param vy the y velocity
+ */
+static void _obj_proj_target(uint8_t *r, int32_t x, int32_t y, int32_t frame,
+                             int32_t vx, int32_t vy)
+{
+    int32_t tgt = (int16_t)rd_le_u16(r + 0xEu);
+
+    if (tgt < 0) return; /* 1000:D16A */
+    {
+        uint8_t *t = _obj_array + (uint32_t)tgt * OBJ_STRIDE;
+
+        wr_le_u16(t + 0u, (uint16_t)(x > 8 ? x - 8 : 0)); /* 1000:D17A */
+        wr_le_u16(t + 2u, (uint16_t)(y - 0x10)); /* 1000:D185 */
+        _obj_hit_dispatch(r, t, frame, vx, vy); /* 1000:D1BD */
+    }
+}
+
 /* 0xCEC3 entity_update_from_map: the behaviour-4 projectile ------------------
  *
  * Phase 1 (vy == 0) rolls along the terrain: the tile at (x+8, y+0x10) gives a
@@ -5129,7 +5276,8 @@ static void _obj_hit_dispatch(uint8_t *r, uint8_t *t, int16_t frame, int16_t vx,
  * 0x38..0x3B.  Phase 2 (vy != 0) is the fall: the signed curve at 0x6652
  * (indexed by vy, clamped by the byte compare at 0x19) is added to y, and the
  * landing test resolves the target record through +0xE (the 0x3E24 pointer
- * table), writing its 0x28/0/0x16/5 state and dispatching the 0x666B op. */
+ * table), writing its 0x28/0/0x16/5 state and dispatching the 0x666B op.
+ * Both phases end at `_obj_proj_target` (`1000:D162`). */
 /**
  * @brief 0xCEC3: the behaviour-4 projectile, phase 1 roll and phase 2 fall.
  *
@@ -5175,7 +5323,7 @@ static void _obj_walk_projectile(uint8_t *r, uint32_t idx)
                 }
             }
         }
-        vx = (int16_t)_obj_proj_cull(vx, x); /* 1000:CFC3 */
+        vx = (int16_t)_obj_proj_cull(vx, &x); /* 1000:CFC3 */
         _obj_scan_x = 8;
         {
             int32_t rc = _obj_proj_advance(r, x, y);
@@ -5202,6 +5350,10 @@ static void _obj_walk_projectile(uint8_t *r, uint32_t idx)
                         }
                     }
                 }
+                /* 1000:D02D -> D162: phase 1 shares the target write and the
+                 * hit op with phase 2, which is what keeps the wheel's rider
+                 * in its riding frames. */
+                _obj_proj_target(r, x, cxreg, frame, vx, vy);
                 /* 1000:D1C0: the phase-1 writeback ends the tick */
                 wr_le_u16(r + 0xAu, (uint16_t)vy);
                 wr_le_u16(r + 8u, (uint16_t)vx);
@@ -5213,7 +5365,7 @@ static void _obj_walk_projectile(uint8_t *r, uint32_t idx)
         }
     }
     /* phase 2 */
-    vx = (int16_t)_obj_proj_cull(vx, x); /* 1000:D039 */
+    vx = (int16_t)_obj_proj_cull(vx, &x); /* 1000:D039 */
     _obj_scan_x = 4;
     if ((uint8_t)vy < 0x19u)
         _obj_scan_x = _obj_proj_curve[(uint8_t)vy]; /* 1000:D049 */
@@ -5223,7 +5375,8 @@ static void _obj_walk_projectile(uint8_t *r, uint32_t idx)
         y = (int16_t)(y + curve); /* 1000:D065 */
         cxreg = y;
         if (curve >= 0) { /* 1000:D069 */
-            int32_t tail = 135;
+            /* D135 = fall, D11B = bounce/land, D0B5 = target hit. */
+            int32_t mode = 0;
 
             _obj_scan_x = 8;
             {
@@ -5232,25 +5385,26 @@ static void _obj_walk_projectile(uint8_t *r, uint32_t idx)
                 if (rc == -2) return; /* 0xD4D4/0xD5D2: leave 1000:CEC3 */
                 if (rc >= 0 && _obj_scan_y <= y) {
                     int16_t prev = (int16_t)rd_le_u16(r + 0x10u);
+                    int32_t d = (int32_t)prev - (int32_t)_obj_scan_y;
 
-                    _obj_scan_x = prev;
-                    if (prev >= 0) {
-                        _obj_scan_x = (int16_t)(_obj_scan_x - _obj_scan_y);
-                        if ((int16_t)_obj_scan_x >= 0 &&
-                            (uint16_t)_obj_scan_x > 0x10u)
-                            tail = 135;
-                    }
-                    if (tail != 135) {
-                        _obj_scan_x = (int16_t)-_obj_scan_x;
-                        if ((int16_t)_obj_scan_x < 0 ||
-                            (uint16_t)_obj_scan_x < 0x40u) {
-                            tail = 195;
+                    /* 1000:D08B..D0A5: prev < 0, prev-scan_y < 0 and
+                     * prev-scan_y <= 0x10 all take D0A8; only a distance
+                     * greater than 0x10 stays on the fall arm (D135). */
+                    if (prev < 0 || d < 0 || d <= 0x10) {
+                        d = -d; /* 1000:D0A8 NEG */
+                        /* The original tests the 16-bit NEG result's sign
+                         * (`JS D11B`), so 0x8000 stays the bounce arm. */
+                        if ((int16_t)d < 0 || d < 0x40) {
+                            vy = -1; /* 1000:D11B */
+                            _obj_scan_x = 5;
+                            mode = 1;
                         } else {
                             int32_t tgt = (int16_t)rd_le_u16(r + 0xEu);
 
-                            _obj_scan_x = (int16_t)tgt;
                             if (tgt < 0) {
-                                tail = 195;
+                                vy = -1; /* 1000:D0BD -> D11B */
+                                _obj_scan_x = 5;
+                                mode = 1;
                             } else { /* 1000:D0B5: the hit */
                                 uint8_t *t =
                                     _obj_array + (uint32_t)tgt * OBJ_STRIDE;
@@ -5268,18 +5422,13 @@ static void _obj_walk_projectile(uint8_t *r, uint32_t idx)
                                 vy = 0;
                                 wr_le_u16(r + 0x10u, (uint16_t)y);
                                 _obj_scan_x = 4;
-                                tail = 127;
+                                mode = 2;
                             }
                         }
                     }
                 }
             }
-            if (tail == 195) { /* 1000:D11B */
-                vy = -1;
-                _obj_scan_x = 5;
-                tail = 127;
-            }
-            if (tail == 127) { /* 1000:D127 */
+            if (mode != 0) { /* 1000:D127 */
                 cxreg = _obj_scan_y;
                 r[7] = 0x99u;
                 _obj_driver_call((uint32_t)(uint16_t)_obj_scan_x);
@@ -5296,17 +5445,7 @@ static void _obj_walk_projectile(uint8_t *r, uint32_t idx)
         _obj_scan_x = (vx < 0) ? 0 : 8; /* 1000:D14B */
         _obj_proj_burst(r, x, cxreg, &vx, &vy); /* 1000:D15F */
     }
-    { /* 1000:D162: the hit record's position and the op dispatch */
-        int32_t tgt = (int16_t)rd_le_u16(r + 0xEu);
-
-        if (tgt >= 0) {
-            uint8_t *t = _obj_array + (uint32_t)tgt * OBJ_STRIDE;
-
-            wr_le_u16(t + 0u, (uint16_t)(x > 8 ? x - 8 : 0));
-            wr_le_u16(t + 2u, (uint16_t)(cxreg - 0x10));
-            _obj_hit_dispatch(r, t, frame, vx, vy);
-        }
-    }
+    _obj_proj_target(r, x, cxreg, frame, vx, vy); /* 1000:D162 */
     /* 1000:D1C0: the writeback */
     wr_le_u16(r + 0xAu, (uint16_t)vy);
     wr_le_u16(r + 8u, (uint16_t)vx);
@@ -6607,14 +6746,14 @@ int32_t object_stack_snap(uint8_t *actor)
 }
 
 /** @brief 1000:E361 map_get, the law shared with _obj_map_cell: the map cell at
- * (x, y) is `map[32*(y>>4) + (x>>4)]`; `*sub` returns `x & 0xF`, the 0x92A0
- * sub-column the step test indexes.  Out of the 640-byte map the original reads
- * the neighbouring buffer, the port returns 0xFF.
+ * (x, y) is `map[2*(y & 0xFFF0) + (x >> 4)]`; `*sub` returns `x & 0xF`, the 0x92A0
+ * sub-column the step test indexes.  No range test: the buffer continues with a
+ * 32-byte gap and the whole map again (`_obj_map_buffer_byte`).
  *
  * @param x the x coordinate
  * @param y the y coordinate
  * @param sub the sub-column
- * @return the map cell, or 0xFF off the map
+ * @return the map cell
  */
 static uint32_t _obj_map_at_abs(int32_t x, int32_t y, uint32_t *sub)
 {
@@ -6624,8 +6763,10 @@ static uint32_t _obj_map_at_abs(int32_t x, int32_t y, uint32_t *sub)
     if (sub)
         *sub = (uint32_t)x & 0xFu; /* the fine x, when the caller wants it */
     if (!map) return 0xFFu;
-    cell = 32u * (((uint32_t)y & 0xFFF0u) >> 4) + ((uint32_t)x >> 4);
-    return cell < 640u ? map[cell] : 0xFFu;
+    /* 1000:E363..0xE376: the y add and `ADD DI,BX` are 16-bit, so 2*y wraps. */
+    cell = (uint16_t)(2u * ((uint32_t)y & 0xFFF0u)) +
+           (((uint32_t)x & 0xFFFFu) >> 4);
+    return _obj_map_buffer_byte((int32_t)cell);
 }
 
 /** @brief 1000:E389 map_cell_lookup as a point: (x = AX, y = BX) -> the landed y, with
@@ -9464,7 +9605,7 @@ static void _obj_class_transfer(uint32_t recIndex)
     slot = _obj_slot_class + cls; /* 0x3E5F + cls - 1 */
     *slot &= 0x7Fu; /* 1000:F504 */
     beh = (uint32_t)(*slot & 0x3Fu);
-    if (beh == 4u) { /* 1000:F50B: the live record is the projectile/stone */
+    if (beh == 4u) { /* 1000:F50B: the live record is the wheel */
         uint32_t ax, bx;
 
         wr_le_u16(live + 0xEu, 0xFFFFu);
@@ -9708,26 +9849,27 @@ void object_action_run(void)
         /* 0xECFE: needs a class, then page_offset_to_ptr (0xF123) on the map
          * cell under the record and on the cell one to the right (type 0) or
          * left; only when both are free does it set type 0x12/frame 0x8C
-         * (type 0) or type 0x14/frame 0x91.  The 16-bit `DI += CX` can walk
-         * off the map, so both indices are bounds-checked.  The original's
-         * single exit (1000:ED49) clears the sequence latch [0x6F1D] on every
-         * path and nothing in the body reads it, so the clear is done here. */
+         * (type 0) or type 0x14/frame 0x91.  `1000:ED1D..0xED3E` forms
+         * `DI = [0x1FA0] + 2*(y & 0xFFF0) + (x >> 4)` and takes the
+         * neighbour as `DI ± 1`, with no range test — the map buffer's gap
+         * and second copy are legitimate.  The original's single exit
+         * (1000:ED49) clears the sequence latch [0x6F1D] on every path and
+         * nothing in the body reads it, so the clear is done here. */
         _obj_lat = 0;
         {
             uint32_t t = rd_le_u16(actor + 8u);
-            uint32_t step = (t == 0u) ? 1u : 0xFFFFu;
+            int32_t step = (t == 0u) ? 1 : -1;
             uint32_t frame = (t == 0u) ? 0x8Cu : 0x91u;
             const uint8_t *map = level_map();
-            int32_t col = (int16_t)rd_le_u16(actor + 0u) >> 4;
-            int32_t row = (int16_t)rd_le_u16(actor + 2u) >> 4;
-            int32_t cell = row * 32 + col;
-            int32_t next = cell + (int32_t)(int16_t)step;
+            int32_t cell =
+                (int32_t)(uint16_t)(2u * ((uint32_t)rd_le_u16(actor + 2u) &
+                                          0xFFF0u)) +
+                (int32_t)((uint32_t)rd_le_u16(actor + 0u) >> 4);
+            int32_t next = cell + step;
 
             if (!actor[7u] || t >= 2u || !map) break; /* 1000:3A1D CMP/JNC */
-            if (cell < 0 || cell >= 640) break;
-            if (!level_page_free(map[cell])) break;
-            if (next < 0 || next >= 640) break;
-            if (!level_page_free(map[next])) break;
+            if (!level_page_free(_obj_map_buffer_byte(cell))) break;
+            if (!level_page_free(_obj_map_buffer_byte(next))) break;
             wr_le_u16(actor + 8u, (uint16_t)((t == 0u) ? 0x12u : 0x14u));
             wr_le_u16(actor + 4u, (uint16_t)frame);
         }

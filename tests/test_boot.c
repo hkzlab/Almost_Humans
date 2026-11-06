@@ -4,7 +4,8 @@
  * list over the scrolled bac.bit background with the tree/apple sprites.
  * The state machine: the card's own-palette DAC fade-in (b68f/c0af), the
  * 280-tick initial dwell, the fade-out to the zeroed ramp + the 0x8C-tick
- * black hold (b6f2-b707), then 387 display-list frames (2 ticks each) with
+ * black hold (b6f2-b707), then 387 display-list frames (2 ticks each in the
+ * original; 4 in the port — port_deviations.md D-248) with
  * the transition white-flash blocks, ending on the quit cue (frame 385).
  * The palette fades step from palette_tick — the ISR body's work — so the
  * loop below drives it once per scene call, like game_main's game_tick.
@@ -164,9 +165,10 @@ int main(int argc, char **argv)
     /* the expected shape: the Gametek logo (the fade-in, 33 groups, the 4
      * bank cycles, the 0x1a4 hold), the IDI card, the FIRST card's 7-bank
      * staggered fade-in, the ITB card + the scene, and the outro fade —
-     * the full boot_intro_sequence (1000:B590), ~5.7k ticks. */
-    if (ticks < 5400u || ticks > 6000u) {
-        fprintf(stderr, "FAIL tick count %u outside [5400, 6000]\n", ticks);
+     * the full boot_intro_sequence (1000:B590), ~6.7k ticks with D-248's
+     * doubled scene wait (~5.9k in the original). */
+    if (ticks < 6400u || ticks > 7000u) {
+        fprintf(stderr, "FAIL tick count %u outside [6400, 7000]\n", ticks);
         bad = 1;
     }
 

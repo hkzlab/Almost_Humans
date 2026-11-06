@@ -61,6 +61,27 @@ static void _flow_dump_ppm(const char *path, const uint8_t *page)
 }
 
 /**
+ * @brief Whether a page pixel lies in one of the claim's two record boxes
+ * (player 0x100,0x80 and victim 0x120,0x88 in the D-240/D-242 fixture).
+ *
+ * @param x the page x
+ * @param y the page y
+ * @param vx the view x
+ * @param vy the view y
+ * @return 1 inside a box
+ */
+static int32_t _flow_claim_rec_box(uint32_t x, uint32_t y, uint32_t vx,
+                                   uint32_t vy)
+{
+    int32_t wx = (int32_t)(x + vx);
+    int32_t wy = (int32_t)(y + vy);
+
+    if (wx >= 0xF8 && wx < 0x118 && wy >= 0x78 && wy < 0xA8) return 1;
+    if (wx >= 0x118 && wx < 0x138 && wy >= 0x80 && wy < 0xB0) return 1;
+    return 0;
+}
+
+/**
  * @brief Assert one condition and count a failure.
  *
  * @param ok the condition
@@ -584,8 +605,8 @@ int main(int argc, char **argv)
         _check(object_claim_active() == 1, "the sequence starts");
         uint32_t spawned = 0;
         {
-            uint32_t t = 0, moved = 0;
-            int32_t frozen = 0;
+            uint32_t t = 0, moved = 0, sparkSeen = 0;
+            int32_t frozen = 0, sparkOK = 1;
 
             /* 1000:3B19/3B28: the sequence freezes the world and snaps the
              * window to 4 px; nothing in it writes the window (the 3D41/3DC0
@@ -595,18 +616,39 @@ int main(int argc, char **argv)
             while (object_claim_active() && t++ < 20000u) {
                 palette_tick();
                 object_tick(testPal);
+                level_claim_frame(); /* the claim's presented frame */
                 if (!level_updates()) frozen = 1;
                 if (level_view_x() != 16u || level_view_y() != 8u) moved = 1;
+                if (!sparkSeen && level_spark_active()) {
+                    uint32_t sx = 0, sy = 0, sv = 0;
+
+                    if (level_spark_peek(&sx, &sy, &sv) && sv != 0u) {
+                        uint32_t px = sx - level_view_x();
+                        uint32_t py = sy - level_view_y();
+                        const uint8_t *pg = osys_null_page(0);
+
+                        if (px < 320u && py < 200u) {
+                            sparkSeen = 1;
+                            /* D-199 (closed 2026-11-05): 1000:3F9C writes the
+                             * whole shade byte into the pixel's plane, so the
+                             * pixel carries all 8 bits, not one scattered bit
+                             * over each of the group's four pixels. */
+                            sparkOK = (pg[py * 320u + px] == (uint8_t)sv);
+                        }
+                    }
+                }
             }
             _check(frozen, "the claim freezes update_world ([0xC] = 0)");
             _check(!moved, "the claim never moves the window");
             _check(level_updates(), "the claim restores [0xC] (1000:3CAB)");
             _check(!object_claim_active(), "the claim sequence finishes");
-            _check(level_spark_active(),
-                   "the claim's append starts the particle effect");
-            /* the particles run in play: the chain (fades + loading) is driven
-             * first, and the effect's spawns are counted from the first play
-             * frame (sparkStep is PLAYING-only, like the original's frame body) */
+            _check(sparkSeen != 0u, "a spawned cell carries a sprite value");
+            _check(sparkOK != 0u,
+                   "D-199: the composed pixel is the cell's full shade");
+            _check(!level_spark_active(),
+                   "the reveal finishes before the claim ends (1000:3C73)");
+            /* the level's start chain still has to run in play: the later
+             * fixtures need the PLAYING phase and a composed page. */
             if (level_starting()) {
                 for (uint32_t i = 0; i < 1200u && level_starting(); i++) {
                     level_begin(); /* waits for a running fade */
@@ -614,45 +656,6 @@ int main(int argc, char **argv)
                     palette_tick();
                     if (level_loading_screen()) level_loading_tick();
                 }
-            }
-            {
-                uint32_t t2 = 0, seen = 0, bitOK = 1;
-
-                /* the particles are drawn by the compose, which only runs once
-                 * the start chain has finished */
-                if (level_starting()) {
-                    level_begin();
-                    for (uint32_t i = 0; i < 1200u && level_starting(); i++) {
-                        level_begin(); /* waits for a running fade */
-                        level_tick();
-                        palette_tick();
-                        if (level_loading_screen()) level_loading_tick();
-                    }
-                }
-                while (level_spark_active() && t2++ < 400u) {
-                    uint32_t sx = 0, sy = 0, sv = 0;
-
-                    level_tick();
-                    if (!seen && level_spark_peek(&sx, &sy, &sv) && sv != 0u) {
-                        uint32_t px = sx - level_view_x();
-                        uint32_t py = sy - level_view_y();
-                        const uint8_t *pg = osys_null_page(0);
-
-                        if (px < 320u && py < 200u) {
-                            seen = 1;
-                            /* D-199 (closed 2026-11-05): 1000:3F9C writes the
-                             * whole shade byte into the pixel's plane, so the
-                             * pixel carries all 8 bits, not one scattered bit
-                             * over each of the group's four pixels. */
-                            bitOK = (pg[py * 320u + px] == (uint8_t)sv);
-                        }
-                    }
-                }
-                _check(seen != 0u, "a spawned cell carries a sprite value");
-                _check(bitOK != 0u,
-                       "D-199: the composed pixel is the cell's full shade");
-                _check(!level_spark_active(),
-                       "the effect ends after its 0x53 life");
             }
             /* D-132 (closed 2026-11-05): the claim's scratch strip.  1000:4073
              * paints an expired cell's plane byte into the 0x12 x 0x40 strip
@@ -744,6 +747,7 @@ int main(int argc, char **argv)
                 while (object_claim_active() && t3++ < 20000u) {
                     palette_tick();
                     object_tick(testPal);
+                    level_claim_frame(); /* the reveal's presented frame */
                 }
             }
             _check(!object_claim_active(), "the 0x9C claim sequence finishes");
@@ -761,6 +765,172 @@ int main(int argc, char **argv)
                        "the torch's +8 is the recipe's first parameter");
                 _check(object_slot_class(2u) == 6u,
                        "the torch's behaviour 6 lands in class slot 2");
+            }
+            /* D-240: the claim's pan recolour freezes the black page until
+             * 1000:3CB5's re-blit.  The claim above was driven with
+             * object_tick, which composes nothing; this one goes through
+             * level_tick, where the page is built. */
+            if (!level_starting()) {
+                uint8_t *pr = object_slot(0u), *nb = object_slot(3u);
+                const uint8_t *pg = osys_null_page(0);
+                uint32_t t4 = 0, pan = 0, afterPan = 0;
+                uint32_t parity = object_frame_counter_probe() & 1u;
+                uint32_t vx0 = level_view_x(), vy0 = level_view_y();
+                int32_t black = 1, overBlack = 0, restored = 0;
+                int32_t panInk = 0, panKept = 0, keptDone = 0;
+                uint32_t witnessPix = 0;
+                uint8_t witnessInk = 0;
+                int32_t witnessFound = 0, settleInk = 1, settleDone = 0;
+
+                object_init();
+                /* the torch claim above was driven with object_tick, so its
+                 * particle strip is still live; drain it on a clean array
+                 * before the page-freeze test (the real game never starts a
+                 * second claim with a reveal still running). */
+                while (level_spark_active() && t4++ < 400u) {
+                    level_tick();
+                    palette_tick();
+                }
+                t4 = 0u;
+                object_set_player(0);
+                object_set_action_entity(0u);
+                pr[0] = 0x00;
+                pr[1] = 0x01;
+                pr[2] = 0x80;
+                pr[3] = 0x00;
+                pr[6] = 0x00;
+                pr[8] = 0x00;
+                nb[0] = 0x20;
+                nb[1] = 0x01;
+                nb[2] = 0x88;
+                nb[3] = 0x00;
+                nb[6] = 0x00;
+                nb[8] = 0x02;
+                /* D-242: the pre-pan red/white phases must leave the last
+                 * drawn page - the sprite layer included - untouched.  Record
+                 * 5 is a witness sprite away from the claim's pair. */
+                {
+                    static uint8_t snap[320u * 200u];
+                    uint8_t *wit = object_slot(5u);
+                    uint32_t avx = level_view_x() & ~3u;
+                    uint32_t avy = level_view_y();
+
+                    wit[0] = (uint8_t)(avx + 0x20u);
+                    wit[1] = 0u;
+                    wit[2] = (uint8_t)(avy + 0x20u);
+                    wit[3] = 0u;
+                    wit[4] = 0x10;
+                    wit[6] = 0x00;
+                    wit[8] = 0x02;
+                    level_set_view(avx, avy);
+                    level_redraw_page();
+                    memcpy(snap, pg, sizeof snap);
+                    wit[6] = 0x80u; /* hide the witness */
+                    level_redraw_page();
+                    for (uint32_t i = 0; i < 320u * 200u; i++)
+                        if (pg[i] != snap[i]) {
+                            witnessPix = i;
+                            witnessInk = snap[i];
+                            witnessFound = 1;
+                            break;
+                        }
+                    wit[6] = 0x00u; /* restore it */
+                    level_redraw_page();
+                    _check(witnessFound,
+                           "D-242: the witness sprite draws on the world page");
+                    _check(object_claim_begin(0u, 0) == 3,
+                           "D-240: a fresh claim takes the neighbour");
+                    level_tick(); /* the first pre-pan claim frame */
+                    _check(witnessFound && pg[witnessPix] == witnessInk,
+                           "D-242: the pre-pan flash keeps the sprites");
+                }
+                while (object_claim_active() && t4++ < 4000u) {
+                    level_tick();
+                    palette_tick();
+                    if (object_claim_pan_active()) {
+                        pan = 1u;
+                        afterPan = 0u;
+                        continue;
+                    }
+                    if (pan && !afterPan) {
+                        uint32_t i, ink = 0;
+
+                        afterPan = 1u;
+                        /* 1000:3D5E: the world bytes below 0x80 are 0x1E; the
+                         * two records 1000:3D30 draws after it are excluded. */
+                        for (i = 0; i < 320u * 200u; i++)
+                            if (pg[i] < 0x80u && pg[i] != 0x1Eu &&
+                                !_flow_claim_rec_box(i % 320u, i / 320u,
+                                                     level_view_x(),
+                                                     level_view_y())) {
+                                black = 0;
+                                break;
+                            }
+                        /* D-243: 40CA draws the victim (frame 0x103, the
+                         * surprised face) on the recoloured page. */
+                        for (i = 0; i < 320u * 200u; i++)
+                            if (_flow_claim_rec_box(i % 320u, i / 320u,
+                                                    level_view_x(),
+                                                    level_view_y()) &&
+                                pg[i] < 0x80u && pg[i] != 0x1Eu)
+                                ink++;
+                        panInk = ink != 0u;
+                    } else if (pan && !keptDone && !object_claim_anim_active()) {
+                        uint32_t i, ink = 0;
+
+                        keptDone = 1;
+                        for (i = 0; i < 320u * 200u; i++)
+                            if (_flow_claim_rec_box(i % 320u, i / 320u,
+                                                    level_view_x(),
+                                                    level_view_y()) &&
+                                pg[i] < 0x80u && pg[i] != 0x1Eu)
+                                ink++;
+                        panKept = ink != 0u;
+                    }
+                    if (!settleDone && witnessFound &&
+                        object_claim_settle_active()) {
+                        settleDone = 1;
+                        settleInk = (pg[witnessPix] == witnessInk);
+                    }
+                    if (object_claim_anim_active()) {
+                        uint32_t i;
+
+                        /* 1000:40CA draws the selected + claimed records on it. */
+                        for (i = 0; i < 320u * 200u; i++)
+                            if (pg[i] < 0x80u && pg[i] != 0x1Eu) {
+                                overBlack = 1;
+                                break;
+                            }
+                    }
+                }
+                _check(pan, "D-240: the claim reaches its pan");
+                _check(black,
+                       "D-240: the foreground stays black after the pan");
+                _check(panInk,
+                       "D-243: the pan draws the victim over the black page");
+                _check(panKept,
+                       "D-243: the pan's records persist into the frozen frames");
+                _check(overBlack,
+                       "D-240: the two records draw over the black page");
+                _check(settleDone && settleInk,
+                       "D-244: the settle page keeps the level's sprites");
+                _check(!object_claim_active(), "D-240: the claim finishes");
+                {
+                    uint32_t i;
+
+                    for (i = 0; i < 320u * 200u; i++)
+                        if (pg[i] < 0x80u && pg[i] != 0x1Eu) {
+                            restored = 1;
+                            break;
+                        }
+                }
+                _check(restored,
+                       "D-240: the world is re-blitted after the claim");
+                level_set_view(vx0, vy0);
+                /* the later mover fixtures gate on [0x4103] parity: keep the
+                 * frame counter's phase where this block found it. */
+                if ((object_frame_counter_probe() & 1u) != parity)
+                    object_claim_frame(level_palette());
             }
             /* D-48: 1000:34E6 — the play loop's exit.  The tick that detects
              * the end plays sound 0xC (1000:83B7) and freezes the world for
@@ -1134,6 +1304,35 @@ int main(int argc, char **argv)
             _check((rd_le_u16(mv + 4)) == 0x0010u &&
                        (rd_le_u16(mv + 8)) == 0x0000u,
                    "op 3 refuses when the neighbour is a wall");
+            /* D-234: the right neighbour of the map's last cell (row 19,
+             * col 31) is the buffer's gap (tile 0), read at 1000:ED3C with no
+             * 640 bound. */
+            if (level_map()) {
+                uint8_t *m = (uint8_t *)level_map();
+                uint8_t old = m[639];
+
+                m[639] = 0u;
+                object_init();
+                object_action_set_program(1u);
+                object_action_set_cursor(5u);
+                mv = object_slot(0);
+                mv[0] = (uint8_t)(31u * 16u);
+                mv[1] = (uint8_t)((31u * 16u) >> 8);
+                mv[2] = (uint8_t)(19u * 16u);
+                mv[3] = (uint8_t)((19u * 16u) >> 8);
+                mv[4] = 0x10;
+                mv[6] = 0;
+                mv[7] = 1u;
+                mv[8] = 0;
+                mv[9] = 0;
+                _check(level_page_free(0u) == 1,
+                       "the gap byte (tile 0) is a free page");
+                object_action_run();
+                _check((rd_le_u16(mv + 4)) == 0x008Cu &&
+                           (rd_le_u16(mv + 8)) == 0x0012u,
+                       "D-234: op 3 reads the gap as the last cell's neighbour");
+                m[639] = old;
+            }
             object_init();
         }
     }
@@ -2722,6 +2921,35 @@ int main(int argc, char **argv)
                                 m[4u * 32u + 3u] == 0xC2u &&
                                 m[4u * 32u + 4u] == 0xC9u,
                             "0xA9 marks the next two cells a row below as 0xC2/0xC9");
+                        /* D-235: the pair has no range test.  Row 18 col 30
+                         * puts the first cell at 639 (in the map) and the
+                         * second at 640 (the gap); row 19 puts both in the
+                         * gap, which the buffer tail holds. */
+                        {
+                            static uint8_t m9[640];
+                            uint8_t *r0;
+
+                            memset(m9, 0, sizeof m9);
+                            m9[18u * 32u + 30u] = 0xA9u;
+                            object_init();
+                            (void)object_load_terrain_objects(m9);
+                            _check(m9[639] == 0xC2u,
+                                   "D-235: the in-map row-below write at "
+                                   "cell 639 lands");
+                            memset(m9, 0, sizeof m9);
+                            m9[19u * 32u + 0u] = 0xA9u;
+                            object_init();
+                            (void)object_load_terrain_objects(m9);
+                            r0 = object_slot(0);
+                            r0[0] = 8u;
+                            r0[1] = 0u;
+                            r0[2] = 0x34u;
+                            r0[3] = 0x01u; /* cell 641 = the gap's first byte */
+                            _check(object_record_map_cell(0u) == 0xC2u,
+                                   "D-235: a row-19 0xA9 writes the gap "
+                                   "(cell 641 = 0xC2)");
+                            object_init();
+                        }
                         /* 0xB7: two appended records, the only computed class
                      * (+6 = (count-6)<<8) and frame 0x116 / 0x11A */
                         {
@@ -3911,6 +4139,59 @@ int main(int argc, char **argv)
             _check(object_action_program() == 1u &&
                        statusbar_action_group() == 1u,
                    "the drop puts the bar back on group 1");
+        }
+    }
+
+    /* 6c5. D-237/D-238: level 84's 0xAE wheel (record 12, frame 0x38).
+     * Mounting gives the rider type 0x0F and +0xE -> the wheel; the wheel's
+     * phase-1 handler must then (a) move x by vx>>3 (1000:D1E3) and (b) reach
+     * 1000:D162 so the rider gets the riding frames. */
+    if (level_load(83) == 0) {
+        uint32_t ordinal = 0;
+
+        for (uint32_t o = 1; o <= object_live_count() - 8u; o++)
+            if (object_slot_class(o) == 4u) {
+                ordinal = o;
+                break;
+            }
+        _check(ordinal != 0u, "level 84's 0xAE record takes behaviour 4");
+        if (ordinal) {
+            uint8_t *it = object_slot(8u + ordinal), *actor = object_slot(0);
+            uint32_t ix = rd_le_u16(it + 0), iy = rd_le_u16(it + 2);
+            uint32_t x0;
+
+            actor[0] = (uint8_t)(ix - 8u);
+            actor[1] = (uint8_t)((ix - 8u) >> 8);
+            actor[2] = (uint8_t)(iy - 0x10u);
+            actor[3] = (uint8_t)((iy - 0x10u) >> 8);
+            actor[4] = 0x10;
+            actor[6] = 0;
+            actor[8] = 2;
+            actor[9] = 0;
+            object_set_action_entity(0u);
+            object_action_set_cursor(1u);
+            object_action_set_program(1u);
+            object_set_action_latched(0);
+            object_action_run(); /* the give / hold */
+            _check(rd_le_u16(actor + 8) == 0x000Fu &&
+                       object_slot_class(ordinal) == 0x84u,
+                   "level 84's wheel mounts (type 0x0F, class 0x84)");
+            object_update_list(); /* the idle phase-1 tick */
+            _check(rd_le_u16(actor + 4) == 0x0050u,
+                   "D-238: the idle rider takes frame 0x50 (1000:D162)");
+            x0 = rd_le_u16(it + 0);
+            for (uint32_t t = 0; t < 40u; t++) {
+                (void)object_command_run(actor, 0x08u); /* right */
+                object_update_list();
+            }
+            _check((uint32_t)rd_le_u16(it + 0) > x0,
+                   "D-237: the wheel rolls (1000:D1E3 advances x)");
+            _check((uint32_t)rd_le_u16(actor + 0) + 8u ==
+                       (uint32_t)rd_le_u16(it + 0),
+                   "D-238: the rider follows the wheel (1000:D162)");
+            _check(rd_le_u16(it + 4) >= 0x38u &&
+                       rd_le_u16(it + 4) <= 0x3Bu,
+                   "the wheel keeps its 0x38..0x3B roll frames");
         }
     }
 
@@ -5518,6 +5799,41 @@ int main(int argc, char **argv)
                 }
             }
             _check(!met, "with neither cell the goal is not met");
+
+            /* D-100: `[DI+0x20]` does not wrap to row 0.  With the record in
+             * the map's last row (cell 608) the below-cell is the buffer's
+             * 32-byte gap (0x00), so a 0xA8 planted in row 0 must not count. */
+            map[608u] = 0x00u;
+            map[0] = 0xA8u;
+            r[0] = 0x00u;
+            r[1] = 0x00u;
+            r[2] = 0x24u;
+            r[3] = 0x01u; /* y = 0x124 -> (y + 0xC)/16 = 19 */
+            met = 0;
+            for (uint32_t j = 0; j < 0x8Cu + 8u; j++) {
+                object_tick(pal);
+                if (object_low_phase_match() < 0) {
+                    met = 1;
+                    break;
+                }
+            }
+            _check(!met, "D-100: the last row's below-cell is the gap");
+            /* 1000:3149 copies the map again at +0x2A0.  The second copy is
+             * the LOAD-TIME map (the loader writes it once), so re-seed it to
+             * prove y = 0x144 reads that copy and not the live first 640. */
+            r[2] = 0x44u;
+            r[3] = 0x01u;
+            {
+                static uint8_t snap[640];
+
+                memset(snap, 0, sizeof snap);
+                snap[0] = 0x5Au;
+                object_map_tail_reset(snap);
+                _check(object_record_map_cell(0u) == 0x5Au,
+                       "D-100: the map's second copy is read (1000:3149)");
+                map[0] = 0x00u;
+                object_map_tail_reset(map);
+            }
         }
     }
 

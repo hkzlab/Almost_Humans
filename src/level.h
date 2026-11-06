@@ -46,6 +46,9 @@ void level_end_palette(void);
 void level_redraw_page(void);
 void level_end_redraw_page(void); /* 1000:3437: the end page's 0x78 clamp */
 void level_claim_recolour(void); /* 1000:3D5E: page bytes < 0x80 -> 0x1E */
+/* the claim's frozen page: 1000:40CA (the two records) + 1000:3F4A (the
+ * spark) over the recoloured page, never a world re-compose. */
+void level_claim_frame(void);
 /* page_offset_to_ptr (1000:F123): 1 = the tile id's page is free (the ACTION
  * op 3 gate) — the BD file's page mask + its 16-word item record. */
 int32_t level_page_free(uint32_t id);

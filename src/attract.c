@@ -769,7 +769,10 @@ static void _next_effect(void)
  * @return 1 when a key or fire is held, 0 otherwise
  */
 static int32_t _local_key(const InputState *in)
-{ return in->lastKey != 0u || (in->joyBits & 0x80u) != 0u; }
+{
+    return in->keyHeld != 0u || in->lastKey != 0u ||
+           (in->joyBits & 0x80u) != 0u;
+}
 
 /** @brief attract_exit (1000:13E9): the escape test — the configured action key
  * ([0x5ACE] bit 7) or any held key ([0x48A3]).  Polled ONLY at the
@@ -780,7 +783,10 @@ static int32_t _local_key(const InputState *in)
  * @return 1 when the escape action is pressed, 0 otherwise
  */
 static int32_t _escape_test(const InputState *in)
-{ return (in->joyBits & 0x80u) != 0u || in->lastKey != 0u; }
+{
+    return (in->joyBits & 0x80u) != 0u || in->keyHeld != 0u ||
+           in->lastKey != 0u;
+}
 
 /** @brief the longjmp 1000:13B2: restore the saved page pair, the one fade of all
  * 256 entries to the zeroed 0x48BC ramp (black) div 0x23 — the running

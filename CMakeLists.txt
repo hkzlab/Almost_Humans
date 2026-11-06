@@ -143,6 +143,34 @@ target_link_libraries(test_boot PRIVATE core fs_posix)
 humansre_warnings(test_boot)
 add_test(NAME boot COMMAND test_boot ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 
+# D-245: [0x48A3] is a held-key level; a held Return must abort the logo to
+# the attract path instead of needing a second press.
+add_executable(test_boot_key tests/test_boot_key.c
+    src/arch/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_boot_key PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(test_boot_key PRIVATE core fs_posix)
+humansre_warnings(test_boot_key)
+add_test(NAME boot_key COMMAND test_boot_key ${HUMANS_DATA_DIR})
+
+# D-246: the frame-0 transition flash must run over the rendered scene, not
+# the stale ITB card.
+add_executable(test_boot_flash tests/test_boot_flash.c
+    src/arch/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_boot_flash PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(test_boot_flash PRIVATE core fs_posix)
+humansre_warnings(test_boot_flash)
+add_test(NAME boot_flash COMMAND test_boot_flash ${HUMANS_DATA_DIR})
+
+# D-247: the INTRO.RSC scene's two held-key polls — c0c6 after the frame
+# wait (1000:b787) and c0af in the transition fade (1000:b863).
+add_executable(test_boot_scene_key tests/test_boot_scene_key.c
+    src/arch/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_boot_scene_key PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(test_boot_scene_key PRIVATE core fs_posix)
+humansre_warnings(test_boot_scene_key)
+add_test(NAME boot_scene_key_trans COMMAND test_boot_scene_key ${HUMANS_DATA_DIR} trans)
+add_test(NAME boot_scene_key_frame COMMAND test_boot_scene_key ${HUMANS_DATA_DIR} frame)
+
 # The level test: all 160 records from LEVELS\L*.BIN, the census + the
 # byte-exact maps vs the extracted files.
 add_executable(test_level tests/test_level.c
