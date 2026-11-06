@@ -220,6 +220,14 @@ add_library(fs_posix src/arch/fs/posix/fs_posix.c)
 target_include_directories(fs_null  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 target_include_directories(fs_posix PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 
+# The sound-driver modules (audio/sound_driver.h): the arch port links
+# exactly one.  adlib/sound_driver_adlib.c impersonates ADLIB.DRV (silent
+# until the sequencer and the OPL3 land, D-01); null/ prints every command.
+add_library(audio_adlib src/arch/audio/adlib/sound_driver_adlib.c)
+add_library(audio_null src/arch/audio/null/sound_driver_null.c)
+target_include_directories(audio_adlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_include_directories(audio_null PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+
 # The headless reference port: no SDL dependency, always builds.
 add_executable(humans-null
     src/arch/null/OSystem.c
@@ -238,7 +246,7 @@ if(SDL3_FOUND)
         src/arch/sdl3/timer.c
         src/arch/sdl3/audio.c
     )
-    target_link_libraries(humans-sdl3 PRIVATE core fs_posix SDL3::SDL3)
+    target_link_libraries(humans-sdl3 PRIVATE core fs_posix audio_adlib SDL3::SDL3)
     humansre_warnings(humans-sdl3)
 else()
     message(STATUS "SDL3 not found - building only humans-null")
