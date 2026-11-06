@@ -6,9 +6,8 @@
 
 #include <stdint.h>
 /* --- HISCORES.HUM (re_formats.md §11, menu_loop 1000:012A) ------------ */
-void hiscore_init(void); /* 1000:069F: load + decrypt  */
+void hiscore_init(void); /* the image's DS:0x38A state */
 void hiscore_reset(void); /* the shipped defaults       */
-void hiscore_reload(void); /* re-read the file           */
 void hiscore_obfuscate(uint8_t *p, uint32_t n); /* 1000:06DE          */
 void hiscore_write(void); /* 1000:06CC: encrypt + save  */
 uint16_t hiscore_best(uint32_t level); /* DS:0x38A + 2*level         */

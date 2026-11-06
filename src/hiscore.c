@@ -1,8 +1,8 @@
-/* hiscore.c — HISCORES.HUM: the persistent table at DS:0x38A, its obfuscation,
- * the top-10 insert and the name entry (re_formats.md §11).
+/* hiscore.c — HISCORES.HUM: the table at DS:0x38A, its obfuscation, the
+ * top-10 insert and the name entry (re_formats.md §11).
  *
  * The file is a runtime file in the game directory (not on the disc), 520
- * bytes (0x208), loaded whole into DS:0x38A and obfuscated in place:
+ * bytes (0x208), written whole from DS:0x38A and obfuscated in place:
  *
  *   +0x000  2    the reserved word (0x0999); level 0's slot, never used
  *   +0x002  320  160 x u16 per-level best, level N at +2*N
@@ -17,12 +17,15 @@
  *   for each byte:  [di] ^= bl;  bl = rol8(bl,1);  bl += 3
  *
  * `load_file_to_buffer` (`1000:069F`) reads the 520 bytes from DOS handle 0x3B
- * and decrypts only when the read succeeded; `decrypt_region_38a`
- * (`1000:06CC`) encrypts and flushes (the saver).
+ * and decrypts only when the read succeeded, but **nothing calls it**: the
+ * table's only initial state is the image's own defaults at DS:0x38A and the
+ * file is write-only.  `decrypt_region_38a` (`1000:06CC`) encrypts and
+ * flushes (the saver), and leaves the runtime block encrypted.
  *
  * The insert (`1000:01CD`, inside `menu_loop`) walks the ten entries from the
  * bottom up and drops the candidate in below the first entry it beats; a
- * candidate that beats none is discarded.  The name entry (`1000:0486`) edits
+ * candidate that beats none is discarded.  It is memory-only: the flush is the
+ * MAP exit's single `0x06CC`.  The name entry (`1000:0486`) edits
  * a 13-character buffer at DS:0x757 and, on Enter, copies it into the inserted
  * entry as 14 bytes with 0x1A -> space and 0x1B -> '.'.
  */
@@ -112,38 +115,22 @@ void hiscore_reset(void)
     _hiscore_loaded = 1;
 }
 
-/** @brief 1000:069F load_file_to_buffer: DS:0x38A <- 520 bytes, then decrypt.  A
- * missing or short file leaves the shipped defaults in place.
+/** @brief the runtime table's first state.  `1000:069F` (the loader) has no
+ * caller in the listing, so the shipped game always starts from the image's
+ * own defaults at DS:0x38A and never reads HISCORES.HUM back.
  */
 void hiscore_init(void)
 {
     if (_hiscore_loaded) return;
     _hiscore_loaded = 1;
     _hiscore_defaults();
-    {
-        FSSave *f = g_fs.openNamed("HISCORES.HUM");
-
-        if (f) {
-            uint32_t n = g_fs.saveRead(f, 0, _hiscore_table, HIS_TABLE);
-
-            g_fs.closeSave(f);
-            if (n == HIS_TABLE) _hiscore_crypt();
-            else _hiscore_defaults();
-        }
-    }
-}
-
-/** @brief Re-read the file (a new game / a fresh boot); tests use it to prove the
- * save round-trip without a second process.
- */
-void hiscore_reload(void)
-{
-    _hiscore_loaded = 0;
-    hiscore_init();
 }
 
 /**
- * @brief 1000:06CC decrypt_region_38a: encrypt in place, write, restore.
+ * @brief 1000:06CC decrypt_region_38a: encrypt the table and flush it.
+ *
+ * The crypt is not undone: `1000:06CC` is crypt -> create/write/close -> RET,
+ * so the runtime block stays encrypted.
  */
 void hiscore_write(void)
 {
@@ -156,7 +143,6 @@ void hiscore_write(void)
         g_fs.saveWrite(f, 0, _hiscore_table, HIS_TABLE);
         g_fs.closeSave(f);
     }
-    _hiscore_crypt();
 }
 
 /**
@@ -248,8 +234,9 @@ static char _hiscore_char(char c)
 int32_t hiscore_qualifies(uint32_t score)
 { return score >= hiscore_score(HIS_TOPN - 1u); }
 
-/** @brief 1000:01CD..0x0230: insert, shifting 18-byte entries down one slot.  Returns
- * the slot taken, or -1 when the score beats none of the ten.
+/** @brief 1000:01CD..0x0230: insert, shifting 18-byte entries down one slot.
+ * Memory-only: the original flushes at the MAP exit (`0x06CC`).  Returns the
+ * slot taken, or -1 when the score beats none of the ten.
  *
  * @param score the score
  * @param name the name
@@ -258,7 +245,6 @@ int32_t hiscore_qualifies(uint32_t score)
 int32_t hiscore_insert(uint32_t score, const char *name)
 {
     uint32_t pos = 0;
-    int32_t took = -1;
 
     hiscore_init();
     for (int32_t k = (int32_t)HIS_TOPN - 1; k >= 0; k--) {
@@ -280,9 +266,7 @@ int32_t hiscore_insert(uint32_t score, const char *name)
                 e[4u + i] = (uint8_t)_hiscore_char(name[i]);
         }
     }
-    took = (int32_t)pos;
-    hiscore_write();
-    return took;
+    return (int32_t)pos;
 }
 
 /** @brief --- 1000:0486: the name-entry grid -------------------------------------

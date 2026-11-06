@@ -4785,6 +4785,7 @@ int main(int argc, char **argv)
         {
             FSSave *f = g_fs.openNamed("HISCORES.HUM");
             uint8_t raw[600];
+            uint8_t enc[600];
             uint32_t n = 0;
 
             if (f) {
@@ -4793,6 +4794,14 @@ int main(int argc, char **argv)
             }
             _check(n == 520u, "the hi-score file is 520 bytes (D-102)");
             if (n >= 322u) {
+                /* D-120: 1000:06CC has no restore pass, so the runtime block
+                 * still holds the file's ciphertext. */
+                memcpy(enc, raw, n);
+                _check(hiscore_best(1u) == rd_le_u16(enc + 2u) &&
+                           hiscore_score(0u) == rd_le_u32(enc + 0x154u) &&
+                           memcmp(hiscore_name(0u), enc + 0x158u, 14u) == 0 &&
+                           hiscore_score(0u) != 100000u,
+                       "D-120: 1000:06CC leaves the table encrypted");
                 hiscore_obfuscate(raw, n);
                 _check(raw[0] == 0x99u && raw[1] == 0x09u,
                        "the reserved word sits at +0 (D-102)");
@@ -4800,7 +4809,7 @@ int main(int argc, char **argv)
                        "level 1's u16 sits at +2 (D-102)");
                 _check(raw[320] == 0x78u && raw[321] == 0x56u,
                        "level 160's u16 sits at +0x140 (D-102)");
-                _check(rd_le_u32(raw + 0x154u) == hiscore_score(0u),
+                _check(rd_le_u32(raw + 0x154u) == 100000u,
                        "the ten 18-byte entries start at +0x154 (D-102)");
             }
         }
@@ -4811,6 +4820,32 @@ int main(int argc, char **argv)
         _check(hiscore_score(0u) == 100000u &&
                    strcmp(hiscore_name(0u), "STEVE JONES") == 0,
                "the shipped top-10 is the image's 0x4DE block");
+
+        /* 1000:01CD is a memory insert; the only flush is the MAP exit's
+         * 1000:06CC (map.c's _map_close).  The file written above must be
+         * byte-identical after an insert. */
+        {
+            uint8_t before[520], after[520];
+            uint32_t n0 = 0, n1 = 0;
+            FSSave *f;
+
+            f = g_fs.openNamed("HISCORES.HUM");
+            if (f) {
+                n0 = g_fs.saveRead(f, 0, before, sizeof before);
+                g_fs.closeSave(f);
+            }
+            _check(hiscore_insert(150000u, "NO FLUSH") == 0,
+                   "the insert still takes the top slot");
+            f = g_fs.openNamed("HISCORES.HUM");
+            if (f) {
+                n1 = g_fs.saveRead(f, 0, after, sizeof after);
+                g_fs.closeSave(f);
+            }
+            _check(n0 == 520u && n1 == n0 &&
+                       memcmp(before, after, n0) == 0,
+                   "1000:01CD is memory-only (no flush before 0x06CC)");
+        }
+        hiscore_reset();
 
         _check(!hiscore_qualifies(9999u) && hiscore_qualifies(10000u),
                "a score equal to the last entry still displaces it");
@@ -4861,15 +4896,32 @@ int main(int argc, char **argv)
                "an empty delete writes 0x756 (1000:046C)");
         _check(hiscore_name_apply(name, 29u, &len) == 1, "0x1D enters");
 
-        /* the file round-trip: insert writes HISCORES.HUM encrypted, and a
-         * reload reads it back through the same involution */
+        /* the save image: 0x06CC encrypts the live table and writes it; the
+         * file decrypts back to the same entries through the involution */
         hiscore_reset();
         _check(hiscore_insert(77777u, "ROUND TRIP") == 3,
                "77777 lands below 80000");
-        hiscore_reload();
         _check(hiscore_score(3u) == 77777u &&
                    strcmp(hiscore_name(3u), "ROUND TRIP") == 0,
-               "HISCORES.HUM survives a save/load round-trip");
+               "the insert rewrites the live entry");
+        hiscore_write();
+        {
+            FSSave *f = g_fs.openNamed("HISCORES.HUM");
+            uint8_t raw[520];
+            uint32_t n = 0;
+
+            if (f) {
+                n = g_fs.saveRead(f, 0, raw, sizeof raw);
+                g_fs.closeSave(f);
+            }
+            if (n == sizeof raw) hiscore_obfuscate(raw, n);
+            _check(n == sizeof raw && rd_le_u32(raw + 0x154u + 3u * 18u) == 77777u &&
+                       strcmp((const char *)raw + 0x154u + 3u * 18u + 4u,
+                              "ROUND TRIP") == 0,
+                   "HISCORES.HUM holds the saved entry through the involution");
+        }
+        hiscore_reset();
+        _check(hiscore_score(3u) == 70000u, "the reset restores the defaults");
 
         /* the commit's 0x1A/0x1B mapping reaches the stored name */
         hiscore_reset();
