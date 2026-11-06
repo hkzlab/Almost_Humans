@@ -414,6 +414,79 @@ int main(int argc, char **argv)
         (void)level_load(0);
     } else printf("skip: the level data is not on the disc\n");
 
+    /* the 0xC0 tile sets [0x180A] (1000:5535/0x5538), the record whose op 9
+     * takes the claim branch.  Level 38 carries a 0xC0; level 27 does not. */
+    {
+        if (level_load(37u) == 0) { /* 0-based 37 = level 38 */
+            int32_t p = object_player();
+
+            _check(p >= 0 && (uint32_t)p < object_static_slots(),
+                   "the 0xC0 human becomes the player record");
+            if (p >= 0 && (uint32_t)p < object_static_slots()) {
+                uint8_t *pr = object_slot((uint32_t)p);
+
+                _check(rd_le_u16(pr + 4) == 0x0010u &&
+                           rd_le_u16(pr + 8) == 0x0002u,
+                       "the player record is a placed human");
+            }
+            {
+                uint32_t n = 0;
+
+                object_set_action_entity(0u);
+                while (object_action_entity() != (uint32_t)p && n++ < 16u)
+                    (void)object_cycle_entity(1);
+                _check(object_action_entity() == (uint32_t)p &&
+                           object_action_program() == 5u &&
+                           object_action_byte(1u + object_action_byte(1u)) ==
+                               9u,
+                       "selecting the 0xC0 human gives program 5, op 9");
+            }
+        } else printf("skip: level 38 is not on the disc\n");
+        if (level_load(26u) == 0) { /* 0-based 26 = level 27, no 0xC0 */
+            _check(object_player() == -1,
+                   "a level without a 0xC0 tile has no player record");
+            /* the torch ignite (1000:39E4 -> 0xEF0C/0xEF39): a walking human
+             * (type 0/1) holding the torch burns a placed record within 0x10.
+             * 0xEF33/0xEF60 call object_find_overlap in BOTH the found-bush
+             * and no-bush paths, so the human is hit with no bush in front. */
+            {
+                uint8_t *a = object_slot(0u), *v = object_slot(1u);
+
+                a[0] = 0x00;
+                a[1] = 0x01;
+                a[2] = 0x80;
+                a[3] = 0x00;
+                a[6] = 0x00;
+                a[7] = 0x01; /* carrying the torch */
+                a[8] = 0x02;
+                a[9] = 0x00;
+                v[0] = 0x10;
+                v[1] = 0x01;
+                v[2] = 0x80;
+                v[3] = 0x00;
+                v[6] = 0x00;
+                v[7] = 0x00;
+                v[8] = 0x02;
+                v[9] = 0x00;
+                object_set_slot_class(1u, 0x86u); /* the carried torch */
+                object_set_action_entity(0u);
+                /* one LEFT frame leaves the human in the walking type 1 */
+                (void)object_command_run(a, 0x04);
+                _check(rd_le_u16(a + 8u) < 2u,
+                       "the walk leaves the actor type 0/1");
+                object_action_set_program(4u);
+                object_action_set_cursor(3u); /* program 4: op 3,5,9,6 */
+                object_action_run(); /* op 9 = ignite */
+                _check(rd_le_u16(v + 4u) == 0x0103u &&
+                           rd_le_u16(v + 8u) == 0x001Eu,
+                       "the torch ignite burns the nearby human");
+                _check(!object_claim_active(),
+                       "the ignite is not the [0x180A] claim");
+            }
+        }
+        (void)level_load(0); /* restore the level the blocks below expect */
+    }
+
     /* 6b. the placed-object array (0x3E75) + object_test_dispatch's
      * predicates (1000:35D6) and the claim's writes (1000:3A6A) */
     {
@@ -650,6 +723,45 @@ int main(int argc, char **argv)
             /* the animation's six 4FE9 increments over its 6 x 9 frames */
             _check((rd_le_u16(r + 4)) == 0x0109u,
                    "the neighbour animates 0x103 -> 0x109");
+
+            /* the [0x180A] claim (1000:39E4): for the player's own record
+             * (SI == [0x180A]) the op does MOV AX,2 and jumps to 0x3A6A, so
+             * the claim appends the 0x9C torch, not the spear.  The spear's
+             * claim above removed the neighbour, so re-arm it first. */
+            r[6] = 0x00;
+            r[7] = 0x00;
+            r[8] = 0x02;
+            r[4] = 0x10;
+            r[5] = 0x00;
+            object_action_set_program(4u);
+            object_action_set_cursor(3u); /* program 4: op 3,5,9,6 */
+            object_action_run();
+            _check(object_claim_active(),
+                   "the player's op 9 starts the 0x9C claim");
+            {
+                uint32_t t3 = 0;
+
+                while (object_claim_active() && t3++ < 20000u) {
+                    palette_tick();
+                    object_tick(testPal);
+                }
+            }
+            _check(!object_claim_active(), "the 0x9C claim sequence finishes");
+            _check(r[6] & 0x80, "the [0x180A] claim removes the neighbour");
+            _check(object_live_count() == 10u, "the claim appends one record");
+            {
+                const uint8_t *nr = object_slot(10);
+
+                _check(rd_le_u16(nr + 0) == 0x0120u &&
+                           rd_le_u16(nr + 2) == 0x0091u,
+                       "the torch lands at the neighbour's feet");
+                _check(rd_le_u16(nr + 4) == 0x009Cu,
+                       "the claim's sprite is the 0x9C torch");
+                _check(rd_le_u16(nr + 8) == 0xFFFFu,
+                       "the torch's +8 is the recipe's first parameter");
+                _check(object_slot_class(2u) == 6u,
+                       "the torch's behaviour 6 lands in class slot 2");
+            }
             /* D-48: 1000:34E6 — the play loop's exit.  The tick that detects
              * the end plays sound 0xC (1000:83B7) and freezes the world for
              * the 15 x 1000:8B56 waits before draw_level_text's chain. */
@@ -1428,11 +1540,13 @@ int main(int argc, char **argv)
                         object_stack_scan_dissolve(1u) == 1,
                         "the scan finds and dissolves the group holding rec 1");
                     _check(
-                        (rd_le_u16(top + 4)) == 0x0010u &&
-                            (rd_le_u16(top + 8)) == 0x0002u,
-                        "n = 1 dissolves the member to the FAA4 standing form");
-                    _check((rd_le_u16(base + 4)) == 0x0020u,
-                           "the base is untouched by an n = 1 dissolve");
+                        (rd_le_u16(base + 2)) == 92u &&
+                            (rd_le_u16(base + 4)) == 0x0010u &&
+                            (rd_le_u16(base + 8)) == 0x0002u,
+                        "n = 1 stands the base (FAA4: y-8, frame 0x10, type 2)");
+                    _check((rd_le_u16(top + 4)) == 0x0010u &&
+                               (rd_le_u16(top + 8)) == 0x0003u,
+                           "n = 1 resets the top through FADA (type 3)");
                 }
                 /* 1000:D76F with three humans - the animator's first active
                  * case (m = 2).  Only records whose frame is 0x20..0x22 are
@@ -2906,6 +3020,60 @@ int main(int argc, char **argv)
                 _check((uint16_t)(rd_le_u16(spear + 0xE)) == lifeBefore,
                        "the acting record's +0xE is not cleared");
             }
+            /* D-229: the hit branch of 0x5A2F clears the MOVER's behaviour
+             * byte (1000:5B13..0x5B24), not the victim's.  The behaviour-8
+             * enemy must keep its script so state 6's exit runs 0x28..0x2E and
+             * frees it; the destroyed spear must stop being dispatched. */
+            {
+                static uint8_t m7[640];
+                uint8_t *sp, *en;
+                uint32_t t;
+
+                memset(m7, 0, sizeof m7);
+                m7[4u * 32u + 4u] = 0xABu; /* the mover, at (64,64) */
+                m7[6u * 32u + 6u] = 0xB7u; /* the behaviour-8 enemy caveman */
+                object_init();
+                (void)object_load_terrain_objects(m7);
+                sp = object_slot(9u);
+                en = object_slot(10u);
+                /* the 0x6612 stepper runs on odd frames only: keep the
+                 * collision projection fixed for the fixture */
+                while ((object_frame_counter_probe() & 1u) != 0u)
+                    object_tick(NULL);
+                sp[0] = 64;
+                sp[1] = 0;
+                sp[2] = 64;
+                sp[3] = 0;
+                sp[6] = 0u;
+                sp[7] = 0u;
+                wr_le_u16(sp + 0xCu, 0u);
+                wr_le_u16(sp + 0xEu, 2u); /* the `+0xE > 1` hit gate */
+                en[0] = (uint8_t)(64 + 8 - 0x10);
+                en[1] = 0u;
+                en[2] = (uint8_t)(64 + 15 - 0x1A);
+                en[3] = 0u;
+                en[6] &= 0x7Fu;
+                en[7] = 0u;
+                _check(object_slot_class(1u) == 5u &&
+                           object_slot_class(2u) == 8u,
+                       "D-229: the mover is behaviour 5 and the enemy 8");
+                object_update_list();
+                _check(
+                    rd_le_u16(en + 4u) == 0x0028u && rd_le_u16(en + 8u) == 2u &&
+                        rd_le_u16(en + 0xAu) == 6u,
+                    "D-229: the hit+same-pass state-6 tick leaves frame 0x28 / +8 2 / +0xA 6");
+                _check(object_slot_class(2u) == 8u,
+                       "D-229: the victim keeps its behaviour 8");
+                _check(
+                    object_slot_class(1u) == 0u && sp[6] == 0xFFu,
+                    "D-229: the destroyed spear's behaviour and +6 are cleared");
+                for (t = 0; t < 40u && en[6] != 0xFFu; t++)
+                    object_update_list();
+                _check(
+                    rd_le_u16(en + 4u) == 0x002Eu && en[6] == 0xFFu &&
+                        object_slot_class(2u) == 0u,
+                    "D-229: behaviour 8's state-6 exit runs to 0x2E and frees the enemy");
+            }
             object_publish_bank(NULL, 0u);
             free(bank);
         }
@@ -3011,9 +3179,11 @@ int main(int argc, char **argv)
             object_update_list();
             _check((m[6] & 0x80u) == 0u,
                    "D-109: the re-show clears [+6] bit 7");
-            _check(_tf_rd16(m, 4u) == 0x28u && _tf_rd16(m, 8u) == 0x16u &&
-                       _tf_rd16(m, 0xAu) == 5u,
-                   "D-109: and runs the pickup scan (frame 0x28)");
+            _check(_tf_rd16(s0, 4u) == 0x28u && _tf_rd16(s0, 8u) == 0x16u &&
+                       _tf_rd16(s0, 0xAu) == 5u,
+                   "D-109: and runs the pickup scan on the human slot");
+            _check(_tf_rd16(m, 4u) == 0x10u && _tf_rd16(m, 8u) == 0u,
+                   "D-228: the marker keeps its frame and map cell");
         }
         if (map) ((uint8_t *)map)[0] = cell0;
     }
@@ -4137,7 +4307,7 @@ int main(int argc, char **argv)
             rec[7] = 0;
             object_update_list();
             _check(
-                (rd_le_u16(rec + 4)) == 0x0028u && (rd_le_u16(rec + 8)) == 3u &&
+                (rd_le_u16(rec + 4)) == 0x0028u && (rd_le_u16(rec + 8)) == 2u &&
                     (rd_le_u16(rec + 0xAu)) == 6u && mover[6] == 0xFFu,
                 "a mover in reach rewrites a behaviour-8 record (1000:5A2F)");
         }
@@ -5406,22 +5576,153 @@ int main(int argc, char **argv)
         }
     }
 
-    /* 7a-bis. 1000:F423's "rect" is the type row DI points at (1000:E467), not a
-     * 0x6F92 span.  Its y word is far above the 320-row map in every shipped
-     * row, so no window ever matches: the settle gate reduces to the 0x6EBE
-     * type bit.  Assert exactly that, over every type and both halves. */
+    /* 7a-bis. 1000:F423's rect is the **TER slot**, not the type row: 1000:F3CA
+     * leaves DI = 0x649A and 1000:F3ED calls F423 twice (DI, then DI+0x14), so
+     * the actor is tested against the two 0x649A/0x64AE boxes.  A match ORs the
+     * type's 1<<(7-(type&7)) bit into the slot's +0x13 carry byte and refuses
+     * the settle; outside the box (or disabled) the bit is cleared and the
+     * settle runs. */
     {
-        uint32_t matches = 0, types = 0;
+        if (level_load(4) == 0) {
+            uint8_t *s0 = object_ter_slot_at(0u);
+            uint8_t *a = object_slot(2u); /* record 2: the live rider's slot */
 
-        for (uint32_t t = 0; t < 35u; t++)
-            for (uint32_t h = 0; h < 2u; h++) {
-                types++;
-                for (int32_t x = 0; x < 512; x += 7)
-                    for (int32_t y = 0; y < 320; y += 11)
-                        if (object_row_window_matches(t, h, x, y)) matches++;
+            memset(a, 0, 0x12u);
+            _tf_wr16(s0, 0u, 200u);
+            _tf_wr16(s0, 2u, 200u);
+            s0[0x10] = 0;
+            s0[0x11] = 0; /* enabled */
+            s0[0x12] = 0;
+            s0[0x13] = 0; /* mask clear */
+            _tf_wr16(a, 0u, 192u); /* slot.x - 8 */
+            _tf_wr16(a, 2u, 193u); /* slot.y - 7 */
+            _tf_wr16(a, 8u, 2u); /* type 2 -> bit 0x20 = record 2 */
+            _check(object_settle_gate_for_probe(a) == 0 && s0[0x13] == 0x20u,
+                   "1000:F423: the TER box sets the type's carry bit");
+            {
+                uint16_t x0 = rd_le_u16(s0 + 0u), y0 = rd_le_u16(s0 + 2u);
+
+                object_camera_slots_tick();
+                _check(rd_le_u16(a + 0u) ==
+                               (uint16_t)(192u + (rd_le_u16(s0 + 0u) - x0)) &&
+                           rd_le_u16(a + 2u) ==
+                               (uint16_t)(193u + (rd_le_u16(s0 + 2u) - y0)),
+                       "D-227: record 2 in the box rides the slot");
             }
-        _check(types == 70u && matches == 0u,
-               "no shipped row's window ever matches (1000:F423 over the row)");
+            _tf_wr16(a, 0u, 230u); /* out of the x window */
+            _check(object_settle_gate_for_probe(a) == 1 && s0[0x13] == 0u,
+                   "1000:F423: outside the TER box the bit is cleared");
+            /* D-227: the original stores the TYPE bit (all humans type 2 -> the
+             * mask always carries record 2); the port stores the ACTING
+             * record's index, so record 0/type 2 sets 0x80 and the next gate
+             * pass clears the same bit. */
+            a = object_slot(0u);
+            memset(a, 0, 0x12u);
+            _tf_wr16(a, 0u, 192u);
+            _tf_wr16(a, 2u, 193u);
+            _tf_wr16(a, 8u, 2u);
+            s0[0x13] = 0u;
+            _check(object_settle_gate_for_probe(a) == 0 && s0[0x13] == 0x80u,
+                   "D-227: record 0/type 2 marks record 0, not record 2");
+            {
+                uint16_t x0 = rd_le_u16(s0 + 0u), y0 = rd_le_u16(s0 + 2u);
+
+                object_camera_slots_tick();
+                _check(rd_le_u16(a + 0u) ==
+                               (uint16_t)(192u + (rd_le_u16(s0 + 0u) - x0)) &&
+                           rd_le_u16(a + 2u) ==
+                               (uint16_t)(193u + (rd_le_u16(s0 + 2u) - y0)),
+                       "D-227: record 0 (not record 2) rides the slot");
+            }
+            _tf_wr16(a, 0u, 230u);
+            _check(object_settle_gate_for_probe(a) == 1 && s0[0x13] == 0u,
+                   "D-227: the same record is cleared when it leaves the box");
+            s0[0x13] = 0u;
+            _tf_wr16(a, 0u, 192u);
+            wr_le_u16(s0 + 0x10u, 0xFFFFu); /* disabled */
+            _check(object_settle_gate_for_probe(a) == 1 && s0[0x13] == 0u,
+                   "1000:F423: a disabled TER slot never claims");
+        }
+    }
+
+    /* 7a-ter. D-228: 1000:C444's hit path rewrites the matched HUMAN slot, not
+     * the marker record.  The marker's +8 (its map cell) and +4 (0x26) must
+     * survive so 1000:C541 keeps animating the right cell. */
+    {
+        static uint8_t map[640];
+        uint8_t *h, *m;
+
+        object_init();
+        memset(map, 0, sizeof map);
+        map[5u * 32u + 5u] = 0xBBu;
+        _check(object_load_terrain_objects(map) == 9u,
+               "D-228: the 0xBB tile appends the marker record");
+        m = object_slot(9u);
+        h = object_slot(0u);
+        _check(m && h && rd_le_u16(m + 8u) == 5u * 32u + 5u,
+               "D-228: the marker points at its map cell");
+        memset(h, 0, 0x12u);
+        _tf_wr16(h, 0u, 80u); /* marker.x */
+        _tf_wr16(h, 2u, 72u); /* same 16-px tile row as the marker */
+        _tf_wr16(h, 4u, 0x0010u);
+        _tf_wr16(h, 8u, 2u);
+        object_update_list();
+        _check(rd_le_u16(h + 0u) == 72u && rd_le_u16(h + 4u) == 0x0028u &&
+                   rd_le_u16(h + 8u) == 0x0016u &&
+                   rd_le_u16(h + 0xAu) == 5u,
+               "D-228: the hit rewrites the human (x-8, frame 0x28, type 0x16)");
+        _check(rd_le_u16(m + 8u) == 5u * 32u + 5u &&
+                   rd_le_u16(m + 4u) == 0x0026u,
+               "D-228: the marker keeps its map cell and frame");
+    }
+
+    /* 7a-quater. 1000:3540's goal pan is a blocking loop: each nested
+     * update_world calls 1000:E3F6 -> 1000:8526 poll_input, so a released
+     * direction stops the human, and the pan does not re-check [0x6530] once
+     * it has started. */
+    if (level_load(6) == 0) {
+        InputState in;
+        uint8_t *h = object_slot(0u);
+
+        level_begin();
+        for (uint32_t t = 0; t < 4000u && level_starting(); t++) {
+            level_tick();
+            palette_tick();
+            if (level_loading_screen()) level_loading_tick();
+        }
+        object_set_slot_class(1u, 9u); /* record 9 is the pan's class-9 target */
+        object_set_action_entity(0u);
+        memset(h, 0, 0x12u);
+        _tf_wr16(h, 0u, 448u);
+        _tf_wr16(h, 2u, 264u);
+        _tf_wr16(h, 4u, 0x0010u);
+        _tf_wr16(h, 8u, 2u);
+        object_goal_scan();
+        _check(object_goal_flag(), "the human at level 6's 0xBA sets the goal");
+        memset(&in, 0, sizeof in);
+        in.joyBits = 0x08u; /* right */
+        level_note_input(&in);
+        level_tick();
+        _check(level_goal_pan_running_for_probe() != 0,
+               "1000:3540 starts the goal pan");
+        {
+            uint16_t x0 = rd_le_u16(h + 0u);
+
+            memset(&in, 0, sizeof in);
+            level_note_input(&in);
+            for (uint32_t k = 0; k < 8u; k++) level_tick();
+            _check(rd_le_u16(h + 0u) == x0,
+                   "the goal pan re-polls and the released human stops");
+        }
+        /* let the pan finish so _goal_follow_record is cleared before the
+         * camera-follower tests below */
+        for (uint32_t k = 0; k < 2000u && level_goal_pan_running_for_probe();
+             k++) {
+            memset(&in, 0, sizeof in);
+            level_note_input(&in);
+            level_tick();
+        }
+        _check(!level_goal_pan_running_for_probe(), "the goal pan completes");
     }
 
     /* 7b. the rest of the type rows' handlers (DS:0x6918) */
@@ -5865,21 +6166,26 @@ int main(int argc, char **argv)
             memset(grp, 0, 0x0Eu);
         }
 
-        /* D-153/D-93: the dissolve clears +0/+2 and the five list words, and
-         * the last member takes the FAA4 tail (y -= 8, frame 0x10, type 2). */
+        /* D-153/D-93: the dissolve clears +0/+2 and the five list words; the
+         * list is [owner/base, ..., top], so FADA resets the top and FAA4
+         * stands the FIRST member (the owner/base).  D-231. */
         {
             uint8_t *e = object_group_at(0u);
-            uint8_t *last = object_slot(5u);
+            uint8_t *owner = object_slot(4u), *top = object_slot(5u);
 
             memset(e, 0, 0x0Eu);
             wr_le_u16((e) + (2u), 0x1234u);
             e[5] = 4u;
             e[6] = 5u;
             e[7] = 0x80u;
-            memset(last, 0, 0x12u);
-            wr_le_u16((last) + (2u), 100u);
-            wr_le_u16((last) + (4u), 0x60u);
-            wr_le_u16((last) + (8u), 3u);
+            memset(owner, 0, 0x12u);
+            wr_le_u16((owner) + (2u), 100u);
+            wr_le_u16((owner) + (4u), 0x60u);
+            wr_le_u16((owner) + (8u), 3u);
+            memset(top, 0, 0x12u);
+            wr_le_u16((top) + (2u), 84u);
+            wr_le_u16((top) + (4u), 0x60u);
+            wr_le_u16((top) + (8u), 3u);
             object_group_dissolve_at(0u);
             _check((e[1] & 0x80u) && rd_le_u16((e) + (2u)) == 0xFFFFu &&
                        rd_le_u16((e) + (4u)) == 0xFFFFu &&
@@ -5888,11 +6194,41 @@ int main(int argc, char **argv)
                        rd_le_u16((e) + (0xAu)) == 0xFFFFu &&
                        rd_le_u16((e) + (0xCu)) == 0xFFFFu,
                    "the group dissolve clears +0/+2 and +4..+0xD (D-153)");
-            _check(rd_le_u16((last) + (2u)) == 92u &&
-                       rd_le_u16((last) + (4u)) == 0x10u &&
-                       rd_le_u16((last) + (8u)) == 2u,
-                   "the last group member takes the FAA4 tail (D-93)");
-            memset(last, 0, 0x12u);
+            _check(rd_le_u16((owner) + (2u)) == 92u &&
+                       rd_le_u16((owner) + (4u)) == 0x10u &&
+                       rd_le_u16((owner) + (8u)) == 2u,
+                   "the owner/base takes the FAA4 tail (D-93, D-231)");
+            _check(rd_le_u16((top) + (4u)) == 0x10u &&
+                       rd_le_u16((top) + (8u)) == 3u,
+                   "the top member takes the FADA reset (D-231)");
+            /* three members: reset the top and the middle, stand the first */
+            {
+                uint8_t *mid = object_slot(6u);
+
+                memset(e, 0, 0x0Eu);
+                e[5] = 4u;
+                e[6] = 5u;
+                e[7] = 6u;
+                e[8] = 0x80u;
+                wr_le_u16((owner) + (2u), 100u);
+                wr_le_u16((owner) + (4u), 0x60u);
+                wr_le_u16((owner) + (8u), 3u);
+                memset(mid, 0, 0x12u);
+                wr_le_u16((mid) + (2u), 68u);
+                wr_le_u16((mid) + (4u), 0x60u);
+                wr_le_u16((mid) + (8u), 3u);
+                object_group_dissolve_at(0u);
+                _check(rd_le_u16((owner) + (2u)) == 92u &&
+                           rd_le_u16((owner) + (4u)) == 0x10u &&
+                           rd_le_u16((owner) + (8u)) == 2u,
+                       "a 3-stack dissolve stands the first member (D-231)");
+                _check(rd_le_u16((top) + (8u)) == 3u &&
+                           rd_le_u16((mid) + (8u)) == 3u,
+                       "and resets the middle/top members (D-231)");
+                memset(mid, 0, 0x12u);
+            }
+            memset(owner, 0, 0x12u);
+            memset(top, 0, 0x12u);
         }
 
         /* D-156: the 0xB6 record's +0xC link is the *next* live record, in
@@ -6280,6 +6616,109 @@ int main(int argc, char **argv)
             object_camera_slots_tick();
             _check(rd_le_u16(s0 + 0x0u) == 367u && rd_le_u16(s0 + 0x2u) == 207u,
                    "D-129: the next frame patrols back toward 0xAF");
+        }
+        /* D-226 (closed 2026-11-06): the stack masks ARE the TER slots' +0x12
+         * high bytes (0x64AD/0x64C1), and 1000:C8A4 carries every record whose
+         * bit is set by the slot's per-frame delta. */
+        if (level_load(4) == 0 && s0) {
+            uint8_t *base = object_slot(0u);
+            uint8_t *top = object_slot(1u);
+            uint16_t x0, y0, dx, dy;
+
+            /* base: a registered 0x6F22 group at the 0xAF cell */
+            _tf_wr16(base, 0u, 224u);
+            _tf_wr16(base, 2u, 192u);
+            _tf_wr16(base, 4u, 0x0010u);
+            _tf_wr16(base, 6u, 0u);
+            _tf_wr16(base, 8u, 2u);
+            object_set_action_entity(0u);
+            object_action_set_program(1u);
+            object_action_set_cursor(2u);
+            object_action_run(); /* op 1 registers the group */
+            /* seed the base's bit as the live original had it; the mask byte
+             * is the TER slot's +0x12 high byte (0x64AD for slot 0) */
+            _check(s0[0x13] == 0u, "D-226: the slot's carry byte starts clear");
+            s0[0x13] = 0x80u; /* record 0 (the base) */
+            /* a human two 16-px rows above the base is pushed onto it */
+            _tf_wr16(top, 0u, 224u);
+            _tf_wr16(top, 2u, 164u);
+            _tf_wr16(top, 4u, 0x0010u);
+            _tf_wr16(top, 6u, 0u);
+            _tf_wr16(top, 8u, 2u);
+            object_set_action_entity(1u);
+            _check(object_stack_push(top) == 1,
+                   "D-226: the push takes the human above the base");
+            _check(s0[0x13] == 0xC0u && s0[0x12] == 0u,
+                   "D-226: the push marks the member in the TER carry byte");
+
+            /* the patrol now carries both marked records */
+            _tf_wr16(base, 0u, 100u);
+            _tf_wr16(base, 2u, 100u);
+            _tf_wr16(top, 0u, 120u);
+            _tf_wr16(top, 2u, 120u);
+            x0 = rd_le_u16(s0 + 0u);
+            y0 = rd_le_u16(s0 + 2u);
+            object_camera_slots_tick();
+            dx = (uint16_t)(rd_le_u16(s0 + 0u) - x0);
+            dy = (uint16_t)(rd_le_u16(s0 + 2u) - y0);
+            _check(dx != 0u || dy != 0u, "D-226: the slot patrols");
+            _check(rd_le_u16(base + 0u) == (uint16_t)(100u + dx) &&
+                       rd_le_u16(base + 2u) == (uint16_t)(100u + dy),
+                   "D-226: the base record rides the slot delta");
+            _check(rd_le_u16(top + 0u) == (uint16_t)(120u + dx) &&
+                       rd_le_u16(top + 2u) == (uint16_t)(120u + dy),
+                   "D-226: the pushed member rides the slot delta");
+        }
+        /* the reported level: 27 (NICENEASY) has 0xAF at (9,18) and 0xB0 at
+         * (11,11), so the slot starts at (144,288) and patrols up.  The live
+         * rider was the acting record 2 at (168,233) with slot 0 at (176,241):
+         * the gate's box is (slot.x - 8, slot.y - 8). */
+        if (level_load(26) == 0) {
+            uint8_t *s = object_ter_slot_at(0u);
+            uint8_t *r = object_slot(2u);
+            uint16_t sx = rd_le_u16(s + 0u), sy = rd_le_u16(s + 2u);
+
+            _check(s && rd_le_u16(s + 0x10u) == 0u && sx == 144u && sy == 288u,
+                   "D-226: level 27 enables TER slot 0 at the 0xAF cell");
+            memset(r, 0, 0x12u);
+            _tf_wr16(r, 0u, (uint16_t)(sx - 8u)); /* the live offset */
+            _tf_wr16(r, 2u, (uint16_t)(sy - 8u));
+            _tf_wr16(r, 4u, 0x0010u);
+            _tf_wr16(r, 8u, 2u); /* type 2 -> bit 0x20 */
+            _check(object_settle_gate_for_probe(r) == 0 &&
+                       s[0x13] == 0x20u,
+                   "D-226: level 27's TER box marks record 2 (0x20)");
+            object_camera_slots_tick();
+            _check(rd_le_u16(r + 0u) ==
+                           (uint16_t)((uint16_t)(sx - 8u) +
+                                      (rd_le_u16(s + 0u) - sx)) &&
+                       rd_le_u16(r + 2u) ==
+                           (uint16_t)((uint16_t)(sy - 8u) +
+                                      (rd_le_u16(s + 2u) - sy)),
+                   "D-226: record 2 rides level 27's pterodactyl slot");
+            /* and it stays on for a full ride: the gate re-marks the box every
+             * frame, the camera tick carries the same delta. */
+            {
+                uint32_t stay = 0;
+
+                for (uint32_t k = 0; k < 24u; k++) {
+                    uint16_t ox =
+                        (uint16_t)(rd_le_u16(s + 0u) - rd_le_u16(r + 0u));
+                    uint16_t oy =
+                        (uint16_t)(rd_le_u16(s + 2u) - rd_le_u16(r + 2u));
+
+                    if (object_settle_gate_for_probe(r) != 0) break;
+                    object_camera_slots_tick();
+                    if ((uint16_t)(rd_le_u16(s + 0u) - rd_le_u16(r + 0u)) !=
+                            ox ||
+                        (uint16_t)(rd_le_u16(s + 2u) - rd_le_u16(r + 2u)) !=
+                            oy)
+                        break;
+                    stay++;
+                }
+                _check(stay == 24u,
+                       "D-227: the rider stays on the slot for 24 frames");
+            }
         }
     }
 

@@ -254,7 +254,6 @@ enum {
 static int32_t _goal_pan_state;
 static uint32_t _goal_pan_left;
 static uint32_t _goal_pan_view_x, _goal_pan_view_y;
-static uint8_t _goal_pan_joy; /* [0x5ACE] frozen: the pan never polls again */
 /* The chained screen the original draws into: one byte = 4 pixels, 88 bytes per
  * row (352 px, of which the visible window is 320 — that slack is what lets the
  * CRTC start sit on a 4-px column boundary, 1000:3DC0's `y*88 + x/4`). */
@@ -1773,9 +1772,10 @@ uint32_t level_view_y(void) { return _view_y; }
  *
  * The port advances one of those update_world frames per level tick (the tick's
  * own _world update is that frame), so the pan is presented for the same number
- * of frames as the original's blocking loop.  The input word is frozen for the
- * same reason: the original polls only once per outer frame, and it is blocked
- * inside the pan for all of them.
+ * of frames as the original's blocking loop.  Each nested `update_world` calls
+ * `1000:E3F6`, which calls `1000:8526 poll_input`; the original therefore
+ * re-reads the live key state every pan frame and a released direction stops
+ * the human.  The port passes each tick's `_level_joy`, never a frozen copy.
  *
  * @return 1 while the goal pan runs, 0 otherwise
  */
@@ -1785,12 +1785,19 @@ static int32_t _level_goal_pan_running(void)
            _goal_pan_state == GOALPAN_HOLD || _goal_pan_state == GOALPAN_TAIL;
 }
 
+int32_t level_goal_pan_running_for_probe(void)
+{ return _level_goal_pan_running(); }
+
 /**
  * @brief The goal-text camera pan: one step per tick.
  */
 static void _level_goal_pan_tick(void)
 {
     if (!object_goal_flag()) { /* 1000:35A2 */
+        /* The original is blocked inside menu_flag_tick's pan loop while it
+         * runs; it does not re-read [0x6530] until the loop returns.  Only a
+         * pan that is not running is cancelled here. */
+        if (_level_goal_pan_running()) return;
         if (_goal_pan_state != GOALPAN_NONE) {
             object_set_marker_mode(0); /* 1000:35A9 */
             _goal_follow_record = -1;
@@ -1809,7 +1816,6 @@ static void _level_goal_pan_tick(void)
             _goal_pan_state = GOALPAN_DONE;
             return;
         }
-        _goal_pan_joy = _level_joy; /* the pan does not poll again */
         _goal_pan_state = GOALPAN_TRACK;
     } else if (_goal_pan_state == GOALPAN_TRACK) {
         _goal_pan_view_x = _view_x; /* 1000:3568 */
@@ -2452,9 +2458,7 @@ int32_t level_tick(void)
             _level_goal_pan_tick(); /* 1000:3540, before update_world */
             level_follow_view(); /* 1000:5CB6, first in update_world */
             if (actor)
-                (void)object_command_run(actor, _level_goal_pan_running()
-                                                    ? _goal_pan_joy
-                                                    : _level_joy);
+                (void)object_command_run(actor, _level_joy);
             object_update_list(); /* 1000:C295, 1000:80BD            */
             object_camera_slots_tick(); /* 1000:C7A0, 1000:80C0     */
             entity_tick(); /* 1000:C93C, inside the [0xC] gate */

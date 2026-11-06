@@ -259,6 +259,56 @@ int main(int argc, char **argv)
         level_set_updates(1);
     }
 
+    /* D-232: the in-level dialogs (1000:A167 / 1000:A2A6) only draw; they
+     * never call update_world, so the play loop's world gate is cleared while
+     * a menu is up and restored on close.  The pterodactyl, the marker arrow
+     * and the object animations therefore freeze. */
+    {
+        level_set_updates(1);
+        menu_open_pause();
+        if (level_updates()) {
+            fprintf(stderr, "FAIL D-232: the pause did not freeze the world\n");
+            bad = 1;
+        }
+        menu_close();
+        if (!level_updates()) {
+            fprintf(stderr,
+                    "FAIL D-232: closing the pause did not resume the world\n");
+            bad = 1;
+        }
+        menu_open_time_up();
+        if (level_updates()) {
+            fprintf(
+                stderr,
+                "FAIL D-232: the time-up dialog did not freeze the world\n");
+            bad = 1;
+        }
+        menu_close();
+        if (!level_updates()) {
+            fprintf(
+                stderr,
+                "FAIL D-232: closing the time-up did not resume the world\n");
+            bad = 1;
+        }
+        /* the save grid is opened from the pause and must stay frozen */
+        menu_open_pause();
+        (void)_press(0x02u);
+        (void)_press(0x02u);
+        (void)_press(0x02u);
+        (void)_press(0x80u); /* SAVE GAME -> the grid */
+        if (level_updates()) {
+            fprintf(stderr, "FAIL D-232: the save grid did not stay frozen\n");
+            bad = 1;
+        }
+        (void)_press(0x80u); /* pick a slot -> MENU_DONE */
+        menu_close();
+        if (!level_updates()) {
+            fprintf(stderr,
+                    "FAIL D-232: closing the save grid did not resume\n");
+            bad = 1;
+        }
+    }
+
     /* the level's assets: the dialog's box tiles (apl\box.spr, disc 1) and
      * the bar/level palette the page's indices ride */
     if (level_load(0) != 0) {
@@ -781,6 +831,43 @@ int main(int argc, char **argv)
         (void)gameflow_time_up_action(2, &quit);
         if (!quit) {
             fprintf(stderr, "FAIL the time-up QUIT\n");
+            bad = 1;
+        }
+    }
+
+    /* D-232 (the world freeze): reach play, re-arm the active-human marker
+     * (record 8) and require the frozen gate to stop its bob/lifetime while
+     * level_tick still redraws; the unfrozen tick must advance it again. */
+    {
+        uint8_t *m;
+        uint16_t t0, a0;
+        uint32_t i;
+
+        menu_close(); /* no dialog; restores the world gate */
+        (void)level_load(0); /* reset the ended/time-up state */
+        level_begin();
+        for (i = 0; i < 400u && level_starting(); i++) {
+            level_tick();
+            palette_tick();
+            if (level_loading_screen()) level_loading_tick();
+        }
+        object_set_action_entity(0u);
+        (void)object_cycle_entity(1); /* 1000:4188 arms record 8 */
+        m = object_slot(8u);
+        level_set_updates(0);
+        t0 = rd_le_u16(m + 8u);
+        a0 = rd_le_u16(m + 0xAu);
+        for (i = 0; i < 8u; i++) level_tick();
+        if (rd_le_u16(m + 8u) != t0 || rd_le_u16(m + 0xAu) != a0) {
+            fprintf(stderr,
+                    "FAIL D-232: the marker advanced while the world was "
+                    "frozen\n");
+            bad = 1;
+        }
+        level_set_updates(1);
+        for (i = 0; i < 8u; i++) level_tick();
+        if (rd_le_u16(m + 8u) == t0 && rd_le_u16(m + 0xAu) == a0) {
+            fprintf(stderr, "FAIL D-232: the marker did not resume\n");
             bad = 1;
         }
     }

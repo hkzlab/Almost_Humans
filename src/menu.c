@@ -26,6 +26,7 @@
  * here; that renderer landed in pass 10/12 and the note was stale.)  The
  * pause block is opened by `gameflow_key_list` (ESC, 1000:386E event 4).
  */
+#include "level.h"
 #include "menu.h"
 #include "osystem.h"
 #include "statusbar.h"
@@ -122,6 +123,8 @@ void menu_close(void)
     _result = -1;
     _prev_bits = 0;
     _time_up_kind = 0;
+    /* D-232: the play loop resumes update_world after the dialog returns. */
+    level_set_updates(1);
 }
 
 /**
@@ -134,7 +137,11 @@ void menu_open_pause(void)
     _result = -1;
     _prev_bits = 0;
     _time_up_kind = 0;
-    statusbar_set_active(0);         /* [0x5B12] := 0                     */
+    statusbar_set_active(0); /* [0x5B12] := 0 */
+    /* D-232: 1000:A167 replaces the play loop and only draws; it never calls
+     * update_world (1000:80AD), so the pterodactyl, the marker arrow and the
+     * object animations freeze. */
+    level_set_updates(0);
 }
 
 /** @brief input_dispatch_loop 34F9: [0x5E44] != 0 shows the 3-option time-up block
@@ -149,6 +156,7 @@ void menu_open_time_up(void)
     _prev_bits = 0;
     _time_up_kind = 1;
     statusbar_set_active(0);
+    level_set_updates(0); /* D-232: the same draw-only A167 loop */
 }
 
 /**

@@ -298,11 +298,10 @@ static uint32_t _obj_entity; /* [0x3E22]: the acting record          */
 static uint16_t _obj_cmd_timer; /* [0x6DEA]: the command one-shot */
 static uint16_t _obj_stream_count; /* [0x6DEC]: stream hold countdown */
 static const uint8_t *_obj_stream_ptr; /* [0x6DEE]: the script stream    */
-static uint8_t _obj_stack_mask[2]; /* 0x64AD / 0x64C1: in-a-stack bits */
-/* DI at the handler/hook call (1000:E467): the byte offset of the type row's
- * selected half inside _obj_cmd_rows.  Set by object_command_select, read by the
- * hooks (1000:F3ED/0xF423 and 0xF6F6). */
-static uint32_t _obj_row_ofs;
+/* 0x64AD / 0x64C1: the "in a stack" bits live in the HIGH byte of the two TER
+ * slots' +0x12 words (0x64AC/0x64C0, `_obj_ter_slot[s][0x13]`), so
+ * set_camera_from (1000:C8A4) reads the very bits the stack pushes and the
+ * 1000:F423 attach box set, and carries the marked records with the patrol. */
 static int16_t _obj_side; /* [0x4230]: which side the settle stepped from */
 static int32_t _obj_lat; /* [0x6F1D]: sequence owns input */
 static uint32_t _obj_bg_count;
@@ -1809,7 +1808,6 @@ void object_init(void)
     _obj_anim_div = 0; /* [0x66B1]                          */
     _pend_tag = _pend_count = _pend_slot = _pend_index = _pend_cursor = 0u;
     _pend_div = 0;
-    _obj_stack_mask[0] = _obj_stack_mask[1] = 0u;
     memset(_obj_register, 0xFF, sizeof _obj_register); /* 0x6F22, all free  */
     memset(_obj_span, 0xFF,
            sizeof _obj_span); /* 0x6F92: 0x38 bytes at 0x60FF */
@@ -2553,7 +2551,11 @@ static void _obj_spawn_c0(uint32_t col, uint32_t row)
 {
     int32_t slot = _obj_place_human(col, row);
 
-    if (slot >= 0) _obj_player = slot;
+    /* 1000:524B leaves SI = 0x3F05 (record 8, the marker) when all eight
+     * static slots are full, and 1000:553A stores SI in [0x180A] regardless.
+     * Unreachable in the 160 shipped levels (the worst 0xC0 map needs all
+     * eight), but the store has no guard in the listing. */
+    _obj_player = slot >= 0 ? slot : (int32_t)OBJ_LIVE0;
 }
 
 /**
@@ -3482,7 +3484,9 @@ void object_render(uint8_t *page, int32_t scrollX, int32_t scrollY)
  */
 void object_ter_slot_init(void)
 {
-    memset(_obj_ter_slot, 0, sizeof _obj_ter_slot); /* 1000:4CB2.. */
+    /* 1000:4CAB writes ONLY the two +0x10 sentinels; the other 0x12 bytes keep
+     * whatever the previous level left (the image starts them at zero, and the
+     * 0xAF/0xB0 pair rewrites every field it uses). */
     wr_le_u16(_obj_ter_slot[0] + 0x10u, 0xFFFFu); /* 1000:4CC3 [0x64AA] */
     wr_le_u16(_obj_ter_slot[1] + 0x10u, 0xFFFFu); /* 1000:4CC6 [0x64BE] */
 }
@@ -3557,9 +3561,9 @@ void object_render_ter(uint8_t *page, int32_t scrollX, int32_t scrollY)
  *    animates while it patrols.
  *  - The slot's own `(new - old)` delta is added to the eight static 0x3E75
  *    records and the 0x6F22 groups under the byte-swapped `+0x12` mask
- *    (`0x80>>i` / `1<<(7-index)`).  The four tile handlers zero `+0x12`, so
- *    the shipped data never sets a mask bit and the object layer does not
- *    move — the shift is kept for a cross-loaded save that does.
+ *    (`0x80>>i` / `1<<(7-index)`).  The mask's high byte IS the stack mask
+ *    0x64AD/0x64C1 (`_obj_ter_slot[s][0x13]`), so a human riding the platform
+ *    is moved by exactly this shift.
  */
 void object_camera_slots_tick(void)
 {
@@ -4357,7 +4361,12 @@ static void _obj_mover_pass_records(uint8_t *r, int32_t ax, int32_t bx)
                 if (cls >= 1u && OBJ_LIVE0 + cls <= _obj_live_count)
                     _obj_array[(OBJ_LIVE0 + cls) * OBJ_STRIDE + 6] = 0xFFu;
             }
-            *beh = 0u;
+            /* 1000:5B13..0x5B24: the MOVER's behaviour byte and its +6 are
+             * cleared (SI = the mover's +6), NOT the victim's: the victim
+             * (behaviour 8) must keep its script so its state-6 exit can
+             * animate frames 0x28..0x2E and free itself (D-229). */
+            _obj_slot_class[(uint32_t)((r - _obj_array) / OBJ_STRIDE) - 8u] =
+                0u;
             r[6] = 0xFFu;
             _obj_driver_call(0x0Cu);
             return;
@@ -5309,10 +5318,15 @@ static void _obj_walk_projectile(uint8_t *r, uint32_t idx)
 
 /** @brief 0xC444 (behaviour 9): the marker use.  0xC541 first animates the map cell
  * the record points at (+8) every 4th frame; then the tile-aligned record
- * position is matched against the eight fixed slots, and a free slot hands
- * the record over (x -= 8, frame 0x28, +8 = 0x16, +0xA = 5, effect 4).
+ * position is matched against the eight fixed slots, and the matched **slot**
+ * (the human) takes x -= 8, frame 0x28, type 0x16, +0xA = 5 and effect 4 —
+ * `1000:C4E9..C4F6` stores through SI, which is the scan's slot.
  *
- * @param r the record
+ * The four stores target the matched `slot` (the human), not the marker, so
+ * the marker's `+8` map-cell pointer keeps driving `1000:C541` and the human
+ * takes the knock/consumed state.
+ *
+ * @param r the marker record
  */
 static void _obj_walk_marker(uint8_t *r)
 {
@@ -5360,10 +5374,10 @@ static void _obj_walk_marker(uint8_t *r)
             type = rd_le_u16(slot + 8u);
             if (object_type_blocked(type)) continue;
             object_stack_scan_dissolve(i); /* 1000:F453, DX = 5 */
-            wr_le_u16(r + 0u, (uint16_t)(rd_le_u16(r + 0u) - 8u));
-            wr_le_u16(r + 4u, 0x0028u);
-            wr_le_u16(r + 8u, 0x0016u);
-            wr_le_u16(r + 0xAu, 5u);
+            wr_le_u16(slot + 0u, (uint16_t)(rd_le_u16(slot + 0u) - 8u));
+            wr_le_u16(slot + 4u, 0x0028u);
+            wr_le_u16(slot + 8u, 0x0016u);
+            wr_le_u16(slot + 0xAu, 5u);
             _obj_driver_call(4); /* 1000:83B7, AX = 4 */
             {
                 uint32_t gx = (uint32_t)(_obj_settled[i][0] + 8u) & ~0xFu;
@@ -6096,15 +6110,22 @@ static void _obj_op_mark_walk(uint8_t *actor, uint32_t step)
 
     if (!_obj_state_is(actor, 3u)) return;
     slot = _obj_record_walk(actor, step);
-    if (slot < 0) return;
-    {
+    /* 1000:EF1A/0xEF47: the found record (a behaviour-3 bush) is marked type
+     * 1, but **both** the found and the not-found paths fall into 0xEF33 /
+     * 0xEF60, i.e. object_find_overlap always runs.  The burn is that
+     * overlap: any placed record within 0x10 of the actor becomes 0x103 /
+     * type 0x1E, bush or human.  Returning here when no bush was found was a
+     * port bug (the torch could never burn a human with no bush in front). */
+    if (slot >= 0) {
         uint8_t *r = _obj_array + (uint32_t)slot * OBJ_STRIDE;
-        if (rd_le_u16(r + 8u) == 1u) return;
-        wr_le_u16(r + 8u, 0x0001u);
-        wr_le_u16(r + 0xAu, 0x0003u);
-        wr_le_u16(r + 0xCu, 0x0000u);
+
+        if (rd_le_u16(r + 8u) != 1u) {
+            wr_le_u16(r + 8u, 0x0001u);
+            wr_le_u16(r + 0xAu, 0x0003u);
+            wr_le_u16(r + 0xCu, 0x0000u);
+        }
     }
-    _obj_find_overlap(actor);
+    _obj_find_overlap(actor); /* 1000:EF33/0xEF60 */
 }
 
 /** @brief 1000:E3F6's input normalisation: swap bits 2 and 3, drop bits 4..6, then kill
@@ -6148,7 +6169,6 @@ ObjCommand object_command_select(uint8_t *rec, uint8_t input)
     out.command = 0u;
     if (type >= 35u) return out; /* no row: the original reads 0x6DEA */
     row = _obj_cmd_rows[type] + ((v & 0x80u) ? 0x10u : 0u);
-    _obj_row_ofs = (uint32_t)(row - &_obj_cmd_rows[0][0]); /* DI at 1000:E467 */
     out.tail = rd_le_u16(row + 0xCu);
     out.hook = row[0xAu];
     if (cmd & 0x80u) return out; /* bit 7: this input has no command */
@@ -6201,8 +6221,9 @@ static void _obj_stack_unmark(uint8_t *actor)
     uint8_t keep =
         (uint8_t)~_obj_index_bit((uint32_t)(actor - _obj_array) / OBJ_STRIDE);
 
-    _obj_stack_mask[0] &= keep;
-    _obj_stack_mask[1] &= keep;
+    /* 0x64AD / 0x64C1 are the TER slots' +0x12 high bytes. */
+    _obj_ter_slot[0][0x13] &= keep;
+    _obj_ter_slot[1][0x13] &= keep;
 }
 
 /** @brief 1000:F38F test_bits_64ad_64c1: mark the record as being in a stack, in the
@@ -6220,8 +6241,8 @@ static void _obj_stack_mark(uint8_t *actor, const uint8_t *slot)
         uint32_t bit = _obj_index_bit(below);
 
         for (uint32_t m = 0; m < 2u; m++) {
-            if (_obj_stack_mask[m] & bit) {
-                _obj_stack_mask[m] |= (uint8_t)_obj_index_bit(
+            if (_obj_ter_slot[m][0x13] & bit) {
+                _obj_ter_slot[m][0x13] |= (uint8_t)_obj_index_bit(
                     (uint32_t)(actor - _obj_array) / OBJ_STRIDE);
                 return;
             }
@@ -6745,94 +6766,50 @@ static void _obj_walk(uint8_t *actor, int32_t left)
     wr_le_u16(actor + 4u, (uint16_t)f);
 }
 
-/** @brief The dispatcher's `DI` at the handler/hook call (1000:E467): the type row's
- * selected half, `DS:0x698A + 32*type [+ 0x10]`.  The hooks receive it as an
- * argument register and read it as their "rect" (`1000:F423`), so the port keeps
- * the same byte offset into its copy of the rows.
+/** @brief 1000:F423: is (BX, CX) inside a TER slot's attach box?  A match ORs
+ * `bit` into the slot's `+0x13` carry byte and returns 1 (the caller's `JS`:
+ * the settle is refused, so the fall machine takes the platform landing).
  *
- * The earlier model read a `0x6F92` span here.  That was wrong: `1000:E467` sets
- * DI to the row and `1000:E4DD` calls `1000:D8BD` with DI untouched, so
- * `1000:F3ED`/`1000:F423` see the **row**, not a span.  The spans at `0x6F92`
- * are read by `1000:E4F8`/`0xE609` (the step verbs) and written by `1000:FC81`,
- * which is why the confusion was possible - see re_history.md.
+ * `1000:F3CA` returns with **DI = 0x649A**, and `1000:F3ED` calls F423 twice
+ * (`DI` then `DI + 0x14`), so the two calls test the two `0x649A`/`0x64AE`
+ * slots, not the type row that DI held at the dispatcher's call site.  The box
+ * is `x` in `(slot.x - 0x10, slot.x + 0xA]` and `y` in `[slot.y - 9, slot.y - 5]`;
+ * bit 15 of `+0x10` is the disabled sentinel.  This is the rider-marking path:
+ * the actor standing in the box gets the mask bit that `1000:C8A4` later moves
+ * with the patrol.
  *
- * @param off the offset
- * @return the row word
- */
-static uint32_t _obj_row_word(uint32_t off)
-{
-    const uint8_t *f = &_obj_cmd_rows[0][0];
-    uint32_t i = _obj_row_ofs + off;
-
-    if (i + 1u >= sizeof _obj_cmd_rows) return 0u;
-    return rd_le_u16(f + i);
-}
-
-/** @brief 1000:F423: is (BX, CX) inside the window the row half at `off` describes?  A
- * match ORs `bit` into `off+0x13` and returns 1 (the caller's `JS`: the settle is
- * refused).  The window is `x` in `([row+0] - 0x2A, [row+0] - 0x10]` and `y` in
- * `([row+2] - 9, [row+2] - 5]`, with `row+0x10`'s bit 15 as the "free" marker.
+ * The original stores the **type-derived** bit here (`AL` from `F3ED`), while
+ * `1000:C8A4` later applies the mask to **record indices**.  Every `0xAA` human
+ * has type 2, so the original always carries record 2 whichever human is
+ * acting.  The port stores the acting record's own bit instead (D-227), so the
+ * human on the platform is the one that rides.
  *
- * `row+0x10` is the *other* half of the type row, so the free marker and the
- * bit byte it ORs live in that half - which is what makes the gate's two calls
- * (`off = 0` and `off = 0x14`) read overlapping windows.  On the shipped rows
- * the y word is 0x0505 / 0x0600 / ... i.e. far above the 320-row map, so no
- * window ever matches and the store never fires; a test asserts exactly that
- * over every type and both halves.
- *
- * @param off the offset
+ * @param e the TER slot
  * @param bx the x value
- * @param cx the x value
- * @param bit the bit index
+ * @param cx the y value
+ * @param bit the acting record's mask bit
  * @return 1 when the point is inside the window, 0 otherwise
  */
-static int32_t _obj_row_rect_at(uint32_t off, int32_t bx, int32_t cx,
-                                uint8_t bit)
+static int32_t _obj_ter_rect(uint8_t *e, int32_t bx, int32_t cx, uint8_t bit)
 {
     int32_t d;
 
-    if (_obj_row_word(off + 0x10u) & 0x8000u) return 0; /* 1000:F425 */
-    d = (int16_t)_obj_row_word(off) - 0x10 - bx; /* 1000:F42C */
+    if (rd_le_u16(e + 0x10u) & 0x8000u) return 0; /* 1000:F425 */
+    d = (int16_t)rd_le_u16(e + 0u) - 0x10 - bx; /* 1000:F42C */
     if (d >= 0) return 0;
     d += 0x1A; /* 1000:F433 */
     if (d < 0) return 0;
-    d = (int16_t)_obj_row_word(off + 2u) - cx; /* 1000:F438 */
+    d = (int16_t)rd_le_u16(e + 2u) - cx; /* 1000:F438 */
     if (d < 0) return 0;
     d -= 5;
     if (d < 0 || d > 4) return 0;
-    if (bit) {
-        uint32_t i = _obj_row_ofs + off + 0x13u;
-
-        if (i < sizeof _obj_cmd_rows) _obj_cmd_rows[i / 32u][i % 32u] |= bit;
-    }
+    if (bit) e[0x13] |= bit; /* 1000:F449 */
     return 1;
 }
 
-/**
- * @brief The gate's two windows, for the test that shows they never match.
- *
- * @param type the type
- * @param half the half index
- * @param x the x coordinate
- * @param y the y coordinate
- * @return 1 when the point is in a window, 0 otherwise
- */
-int32_t object_row_window_matches(uint32_t type, uint32_t half, int32_t x,
-                                  int32_t y)
-{
-    uint32_t save = _obj_row_ofs;
-    int32_t r;
-
-    if (type >= 35u) return 0;
-    _obj_row_ofs = 32u * type + (half ? 0x10u : 0u);
-    r = _obj_row_rect_at(0u, x, y, 0u) | _obj_row_rect_at(0x14u, x, y, 0u);
-    _obj_row_ofs = save;
-    return r;
-}
-
 /** @brief 1000:F3ED: clear the stack bits, then - unless the actor's type is marked at
- * 0x6EBE - let the two row windows claim it.  Returns 1 when the settle may run
- * (the original's ZF).
+ * 0x6EBE - let the two TER slots claim it.  Returns 1 when the settle may run
+ * (the original's ZF); a slot match sets the carry bit and returns 0.
  *
  * @param actor the object record
  * @return 1 when the settle may run, 0 otherwise
@@ -6841,15 +6818,26 @@ static int32_t _obj_settle_gate(uint8_t *actor)
 {
     uint32_t t = rd_le_u16(actor + 8u);
     uint8_t bit = (uint8_t)(1u << (7u - (t & 7u)));
+    uint8_t rec_bit =
+        (uint8_t)_obj_index_bit((uint32_t)(actor - _obj_array) / OBJ_STRIDE);
     int32_t bx = (int16_t)rd_le_u16(actor + 0u),
             cx = (int16_t)rd_le_u16(actor + 2u);
 
     _obj_stack_unmark(actor); /* 1000:F3CA */
     if (_obj_type_gate[(t >> 3) & 0x1Fu] & bit) return 1; /* 1000:F450 */
-    if (_obj_row_rect_at(0u, bx, cx, bit)) return 0; /* 1000:F417 */
-    if (_obj_row_rect_at(0x14u, bx, cx, bit)) return 0; /* 1000:F41F */
+    /* 1000:F417/F41F store the type bit; D-227 stores the actor's index bit. */
+    if (_obj_ter_rect(_obj_ter_slot[0], bx, cx, rec_bit)) return 0;
+    if (_obj_ter_rect(_obj_ter_slot[1], bx, cx, rec_bit)) return 0;
     return 1;
 }
+
+/** @brief Test seam: run `1000:F3ED` on `actor`.
+ *
+ * @param actor the object record
+ * @return 1 when the settle may run, 0 when a TER slot claimed the actor
+ */
+int32_t object_settle_gate_for_probe(uint8_t *actor)
+{ return _obj_settle_gate(actor); }
 
 /** @brief 1000:DF2C: the footing landed inside one of the level's 0xA9 sprites?  Marks
  * that sprite's own buffer and returns -1 (the settle then skips its cache).
@@ -7094,7 +7082,7 @@ uint32_t object_last_sfx(void) { return _obj_sfx; }
  */
 static int32_t _obj_stack_masked(void)
 {
-    return ((_obj_stack_mask[0] | _obj_stack_mask[1]) &
+    return ((_obj_ter_slot[0][0x13] | _obj_ter_slot[1][0x13]) &
             _obj_index_bit(_obj_entity)) != 0;
 }
 
@@ -9178,7 +9166,6 @@ void object_row_pass(void)
         type = rd_le_u16(r + 8u);
         if (type >= 35u) continue; /* the original reads past 0x698A */
         row = _obj_cmd_rows[type];
-        _obj_row_ofs = 32u * type; /* 1000:D894: DI = the row */
         if (row[0xAu]) _obj_cmd_settle(r); /* 1000:D89F */
         tail = rd_le_u16(row + 0xCu);
         if (tail) (void)_obj_cmd_call(r, tail); /* 1000:D8A8 */
@@ -9348,7 +9335,7 @@ int32_t object_selector(uint8_t *actor, uint16_t xoff, uint16_t frame,
         uint32_t bit =
             _obj_index_bit((uint32_t)(actor - _obj_array) / OBJ_STRIDE);
 
-        if ((_obj_stack_mask[0] | _obj_stack_mask[1]) & bit)
+        if ((_obj_ter_slot[0][0x13] | _obj_ter_slot[1][0x13]) & bit)
             return 0; /* 1000:F1CB */
     }
     /* 1000:F1D7: the step probe's distance test.  A blocked probe, or a step
@@ -9386,15 +9373,7 @@ static void _obj_group_restore_member(uint8_t *rec)
     wr_le_u16(rec + 0xEu, 0x0000u);
 }
 
-/** @brief 1000:FA13 object_group_dissolve: free the entry, then give the owner (n = 0)
- * its standing human form, or each member (n >= 1) the FADA form.  `n` is the
- * member-list length - 1, exactly `(run length from +5) - 2` as the code
- * computes it; the `n >= 2` handler's second `XCHG CX,BX` at FA78 leaves
- * BX = n, so its loop runs `n - 1` times after the first member: n calls in
- * all, one per member.
- *
- * The n >= 1 paths then fall into `1000:FAA4`, which stores `y -= 8`,
- * frame 0x10, type 2 on the last member (it becomes a standing human).
+/** @brief Test seam: dissolve the group in register slot `slot`.
  *
  * @param slot the slot
  */
@@ -9415,7 +9394,16 @@ static void _obj_group_clear_list(uint8_t *e)
 }
 
 /**
- * @brief Dissolve one group.
+ * @brief 1000:FA13 object_group_dissolve: free the entry, then give the owner
+ * (n = 0) its standing human form, or reset the top/middle members (n >= 1)
+ * through FADA and stand the **first** list member (the owner/base).
+ *
+ * `n` is the member-list length - 1.  The push (`1000:E697`) appends at the
+ * first free byte after `+5`, so the first byte is the base and the last is
+ * the top.  `1000:FA64`/`0xFA78` reset the top and middle members (`FADA`,
+ * frame 0x10, type 3); `1000:FAA4` does one more `DEC BP` (0x1000:FAA8) and
+ * applies `y -= 8`, frame 0x10, type 2 to that first member.  The n = 0 path
+ * (`1000:FA49`) applies frame 0x10/type 2 without the y move.
  *
  * @param e the group entry
  */
@@ -9423,7 +9411,7 @@ static void _obj_group_dissolve(uint8_t *e)
 {
     uint8_t *bp;
     uint32_t n;
-    uint8_t *last; /* the topmost list byte's record */
+    uint8_t *owner;
 
     wr_le_u16(e + 0u, 0xFFFFu); /* 1000:FA16 */
     wr_le_u16(e + 2u, 0xFFFFu); /* 1000:FA1C */
@@ -9431,25 +9419,26 @@ static void _obj_group_dissolve(uint8_t *e)
     while (!(bp[0] & 0x80u)) bp++; /* past the terminator */
     n = (uint32_t)(bp - (e + 5)) - 1u; /* list length - 1     */
     if (n == 0u) {
-        last = object_slot(bp[-1]); /* the owner byte      */
-        if (last) {
-            wr_le_u16(last + 4u, 0x0010u); /* frame 0x10          */
-            wr_le_u16(last + 8u, 0x0002u); /* type 2, a human     */
+        owner = object_slot(bp[-1]); /* 1000:FA49: the only member */
+        if (owner) {
+            wr_le_u16(owner + 4u, 0x0010u); /* frame 0x10          */
+            wr_le_u16(owner + 8u, 0x0002u); /* type 2, a human     */
         }
         _obj_group_clear_list(e); /* 1000:FABF */
         return;
     }
-    last = object_slot(bp[-1]); /* n = 1: the only member */
-    if (last) {
-        _obj_group_restore_member(last);
-        for (uint32_t k = 1u; k < n; k++) { /* the members below it */
-            uint8_t *m = object_slot(bp[-1 - (int32_t)k]);
-            if (m) _obj_group_restore_member(m);
-        }
-        /* 1000:FAA4: the last list record becomes a standing human 8 px up. */
-        wr_le_u16(last + 2u, (uint16_t)(rd_le_u16(last + 2u) - 8u));
-        wr_le_u16(last + 4u, 0x0010u);
-        wr_le_u16(last + 8u, 0x0002u);
+    /* 1000:FA64/0xFA78: reset the last n list bytes (top .. second). */
+    for (uint32_t k = 0u; k < n; k++) {
+        uint8_t *m = object_slot(bp[-1 - (int32_t)k]);
+
+        if (m) _obj_group_restore_member(m);
+    }
+    /* 1000:FAA4: one more DEC BP -> the first list byte (the owner/base). */
+    owner = object_slot(bp[-1 - (int32_t)n]);
+    if (owner) {
+        wr_le_u16(owner + 2u, (uint16_t)(rd_le_u16(owner + 2u) - 8u));
+        wr_le_u16(owner + 4u, 0x0010u);
+        wr_le_u16(owner + 8u, 0x0002u);
     }
     _obj_group_clear_list(e); /* 1000:FABF */
 }
@@ -9698,8 +9687,9 @@ void object_action_run(void)
     case OP_COLLIDE_A:
     case OP_COLLIDE_B: _obj_op_collide(actor); break;
     case OP_SETFRAME: _obj_op_set_frame(actor); break;
-    case OP_CLAIM_OR_TYPE: /* 0x39E4: the player claims, others walk */
-        if (actor == _obj_array + _obj_player * OBJ_STRIDE)
+    case OP_CLAIM_OR_TYPE: /* 0x39E4: the player claims recipe 2; the others
+                            * (type 0/1, i.e. walking) run the ignite */
+        if (_obj_player >= 0 && actor == _obj_array + _obj_player * OBJ_STRIDE)
             (void)object_claim_begin(2u, (int32_t)_obj_entity);
         else if (rd_le_u16(actor + 8u) < 2u) /* 1000:39F3 CMP AX,2 / JNC */
             _obj_op_mark_walk(actor, rd_le_u16(actor + 8u) ? 0u : 0x10u);

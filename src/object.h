@@ -158,8 +158,10 @@ void object_animator_reset(void);
  * 1000:FDED, the leaves are 1000:E860 / 1000:E8DD, the snap 1000:E963, the
  * selector 1000:F17C, and `object_stack_scan_dissolve` is 1000:F453 (the scan that
  * finds the group holding a record and dissolves it).  The `0x64AD`/`0x64C1`
- * in-a-stack masks (1000:F38F/F3CA) are written by the two pushes and read by
- * the selector. */
+ * in-a-stack masks (1000:F38F/F3CA) are written by the two pushes, read by
+ * the selector, and are ALSO the high bytes of the two TER slots' +0x12
+ * carry masks (1000:C8A4): a marked record rides the patrolling platform.
+ * `object_ter_slot_at(i)[0x13]` is that byte. */
 int32_t object_stack_push(uint8_t *actor); /* 1 = a group took it      */
 int32_t object_stack_grab(uint8_t *actor); /* 1 = grabbed, 0 = registered */
 /* -1 / 0 / 1 as 1000:FDED; `*below` = the record it leaves in DI and `*entry` =
@@ -205,11 +207,10 @@ void object_world_tick(void);
 uint32_t object_world_ticks_probe(void);
 void object_claim_frame(const uint8_t *levelPal);
 int32_t object_low_phase_match(void); /* 1000:3600: -1 when met         */
-/* 1000:F423's window, against the type row 1000:E467 hands the hook as DI:
- * the row's own words are the "rect", so it never matches on shipped data -
- * the test asserts that over every type and both halves. */
-int32_t object_row_window_matches(uint32_t type, uint32_t half, int32_t x,
-                                  int32_t y);
+/* 1000:F3ED's gate, for the test: clears the mask, applies the 0x6EBE type
+ * gate, then tests the two TER slots' attach boxes (1000:F423).  A box match
+ * sets the record's carry bit in the slot and returns 0 (settle refused). */
+int32_t object_settle_gate_for_probe(uint8_t *actor);
 /* The ACTION program machine (script_op_dispatch, 1000:3979): ACTION with no
  * direction held runs the acting record's program.  The acting record is
  * [0x3E22]; object_action_run() performs one press, object_cycle_entity(±1) is

@@ -843,8 +843,10 @@ static int32_t _game_frame(const OSystem *osys, GameFlow *state,
             }
         } else {
             /* input_dispatch_loop (1000:349E): the pause gate (3523)
-                 * then the world.  With a dialog up (A167) the world keeps
-                 * animating behind it and the countdown is suspended. */
+                 * then the world.  With a dialog up (A167) only the frozen
+                 * frame is redrawn: menu_open_* clears the world gate, so
+                 * update_world (marker, entity and object animations) stops;
+                 * the countdown is suspended too (D-232). */
             if (gameflow_key_wait_active()) { /* 1000:3954 blocks the world */
                 (void)gameflow_key_list(&input);
                 return 1;

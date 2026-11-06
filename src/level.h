@@ -75,6 +75,9 @@ void level_reset_offset_walk(void);
 int32_t level_updates(void); /* [0xC] */
 uint32_t level_view_x(void);
 uint32_t level_view_y(void);
+/* menu_flag_tick's goal pan is blocked (the original's pan loop): a test seam
+ * for the input latch/marker-mode sequence. */
+int32_t level_goal_pan_running_for_probe(void);
 /* The claim's particles (1000:3E73/0x3FB3/0x3F4A): begin at the appended record
  * with the 16x16 shade table object.c builds from the recipe sprite. */
 void level_spark_begin(uint32_t ox, uint32_t oy, const uint8_t *shade);
