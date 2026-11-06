@@ -18,6 +18,9 @@
  *   repin_ints_and_music_tick 1000:8B1E    cmd 2         tick()
  *   game_exit    (1000:8DD6 path)          cmd 0         destroy()
  *
+ * The OSystem's audio members are these commands (osystem.h): audioInstall,
+ * audioTempo, audioLoadTune, audioResume, audioSfx, audioStop, audioTick.
+ *
  * The game sends only those commands (never 1, 3, 4, 7, 8, 9, 0x0B, 0x0D),
  * and all three shipped drivers implement the same 15-entry table: their
  * entries sit at ADLIB.DRV 0x1A2, MT32.DRV 0x19D and BEEPER.DRV 0x180, and
@@ -31,8 +34,8 @@
  * audio backend pulls from.
  *
  * Modules (the port links exactly one, the same selection as fs/fs.h):
- *   adlib/sound_driver_adlib.c   ADLIB.DRV's sequencer over an OPL3 (still a
- *                                silent stub: D-01, next_step.md)
+ *   adlib/sound_driver_adlib.c   ADLIB.DRV's sequencer (re_snd_drv.md §3.5)
+ *                                over a vendored Nuked-OPL3
  *   null/sound_driver_null.c     no sound; prints every command it receives
  */
 #ifndef HUMANSRE_SOUND_DRIVER_H

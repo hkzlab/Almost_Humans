@@ -28,6 +28,7 @@
  * census walk, tools/level_census.py) — some records carry a 0/1-byte
  * alignment trailer after the map.
  */
+#include "audio.h"
 #include "level.h"
 #include "entity.h"
 #include "font.h"
@@ -131,6 +132,7 @@ typedef struct BdPage {
  */
 enum {
     DISK_OFF,
+    DISK_MUSIC, /* 1000:204b's timing_loop holds the page */
     DISK_FADE_IN,
     DISK_WAIT,
     DISK_FADE_OUT,
@@ -2664,9 +2666,12 @@ int32_t level_disk_status_begin(uint32_t disc)
     video_set_mode(VIDEO_MODE_13H);
     _disk_disc = disc;
     memset(_disk_pal, 0, sizeof _disk_pal);
-    _disk_draw(disc);
-    palette_build_fade(0u, 0x100u, 0x1Eu, _disk_pal); /* 1000:2057 */
-    _disk_phase = DISK_FADE_IN;
+    /* 1000:2042-204b: play_tune("mus\disk") / music_resume / timing_loop,
+     * which blocks before the page is drawn (the page blits at 0x204E). */
+    audio_play_tune(audio_tune_disk);
+    audio_music_resume();
+    audio_fade_in();
+    _disk_phase = DISK_MUSIC;
     return 1;
 }
 
@@ -2691,6 +2696,12 @@ void level_disk_status_reset(void)
 int32_t level_disk_status_tick(const InputState *in)
 {
     switch (_disk_phase) {
+    case DISK_MUSIC: /* the timing_loop at 1000:204b */
+        if (audio_fade_busy()) return 1;
+        _disk_draw(_disk_disc);
+        palette_build_fade(0u, 0x100u, 0x1Eu, _disk_pal); /* 1000:2057 */
+        _disk_phase = DISK_FADE_IN;
+        return 1;
     case DISK_FADE_IN:
         if (palette_fade_active()) return 1;
         _disk_phase = DISK_WAIT;
@@ -2708,12 +2719,14 @@ int32_t level_disk_status_tick(const InputState *in)
         if (palette_fade_active()) return 1;
         _disk_phase = DISK_HOLD;
         _disk_hold = 0x4Bu; /* present_frames_75 */
+        audio_fade_out(); /* 1000:20BE */
         return 1;
     case DISK_HOLD:
         if (_disk_hold > 0u) {
             _disk_hold--;
             return 1;
         }
+        if (audio_fade_busy()) return 1; /* 1000:20BE's blocking fade */
         _disk_phase = DISK_OFF;
         free(_disk_font);
         _disk_font = NULL;

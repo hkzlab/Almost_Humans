@@ -35,6 +35,14 @@ extern uint32_t osys_null_poll_count(void);
 extern void osys_null_on_present(void (*fn)(uint32_t poll));
 
 extern const OSystem g_osys_null;
+extern uint32_t osys_null_audio_installs(void);
+extern uint32_t osys_null_audio_loads(void);
+extern uint32_t osys_null_audio_load_size(uint32_t i);
+extern uint32_t osys_null_audio_starts(void);
+extern uint32_t osys_null_audio_stops(void);
+extern uint32_t osys_null_audio_ticks(void);
+extern uint32_t osys_null_audio_sfx_count(void);
+extern uint8_t osys_null_audio_tempo(void);
 
 /* Optional frame evidence (argv[3] = a directory): page 0 + the DAC shadow
  * at the flow's milestones, so the room -> party -> .ANI -> level relay can
@@ -44,19 +52,20 @@ static uint32_t _dumped;
 
 /* the milestones: the room's exit, the party, the LOADING screen and the
  * level's first play frames (the goal page is dismissed by the held key) */
-static const uint32_t _dump_at[] = { 6600, 6900, 6930, 7100, 7300, 7500,
-                                     7650, 7800, 7900, 8100, 8300, 8600 };
+static const uint32_t _dump_at[] = { 7400, 7500, 7900, 8100, 8350, 8600,
+                                     8750, 8800, 8900, 8950, 9100, 9250 };
 static const char *_dump_name[] = {
-    "flow_6600_room",    "flow_6900_roomexit",  "flow_6930_party_a",
-    "flow_7100_party_b", "flow_7300_loading_a", "flow_7500_loading_b",
-    "flow_7650_level_a", "flow_7800_level_b",   "flow_7900_level_c",
-    "flow_8100_level_d", "flow_8300_level_e",   "flow_8600_level_f"
+    "flow_7400_roomexit", "flow_7500_room",    "flow_7900_party_a",
+    "flow_8100_party_b",  "flow_8350_loading_a", "flow_8600_loading_b",
+    "flow_8750_goal",     "flow_8800_level_a", "flow_8900_level_b",
+    "flow_8950_level_c",  "flow_9100_level_d", "flow_9250_level_e"
 };
 
 static int32_t _saw_pause;
 /* the goal page (scroll_map 1000:9E51): the actor must not move while it is
  * up even with a direction held, and the page must be seen at all */
 static int32_t _saw_goal, _goal_moved, _goal_ticks, _goal_x;
+static uint32_t _goal_poll;
 
 /**
  * @brief Read a whole file into a malloc'd buffer; NULL on error.
@@ -115,15 +124,16 @@ static void _dump_ppm(const char *name, const uint8_t *page)
  */
 static void _present_hook(uint32_t poll)
 {
-    /* D-15: the ESC at 8800 must have the pause block up on the next present;
-     * the Enter at 8850 selects CONTINUE and closes it. */
-    if (poll >= 8801u && poll <= 8851u && menu_active()) _saw_pause = 1;
+    /* D-15: the ESC at 9177 must have the pause block up on the next present;
+     * the Enter at 9227 selects CONTINUE and closes it. */
+    if (poll >= 9178u && poll <= 9228u && menu_active()) _saw_pause = 1;
     if (gameflow_goal_page_up()) {
         uint8_t *a = object_slot(object_action_entity());
         int32_t x = a ? (int32_t)(int16_t)(rd_le_u16(a + 0)) : -1;
 
         if (!_saw_goal) {
             _saw_goal = 1;
+            _goal_poll = poll;
             _goal_x = x;
         } else if (x != _goal_x) _goal_moved = 1;
         _goal_ticks++;
@@ -195,21 +205,21 @@ int main(int argc, char **argv)
     /* the party pre-screen (t≈7712..8371, per the probe's timeline): its
      * wait fires [0x48A3]-shaped aborts exactly like the original's
      * wait_frames_or_key — one key inside the first set's wait exits  */
-    script[7950].lastKey = 1u; /* the party's SET1W window    */
+    script[8100].lastKey = 1u; /* the party's SET1W window    */
     /* the LOADING screen follows, then the level's goal page.  Hold RIGHT
      * (no key) while the page is up: scroll_map (1000:9E51) polls input only,
      * so the actor must stay put; the key at 8495 dismisses the page and the
      * play loop follows. */
-    for (uint32_t i = 8000u; i <= 8490u; i++) script[i].joyBits = 0x08u;
-    script[8495].lastKey = 1u;
+    for (uint32_t i = 8777u; i <= 8867u; i++) script[i].joyBits = 0x08u;
+    script[8872].lastKey = 1u;
     /* D-15: ESC opens the pause block in the play loop; Enter on row 0
      * (CONTINUE) closes it again. */
     /* D-41/D-42 through the real flow: F2 selects record 1 (the second
      * human), SPACE steps the action row's selected cell. */
-    script[8550].keyScan = 0x3Cu; /* F2 */
-    script[8560].keyScan = 0x39u; /* SPACE */
-    script[8800].keyScan = 0x01u; /* ESC: the key list's id 4 */
-    script[8850].lastKey = 0x0Du;
+    script[8927].keyScan = 0x3Cu; /* F2 */
+    script[8937].keyScan = 0x39u; /* SPACE */
+    script[9177].keyScan = 0x01u; /* ESC: the key list's id 4 */
+    script[9227].lastKey = 0x0Du;
     script[SCRIPT_N - 1].quit = 1u;
 
     _dump_dir = argc > 3 ? argv[3] : NULL;
@@ -219,6 +229,40 @@ int main(int argc, char **argv)
     if (game_main(&g_osys_null) != 0) {
         fprintf(stderr, "FAIL game_main returned nonzero\n");
         return 1;
+    }
+    /* D-01: the audio wiring ran through the whole flow — the driver
+     * installed once, the boot/party/level tunes loaded, the sequencer
+     * ticked and the master volume was driven. */
+    if (osys_null_audio_installs() != 1u) {
+        fprintf(stderr, "FAIL audio: installs %u, want 1\n",
+                osys_null_audio_installs());
+        bad = 1;
+    }
+    /* the tune images, recognised by their shipped byte sizes (the boot's
+     * TITLE.ALB 17080, the party's PARTY.ALB 3192, the level's LEVA.ALB 7032) */
+    if (osys_null_audio_loads() != 3u ||
+        osys_null_audio_load_size(0u) != 17080u ||
+        osys_null_audio_load_size(1u) != 3192u ||
+        osys_null_audio_load_size(2u) != 7032u) {
+        fprintf(stderr,
+                "FAIL audio: tune loads %u [%u %u %u], want 3 "
+                "[title 17080, party 3192, levA 7032]\n",
+                osys_null_audio_loads(), osys_null_audio_load_size(0u),
+                osys_null_audio_load_size(1u), osys_null_audio_load_size(2u));
+        bad = 1;
+    }
+    if (osys_null_audio_starts() < 3u) {
+        fprintf(stderr, "FAIL audio: only %u resumes\n",
+                osys_null_audio_starts());
+        bad = 1;
+    }
+    if (osys_null_audio_ticks() == 0u) {
+        fprintf(stderr, "FAIL audio: the sequencer never ticked\n");
+        bad = 1;
+    }
+    if (osys_null_audio_tempo() == 0u) {
+        fprintf(stderr, "FAIL audio: the master volume never left 0\n");
+        bad = 1;
     }
     if (!_saw_pause) {
         fprintf(stderr,
@@ -233,6 +277,15 @@ int main(int argc, char **argv)
         bad = 1;
     } else if (_goal_moved) {
         fprintf(stderr, "FAIL the actor moved while the goal page was up\n");
+        bad = 1;
+    }
+    /* D-01's timing tail: the level's first goal frame follows the party's
+     * music fade-in and exit hold and the level's own music fade-in.  The
+     * measured poll is ~8822; a missing hold shifts it by 150 and fails. */
+    if (_goal_poll < 8780u || _goal_poll > 8900u) {
+        fprintf(stderr,
+                "FAIL the goal page arrived at poll %u, want ~8822 "
+                "(the audio fade holds)\n", _goal_poll);
         bad = 1;
     }
     /* D-41: the F2 make at 7750 selected record 1; D-42: the SPACE make at

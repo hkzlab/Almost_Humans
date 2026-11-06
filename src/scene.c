@@ -18,6 +18,7 @@
  * against the validated python decoder (tools/ani_lzw.py).
  */
 #include "scene.h"
+#include "audio.h"
 #include "font.h"
 #include "frontend.h"
 #include "osystem.h"
@@ -57,6 +58,7 @@ typedef struct {
 
 typedef enum {
     SCENE_IDLE, /* not started                                */
+    SCENE_MUSIC, /* 1000:B07B's timing_loop: the first frame waits */
     SCENE_PANEL_FADE, /* the panel's first 0x20 entries fade in     */
     SCENE_DWELL, /* the 210-tick pre-scene dwell               */
     SCENE_PANEL_OUT, /* the 0x20-entry fade to black before frames */
@@ -428,6 +430,7 @@ static void _scene_palette_fade(const uint8_t *target)
 static void _scene_quit_fade(void)
 {
     palette_build_fade(0u, 0x100u, 0x19u, _scene_black_pal);
+    audio_fade_out(); /* 1000:B166: present_frames_75 -> 1000:B169 stop */
     _scene_phase = SCENE_QUIT_FADE;
 }
 
@@ -605,6 +608,13 @@ int32_t scene_play_level_intro(uint32_t introIndex)
             _scene_phase = SCENE_DONE;
             return 0;
         }
+        /* 1000:B061-B07B: play_tune(levA or title, by [0xF7E]) /
+         * music_resume / timing_loop.  _scene_start set the movie's disc,
+         * which is the [0xF7E] the choice reads. */
+        audio_play_tune(res_movie_disc(introIndex) != 0u ? audio_tune_lev
+                                                        : audio_tune_title);
+        audio_music_resume();
+        audio_fade_in();
 
         /* the script object (entry 0): [u16 _plays-1][768 palette][_indices] */
         uint16_t chk = 0;
@@ -627,12 +637,8 @@ int32_t scene_play_level_intro(uint32_t introIndex)
          * shown in daily.bit's palette for the whole dwell and only then
          * does the DAC fade to the script palette (1000:B263, below). */
         _obj_index = 0;
-        if (_panel_pal_valid) {
-            _scene_phase = SCENE_PANEL_FADE;
-        } else {
-            _scene_phase = SCENE_DWELL;
-            _dwell_ticks = 210u;
-        }
+        /* 1000:B07B: the fade-in blocks before the first frame. */
+        _scene_phase = SCENE_MUSIC;
     }
 
     if (_scene_phase == SCENE_DONE) return 0;
@@ -641,6 +647,16 @@ int32_t scene_play_level_intro(uint32_t introIndex)
 
     while (1) { /* instant phases resolve within one tick */
         switch (_scene_phase) {
+        case SCENE_MUSIC:
+            if (audio_fade_busy()) return 1;
+            if (_panel_pal_valid) {
+                _scene_phase = SCENE_PANEL_FADE;
+            } else {
+                _scene_phase = SCENE_DWELL;
+                _dwell_ticks = 210u;
+            }
+            break;
+
         case SCENE_PANEL_FADE:
             if (palette_fade_active()) return 1;
             /* 1000:B0EC: the 210-tick count starts at 0 AFTER the fade
@@ -667,7 +683,10 @@ int32_t scene_play_level_intro(uint32_t introIndex)
             return 1;
 
         case SCENE_QUIT_FADE:
+            /* 1000:B15A-B16C: the palette fade, then present_frames_75 (the
+             * deferred music_stop) before the function returns. */
             if (palette_fade_active()) return 1;
+            if (audio_fade_busy()) return 1;
             _scene_phase = SCENE_DONE;
             return 0;
 
@@ -1191,18 +1210,26 @@ int32_t scene_play_boot_intro(void)
         /* the words stash (b7df: 4160 bytes copied to 202F:0x8689 — the
          * bar's 1-bit text, consumed by the transition handler) */
 
-        /* b5d9-b5e8: the boot's fade to the zeroed ramp (to black), BP=2.
-         * The music init (8437/83f7/84a5, mus\title.ALB) is deferred. */
+        /* b5d9-b5e8: the boot's fade to the zeroed ramp (to black), BP=2,
+         * then b5f2-b5fb: play_tune / music_resume / timing_loop with
+         * mus\title.ALB (the trio's music starts here, before the logo). */
         memset(_boot_ramp, 0, sizeof(_boot_ramp));
         _boot_bank_countdown = 0u;
         _boot_gt_group = 0u;
         _boot_gt_bank = 0u;
         palette_build_fade(0u, 256u, 2u, _boot_ramp);
+        audio_play_tune(audio_tune_title); /* 1000:b5f2 */
+        audio_music_resume();              /* 1000:b5f8 */
+        audio_fade_in();                   /* 1000:b5fb */
         _boot_phase = BOOT_GT_PRE;
         return 1;
 
     case BOOT_GT_PRE:
         if (palette_fade_active()) return 1;
+        /* b5f2-b5fb: the original blocks inside timing_loop while the title
+         * music fades in, so the logo starts after the fade (~150 ticks).
+         * The port's fade is non-blocking; wait for it here, in the flow. */
+        if (audio_fade_busy()) return 1;
         /* b24b: decode the display-list object (entry 0) and relocate it:
          * [u16 group count][768-byte 6-bit palette][u16 object index per
          * group] — the original's fade targets (0x6FEA/0x7026/0x7032/

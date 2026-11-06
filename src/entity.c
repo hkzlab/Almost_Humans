@@ -379,6 +379,7 @@ static void _entity_tail_interact(Entity *ep, uint32_t slot, uint32_t off)
         ep->handler = (uint16_t)w8; /* 1000:CB56 */
         ep->waypoint = (uint16_t)w9; /* 1000:CB65 */
         ep->hold = 0xA032u; /* 1000:CB6A */
+        object_driver_call(9); /* 1000:CB73 */
         return;
     }
 }

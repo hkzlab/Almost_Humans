@@ -21,9 +21,13 @@ void sdl3_events_init(void);
 void sdl3_events_poll(InputState *out);
 void sdl3_timer_start(uint32_t ticksPerSec, TickFn tick);
 void sdl3_tick_sync(uint32_t *lastSeen);
-int32_t sdl3_audio_start(void);
-int32_t sdl3_audio_play_tune(uint32_t id);
+int32_t sdl3_audio_install(void);
+int32_t sdl3_audio_load_tune(const uint8_t *image, uint32_t size);
+void sdl3_audio_resume(void);
 void sdl3_audio_stop(void);
+void sdl3_audio_sfx(uint16_t id);
+void sdl3_audio_tempo(uint8_t cl);
+void sdl3_audio_tick(void);
 static void _fatal(const char *msg);
 
 const OSystem g_osys_sdl3 = { sdl3_video_set_mode,
@@ -33,9 +37,13 @@ const OSystem g_osys_sdl3 = { sdl3_video_set_mode,
                               sdl3_events_poll,
                               sdl3_timer_start,
                               sdl3_tick_sync,
-                              sdl3_audio_start,
-                              sdl3_audio_play_tune,
+                              sdl3_audio_install,
+                              sdl3_audio_load_tune,
+                              sdl3_audio_resume,
                               sdl3_audio_stop,
+                              sdl3_audio_sfx,
+                              sdl3_audio_tempo,
+                              sdl3_audio_tick,
                               _fatal };
 
 /**
@@ -76,7 +84,7 @@ int main(int argc, char **argv)
 
 
     // Initialize video mode
-    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
+    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_AUDIO)) {
         fprintf(stderr, "SDL_Init: %s\n", SDL_GetError());
         return 1;
     }

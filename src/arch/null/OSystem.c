@@ -17,9 +17,13 @@ static void _null_set_palette(const uint8_t *p6, uint32_t first, uint32_t n);
 static void _null_poll(InputState *out);
 static void _null_timer_start(uint32_t rate, TickFn tick);
 static void _null_tick_sync(uint32_t *lastSeen);
-static int32_t _null_audio_start(void);
-static int32_t _null_play_tune(uint32_t id);
-static void _null_stop(void);
+static int32_t _null_audio_install(void);
+static int32_t _null_audio_load(const uint8_t *image, uint32_t size);
+static void _null_audio_resume(void);
+static void _null_audio_stop(void);
+static void _null_audio_sfx(uint16_t id);
+static void _null_audio_tempo(uint8_t cl);
+static void _null_audio_tick(void);
 static void _null_fatal(const char *msg);
 
 static uint8_t _pages[2][320 * 200];
@@ -42,11 +46,18 @@ static uint32_t _tick_counter; /* [0x5AC8] */
 /* the audio calls are counted: the MUSIC board's gate is the only
  * observable the M5 stub has, and test_frontend asserts it */
 static uint32_t _audio_starts, _audio_stops;
+static uint32_t _audio_installs, _audio_loads, _audio_sfx_count, _audio_ticks;
+static uint32_t _audio_tune_size;
+#define _AUDIO_LOADS_MAX 16
+static uint32_t _audio_load_size[_AUDIO_LOADS_MAX];
+static uint16_t _audio_last_sfx;
+static uint8_t _audio_tempo;
 
 const OSystem g_osys_null = {
     _null_set_mode,  _null_page,        _null_present,   _null_set_palette,
-    _null_poll,      _null_timer_start, _null_tick_sync, _null_audio_start,
-    _null_play_tune, _null_stop,        _null_fatal
+    _null_poll,         _null_timer_start, _null_tick_sync,  _null_audio_install,
+    _null_audio_load,   _null_audio_resume, _null_audio_stop, _null_audio_sfx,
+    _null_audio_tempo,  _null_audio_tick,   _null_fatal
 };
 
 /**
@@ -122,31 +133,59 @@ static void _null_tick_sync(uint32_t *lastSeen)
     if (_the_tick) _the_tick();
     *lastSeen = _tick_counter;
 }
-/**
- * @brief The null backend: accept an audio start.
+/** @brief The null backend: accept the driver install.
  *
  * @return 0, always (accepted)
  */
-static int32_t _null_audio_start(void)
+static int32_t _null_audio_install(void)
 {
-    _audio_starts++;
+    _audio_installs++;
     return 0;
 }
 /**
- * @brief The null backend: accept a tune.
+ * @brief The null backend: record a tune image's size (cmd 0x0C).
  *
- * @param id the identifier
+ * @param image the tune image
+ * @param size its byte length
  * @return 0, always (accepted)
  */
-static int32_t _null_play_tune(uint32_t id)
+static int32_t _null_audio_load(const uint8_t *image, uint32_t size)
 {
-    (void)id;
+    (void)image;
+    if (_audio_loads < _AUDIO_LOADS_MAX)
+        _audio_load_size[_audio_loads] = size;
+    _audio_loads++;
+    _audio_tune_size = size;
     return 0;
 }
 /**
- * @brief The null backend: count an audio stop.
+ * @brief The null backend: count a music_resume (cmd 5, CX = 0).
  */
-static void _null_stop(void) { _audio_stops++; }
+static void _null_audio_resume(void) { _audio_starts++; }
+/**
+ * @brief The null backend: count a music_stop (cmd 6).
+ */
+static void _null_audio_stop(void) { _audio_stops++; }
+/**
+ * @brief The null backend: record a sound effect request (cmd 5).
+ *
+ * @param id the event id
+ */
+static void _null_audio_sfx(uint16_t id)
+{
+    _audio_sfx_count++;
+    _audio_last_sfx = id;
+}
+/**
+ * @brief The null backend: record the master-volume command (cmd 0x0A).
+ *
+ * @param cl the game's byte
+ */
+static void _null_audio_tempo(uint8_t cl) { _audio_tempo = cl; }
+/**
+ * @brief The null backend: count a music tick (cmd 2).
+ */
+static void _null_audio_tick(void) { _audio_ticks++; }
 /**
  * @brief The null backend: print and exit.
  *
@@ -191,6 +230,57 @@ uint32_t osys_null_audio_starts(void) { return _audio_starts; }
  * @return The audio-stop count.
  */
 uint32_t osys_null_audio_stops(void) { return _audio_stops; }
+/**
+ * @brief Accessor: the install count.
+ *
+ * @return The install count.
+ */
+uint32_t osys_null_audio_installs(void) { return _audio_installs; }
+/**
+ * @brief Accessor: the tune-load count and the last image's size.
+ *
+ * @return The tune-load count.
+ */
+uint32_t osys_null_audio_loads(void) { return _audio_loads; }
+/**
+ * @brief Accessor: the last loaded tune's byte size.
+ *
+ * @return The size.
+ */
+uint32_t osys_null_audio_tune_size(void) { return _audio_tune_size; }
+/**
+ * @brief Accessor: the byte size of the i-th tune load.
+ *
+ * @param i the load index
+ * @return the size, 0 when out of range
+ */
+uint32_t osys_null_audio_load_size(uint32_t i)
+{ return i < _AUDIO_LOADS_MAX ? _audio_load_size[i] : 0u; }
+/**
+ * @brief Accessor: the sound-effect command count.
+ *
+ * @return The count.
+ */
+uint32_t osys_null_audio_sfx_count(void) { return _audio_sfx_count; }
+/**
+ * @brief Accessor: the last sound-effect event id.
+ *
+ * @return The event id, 0xFFFF when none.
+ */
+uint16_t osys_null_audio_last_sfx(void)
+{ return _audio_sfx_count ? _audio_last_sfx : 0xFFFFu; }
+/**
+ * @brief Accessor: the last master-volume byte (cmd 0x0A).
+ *
+ * @return The byte.
+ */
+uint8_t osys_null_audio_tempo(void) { return _audio_tempo; }
+/**
+ * @brief Accessor: the music-tick count (cmd 2).
+ *
+ * @return The count.
+ */
+uint32_t osys_null_audio_ticks(void) { return _audio_ticks; }
 /**
  * @brief Accessor: the last video mode set.
  *

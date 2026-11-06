@@ -33,6 +33,7 @@
  * Entry state: entry 0x151A sets [0xF7E]=0 and calls draw_status_indicator
  * (the disc-0 probe) before menu_loop, so the asset loads from disc 0.
  */
+#include "audio.h"
 #include "map.h"
 #include "font.h"
 #include "hiscore.h"
@@ -126,6 +127,7 @@ static uint8_t _map_white[0xC0]; /* the 0x48BC ramp during the spin */
 static uint8_t _map_off[MAP_PAGE];
 /* 1000:063A/0x063D: the 0x4B-frame hold after the exit fade (present_frames_75). */
 static uint32_t _map_exit_hold;
+static int32_t _map_music_fade;
 
 /* 1000:048/0x04A: the ring angle and its per-draw step.  `_map_col` is the
  * cell index derived from the angle (`(0x10E - angle) / 0x0C`). */
@@ -1385,6 +1387,12 @@ int32_t map_begin(void)
     _map_phase = hiscore_qualifies(_map_score()) ? MAP_CONGRATS : MAP_EXIT;
     _map_congrats_draws = 0u;
     if (_map_phase == MAP_CONGRATS) {
+        /* 1000:018D-0196: play_tune("mus\hiscore") / music_resume /
+         * timing_loop for the congrats + name entry. */
+        audio_play_tune(audio_tune_hiscore);
+        audio_music_resume();
+        audio_fade_in();
+        _map_music_fade = 1; /* 1000:018D-0196's timing_loop */
         /* 1000:021E..0x0233: high.bit, the strips, then the band's 0x10..0x1F
          * colours fade in (the rest of the DAC is still the previous page's). */
         _map_page_copy(page);
@@ -1451,6 +1459,7 @@ static void _map_exit_begin(void)
 {
     _map_build_fade_to(0u, 0x100u, 0x23u, _map_black, 0xFFFFu); /* 0x062B */
     _map_exit_hold = 0x4Bu; /* 0x063D */
+    audio_fade_out();       /* 0x063D: present_frames_75 */
     _map_phase = MAP_EXIT_FADE;
 }
 
@@ -1458,7 +1467,8 @@ static void _map_exit_begin(void)
 static void _map_close(void)
 {
     _map_up = 0;
-    hiscore_write(); /* 0x06CC */
+    audio_music_stop(); /* 0x0640 */
+    hiscore_write();    /* 0x06CC */
     free(_map_high);
     _map_high = NULL;
     free(_map_font);
@@ -1512,6 +1522,10 @@ int32_t map_tick(const InputState *in)
         _map_armed = 1;
         return 1;
     }
+    if (_map_music_fade) { /* the congrats trio's fade-in blocks */
+        if (audio_fade_busy()) return 1;
+        _map_music_fade = 0;
+    }
     _map_palette_animate(); /* 1000:09DA, every menu-loop iteration */
 
     if (_map_phase == MAP_EXIT) {
@@ -1524,6 +1538,7 @@ int32_t map_tick(const InputState *in)
             _map_exit_hold--;
             return 1;
         }
+        if (audio_fade_busy()) return 1; /* 0x063D's blocking fade */
         _map_close(); /* 0x06CC */
         return 0;
     }

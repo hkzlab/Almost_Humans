@@ -249,12 +249,42 @@ target_include_directories(fs_null  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 target_include_directories(fs_posix PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 
 # The sound-driver modules (audio/sound_driver.h): the arch port links
-# exactly one.  adlib/sound_driver_adlib.c impersonates ADLIB.DRV (silent
-# until the sequencer and the OPL3 land, D-01); null/ prints every command.
-add_library(audio_adlib src/arch/audio/adlib/sound_driver_adlib.c)
+# exactly one.  adlib/sound_driver_adlib.c is ADLIB.DRV's sequencer over a
+# vendored Nuked-OPL3 (thirdparty/, LGPL-2.1-or-later); null/ prints every
+# command and renders silence.
+add_library(audio_adlib
+    src/arch/audio/adlib/sound_driver_adlib.c
+    src/arch/audio/adlib/thirdparty/opl3.c)
 add_library(audio_null src/arch/audio/null/sound_driver_null.c)
 target_include_directories(audio_adlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_include_directories(audio_adlib PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_include_directories(audio_null PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+
+# The core's audio state machine over the real AdLib module: play_tune,
+# music_resume/stop, the fade pair, driver_call and the 2-of-3 tick, with
+# rendered samples as the oracle.
+add_executable(test_audio_link tests/test_audio_link.c)
+target_include_directories(test_audio_link PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(test_audio_link PRIVATE core fs_posix audio_adlib)
+humansre_warnings(test_audio_link)
+add_test(NAME audio_link COMMAND test_audio_link ${HUMANS_DATA_DIR})
+
+# The module's private state against a live ADLIB.DRV snapshot (white-box:
+# the test includes the module).  Pins the row decode, the cmd 0x0A volume
+# decay, the F-numbers and the instrument registers.
+add_executable(test_adlib_live tests/test_adlib_live.c
+    src/arch/audio/adlib/thirdparty/opl3.c)
+target_include_directories(test_adlib_live PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+humansre_warnings(test_adlib_live)
+add_test(NAME adlib_live COMMAND test_adlib_live ${HUMANS_FIX_DIR}/HUMANS.000/MUS/TITLE.ALB)
+
+# The AdLib driver module: a real .ALB through the INT 60h ABI, so the
+# sequencer decodes the image and the vendored OPL3 renders it.
+add_executable(test_adlib tests/test_adlib.c)
+target_include_directories(test_adlib PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(test_adlib PRIVATE audio_adlib)
+humansre_warnings(test_adlib)
+add_test(NAME adlib COMMAND test_adlib ${HUMANS_FIX_DIR})
 
 # The headless reference port: no SDL dependency, always builds.
 add_executable(humans-null

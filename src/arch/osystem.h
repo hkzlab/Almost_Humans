@@ -13,7 +13,7 @@
  *   DAC palette (OUT 3C8h/3C9h)            videoSetPalette()
  *   keyboard/joystick ISRs                 eventsPoll()
  *   PIT + INT 8 ISR heartbeat              timerStart(rate, tick)
- *   INT 60h audio driver ABI               audioStart/audioPlayTune/audioStop
+ *   INT 60h audio driver ABI               audioInstall/... (one per command)
  */
 #ifndef HUMANSRE_OSYSTEM_H
 #define HUMANSRE_OSYSTEM_H
@@ -87,10 +87,18 @@ typedef struct OSystem {
     void (*timerStart)(uint32_t ticksPerSec, TickFn tick);
     TickSyncFn tickSync; /* the [0x5AC8]/[0x48BA] pair */
 
-    /* --- audio ------------------------------------------------------- */
-    int32_t (*audioStart)(void); /* 0 = ok                     */
-    int32_t (*audioPlayTune)(uint32_t id);
-    void (*audioStop)(void);
+    /* --- audio ------------------------------------------------------- *
+     * One member per INT 60h command the game sends (re_snd_drv.md §2.4,
+     * port_structure.md §2d).  The module behind them is the resident
+     * driver's replacement; the backend owns the sample stream and pulls
+     * the module's generate().                                          */
+    int32_t (*audioInstall)(void); /* the install entry (1E95:00DD)      */
+    int32_t (*audioLoadTune)(const uint8_t *image, uint32_t size); /* 0x0C */
+    void (*audioResume)(void);     /* cmd 5, CX = 0 (music_resume)       */
+    void (*audioStop)(void);       /* cmd 6 (music_stop)                 */
+    void (*audioSfx)(uint16_t id); /* cmd 5, CX = the event id           */
+    void (*audioTempo)(uint8_t cl); /* cmd 0x0A (master volume)          */
+    void (*audioTick)(void);       /* cmd 2 (the music tick)             */
 
     /* --- misc -------------------------------------------------------- */
     void (*fatalError)(const char *msg); /* does not return            */

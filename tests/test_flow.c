@@ -3316,13 +3316,16 @@ int main(int argc, char **argv)
         _check(!res_volume_present(3u), "disc 3 is the missing-volume case");
         _check(level_disk_status_begin(3u) == 1,
                "a missing disc draws the prompt");
-        _check(palette_fade_active(), "the prompt fades its palette in");
-        for (uint32_t t = 0; t < 80u && palette_fade_active(); t++)
-            palette_tick();
-        _check(!palette_fade_active(), "the prompt fade completes");
         {
             InputState k;
             memset(&k, 0, sizeof k);
+            /* 1000:2042's timing_loop runs before the page: the first tick
+             * draws it and starts the palette fade. */
+            _check(level_disk_status_tick(&k) == 1, "the prompt starts");
+            _check(palette_fade_active(), "the prompt fades its palette in");
+            for (uint32_t t = 0; t < 80u && palette_fade_active(); t++)
+                palette_tick();
+            _check(!palette_fade_active(), "the prompt fade completes");
             k.lastKey = 1;
             _check(level_disk_status_tick(&k) == 1,
                    "the prompt waits while the disc is still missing");

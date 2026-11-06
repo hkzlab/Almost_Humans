@@ -71,6 +71,7 @@
  * OSystem audio contract, which the null build stubs.
  */
 #include "party_intro.h"
+#include "audio.h"
 #include "font.h"
 #include "osystem.h"
 #include "palette.h"
@@ -100,7 +101,8 @@ struct Script {
 
 /* the machine state (the ticker's + 2bda's _phase-split) */
 enum {
-    PH_FADEWAIT = 0, /* 25ec                   */
+    PH_MUSIC = 0, /* the timing_loop at 2564 blocks the bake */
+    PH_FADEWAIT, /* 25ec                   */
     PH_SWAPWAIT, /* 2bda's {28e9; 8b9a; JC} */
     PH_SET1,
     PH_SET1_WAIT, /* 2600..2699             */
@@ -781,13 +783,25 @@ int32_t party_intro_start(void)
     /* 25bc: 0x1208 <- DS:0x4d3c (the .PAL's upper half, verbatim) */
     memcpy(_prevpal, _pal_upper, 0x180u);
 
+    /* 1000:2564-256d: play_tune("mus\party") / music_resume / timing_loop.
+     * The original blocks inside the fade-in before the page bake; the port
+     * holds in PH_MUSIC (party_intro_tick) instead. */
+    audio_play_tune(audio_tune_party);
+    audio_music_resume();
+    audio_fade_in();
+    _phase = PH_MUSIC;
+    return 1;
+}
+
+/** @brief the bake + palette the fade held back (1000:25ca..25dd). */
+static void _party_begin(void)
+{
     _bake_page(_bit_img, _page_draw); /* 25ca..25d8: the bake x2 */
     _anim_entities();
     _bake_page(_bit_img, _page_draw);
 
     _copy_palette(); /* 25da (28d0)             */
-    palette_build_fade(0u, 0x100u, 0x23u, _workpal); /* 25dd              */
-    return 1;
+    palette_build_fade(0u, 0x100u, 0x23u, _workpal); /* 25dd */
 }
 
 /* === the ticker =============================================================== */
@@ -804,6 +818,12 @@ int32_t party_intro_tick(const InputState *in)
     int32_t anyk = (int32_t)(in->lastKey != 0u);
 
     switch (_phase) {
+    case PH_MUSIC: /* 2564-256d's timing_loop: the bake waits for it */
+        if (audio_fade_busy()) return 1;
+        _party_begin();
+        _phase = PH_FADEWAIT;
+        break;
+
     case PH_FADEWAIT:
         _anim_entities();
         if (!palette_fade_active()) {
@@ -956,12 +976,18 @@ int32_t party_intro_tick(const InputState *in)
         if (!palette_fade_active()) {
             _phase = PH_PRESENT;
             _present_left = 0x4Bu;
+            audio_fade_out(); /* 1000:2728 present_frames_75 */
         }
         break;
 
     case PH_PRESENT: /* 2728 (835a), 272b       */
         if (_present_left) _present_left--;
-        else _phase = PH_DONE; /* 8389 music_stop        */
+        else if (audio_fade_busy()) return 1; /* the original's 2x wait */
+        else {
+            /* 1000:272B: the music_stop that ends present_frames_75. */
+            audio_music_stop();
+            _phase = PH_DONE;
+        }
         break;
 
     case PH_DONE:

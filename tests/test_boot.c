@@ -332,6 +332,7 @@ int main(int argc, char **argv)
         }
     }
 
+    printf("boot ticks: %u\n", ticks);
     if (!bad) printf("boot tests: OK (5 checks)\n");
     return bad;
 }

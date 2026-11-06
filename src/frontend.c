@@ -220,6 +220,17 @@ void frontend_restart(void)
 uint32_t frontend_option(uint32_t idx)
 { return idx < 4u ? _opt_counter[idx] : 0u; }
 
+/**
+ * @brief The room's write side, for the audio/sfx gate's tests.
+ *
+ * @param idx the index
+ * @param value the value
+ */
+void frontend_option_set_for_probe(uint32_t idx, uint32_t value)
+{
+    if (idx < 4u) _opt_counter[idx] = value;
+}
+
 /** @brief [0x4220] — the rail node, exposed for the option read-side test's walk
  * legs (the same role as attract_phase_for_probe).
  *

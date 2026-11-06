@@ -45,6 +45,7 @@
  * ported.  The bare-RET slot `1000:EA0E` is in the table (type 16 command 8).
  */
 #include "object.h"
+#include "audio.h"
 #include "entity.h"
 #include "level.h"
 #include "osystem.h"
@@ -7202,7 +7203,11 @@ void object_set_action_latched(int32_t on)
  *
  * @param n the count
  */
-static void _obj_driver_call(uint32_t n) { _obj_sfx = n; }
+static void _obj_driver_call(uint32_t n)
+{
+    _obj_sfx = n;
+    audio_sfx(n); /* 1000:83B7: the gate lives in audio.c */
+}
 /**
  * @brief Test seam: call the sound driver.
  *
@@ -9816,6 +9821,7 @@ void object_action_run(void)
      * "press ends the charge" rule: the release ends it, when the fire
      * column stops arming [0x1987]. */
     if (_obj_lat) return;
+    _obj_driver_call(0); /* 1000:3979 script_op_dispatch's entry */
     object_set_action_latched(1);
     if (!p) return; /* D-186: nothing to dispatch */
 

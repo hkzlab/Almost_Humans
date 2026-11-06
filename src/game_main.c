@@ -58,6 +58,11 @@ enum {
  * restart can suppress the party (level_restore 35AF re-enters level_start,
  * not the party path). */
 static int32_t _party_tried, _party_playing;
+static int32_t _level_music_done; /* 0 not started, 1 fading, 2 playing */
+static int32_t _level_start_fade; /* level_start 1000:303A: 0 idle, 1 fading */
+static int32_t _menu_fade;        /* entry 0x0039: the room setup waits   */
+static int32_t _attract_fade;     /* entry 0x001C: game_loop waits        */
+static int32_t _score_fade;       /* check_highscore 0x43B6 waits         */
 /* entry LAB_00CD's level arms: _level_reload re-runs the entry block for the
  * next level ([0x22]++); _level_skipped is level_run's need > members arm (the
  * level is not started); _end_page_up is draw_level_text's page. */
@@ -173,6 +178,9 @@ static void _game_tick(void)
 {
     video_tick();
     palette_tick();
+    /* 1000:8B1E: the music tick (2 of 3) and the master-volume fade steps,
+     * both per display period. */
+    audio_tick();
     /* NOT statusbar_tick: the bar's tick+stamp is 1000:96AD, whose port
      * draws into the page after the world copy, so it runs from level_tick
      * (the foreground).  Calling it here as well ran the clock and the
@@ -298,6 +306,31 @@ const char *gameflow_party_tribe(void)
     return d ? d->author : "";
 }
 
+/** @brief The title trio (1000:001C / 1000:0039): play_tune, music_resume,
+ * timing_loop, with [0xF7E] = 0 as the entry sets it before the calls. */
+static void _audio_title_cycle(void)
+{
+    res_set_disc(0u);
+    audio_play_tune(audio_tune_title);
+    audio_music_resume();
+    audio_fade_in();
+}
+
+/** @brief level_status_update's music (1000:3267): the level's lettered tune
+ * when the MUSIC board is on, the effects bank when it is off. */
+static void _level_music(void)
+{
+    if (frontend_option(FRONTEND_OPT_MUSIC) == 0) {
+        audio_play_level_tune(_level_current + 1u); /* 1000:327F */
+        audio_music_resume();
+        audio_fade_in();
+    } else {
+        audio_play_tune(audio_tune_humfx); /* 1000:328B */
+        audio_fade_in();
+        audio_sfx(0x0Eu); /* dropped for the AdLib driver id (1000:83D3) */
+    }
+}
+
 /**
  * @brief Enter the frontend room.
  *
@@ -306,7 +339,7 @@ const char *gameflow_party_tribe(void)
 static GameFlow _room_enter(void)
 {
     _room_disc_pending = 1;
-    frontend_restart();
+    _menu_fade = 0; /* the trio + the setup wait run in FLOW_MENU */
     return FLOW_MENU;
 }
 
@@ -497,6 +530,15 @@ GameFlow gameflow_step(GameFlow state, const InputState *input)
                 _room_disc_up = 0;
             }
             _room_disc_pending = 0;
+            /* 1000:0039-0042: play_tune(title) / music_resume / timing_loop
+             * before setup_offscreen_buffers (1000:0048). */
+            _audio_title_cycle();
+            _menu_fade = 1;
+        }
+        if (_menu_fade) {
+            if (audio_fade_busy()) return FLOW_MENU; /* timing_loop */
+            _menu_fade = 0;
+            frontend_restart(); /* 1000:0048 */
         }
         /* The front-end room (the walkable level-select): frontend_tick
          * runs the original's per-frame web — the walk on the rails, the
@@ -618,6 +660,11 @@ static int32_t _game_frame(const OSystem *osys, GameFlow *state,
          * real attract cycle — game_loop's four effects — until the exit */
     if (*state == FLOW_ATTRACT && scene_play_boot_intro())
         return 1; /* the intro's rendered frame */
+    /* entry 0x001C's timing_loop: the attract waits for the title fade */
+    if (*state == FLOW_ATTRACT && _attract_fade) {
+        if (audio_fade_busy()) return 1;
+        _attract_fade = 0;
+    }
 
     *state = gameflow_step(*state, &input);
     if (*state == FLOW_LEVEL) {
@@ -640,6 +687,8 @@ static int32_t _game_frame(const OSystem *osys, GameFlow *state,
             _post_scene = 0;
             _disk_checked = 0;
             _disk_up = 0;
+            _level_music_done = 0;
+            _level_start_fade = 0; /* level_start 1000:303A starts it below */
         }
         /* entry 14CD: draw_status_indicator (1000:1FEF) before level_run;
              * only a missing volume draws the prompt. */
@@ -650,6 +699,19 @@ static int32_t _game_frame(const OSystem *osys, GameFlow *state,
                 _disk_up = 0;
             }
             _disk_checked = 1;
+        }
+        /* level_start 1000:303A/303D: present_frames_75 then music_stop.
+         * The original blocks inside the fade-out, so the level load and the
+         * party screen follow it; the fade-out also clears the [0x40BA]
+         * latch, which is what lets the party's fade-in run. */
+        if (_level_start_fade == 0) {
+            _level_start_fade = 1;
+            audio_fade_out();
+        }
+        if (_level_start_fade == 1) {
+            if (audio_fade_busy()) return 1;
+            audio_music_stop();
+            _level_start_fade = 2;
         }
         if (_level_enter_pending) {
             _level_enter_pending = 0;
@@ -707,6 +769,16 @@ static int32_t _game_frame(const OSystem *osys, GameFlow *state,
         /* level_run 30B4: [0x34] := 0 once the level has started; a
              * later restart then takes the LEVEL board's time. */
         if (entered) save_consume();
+        if (!_party_playing && _level_music_done == 0 && lv) {
+            _level_music_done = 1;
+            _level_music(); /* 1000:30A8 -> 1000:3267 */
+        }
+        if (_level_music_done == 1) {
+            /* level_status_update's timing_loop: the world waits for the
+             * fade-in, as the original's blocking call does. */
+            if (audio_fade_busy()) return 1;
+            _level_music_done = 2;
+        }
         if (_party_playing) {
             if (party_intro_tick(&input)) return 1; /* the screen plays      */
             _party_playing = 0; /* its exit finished      */
@@ -714,6 +786,13 @@ static int32_t _game_frame(const OSystem *osys, GameFlow *state,
             /* check_highscore's score/record screen (1000:41AE) */
             if (score_tick(&input)) return 1;
             _score_up = 0;
+            audio_fade_out(); /* 1000:43B6 */
+            _score_fade = 1;
+        } else if (_score_fade) {
+            /* 1000:43B6-43B9: present_frames_75 blocks before the post
+             * scene; `_score_fade` is the port's non-blocking hold. */
+            if (audio_fade_busy()) return 1;
+            _score_fade = 0;
             if (_post_pending) {
                 _post_pending = 0;
                 *state = _post_level_step(*state);
@@ -948,6 +1027,8 @@ static int32_t _game_frame(const OSystem *osys, GameFlow *state,
         if (_end_phase == 3) {
             if (map_tick(&input)) return 1;
             _end_phase = 0;
+            _audio_title_cycle(); /* entry 0x001C's trio before game_loop */
+            _attract_fade = 1;    /* game_loop waits for its timing_loop */
             *state = FLOW_ATTRACT;
         }
         return 1;
@@ -972,6 +1053,10 @@ int32_t game_main(const OSystem *osys)
 
     // Initialize resources
     if (resources_init(osys)) return 1;
+
+    /* driver_reset (1000:84DE): install the resident driver once, before the
+     * first tick and the boot tune. */
+    audio_install();
 
     osys->timerStart(GAME_TICK_HZ, _game_tick);
 

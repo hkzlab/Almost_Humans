@@ -37,6 +37,9 @@ uint32_t frontend_selected_level(void);
  * runs again; the option counters persist. */
 void frontend_restart(void);
 uint32_t frontend_option(uint32_t idx);
+/* The room's write side, exposed for the audio/sfx gate's tests (the room
+ * itself writes the counters from its input). */
+void frontend_option_set_for_probe(uint32_t idx, uint32_t value);
 uint32_t frontend_cell_for_probe(void); /* [0x4220]: the walk's rail node  */
 int32_t frontend_name_screen_for_probe(void); /* the name screen's phase      */
 const char *frontend_name_for_probe(void); /* the typed name (0x61E0)      */
