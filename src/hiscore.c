@@ -2,7 +2,11 @@
  * top-10 insert and the name entry (re_formats.md §11).
  *
  * The file is a runtime file in the game directory (not on the disc), 520
- * bytes (0x208), written whole from DS:0x38A and obfuscated in place:
+ * bytes (0x208), written whole from DS:0x38A and obfuscated in place.  The
+ * original's name is corrupted: the CD probe (`1FE7:027B`) stamps the MSCDEX
+ * drive letter over the 'H' of the image's "HISCORES.HUM" at `[0x3B]`, so the
+ * name DOS opens is "<letter>ISCORES.HUM".  The port keeps the intended name;
+ * that is the accepted deviation D-225 (an original bug, not reproduced).
  *
  *   +0x000  2    the reserved word (0x0999); level 0's slot, never used
  *   +0x002  320  160 x u16 per-level best, level N at +2*N

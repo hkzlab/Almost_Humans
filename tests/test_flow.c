@@ -4781,6 +4781,12 @@ int main(int argc, char **argv)
                "the hi-score blob is 520 bytes (D-102)");
         hiscore_set_best(1u, 0x1234u);
         hiscore_set_best(160u, 0x5678u);
+        /* D-225: the original's CD probe stamps the drive letter over the 'H'
+         * ("<letter>ISCORES.HUM"); the port keeps the intended HISCORES.HUM
+         * and that difference is accepted.  Clear both names first so the
+         * check below proves which one the writer creates. */
+        remove("DISCORES.HUM");
+        remove("HISCORES.HUM");
         hiscore_write();
         {
             FSSave *f = g_fs.openNamed("HISCORES.HUM");
@@ -4812,6 +4818,13 @@ int main(int argc, char **argv)
                 _check(rd_le_u32(raw + 0x154u) == 100000u,
                        "the ten 18-byte entries start at +0x154 (D-102)");
             }
+        }
+        {
+            FSSave *stamped = g_fs.openNamed("DISCORES.HUM");
+
+            if (stamped) g_fs.closeSave(stamped);
+            _check(stamped == NULL,
+                   "D-225: the port keeps HISCORES.HUM (the original's stamped name is accepted, not reproduced)");
         }
 
         hiscore_reset();
