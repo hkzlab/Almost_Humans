@@ -329,6 +329,9 @@ static void _silence(SoundDriver *drv, unsigned voice)
     uint8_t op;
 
     if (voice >= ADLIB_VOICES) return;
+    /* 1E95:0CD4: clear the cached instrument first, so the next note of this
+     * voice reloads its patch even when the instrument number repeats. */
+    drv->slot[voice].last_instrument = 0;
     _key_off(drv, voice);
     drv->voice_volume[voice] = 0;
     op = _op_carrier[voice];
@@ -568,16 +571,16 @@ static void _slide_tick(SoundDriver *drv, unsigned voice)
     step = (uint16_t)(2u * (uint16_t)v->slide_step);
     if (v->slide_dir == 0) {
         uint16_t fnum = (uint16_t)(v->fnum - step);
-        if (fnum <= ADLIB_FNUM_LOW) {
-            fnum = (uint16_t)(ADLIB_FNUM_TOP - (ADLIB_FNUM_LOW - fnum));
-            if (v->octave > 0) v->octave--;
+        while (fnum <= ADLIB_FNUM_LOW) {
+            fnum = (uint16_t)(ADLIB_FNUM_TOP + (ADLIB_FNUM_LOW - fnum));
+            v->octave--;
         }
         v->fnum = fnum;
     } else {
         uint16_t fnum = (uint16_t)(v->fnum + step);
         while (fnum >= ADLIB_FNUM_WRAP) {
             fnum = (uint16_t)((fnum - ADLIB_FNUM_WRAP) + ADLIB_FNUM_FIRST);
-            if (v->octave < 7) v->octave++;
+            v->octave++;
         }
         v->fnum = fnum;
     }
@@ -594,6 +597,17 @@ static void _slide_tick(SoundDriver *drv, unsigned voice)
 /**
  * @brief The per-tick voice commands, table CS:0x0F4C (1E95:07EE).
  *
+ * The driver's table has four live entries and sends everything else to
+ * 1E95:0813 (a bare RET); command 0 goes to 1E95:0814, also a RET.  All 32
+ * entries are transcribed here so that no command is silently dropped and the
+ * table's shape stays visible.
+ *
+ *   00 1E95:0814 RET          01 1E95:08AA fnum += 2*param, wrap up
+ *   02 1E95:08D4 fnum -= 2*param, wrap down
+ *   03 1E95:0972 portamento toward the cached note entry
+ *   0A 1E95:0874 volume delta (high nibble adds, low nibble subtracts)
+ *   every other index 1E95:0813 RET
+ *
  * @param drv the driver
  * @param voice the voice index
  */
@@ -605,30 +619,32 @@ static void _tick_command(SoundDriver *drv, unsigned voice)
     uint16_t entry;
 
     switch (v->command & 0x1Fu) {
-    case 1: /* 1E95:08AA: slide up by 2 * parameter, octave wrap at 0x2AE */
-        fnum = (uint16_t)(v->fnum + 2u * (uint16_t)v->param);
+    case 0x01: /* 1E95:08AA: slide up by 2 * parameter, octave wrap at 0x2AE */
+        step = (uint16_t)(2u * (uint16_t)v->param);
+        fnum = (uint16_t)(v->fnum + step);
         while (fnum >= ADLIB_FNUM_WRAP) {
             fnum = (uint16_t)((fnum - ADLIB_FNUM_WRAP) + ADLIB_FNUM_FIRST);
-            if (v->octave < 7) v->octave++;
+            v->octave++; /* 8-bit, as the driver's INC DL */
         }
         v->fnum = fnum;
         entry = (uint16_t)(fnum | ((uint16_t)v->octave << 12));
         v->note_entry = entry;
         _set_frequency(drv, voice, entry);
         break;
-    case 2: /* 1E95:08D4: slide down by 2 * parameter, wrap at 0x142 */
+    case 0x02: /* 1E95:08D4: slide down by 2 * parameter, wrap at 0x142 */
         step = (uint16_t)(2u * (uint16_t)v->param);
         fnum = (uint16_t)(v->fnum - step);
-        if (fnum <= ADLIB_FNUM_LOW) {
-            fnum = (uint16_t)(ADLIB_FNUM_TOP - (ADLIB_FNUM_LOW - fnum));
-            if (v->octave > 0) v->octave--;
+        while (fnum <= ADLIB_FNUM_LOW) {
+            /* 1E95:08E9 SUB 0x142 / NEG / ADD 0x28A: 0x28A + (0x142 - fnum) */
+            fnum = (uint16_t)(ADLIB_FNUM_TOP + (ADLIB_FNUM_LOW - fnum));
+            v->octave--; /* 8-bit, as the driver's DEC DL */
         }
         v->fnum = fnum;
         entry = (uint16_t)(fnum | ((uint16_t)v->octave << 12));
         v->note_entry = entry;
         _set_frequency(drv, voice, entry);
         break;
-    case 3: /* 1E95:0972: portamento toward the note's entry */
+    case 0x03: /* 1E95:0972: portamento toward the cached note entry */
         _slide_tick(drv, voice);
         break;
     case 0x0A: { /* 1E95:0874: volume delta; the high nibble adds, 0
@@ -646,6 +662,35 @@ static void _tick_command(SoundDriver *drv, unsigned voice)
         _set_volume(drv, voice, (uint8_t)next);
         break;
     }
+    /* 1E95:0813 / 1E95:0814 — no voice state changes. */
+    case 0x00:
+    case 0x04:
+    case 0x05:
+    case 0x06:
+    case 0x07:
+    case 0x08:
+    case 0x09:
+    case 0x0B:
+    case 0x0C:
+    case 0x0D:
+    case 0x0E:
+    case 0x0F:
+    case 0x10:
+    case 0x11:
+    case 0x12:
+    case 0x13:
+    case 0x14:
+    case 0x15:
+    case 0x16:
+    case 0x17:
+    case 0x18:
+    case 0x19:
+    case 0x1A:
+    case 0x1B:
+    case 0x1C:
+    case 0x1D:
+    case 0x1E:
+    case 0x1F:
     default: break;
     }
 }

@@ -275,6 +275,7 @@ add_test(NAME audio_link COMMAND test_audio_link ${HUMANS_DATA_DIR})
 add_executable(test_adlib_live tests/test_adlib_live.c
     src/arch/audio/adlib/thirdparty/opl3.c)
 target_include_directories(test_adlib_live PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(test_adlib_live PRIVATE m)
 humansre_warnings(test_adlib_live)
 add_test(NAME adlib_live COMMAND test_adlib_live ${HUMANS_FIX_DIR}/HUMANS.000/MUS/TITLE.ALB)
 

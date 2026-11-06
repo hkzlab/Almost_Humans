@@ -16,8 +16,44 @@
 #include "audio/adlib/sound_driver_adlib.c"
 
 #include <assert.h>
+#include <math.h>
+#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+/**
+ * @brief Energy at one frequency, as a fraction of the block's total energy.
+ *
+ * A DFT bin at @p freq over @p n samples: 10 Hz wide at n = 4800, which is
+ * enough to tell the driver's selected pitch from a core clocked off its
+ * native 49716 Hz (a 3.5 % error moves the peak 1.7 bins away).
+ */
+static double _tone_share(const int16_t *x, int n, double freq)
+{
+    const double pi = 3.14159265358979323846;
+    double w = 2.0 * pi * freq / 48000.0, cw = cos(w);
+    double s0 = 0.0, s1 = 0.0, s2 = 0.0, total = 0.0, mag;
+    int i;
+
+    for (i = 0; i < n; i++) {
+        s0 = 2.0 * cw * s1 - s2 + (double)x[2 * i];
+        s2 = s1;
+        s1 = s0;
+        total += (double)x[2 * i] * (double)x[2 * i];
+    }
+    mag = s1 * s1 + s2 * s2 - 2.0 * cw * s1 * s2;
+    return total > 0.0 ? mag / ((double)n * total) : 0.0;
+}
+
+/** @brief The frequency the shadow selects for a melodic voice. */
+static double _voice_hz(const SoundDriver *drv, unsigned voice)
+{
+    unsigned fnum = (unsigned)drv->shadow[0xA0u + voice] |
+                    (((unsigned)drv->shadow[0xB0u + voice] & 3u) << 8);
+    unsigned block = ((unsigned)drv->shadow[0xB0u + voice] >> 2) & 7u;
+
+    return (double)fnum * 49716.0 / (double)(1u << (20u - block));
+}
 
 int main(int argc, char **argv)
 {
@@ -48,7 +84,26 @@ int main(int argc, char **argv)
     _adlib_set_tempo(drv, 0x4A); /* the boot fade's last step -> 0x2F */
     _adlib_load_tune(drv, img, (uint32_t)n);
     assert(_adlib_start_event(drv, 0) == 0);
-    for (i = 0; i < 1506; i++) _adlib_tick(drv);
+
+    /* the render path, not just the registers: after order 0 row 33 the chip
+     * must sound each voice at the frequency the shadow selects.  A core
+     * clocked off its native 49716 Hz played everything 3.5 % flat and these
+     * shares collapsed (measured here: 0.14 at voice 0, 0.08 at voice 1). */
+    {
+        static int16_t pcm[9600];
+        double v0, v1;
+        int k;
+
+        for (i = 0; i < 198; i++) _adlib_tick(drv);
+        for (k = 0; k < 4800; k++) g_sound_driver.generate(drv, pcm + 2 * k, 1);
+        assert(drv->shadow[0xB0] & 0x20u); /* voice 0 keyed */
+        v0 = _tone_share(pcm, 4800, _voice_hz(drv, 0));
+        v1 = _tone_share(pcm, 4800, _voice_hz(drv, 1));
+        assert(v0 > 0.03);
+        assert(v1 > 0.02);
+    }
+
+    for (; i < 1506; i++) _adlib_tick(drv);
 
     /* the rhythm voices: the row mask's bits 9..5 (1E95:06ED), live-checked at
      * order 3 row 59.  The former bits-3..0 decode left voice 6 at zero here
@@ -106,6 +161,59 @@ int main(int argc, char **argv)
     assert(drv->shadow[0xBD] == 0x30u); /* rhythm mode + the bass drum keyed
                                          * (live at this tick; the old decode
                                          * left it at 0x20, never keying it) */
+
+    /* Every tick-path command in the driver's table (CS:0x0F4C).  Commands 1
+     * and 2 slide the F-number by 2*parameter and wrap an octave; the wrap is
+     * 1E95:08E9's SUB/NEG/ADD, i.e. 0x28A + (0x142 - fnum) going down and
+     * (fnum - 0x2AE) + 0x157 going up.  Command 3 walks toward the cached
+     * entry, 0x0A ramps the volume, and every other index is a RET. */
+    {
+        AdlibSlot *v = &drv->slot[0];
+
+        memset(v, 0, sizeof(*v));
+        v->fnum = 0x140u;
+        v->octave = 4u;
+        v->command = 2u;
+        v->param = 1u;
+        _tick_command(drv, 0);
+        assert(v->fnum == 0x28Eu); /* 0x28A + (0x142 - 0x13E), octave 4 -> 3 */
+        assert(v->octave == 3u);
+
+        v->fnum = 0x2ACu;
+        v->octave = 3u;
+        v->command = 1u;
+        v->param = 1u;
+        _tick_command(drv, 0);
+        assert(v->fnum == 0x157u); /* (0x2AE - 0x2AE) + 0x157 */
+        assert(v->octave == 4u);
+
+        v->fnum = 0x140u;
+        v->octave = 4u;
+        v->command = 3u;
+        v->param = 0u; /* the portamento's speed is latched by note cmd 3 */
+        v->slide_step = 1u;
+        v->slide_dir = 0u;
+        v->slide_target = 0x1000u; /* below the entry: the slide continues */
+        _tick_command(drv, 0);
+        assert(v->fnum == 0x28Eu && v->octave == 3u);
+
+        v->volume = 0x30u;
+        v->command = 0x0Au;
+        v->param = 0x18u;
+        _tick_command(drv, 0);
+        assert(v->volume == 0x31u); /* high nibble adds */
+        v->param = 0x02u;
+        _tick_command(drv, 0);
+        assert(v->volume == 0x2Fu); /* low nibble subtracts */
+
+        v->fnum = 0x1ABu; /* every RET entry leaves the slot alone */
+        v->octave = 5u;
+        v->volume = 0x20u;
+        v->command = 4u;
+        v->param = 0x77u;
+        _tick_command(drv, 0);
+        assert(v->fnum == 0x1ABu && v->octave == 5u && v->volume == 0x20u);
+    }
 
     _adlib_destroy(drv);
     free(img);
