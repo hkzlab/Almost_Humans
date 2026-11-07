@@ -18,6 +18,7 @@
  *
  * argv[1] = the game data directory (the volumes + the save location).
  * Missing volumes = skip; a pre-existing SAVEB is never clobbered. */
+#include "audio.h"
 #include "entity.h"
 #include "font.h"
 #include "gameflow.h"
@@ -44,6 +45,8 @@
 
 extern const uint8_t *osys_null_page(int32_t which);
 extern const uint8_t *osys_null_palette(void);
+extern uint32_t osys_null_audio_starts(void);
+extern uint32_t osys_null_audio_stops(void);
 
 extern const OSystem g_osys_null;
 
@@ -695,6 +698,16 @@ int main(int argc, char **argv)
             memset(lit, 0x3Fu, sizeof lit);
             palette_set_dac(lit, 0, 256);
         }
+        /* level_start (1000:3032) re-runs present_frames_75 + music_stop
+         * (1000:303A/303D) before the party.  A level record left live would
+         * keep [0x40BB] set, so the party's music_resume is gated off while
+         * the tune load has already reset the driver's voices (MT-32). */
+        audio_init(&g_osys_null);
+        audio_install();
+        audio_music_resume(); /* the level's record: starts +1, [0x40BB] set */
+        uint32_t starts0 = osys_null_audio_starts();
+        uint32_t stops0 = osys_null_audio_stops();
+
         level_set_members(5u); /* the reload must not happen yet */
         if (gameflow_pause_action(1, &quit) != FLOW_LEVEL) {
             fprintf(stderr, "FAIL RESTART THIS LEVEL\n");
@@ -731,6 +744,34 @@ int main(int argc, char **argv)
                 }
             }
         }
+        {
+            uint32_t t = 0;
+
+            if (!audio_fade_busy()) {
+                fprintf(stderr,
+                        "FAIL the restart skipped level_start's audio fade\n");
+                bad = 1;
+            }
+            while (audio_fade_busy() && t++ < 600u) audio_tick();
+            if (audio_fade_busy()) {
+                fprintf(stderr, "FAIL the restart's audio fade never ended\n");
+                bad = 1;
+            } else if (osys_null_audio_stops() != stops0 + 1u) {
+                fprintf(stderr,
+                        "FAIL the restart left the level record live (stops "
+                        "%u, want %u)\n",
+                        osys_null_audio_stops(), stops0 + 1u);
+                bad = 1;
+            }
+            audio_music_resume(); /* the party's: only starts once released */
+            if (osys_null_audio_starts() != starts0 + 1u) {
+                fprintf(stderr,
+                        "FAIL the restarted music_resume is gated off "
+                        "(starts %u, want %u)\n",
+                        osys_null_audio_starts(), starts0 + 1u);
+                bad = 1;
+            }
+        }
         if (level_time_limit() != level_data()->timeA ||
             level_tribe_members() != 12u) {
             fprintf(stderr, "FAIL the restart is not the board's pick\n");
@@ -741,6 +782,14 @@ int main(int argc, char **argv)
         if (!gameflow_party_pending()) {
             fprintf(stderr,
                     "FAIL RESTART THIS LEVEL skipped the party screen\n");
+            bad = 1;
+        }
+        /* level_setup (1000:31BD) also runs on the restart path: the record's
+         * goal text must be re-armed so the level-title page shows on the
+         * first play frame after the party. */
+        if (!gameflow_goal_armed()) {
+            fprintf(stderr,
+                    "FAIL RESTART THIS LEVEL skipped the level-title page\n");
             bad = 1;
         }
         /* SAVE GAME through the action: the menu's slot + the live state */

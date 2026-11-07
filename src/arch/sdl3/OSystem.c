@@ -29,7 +29,7 @@ void sdl3_audio_stop(void);
 void sdl3_audio_sfx(uint16_t id);
 void sdl3_audio_tempo(uint8_t cl);
 void sdl3_audio_tick(void);
-int32_t sdl3_audio_select(const char *name);
+int32_t sdl3_audio_select(const char *name, const char *roms);
 int32_t sdl3_audio_driver_id(void);
 static void _fatal(const char *msg);
 
@@ -55,11 +55,14 @@ static void _fatal(const char *msg)
 
 /* The arch layer owns main() (port_structure.md §2).
  *
- * Usage: humans-sdl3 [--audio adlib|beeper] <path-to-game-resources>
+ * Usage: humans-sdl3 [--audio adlib|beeper|mt32] [--mt32-roms <dir>]
+ *                    <path-to-game-resources>
  * The path is chdir'd into so the filesystem module finds the volume files
  * (HUMANS.000/001/002); without it the current directory is used.  --audio
  * selects the resident driver (the launcher's [0x5AFE]); AdLib is the
- * default, `--audio beeper` is the PC speaker. */
+ * default, `--audio beeper` is the PC speaker, `--audio mt32` is the Roland
+ * MT-32 emulation and then --mt32-roms names the directory holding its ROM
+ * images (mandatory for mt32). */
 /**
  * @brief The SDL3 executable: run the core with the SDL backend.
  *
@@ -71,6 +74,7 @@ int main(int argc, char **argv)
 {
     const char *path = NULL;
     const char *audio = NULL;
+    const char *roms = NULL;
     int i;
 
     for (i = 1; i < argc; i++) {
@@ -80,6 +84,12 @@ int main(int argc, char **argv)
                 return 1;
             }
             audio = argv[i];
+        } else if (strcmp(argv[i], "--mt32-roms") == 0) {
+            if (++i >= argc) {
+                fprintf(stderr, "--mt32-roms needs a directory\n");
+                return 1;
+            }
+            roms = argv[i];
         } else if (!path) {
             path = argv[i];
         } else {
@@ -89,13 +99,26 @@ int main(int argc, char **argv)
     }
     if (!path) {
         fprintf(stderr,
-                "USAGE: %s [--audio adlib|beeper] "
+                "USAGE: %s [--audio adlib|beeper|mt32] [--mt32-roms <dir>] "
                 "/path/to/HUMANS/volumes\n",
                 argv[0]);
         return 1;
     }
-    if (sdl3_audio_select(audio) != 0) {
-        fprintf(stderr, "unknown audio driver '%s' (adlib, beeper)\n", audio);
+    switch (sdl3_audio_select(audio, roms)) {
+    case 0: break;
+    case -2:
+        fprintf(stderr, "--audio mt32 needs --mt32-roms <directory>\n");
+        return 1;
+    default:
+#ifdef HUMANSRE_HAVE_MT32
+        fprintf(stderr, "unknown audio driver '%s' (adlib, beeper, mt32)\n",
+                audio);
+#else
+        fprintf(stderr,
+                "unknown audio driver '%s' (adlib, beeper; this "
+                "build has no mt32emu)\n",
+                audio);
+#endif
         return 1;
     }
     if (chdir(path) != 0) {

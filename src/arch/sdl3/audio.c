@@ -19,13 +19,16 @@
  *
  * The driver module is chosen before the install (sdl3_audio_select), the
  * launcher's [0x5AFE] selection: AdLib by default, the PC speaker with
- * `--audio beeper`.
+ * `--audio beeper`, the MT-32 with `--audio mt32 --mt32-roms <dir>`.
  */
 #include "osystem.h"
 
 #include "audio.h"
 #include "audio/sound_driver.h"
 #include "gameflow.h"
+#ifdef HUMANSRE_HAVE_MT32
+#    include "audio/mt32/sound_driver_mt32.h"
+#endif
 
 #include <SDL3/SDL.h>
 
@@ -41,7 +44,7 @@
 
 static const SoundDriverModule *_module = &g_sound_driver_adlib;
 static const char *_module_name = "AdLib";
-static int32_t _driver_id = 1; /* [0x5AFE]: 0 Beeper, 1 AdLib */
+static int32_t _driver_id = 1; /* [0x5AFE]: 0 Beeper, 1 AdLib, 3 MT-32 */
 static SoundDriver *_driver;
 static SDL_AudioStream *_stream;
 static SDL_Mutex *_lock;
@@ -174,10 +177,11 @@ int32_t sdl3_audio_install(void)
 /**
  * @brief Select the resident driver before the install ([0x5AFE]).
  *
- * @param name "adlib" (the default) or "beeper"
- * @return 0 on success, -1 on an unknown name
+ * @param name "adlib" (the default), "beeper" or "mt32"
+ * @param roms the MT-32 ROM directory (required for "mt32")
+ * @return 0 on success, -1 on an unknown name, -2 when mt32 has no ROM dir
  */
-int32_t sdl3_audio_select(const char *name)
+int32_t sdl3_audio_select(const char *name, const char *roms)
 {
     if (!name || strcmp(name, "adlib") == 0) {
         _module = &g_sound_driver_adlib;
@@ -191,13 +195,26 @@ int32_t sdl3_audio_select(const char *name)
         _driver_id = 0;
         return 0;
     }
+#ifdef HUMANSRE_HAVE_MT32
+    if (strcmp(name, "mt32") == 0) {
+        if (!roms || !roms[0]) return -2;
+        sound_driver_mt32_set_roms(roms);
+        _module = &g_sound_driver_mt32;
+        _module_name = "MT-32";
+        /* [0x5AFE] = anything but 0/1 selects the MT-32 tune extension and
+         * the [0x5AFE] == 3 check on sound effect 0x0E (1000:83D3). */
+        _driver_id = 3;
+        return 0;
+    }
+#endif
     return -1;
 }
 
 /**
  * @brief The backend's [0x5AFE] sound_driver_id (osystem.h).
  *
- * @return 0 for the Beeper, 1 for AdLib; -1 before a selection is made
+ * @return 0 for the Beeper, 1 for AdLib, 3 for the MT-32; -1 before a
+ * selection is made
  */
 int32_t sdl3_audio_driver_id(void) { return _driver_id; }
 

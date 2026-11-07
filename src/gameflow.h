@@ -76,6 +76,9 @@ const char *gameflow_party_tribe(void); /* 0x1189: the level's author   */
 int32_t gameflow_key_list(const InputState *in);
 /* [0x5BBA]: the goal page (scroll_map 1000:9E51) is up. */
 int32_t gameflow_goal_page_up(void);
+/* Test seam: level_setup armed the goal/title page ([0x5BBA]) but the first
+ * play frame has not shown it yet. */
+int32_t gameflow_goal_armed(void);
 /* 1000:3954's key wait (F10) owns the input and blocks the world. */
 int32_t gameflow_key_wait_active(void);
 /* The time-up dialog's 3 results (1000:34F9's inline dispatch): 0 restart

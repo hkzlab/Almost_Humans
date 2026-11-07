@@ -192,6 +192,11 @@ static void _game_tick(void)
  * @return The goal page is showing.
  */
 int32_t gameflow_goal_page_up(void) { return _goal_showing; }
+/** @brief Test seam: level_setup armed the goal/title page ([0x5BBA]).
+ *
+ * @return 1 when the page is pending its first play frame.
+ */
+int32_t gameflow_goal_armed(void) { return _goal_page; }
 /**
  * @brief Accessor: a scripted key wait is active.
  *
@@ -240,20 +245,50 @@ int32_t gameflow_restart_pending(void) { return _restart_game; }
  */
 int32_t gameflow_party_pending(void) { return !_party_tried; }
 
+/** @brief level_setup's title-page arm (1000:316A -> level_reset_view 1000:3185,
+ * `1000:31BD MOV word ptr [0x5BBA],0x180C`).
+ *
+ * level_setup runs on every entry, the restart included: 1000:35AF jumps back
+ * to level_start 1000:3032, which falls through to level_run 1000:3054 and its
+ * 307D CALL level_setup.  So the level-title page is shown by the first play
+ * frame each time, not only on a fresh load.
+ */
+static void _level_publish_goal(void)
+{
+    const LevelData *g = level_data();
+
+    _goal_page = !_level_skipped && g && g->goal[0] != 0;
+    _goal_showing = 0;
+    _goal_froze_updates = 0;
+    if (_goal_page) statusbar_set_active(0);
+}
+
 /** @brief level_restore (1000:35AF): [0x11FC] := [0x1970] — the members the level
- * started with — then JMP level_start (1000:3032), which re-picks the time
- * and re-enters the level WITHOUT the party path.  The port reloads the
- * record (the header is the same file record; the original skips the read)
- * and re-spawns the map's entities like the level entry, then puts the
- * members snapshot back.
+ * started with — then JMP level_start (1000:3032), which re-picks the time,
+ * re-runs present_frames_75 + music_stop and re-enters the level (the party
+ * screen runs again, 1000:3073).  The port reloads the record (the header is
+ * the same file record; the original skips the read) and re-spawns the map's
+ * entities like the level entry, then puts the members snapshot back.
  */
 static void _level_restart_finish(void)
 {
+    /* level_start 1000:303A/303D: present_frames_75 then music_stop.  The
+     * FLOW_LEVEL branch normally runs them; the restart jumps straight to
+     * level_start, so start the audio fade here and let that branch wait it
+     * out before the party.  Skipping it leaves [0x40BB] set, and the
+     * party's play_tune loads a new image (MT-32 resets its voices) while
+     * music_resume stays gated off — silence for the rest of the level. */
+    _level_music_done = 0;
+    _level_start_fade = 1;
+    audio_fade_out(); /* 1000:303A */
     if (level_load(_level_current) == 0) {
         const LevelData *ld = level_data();
         entity_spawn_from_map(level_map(), ld->style, ld->entityLife);
         level_restore_members();
     }
+    /* 1000:307D CALL level_setup: its 1000:31BD arm runs again after a
+     * restart, so the title page is re-armed like a fresh load. */
+    _level_publish_goal();
     /* 1000:3073: level_start tests [0x34] and plays the party screen when it
      * is zero.  A restart is not the RESTORE GAME path (the only writer of
      * 0xFF, 1000:008A), so the party runs again - live-confirmed in the
@@ -731,15 +766,9 @@ static int32_t _game_frame(const OSystem *osys, GameFlow *state,
                 _level_skipped =
                     gameflow_tribe_too_small(level_required(), level_members());
             }
-            /* level_setup (1000:31BD): [0x5BBA] := the record's goal
-                 * text; the first play frame shows it (scroll_map). */
-            {
-                const LevelData *g = level_data();
-                _goal_page = !_level_skipped && g && g->goal[0] != 0;
-                _goal_showing = 0;
-                _goal_froze_updates = 0;
-                if (_goal_page) statusbar_set_active(0);
-            }
+            /* level_setup's title arm (1000:31BD): [0x5BBA] := the record's
+             * goal text; the first play frame shows it (scroll_map). */
+            _level_publish_goal();
         }
         const LevelData *lv = level_data();
         if (lv && !_party_tried) {

@@ -264,10 +264,32 @@ int main(int argc, char **argv)
             fprintf(stderr, "FAIL level 0 reload\n");
             bad = 1;
         } else {
+            /* D-257: level_video_init's reset_display_mode (1000:32D6)
+             * clears the whole A000 window (clear_vram 1000:833A) BEFORE
+             * the 32F4/3309 fades, so a stale pre-level page must not
+             * survive level_begin. */
+            memset((uint8_t *)osys_null_page(0), 0xAA, 320u * 200u);
+            memset((uint8_t *)osys_null_page(1), 0xAA, 320u * 200u);
             /* level_fade_in (1000:3334): the start chain — fade out, the
              * eight update_world frames, the fade in — must finish before
              * the level is playable. */
             level_begin();
+            {
+                const uint8_t *p0 = osys_null_page(0);
+                const uint8_t *p1 = osys_null_page(1);
+                uint32_t nz0 = 0u, nz1 = 0u, k;
+
+                for (k = 0; k < 320u * 200u; k++) {
+                    if (p0[k]) nz0++;
+                    if (p1[k]) nz1++;
+                }
+                if (nz0 || nz1) {
+                    fprintf(stderr,
+                            "FAIL D-257: level_begin left the page(s) "
+                            "uncleared (%u/%u stale bytes)\n", nz0, nz1);
+                    bad = 1;
+                }
+            }
             /* The fade the user sees, measured through the null arch's DAC
              * shadow: level_fade_in (1000:3334) fades entries 0..0xBF to black
              * (div 0x19) and never touches the bar's 0xC0..0xFF block, so the

@@ -40,6 +40,8 @@
  *                                  §3.5) over a vendored Nuked-OPL3
  *   beeper/sound_driver_beeper.c   BEEPER.DRV's sequencer (bep_format.md)
  *                                  over the PIT channel-2 square wave
+ *   mt32/sound_driver_mt32.c       MT32.DRV's sequencer (rld_format.md) over
+ *                                  a system mt32emu (needs its ROM images)
  *   null/sound_driver_null.c       no sound; prints every command it receives
  */
 #ifndef HUMANSRE_SOUND_DRIVER_H
@@ -76,6 +78,7 @@ typedef struct SoundDriverModule {
  * ones it offers, then selects one with SoundDriverModule::create. */
 extern const SoundDriverModule g_sound_driver_adlib;
 extern const SoundDriverModule g_sound_driver_beeper;
+extern const SoundDriverModule g_sound_driver_mt32;
 extern const SoundDriverModule g_sound_driver_null;
 
 #endif /* HUMANSRE_SOUND_DRIVER_H */

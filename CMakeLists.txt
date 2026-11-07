@@ -271,6 +271,25 @@ if(NOT MSVC)
     target_link_libraries(audio_beeper PRIVATE m)
 endif()
 
+# The MT-32 driver (audio/mt32): MT32.DRV's sequencer over the system
+# mt32emu library, which is a hard requirement for this module — the port
+# simply does not offer `--audio mt32` when it is missing.  mt32emu is
+# LGPL-2.1-or-later, same as the vendored Nuked-OPL3.
+find_path(MT32EMU_INCLUDE_DIR mt32emu.h)
+find_library(MT32EMU_LIBRARY NAMES mt32emu)
+if(MT32EMU_INCLUDE_DIR AND MT32EMU_LIBRARY)
+    set(HUMANSRE_MT32 TRUE)
+    add_library(audio_mt32 src/arch/audio/mt32/sound_driver_mt32.c)
+    target_include_directories(audio_mt32 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+    target_include_directories(audio_mt32 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
+                                                  ${MT32EMU_INCLUDE_DIR})
+    target_link_libraries(audio_mt32 PUBLIC ${MT32EMU_LIBRARY})
+    message(STATUS "mt32emu: ${MT32EMU_LIBRARY} - --audio mt32 available")
+else()
+    set(HUMANSRE_MT32 FALSE)
+    message(STATUS "mt32emu not found - --audio mt32 unavailable")
+endif()
+
 # The core's audio state machine over the real AdLib module: play_tune,
 # music_resume/stop, the fade pair, driver_call and the 2-of-3 tick, with
 # rendered samples as the oracle.
@@ -312,6 +331,18 @@ endif()
 humansre_warnings(test_beeper)
 add_test(NAME beeper COMMAND test_beeper ${HUMANS_FIX_DIR} ${HUMANS_DATA_DIR})
 
+# The MT-32 driver module against a real .RLD and a real ROM set.  The ROMs
+# are not shipped, so the test skips unless HUMANS_MT32_ROMS names a
+# directory holding them (MT32_CONTROL.ROM / MT32_PCM.ROM or any compatible
+# pair, including MAME-style split images).
+if(HUMANSRE_MT32)
+    add_executable(test_mt32 tests/test_mt32.c)
+    target_include_directories(test_mt32 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch ${MT32EMU_INCLUDE_DIR})
+    target_link_libraries(test_mt32 PRIVATE ${MT32EMU_LIBRARY})
+    humansre_warnings(test_mt32)
+    add_test(NAME mt32 COMMAND test_mt32 ${HUMANS_FIX_DIR})
+endif()
+
 # The headless reference port: no SDL dependency, always builds.
 add_executable(humans-null
     src/arch/null/OSystem.c
@@ -332,6 +363,10 @@ if(SDL3_FOUND)
     )
     target_link_libraries(humans-sdl3 PRIVATE core fs_posix audio_adlib audio_beeper SDL3::SDL3)
     target_include_directories(humans-sdl3 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    if(HUMANSRE_MT32)
+        target_link_libraries(humans-sdl3 PRIVATE audio_mt32)
+        target_compile_definitions(humans-sdl3 PRIVATE HUMANSRE_HAVE_MT32=1)
+    endif()
     humansre_warnings(humans-sdl3)
 else()
     message(STATUS "SDL3 not found - building only humans-null")

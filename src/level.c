@@ -1910,6 +1910,18 @@ void level_begin(void)
      * recoloured the still-lit party art in the level's palette.  Wait here
      * (the caller retries next tick) and let it finish. */
     if (palette_fade_active()) return;
+    /* 1000:32D6 (level_video_init -> reset_display_mode -> clear_vram
+     * 1000:833A): the whole A000 window is zeroed BEFORE the 32F4/3309
+     * fades, so the pre-level page — the front-end room on a save load,
+     * the party screen on a fresh start — never shows through them.
+     * Both port pages model the one cleared VRAM window. */
+    {
+        uint8_t *p0 = _level_osys->videoPage(0);
+        uint8_t *p1 = _level_osys->videoPage(1);
+
+        if (p0) memset(p0, 0, 320u * 200u);
+        if (p1) memset(p1, 0, 320u * 200u);
+    }
     /* [0x5B12] is level_fade_in's gate and is 0 until the chain completes, so
      * the bar's countdown cannot run during the fades (1000:95B5 reseeds the
      * clock but leaves the gate clear). */
