@@ -876,11 +876,16 @@ static int32_t _game_frame(const OSystem *osys, GameFlow *state,
                 _end_phase = END_CAPTION;
                 _end_page_up = 0;
                 if (!level_outcome()) {
-                    /* 0x41AE: [0x138E] == 0 -> 0x438A; no card.  entry
-                         * 0x00E6 then skips the newspaper and goes to the
-                         * ending scene. */
-                    _post_pending = 0;
-                    *state = _post_level_step(*state);
+                    /* 1000:41B5 -> 1000:438A: a lost level skips the score
+                     * card but still runs present_frames_75 + music_stop
+                     * (0x43B6/0x43B9) before entry's post-level step.  The
+                     * port used to jump straight to the step, leaving the
+                     * level record live; a RESTART THIS GAME then loaded
+                     * mus\title over it and the old record played the new
+                     * image (the wrong menu tune). */
+                    _post_pending = 1;
+                    audio_fade_out(); /* 0x43B6 */
+                    _score_fade = 1;
                 } else {
                     _post_pending = 1;
                     _score_up = score_begin(score_level_score());

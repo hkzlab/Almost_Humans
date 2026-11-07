@@ -32,11 +32,13 @@ enum {
 extern void osys_null_input_script(const InputState *states, uint32_t n);
 extern const uint8_t *osys_null_palette(void);
 extern void osys_null_on_present(void (*fn)(uint32_t poll));
+extern uint32_t osys_null_audio_starts(void);
 
 extern const OSystem g_osys_null;
 
 static int32_t _outcome;
 static int32_t _grey_seen, _black_seen, _card_seen, _seen_card_after_black;
+static uint32_t _starts_at_restart;
 
 /**
  * @brief The null backend's present hook: drive the forced input and record the frame.
@@ -52,6 +54,7 @@ static void _hook(uint32_t poll)
          * run the lost-level caption and fades before the restart */
         if (_outcome == 2) {
             int32_t q = 0;
+            _starts_at_restart = osys_null_audio_starts();
             (void)gameflow_pause_action(2, &q);
         } else {
             level_request_end(_outcome);
@@ -151,6 +154,12 @@ int main(int argc, char **argv)
         }
     } else if (_card_seen) {
         fprintf(stderr, "FAIL 1000:41AE: a lost level opened the score card\n");
+        bad = 1;
+    }
+    if (_outcome == 2 && osys_null_audio_starts() == _starts_at_restart) {
+        fprintf(stderr,
+                "FAIL 1000:438A: RESTART THIS GAME never restarted the menu "
+                "music (the level record stayed live over mus\\title)\n");
         bad = 1;
     }
 

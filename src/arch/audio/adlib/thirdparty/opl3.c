@@ -539,6 +539,16 @@ static void OPL3_EnvelopeKeyOn(opl3_slot *slot, uint8_t type)
 static void OPL3_EnvelopeKeyOff(opl3_slot *slot, uint8_t type)
 {
     slot->key &= ~type;
+    /* Local patch to Nuked-OPL3: enter release now, not at the next sample.
+     * ADLIB.DRV re-keys a note by writing key-off and key-on back to back
+     * inside one driver tick, i.e. between two OPL samples; with the deferred
+     * transition in OPL3_EnvelopeCalc the envelope never sees the off and a
+     * percussive note stays at full attenuation forever.  The original's
+     * playback proves its chip registers the off pulse and retriggers. */
+    if (!slot->key)
+    {
+        slot->eg_gen = envelope_gen_num_release;
+    }
 }
 
 /*

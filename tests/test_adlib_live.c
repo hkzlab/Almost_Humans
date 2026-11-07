@@ -79,6 +79,40 @@ int main(int argc, char **argv)
     assert(img && fread(img, 1, (size_t)n, f) == (size_t)n);
     fclose(f);
 
+    /* Regression (2026-11-07): the boot fade must make the first section
+     * audible.  Rows 1-31 are percussive instruments that ADLIB.DRV re-keys
+     * every row (key-off then key-on inside one driver tick); a core that
+     * defers the key-off to its next sample plays the first row and then
+     * silence until row 32.  Before the fix the peak over this span stayed at
+     * 27; with the release latched on the key-off write it reaches ~1560. */
+    {
+        SoundDriver *fade = _adlib_create(48000);
+        static int16_t pcm[700 * 2];
+        uint32_t phase = 0, step = 0, wait = 2, peak = 0;
+        uint32_t k;
+
+        assert(fade != NULL);
+        _adlib_load_tune(fade, img, (uint32_t)n);
+        assert(_adlib_start_event(fade, 0) == 0);
+        _adlib_set_tempo(fade, 0); /* music_resume's CL=0 */
+        for (i = 0; i < 150; i++) { /* timing_loop: 0..0x4A, two ticks each */
+            if (step < 0x4Au && --wait == 0) {
+                wait = 2;
+                step++;
+                _adlib_set_tempo(fade, (uint8_t)step);
+            }
+            phase++;
+            if (phase != 3u) _adlib_tick(fade);
+            g_sound_driver.generate(fade, pcm, 686); /* one 70 Hz period */
+            for (k = 0; k < 686u * 2u; k++) {
+                int32_t v = pcm[k] < 0 ? -pcm[k] : pcm[k];
+                if ((uint32_t)v > peak) peak = (uint32_t)v;
+            }
+        }
+        assert(peak > 200u);
+        _adlib_destroy(fade);
+    }
+
     drv = _adlib_create(48000);
     assert(drv != NULL);
     _adlib_set_tempo(drv, 0x4A); /* the boot fade's last step -> 0x2F */
