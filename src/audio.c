@@ -35,6 +35,9 @@ static const OSystem *_au_osys;
 static int32_t _music_active;  /* [0x40BB]: the music_resume latch   */
 static int32_t _fade_latch;    /* [0x40BA]: the fade-in latch        */
 static uint32_t _tick_phase;   /* [0x5AF2]: 1,2 tick; 3 resets       */
+/* 1 when the backend steps the tick from its audio sample clock (the SDL3
+ * render path).  The game tick then skips audio_tick: one clock only. */
+static int32_t _render_clock;
 static const char *_tune_name; /* [0x40B8]: the dedup key            */
 static int32_t _fade_dir;      /* +1 in, -1 out, 0 idle              */
 static int32_t _fade_step;     /* the CL currently applied           */
@@ -203,12 +206,12 @@ void audio_fade_out(void)
 int32_t audio_fade_busy(void) { return _fade_dir != 0; }
 
 /**
- * @brief One driver tick: the fade step and cmd 2 on 2 of every 3 ticks.
+ * @brief The tick body: the fade step and cmd 2 on 2 of every 3 ticks.
  *
  * The fade pair runs in the original's foreground, the music tick in its
  * INT 8 ISR; both are per-display-period here, so they share this function.
  */
-void audio_tick(void)
+static void _tick_body(void)
 {
     if (!_au_osys) return;
 
@@ -244,6 +247,35 @@ void audio_tick(void)
     }
     _au_osys->audioTick();
 }
+
+/**
+ * @brief The game tick's audio step: one tick, unless the backend owns it.
+ *
+ * This is the original's per-display-period call (1000:8B1E).  A backend that
+ * drives the tick from its audio sample clock (audio_render_tick) turns this
+ * into a no-op so the sequencer advances on exactly one clock.
+ */
+void audio_tick(void)
+{
+    if (_render_clock) return;
+    _tick_body();
+}
+
+/**
+ * @brief One audio tick, called by the backend inside its render path.
+ *
+ * The register writes must land on the sample the tick is due at, not on the
+ * next render chunk's edge: the original's ISR writes the OPL ports
+ * synchronously.  See arch/sdl3/audio.c.
+ */
+void audio_render_tick(void) { _tick_body(); }
+
+/**
+ * @brief Say whether the backend drives the audio tick from the sample clock.
+ *
+ * @param on 1 while an audio stream is running and calls audio_render_tick
+ */
+void audio_set_render_clock(int32_t on) { _render_clock = on; }
 
 /**
  * @brief driver_call (1000:83B7): start a sound-effect record.

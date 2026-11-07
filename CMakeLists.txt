@@ -306,6 +306,7 @@ if(SDL3_FOUND)
         src/arch/sdl3/audio.c
     )
     target_link_libraries(humans-sdl3 PRIVATE core fs_posix audio_adlib SDL3::SDL3)
+    target_include_directories(humans-sdl3 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     humansre_warnings(humans-sdl3)
 else()
     message(STATUS "SDL3 not found - building only humans-null")

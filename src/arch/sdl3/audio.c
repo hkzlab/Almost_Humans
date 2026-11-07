@@ -7,15 +7,21 @@
  * 2-of-3 music tick, the master-volume fades, the tune transitions) live in
  * the core (src/audio.c), where the original runs them.
  *
- * Threading: the tick thread (arch/sdl3/timer.c) calls the core's ISR body,
- * which calls audioTick/audioTempo; the SDL audio thread runs the sample
- * callback and calls generate.  Both touch the driver's OPL state, so every
- * call is serialised by _lock.  The critical sections are tiny (a tick steps
- * the sequencer; a tempo write is a handful of register writes).
+ * Threading: the SDL audio thread runs the sample callback, and it is the
+ * audio clock — the core's audio tick (audio_render_tick) is stepped from
+ * inside the render at the exact sample where the next game tick is due, so
+ * a note's key-on/key-off lands on the sample the original's ISR wrote it at,
+ * not on a render-chunk boundary.  The game-tick thread (arch/sdl3/timer.c)
+ * still runs the ISR body, but its audio_tick call is a no-op while this
+ * clock is active (audio_set_render_clock).  Both threads touch the driver's
+ * OPL state, so every call is serialised by _lock; the critical sections are
+ * tiny.
  */
 #include "osystem.h"
 
+#include "audio.h"
 #include "audio/sound_driver.h"
+#include "gameflow.h"
 
 #include <SDL3/SDL.h>
 
@@ -31,6 +37,10 @@ static SoundDriver *_driver;
 static SDL_AudioStream *_stream;
 static SDL_Mutex *_lock;
 static uint16_t _voice = 0xFFFFu; /* the current cmd-5 handle ([0x5AF0]) */
+/* The game-tick grid in samples: SDL3_AUDIO_RATE / GAME_TICK_HZ.  _tick_acc
+ * counts in frames * GAME_TICK_HZ, so a tick is due when it reaches
+ * SDL3_AUDIO_RATE — exact integer arithmetic, no drift. */
+static uint32_t _tick_acc;
 
 /* The audio _probe (HUMANSRE_AUDIO_PROBE set): reports the rendered peak
  * once per second.  Verification aid for the D-01 wiring, not a feature. */
@@ -39,7 +49,13 @@ static uint32_t _probe_frames;
 static int32_t _probe_peak;
 
 /**
- * @brief The stream callback: render frames from the driver.
+ * @brief The stream callback: render frames and step the audio clock.
+ *
+ * The render is split at every game-tick boundary, and the core's audio tick
+ * runs between the two halves, so the sequencer's register writes take
+ * effect at the exact sample the tick is due at.  Without the split a write
+ * waits for the next callback chunk (~21 ms at the default buffer), which is
+ * about one music tick: notes would come out a tick short or long.
  *
  * @param userdata unused
  * @param stream the stream to feed
@@ -57,12 +73,21 @@ static void SDLCALL _audio_callback(void *userdata, SDL_AudioStream *stream,
     if (!_driver || additional <= 0) return;
     frames = additional / ((int)sizeof(int16_t) * 2);
     while (frames > 0) {
-        int n = frames > _CHUNK_FRAMES ? _CHUNK_FRAMES : frames;
+        /* frames until the next game tick, and the chunk cap */
+        int until = (int)((SDL3_AUDIO_RATE - _tick_acc + GAME_TICK_HZ - 1) /
+                          GAME_TICK_HZ);
+        int n = frames < until ? frames : until;
+        if (n > _CHUNK_FRAMES) n = _CHUNK_FRAMES;
         if (_lock) SDL_LockMutex(_lock);
         g_sound_driver.generate(_driver, chunk, (uint32_t)n);
         if (_lock) SDL_UnlockMutex(_lock);
         SDL_PutAudioStreamData(stream, chunk, n * (int)sizeof(int16_t) * 2);
         frames -= n;
+        _tick_acc += (uint32_t)n * GAME_TICK_HZ;
+        if (_tick_acc >= SDL3_AUDIO_RATE) {
+            _tick_acc -= SDL3_AUDIO_RATE;
+            audio_render_tick();
+        }
         if (_probe) {
             int k;
             for (k = 0; k < n * 2; k++) {
@@ -115,7 +140,22 @@ int32_t sdl3_audio_install(void)
         _driver = NULL;
         return -1;
     }
-    SDL_ResumeAudioStreamDevice(_stream);
+    /* No stream = no sample clock: leave the render clock off so the game
+     * tick keeps driving the audio state (silently) instead of hanging the
+     * flow on a fade that never steps. */
+    if (!SDL_ResumeAudioStreamDevice(_stream)) {
+        SDL_Log("audio: cannot start the stream: %s", SDL_GetError());
+        SDL_DestroyAudioStream(_stream);
+        _stream = NULL;
+        SDL_DestroyMutex(_lock);
+        _lock = NULL;
+        g_sound_driver.destroy(_driver);
+        _driver = NULL;
+        return -1;
+    }
+    _tick_acc = 0;
+    /* the render path owns the audio clock from here on (audio.h) */
+    audio_set_render_clock(1);
     _probe = getenv("HUMANSRE_AUDIO_PROBE") != NULL;
     SDL_Log("audio: AdLib driver ready (%u Hz stereo)", SDL3_AUDIO_RATE);
     return 0;

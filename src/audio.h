@@ -23,8 +23,19 @@ int32_t audio_init(const OSystem *osys);
 void audio_install(void);
 
 /* The INT 8 body's share (1000:8B1E + the fade pair): cmd 2 on 2 of every 3
- * ticks and one master-volume step every 2 ticks.  Called from _game_tick. */
+ * ticks and one master-volume step every 2 ticks.  Called from _game_tick;
+ * a backend that owns the audio clock (SDL3's render path) turns this into a
+ * no-op and calls audio_render_tick instead. */
 void audio_tick(void);
+
+/* One audio tick at the point in the sample stream where it is due, called by
+ * the backend from inside its render path (arch/sdl3/audio.c).  Keeps the
+ * sequencer's register writes sample-exact. */
+void audio_render_tick(void);
+
+/* Declare that the backend drives the audio tick from its sample clock, so
+ * audio_tick (the game-tick call) must not step it too. */
+void audio_set_render_clock(int32_t on);
 
 /* play_tune (1000:8437): build "<name>.ALB", INT 63h-load it, cmd 0x0C.
  * The name is deduplicated by pointer exactly as [0x40B8] does. */
