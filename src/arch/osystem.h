@@ -94,11 +94,15 @@ typedef struct OSystem {
      * the module's generate().                                          */
     int32_t (*audioInstall)(void); /* the install entry (1E95:00DD)      */
     int32_t (*audioLoadTune)(const uint8_t *image, uint32_t size); /* 0x0C */
-    void (*audioResume)(void);     /* cmd 5, CX = 0 (music_resume)       */
-    void (*audioStop)(void);       /* cmd 6 (music_stop)                 */
+    void (*audioResume)(void); /* cmd 5, CX = 0 (music_resume)       */
+    void (*audioStop)(void); /* cmd 6 (music_stop)                 */
     void (*audioSfx)(uint16_t id); /* cmd 5, CX = the event id           */
     void (*audioTempo)(uint8_t cl); /* cmd 0x0A (master volume)          */
-    void (*audioTick)(void);       /* cmd 2 (the music tick)             */
+    void (*audioTick)(void); /* cmd 2 (the music tick)             */
+    /* [0x5AFE] sound_driver_id: -1 none, 0 Beeper, 1 AdLib, other MT-32.
+     * play_tune chooses the tune extension and driver_call its gate from it
+     * (1000:83CC, 1000:8462), exactly as the original's launcher global. */
+    int32_t (*audioDriverId)(void);
 
     /* --- misc -------------------------------------------------------- */
     void (*fatalError)(const char *msg); /* does not return            */

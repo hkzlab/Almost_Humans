@@ -33,10 +33,14 @@
  * `generate()` is the one port-side addition, the sample sink the OSystem
  * audio backend pulls from.
  *
- * Modules (the port links exactly one, the same selection as fs/fs.h):
- *   adlib/sound_driver_adlib.c   ADLIB.DRV's sequencer (re_snd_drv.md §3.5)
- *                                over a vendored Nuked-OPL3
- *   null/sound_driver_null.c     no sound; prints every command it receives
+ * Modules (each exports its own `g_sound_driver_*`; a port links the ones
+ * it offers and picks one at run time, the way the launcher picks the
+ * resident driver through `[0x5AFE]`):
+ *   adlib/sound_driver_adlib.c     ADLIB.DRV's sequencer (re_snd_drv.md
+ *                                  §3.5) over a vendored Nuked-OPL3
+ *   beeper/sound_driver_beeper.c   BEEPER.DRV's sequencer (bep_format.md)
+ *                                  over the PIT channel-2 square wave
+ *   null/sound_driver_null.c       no sound; prints every command it receives
  */
 #ifndef HUMANSRE_SOUND_DRIVER_H
 #define HUMANSRE_SOUND_DRIVER_H
@@ -68,7 +72,10 @@ typedef struct SoundDriverModule {
     void (*generate)(SoundDriver *drv, int16_t *dst, uint32_t frames);
 } SoundDriverModule;
 
-/* Defined by exactly one sound-driver module that the build links. */
-extern const SoundDriverModule g_sound_driver;
+/* Defined by each sound-driver module; a port declares nothing and links the
+ * ones it offers, then selects one with SoundDriverModule::create. */
+extern const SoundDriverModule g_sound_driver_adlib;
+extern const SoundDriverModule g_sound_driver_beeper;
+extern const SoundDriverModule g_sound_driver_null;
 
 #endif /* HUMANSRE_SOUND_DRIVER_H */

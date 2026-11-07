@@ -14,8 +14,12 @@
  * not on a render-chunk boundary.  The game-tick thread (arch/sdl3/timer.c)
  * still runs the ISR body, but its audio_tick call is a no-op while this
  * clock is active (audio_set_render_clock).  Both threads touch the driver's
- * OPL state, so every call is serialised by _lock; the critical sections are
- * tiny.
+ * synth state, so every call is serialised by _lock; the critical sections
+ * are tiny.
+ *
+ * The driver module is chosen before the install (sdl3_audio_select), the
+ * launcher's [0x5AFE] selection: AdLib by default, the PC speaker with
+ * `--audio beeper`.
  */
 #include "osystem.h"
 
@@ -27,12 +31,17 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* 48 kHz: Nuked-OPL3 resamples from its 49716 Hz native rate in
- * OPL3_Generate, so the stream runs at the host rate with no extra work. */
+ * OPL3_Generate, so the stream runs at the host rate with no extra work.
+ * The beeper renders its PIT square at the same host rate. */
 #define SDL3_AUDIO_RATE 48000
-#define _CHUNK_FRAMES 1024
+#define _CHUNK_FRAMES   1024
 
+static const SoundDriverModule *_module = &g_sound_driver_adlib;
+static const char *_module_name = "AdLib";
+static int32_t _driver_id = 1; /* [0x5AFE]: 0 Beeper, 1 AdLib */
 static SoundDriver *_driver;
 static SDL_AudioStream *_stream;
 static SDL_Mutex *_lock;
@@ -79,7 +88,7 @@ static void SDLCALL _audio_callback(void *userdata, SDL_AudioStream *stream,
         int n = frames < until ? frames : until;
         if (n > _CHUNK_FRAMES) n = _CHUNK_FRAMES;
         if (_lock) SDL_LockMutex(_lock);
-        g_sound_driver.generate(_driver, chunk, (uint32_t)n);
+        _module->generate(_driver, chunk, (uint32_t)n);
         if (_lock) SDL_UnlockMutex(_lock);
         SDL_PutAudioStreamData(stream, chunk, n * (int)sizeof(int16_t) * 2);
         frames -= n;
@@ -115,7 +124,7 @@ int32_t sdl3_audio_install(void)
     SDL_AudioSpec spec;
 
     if (_driver) return 0;
-    _driver = g_sound_driver.create(SDL3_AUDIO_RATE);
+    _driver = _module->create(SDL3_AUDIO_RATE);
     if (!_driver) {
         SDL_Log("audio: cannot install the sound driver");
         return -1;
@@ -123,7 +132,7 @@ int32_t sdl3_audio_install(void)
     _lock = SDL_CreateMutex();
     if (!_lock) {
         SDL_Log("audio: cannot create the driver lock: %s", SDL_GetError());
-        g_sound_driver.destroy(_driver);
+        _module->destroy(_driver);
         _driver = NULL;
         return -1;
     }
@@ -136,7 +145,7 @@ int32_t sdl3_audio_install(void)
         SDL_Log("audio: cannot open the stream: %s", SDL_GetError());
         SDL_DestroyMutex(_lock);
         _lock = NULL;
-        g_sound_driver.destroy(_driver);
+        _module->destroy(_driver);
         _driver = NULL;
         return -1;
     }
@@ -149,7 +158,7 @@ int32_t sdl3_audio_install(void)
         _stream = NULL;
         SDL_DestroyMutex(_lock);
         _lock = NULL;
-        g_sound_driver.destroy(_driver);
+        _module->destroy(_driver);
         _driver = NULL;
         return -1;
     }
@@ -157,9 +166,40 @@ int32_t sdl3_audio_install(void)
     /* the render path owns the audio clock from here on (audio.h) */
     audio_set_render_clock(1);
     _probe = getenv("HUMANSRE_AUDIO_PROBE") != NULL;
-    SDL_Log("audio: AdLib driver ready (%u Hz stereo)", SDL3_AUDIO_RATE);
+    SDL_Log("audio: %s driver ready (%u Hz stereo)", _module_name,
+            SDL3_AUDIO_RATE);
     return 0;
 }
+
+/**
+ * @brief Select the resident driver before the install ([0x5AFE]).
+ *
+ * @param name "adlib" (the default) or "beeper"
+ * @return 0 on success, -1 on an unknown name
+ */
+int32_t sdl3_audio_select(const char *name)
+{
+    if (!name || strcmp(name, "adlib") == 0) {
+        _module = &g_sound_driver_adlib;
+        _module_name = "AdLib";
+        _driver_id = 1;
+        return 0;
+    }
+    if (strcmp(name, "beeper") == 0) {
+        _module = &g_sound_driver_beeper;
+        _module_name = "Beeper";
+        _driver_id = 0;
+        return 0;
+    }
+    return -1;
+}
+
+/**
+ * @brief The backend's [0x5AFE] sound_driver_id (osystem.h).
+ *
+ * @return 0 for the Beeper, 1 for AdLib; -1 before a selection is made
+ */
+int32_t sdl3_audio_driver_id(void) { return _driver_id; }
 
 /**
  * @brief cmd 0x0C: hand the loaded tune image to the driver.
@@ -172,7 +212,7 @@ int32_t sdl3_audio_load_tune(const uint8_t *image, uint32_t size)
 {
     if (!_driver) return -1;
     SDL_LockMutex(_lock);
-    g_sound_driver.loadTune(_driver, image, size);
+    _module->loadTune(_driver, image, size);
     SDL_UnlockMutex(_lock);
     return 0;
 }
@@ -184,7 +224,7 @@ void sdl3_audio_resume(void)
 {
     if (!_driver) return;
     SDL_LockMutex(_lock);
-    _voice = g_sound_driver.startEvent(_driver, 0);
+    _voice = _module->startEvent(_driver, 0);
     SDL_UnlockMutex(_lock);
 }
 
@@ -195,7 +235,7 @@ void sdl3_audio_stop(void)
 {
     if (!_driver) return;
     SDL_LockMutex(_lock);
-    if (_voice != 0xFFFFu) g_sound_driver.releaseEvent(_driver, _voice);
+    if (_voice != 0xFFFFu) _module->releaseEvent(_driver, _voice);
     _voice = 0xFFFFu;
     SDL_UnlockMutex(_lock);
 }
@@ -212,7 +252,7 @@ void sdl3_audio_sfx(uint16_t id)
 {
     if (!_driver) return;
     SDL_LockMutex(_lock);
-    _voice = g_sound_driver.startEvent(_driver, id);
+    _voice = _module->startEvent(_driver, id);
     SDL_UnlockMutex(_lock);
 }
 
@@ -225,7 +265,7 @@ void sdl3_audio_tempo(uint8_t cl)
 {
     if (!_driver) return;
     SDL_LockMutex(_lock);
-    g_sound_driver.setTempo(_driver, cl);
+    _module->setTempo(_driver, cl);
     SDL_UnlockMutex(_lock);
 }
 
@@ -236,6 +276,6 @@ void sdl3_audio_tick(void)
 {
     if (!_driver) return;
     SDL_LockMutex(_lock);
-    g_sound_driver.tick(_driver);
+    _module->tick(_driver);
     SDL_UnlockMutex(_lock);
 }

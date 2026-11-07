@@ -24,7 +24,7 @@ char audio_tune_lev[] = "mus\\levA";
 
 /* The fade-in's last step is 0x4A (1000:84CE), the fade-out's first is
  * 0x4B (1000:8364); both map to master volume 0x2F in the driver. */
-#define AUDIO_FADE_IN_LAST 0x4A
+#define AUDIO_FADE_IN_LAST   0x4A
 #define AUDIO_FADE_OUT_FIRST 0x4B
 /* The gate's direct write (1000:A5F7). */
 #define AUDIO_TEMPO_MAX 0x4B
@@ -44,6 +44,7 @@ static int32_t _fade_step;     /* the CL currently applied           */
 static int32_t _fade_wait;     /* ticks until the next step          */
 static int32_t _record_live;   /* a cmd-5 record is playing          */
 static int32_t _stop_after_fade; /* present_frames_75 then music_stop */
+static int32_t _tune_missing;  /* the last play_tune found no image  */
 
 /**
  * @brief Bind the audio module to the backend.
@@ -64,17 +65,35 @@ void audio_install(void)
 {
     if (!_au_osys) return;
     if (_au_osys->audioInstall()) {
-        fprintf(stderr, "audio: the driver did not install; the game is silent\n");
+        fprintf(stderr,
+                "audio: the driver did not install; the game is silent\n");
     }
+}
+
+/**
+ * @brief The launcher's [0x5AFE] sound_driver_id from the backend.
+ *
+ * @return -1 none, 0 Beeper, 1 AdLib, other MT-32
+ */
+static int32_t _driver_id(void)
+{
+    if (!_au_osys || !_au_osys->audioDriverId) return 1;
+    return _au_osys->audioDriverId();
 }
 
 /**
  * @brief play_tune (1000:8437): load and start a tune image.
  *
- * The original appends the driver's extension (".ALB" for AdLib) to the
- * caller's base name, INT 63h-loads it, then sends cmd 0x0C.  The dedup is
- * by name *pointer*, exactly as `[0x40B8]` compares: the first call for a
- * name loads it, every later call returns.
+ * The original appends the resident driver's extension (.BEP / .ALB / .RLD,
+ * 202F:40BC/40C1/40C6, chosen by [0x5AFE] at 1000:8462) to the caller's base
+ * name, INT 63h-loads it, then sends cmd 0x0C.  The dedup is by name
+ * *pointer*, exactly as `[0x40B8]` compares: the first call for a name loads
+ * it, every later call returns.
+ *
+ * When the file is missing the original exits with an error (D-252); the port
+ * stops the current record and stays silent until a later tune loads.  That
+ * is the forced-Beeper case: only `LEVA.BEP` of the lettered level tunes
+ * ships (bep_format.md §10).
  *
  * @param name the base name, e.g. "mus\\title"
  */
@@ -83,17 +102,27 @@ void audio_play_tune(const char *name)
     char path[24];
     uint8_t *image;
     uint32_t size = 0;
+    int32_t id;
+    const char *ext;
 
     if (!_au_osys || !name) return;
     if (name == _tune_name) return; /* 1000:843E */
     _tune_name = name;
 
-    snprintf(path, sizeof(path), "%s.ALB", name);
+    id = _driver_id();
+    if (id == -1) return; /* 1000:8449: no driver loaded */
+    ext = id == 0 ? ".BEP" : (id == 1 ? ".ALB" : ".RLD");
+
+    snprintf(path, sizeof(path), "%s%s", name, ext);
     image = res_load_chunk(path, &size, NULL);
     if (!image) {
-        fprintf(stderr, "audio: cannot load %s\n", path);
+        fprintf(stderr, "audio: cannot load %s; the record is silenced\n",
+                path);
+        _tune_missing = 1;
+        audio_music_stop(); /* D-252: silence instead of the original's exit */
         return;
     }
+    _tune_missing = 0;
     _au_osys->audioLoadTune(image, size);
     free(image);
 }
@@ -119,6 +148,9 @@ void audio_play_level_tune(uint32_t level1)
 void audio_music_resume(void)
 {
     if (!_au_osys || _music_active) return;
+    /* D-252: a tune that could not be loaded must not restart the previous
+     * driver image; the game stays silent until a later play_tune succeeds. */
+    if (_tune_missing) return;
     if (frontend_option(FRONTEND_OPT_MUSIC) != 0) return; /* [0x5E5B] */
     /* Every site in the original reaches music_resume *after* a completed
      * (blocking) music_stop.  The port's fades do not block, so a previous
@@ -285,12 +317,12 @@ void audio_set_render_clock(int32_t on) { _render_clock = on; }
 void audio_sfx(uint32_t id)
 {
     if (!_au_osys) return;
-    if ((uint8_t)id == 0xFFu) return;                     /* 1000:83C1 */
+    if ((uint8_t)id == 0xFFu) return; /* 1000:83C1 */
     if (frontend_option(FRONTEND_OPT_MUSIC) == 0) return; /* 1000:83C5 */
-    /* 1000:83CC: the Beeper driver (id 0) has no cmd 5.  This port links the
-     * AdLib module (id 1), so the id-3 event 0x0E is always dropped
-     * (1000:83D3). */
-    if (id == 0x0Eu) return;
+    /* 1000:83CC: the Beeper driver (id 0) never gets cmd 5. */
+    if (_driver_id() == 0) return;
+    /* 1000:83D3: event 0x0E is the one MT-32 configuration's. */
+    if (id == 0x0Eu && _driver_id() != 3) return;
     _record_live = 1; /* the driver_call stores the sfx handle in [0x5AF0] */
     _au_osys->audioSfx((uint16_t)id);
 }

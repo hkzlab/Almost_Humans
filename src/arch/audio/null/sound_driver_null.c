@@ -131,7 +131,7 @@ static void _null_generate(SoundDriver *drv, int16_t *dst, uint32_t frames)
     memset(dst, 0, (size_t)frames * 2 * sizeof(*dst));
 }
 
-const SoundDriverModule g_sound_driver = {
+const SoundDriverModule g_sound_driver_null = {
     _null_create,        _null_destroy,   _null_set_tempo,
     _null_command_block, _null_load_tune, _null_start_event,
     _null_release_event, _null_tick,      _null_generate

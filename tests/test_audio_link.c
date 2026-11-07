@@ -63,47 +63,45 @@ static void _tstart(uint32_t rate, TickFn tick)
 static void _tsync(uint32_t *lastSeen) { (void)lastSeen; }
 static int32_t _install(void)
 {
-    _drv = g_sound_driver.create(RATE);
+    _drv = g_sound_driver_adlib.create(RATE);
     return _drv ? 0 : -1;
 }
 static int32_t _load(const uint8_t *image, uint32_t size)
 {
     _loads++;
-    g_sound_driver.loadTune(_drv, image, size);
+    g_sound_driver_adlib.loadTune(_drv, image, size);
     return 0;
 }
-static void _resume(void) { _voice = g_sound_driver.startEvent(_drv, 0); }
+static void _resume(void) { _voice = g_sound_driver_adlib.startEvent(_drv, 0); }
 static void _stop(void)
 {
     _stops++;
-    if (_voice != 0xFFFFu) g_sound_driver.releaseEvent(_drv, _voice);
+    if (_voice != 0xFFFFu) g_sound_driver_adlib.releaseEvent(_drv, _voice);
     _voice = 0xFFFFu;
 }
 static void _sfx(uint16_t id)
-{
-    _voice = g_sound_driver.startEvent(_drv, id);
-}
+{ _voice = g_sound_driver_adlib.startEvent(_drv, id); }
 static void _tempo(uint8_t cl)
 {
     _tempo_byte = cl;
-    g_sound_driver.setTempo(_drv, cl);
+    g_sound_driver_adlib.setTempo(_drv, cl);
 }
 static void _tick(void)
 {
     _ticks++;
-    g_sound_driver.tick(_drv);
+    g_sound_driver_adlib.tick(_drv);
 }
+static int32_t _driver_id(void) { return 1; } /* AdLib */
 static void _fatal(const char *msg)
 {
     fprintf(stderr, "fatal: %s\n", msg);
     exit(1);
 }
 
-static const OSystem _osys = {
-    _vset,    _vpage,  _vpresent, _vpalette, _poll,  _tstart,
-    _tsync,   _install, _load,    _resume,   _stop,  _sfx,
-    _tempo,   _tick,   _fatal
-};
+static const OSystem _osys = { _vset,  _vpage,  _vpresent,  _vpalette,
+                               _poll,  _tstart, _tsync,     _install,
+                               _load,  _resume, _stop,      _sfx,
+                               _tempo, _tick,   _driver_id, _fatal };
 
 /**
  * @brief Render some audio and return the largest absolute sample.
@@ -119,7 +117,7 @@ static uint32_t _peak(uint32_t frames)
 
     while (frames > 0u) {
         uint32_t n = frames > 1024u ? 1024u : frames;
-        g_sound_driver.generate(_drv, buf, n);
+        g_sound_driver_adlib.generate(_drv, buf, n);
         for (i = 0; i < n * 2u; i++) {
             int32_t v = buf[i];
             if (v < 0) v = -v;
@@ -264,7 +262,7 @@ int main(int argc, char **argv)
         assert(_stops == stops0 + 1u);
     }
 
-    g_sound_driver.destroy(_drv);
+    g_sound_driver_adlib.destroy(_drv);
     _drv = NULL;
     printf("test_audio_link: ok\n");
     return 0;

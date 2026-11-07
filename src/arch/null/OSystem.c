@@ -24,6 +24,7 @@ static void _null_audio_stop(void);
 static void _null_audio_sfx(uint16_t id);
 static void _null_audio_tempo(uint8_t cl);
 static void _null_audio_tick(void);
+static int32_t _null_audio_driver_id(void);
 static void _null_fatal(const char *msg);
 
 static uint8_t _pages[2][320 * 200];
@@ -54,10 +55,12 @@ static uint16_t _audio_last_sfx;
 static uint8_t _audio_tempo;
 
 const OSystem g_osys_null = {
-    _null_set_mode,  _null_page,        _null_present,   _null_set_palette,
-    _null_poll,         _null_timer_start, _null_tick_sync,  _null_audio_install,
-    _null_audio_load,   _null_audio_resume, _null_audio_stop, _null_audio_sfx,
-    _null_audio_tempo,  _null_audio_tick,   _null_fatal
+    _null_set_mode,     _null_page,          _null_present,
+    _null_set_palette,  _null_poll,          _null_timer_start,
+    _null_tick_sync,    _null_audio_install, _null_audio_load,
+    _null_audio_resume, _null_audio_stop,    _null_audio_sfx,
+    _null_audio_tempo,  _null_audio_tick,    _null_audio_driver_id,
+    _null_fatal
 };
 
 /**
@@ -152,8 +155,7 @@ static int32_t _null_audio_install(void)
 static int32_t _null_audio_load(const uint8_t *image, uint32_t size)
 {
     (void)image;
-    if (_audio_loads < _AUDIO_LOADS_MAX)
-        _audio_load_size[_audio_loads] = size;
+    if (_audio_loads < _AUDIO_LOADS_MAX) _audio_load_size[_audio_loads] = size;
     _audio_loads++;
     _audio_tune_size = size;
     return 0;
@@ -186,6 +188,12 @@ static void _null_audio_tempo(uint8_t cl) { _audio_tempo = cl; }
  * @brief The null backend: count a music tick (cmd 2).
  */
 static void _null_audio_tick(void) { _audio_ticks++; }
+/**
+ * @brief The null backend's [0x5AFE]: AdLib, the port's default driver.
+ *
+ * @return 1 (AdLib)
+ */
+static int32_t _null_audio_driver_id(void) { return 1; }
 /**
  * @brief The null backend: print and exit.
  *

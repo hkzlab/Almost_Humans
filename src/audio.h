@@ -37,8 +37,10 @@ void audio_render_tick(void);
  * audio_tick (the game-tick call) must not step it too. */
 void audio_set_render_clock(int32_t on);
 
-/* play_tune (1000:8437): build "<name>.ALB", INT 63h-load it, cmd 0x0C.
- * The name is deduplicated by pointer exactly as [0x40B8] does. */
+/* play_tune (1000:8437): build "<name>.BEP/.ALB/.RLD" from audioDriverId(),
+ * INT 63h-load it, cmd 0x0C.  The name is deduplicated by pointer exactly as
+ * [0x40B8] does.  A missing file stops the current record and stays silent
+ * (D-252; the original aborts). */
 void audio_play_tune(const char *name);
 /* level_status_update's lettered tune (1000:327F): "mus\levX" with
  * X = 'A' + (level1 - 1) % 18. */

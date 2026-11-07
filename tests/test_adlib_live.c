@@ -103,7 +103,8 @@ int main(int argc, char **argv)
             }
             phase++;
             if (phase != 3u) _adlib_tick(fade);
-            g_sound_driver.generate(fade, pcm, 686); /* one 70 Hz period */
+            g_sound_driver_adlib.generate(fade, pcm,
+                                          686); /* one 70 Hz period */
             for (k = 0; k < 686u * 2u; k++) {
                 int32_t v = pcm[k] < 0 ? -pcm[k] : pcm[k];
                 if ((uint32_t)v > peak) peak = (uint32_t)v;
@@ -129,7 +130,8 @@ int main(int argc, char **argv)
         int k;
 
         for (i = 0; i < 198; i++) _adlib_tick(drv);
-        for (k = 0; k < 4800; k++) g_sound_driver.generate(drv, pcm + 2 * k, 1);
+        for (k = 0; k < 4800; k++)
+            g_sound_driver_adlib.generate(drv, pcm + 2 * k, 1);
         assert(drv->shadow[0xB0] & 0x20u); /* voice 0 keyed */
         v0 = _tone_share(pcm, 4800, _voice_hz(drv, 0));
         v1 = _tone_share(pcm, 4800, _voice_hz(drv, 1));

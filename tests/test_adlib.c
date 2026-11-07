@@ -63,7 +63,7 @@ static uint32_t _peak(SoundDriver *drv)
     uint32_t peak = 0;
     uint32_t i;
 
-    g_sound_driver.generate(drv, frames, FRAMES);
+    g_sound_driver_adlib.generate(drv, frames, FRAMES);
     for (i = 0; i < FRAMES * 2u; i++) {
         int32_t v = frames[i];
         if (v < 0) v = -v;
@@ -94,41 +94,41 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    drv = g_sound_driver.create(RATE);
+    drv = g_sound_driver_adlib.create(RATE);
     assert(drv != NULL);
 
     /* A command before the tune is loaded must be refused, not crash. */
-    assert(g_sound_driver.startEvent(drv, 0) == 0xFFFF);
+    assert(g_sound_driver_adlib.startEvent(drv, 0) == 0xFFFF);
 
     /* The game's boot fade-in ends at CL = 0x4A, i.e. master volume 0x2F. */
-    g_sound_driver.setTempo(drv, 0x4A);
-    g_sound_driver.loadTune(drv, image, size);
-    handle = g_sound_driver.startEvent(drv, 0);
+    g_sound_driver_adlib.setTempo(drv, 0x4A);
+    g_sound_driver_adlib.loadTune(drv, image, size);
+    handle = g_sound_driver_adlib.startEvent(drv, 0);
     assert(handle != 0xFFFF);
     /* The image has two record slots; the third is out of range. */
-    assert(g_sound_driver.startEvent(drv, 0xFFFF) == 0xFFFF);
+    assert(g_sound_driver_adlib.startEvent(drv, 0xFFFF) == 0xFFFF);
 
     /* Two seconds of the game's tick rate: 1500 ticks is far more than one
      * pattern row (6 ticks), so cells have been decoded and played. */
     for (ticks = 0; ticks < 1500u; ticks++) {
         uint32_t peak;
-        g_sound_driver.tick(drv);
+        g_sound_driver_adlib.tick(drv);
         peak = _peak(drv);
         if (peak > 512u) loud++;
     }
     assert(loud > 0);
 
-    g_sound_driver.releaseEvent(drv, handle);
+    g_sound_driver_adlib.releaseEvent(drv, handle);
     /* Let the release envelopes fall; the OPL should be near silence. */
     for (ticks = 0; ticks < 240u; ticks++) {
         uint32_t peak;
-        g_sound_driver.tick(drv);
+        g_sound_driver_adlib.tick(drv);
         peak = _peak(drv);
         if (peak <= 512u) quiet++;
     }
     assert(quiet > 200u);
 
-    g_sound_driver.destroy(drv);
+    g_sound_driver_adlib.destroy(drv);
     free(image);
     printf("test_adlib: ok\n");
     return 0;

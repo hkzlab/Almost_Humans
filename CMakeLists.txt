@@ -248,17 +248,28 @@ add_library(fs_posix src/arch/fs/posix/fs_posix.c)
 target_include_directories(fs_null  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 target_include_directories(fs_posix PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 
-# The sound-driver modules (audio/sound_driver.h): the arch port links
-# exactly one.  adlib/sound_driver_adlib.c is ADLIB.DRV's sequencer over a
-# vendored Nuked-OPL3 (thirdparty/, LGPL-2.1-or-later); null/ prints every
-# command and renders silence.
+# The sound-driver modules (audio/sound_driver.h): a port links the ones it
+# offers and selects one at run time.  adlib/sound_driver_adlib.c is
+# ADLIB.DRV's sequencer over a vendored Nuked-OPL3 (thirdparty/,
+# LGPL-2.1-or-later); beeper/sound_driver_beeper.c is BEEPER.DRV's sequencer
+# over DOSBox Staging's PC-speaker impulse model (thirdparty/,
+# GPL-2.0-or-later); null/ prints every command and renders silence.
 add_library(audio_adlib
     src/arch/audio/adlib/sound_driver_adlib.c
     src/arch/audio/adlib/thirdparty/opl3.c)
+add_library(audio_beeper
+    src/arch/audio/beeper/sound_driver_beeper.c
+    src/arch/audio/beeper/thirdparty/pcspeaker_impulse.c)
 add_library(audio_null src/arch/audio/null/sound_driver_null.c)
 target_include_directories(audio_adlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 target_include_directories(audio_adlib PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(audio_beeper PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_include_directories(audio_beeper PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_include_directories(audio_null PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+if(NOT MSVC)
+    # the vendored impulse model builds its sinc LUT with sin/cos
+    target_link_libraries(audio_beeper PRIVATE m)
+endif()
 
 # The core's audio state machine over the real AdLib module: play_tune,
 # music_resume/stop, the fade pair, driver_call and the 2-of-3 tick, with
@@ -287,6 +298,20 @@ target_link_libraries(test_adlib PRIVATE audio_adlib)
 humansre_warnings(test_adlib)
 add_test(NAME adlib COMMAND test_adlib ${HUMANS_FIX_DIR})
 
+# The Beeper driver module against a real .BEP: the loader geometry, the row
+# decode (both voices), the note path, the vendored impulse model and a live
+# DOSBox state snapshot.  White-box (the test includes the module) so the slot
+# state and the rendered pitch are both checked.
+add_executable(test_beeper tests/test_beeper.c
+    src/arch/audio/beeper/thirdparty/pcspeaker_impulse.c)
+target_include_directories(test_beeper PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(test_beeper PRIVATE core fs_posix)
+if(NOT MSVC)
+    target_link_libraries(test_beeper PRIVATE m)
+endif()
+humansre_warnings(test_beeper)
+add_test(NAME beeper COMMAND test_beeper ${HUMANS_FIX_DIR} ${HUMANS_DATA_DIR})
+
 # The headless reference port: no SDL dependency, always builds.
 add_executable(humans-null
     src/arch/null/OSystem.c
@@ -305,7 +330,7 @@ if(SDL3_FOUND)
         src/arch/sdl3/timer.c
         src/arch/sdl3/audio.c
     )
-    target_link_libraries(humans-sdl3 PRIVATE core fs_posix audio_adlib SDL3::SDL3)
+    target_link_libraries(humans-sdl3 PRIVATE core fs_posix audio_adlib audio_beeper SDL3::SDL3)
     target_include_directories(humans-sdl3 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     humansre_warnings(humans-sdl3)
 else()
