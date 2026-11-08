@@ -28,6 +28,7 @@
  */
 #include "level.h"
 #include "menu.h"
+#include "game_strs.h"
 #include "osystem.h"
 #include "statusbar.h"
 #include "textpage.h"
@@ -46,30 +47,10 @@ typedef enum {
     MENU_DONE
 } MenuPhase;
 
-/* 202F:0x5BBC+1 — "PLEASE SELECT YOUR OPTION", then the 5 options (the
- * block's leading count byte is [0x5E41], not part of the text). */
-static const char _pause_block[] = "PLEASE SELECT YOUR OPTION\r"
-                                   "\r"
-                                   "CONTINUE THIS LEVEL\r"
-                                   "RESTART THIS LEVEL\r"
-                                   "RESTART THIS GAME\r"
-                                   "SAVE GAME \r"
-                                   "QUIT THIS GAME";
-
-/* 202F:0x5CD8+1 — the 4x5 column-major grid, games 1..20. */
-static const char _grid_block[] = "SAVE GAME NUMBER\r"
-                                  "\r"
-                                  " 01 05 09 13 17 \r"
-                                  " 02 06 10 14 18 \r"
-                                  " 03 07 11 15 19 \r"
-                                  " 04 08 12 16 20 ";
-
-/* 202F:0x5C2B+1 — the time-up block's 3 options (the same renderer). */
-static const char _time_up_block[] = "YOU RAN OUT OF TIME!!\r"
-                                     " \r"
-                                     "RESTART THIS LEVEL\r"
-                                     "RESTART THIS GAME\r"
-                                     "QUIT THIS GAME";
+/* 202F:0x5BBC+1 and 202F:0x5CD8+1, 202F:0x5C2B+1 — the pause block, the
+ * 4x5 column-major SAVE GAME grid (games 1..20) and the time-up block, all in
+ * game_strs.  The blocks' leading count byte ([0x5E41], not part of the text)
+ * is not stored. */
 
 static const OSystem *_menu_osys;
 static MenuPhase _phase = MENU_NONE;
@@ -166,11 +147,17 @@ void menu_draw(void)
 {
     uint8_t *page = _menu_osys ? _menu_osys->videoPage(0) : NULL;
     if (_phase == MENU_PAUSE)
-        textpage_draw(page, _pause_block, (int32_t)_row, 0u, 0);
+        textpage_draw(page,
+                      game_strs[GAME_LANG_EN][GAME_STR_MENU_PAUSE_BLOCK],
+                      (int32_t)_row, 0u, 0);
     else if (_phase == MENU_GRID)
-        textpage_draw(page, _grid_block, (int32_t)_row, _col, 1);
+        textpage_draw(page,
+                      game_strs[GAME_LANG_EN][GAME_STR_MENU_GRID_BLOCK],
+                      (int32_t)_row, _col, 1);
     else if (_phase == MENU_TIMEOUT)
-        textpage_draw(page, _time_up_block, (int32_t)_row, 0u, 0);
+        textpage_draw(page,
+                      game_strs[GAME_LANG_EN][GAME_STR_MENU_TIME_UP_BLOCK],
+                      (int32_t)_row, 0u, 0);
 }
 
 /**

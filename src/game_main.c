@@ -23,6 +23,7 @@
 #include "entity.h"
 #include "font.h"
 #include "frontend.h"
+#include "game_strs.h"
 #include "level.h"
 #include "map.h"
 #include "menu.h"
@@ -868,9 +869,12 @@ static int32_t _game_frame(const OSystem *osys, GameFlow *state,
                 level_tick();
                 if (level_outcome())
                     snprintf(text, sizeof text,
-                             "WELL DONE! YOU FINISHED LEVEL %03u",
+                             game_strs[GAME_LANG_EN]
+                                      [GAME_STR_GAMEFLOW_LEVEL_DONE],
                              _level_current + 1u);
-                else snprintf(text, sizeof text, "YOUR TRIBE IS EXTINCT!!");
+                else
+                    snprintf(text, sizeof text, "%s",
+                             game_strs[GAME_LANG_EN][GAME_STR_GAMEFLOW_EXTINCT]);
                 textpage_draw(osys->videoPage(0), text, -1, 0u, 0);
                 if (input.lastKey || (input.joyBits & 0x80u)) {
                     /* scroll_map's exit 0xA0E1 re-renders the page twice:

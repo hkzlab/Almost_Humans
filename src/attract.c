@@ -52,6 +52,7 @@
  */
 #include "attract.h"
 #include "font.h"
+#include "game_strs.h"
 #include "hiscore.h"
 #include "osystem.h"
 #include "palette.h"
@@ -70,10 +71,8 @@ static uint32_t _page_draw, _page_disp; /* [0x5AC4]/[0x5AC6]                */
 static uint32_t _display_start; /* [0x4106]: the CRTC start (bytes) */
 static uint32_t _saved_draw, _saved_disp; /* game_loop's PUSH pair (1387)     */
 
-/* the strings at 202F:0xC38/0xC4D/0xC73/0xC79 (re_formats.md §9.4) */
-static const char _str_times_header[] = "FASTEST LEVEL TIMES!";
-static const char _str_times_label[] = "LEVEL         MINUTES,    SECONDS";
-static const char _str_score_header[] = "TOP TEN TRIBES";
+/* the strings at 202F:0xC38/0xC4D/0xC73/0xC79 (re_formats.md §9.4) are
+ * game_strs' ATTRACT entries */
 
 /* the 0x48BC ramp analog: it enters the attract zeroed (the boot's
  * clear_fade_ramp) and nothing in the attract ever writes it, so every
@@ -367,7 +366,8 @@ static void _draw_times_row(uint8_t *ar, uint32_t levelMinus1,
     secs[0] = (char)('0' + (rec[0] >> 4));
     secs[1] = (char)('0' + (rec[0] & 0xFu));
     secs[2] = 0;
-    font_draw_text(ar, _str_times_label, 0x92u,
+    font_draw_text(ar, game_strs[GAME_LANG_EN][GAME_STR_ATTRACT_TIMES_LABEL],
+                   0x92u,
                    row); /* 16D3, redrawn per row */
     font_draw_text(ar, num, 0x3Du, row);
     font_draw_text(ar, mins, 0x74u, row);
@@ -950,11 +950,15 @@ int32_t attract_tick(const InputState *in)
         memcpy(_page_b, _img_buf, 64000u); /* copy_page 18a4 */
         memset(_arena, 0, sizeof _arena); /* clear_screen_buf 1882 */
         if (_frame == 0u) { /* intro_frame_1 1625 */
-            font_draw_text(_arena, _str_score_header, 0xA0u, 4u);
+            font_draw_text(_arena,
+                           game_strs[GAME_LANG_EN][GAME_STR_ATTRACT_SCORE_HEADER],
+                           0xA0u, 4u);
             _draw_score_block(_arena);
         } else { /* intro_frame_2 1652 */
             uint32_t base = (_frame - 1u) * 10u;
-            font_draw_text(_arena, _str_times_header, 0xA0u, 4u);
+            font_draw_text(_arena,
+                           game_strs[GAME_LANG_EN][GAME_STR_ATTRACT_TIMES_HEADER],
+                           0xA0u, 4u);
             for (uint32_t r = 0; r < 10u; r++) {
                 uint8_t rec[2];
 

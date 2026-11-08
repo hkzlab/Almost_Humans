@@ -21,6 +21,7 @@
 #include "audio.h"
 #include "font.h"
 #include "frontend.h"
+#include "game_strs.h"
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
@@ -173,19 +174,7 @@ static const uint8_t _scene_bg_table[10] = { 1, 2, 3, 4, 5, 6, 8, 0, 5, 7 };
  * 202F:0x6305 for scene index N (1000:B0C1 scans N+1 NULs forward).  String 9
  * (202F:0x6416) is the empty one, so scene 8 draws nothing and scene 9 prints
  * "HUMANS RECOVER THE STOLEN IDOL!".  Drawn centred at 0xA0, row 0x41,
- * colour 0x10. */
-static const char *const _scene_headline[10] = {
-    "HUMANS INVENT WEAPON! THE SPEAR!",
-    "HUMANS RESCUE BABY DINOSAUR!",
-    "REVOLUTION IN TRANSPORT! THE WHEEL!",
-    "BRAVE HUMAN RESCUES THE QUEEN!",
-    "SPECIAL REPORT ON NEW DISCOVERY! FIRE!",
-    "UNIDENTIFIED FLYING HUMAN SPOTTED!",
-    "HUMANS FAIL IN RACE FOR EVOLUTION!",
-    "HUMANS WIN THE RACE FOR EVOLUTION!",
-    "",
-    "HUMANS RECOVER THE STOLEN IDOL!"
-};
+ * colour 0x10.  The strings themselves are game_strs' SCENE_HEADLINE block. */
 
 static const OSystem *_scene_osys;
 static ScenePhase _scene_phase = SCENE_IDLE;
@@ -574,9 +563,13 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
     /* the panel's headline (1000:B0D4: blit_text_tile at centre 0xA0, row
      * 0x41, mask 0x10 — OR'd into the panel art, so it takes the panel's own
      * vertical ramp) — the index-th string of 202F:0x6304 */
-    if (_scene_headline[index][0])
-        textpage_draw_line_mask(video_page(0), _scene_headline[index], 0x41u,
-                                0x10u);
+    {
+        const char *headline =
+            game_strs[GAME_LANG_EN][GAME_STR_SCENE_HEADLINE_0 + index];
+
+        if (headline[0])
+            textpage_draw_line_mask(video_page(0), headline, 0x41u, 0x10u);
+    }
 
     _scene_osys->videoPresent(0);
 

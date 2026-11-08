@@ -1,0 +1,91 @@
+/* game_strs.h — the localisable text of the game core.
+ *
+ * `game_strs[language][id]` is the only source of displayed text: the first
+ * index picks the language (English for now), the second the string a routine
+ * needs.  Adding a language means filling a row, not touching a call site.
+ *
+ * Resource and file names (APL\TEXT.SPR, mus\title, ...) are not here: they
+ * name bytes on the discs, not text the player reads, so they do not localise.
+ */
+
+#ifndef HUMANSRE_GAME_STRS_H
+#define HUMANSRE_GAME_STRS_H
+
+#include <stdint.h>
+
+enum GameLang {
+    GAME_LANG_EN = 0, /* the shipped English text                      */
+    GAME_LANG_COUNT
+};
+
+enum GameStr {
+    /* attract */
+    GAME_STR_ATTRACT_TIMES_HEADER = 0,
+    GAME_STR_ATTRACT_TIMES_LABEL,
+    GAME_STR_ATTRACT_SCORE_HEADER,
+
+    /* gameflow */    GAME_STR_GAMEFLOW_LEVEL_DONE, /* snprintf format, one %03u          */
+    GAME_STR_GAMEFLOW_EXTINCT,
+
+    /* level: the insert-disc page */
+    GAME_STR_LEVEL_PUT_DISK,
+    GAME_STR_LEVEL_INTO_DRIVE, /* snprintf format, one %c            */
+    GAME_STR_LEVEL_PRESS_FIRE,
+    GAME_STR_LEVEL_WHEN_READY,
+
+    /* map: the qualifying page's seven lines, then the top-ten header */
+    GAME_STR_MAP_CONGRATS_0,
+    GAME_STR_MAP_CONGRATS_1,
+    GAME_STR_MAP_CONGRATS_2,
+    GAME_STR_MAP_CONGRATS_3,
+    GAME_STR_MAP_CONGRATS_4,
+    GAME_STR_MAP_CONGRATS_5,
+    GAME_STR_MAP_CONGRATS_6,
+    GAME_STR_MAP_TOP_TEN,
+
+    /* menu: the three dialogs, each a CR-separated block */
+    GAME_STR_MENU_PAUSE_BLOCK,
+    GAME_STR_MENU_GRID_BLOCK,
+    GAME_STR_MENU_TIME_UP_BLOCK,
+
+    /* party intro: the kept buffers and the GAME OVER variant */
+    GAME_STR_PARTY_COMING_UP,
+    GAME_STR_PARTY_NEED,
+    GAME_STR_PARTY_THIS_LEVEL,
+    GAME_STR_PARTY_HAS,
+    GAME_STR_PARTY_CODE,
+    GAME_STR_PARTY_SCORE,
+    GAME_STR_PARTY_FIRE,
+    GAME_STR_PARTY_MEMBERS_TAIL, /* appended after the member count     */
+    GAME_STR_PARTY_GAME_OVER,
+    GAME_STR_PARTY_TOO_SMALL,
+    GAME_STR_PARTY_IN_RACE,
+    GAME_STR_PARTY_TRY_AGAIN,
+
+    /* scene: the newspaper headlines, scene index N picks N */
+    GAME_STR_SCENE_HEADLINE_0,
+    GAME_STR_SCENE_HEADLINE_1,
+    GAME_STR_SCENE_HEADLINE_2,
+    GAME_STR_SCENE_HEADLINE_3,
+    GAME_STR_SCENE_HEADLINE_4,
+    GAME_STR_SCENE_HEADLINE_5,
+    GAME_STR_SCENE_HEADLINE_6,
+    GAME_STR_SCENE_HEADLINE_7,
+    GAME_STR_SCENE_HEADLINE_8, /* the empty one: scene 8 draws nothing */
+    GAME_STR_SCENE_HEADLINE_9,
+
+    GAME_STR_COUNT
+};
+
+extern const char *const game_strs[GAME_LANG_COUNT][GAME_STR_COUNT];
+
+/* Byte offset of each string's in-place digit field, parallel to game_strs:
+ * the briefing's `_put_number` calls patch digits into a copied template, and
+ * a translation may move the field, so the offset is language data too.
+ * GAME_STR_NUM_NONE marks a string with no in-place field (printed verbatim,
+ * or formatted through printf into a scratch buffer). */
+#define GAME_STR_NUM_NONE 0xFFu
+
+extern const uint8_t game_strs_num_offset[GAME_LANG_COUNT][GAME_STR_COUNT];
+
+#endif

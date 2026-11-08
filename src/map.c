@@ -36,6 +36,7 @@
 #include "audio.h"
 #include "map.h"
 #include "font.h"
+#include "game_strs.h"
 #include "hiscore.h"
 #include "osystem.h"
 #include "palette.h"
@@ -70,16 +71,7 @@ struct MapFade {
 
 /* 1000:024B..1000:0266: the qualifying page`s seven lines at DS:0x7BB..0x85C
  * (verbatim, from the image), drawn at x=0xA0, y=0x19 + 0x10*line with
- * blit_text_tile`s 0x20 mask. */
-static const char *const _map_congrats[7] = {
-    "WELL DONE!",
-    "YOUR TRIBE HAS EVOLVED TO BECOME",
-    "ONE OF THE TEN MOST ADVANCED IN",
-    "THE ENTIRE WORLD!",
-    "THE NAME OF YOUR TRIBE WILL NOW",
-    "BE CARVED INTO THE ROCK THAT MARKS",
-    "THE TEN MOST CIVILISED TRIBES!",
-};
+ * blit_text_tile`s 0x20 mask.  The lines are game_strs' MAP_CONGRATS block. */
 
 static uint8_t *_map_high;
 static uint32_t _map_high_size;
@@ -1129,7 +1121,9 @@ void map_draw_list_header(uint8_t *page)
         map_draw_rect(page, 0x32u, y, 0xA0u, 0x0Fu);
         map_draw_rect(page, 0xD6u, y, 0x58u, 0x0Fu);
     }
-    textpage_draw_line_mask_at(page, "THE TOP TEN TRIBES", 0xA0u, 0x14u, 0x20u);
+    textpage_draw_line_mask_at(
+        page, game_strs[GAME_LANG_EN][GAME_STR_MAP_TOP_TEN], 0xA0u, 0x14u,
+        0x20u);
 }
 
 /**
@@ -1140,8 +1134,10 @@ void map_draw_list_header(uint8_t *page)
 void map_draw_congrats(uint8_t *page)
 {
     for (uint32_t i = 0; i < 7u; i++)
-        textpage_draw_line_mask_at(page, _map_congrats[i], 0xA0u,
-                                   0x19u + 0x10u * i, 0x20u);
+        textpage_draw_line_mask_at(
+            page,
+            game_strs[GAME_LANG_EN][GAME_STR_MAP_CONGRATS_0 + i], 0xA0u,
+            0x19u + 0x10u * i, 0x20u);
 }
 
 /**

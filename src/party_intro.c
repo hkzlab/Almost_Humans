@@ -73,6 +73,7 @@
 #include "party_intro.h"
 #include "audio.h"
 #include "font.h"
+#include "game_strs.h"
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
@@ -660,13 +661,14 @@ void party_intro_set_values(uint32_t level, uint32_t need, uint32_t members,
     if (tribe) memcpy(_g_tribe, tribe, sizeof _g_tribe - 1u);
     /* the image's verbatim strings (202F:0x105F..; the digit fields are
      * fixed-width and the formatter rewrites them in place, 0x3F1B) */
-    memcpy(_s_all, "COMING UP.... LEVEL 000", 23);
-    memcpy(_s_need, "YOU WILL NEED 0 HUMANS TO COMPLETE", 35);
-    memcpy(_s_this, "THIS LEVEL", 11);
-    memcpy(_s_has, "YOUR TRIBE NOW HAS 00 MEMBERS!", 30);
-    memcpy(_s_code, "THE CODE FOR THIS LEVEL IS......", 32);
-    memcpy(_s_score, "YOUR SCORE IS 0000", 18);
-    memcpy(_s_fire, "PRESS FIRE TO START LEVEL....", 30);
+    strncpy(_s_all,
+            game_strs[GAME_LANG_EN][GAME_STR_PARTY_COMING_UP], 23);
+    strncpy(_s_need, game_strs[GAME_LANG_EN][GAME_STR_PARTY_NEED], 35);
+    strncpy(_s_this, game_strs[GAME_LANG_EN][GAME_STR_PARTY_THIS_LEVEL], 11);
+    strncpy(_s_has, game_strs[GAME_LANG_EN][GAME_STR_PARTY_HAS], 30);
+    strncpy(_s_code, game_strs[GAME_LANG_EN][GAME_STR_PARTY_CODE], 32);
+    strncpy(_s_score, game_strs[GAME_LANG_EN][GAME_STR_PARTY_SCORE], 18);
+    strncpy(_s_fire, game_strs[GAME_LANG_EN][GAME_STR_PARTY_FIRE], 30);
 }
 
 /**
@@ -870,13 +872,20 @@ int32_t party_intro_tick(const InputState *in)
         switch (_step) {
         case 0u: /* 2600..2611              */
             _clear_canvas();
-            *_put_number(_s_all + 0x14u, _g_level) = '\0'; /* 260e    */
+            *_put_number(
+                _s_all +
+                    game_strs_num_offset[GAME_LANG_EN]
+                                        [GAME_STR_PARTY_COMING_UP],
+                _g_level) = '\0'; /* 260e    */
             _draw_text_ramped(_s_all, 0xA0u, 0x14u);
             break;
         case 1u: /* 2623..263a: no NUL — the
                                                 * " HUMANS TO COMPLETE" tail
                                                 * survives the patch        */
-            (void)_put_number(_s_need + 0x0Eu, _g_need);
+            (void)_put_number(
+                _s_need +
+                    game_strs_num_offset[GAME_LANG_EN][GAME_STR_PARTY_NEED],
+                _g_need);
             _draw_text_ramped(_s_need, 0xA0u, 0x28u);
             break;
         case 2u:
@@ -884,8 +893,12 @@ int32_t party_intro_tick(const InputState *in)
             break;
         case 3u: /* 2652..268a              */
         {
-            char *q = _append_str(_put_number(_s_has + 0x13u, _g_members),
-                                  " MEMBERS!"); /* 2660    */
+            char *q = _append_str(
+                _put_number(
+                    _s_has +
+                        game_strs_num_offset[GAME_LANG_EN][GAME_STR_PARTY_HAS],
+                    _g_members),
+                game_strs[GAME_LANG_EN][GAME_STR_PARTY_MEMBERS_TAIL]); /* 2660 */
             if (_g_members == 1u) { /* 266d..267a              */
                 q -= 3;
                 *q = '!';
@@ -926,7 +939,10 @@ int32_t party_intro_tick(const InputState *in)
             _draw_text_ramped(_g_tribe, 0xA0u, 0x20u); /* 26b3    */
             break;
         case 2u:
-            *_put_number(_s_score + 0x0Eu, _g_score) = '\0'; /* 26d3    */
+            *_put_number(
+                _s_score +
+                    game_strs_num_offset[GAME_LANG_EN][GAME_STR_PARTY_SCORE],
+                _g_score) = '\0'; /* 26d3    */
             _draw_text_ramped(_s_score, 0xA0u, 0x34u);
             break;
         case 3u:
@@ -958,11 +974,16 @@ int32_t party_intro_tick(const InputState *in)
                                                 * variant of the briefing  */
         if (_step == 0u) {
             _clear_canvas();
-            _draw_text_ramped("GAME OVER!", 0xA0u, 0x14u);
-            _draw_text_ramped("YOUR TRIBE IS TOO SMALL TOO CONTINUE", 0xA0u,
-                              0x28u);
-            _draw_text_ramped("IN THE RACE FOR EVOLUTION!", 0xA0u, 0x34u);
-            _draw_text_ramped("PRESS FIRE TO TRY AGAIN!", 0xA0u, 0x48u);
+            _draw_text_ramped(
+                game_strs[GAME_LANG_EN][GAME_STR_PARTY_GAME_OVER], 0xA0u, 0x14u);
+            _draw_text_ramped(
+                game_strs[GAME_LANG_EN][GAME_STR_PARTY_TOO_SMALL], 0xA0u,
+                0x28u);
+            _draw_text_ramped(
+                game_strs[GAME_LANG_EN][GAME_STR_PARTY_IN_RACE], 0xA0u, 0x34u);
+            _draw_text_ramped(
+                game_strs[GAME_LANG_EN][GAME_STR_PARTY_TRY_AGAIN], 0xA0u,
+                0x48u);
             _intro_anim(); /* 2b9c: the band redraws carry
                                             * the _canvas text to the display */
             _step = 1u;

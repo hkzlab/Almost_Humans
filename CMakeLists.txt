@@ -45,6 +45,7 @@ add_library(core STATIC
     src/map.c
     src/score.c
     src/hiscore.c
+    src/game_strs.c
     src/entity.c
     src/object.c
     src/script.c
