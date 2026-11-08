@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Common Changelog](https://common-changelog.org),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- Detect the installed language from the first 2048 bytes of `HUMANS.001` (FNV-1a 32) and use it as
+  the `game_strs` column at run time, so one binary serves the same text as the five shipped
+  executables; an unrecognized or unreadable volume set keeps English and warns through the
+  backend (D-257)
+- Add `OSystem::warn`, the non-fatal diagnostic, so the core never writes to a host stream
+  (`ver_detect.c` and `audio.c` were the last two callers of `fprintf`)
+
+### Fixed
+
+- Finish the level-complete camera pan when the goal flag falls mid-pan (a human walking off the
+  activity block, e.g. on PARKVIEW): the track loop now keeps capturing the view, so it no longer
+  stays in the track state for ever (D-259)
+
 ## 1.0.0 - 2026-11-08
 
 _First release: a C99 port of the 1992 DOS game Humans, reimplemented from the original's (GOG's CD version) disassembly._

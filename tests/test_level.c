@@ -850,6 +850,65 @@ int main(int argc, char **argv)
         }
     }
 
+    /* --- D-259: a pan whose goal flag falls mid-track must still finish.
+     * 1000:3568 is the track loop's head, so the view is captured every
+     * iteration; the blocking loop never re-reads [0x6530] (1000:3540 is only
+     * reached when it returns).  A human stepping off the activity block
+     * clears the flag on the next goal scan - the PARKVIEW (level 26) hang.
+     * The pan target here, (8, 0), differs from the (0xC0, 0) the previous
+     * block leaves in the capture, so skipping the capture cannot terminate. */
+    if (level_load(25) == 0) {
+        uint8_t *r = object_slot(4);
+        uint32_t t;
+        int32_t sawRun = 0;
+
+        level_begin();
+        for (t = 0; t < 4000u && level_starting(); t++) {
+            level_tick();
+            palette_tick();
+            if (level_loading_screen()) level_loading_tick();
+        }
+        /* rec 4 onto PARKVIEW's one 0xBA cell (col 2, row 13) */
+        r[0] = 0x20u;
+        r[1] = 0x00u;
+        r[2] = 0xC4u;
+        r[3] = 0x00u;
+        r[4] = 0x10u;
+        r[5] = 0x00u;
+        r[6] = 0x00u;
+        r[7] = 0x00u;
+        r[8] = 0x18u; /* no row hook */
+        r[9] = 0x00u;
+        for (t = 0; t < 40u; t++) {
+            level_tick();
+            palette_tick();
+            if (level_goal_pan_running_for_probe()) {
+                sawRun = 1;
+                break;
+            }
+        }
+        if (!sawRun) {
+            fprintf(stderr, "FAIL D-259: the pan did not start\n");
+            bad = 1;
+        }
+        /* the human walks off the cell: the goal scan clears [0x6530] */
+        r[0] = 0xFFu;
+        r[1] = 0xFFu;
+        object_goal_scan();
+        if (object_goal_flag()) {
+            fprintf(stderr, "FAIL D-259: the goal flag survived the cell\n");
+            bad = 1;
+        }
+        for (t = 0; t < 400u && level_goal_pan_running_for_probe(); t++) {
+            level_tick();
+            palette_tick();
+        }
+        if (level_goal_pan_running_for_probe()) {
+            fprintf(stderr, "FAIL D-259: the pan hung after the flag fell\n");
+            bad = 1;
+        }
+    }
+
     /* --- D-90: the handled-object slots' stripe (1000:5D65) ---------------- */
     {
         static uint8_t page[320 * 200];

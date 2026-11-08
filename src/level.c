@@ -1804,11 +1804,19 @@ int32_t level_goal_pan_running_for_probe(void)
  */
 static void _level_goal_pan_tick(void)
 {
+    /* 1000:3568 is the track loop's head, so the view is captured every frame
+     * the pan tracks - including after [0x6530] has fallen, which the original
+     * cannot see inside its blocking loop.  Returning before the capture left
+     * the pan stuck in TRACK for ever whenever the human stepped off the
+     * activity block (the goal scan clears [0x6530] mid-pan). */
+    if (_level_goal_pan_running()) {
+        if (_goal_pan_state == GOALPAN_TRACK) {
+            _goal_pan_view_x = _view_x; /* 1000:3568 */
+            _goal_pan_view_y = _view_y;
+        }
+        return;
+    }
     if (!object_goal_flag()) { /* 1000:35A2 */
-        /* The original is blocked inside menu_flag_tick's pan loop while it
-         * runs; it does not re-read [0x6530] until the loop returns.  Only a
-         * pan that is not running is cancelled here. */
-        if (_level_goal_pan_running()) return;
         if (_goal_pan_state != GOALPAN_NONE) {
             object_set_marker_mode(0); /* 1000:35A9 */
             _goal_follow_record = -1;
@@ -1828,8 +1836,7 @@ static void _level_goal_pan_tick(void)
             return;
         }
         _goal_pan_state = GOALPAN_TRACK;
-    } else if (_goal_pan_state == GOALPAN_TRACK) {
-        _goal_pan_view_x = _view_x; /* 1000:3568 */
+        _goal_pan_view_x = _view_x; /* 1000:3568, the loop's first capture */
         _goal_pan_view_y = _view_y;
     }
 }
