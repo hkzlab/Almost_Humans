@@ -65,8 +65,7 @@ void audio_install(void)
 {
     if (!_au_osys) return;
     if (_au_osys->audioInstall()) {
-        fprintf(stderr,
-                "audio: the driver did not install; the game is silent\n");
+        _au_osys->warn("audio: the driver did not install; the game is silent");
     }
 }
 
@@ -100,6 +99,7 @@ static int32_t _driver_id(void)
 void audio_play_tune(const char *name)
 {
     char path[24];
+    char msg[96];
     uint8_t *image;
     uint32_t size = 0;
     int32_t id;
@@ -116,8 +116,9 @@ void audio_play_tune(const char *name)
     snprintf(path, sizeof(path), "%s%s", name, ext);
     image = res_load_chunk(path, &size, NULL);
     if (!image) {
-        fprintf(stderr, "audio: cannot load %s; the record is silenced\n",
-                path);
+        snprintf(msg, sizeof msg,
+                 "audio: cannot load %s; the record is silenced", path);
+        _au_osys->warn(msg);
         _tune_missing = 1;
         audio_music_stop(); /* D-252: silence instead of the original's exit */
         return;

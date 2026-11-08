@@ -31,16 +31,34 @@ void sdl3_audio_tempo(uint8_t cl);
 void sdl3_audio_tick(void);
 int32_t sdl3_audio_select(const char *name, const char *roms);
 int32_t sdl3_audio_driver_id(void);
+static void _warn(const char *msg);
 static void _fatal(const char *msg);
 
-const OSystem g_osys_sdl3 = { sdl3_video_set_mode,  sdl3_video_page,
-                              sdl3_video_present,   sdl3_video_set_palette,
-                              sdl3_events_poll,     sdl3_timer_start,
-                              sdl3_tick_sync,       sdl3_audio_install,
-                              sdl3_audio_load_tune, sdl3_audio_resume,
-                              sdl3_audio_stop,      sdl3_audio_sfx,
-                              sdl3_audio_tempo,     sdl3_audio_tick,
-                              sdl3_audio_driver_id, _fatal };
+const OSystem g_osys_sdl3 = { sdl3_video_set_mode,
+                              sdl3_video_page,
+                              sdl3_video_present,
+                              sdl3_video_set_palette,
+                              sdl3_events_poll,
+                              sdl3_timer_start,
+                              sdl3_tick_sync,
+                              sdl3_audio_install,
+                              sdl3_audio_load_tune,
+                              sdl3_audio_resume,
+                              sdl3_audio_stop,
+                              sdl3_audio_sfx,
+                              sdl3_audio_tempo,
+                              sdl3_audio_tick,
+                              sdl3_audio_driver_id,
+                              _warn,
+                              _fatal };
+
+/**
+ * @brief Report a non-fatal diagnostic through SDL's log.
+ *
+ * @param msg the message
+ */
+static void _warn(const char *msg)
+{ SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "%s", msg); }
 
 /**
  * @brief Report a backend failure and exit.

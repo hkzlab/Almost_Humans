@@ -105,6 +105,10 @@ typedef struct OSystem {
     int32_t (*audioDriverId)(void);
 
     /* --- misc -------------------------------------------------------- */
+    /* A non-fatal diagnostic: the core formats the message, the backend owns
+     * the destination (SDL log, stderr, nothing).  Not a DOS behaviour — the
+     * original had no logging — but the core must not know a stream either. */
+    void (*warn)(const char *msg);
     void (*fatalError)(const char *msg); /* does not return            */
 } OSystem;
 

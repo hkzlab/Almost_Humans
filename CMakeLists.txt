@@ -55,6 +55,7 @@ add_library(core STATIC
     src/textpage.c
     src/save.c
     src/party_intro.c
+    src/ver_detect.c
 )
 target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 humansre_warnings(core)
@@ -81,6 +82,17 @@ add_executable(test_game_strs tests/test_game_strs.c src/game_strs.c)
 target_include_directories(test_game_strs PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 humansre_warnings(test_game_strs)
 add_test(NAME game_strs COMMAND test_game_strs)
+
+# The language detector: the FNV-1a vectors, the digest -> column map and
+# each shipped volume set (one subdirectory per language under the root).
+set(HUMANS_VOLUMES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../binaries/volumes"
+    CACHE PATH "Game data root with one directory per shipped language")
+add_executable(test_ver_detect tests/test_ver_detect.c
+    src/arch/null/OSystem.c)          # the null backend: the warning's destination
+target_include_directories(test_ver_detect PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(test_ver_detect PRIVATE core fs_posix)
+humansre_warnings(test_ver_detect)
+add_test(NAME ver_detect COMMAND test_ver_detect ${HUMANS_VOLUMES_DIR})
 
 # The resource fixture test runs against the real game data (HUMANS.00N);
 # point HUMANS_DATA_DIR at a directory holding them.  Missing data = skip.

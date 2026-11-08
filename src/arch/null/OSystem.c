@@ -25,6 +25,7 @@ static void _null_audio_sfx(uint16_t id);
 static void _null_audio_tempo(uint8_t cl);
 static void _null_audio_tick(void);
 static int32_t _null_audio_driver_id(void);
+static void _null_warn(const char *msg);
 static void _null_fatal(const char *msg);
 
 static uint8_t _pages[2][320 * 200];
@@ -61,7 +62,7 @@ const OSystem g_osys_null = {
     _null_tick_sync,    _null_audio_install, _null_audio_load,
     _null_audio_resume, _null_audio_stop,    _null_audio_sfx,
     _null_audio_tempo,  _null_audio_tick,    _null_audio_driver_id,
-    _null_fatal
+    _null_warn,         _null_fatal
 };
 
 /**
@@ -198,6 +199,12 @@ static void _null_audio_tick(void) { _audio_ticks++; }
  * @return 1 (AdLib)
  */
 static int32_t _null_audio_driver_id(void) { return 1; }
+/**
+ * @brief The null backend: a non-fatal diagnostic goes to stderr.
+ *
+ * @param msg the message
+ */
+static void _null_warn(const char *msg) { fprintf(stderr, "%s\n", msg); }
 /**
  * @brief The null backend: print and exit.
  *

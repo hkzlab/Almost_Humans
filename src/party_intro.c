@@ -666,19 +666,19 @@ void party_intro_set_values(uint32_t level, uint32_t need, uint32_t members,
     /* the image's verbatim strings (202F:0x105F..; the digit fields are
      * fixed-width and the formatter rewrites them in place, 0x3F1B) */
     strncpy(_s_all,
-            game_strs[GAME_LANG_EN][GAME_STR_PARTY_COMING_UP],
+            game_strs[g_game_lang][GAME_STR_PARTY_COMING_UP],
             sizeof _s_all - 1u);
-    strncpy(_s_need, game_strs[GAME_LANG_EN][GAME_STR_PARTY_NEED],
+    strncpy(_s_need, game_strs[g_game_lang][GAME_STR_PARTY_NEED],
             sizeof _s_need - 1u);
-    strncpy(_s_this, game_strs[GAME_LANG_EN][GAME_STR_PARTY_THIS_LEVEL],
+    strncpy(_s_this, game_strs[g_game_lang][GAME_STR_PARTY_THIS_LEVEL],
             sizeof _s_this - 1u);
-    strncpy(_s_has, game_strs[GAME_LANG_EN][GAME_STR_PARTY_HAS],
+    strncpy(_s_has, game_strs[g_game_lang][GAME_STR_PARTY_HAS],
             sizeof _s_has - 1u);
-    strncpy(_s_code, game_strs[GAME_LANG_EN][GAME_STR_PARTY_CODE],
+    strncpy(_s_code, game_strs[g_game_lang][GAME_STR_PARTY_CODE],
             sizeof _s_code - 1u);
-    strncpy(_s_score, game_strs[GAME_LANG_EN][GAME_STR_PARTY_SCORE],
+    strncpy(_s_score, game_strs[g_game_lang][GAME_STR_PARTY_SCORE],
             sizeof _s_score - 1u);
-    strncpy(_s_fire, game_strs[GAME_LANG_EN][GAME_STR_PARTY_FIRE],
+    strncpy(_s_fire, game_strs[g_game_lang][GAME_STR_PARTY_FIRE],
             sizeof _s_fire - 1u);
 }
 
@@ -885,8 +885,7 @@ int32_t party_intro_tick(const InputState *in)
             _clear_canvas();
             *_put_number(
                 _s_all +
-                    game_strs_num_offset[GAME_LANG_EN]
-                                        [GAME_STR_PARTY_COMING_UP],
+                    game_strs_num_offset[g_game_lang][GAME_STR_PARTY_COMING_UP],
                 _g_level) = '\0'; /* 260e    */
             _draw_text_ramped(_s_all, 0xA0u, 0x14u);
             break;
@@ -895,7 +894,7 @@ int32_t party_intro_tick(const InputState *in)
                                                 * survives the patch        */
             (void)_put_number(
                 _s_need +
-                    game_strs_num_offset[GAME_LANG_EN][GAME_STR_PARTY_NEED],
+                    game_strs_num_offset[g_game_lang][GAME_STR_PARTY_NEED],
                 _g_need);
             _draw_text_ramped(_s_need, 0xA0u, 0x28u);
             break;
@@ -907,9 +906,9 @@ int32_t party_intro_tick(const InputState *in)
             char *q = _append_str(
                 _put_number(
                     _s_has +
-                        game_strs_num_offset[GAME_LANG_EN][GAME_STR_PARTY_HAS],
+                        game_strs_num_offset[g_game_lang][GAME_STR_PARTY_HAS],
                     _g_members),
-                game_strs[GAME_LANG_EN][GAME_STR_PARTY_MEMBERS_TAIL]); /* 2660 */
+                game_strs[g_game_lang][GAME_STR_PARTY_MEMBERS_TAIL]); /* 2660 */
             if (_g_members == 1u) { /* 266d..267a              */
                 q -= 3;
                 *q = '!';
@@ -952,7 +951,7 @@ int32_t party_intro_tick(const InputState *in)
         case 2u:
             *_put_number(
                 _s_score +
-                    game_strs_num_offset[GAME_LANG_EN][GAME_STR_PARTY_SCORE],
+                    game_strs_num_offset[g_game_lang][GAME_STR_PARTY_SCORE],
                 _g_score) = '\0'; /* 26d3    */
             _draw_text_ramped(_s_score, 0xA0u, 0x34u);
             break;
@@ -986,14 +985,14 @@ int32_t party_intro_tick(const InputState *in)
         if (_step == 0u) {
             _clear_canvas();
             _draw_text_ramped(
-                game_strs[GAME_LANG_EN][GAME_STR_PARTY_GAME_OVER], 0xA0u, 0x14u);
+                game_strs[g_game_lang][GAME_STR_PARTY_GAME_OVER], 0xA0u, 0x14u);
             _draw_text_ramped(
-                game_strs[GAME_LANG_EN][GAME_STR_PARTY_TOO_SMALL], 0xA0u,
+                game_strs[g_game_lang][GAME_STR_PARTY_TOO_SMALL], 0xA0u,
                 0x28u);
             _draw_text_ramped(
-                game_strs[GAME_LANG_EN][GAME_STR_PARTY_IN_RACE], 0xA0u, 0x34u);
+                game_strs[g_game_lang][GAME_STR_PARTY_IN_RACE], 0xA0u, 0x34u);
             _draw_text_ramped(
-                game_strs[GAME_LANG_EN][GAME_STR_PARTY_TRY_AGAIN], 0xA0u,
+                game_strs[g_game_lang][GAME_STR_PARTY_TRY_AGAIN], 0xA0u,
                 0x48u);
             _intro_anim(); /* 2b9c: the band redraws carry
                                             * the _canvas text to the display */

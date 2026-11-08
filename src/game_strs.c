@@ -9,6 +9,8 @@
  */
 #include "game_strs.h"
 
+uint32_t g_game_lang = GAME_LANG_EN;
+
 const char *const game_strs[GAME_LANG_COUNT][GAME_STR_COUNT] = {
     [GAME_LANG_EN] = {
         /* attract */

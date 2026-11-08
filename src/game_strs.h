@@ -107,6 +107,11 @@ enum GameStr {
     GAME_STR_COUNT
 };
 
+/* The active column.  ver_detect_run() stores the language of the installed
+ * volume set here at boot; every consumer indexes the tables below with it,
+ * so a call site never names a language. */
+extern uint32_t g_game_lang;
+
 extern const char *const game_strs[GAME_LANG_COUNT][GAME_STR_COUNT];
 
 /* Byte offset of each string's in-place digit field, parallel to game_strs:

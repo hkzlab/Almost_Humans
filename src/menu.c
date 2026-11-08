@@ -148,15 +148,15 @@ void menu_draw(void)
     uint8_t *page = _menu_osys ? _menu_osys->videoPage(0) : NULL;
     if (_phase == MENU_PAUSE)
         textpage_draw(page,
-                      game_strs[GAME_LANG_EN][GAME_STR_MENU_PAUSE_BLOCK],
+                      game_strs[g_game_lang][GAME_STR_MENU_PAUSE_BLOCK],
                       (int32_t)_row, 0u, 0);
     else if (_phase == MENU_GRID)
         textpage_draw(page,
-                      game_strs[GAME_LANG_EN][GAME_STR_MENU_GRID_BLOCK],
+                      game_strs[g_game_lang][GAME_STR_MENU_GRID_BLOCK],
                       (int32_t)_row, _col, 1);
     else if (_phase == MENU_TIMEOUT)
         textpage_draw(page,
-                      game_strs[GAME_LANG_EN][GAME_STR_MENU_TIME_UP_BLOCK],
+                      game_strs[g_game_lang][GAME_STR_MENU_TIME_UP_BLOCK],
                       (int32_t)_row, 0u, 0);
 }
 

@@ -1122,7 +1122,7 @@ void map_draw_list_header(uint8_t *page)
         map_draw_rect(page, 0xD6u, y, 0x58u, 0x0Fu);
     }
     textpage_draw_line_mask_at(
-        page, game_strs[GAME_LANG_EN][GAME_STR_MAP_TOP_TEN], 0xA0u, 0x14u,
+        page, game_strs[g_game_lang][GAME_STR_MAP_TOP_TEN], 0xA0u, 0x14u,
         0x20u);
 }
 
@@ -1136,7 +1136,7 @@ void map_draw_congrats(uint8_t *page)
     for (uint32_t i = 0; i < 7u; i++)
         textpage_draw_line_mask_at(
             page,
-            game_strs[GAME_LANG_EN][GAME_STR_MAP_CONGRATS_0 + i], 0xA0u,
+            game_strs[g_game_lang][GAME_STR_MAP_CONGRATS_0 + i], 0xA0u,
             0x19u + 0x10u * i, 0x20u);
 }
 

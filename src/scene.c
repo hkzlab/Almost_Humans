@@ -565,7 +565,7 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
      * vertical ramp) — the index-th string of 202F:0x6304 */
     {
         const char *headline =
-            game_strs[GAME_LANG_EN][GAME_STR_SCENE_HEADLINE_0 + index];
+            game_strs[g_game_lang][GAME_STR_SCENE_HEADLINE_0 + index];
 
         if (headline[0])
             textpage_draw_line_mask(video_page(0), headline, 0x41u, 0x10u);

@@ -92,6 +92,7 @@ static void _tick(void)
     g_sound_driver_adlib.tick(_drv);
 }
 static int32_t _driver_id(void) { return 1; } /* AdLib */
+static void _warn(const char *msg) { fprintf(stderr, "warn: %s\n", msg); }
 static void _fatal(const char *msg)
 {
     fprintf(stderr, "fatal: %s\n", msg);
@@ -101,7 +102,8 @@ static void _fatal(const char *msg)
 static const OSystem _osys = { _vset,  _vpage,  _vpresent,  _vpalette,
                                _poll,  _tstart, _tsync,     _install,
                                _load,  _resume, _stop,      _sfx,
-                               _tempo, _tick,   _driver_id, _fatal };
+                               _tempo, _tick,   _driver_id, _warn,
+                               _fatal };
 
 /**
  * @brief Render some audio and return the largest absolute sample.

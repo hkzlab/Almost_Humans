@@ -366,7 +366,7 @@ static void _draw_times_row(uint8_t *ar, uint32_t levelMinus1,
     secs[0] = (char)('0' + (rec[0] >> 4));
     secs[1] = (char)('0' + (rec[0] & 0xFu));
     secs[2] = 0;
-    font_draw_text(ar, game_strs[GAME_LANG_EN][GAME_STR_ATTRACT_TIMES_LABEL],
+    font_draw_text(ar, game_strs[g_game_lang][GAME_STR_ATTRACT_TIMES_LABEL],
                    0x92u,
                    row); /* 16D3, redrawn per row */
     font_draw_text(ar, num, 0x3Du, row);
@@ -951,13 +951,13 @@ int32_t attract_tick(const InputState *in)
         memset(_arena, 0, sizeof _arena); /* clear_screen_buf 1882 */
         if (_frame == 0u) { /* intro_frame_1 1625 */
             font_draw_text(_arena,
-                           game_strs[GAME_LANG_EN][GAME_STR_ATTRACT_SCORE_HEADER],
+                           game_strs[g_game_lang][GAME_STR_ATTRACT_SCORE_HEADER],
                            0xA0u, 4u);
             _draw_score_block(_arena);
         } else { /* intro_frame_2 1652 */
             uint32_t base = (_frame - 1u) * 10u;
             font_draw_text(_arena,
-                           game_strs[GAME_LANG_EN][GAME_STR_ATTRACT_TIMES_HEADER],
+                           game_strs[g_game_lang][GAME_STR_ATTRACT_TIMES_HEADER],
                            0xA0u, 4u);
             for (uint32_t r = 0; r < 10u; r++) {
                 uint8_t rec[2];

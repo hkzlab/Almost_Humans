@@ -34,6 +34,7 @@
 static uint32_t _core_loaded_size;
 static uint32_t _core_resumes;
 static uint32_t _core_stops;
+static uint32_t _core_warns;
 static int32_t _core_driver_id = 0; /* Beeper */
 
 /**
@@ -73,6 +74,17 @@ static void _core_tempo(uint8_t cl) { (void)cl; }
  * @return the driver id (0 = Beeper)
  */
 static int32_t _core_id(void) { return _core_driver_id; }
+
+/**
+ * @brief The core test's non-fatal diagnostic: count it.
+ *
+ * @param msg the message (ignored)
+ */
+static void _core_warn(const char *msg)
+{
+    (void)msg;
+    _core_warns++;
+}
 
 static uint8_t *_read_file(const char *path, uint32_t *size)
 {
@@ -304,7 +316,8 @@ int main(int argc, char **argv)
                                       .audioResume = _core_resume,
                                       .audioStop = _core_stop,
                                       .audioTempo = _core_tempo,
-                                      .audioDriverId = _core_id };
+                                      .audioDriverId = _core_id,
+                                      .warn = _core_warn };
         static const char missing[] = "mus\\nope";
         uint32_t stops0;
 
@@ -321,6 +334,7 @@ int main(int argc, char **argv)
         stops0 = _core_stops;
         audio_play_tune(missing);
         assert(_core_stops == stops0 + 1);
+        assert(_core_warns == 1); /* the missing tune is reported once */
         audio_music_resume();
         assert(_core_resumes == 1);
 

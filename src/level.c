@@ -2664,17 +2664,17 @@ static void _disk_draw(uint32_t disc)
 
     char line[32];
     textpage_draw_line(page,
-                       game_strs[GAME_LANG_EN][GAME_STR_LEVEL_PUT_DISK], 0x50u,
+                       game_strs[g_game_lang][GAME_STR_LEVEL_PUT_DISK], 0x50u,
                        0x0Fu);
     snprintf(line, sizeof line,
-             game_strs[GAME_LANG_EN][GAME_STR_LEVEL_INTO_DRIVE],
+             game_strs[g_game_lang][GAME_STR_LEVEL_INTO_DRIVE],
              (char)('1' + disc));
     textpage_draw_line(page, line, 0x60u, 0x0Fu);
     textpage_draw_line(page,
-                       game_strs[GAME_LANG_EN][GAME_STR_LEVEL_PRESS_FIRE], 0x88u,
+                       game_strs[g_game_lang][GAME_STR_LEVEL_PRESS_FIRE], 0x88u,
                        0x0Fu);
     textpage_draw_line(page,
-                       game_strs[GAME_LANG_EN][GAME_STR_LEVEL_WHEN_READY], 0x98u,
+                       game_strs[g_game_lang][GAME_STR_LEVEL_WHEN_READY], 0x98u,
                        0x0Fu);
 }
 
