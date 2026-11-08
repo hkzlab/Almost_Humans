@@ -44,6 +44,7 @@ static void (*_present_hook)(uint32_t poll);
  * one-poll-per-tick timing.  osys_null_run_ticks drives the ISR body by hand
  * for the content tests and advances the same counter. */
 static uint32_t _tick_counter; /* [0x5AC8] */
+static uint32_t _tick_limit; /* 0 = forever: the tests' default */
 /* the audio calls are counted: the MUSIC board's gate is the only
  * observable the M5 stub has, and test_frontend asserts it */
 static uint32_t _audio_starts, _audio_stops;
@@ -109,6 +110,9 @@ static void _null_poll(InputState *out)
         _the_input = _script_states[_script_i++];
     else if (_script_states) _the_input = _script_states[_script_n - 1];
     *out = _the_input;
+    /* the headless executable's --ticks: quit through the core's own path
+     * (game_main's input.quit check), not from inside the backend */
+    if (_tick_limit && _tick_counter >= _tick_limit) out->quit = 1;
 }
 /**
  * @brief The null backend: record the tick callback.
@@ -204,6 +208,13 @@ static void _null_fatal(const char *msg)
     fprintf(stderr, "fatal: %s\n", msg);
     exit(1);
 }
+
+/**
+ * @brief Stop the loop after a tick count (the headless executable's --ticks).
+ *
+ * @param n the limit in ticks; 0 runs until the input asks to quit
+ */
+void osys_null_set_tick_limit(uint32_t n) { _tick_limit = n; }
 
 /** @brief test hooks: drive N ticks by hand, inject input, read back video state
  * (the headless tests use these)

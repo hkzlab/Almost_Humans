@@ -59,7 +59,7 @@ static void _vid_make_texture(int32_t rows)
  */
 static void _vid_init_video(void)
 {
-    if (!SDL_CreateWindowAndRenderer("Humans RE " HUMANSRE_VERSION, 960, 720,
+    if (!SDL_CreateWindowAndRenderer(HUMANSRE_PROJECT_TITLE " " HUMANSRE_VERSION, 960, 720,
                                      SDL_WINDOW_RESIZABLE, &_win, &_ren))
         SDL_Log("window: %s", SDL_GetError());
     /* No renderer vsync: the loop is paced by the tick gate (game_main's

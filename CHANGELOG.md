@@ -23,3 +23,4 @@ _First release: a C99 port of the 1992 DOS game Humans, reimplemented from the o
   ported subsystems against the shipped game data
 - Add AdLib, Beeper and MT-32 sound drivers behind the INT 60h-shaped ABI, selectable at run time
 - Add the version banner, the SDL3 `--version`/`-v` option and the version in the window title
+- Add the `--ticks` limit to the headless executable so a smoke run terminates

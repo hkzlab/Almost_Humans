@@ -12,8 +12,10 @@ if(NOT DEFINED CMAKE_C_COMPILER AND NOT DEFINED ENV{CC})
 endif()
 project(HumansRE VERSION 1.0.0 LANGUAGES C)
 
-# The port's version, printed by each arch's main() at startup.
-add_compile_definitions(HUMANSRE_VERSION="${PROJECT_VERSION}")
+# The port's title and version, printed by each arch's main() at startup.
+set(HUMANSRE_PROJECT_TITLE "Almost Humans")
+add_compile_definitions(HUMANSRE_PROJECT_TITLE="${HUMANSRE_PROJECT_TITLE}"
+                        HUMANSRE_VERSION="${PROJECT_VERSION}")
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)

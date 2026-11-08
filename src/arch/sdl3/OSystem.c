@@ -89,7 +89,7 @@ static CliParseResult _parse_args(int argc, char **argv, CliOptions *opts)
     opts->roms = NULL;
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-v") == 0) {
-            printf("HumansRE %s\n", HUMANSRE_VERSION);
+            printf("%s %s\n", HUMANSRE_PROJECT_TITLE, HUMANSRE_VERSION);
             return CLI_PARSE_VERSION;
         } else if (strcmp(argv[i], "--audio") == 0) {
             if (++i >= argc) {
