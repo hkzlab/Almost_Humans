@@ -9,7 +9,8 @@
 #ifdef _WIN32
 #    include <direct.h> /* chdir = _chdir on the Windows CRT */
 /* the macro keeps the CRT's spelling on purpose: it maps the POSIX name */
-#    define chdir _chdir
+#    define chdir  _chdir
+#    define getcwd _getcwd
 #else
 #    include <unistd.h>
 #endif
@@ -139,6 +140,30 @@ static CliParseResult _parse_args(int argc, char **argv, CliOptions *opts)
 }
 
 /**
+ * @brief Resolve a relative --mt32-roms path against the current directory.
+ *
+ * main() chdirs into the volume directory before the audio driver loads its
+ * ROMs, so the directory has to become absolute while the invoking working
+ * directory is still current.
+ *
+ * @param roms the path from the command line, may be NULL
+ * @param buf storage for the absolute form
+ * @param size buf's capacity
+ * @return roms itself when it is already absolute or cannot be resolved,
+ *         otherwise buf
+ */
+static const char *_roms_absolute(const char *roms, char *buf, size_t size)
+{
+    char cwd[768];
+
+    if (!roms || !roms[0]) return roms;
+    if (roms[0] == '/' || roms[0] == '\\' || roms[1] == ':') return roms;
+    if (!getcwd(cwd, (int)sizeof(cwd))) return roms;
+    snprintf(buf, size, "%s/%s", cwd, roms);
+    return buf;
+}
+
+/**
  * @brief Install the driver named on the command line.
  *
  * @param opts the parsed command line
@@ -185,12 +210,14 @@ static int _select_audio(const CliOptions *opts)
 int main(int argc, char **argv)
 {
     CliOptions opts;
+    char roms[1024];
 
     switch (_parse_args(argc, argv, &opts)) {
     case CLI_PARSE_CONTINUE: break;
     case CLI_PARSE_VERSION: return 0;
     case CLI_PARSE_ERROR: return 1;
     }
+    opts.roms = _roms_absolute(opts.roms, roms, sizeof(roms));
     if (_select_audio(&opts) != 0) return 1;
     if (chdir(opts.path) != 0) {
         fprintf(stderr, "cannot chdir to '%s'\n", opts.path);
