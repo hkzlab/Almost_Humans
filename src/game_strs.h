@@ -13,7 +13,9 @@
  * column of its own.
  *
  * Resource and file names (APL\TEXT.SPR, mus\title, ...) are not here: they
- * name bytes on the discs, not text the player reads, so they do not localise.
+ * name bytes on the discs, not text the player reads, and they are the same
+ * in every build.  The exception is the pair of intro asset names that do
+ * change per build; they sit at the end of the enum, marked unused.
  */
 
 #ifndef HUMANSRE_GAME_STRS_H
@@ -87,6 +89,20 @@ enum GameStr {
     GAME_STR_SCENE_HEADLINE_7,
     GAME_STR_SCENE_HEADLINE_8, /* the empty one: scene 8 draws nothing */
     GAME_STR_SCENE_HEADLINE_9,
+
+    /* The two intro asset names that change per build.  NOTHING LOADS THEM
+     * TODAY: the language bitmap's only loader site (ENG `1000:BDF5`) sits
+     * inside `intro_flags_screen` (`1000:BDD8..BE38`), which has no caller
+     * in the database and never fires in the documented runtime capture —
+     * and a fresh analysis of the translated builds creates no function
+     * around their site at all.  The protection bitmap never reaches a
+     * loader (in ENG its name appears only as a `MOV CX` operand inside
+     * `save_progress`, not as a request), and no volume ships either file:
+     * all five carry `INTRO\GAMEPROT.BIT`.  They are here because they are
+     * the only file names that localise, so the table is complete for a
+     * build that ever reaches them. */
+    GAME_STR_INTRO_LANG_BIT,
+    GAME_STR_INTRO_PROT_BIT,
 
     GAME_STR_COUNT
 };

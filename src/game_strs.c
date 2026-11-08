@@ -80,7 +80,11 @@ const char *const game_strs[GAME_LANG_COUNT][GAME_STR_COUNT] = {
         "HUMANS FAIL IN RACE FOR EVOLUTION!",
         "HUMANS WIN THE RACE FOR EVOLUTION!",
         "",
-        "HUMANS RECOVER THE STOLEN IDOL!"
+        "HUMANS RECOVER THE STOLEN IDOL!",
+
+        /* the two localised asset names nothing loads today */
+        "intro\\english.bit",
+        "intro\\gameprot.bit"
     },
     [GAME_LANG_FRE] = {
         /* attract */
@@ -152,7 +156,11 @@ const char *const game_strs[GAME_LANG_COUNT][GAME_STR_COUNT] = {
         "ECHEC DANS LA COURSE A L'EVOLUTION!",
         "SUCCES DANS LA COURSE A L'EVOLUTION!",
         "",
-        "LES HUMANS RETROUVENT L'IDOLE SACREE!"
+        "LES HUMANS RETROUVENT L'IDOLE SACREE!",
+
+        /* the two localised asset names nothing loads today */
+        "intro\\french.bit",
+        "intro\\freprot.bit"
     },
     [GAME_LANG_GER] = {
         /* attract */
@@ -224,7 +232,11 @@ const char *const game_strs[GAME_LANG_COUNT][GAME_STR_COUNT] = {
         "DAS RENNEN DER EVOLUTION VERLOREN!",
         "DAS RENNEN DER EVOLUTION GEWONNEN!",
         "",
-        "HUMANS SICHERTEN HEILIGES GOETZENBILD!"
+        "HUMANS SICHERTEN HEILIGES GOETZENBILD!",
+
+        /* the two localised asset names nothing loads today */
+        "intro\\german.bit",
+        "intro\\gerprot.bit"
     },
     [GAME_LANG_ITA] = {
         /* attract */
@@ -296,7 +308,11 @@ const char *const game_strs[GAME_LANG_COUNT][GAME_STR_COUNT] = {
         "FALLITA LA CORSA PER L'EVOLUZIONE!",
         "HUMANS VINCONO LA CORSA PER L'EVOLUZIONE!",
         "",
-        "HUMANS RECUPERANO L'IDOLO SACRO!"
+        "HUMANS RECUPERANO L'IDOLO SACRO!",
+
+        /* the two localised asset names nothing loads today */
+        "intro\\italian.bit",
+        "intro\\itaprot.bit"
     },
     [GAME_LANG_SPA] = {
         /* attract */
@@ -368,7 +384,11 @@ const char *const game_strs[GAME_LANG_COUNT][GAME_STR_COUNT] = {
         "PIERDEN LA CARRERA DE LA EVOLUCION!",
         "GANAN LA CARRERA DE LA EVOLUCION!",
         "",
-        "LOS HUMANS RECUPERAN EL IDOLO SAGRADO!"
+        "LOS HUMANS RECUPERAN EL IDOLO SAGRADO!",
+
+        /* the two localised asset names nothing loads today */
+        "intro\\spanish.bit",
+        "intro\\spaprot.bit"
     }
 };
 
@@ -409,7 +429,8 @@ const uint8_t game_strs_num_offset[GAME_LANG_COUNT][GAME_STR_COUNT] = {
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
-        GAME_STR_NUM_NONE
+        GAME_STR_NUM_NONE,
+        GAME_STR_NUM_NONE, GAME_STR_NUM_NONE
     },
     [GAME_LANG_FRE] = {
         /* attract */
@@ -442,7 +463,8 @@ const uint8_t game_strs_num_offset[GAME_LANG_COUNT][GAME_STR_COUNT] = {
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
-        GAME_STR_NUM_NONE
+        GAME_STR_NUM_NONE,
+        GAME_STR_NUM_NONE, GAME_STR_NUM_NONE
     },
     [GAME_LANG_GER] = {
         /* attract */
@@ -475,7 +497,8 @@ const uint8_t game_strs_num_offset[GAME_LANG_COUNT][GAME_STR_COUNT] = {
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
-        GAME_STR_NUM_NONE
+        GAME_STR_NUM_NONE,
+        GAME_STR_NUM_NONE, GAME_STR_NUM_NONE
     },
     [GAME_LANG_ITA] = {
         /* attract */
@@ -508,7 +531,8 @@ const uint8_t game_strs_num_offset[GAME_LANG_COUNT][GAME_STR_COUNT] = {
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
-        GAME_STR_NUM_NONE
+        GAME_STR_NUM_NONE,
+        GAME_STR_NUM_NONE, GAME_STR_NUM_NONE
     },
     [GAME_LANG_SPA] = {
         /* attract */
@@ -541,6 +565,7 @@ const uint8_t game_strs_num_offset[GAME_LANG_COUNT][GAME_STR_COUNT] = {
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
-        GAME_STR_NUM_NONE
+        GAME_STR_NUM_NONE,
+        GAME_STR_NUM_NONE, GAME_STR_NUM_NONE
     }
 };

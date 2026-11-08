@@ -106,6 +106,16 @@ int main(void)
             if (i != 8)
                 check(game_strs[l][GAME_STR_SCENE_HEADLINE_0 + i][0] != '\0',
                       "headline is empty", lang);
+
+        /* the two caveated names: real file names in the intro\ directory,
+         * unused today (see game_strs.h) */
+        for (int i = 0; i < 2; i++) {
+            const char *n = game_strs[l][GAME_STR_INTRO_LANG_BIT + i];
+
+            check(strncmp(n, "intro\\", 6) == 0 &&
+                      strlen(n) > 4 && strcmp(n + strlen(n) - 4, ".bit") == 0,
+                  "intro asset name", lang);
+        }
     }
 
     if (failures) {
