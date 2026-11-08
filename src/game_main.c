@@ -864,7 +864,8 @@ static int32_t _game_frame(const OSystem *osys, GameFlow *state,
                  * 0x438A and never opens it.  entry's post-level step (the
                  * newspaper, the ending, or the next level) follows. */
             if (_end_phase == END_CAPTION) {
-                char text[40];
+                char text[48]; /* the widest column: FRE's two-line caption
+                                * is 42 bytes with a three-digit level */
 
                 level_tick();
                 if (level_outcome())

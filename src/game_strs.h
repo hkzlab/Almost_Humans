@@ -1,8 +1,16 @@
 /* game_strs.h — the localisable text of the game core.
  *
  * `game_strs[language][id]` is the only source of displayed text: the first
- * index picks the language (English for now), the second the string a routine
- * needs.  Adding a language means filling a row, not touching a call site.
+ * index picks the language (English is the one the port starts in), the
+ * second the string a routine needs.  Adding a language means filling a row,
+ * not touching a call site.
+ *
+ * Every column is taken byte-for-byte from that language's shipped image
+ * (`202F:0x5F..`, `0x7BB..`, `0x105F..`, ... per build) by
+ * `tools/extract_game_strs.py`, which documents where each block lives and
+ * why the columns cannot share addresses.  `HUMANS_unpacked_spa_alt.exe`
+ * carries text byte-identical to `HUMANS_unpacked_spa.exe`, so it has no
+ * column of its own.
  *
  * Resource and file names (APL\TEXT.SPR, mus\title, ...) are not here: they
  * name bytes on the discs, not text the player reads, so they do not localise.
@@ -15,6 +23,10 @@
 
 enum GameLang {
     GAME_LANG_EN = 0, /* the shipped English text                      */
+    GAME_LANG_FRE,    /* French  (HUMANS_unpacked_fre.exe)             */
+    GAME_LANG_GER,    /* German  (HUMANS_unpacked_ger.exe)             */
+    GAME_LANG_ITA,    /* Italian (HUMANS_unpacked_ita.exe)             */
+    GAME_LANG_SPA,    /* Spanish (HUMANS_unpacked_spa.exe)             */
     GAME_LANG_COUNT
 };
 
@@ -27,13 +39,15 @@ enum GameStr {
     /* gameflow */    GAME_STR_GAMEFLOW_LEVEL_DONE, /* snprintf format, one %03u          */
     GAME_STR_GAMEFLOW_EXTINCT,
 
-    /* level: the insert-disc page */
+    /* level: the insert-disc page (not localised in any build) */
     GAME_STR_LEVEL_PUT_DISK,
     GAME_STR_LEVEL_INTO_DRIVE, /* snprintf format, one %c            */
     GAME_STR_LEVEL_PRESS_FIRE,
     GAME_STR_LEVEL_WHEN_READY,
 
-    /* map: the qualifying page's seven lines, then the top-ten header */
+    /* map: the qualifying page's seven lines, then the top-ten header.
+     * FRE and GER fit the sentence in six lines, so their seventh line is
+     * their header string — that is what `menu_loop` draws (1000:0252). */
     GAME_STR_MAP_CONGRATS_0,
     GAME_STR_MAP_CONGRATS_1,
     GAME_STR_MAP_CONGRATS_2,

@@ -152,14 +152,18 @@ static uint16_t _g_members; /* [0x11fc]                           */
 static uint16_t _g_score; /* [0x592]                            */
 static char _g_tribe[16]; /* 0x1189                             */
 
-/* === the string table (verbatim templates; the digit _slots rewritten) ======= */
-static char _s_all[28]; /* 0x105F: "COMING UP.... LEVEL 000"  (3 _slots)    */
-static char _s_need[40]; /* 0x1077: "YOU WILL NEED 0 HUMANS TO COMPLETE"    */
-static char _s_this[16]; /* 0x109A: "THIS LEVEL"                            */
-static char _s_has[32]; /* 0x10A5: "YOUR TRIBE NOW HAS 00 MEMBERS!" (2)    */
-static char _s_code[36]; /* 0x10C6: "THE CODE FOR THIS LEVEL IS......"      */
-static char _s_score[20]; /* 0x10E0: "YOUR SCORE IS 0000"    (4 _slots)       */
-static char _s_fire[32]; /* 0x1108: "PRESS FIRE TO START LEVEL...."         */
+/* === the string table (verbatim templates; the digit _slots rewritten) =======
+ * Sizes cover the widest of the five language columns (game_strs.h): the
+ * largest template is 38 bytes (GER "ES WERDEN 0 HUMANS BENOETIGT, UM DIESE"),
+ * and a wider number spills into the tail exactly as the original's does, so
+ * each buffer keeps room for the digits the field can grow into. */
+static char _s_all[32]; /* 0x105F: "COMING UP.... LEVEL 000"  (3 _slots)    */
+static char _s_need[48]; /* 0x1077: "YOU WILL NEED 0 HUMANS TO COMPLETE"    */
+static char _s_this[24]; /* 0x109A: "THIS LEVEL"                            */
+static char _s_has[40]; /* 0x10A5: "YOUR TRIBE NOW HAS 00 MEMBERS!" (2)    */
+static char _s_code[40]; /* 0x10CE: "THE CODE FOR THIS LEVEL IS....."        */
+static char _s_score[36]; /* 0x10EE: "YOUR SCORE IS 00000000000"             */
+static char _s_fire[48]; /* 0x1108: "PRESS FIRE TO START LEVEL..."          */
 
 static const uint8_t _ramp10[10] = /* 2e94's ramp -> CS:[0x2DFE+i]  */
     { 0x80, 0xA0, 0xC0, 0xE0, 0xE0, 0xE0, 0xE0, 0xC0, 0xA0, 0x80 };
@@ -662,13 +666,20 @@ void party_intro_set_values(uint32_t level, uint32_t need, uint32_t members,
     /* the image's verbatim strings (202F:0x105F..; the digit fields are
      * fixed-width and the formatter rewrites them in place, 0x3F1B) */
     strncpy(_s_all,
-            game_strs[GAME_LANG_EN][GAME_STR_PARTY_COMING_UP], 23);
-    strncpy(_s_need, game_strs[GAME_LANG_EN][GAME_STR_PARTY_NEED], 35);
-    strncpy(_s_this, game_strs[GAME_LANG_EN][GAME_STR_PARTY_THIS_LEVEL], 11);
-    strncpy(_s_has, game_strs[GAME_LANG_EN][GAME_STR_PARTY_HAS], 30);
-    strncpy(_s_code, game_strs[GAME_LANG_EN][GAME_STR_PARTY_CODE], 32);
-    strncpy(_s_score, game_strs[GAME_LANG_EN][GAME_STR_PARTY_SCORE], 18);
-    strncpy(_s_fire, game_strs[GAME_LANG_EN][GAME_STR_PARTY_FIRE], 30);
+            game_strs[GAME_LANG_EN][GAME_STR_PARTY_COMING_UP],
+            sizeof _s_all - 1u);
+    strncpy(_s_need, game_strs[GAME_LANG_EN][GAME_STR_PARTY_NEED],
+            sizeof _s_need - 1u);
+    strncpy(_s_this, game_strs[GAME_LANG_EN][GAME_STR_PARTY_THIS_LEVEL],
+            sizeof _s_this - 1u);
+    strncpy(_s_has, game_strs[GAME_LANG_EN][GAME_STR_PARTY_HAS],
+            sizeof _s_has - 1u);
+    strncpy(_s_code, game_strs[GAME_LANG_EN][GAME_STR_PARTY_CODE],
+            sizeof _s_code - 1u);
+    strncpy(_s_score, game_strs[GAME_LANG_EN][GAME_STR_PARTY_SCORE],
+            sizeof _s_score - 1u);
+    strncpy(_s_fire, game_strs[GAME_LANG_EN][GAME_STR_PARTY_FIRE],
+            sizeof _s_fire - 1u);
 }
 
 /**

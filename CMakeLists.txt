@@ -74,6 +74,14 @@ target_include_directories(test_byteorder PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/sr
 humansre_warnings(test_byteorder)
 add_test(NAME byteorder COMMAND test_byteorder)
 
+# The text table's structural invariants (no game data needed): the printf
+# markers, the in-place digit fields and the dialog line counts in every
+# language column.
+add_executable(test_game_strs tests/test_game_strs.c src/game_strs.c)
+target_include_directories(test_game_strs PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+humansre_warnings(test_game_strs)
+add_test(NAME game_strs COMMAND test_game_strs)
+
 # The resource fixture test runs against the real game data (HUMANS.00N);
 # point HUMANS_DATA_DIR at a directory holding them.  Missing data = skip.
 set(HUMANS_DATA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../binaries/volumes/ENG"
