@@ -38,6 +38,7 @@
 #include "script.h"
 #include "statusbar.h"
 #include "textpage.h"
+#include "ver_detect.h"
 #include "video.h"
 
 #include <stdio.h>
@@ -655,6 +656,401 @@ static GameFlow _post_level_step(GameFlow state)
 }
 
 /**
+ * @brief The foreground FLOW_LEVEL branch: the level's entry (disc probe,
+ * level_start's fade, the load), the party and score screens, and the play
+ * loop (input_dispatch_loop 1000:349E).
+ *
+ * @param osys the backend interface
+ * @param state the flow state (in/out)
+ * @param input this tick's input
+ * @param rawFire the unmasked ACTION bit
+ * @param prev the previous flow state
+ * @param quit_requested the quit flag (in/out)
+ * @return 1 to present, 0 to quit, -1 when the flow left the level and the
+ *         frame continues (the post-level arm can jump straight to the ending)
+ */
+static int32_t _flow_level_frame(const OSystem *osys, GameFlow *state,
+                                 const InputState *input, int32_t rawFire,
+                                 GameFlow prev, int32_t *quit_requested)
+{
+    /* 1000:35AF's restart prologue blocks on the fade to black before
+         * level_start re-enters; hold the whole branch while it runs. */
+    if (gameflow_restart_fade_tick()) return 1;
+    /* entering the level (entry 14CD): draw_status_indicator's disc
+         * probe, then level_run's header/map load and the party's
+         * fresh-load screen (307A).  The .ANI newspaper is NOT here: it
+         * is cd_file_op at entry 00FF, after the level. */
+    int32_t entered = 0;
+    if (prev != FLOW_LEVEL || _level_reload) {
+        _level_reload = 0;
+        _level_enter_pending = 1;
+        _end_page_up = 0;
+        _restart_game = 0;
+        _level_skipped = 0;
+        _party_tried = 0;
+        _party_playing = 0;
+        _post_scene = 0;
+        _disk_checked = 0;
+        _disk_up = 0;
+        _level_music_done = 0;
+        _level_start_fade = 0; /* level_start 1000:303A starts it below */
+    }
+    /* entry 14CD: draw_status_indicator (1000:1FEF) before level_run;
+         * only a missing volume draws the prompt. */
+    if (!_disk_checked) {
+        if (!_disk_up) _disk_up = level_disk_status_begin(1u);
+        if (_disk_up) {
+            if (level_disk_status_tick(input)) return 1;
+            _disk_up = 0;
+        }
+        _disk_checked = 1;
+    }
+    /* level_start 1000:303A/303D: present_frames_75 then music_stop.
+     * The original blocks inside the fade-out, so the level load and the
+     * party screen follow it; the fade-out also clears the [0x40BA]
+     * latch, which is what lets the party's fade-in run. */
+    if (_level_start_fade == 0) {
+        _level_start_fade = 1;
+        audio_fade_out();
+    }
+    if (_level_start_fade == 1) {
+        if (audio_fade_busy()) return 1;
+        audio_music_stop();
+        _level_start_fade = 2;
+    }
+    if (_level_enter_pending) {
+        _level_enter_pending = 0;
+        entered = 1;
+        if (level_load(_level_current) == 0) {
+            /* load_terrain_b (1000:5168): the level's own map
+                 * spawns/joins the entities, once per load */
+            const LevelData *ld = level_data();
+            entity_spawn_from_map(level_map(), ld->style, ld->entityLife);
+            /* entry:004C / load_level_record_a+_b: the save's *state
+                 * ranges replace the level's fresh spawn. */
+            if (save_present()) save_restore_state();
+            /* level_run 3060/3062: a tribe smaller than the level
+                 * needs — party_intro_set_game_over plays the briefing's
+                 * GAME OVER variant — and the level is skipped by the
+                 * entry *state machine's next-level arm. */
+            _level_skipped =
+                gameflow_tribe_too_small(level_required(), level_members());
+        }
+        /* level_setup's title arm (1000:31BD): [0x5BBA] := the record's
+         * goal text; the first play frame shows it (scroll_map). */
+        _level_publish_goal();
+    }
+    const LevelData *lv = level_data();
+    if (lv && !_party_tried) {
+        /* level_run's values: the level letter (the [0x1f41]
+             * 1-based), the need ([0x17fb]), the tribe members
+             * ([0x11fc] = 12/10/8 by the LEVEL board, or the save's
+             * +0x0B), the score ([0x592], fresh load = 0) and the
+             * briefing's code line ([0x1189], load_level's author
+             * string).  A no-data run skips (start returns 0). */
+        _party_tried = 1;
+        /* level_run 3073: [0x34] != 0 takes the JNZ 307D path and
+             * skips the fresh-load party screen entirely. */
+        if (!save_present()) {
+            /* level_intro_screen's values: the level number
+                 * ([0x1F41]), the humans needed ([0x17FB] = the map's
+                 * 0xAA count — NOT the record's goal-count byte), the
+                 * tribe ([0x11FC]) and the score ([0x592]; the port has
+                 * no running score yet — 0, documented). */
+            party_intro_set_game_over(_level_skipped);
+            party_intro_set_values(
+                _level_current + 1u, level_required(), level_tribe_members(),
+                gameflow_party_score(), gameflow_party_tribe());
+            _party_playing = party_intro_start();
+        }
+    }
+    /* level_run 30B4: [0x34] := 0 once the level has started; a
+         * later restart then takes the LEVEL board's time. */
+    if (entered) save_consume();
+    if (!_party_playing && _level_music_done == 0 && lv) {
+        _level_music_done = 1;
+        _level_music(); /* 1000:30A8 -> 1000:3267 */
+    }
+    if (_level_music_done == 1) {
+        /* level_status_update's timing_loop: the world waits for the
+         * fade-in, as the original's blocking call does. */
+        if (audio_fade_busy()) return 1;
+        _level_music_done = 2;
+    }
+    if (_party_playing) {
+        if (party_intro_tick(input)) return 1; /* the screen plays      */
+        _party_playing = 0; /* its exit finished      */
+    } else if (_score_up) {
+        /* check_highscore's score/record screen (1000:41AE) */
+        if (score_tick(input)) return 1;
+        _score_up = 0;
+        audio_fade_out(); /* 1000:43B6 */
+        _score_fade = 1;
+    } else if (_score_fade) {
+        /* 1000:43B6-43B9: present_frames_75 blocks before the post
+         * scene; `_score_fade` is the port's non-blocking hold. */
+        if (audio_fade_busy()) return 1;
+        _score_fade = 0;
+        if (_post_pending) {
+            _post_pending = 0;
+            *state = _post_level_step(*state);
+        }
+    } else if (_post_scene) {
+        /* entry 1000:00FF: cd_file_op([0x17EF]) — the newspaper for
+             * the level just finished, after check_highscore. */
+        if (scene_play_level_intro(_post_scene_idx)) return 1;
+        _post_scene = 0;
+        *state = gameflow_after_level(&_level_current);
+        _level_reload = (*state == FLOW_LEVEL);
+        if (*state != FLOW_LEVEL) {
+            _end_scene_index = gameflow_ending_scene(1); /* 150C */
+            *state = FLOW_ENDING;
+            _end_phase = 0;
+        }
+    } else if (_level_skipped) {
+        /* level_run 3065 + entry 1000:00DC: [0x1809] takes the
+             * restart-game path (1000:002B: [0xF7E]=0, [0x34]=0, the
+             * room), not the next level */
+        frontend_restart();
+        save_load_slot(0u);
+        *state = FLOW_MENU;
+        _level_reload = 0;
+    } else if (level_loading_screen()) {
+        /* load_sprite_pal (1000:1DC0): the LOADING screen, between
+             * the party and the level's fade-in (a skipped level never
+             * reaches it — level_run 3065 returns first) */
+        level_loading_tick();
+    } else if (_end_page_up) {
+        /* draw_level_text (1000:33A3).  [0x138E] selects "WELL DONE!
+             * YOU FINISHED LEVEL nnn" or "YOUR TRIBE IS EXTINCT!!" and the
+             * box waits for a key or ACTION; then the palette chain runs
+             * (0x33E2 seal + gradient, 0x33FD fade 0..0xBF div 0x1E with
+             * a wait, 0x340F 0x23-frame hold, 0x3419 fade 0x100 to black
+             * div 0x28), the bar is parked (0x342B) and the world is
+             * re-rendered (0x344C).  check_highscore (0x41AE) then draws
+             * the card, but only when [0x138E] != 0; a lost level jumps to
+             * 0x438A and never opens it.  entry's post-level step (the
+             * newspaper, the ending, or the next level) follows. */
+        if (_end_phase == END_CAPTION) {
+            char text[48]; /* the widest column: FRE's two-line caption
+                            * is 42 bytes with a three-digit level */
+
+            level_tick();
+            if (level_outcome())
+                snprintf(text, sizeof text,
+                         game_strs[g_game_lang][GAME_STR_GAMEFLOW_LEVEL_DONE],
+                         _level_current + 1u);
+            else
+                snprintf(text, sizeof text, "%s",
+                         game_strs[g_game_lang][GAME_STR_GAMEFLOW_EXTINCT]);
+            textpage_draw(osys->videoPage(0), text, -1, 0u, 0);
+            if (input->lastKey || (input->joyBits & 0x80u)) {
+                /* scroll_map's exit 0xA0E1 re-renders the page twice:
+                     * the caption box and its text are gone before the
+                     * fades start (the original's grey/gradient frames
+                     * show only the world). */
+                level_redraw_page();
+                /* 0x33E2/0x33F2: seal the level palette to grey and
+                     * load the shipped gradient into 0x80..0xBF. */
+                level_end_palette();
+                /* 0x33FD: fade the DAC's 0..0xBF to that palette. */
+                palette_build_fade(0u, 0xC0u, 0x1Eu, level_palette());
+                _end_phase = END_GREY_FADE;
+            }
+        } else if (_end_phase == END_GREY_FADE) {
+            if (!palette_fade_active()) { /* 0x340C wait */
+                _end_hold = 0x23u; /* 0x340F */
+                _end_phase = END_HOLD;
+            }
+        } else if (_end_phase == END_HOLD) {
+            if (_end_hold > 0u) {
+                _end_hold--;
+            } else {
+                /* 0x3419: every entry to the zeroed 0x48BC ramp. */
+                palette_build_fade(0u, 0x100u, 0x28u, _end_black);
+                _end_phase = END_BLACK_FADE;
+            }
+        } else if (!palette_fade_active()) { /* END_BLACK_FADE */
+            /* 0x342B/0x344C: park the split, re-render the world. */
+            statusbar_hide();
+            level_end_redraw_page(); /* 0x3437: the 0x78 clamp */
+            _end_phase = END_CAPTION;
+            _end_page_up = 0;
+            if (!level_outcome()) {
+                /* 1000:41B5 -> 1000:438A: a lost level skips the score
+                 * card but still runs present_frames_75 + music_stop
+                 * (0x43B6/0x43B9) before entry's post-level step.  The
+                 * port used to jump straight to the step, leaving the
+                 * level record live; a RESTART THIS GAME then loaded
+                 * mus\title over it and the old record played the new
+                 * image (the wrong menu tune). */
+                _post_pending = 1;
+                audio_fade_out(); /* 0x43B6 */
+                _score_fade = 1;
+            } else {
+                _post_pending = 1;
+                _score_up = score_begin(score_level_score());
+                if (!_score_up) {
+                    _post_pending = 0;
+                    *state = _post_level_step(*state);
+                }
+            }
+        }
+    } else if (level_starting()) {
+        /* level_fade_in (1000:3334): after the party and the intro,
+             * before the first play frame — the foreground blocks on the
+             * fades, so the goal page and the play loop wait here. */
+        level_begin();
+        level_tick();
+        return 1;
+    } else if (_goal_page && lv) {
+        /* scroll_map (1000:9E51): two rendered frames, the box, then
+             * a loop that only runs 1000:8B56 + 1000:8526 (poll_input)
+             * and tests [0x48A3]/the fire bit - **no update_world**, so
+             * the world is frozen and the direction keys cannot move
+             * anyone.  The port freezes the [0xC] gate (level_tick still
+             * renders and keeps the ISR's palette rotation running, so
+             * the box is redrawn over each frame). */
+        if (!_goal_froze_updates) {
+            _goal_froze_updates = level_updates();
+            level_set_updates(0);
+        }
+        _goal_showing = 1;
+        statusbar_set_active(0);
+        level_tick();
+        textpage_draw(osys->videoPage(0), lv->goal, -1, 0u, 0);
+        if (input->lastKey || (input->joyBits & 0x80u)) {
+            _goal_page = 0;
+            _goal_showing = 0;
+            if (_goal_froze_updates) level_set_updates(1); /* 1000:9E9D */
+            _goal_froze_updates = 0;
+            statusbar_set_active(1);
+        }
+    } else {
+        /* input_dispatch_loop (1000:349E): the pause gate (3523)
+             * then the world.  With a dialog up (A167) only the frozen
+             * frame is redrawn: menu_open_* clears the world gate, so
+             * update_world (marker, entity and object animations) stops;
+             * the countdown is suspended too (D-232). */
+        if (gameflow_key_wait_active()) { /* 1000:3954 blocks the world */
+            (void)gameflow_key_list(input);
+            return 1;
+        }
+        if (statusbar_time_up() && !_timeout_shown && !menu_active()) {
+            _timeout_shown = 1;
+            menu_open_time_up();
+        }
+        /* ACTION with no direction held runs the acting record's
+             * ACTION program (pause_toggle 1000:3523 -> script_op_dispatch
+             * 1000:3979); a dialog blocks it through [0x6F1D].  The
+             * pause block (202F:0x5BBC) is scan_id_list's ESC event (id
+             * 4 -> 1000:38EA), not ACTION. */
+        /* pause_toggle (0x3523): a fresh fire press with no direction
+             * runs the ACTION program.  [0x42F0] is never set in the image,
+             * so the 0xE3F9 ACTION edge is dead and the same frame's
+             * command dispatch still sees the fire half of the row. */
+        int32_t pressed =
+            rawFire && !object_action_latched() && !object_charge_active();
+
+        /* the original's order (1000:34B5 -> 0x34BD): update_world
+             * runs first - the record command dispatch inside it sees the
+             * press (the type row's fire half selects the turn) - and
+             * pause_toggle runs after it.  The event-4 loop blocks
+             * pause_toggle until it ends (1000:36DB). */
+        level_tick(); /* 1000:34B5 update_world */
+        if (!menu_active() && pressed && !(input->joyBits & 0x0Fu))
+            object_action_run(); /* 1000:34BD pause_toggle */
+        /* the latch is not assigned here: object_action_run sets it
+             * (1000:3538) and the release above clears it (1000:85A9). */
+        if (level_end_holding()) {
+            /* 1000:34E6: the play loop's exit hold - the end sound
+                 * (0x83B7, AX = 0xC) and 15 vsyncs (0x8B56) on the frozen
+                 * world, then draw_level_text's chain. */
+            statusbar_set_active(0); /* [0x5B12] = 0: the clock stops */
+            return 1;
+        }
+        if (level_ended()) {
+            /* object_test_dispatch returned negative (1000:35D6):
+                 * the play loop is over; [0x138E] keeps its outcome */
+            _end_page_up = 1;
+            _end_phase = END_CAPTION; /* draw_level_text's chain */
+            statusbar_set_active(0); /* [0x5B12] = 0: the clock stops */
+        }
+        /* scan_id_list (1000:386E) runs after update_world and before
+             * the pending-event table. */
+        if (!menu_active() && !level_ended() && !object_charge_active())
+            (void)gameflow_key_list(input); /* scan_id_list is blocked by
+                                              * the event-4 loop (1000:36DB) */
+        if (menu_active()) {
+            if (!menu_tick(input)) {
+                int32_t wasTimeUp = menu_time_up();
+                *state =
+                    wasTimeUp
+                        ? gameflow_time_up_action(menu_result(), quit_requested)
+                        : gameflow_pause_action(menu_result(), quit_requested);
+                menu_close();
+                if (wasTimeUp) _timeout_shown = 0;
+                if (!*quit_requested) statusbar_set_active(1);
+            }
+        }
+        /* 1000:34C3: the [0x1979] dispatch, after scan_id_list and
+             * pause_toggle (both of which may have armed a code); event
+             * 4's charge loop then takes its per-frame share (1000:3702)
+             * with the world frame already updated.  A negative
+             * object_test_dispatch (level_ended) leaves the play loop
+             * before the dispatch (JS 0x34E6). */
+        if (!level_ended()) {
+            object_pending_run();
+            (void)object_charge_tick();
+        }
+        if (*quit_requested) return 0;
+    }
+    return -1;
+}
+
+/**
+ * @brief The foreground FLOW_ENDING branch: the 6/7 scene, the disc probe and
+ * the MAP (entry 150C/1512).
+ *
+ * @param state the flow state (in/out)
+ * @param input this tick's input
+ * @return 1 to present
+ */
+static int32_t _flow_ending_frame(GameFlow *state, const InputState *input)
+{
+    /* entry 150C/1512: cd_file_op(6 lost / 7 won), then
+         * draw_status_indicator([0xF7E]=0) and menu_loop (the MAP) */
+    if (_end_phase == 0) {
+        scene_reset_intro();
+        _end_phase = 1;
+    }
+    if (_end_phase == 1) {
+        if (scene_play_level_intro(_end_scene_index)) return 1;
+        _end_phase = 2;
+    }
+    if (_end_phase == 2) {
+        if (!_end_disk_up) {
+            _end_disk_up = level_disk_status_begin(0u);
+            if (!_end_disk_up) _end_phase = 3;
+        }
+        if (_end_disk_up) {
+            if (level_disk_status_tick(input)) return 1;
+            _end_disk_up = 0;
+            _end_phase = 3;
+        }
+        if (_end_phase == 3) map_begin();
+    }
+    if (_end_phase == 3) {
+        if (map_tick(input)) return 1;
+        _end_phase = 0;
+        _audio_title_cycle(); /* entry 0x001C's trio before game_loop */
+        _attract_fade = 1; /* game_loop waits for its timing_loop */
+        *state = FLOW_ATTRACT;
+    }
+    return 1;
+}
+
+/**
  * @brief One foreground flow frame; 1 = present, 0 = quit.
  *
  * @param osys the backend interface
@@ -704,374 +1100,12 @@ static int32_t _game_frame(const OSystem *osys, GameFlow *state,
 
     *state = gameflow_step(*state, &input);
     if (*state == FLOW_LEVEL) {
-        /* 1000:35AF's restart prologue blocks on the fade to black before
-             * level_start re-enters; hold the whole branch while it runs. */
-        if (gameflow_restart_fade_tick()) return 1;
-        /* entering the level (entry 14CD): draw_status_indicator's disc
-             * probe, then level_run's header/map load and the party's
-             * fresh-load screen (307A).  The .ANI newspaper is NOT here: it
-             * is cd_file_op at entry 00FF, after the level. */
-        int32_t entered = 0;
-        if (prev != FLOW_LEVEL || _level_reload) {
-            _level_reload = 0;
-            _level_enter_pending = 1;
-            _end_page_up = 0;
-            _restart_game = 0;
-            _level_skipped = 0;
-            _party_tried = 0;
-            _party_playing = 0;
-            _post_scene = 0;
-            _disk_checked = 0;
-            _disk_up = 0;
-            _level_music_done = 0;
-            _level_start_fade = 0; /* level_start 1000:303A starts it below */
-        }
-        /* entry 14CD: draw_status_indicator (1000:1FEF) before level_run;
-             * only a missing volume draws the prompt. */
-        if (!_disk_checked) {
-            if (!_disk_up) _disk_up = level_disk_status_begin(1u);
-            if (_disk_up) {
-                if (level_disk_status_tick(&input)) return 1;
-                _disk_up = 0;
-            }
-            _disk_checked = 1;
-        }
-        /* level_start 1000:303A/303D: present_frames_75 then music_stop.
-         * The original blocks inside the fade-out, so the level load and the
-         * party screen follow it; the fade-out also clears the [0x40BA]
-         * latch, which is what lets the party's fade-in run. */
-        if (_level_start_fade == 0) {
-            _level_start_fade = 1;
-            audio_fade_out();
-        }
-        if (_level_start_fade == 1) {
-            if (audio_fade_busy()) return 1;
-            audio_music_stop();
-            _level_start_fade = 2;
-        }
-        if (_level_enter_pending) {
-            _level_enter_pending = 0;
-            entered = 1;
-            if (level_load(_level_current) == 0) {
-                /* load_terrain_b (1000:5168): the level's own map
-                     * spawns/joins the entities, once per load */
-                const LevelData *ld = level_data();
-                entity_spawn_from_map(level_map(), ld->style, ld->entityLife);
-                /* entry:004C / load_level_record_a+_b: the save's *state
-                     * ranges replace the level's fresh spawn. */
-                if (save_present()) save_restore_state();
-                /* level_run 3060/3062: a tribe smaller than the level
-                     * needs — party_intro_set_game_over plays the briefing's
-                     * GAME OVER variant — and the level is skipped by the
-                     * entry *state machine's next-level arm. */
-                _level_skipped =
-                    gameflow_tribe_too_small(level_required(), level_members());
-            }
-            /* level_setup's title arm (1000:31BD): [0x5BBA] := the record's
-             * goal text; the first play frame shows it (scroll_map). */
-            _level_publish_goal();
-        }
-        const LevelData *lv = level_data();
-        if (lv && !_party_tried) {
-            /* level_run's values: the level letter (the [0x1f41]
-                 * 1-based), the need ([0x17fb]), the tribe members
-                 * ([0x11fc] = 12/10/8 by the LEVEL board, or the save's
-                 * +0x0B), the score ([0x592], fresh load = 0) and the
-                 * briefing's code line ([0x1189], load_level's author
-                 * string).  A no-data run skips (start returns 0). */
-            _party_tried = 1;
-            /* level_run 3073: [0x34] != 0 takes the JNZ 307D path and
-                 * skips the fresh-load party screen entirely. */
-            if (!save_present()) {
-                /* level_intro_screen's values: the level number
-                     * ([0x1F41]), the humans needed ([0x17FB] = the map's
-                     * 0xAA count — NOT the record's goal-count byte), the
-                     * tribe ([0x11FC]) and the score ([0x592]; the port has
-                     * no running score yet — 0, documented). */
-                party_intro_set_game_over(_level_skipped);
-                party_intro_set_values(_level_current + 1u, level_required(),
-                                       level_tribe_members(),
-                                       gameflow_party_score(),
-                                       gameflow_party_tribe());
-                _party_playing = party_intro_start();
-            }
-        }
-        /* level_run 30B4: [0x34] := 0 once the level has started; a
-             * later restart then takes the LEVEL board's time. */
-        if (entered) save_consume();
-        if (!_party_playing && _level_music_done == 0 && lv) {
-            _level_music_done = 1;
-            _level_music(); /* 1000:30A8 -> 1000:3267 */
-        }
-        if (_level_music_done == 1) {
-            /* level_status_update's timing_loop: the world waits for the
-             * fade-in, as the original's blocking call does. */
-            if (audio_fade_busy()) return 1;
-            _level_music_done = 2;
-        }
-        if (_party_playing) {
-            if (party_intro_tick(&input)) return 1; /* the screen plays      */
-            _party_playing = 0; /* its exit finished      */
-        } else if (_score_up) {
-            /* check_highscore's score/record screen (1000:41AE) */
-            if (score_tick(&input)) return 1;
-            _score_up = 0;
-            audio_fade_out(); /* 1000:43B6 */
-            _score_fade = 1;
-        } else if (_score_fade) {
-            /* 1000:43B6-43B9: present_frames_75 blocks before the post
-             * scene; `_score_fade` is the port's non-blocking hold. */
-            if (audio_fade_busy()) return 1;
-            _score_fade = 0;
-            if (_post_pending) {
-                _post_pending = 0;
-                *state = _post_level_step(*state);
-            }
-        } else if (_post_scene) {
-            /* entry 1000:00FF: cd_file_op([0x17EF]) — the newspaper for
-                 * the level just finished, after check_highscore. */
-            if (scene_play_level_intro(_post_scene_idx)) return 1;
-            _post_scene = 0;
-            *state = gameflow_after_level(&_level_current);
-            _level_reload = (*state == FLOW_LEVEL);
-            if (*state != FLOW_LEVEL) {
-                _end_scene_index = gameflow_ending_scene(1); /* 150C */
-                *state = FLOW_ENDING;
-                _end_phase = 0;
-            }
-        } else if (_level_skipped) {
-            /* level_run 3065 + entry 1000:00DC: [0x1809] takes the
-                 * restart-game path (1000:002B: [0xF7E]=0, [0x34]=0, the
-                 * room), not the next level */
-            frontend_restart();
-            save_load_slot(0u);
-            *state = FLOW_MENU;
-            _level_reload = 0;
-        } else if (level_loading_screen()) {
-            /* load_sprite_pal (1000:1DC0): the LOADING screen, between
-                 * the party and the level's fade-in (a skipped level never
-                 * reaches it — level_run 3065 returns first) */
-            level_loading_tick();
-        } else if (_end_page_up) {
-            /* draw_level_text (1000:33A3).  [0x138E] selects "WELL DONE!
-                 * YOU FINISHED LEVEL nnn" or "YOUR TRIBE IS EXTINCT!!" and the
-                 * box waits for a key or ACTION; then the palette chain runs
-                 * (0x33E2 seal + gradient, 0x33FD fade 0..0xBF div 0x1E with
-                 * a wait, 0x340F 0x23-frame hold, 0x3419 fade 0x100 to black
-                 * div 0x28), the bar is parked (0x342B) and the world is
-                 * re-rendered (0x344C).  check_highscore (0x41AE) then draws
-                 * the card, but only when [0x138E] != 0; a lost level jumps to
-                 * 0x438A and never opens it.  entry's post-level step (the
-                 * newspaper, the ending, or the next level) follows. */
-            if (_end_phase == END_CAPTION) {
-                char text[48]; /* the widest column: FRE's two-line caption
-                                * is 42 bytes with a three-digit level */
-
-                level_tick();
-                if (level_outcome())
-                    snprintf(text, sizeof text,
-                             game_strs[GAME_LANG_EN]
-                                      [GAME_STR_GAMEFLOW_LEVEL_DONE],
-                             _level_current + 1u);
-                else
-                    snprintf(text, sizeof text, "%s",
-                             game_strs[GAME_LANG_EN][GAME_STR_GAMEFLOW_EXTINCT]);
-                textpage_draw(osys->videoPage(0), text, -1, 0u, 0);
-                if (input.lastKey || (input.joyBits & 0x80u)) {
-                    /* scroll_map's exit 0xA0E1 re-renders the page twice:
-                         * the caption box and its text are gone before the
-                         * fades start (the original's grey/gradient frames
-                         * show only the world). */
-                    level_redraw_page();
-                    /* 0x33E2/0x33F2: seal the level palette to grey and
-                         * load the shipped gradient into 0x80..0xBF. */
-                    level_end_palette();
-                    /* 0x33FD: fade the DAC's 0..0xBF to that palette. */
-                    palette_build_fade(0u, 0xC0u, 0x1Eu, level_palette());
-                    _end_phase = END_GREY_FADE;
-                }
-            } else if (_end_phase == END_GREY_FADE) {
-                if (!palette_fade_active()) { /* 0x340C wait */
-                    _end_hold = 0x23u; /* 0x340F */
-                    _end_phase = END_HOLD;
-                }
-            } else if (_end_phase == END_HOLD) {
-                if (_end_hold > 0u) {
-                    _end_hold--;
-                } else {
-                    /* 0x3419: every entry to the zeroed 0x48BC ramp. */
-                    palette_build_fade(0u, 0x100u, 0x28u, _end_black);
-                    _end_phase = END_BLACK_FADE;
-                }
-            } else if (!palette_fade_active()) { /* END_BLACK_FADE */
-                /* 0x342B/0x344C: park the split, re-render the world. */
-                statusbar_hide();
-                level_end_redraw_page(); /* 0x3437: the 0x78 clamp */
-                _end_phase = END_CAPTION;
-                _end_page_up = 0;
-                if (!level_outcome()) {
-                    /* 1000:41B5 -> 1000:438A: a lost level skips the score
-                     * card but still runs present_frames_75 + music_stop
-                     * (0x43B6/0x43B9) before entry's post-level step.  The
-                     * port used to jump straight to the step, leaving the
-                     * level record live; a RESTART THIS GAME then loaded
-                     * mus\title over it and the old record played the new
-                     * image (the wrong menu tune). */
-                    _post_pending = 1;
-                    audio_fade_out(); /* 0x43B6 */
-                    _score_fade = 1;
-                } else {
-                    _post_pending = 1;
-                    _score_up = score_begin(score_level_score());
-                    if (!_score_up) {
-                        _post_pending = 0;
-                        *state = _post_level_step(*state);
-                    }
-                }
-            }
-        } else if (level_starting()) {
-            /* level_fade_in (1000:3334): after the party and the intro,
-                 * before the first play frame — the foreground blocks on the
-                 * fades, so the goal page and the play loop wait here. */
-            level_begin();
-            level_tick();
-            return 1;
-        } else if (_goal_page && lv) {
-            /* scroll_map (1000:9E51): two rendered frames, the box, then
-                 * a loop that only runs 1000:8B56 + 1000:8526 (poll_input)
-                 * and tests [0x48A3]/the fire bit - **no update_world**, so
-                 * the world is frozen and the direction keys cannot move
-                 * anyone.  The port freezes the [0xC] gate (level_tick still
-                 * renders and keeps the ISR's palette rotation running, so
-                 * the box is redrawn over each frame). */
-            if (!_goal_froze_updates) {
-                _goal_froze_updates = level_updates();
-                level_set_updates(0);
-            }
-            _goal_showing = 1;
-            statusbar_set_active(0);
-            level_tick();
-            textpage_draw(osys->videoPage(0), lv->goal, -1, 0u, 0);
-            if (input.lastKey || (input.joyBits & 0x80u)) {
-                _goal_page = 0;
-                _goal_showing = 0;
-                if (_goal_froze_updates) level_set_updates(1); /* 1000:9E9D */
-                _goal_froze_updates = 0;
-                statusbar_set_active(1);
-            }
-        } else {
-            /* input_dispatch_loop (1000:349E): the pause gate (3523)
-                 * then the world.  With a dialog up (A167) only the frozen
-                 * frame is redrawn: menu_open_* clears the world gate, so
-                 * update_world (marker, entity and object animations) stops;
-                 * the countdown is suspended too (D-232). */
-            if (gameflow_key_wait_active()) { /* 1000:3954 blocks the world */
-                (void)gameflow_key_list(&input);
-                return 1;
-            }
-            if (statusbar_time_up() && !_timeout_shown && !menu_active()) {
-                _timeout_shown = 1;
-                menu_open_time_up();
-            }
-            /* ACTION with no direction held runs the acting record's
-                 * ACTION program (pause_toggle 1000:3523 -> script_op_dispatch
-                 * 1000:3979); a dialog blocks it through [0x6F1D].  The
-                 * pause block (202F:0x5BBC) is scan_id_list's ESC event (id
-                 * 4 -> 1000:38EA), not ACTION. */
-            /* pause_toggle (0x3523): a fresh fire press with no direction
-                 * runs the ACTION program.  [0x42F0] is never set in the image,
-                 * so the 0xE3F9 ACTION edge is dead and the same frame's
-                 * command dispatch still sees the fire half of the row. */
-            int32_t pressed =
-                rawFire && !object_action_latched() && !object_charge_active();
-
-            /* the original's order (1000:34B5 -> 0x34BD): update_world
-                 * runs first - the record command dispatch inside it sees the
-                 * press (the type row's fire half selects the turn) - and
-                 * pause_toggle runs after it.  The event-4 loop blocks
-                 * pause_toggle until it ends (1000:36DB). */
-            level_tick(); /* 1000:34B5 update_world */
-            if (!menu_active() && pressed && !(input.joyBits & 0x0Fu))
-                object_action_run(); /* 1000:34BD pause_toggle */
-            /* the latch is not assigned here: object_action_run sets it
-                 * (1000:3538) and the release above clears it (1000:85A9). */
-            if (level_end_holding()) {
-                /* 1000:34E6: the play loop's exit hold - the end sound
-                     * (0x83B7, AX = 0xC) and 15 vsyncs (0x8B56) on the frozen
-                     * world, then draw_level_text's chain. */
-                statusbar_set_active(0); /* [0x5B12] = 0: the clock stops */
-                return 1;
-            }
-            if (level_ended()) {
-                /* object_test_dispatch returned negative (1000:35D6):
-                     * the play loop is over; [0x138E] keeps its outcome */
-                _end_page_up = 1;
-                _end_phase = END_CAPTION; /* draw_level_text's chain */
-                statusbar_set_active(0); /* [0x5B12] = 0: the clock stops */
-            }
-            /* scan_id_list (1000:386E) runs after update_world and before
-                 * the pending-event table. */
-            if (!menu_active() && !level_ended() && !object_charge_active())
-                (void)gameflow_key_list(&input); /* scan_id_list is blocked by
-                                                  * the event-4 loop (1000:36DB) */
-            if (menu_active()) {
-                if (!menu_tick(&input)) {
-                    int32_t wasTimeUp = menu_time_up();
-                    *state = wasTimeUp ? gameflow_time_up_action(menu_result(),
-                                                                 quit_requested)
-                                       : gameflow_pause_action(menu_result(),
-                                                               quit_requested);
-                    menu_close();
-                    if (wasTimeUp) _timeout_shown = 0;
-                    if (!*quit_requested) statusbar_set_active(1);
-                }
-            }
-            /* 1000:34C3: the [0x1979] dispatch, after scan_id_list and
-                 * pause_toggle (both of which may have armed a code); event
-                 * 4's charge loop then takes its per-frame share (1000:3702)
-                 * with the world frame already updated.  A negative
-                 * object_test_dispatch (level_ended) leaves the play loop
-                 * before the dispatch (JS 0x34E6). */
-            if (!level_ended()) {
-                object_pending_run();
-                (void)object_charge_tick();
-            }
-            if (*quit_requested) return 0;
-        }
+        int32_t r = _flow_level_frame(osys, state, &input, rawFire, prev,
+                                      quit_requested);
+        if (r >= 0) return r;
     }
 
-    if (*state == FLOW_ENDING) {
-        /* entry 150C/1512: cd_file_op(6 lost / 7 won), then
-             * draw_status_indicator([0xF7E]=0) and menu_loop (the MAP) */
-        if (_end_phase == 0) {
-            scene_reset_intro();
-            _end_phase = 1;
-        }
-        if (_end_phase == 1) {
-            if (scene_play_level_intro(_end_scene_index)) return 1;
-            _end_phase = 2;
-        }
-        if (_end_phase == 2) {
-            if (!_end_disk_up) {
-                _end_disk_up = level_disk_status_begin(0u);
-                if (!_end_disk_up) _end_phase = 3;
-            }
-            if (_end_disk_up) {
-                if (level_disk_status_tick(&input)) return 1;
-                _end_disk_up = 0;
-                _end_phase = 3;
-            }
-            if (_end_phase == 3) map_begin();
-        }
-        if (_end_phase == 3) {
-            if (map_tick(&input)) return 1;
-            _end_phase = 0;
-            _audio_title_cycle(); /* entry 0x001C's trio before game_loop */
-            _attract_fade = 1;    /* game_loop waits for its timing_loop */
-            *state = FLOW_ATTRACT;
-        }
-        return 1;
-    }
+    if (*state == FLOW_ENDING) return _flow_ending_frame(state, &input);
 
     /* the intro/level draw into page 0; the CRTC-flip equivalent shows
          * the drawn page (the in-level page flip lands with the level
@@ -1089,6 +1123,10 @@ int32_t game_main(const OSystem *osys)
 {
     // Initialize the video mode
     osys->videoSetMode(VIDEO_MODE_13H); /* bios_set_mode_13h (1000:88fb) */
+
+    /* The original's language is the executable's; the port has one binary
+     * and takes the column from the installed volume set (ver_detect.h). */
+    g_game_lang = ver_detect_run(osys);
 
     // Initialize resources
     if (resources_init(osys)) return 1;
