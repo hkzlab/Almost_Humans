@@ -13,8 +13,9 @@
  * Why a thread and not SDL_AddTimerNS: measured live (HUMANSRE_RATE_PROBE,
  * Windows/ARM64), SDL's timer thread delivers a 14.29 ms schedule at
  * 63.5 Hz - its scheduler granularity eats a tick every ~6. OS timers
- * cannot be trusted for the game's heartbeat; this thread sleeps until
- * close and spins the last stretch on the QPC-backed clock instead. */
+ * cannot be trusted for the game's heartbeat; this thread waits on
+ * SDL_DelayPrecise, which sleeps up to the boundary instead of burning
+ * the last stretch in a spin. */
 #include "osystem.h"
 
 #include <SDL3/SDL.h>
@@ -63,14 +64,11 @@ static int32_t SDLCALL _tick_thread_fn(void *arg)
     (void)arg;
     Uint64 next = SDL_GetTicksNS() + _tick_interval_ns;
     while (SDL_GetAtomicInt(&_running)) {
-        /* the hybrid wait: sleep while the boundary is far, spin the
-         * last ~2 ms where the OS granularity would show */
-        while (1) {
-            Sint64 remain = (Sint64)next - (Sint64)SDL_GetTicksNS();
-            if (remain <= 0) break;
-            if (remain > 2000000)
-                SDL_Delay((Uint32)((remain - 1000000) / 1000000));
-        }
+        /* SDL_DelayPrecise sleeps to the boundary and spins only the
+         * scheduler's overshoot, where the old hybrid wait hand-spun the
+         * last ~1.3 ms of every 14.3 ms tick (about 9% of a core). */
+        Sint64 remain = (Sint64)next - (Sint64)SDL_GetTicksNS();
+        if (remain > 0) SDL_DelayPrecise((Uint64)remain);
         _fire_tick();
         next += _tick_interval_ns;
         /* a stall (debugger, heavy frame) must not burst ticks to catch up:

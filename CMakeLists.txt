@@ -30,6 +30,17 @@ function(humansre_warnings tgt)
     endif()
 endfunction()
 
+# Tests assert.  Release's NDEBUG compiles assert() to (void)0, which both
+# empties the check and leaves its state variables unused under -Werror.
+# Undefine NDEBUG after the release flags for the asserting test targets.
+function(humansre_test_asserts tgt)
+    if(MSVC)
+        target_compile_options(${tgt} PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(${tgt} PRIVATE -UNDEBUG)
+    endif()
+endfunction()
+
 # The narrowing audit: with this ON, every implicit
 # integer truncation or sign change aborts the program at the site, so the test
 # suite proves the narrowed locals never silently wrap.  The third-party OPL3
@@ -363,6 +374,7 @@ add_executable(test_audio_link tests/test_audio_link.c)
 target_include_directories(test_audio_link PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 target_link_libraries(test_audio_link PRIVATE core fs_posix audio_adlib)
 humansre_warnings(test_audio_link)
+humansre_test_asserts(test_audio_link)
 add_test(NAME audio_link COMMAND test_audio_link ${HUMANS_DATA_DIR})
 
 # The module's private state against a live ADLIB.DRV snapshot (white-box:
@@ -373,6 +385,7 @@ add_executable(test_adlib_live tests/test_adlib_live.c
 target_include_directories(test_adlib_live PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 target_link_libraries(test_adlib_live PRIVATE m)
 humansre_warnings(test_adlib_live)
+humansre_test_asserts(test_adlib_live)
 add_test(NAME adlib_live COMMAND test_adlib_live ${HUMANS_FIX_DIR}/HUMANS.000/MUS/TITLE.ALB)
 
 # The AdLib driver module: a real .ALB through the INT 60h ABI, so the
@@ -381,6 +394,7 @@ add_executable(test_adlib tests/test_adlib.c)
 target_include_directories(test_adlib PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 target_link_libraries(test_adlib PRIVATE audio_adlib)
 humansre_warnings(test_adlib)
+humansre_test_asserts(test_adlib)
 add_test(NAME adlib COMMAND test_adlib ${HUMANS_FIX_DIR})
 
 # The Beeper driver module against a real .BEP: the loader geometry, the row
@@ -395,6 +409,7 @@ if(NOT MSVC)
     target_link_libraries(test_beeper PRIVATE m)
 endif()
 humansre_warnings(test_beeper)
+humansre_test_asserts(test_beeper)
 add_test(NAME beeper COMMAND test_beeper ${HUMANS_FIX_DIR} ${HUMANS_DATA_DIR})
 
 # The MT-32 driver module against a real .RLD and a real ROM set.  The ROMs
@@ -422,7 +437,7 @@ target_link_libraries(humans-null PRIVATE core fs_posix)
 humansre_warnings(humans-null)
 
 # The first real port (optional so the tree builds on machines without SDL3).
-find_package(SDL3 CONFIG QUIET)
+find_package(SDL3 3.2 CONFIG QUIET)
 if(SDL3_FOUND)
     add_executable(humans-sdl3
         src/arch/sdl3/OSystem.c

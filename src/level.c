@@ -478,6 +478,7 @@ static void _spark_paint(uint32_t wx, uint32_t wy, uint8_t value)
 }
 
 static void _bake_page_to_plane(void);
+static void _world_build(void);
 void level_spark_begin(uint16_t ox, uint16_t oy, const uint8_t *shade)
 {
     memset(_spark, 0, sizeof _spark);
@@ -1190,6 +1191,7 @@ int32_t level_load(uint16_t levelId)
      * walks to EOF or the load fails) */
     if (_visuals_load(d->style) != 0) return -1;
     _level_stamp_exits(); /* 1000:4F73 load_terrain_a */
+    _world_build(); /* draw_terrain 1000:502D: once per load, not per frame */
 
     /* load_level_assets (1000:3468): the in-level dialog's box tiles
      * (apl\box.spr, 9 x 16x16 at [0x13B1]) load with the level's assets. */
@@ -1943,8 +1945,34 @@ static void _bake_page_to_plane(void)
             _lvl_plane[y * 88u + (x >> 2)][x & 3u] = page[y * VIDEO_PAGE_W + x];
 }
 
-/** @brief The _world pass: `render_level_frame`'s terrain + `render_objects` + the bar,
- * i.e. everything 1000:4C28's pre-draw and every play frame put on the page.
+/**
+ * @brief Build the static 512x320 world composite (BG + terrain) once per
+ * level load: `draw_terrain`'s atlas stamp (`1000:502D`) over `_bg_image`,
+ * after load_terrain_a's 0xB9 exit stamps.  The play loop reuses it; its
+ * per-frame work is `blit_bitmap_planes` (`1000:4C4E`) over this buffer.
+ */
+static void _world_build(void)
+{
+    if (!_world) return;
+    if (_bg_image) memcpy(_world, _bg_image, WORLD_W * WORLD_H);
+    else memset(_world, 0, WORLD_W * WORLD_H);
+
+    if (!_atlas) return;
+    for (uint16_t r = 0; r < MAP_ROWS; r++) {
+        for (uint16_t c = 0; c < MAP_COLS; c++) {
+            uint8_t tile = _level_data_cur.map[r * MAP_COLS + c];
+
+            if (tile >= 0xA9u) continue;
+            _stamp_tile(_world + (r * 16u) * WORLD_W + c * 16u,
+                        _atlas + 0x400u + tile * 0x100u);
+        }
+    }
+}
+
+/** @brief The per-frame world pass: `present_and_blit` (`1000:A0E1`) copies the
+ * prebuilt `_world` window into the page with `blit_bitmap_planes`
+ * (`1000:4C4E`), then runs `render_objects` (`1000:5D56`) and the bar.  The
+ * level bitmap itself is drawn once, at load (`_world_build`).
  * The original's `blit_bitmap_call` (`1000:4C28`) draws the level bitmap into
  * BOTH pages before level_fade_in's eight `update_world` frames:
  *   DI = 0x1200 -> CALL 0x4C4E     (page A)
@@ -1954,18 +1982,6 @@ static void _bake_page_to_plane(void)
  */
 static void _render_world(void)
 {
-    if (_bg_image) memcpy(_world, _bg_image, WORLD_W * WORLD_H);
-    else memset(_world, 0, WORLD_W * WORLD_H);
-
-    for (uint16_t r = 0; r < MAP_ROWS; r++) {
-        for (uint16_t c = 0; c < MAP_COLS; c++) {
-            uint8_t tile = _level_data_cur.map[r * MAP_COLS + c];
-            if (tile >= 0xA9u) continue;
-            _stamp_tile(_world + (r * 16u) * WORLD_W + c * 16u,
-                        _atlas + 0x400u + tile * 0x100u);
-        }
-    }
-
     /* 1000:3D5E's four-plane presented frame, as a flat compose: the visible
      * window is the _world at the display window ([0x0], [0x2] - see
      * `level_follow_view`), written through the chained page and read back.
