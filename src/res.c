@@ -1,4 +1,4 @@
-/* res.c - resource I/O (subsystem 2).
+/* res.c - resource I/O.
  *
  * The volume file (one per disc) is
  *

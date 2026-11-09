@@ -1,4 +1,4 @@
-/* res.h - the interface of src/res.c: resource I/O (subsystem 2)
+/* res.h - the interface of src/res.c: resource I/O
  * The volume file (named chunks), the LZW decode, the offset-based pool
  * arena standing in for the original's segment pool. */
 

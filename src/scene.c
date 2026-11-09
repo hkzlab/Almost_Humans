@@ -1,6 +1,5 @@
-/* scene.c - the .ANI/.RSC interpreter (subsystem 11): the playlist script,
- * the display list, the
- * frame-keyed event cues.
+/* scene.c - the .ANI/.RSC interpreter: the playlist script, the display
+ * list, the frame-keyed event cues.
  *
  * scene_play_level_intro(introIndex) ports cd_file_op (1000:AFF8) as a
  * per-tick state machine: the first call for an introIndex loads

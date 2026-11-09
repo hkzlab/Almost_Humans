@@ -1,4 +1,4 @@
-/* font.h - the interface of src/font.c: glyphs/packed ASCII (subsystem 12) */
+/* font.h - the interface of src/font.c: glyphs/packed ASCII */
 
 #ifndef HUMANSRE_FONT_H
 #define HUMANSRE_FONT_H

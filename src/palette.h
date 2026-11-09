@@ -1,4 +1,4 @@
-/* palette.h - the interface of src/palette.c: fades/DAC (subsystem 4) */
+/* palette.h - the interface of src/palette.c: fades/DAC */
 
 #ifndef HUMANSRE_PALETTE_H
 #define HUMANSRE_PALETTE_H

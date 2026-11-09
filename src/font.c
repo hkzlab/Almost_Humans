@@ -1,4 +1,4 @@
-/* font.c - TEXT.SPR _glyphs + draw_text (subsystem 12).
+/* font.c - TEXT.SPR _glyphs + draw_text.
  *
  * The shipped tables, extracted from the EXE image (file 0x106F0 + off):
  *   the _charset at 202F:0x1E28 - 44 _glyphs, then the NUL terminator;

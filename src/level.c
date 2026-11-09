@@ -1,5 +1,5 @@
-/* level.c - the level definitions (subsystem 9): LEVELS\LA.BIN ... LP.BIN,
- * 16 files x 10 records = 160
+/* level.c - the level definitions: LEVELS\LA.BIN ... LP.BIN, 16 files x
+ * 10 records = 160
  * levels.
  *
  * Record layout (census-verified over all 160):

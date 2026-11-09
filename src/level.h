@@ -1,4 +1,4 @@
-/* level.h - the interface of src/level.c: the level definitions (subsystem 9)
+/* level.h - the interface of src/level.c: the level definitions
  *
  * LEVELS\LA.BIN..LP.BIN: 16 files x 10 records = 160 levels.  The record:
  * the 13-byte header, the goal/author ASCIIZ text, the 8-byte editor

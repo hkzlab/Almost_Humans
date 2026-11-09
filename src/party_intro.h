@@ -1,4 +1,4 @@
-/* party_intro.h - the interface of src/party_intro.c: the level-intro party screen (subsystem 14)
+/* party_intro.h - the interface of src/party_intro.c: the level-intro party screen
  *
  * level_intro_screen (1000:2508): the fresh-load briefing.  The screen is
  * reached from FLOW_LEVEL's fresh-load path (level_run's 307a call; the

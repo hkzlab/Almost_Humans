@@ -1,4 +1,4 @@
-/* palette.c - fades and DAC (subsystem 4).
+/* palette.c - fades and DAC.
  *
  * The original's machine, ported 1:1: a 256-entry 6-bit _working palette
  * (202F:0x4BBC) refilled by palette_load_6bit (1000:8d24) from each loaded

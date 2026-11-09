@@ -1,5 +1,4 @@
 /* frontend.h - the interface of src/frontend.c: the front-end room
- * (subsystem 8)
  *
  * The walkable level-select / game-start menu (frontend_room_setup
  * 1000:A48E + the frame web + level_select_event_loop 1000:AA2C): the room

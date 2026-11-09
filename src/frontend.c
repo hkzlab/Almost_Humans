@@ -1,5 +1,5 @@
 /* frontend.c - the front-end room: the walkable level-select / game-start
- * menu (subsystem 8; frontend_room_setup 1000:A48E + the _frame web +
+ * menu (frontend_room_setup 1000:A48E + the _frame web +
  * level_select_event_loop 1000:AA2C).
  *
  * THE ROOM.  A 640-px-wide walkable side view on the original's unchained
