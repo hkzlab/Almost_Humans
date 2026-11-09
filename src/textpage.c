@@ -1,7 +1,7 @@
 /* textpage.c — the in-level text page: the dialog box + its lines
- * (re_map.md §"The in-level pause menu").  This is the renderer behind the
- * pause menu, the SAVE GAME grid, the out-of-time dialog and the level's own
- * messages ("DISCOVER THE SPEAR!", "WELL DONE!", "YOUR TRIBE IS EXTINCT!!").
+ * ("in-level menu").  This is the renderer behind the pause menu, 
+ * the SAVE GAME grid, the out-of-time dialog and the level's own
+ * messages ("WELL DONE!", "YOUR TRIBE IS EXTINCT!!", etc).
  *
  * Ported from the listing:
  *   draw_scroll_text (1000:A08E)  the measure: [0x5BB2] = the max line
@@ -185,10 +185,6 @@ static void _draw_line(uint8_t *page, const char *line, uint32_t centreX,
 void textpage_draw_line(uint8_t *page, const char *line, uint32_t row,
                         uint8_t colour)
 { _draw_line(page, line, 0xA0u, row, colour, 0); }
-
-void textpage_draw_line_at(uint8_t *page, const char *line, uint32_t centreX,
-                           uint32_t row, uint8_t colour)
-{ _draw_line(page, line, centreX, row, colour, 0); }
 
 void textpage_draw_line_mask(uint8_t *page, const char *line, uint32_t row,
                              uint8_t mask)
