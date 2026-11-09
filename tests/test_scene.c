@@ -12,6 +12,7 @@
  * argv[2] = the extracted-tree fixture root (expected bytes).
  * Missing volumes = skip; a wrong decode with data present = fail. */
 #include "osystem.h"
+#include "res.h"
 #include "palette.h"
 #include "scene.h"
 #include "video.h"
@@ -122,6 +123,7 @@ int main(int argc, char **argv)
     }
 
     int32_t bad = 0;
+    res_init(&g_osys_null);
     scene_init(&g_osys_null);
     video_init(&g_osys_null);
     palette_init(&g_osys_null);

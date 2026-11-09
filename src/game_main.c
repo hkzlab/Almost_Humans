@@ -24,6 +24,7 @@
 #include "font.h"
 #include "frontend.h"
 #include "game_strs.h"
+#include "hiscore.h"
 #include "level.h"
 #include "map.h"
 #include "menu.h"
@@ -62,9 +63,9 @@ enum {
 static int32_t _party_tried, _party_playing;
 static int32_t _level_music_done; /* 0 not started, 1 fading, 2 playing */
 static int32_t _level_start_fade; /* level_start 1000:303A: 0 idle, 1 fading */
-static int32_t _menu_fade;        /* entry 0x0039: the room setup waits   */
-static int32_t _attract_fade;     /* entry 0x001C: game_loop waits        */
-static int32_t _score_fade;       /* check_highscore 0x43B6 waits         */
+static int32_t _menu_fade; /* entry 0x0039: the room setup waits   */
+static int32_t _attract_fade; /* entry 0x001C: game_loop waits        */
+static int32_t _score_fade; /* check_highscore 0x43B6 waits         */
 /* entry LAB_00CD's level arms: _level_reload re-runs the entry block for the
  * next level ([0x22]++); _level_skipped is level_run's need > members arm (the
  * level is not started); _end_page_up is draw_level_text's page. */
@@ -157,6 +158,7 @@ static const uint8_t _key_list[][2] = {
 int32_t resources_init(const OSystem *osys)
 {
     menu_init(osys);
+    hiscore_bind(osys);
     int32_t res_init_state =
         res_init(osys) || video_init(osys) || palette_init(osys) ||
         font_init(osys) || statusbar_init(osys) || scene_init(osys) ||

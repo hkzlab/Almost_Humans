@@ -20,6 +20,7 @@
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
+#include "save.h"
 #include "score.h"
 #include "statusbar.h"
 #include "textpage.h"
@@ -186,6 +187,9 @@ int main(int argc, char **argv)
     const char *vol_dir = argc > 1 ? argv[1] : ".";
     const char *fix_dir = argc > 2 ? argv[2] : vol_dir;
 
+    res_init(&g_osys_null);
+    save_init(&g_osys_null);
+    hiscore_bind(&g_osys_null);
     video_init(&g_osys_null);
     palette_init(&g_osys_null);
     level_init(&g_osys_null);
@@ -951,7 +955,8 @@ int main(int argc, char **argv)
                                 pg[i] < 0x80u && pg[i] != 0x1Eu)
                                 ink++;
                         panInk = ink != 0u;
-                    } else if (pan && !keptDone && !object_claim_anim_active()) {
+                    } else if (pan && !keptDone &&
+                               !object_claim_anim_active()) {
                         uint32_t i, ink = 0;
 
                         keptDone = 1;
@@ -984,8 +989,9 @@ int main(int argc, char **argv)
                        "D-240: the foreground stays black after the pan");
                 _check(panInk,
                        "D-243: the pan draws the victim over the black page");
-                _check(panKept,
-                       "D-243: the pan's records persist into the frozen frames");
+                _check(
+                    panKept,
+                    "D-243: the pan's records persist into the frozen frames");
                 _check(overBlack,
                        "D-240: the two records draw over the black page");
                 _check(settleDone && settleInk,
@@ -1404,9 +1410,10 @@ int main(int argc, char **argv)
                 _check(level_page_free(0u) == 1,
                        "the gap byte (tile 0) is a free page");
                 object_action_run();
-                _check((rd_le_u16(mv + 4)) == 0x008Cu &&
-                           (rd_le_u16(mv + 8)) == 0x0012u,
-                       "D-234: op 3 reads the gap as the last cell's neighbour");
+                _check(
+                    (rd_le_u16(mv + 4)) == 0x008Cu &&
+                        (rd_le_u16(mv + 8)) == 0x0012u,
+                    "D-234: op 3 reads the gap as the last cell's neighbour");
                 m[639] = old;
             }
             object_init();
@@ -4268,8 +4275,7 @@ int main(int argc, char **argv)
             _check((uint32_t)rd_le_u16(actor + 0) + 8u ==
                        (uint32_t)rd_le_u16(it + 0),
                    "D-238: the rider follows the wheel (1000:D162)");
-            _check(rd_le_u16(it + 4) >= 0x38u &&
-                       rd_le_u16(it + 4) <= 0x3Bu,
+            _check(rd_le_u16(it + 4) >= 0x38u && rd_le_u16(it + 4) <= 0x3Bu,
                    "the wheel keeps its 0x38..0x3B roll frames");
         }
     }
@@ -5319,14 +5325,14 @@ int main(int argc, char **argv)
         remove("HISCORES.HUM");
         hiscore_write();
         {
-            FSSave *f = g_fs.openNamed("HISCORES.HUM");
+            FSSave *f = g_osys_null.fs->openNamed("HISCORES.HUM");
             uint8_t raw[600];
             uint8_t enc[600];
             uint32_t n = 0;
 
             if (f) {
-                n = g_fs.saveRead(f, 0, raw, sizeof raw);
-                g_fs.closeSave(f);
+                n = g_osys_null.fs->saveRead(f, 0, raw, sizeof raw);
+                g_osys_null.fs->closeSave(f);
             }
             _check(n == 520u, "the hi-score file is 520 bytes (D-102)");
             if (n >= 322u) {
@@ -5350,11 +5356,12 @@ int main(int argc, char **argv)
             }
         }
         {
-            FSSave *stamped = g_fs.openNamed("DISCORES.HUM");
+            FSSave *stamped = g_osys_null.fs->openNamed("DISCORES.HUM");
 
-            if (stamped) g_fs.closeSave(stamped);
-            _check(stamped == NULL,
-                   "D-225: the port keeps HISCORES.HUM (the original's stamped name is accepted, not reproduced)");
+            if (stamped) g_osys_null.fs->closeSave(stamped);
+            _check(
+                stamped == NULL,
+                "D-225: the port keeps HISCORES.HUM (the original's stamped name is accepted, not reproduced)");
         }
 
         hiscore_reset();
@@ -5372,20 +5379,19 @@ int main(int argc, char **argv)
             uint32_t n0 = 0, n1 = 0;
             FSSave *f;
 
-            f = g_fs.openNamed("HISCORES.HUM");
+            f = g_osys_null.fs->openNamed("HISCORES.HUM");
             if (f) {
-                n0 = g_fs.saveRead(f, 0, before, sizeof before);
-                g_fs.closeSave(f);
+                n0 = g_osys_null.fs->saveRead(f, 0, before, sizeof before);
+                g_osys_null.fs->closeSave(f);
             }
             _check(hiscore_insert(150000u, "NO FLUSH") == 0,
                    "the insert still takes the top slot");
-            f = g_fs.openNamed("HISCORES.HUM");
+            f = g_osys_null.fs->openNamed("HISCORES.HUM");
             if (f) {
-                n1 = g_fs.saveRead(f, 0, after, sizeof after);
-                g_fs.closeSave(f);
+                n1 = g_osys_null.fs->saveRead(f, 0, after, sizeof after);
+                g_osys_null.fs->closeSave(f);
             }
-            _check(n0 == 520u && n1 == n0 &&
-                       memcmp(before, after, n0) == 0,
+            _check(n0 == 520u && n1 == n0 && memcmp(before, after, n0) == 0,
                    "1000:01CD is memory-only (no flush before 0x06CC)");
         }
         hiscore_reset();
@@ -5449,16 +5455,17 @@ int main(int argc, char **argv)
                "the insert rewrites the live entry");
         hiscore_write();
         {
-            FSSave *f = g_fs.openNamed("HISCORES.HUM");
+            FSSave *f = g_osys_null.fs->openNamed("HISCORES.HUM");
             uint8_t raw[520];
             uint32_t n = 0;
 
             if (f) {
-                n = g_fs.saveRead(f, 0, raw, sizeof raw);
-                g_fs.closeSave(f);
+                n = g_osys_null.fs->saveRead(f, 0, raw, sizeof raw);
+                g_osys_null.fs->closeSave(f);
             }
             if (n == sizeof raw) hiscore_obfuscate(raw, n);
-            _check(n == sizeof raw && rd_le_u32(raw + 0x154u + 3u * 18u) == 77777u &&
+            _check(n == sizeof raw &&
+                       rd_le_u32(raw + 0x154u + 3u * 18u) == 77777u &&
                        strcmp((const char *)raw + 0x154u + 3u * 18u + 4u,
                               "ROUND TRIP") == 0,
                    "HISCORES.HUM holds the saved entry through the involution");
@@ -6062,10 +6069,10 @@ int main(int argc, char **argv)
         _tf_wr16(h, 4u, 0x0010u);
         _tf_wr16(h, 8u, 2u);
         object_update_list();
-        _check(rd_le_u16(h + 0u) == 72u && rd_le_u16(h + 4u) == 0x0028u &&
-                   rd_le_u16(h + 8u) == 0x0016u &&
-                   rd_le_u16(h + 0xAu) == 5u,
-               "D-228: the hit rewrites the human (x-8, frame 0x28, type 0x16)");
+        _check(
+            rd_le_u16(h + 0u) == 72u && rd_le_u16(h + 4u) == 0x0028u &&
+                rd_le_u16(h + 8u) == 0x0016u && rd_le_u16(h + 0xAu) == 5u,
+            "D-228: the hit rewrites the human (x-8, frame 0x28, type 0x16)");
         _check(rd_le_u16(m + 8u) == 5u * 32u + 5u &&
                    rd_le_u16(m + 4u) == 0x0026u,
                "D-228: the marker keeps its map cell and frame");
@@ -6085,7 +6092,8 @@ int main(int argc, char **argv)
             palette_tick();
             if (level_loading_screen()) level_loading_tick();
         }
-        object_set_slot_class(1u, 9u); /* record 9 is the pan's class-9 target */
+        object_set_slot_class(1u,
+                              9u); /* record 9 is the pan's class-9 target */
         object_set_action_entity(0u);
         memset(h, 0, 0x12u);
         _tf_wr16(h, 0u, 448u);
@@ -7080,13 +7088,11 @@ int main(int argc, char **argv)
             _tf_wr16(r, 2u, (uint16_t)(sy - 8u));
             _tf_wr16(r, 4u, 0x0010u);
             _tf_wr16(r, 8u, 2u); /* type 2 -> bit 0x20 */
-            _check(object_settle_gate_for_probe(r) == 0 &&
-                       s[0x13] == 0x20u,
+            _check(object_settle_gate_for_probe(r) == 0 && s[0x13] == 0x20u,
                    "D-226: level 27's TER box marks record 2 (0x20)");
             object_camera_slots_tick();
-            _check(rd_le_u16(r + 0u) ==
-                           (uint16_t)((uint16_t)(sx - 8u) +
-                                      (rd_le_u16(s + 0u) - sx)) &&
+            _check(rd_le_u16(r + 0u) == (uint16_t)((uint16_t)(sx - 8u) +
+                                                   (rd_le_u16(s + 0u) - sx)) &&
                        rd_le_u16(r + 2u) ==
                            (uint16_t)((uint16_t)(sy - 8u) +
                                       (rd_le_u16(s + 2u) - sy)),
@@ -7106,8 +7112,7 @@ int main(int argc, char **argv)
                     object_camera_slots_tick();
                     if ((uint16_t)(rd_le_u16(s + 0u) - rd_le_u16(r + 0u)) !=
                             ox ||
-                        (uint16_t)(rd_le_u16(s + 2u) - rd_le_u16(r + 2u)) !=
-                            oy)
+                        (uint16_t)(rd_le_u16(s + 2u) - rd_le_u16(r + 2u)) != oy)
                         break;
                     stay++;
                 }
@@ -7449,7 +7454,7 @@ int main(int argc, char **argv)
              * one's cells (the 0x0BB0 footprint), so an A-only pixel is gone. */
             {
                 static uint8_t pa[VIDEO_PAGE_BYTES], pb[VIDEO_PAGE_BYTES],
-                               pc[VIDEO_PAGE_BYTES];
+                    pc[VIDEO_PAGE_BYTES];
                 static uint8_t page[VIDEO_PAGE_BYTES];
                 uint32_t a = 0x10Eu, b = a + 6u, c = a + 0x0Cu;
                 uint32_t idx = 0xFFFFFFFFu;

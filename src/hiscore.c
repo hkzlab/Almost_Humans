@@ -48,6 +48,9 @@
 static uint8_t _hiscore_table[HIS_TABLE];
 static int32_t _hiscore_loaded;
 
+/* The backend (and through it the filesystem module); hiscore_bind sets it. */
+static const OSystem *_hiscore_osys;
+
 /* the shipped defaults (the image's DS:0x4DE block): what a fresh boot shows
  * before any HISCORES.HUM exists */
 static const struct {
@@ -117,16 +120,19 @@ void hiscore_init(void)
     _hiscore_defaults();
 }
 
+void hiscore_bind(const OSystem *osys) { _hiscore_osys = osys; }
+
 void hiscore_write(void)
 {
     FSSave *f;
 
+    if (!_hiscore_osys) return;
     hiscore_init();
     _hiscore_crypt();
-    f = g_fs.createNamed("HISCORES.HUM");
+    f = _hiscore_osys->fs->createNamed("HISCORES.HUM");
     if (f) {
-        g_fs.saveWrite(f, 0, _hiscore_table, HIS_TABLE);
-        g_fs.closeSave(f);
+        _hiscore_osys->fs->saveWrite(f, 0, _hiscore_table, HIS_TABLE);
+        _hiscore_osys->fs->closeSave(f);
     }
 }
 

@@ -23,6 +23,7 @@
 #include "gameflow.h"
 #include "level.h"
 #include "osystem.h"
+#include "res.h"
 #include "palette.h"
 #include "save.h"
 #include "score.h"
@@ -172,6 +173,7 @@ int main(int argc, char **argv)
     }
     fclose(f);
 
+    res_init(&g_osys_null);
     video_init(&g_osys_null);
     palette_init(&g_osys_null);
     font_init(&g_osys_null);

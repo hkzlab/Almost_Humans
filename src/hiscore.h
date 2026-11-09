@@ -4,6 +4,8 @@
 #ifndef HUMANSRE_HISCORE_H
 #define HUMANSRE_HISCORE_H
 
+#include "osystem.h"
+
 #include <stdint.h>
 
 /* --- HISCORES.HUM (re_formats.md §11, menu_loop 1000:012A) ------------ */
@@ -13,6 +15,13 @@
  * own defaults at DS:0x38A and never reads HISCORES.HUM back.
  */
 void hiscore_init(void);
+
+/**
+ * @brief Bind the module to the backend it writes HISCORES.HUM through.
+ *
+ * @param osys the backend interface
+ */
+void hiscore_bind(const OSystem *osys);
 
 /**
  * @brief Restore the shipped defaults (tests and a fresh install).

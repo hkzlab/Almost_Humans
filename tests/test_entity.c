@@ -28,6 +28,7 @@
 #include "level.h"
 #include "object.h"
 #include "osystem.h"
+#include "res.h"
 #include "palette.h"
 #include "statusbar.h"
 #include "video.h"
@@ -132,6 +133,7 @@ int main(int argc, char **argv)
     }
     (void)fix_abs;
 
+    res_init(&g_osys_null);
     entity_init(&g_osys_null);
     video_init(&g_osys_null);
     palette_init(&g_osys_null);
@@ -408,7 +410,8 @@ int main(int argc, char **argv)
             _failf("D-59: the carried human is consumed", 10u, type, 0x21);
         statusbar_save_params(params);
         if (params[0] != 0xFFu)
-            _failf("D-59: the loss arms the tribe counter", 10u, params[0], 0xFF);
+            _failf("D-59: the loss arms the tribe counter", 10u, params[0],
+                   0xFF);
         if ((rd_le_u16(cr + 4)) != 0x2Du)
             _failf("D-59: the lost marker's frame", 10u, cr[4], 0x2D);
     }

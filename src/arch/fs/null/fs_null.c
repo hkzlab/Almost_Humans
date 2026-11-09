@@ -105,7 +105,7 @@ static FSSave *_null_open_named(const char *name);
  */
 static FSSave *_null_create_named(const char *name);
 
-const FSModule g_fs = {
+const FSModule g_fs_null = {
     _null_open_volume, _null_close_volume, _null_volume_size, _null_read,
     _null_open_save,   _null_save_read,    _null_create_save, _null_save_write,
     _null_close_save,  _null_open_named,   _null_create_named

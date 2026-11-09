@@ -317,7 +317,8 @@ int main(int argc, char **argv)
                                       .audioStop = _core_stop,
                                       .audioTempo = _core_tempo,
                                       .audioDriverId = _core_id,
-                                      .warn = _core_warn };
+                                      .warn = _core_warn,
+                                      .fs = &g_fs_posix };
         static const char missing[] = "mus\\nope";
         uint32_t stops0;
 

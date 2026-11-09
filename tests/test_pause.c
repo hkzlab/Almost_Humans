@@ -190,6 +190,7 @@ int main(int argc, char **argv)
         return 0;
     }
 
+    res_init(&g_osys_null);
     video_init(&g_osys_null);
     palette_init(&g_osys_null);
     font_init(&g_osys_null);

@@ -62,7 +62,7 @@ int32_t ver_detect_run(const OSystem *osys)
     /* use chunked reading to save memory */
     uint8_t chunk[256];
     char msg[128];
-    FSVolume *v = g_fs.openVolume(VER_DETECT_VOLUME);
+    FSVolume *v = osys->fs->openVolume(VER_DETECT_VOLUME);
     uint32_t got = 0;
     uint32_t hash = FNV32_OFFSET;
     int32_t lang;
@@ -76,12 +76,12 @@ int32_t ver_detect_run(const OSystem *osys)
         uint32_t n;
 
         if (want > sizeof chunk) want = (uint32_t)sizeof chunk;
-        n = g_fs.read(v, got, chunk, want);
+        n = osys->fs->read(v, got, chunk, want);
         if (n == 0) break;
         hash = _hash_update(hash, chunk, n);
         got += n;
     }
-    g_fs.closeVolume(v);
+    osys->fs->closeVolume(v);
 
     if (got != VER_DETECT_LEN) return -1;
 
@@ -91,9 +91,10 @@ int32_t ver_detect_run(const OSystem *osys)
     if (lang == GAME_LANG_EN && hash != VER_DETECT_EN_HASH) {
         snprintf(msg, sizeof msg,
                  "ver_detect: unrecognized volume set (digest "
-                 "0x%08X); using the English text", (unsigned)hash);
+                 "0x%08X); using the English text",
+                 (unsigned)hash);
         osys->warn(msg);
     }
-    
+
     return lang;
 }

@@ -47,8 +47,10 @@ static void _joy_bits(SDL_Keycode k, int32_t down)
 }
 
 /** @brief The PC set-1 scancode of a make, for the keys the level's key list
- * (DS:0x1989, scan_id_list 1000:386E) binds.  Only those are mapped: the
- * port's other screens read the translated ASCII in lastKey.
+ * (DS:0x1989, scan_id_list 1000:386E) dispatches on: ESC, ',', '.', SPACE,
+ * F1..F8 and F10.  F9 is mapped too (0x43) but has no list entry; every
+ * other key leaves 0, and the port's other screens read the translated code
+ * in lastKey.
  *
  * @param k the loop counter
  * @return the PC set-1 scancode, or 0 when unmapped

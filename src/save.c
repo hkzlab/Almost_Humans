@@ -4,7 +4,7 @@
  * `"\humans\cdrom\save"` at 202F:0x1C7E whose NUL at 0x1C90 is overwritten
  * with `'A'+([0x5E6F]-1)` (entry:004C) or with the save-number prompt's
  * `'A'+(n-1)` (save_progress) — one file per game 1..20.  The filesystem
- * module owns the actual filename (g_fs.h).
+ * module owns the actual filename (fs.h).
  *
  * Layout (re_formats.md §10):
  *   +0x00 u16 level id 1..160        -> [0x1F41], and via the entry push to
@@ -43,9 +43,12 @@
 static uint8_t _save_buf[SAVE_LEN];   /* the [0x1C92] buffer          */
 static int32_t _save_loaded;          /** [0x34]: a save is present    */
 
+/* The backend (and through it the filesystem module); save_init binds it. */
+static const OSystem *_save_osys;
+
 int32_t save_init(const OSystem *osys)
 {
-    (void)osys;
+    _save_osys = osys;
     return 0;
 }
 
@@ -55,10 +58,10 @@ int32_t save_load_slot(uint32_t slot)
     memset(_save_buf, 0, sizeof _save_buf);
     if (slot == 0u || slot > 20u) return 0;
 
-    FSSave *f = g_fs.openSave((char)('A' + (int32_t)slot - 1));
+    FSSave *f = _save_osys->fs->openSave((char)('A' + (int32_t)slot - 1));
     if (!f) return 0;                        /* the JC path */
-    uint32_t got = g_fs.saveRead(f, 0, _save_buf, SAVE_LEN);
-    g_fs.closeSave(f);
+    uint32_t got = _save_osys->fs->saveRead(f, 0, _save_buf, SAVE_LEN);
+    _save_osys->fs->closeSave(f);
     if (got < SAVE_HDR) return 0;            /* no header = not a save */
     _save_loaded = 1;
     return 1;
@@ -97,10 +100,10 @@ int32_t save_write_slot(uint32_t slot, uint32_t level, uint16_t timeWord,
     object_save_spans(out + 0x16F0u);          /* 0x6F92, 0x54           */
     statusbar_save_params(out + 0x17F0u);      /* [0x5B22], 8            */
 
-    FSSave *f = g_fs.createSave((char)('A' + (int32_t)slot - 1));
+    FSSave *f = _save_osys->fs->createSave((char)('A' + (int32_t)slot - 1));
     if (!f) return 0;
-    uint32_t put = g_fs.saveWrite(f, 0, out, SAVE_LEN);
-    g_fs.closeSave(f);
+    uint32_t put = _save_osys->fs->saveWrite(f, 0, out, SAVE_LEN);
+    _save_osys->fs->closeSave(f);
     return put == SAVE_LEN;
 }
 

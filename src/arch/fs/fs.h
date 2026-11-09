@@ -59,7 +59,9 @@ typedef struct FSModule {
     FSSave *(*createNamed)(const char *name);
 } FSModule;
 
-/* The selected module, defined by exactly one fs_*.c that the build links. */
-extern const FSModule g_fs;
+/* The one module the build links; the arch layer puts it in OSystem::fs and
+ * the core never names it. */
+extern const FSModule g_fs_posix;
+extern const FSModule g_fs_null;
 
 #endif /* HUMANSRE_FS_H */

@@ -92,6 +92,9 @@ static const uint8_t _res_movie_disc_table[10] = {
  * ONE volume-file name from it. */
 static uint32_t _res_current_disc = 0;
 
+/* The backend (and through it the filesystem module); res_init binds it. */
+static const OSystem *_res_osys;
+
 void res_set_disc(uint32_t disc) { _res_current_disc = disc; }
 
 uint32_t res_movie_disc(uint32_t idx)
@@ -111,7 +114,7 @@ uint32_t res_movie_disc(uint32_t idx)
  */
 static int32_t _vol_sixteen(VolReader *r, uint32_t at, uint8_t *dst, uint32_t n)
 {
-    uint32_t got = g_fs.read(r->v, at, dst, n);
+    uint32_t got = _res_osys->fs->read(r->v, at, dst, n);
     if (got != n) return -1;
     return 0;
 }
@@ -417,13 +420,13 @@ uint8_t *res_load_chunk(const char *name, uint32_t *sizeOut, uint16_t *chkOut)
     uint8_t *result = NULL;
     /* One volume, the disc the caller installed (the original's [0xF7E]—
      * built "HUMANS  .00N" open; a miss is the insert-disc-prompt case). */
-    FSVolume *v = g_fs.openVolume(_res_current_disc);
+    FSVolume *v = _res_osys->fs->openVolume(_res_current_disc);
     if (!v) return NULL;
     VolReader r = { v, 0 };
 
     uint8_t head[2];
     if (_vol_sixteen(&r, 0, head, 2)) {
-        g_fs.closeVolume(v);
+        _res_osys->fs->closeVolume(v);
         return NULL;
     }
     uint32_t count = rd_le_u16(head);
@@ -438,20 +441,20 @@ uint8_t *res_load_chunk(const char *name, uint32_t *sizeOut, uint16_t *chkOut)
         result = _res_decode_chunk(&r, off, rec, length, chkOut);
         if (result && sizeOut) *sizeOut = length;
     }
-    g_fs.closeVolume(v);
+    _res_osys->fs->closeVolume(v);
     return result;
 }
 
 int32_t res_init(const OSystem *osys)
 {
-    (void)osys;
+    _res_osys = osys;
     return 0;
 }
 
 int32_t res_volume_present(uint32_t disc)
 {
-    FSVolume *v = g_fs.openVolume(disc);
+    FSVolume *v = _res_osys->fs->openVolume(disc);
     if (!v) return 0;
-    g_fs.closeVolume(v);
+    _res_osys->fs->closeVolume(v);
     return 1;
 }

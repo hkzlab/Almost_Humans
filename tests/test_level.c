@@ -15,6 +15,7 @@
 #include "level.h"
 #include "object.h"
 #include "osystem.h"
+#include "res.h"
 #include "palette.h"
 #include "scene.h"
 #include "video.h"
@@ -123,6 +124,7 @@ int main(int argc, char **argv)
     }
 
     int32_t bad = 0;
+    res_init(&g_osys_null);
     scene_init(&g_osys_null);
     video_init(&g_osys_null);
     palette_init(&g_osys_null);
@@ -286,7 +288,8 @@ int main(int argc, char **argv)
                 if (nz0 || nz1) {
                     fprintf(stderr,
                             "FAIL D-257: level_begin left the page(s) "
-                            "uncleared (%u/%u stale bytes)\n", nz0, nz1);
+                            "uncleared (%u/%u stale bytes)\n",
+                            nz0, nz1);
                     bad = 1;
                 }
             }

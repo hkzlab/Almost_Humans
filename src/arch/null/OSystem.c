@@ -162,7 +162,7 @@ const OSystem g_osys_null = {
     _null_tick_sync,    _null_audio_install, _null_audio_load,
     _null_audio_resume, _null_audio_stop,    _null_audio_sfx,
     _null_audio_tempo,  _null_audio_tick,    _null_audio_driver_id,
-    _null_warn,         _null_fatal
+    _null_warn,         _null_fatal,         &g_fs_posix
 };
 
 static void _null_set_mode(VideoMode mode) { _mode_set = mode; }

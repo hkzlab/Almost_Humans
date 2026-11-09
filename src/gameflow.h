@@ -1,5 +1,7 @@
-/* gameflow.h — the interface of src/game_main.c: the top-level flow
- * (the original's main loop).
+/* gameflow.h - the flow helpers of src/game_main.c: the top-level flow
+ * (the original's main loop).  game_main() itself, the core's entry the arch
+ * layer calls, is declared in osystem.h - that header is the whole
+ * arch↔core handshake.
  *
  * The original's foreground loop is one flow-step per display period: the
  * ISR does the fixed work (flip apply, palette step, music tick) and the
@@ -25,37 +27,26 @@
  * bit-3-of-3DA wait making up the remainder to one display period.
  *
  * This rate is the SOLE pacer: game_main's loop gates on osys->tickSync
- * (the [0x5AC8] counter + [0x48BA] abort pair — re_map.md "Timer / INT 8"),
- * so the host display's refresh rate must never enter the pacing.  The
- * foreground runs exactly one flow step per tick boundary and drops missed
- * boundaries (the original's delta-spin semantics), it never catches up. */
+ * (the [0x5AC8] counter gate — re_map.md "Timer / INT 8"),
+ * so the host display's refresh rate must never enter the pacing.
+ * The foreground runs exactly one flow step per tick boundary and drops 
+ * missed boundaries (the original's delta-spin semantics), it never catches up.
+ */
 #define GAME_TICK_HZ 70
 
-/* --- src/game_main.c — the top-level flow (the original's main loop) --
- *
- * The original's foreground loop is one flow-step per display period: the
- * ISR does the fixed work (flip apply, palette step, music tick) and the
- * foreground advances the flow once per tick boundary.  The states mirror
- * the original's top-level control (game_structure.md §1):
- *
- *     ATTRACT --(the escape: the action key or any held key, after the
- *                13B2 fade completes -- attract_tick)--> MENU
- *     MENU    --(the room's confirm: the walk off the right edge, or
- *                Enter with a codes.bin match -- frontend_tick)--> LEVEL
- */
 typedef enum GameFlow {
-    FLOW_ATTRACT = 0, /* game_loop 1000:131E: the effect cycle      */
-    FLOW_MENU, /* the map/level-select room                   */
-    FLOW_LEVEL, /* a level is installed and running            */
-    FLOW_ENDING /* entry 1512: cd_file_op(6 lost / 7 won),
-                            * draw_status_indicator, menu_loop (the MAP)   */
+    FLOW_ATTRACT = 0, /* game_loop 1000:131E: intro/attract mode    */
+    FLOW_MENU,        /* the map/level-select room                  */
+    FLOW_LEVEL,       /* a level is installed and running           */
+    FLOW_ENDING       /* entry 1512: cd_file_op(6 lost / 7 won),
+                       * draw_status_indicator, menu_loop (the MAP) */
 } GameFlow;
 
 /**
  * @brief One flow step: run the current state and return the next.
  *
- * Advance the flow one step with the polled input; the loop calls it once per
- * tick boundary.
+ * Advance the flow one step with the polled input; the loop calls it
+ * once per tick boundary.
  * Returns the new state.
  *
  * @param state the flow state

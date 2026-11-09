@@ -106,12 +106,12 @@ static FSSave *_posix_open_named(const char *name);
  */
 static FSSave *_posix_create_named(const char *name);
 
-const FSModule g_fs = { _posix_open_volume, _posix_close_volume,
-                        _posix_volume_size, _posix_read,
-                        _posix_open_save,   _posix_save_read,
-                        _posix_create_save, _posix_save_write,
-                        _posix_close_save,  _posix_open_named,
-                        _posix_create_named };
+const FSModule g_fs_posix = { _posix_open_volume, _posix_close_volume,
+                              _posix_volume_size, _posix_read,
+                              _posix_open_save,   _posix_save_read,
+                              _posix_create_save, _posix_save_write,
+                              _posix_close_save,  _posix_open_named,
+                              _posix_create_named };
 
 static FSVolume *_posix_open_volume(uint32_t disc)
 {

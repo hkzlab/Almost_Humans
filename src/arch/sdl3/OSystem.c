@@ -169,7 +169,8 @@ const OSystem g_osys_sdl3 = { sdl3_video_set_mode,
                               sdl3_audio_tick,
                               sdl3_audio_driver_id,
                               _warn,
-                              _fatal };
+                              _fatal,
+                              &g_fs_posix };
 
 static void _warn(const char *msg)
 { SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "%s", msg); }

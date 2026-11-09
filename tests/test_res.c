@@ -15,6 +15,7 @@
  * corpus measurement (the 2026-10-23 sweep in the decode's own model —
  * the last-block reset semantics of resource_load's BP, re_formats.md
  * §8.4): ANI03 = 0x3c3f, ITB = 0x2adb. */
+#include "osystem.h"
 #include "res.h"
 #include "compat.h"
 
@@ -22,6 +23,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+
+extern const OSystem g_osys_null;
 
 /**
  * @brief Report whether the fixture volume HUMANS.000 is absent.
@@ -138,6 +141,8 @@ int main(int argc, char **argv)
 
     int32_t bad = 0;
     char path[512];
+
+    res_init(&g_osys_null);
 
     /* The ANI disc table, corpus-verified 10/10 (see res.c): ANI03 -> 1. */
     if (res_movie_disc(0) != 2 || res_movie_disc(1) != 0 ||

@@ -335,6 +335,7 @@ int main(int argc, char **argv)
 
     if (_load_fixtures(fix_abs)) return 1;
 
+    res_init(&g_osys_null);
     video_init(&g_osys_null);
     palette_init(&g_osys_null);
     statusbar_init(&g_osys_null);

@@ -12,6 +12,7 @@
  * Missing volumes = skip. */
 
 #include "osystem.h"
+#include "res.h"
 #include "palette.h"
 #include "scene.h"
 #include "video.h"
@@ -55,6 +56,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    res_init(&g_osys_null);
     scene_init(&g_osys_null);
     video_init(&g_osys_null);
     palette_init(&g_osys_null);

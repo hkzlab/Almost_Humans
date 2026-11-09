@@ -58,6 +58,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    res_init(&g_osys_null);
     scene_init(&g_osys_null);
     video_init(&g_osys_null);
     palette_init(&g_osys_null);
