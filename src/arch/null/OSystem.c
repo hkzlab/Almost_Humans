@@ -128,7 +128,7 @@ static void _null_warn(const char *msg);
  */
 static void _null_fatal(const char *msg);
 
-static uint8_t _pages[2][320 * 200];
+static uint8_t _pages[2][VIDEO_PAGE_BYTES];
 static uint8_t _pal[256 * 3];
 static TickFn _the_tick;
 static uint32_t _the_rate;

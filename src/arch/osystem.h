@@ -64,6 +64,13 @@ typedef enum VideoMode {
     VIDEO_MODE_X = 1
 } VideoMode;
 
+/* The page videoPage() hands out: flat 8bpp, one byte per pixel.  The field a
+ * mode scans out may be shorter (mode X: 192 rows); the page layout stays
+ * 320x200.  Stride == width because the page is 8bpp. */
+#define VIDEO_PAGE_W     320u
+#define VIDEO_PAGE_H     200u
+#define VIDEO_PAGE_BYTES (VIDEO_PAGE_W * VIDEO_PAGE_H)
+
 /* The tick-boundary gate: the arch owns the tick counter (the ISR's
  * [0x5AC8]) and tickSync is the foreground's [0x48BA] mechanism — it waits
  * until the tick source has advanced past *lastSeen, then stores the new

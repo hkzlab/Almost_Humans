@@ -51,7 +51,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MAP_PAGE   (320u * 200u)
+#define MAP_PAGE   VIDEO_PAGE_BYTES
 #define NAME_MAX   13u
 #define GRID_CELLS 30u
 

@@ -415,7 +415,7 @@ static void _draw_actions(uint8_t *page)
     uint32_t cursor = object_action_byte(1u);
     uint16_t span = (uint16_t)((uint16_t)((uint8_t)count * 0x17u) +
                                (uint16_t)((uint8_t)(count - 1u) * 0x0Cu));
-    uint16_t ax = (uint16_t)(0x140u - span); /* SUB 0x140 / NEG */
+    uint16_t ax = (uint16_t)(VIDEO_PAGE_W - span); /* SUB 0x140 / NEG */
     uint16_t x = (uint16_t)(ax >> 1); /* AX is 16-bit and wraps below */
     uint32_t y = _bar_split + 5u;
     uint32_t i = 0;

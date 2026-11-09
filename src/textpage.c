@@ -49,6 +49,7 @@
  */
 #include "textpage.h"
 #include "font.h"
+#include "osystem.h"
 
 #include <string.h>
 
@@ -167,8 +168,8 @@ static void _glyph_px(uint8_t *page, uint32_t y, uint32_t x0, uint8_t bits,
         if (bits & (1u << k)) {
             uint32_t x = x0 + k;
 
-            if (x < 320u) {
-                uint32_t at = y * 320u + x;
+            if (x < VIDEO_PAGE_W) {
+                uint32_t at = y * VIDEO_PAGE_W + x;
 
                 if (or_into) page[at] |= ink;
                 else page[at] = ink;
@@ -205,7 +206,7 @@ static void _draw_line(uint8_t *page, const char *line, uint32_t centreX,
                            0);
     for (uint32_t r = 0; r < 16u; r++) {
         uint32_t y = cellTop + r;
-        if (y >= 200u) break;
+        if (y >= VIDEO_PAGE_H) break;
         for (uint32_t c = 0; c < 80u; c++) {
             uint8_t bits = _tp_arena[r * 80u + c];
 

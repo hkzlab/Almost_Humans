@@ -86,7 +86,8 @@ static uint32_t _frame; /* effect 2's _frame: 0 = scores, 1..16   */
 static uint32_t _wipe_iter; /* effect 2's 79-step wipe iteration     */
 static uint32_t _d3b; /* [0xD3B]: the slide's display row      */
 static uint8_t _arena[16000]; /* [0xC9D]: the text _arena (200 x 80)    */
-static uint8_t _page_b[64000]; /* [0xC9B]: the composed display page    */
+static uint8_t
+    _page_b[VIDEO_PAGE_BYTES]; /* [0xC9B]: the composed display page */
 static uint8_t *_img_buf; /* [0xC32]: the loaded image             */
 static uint8_t *_text_spr; /* [0x1E1C] analog: the loaded font      */
 static uint8_t _colour1881 = 0x43; /* CS:0x1881: _blit_80x200's colour base  */
@@ -97,7 +98,7 @@ static uint8_t _colour1881 = 0x43; /* CS:0x1881: _blit_80x200's colour base  */
  * [1] the write-mode-2 bit mask, [2..19] pad, [20..79] the presented 60
  * bytes = _arena pixels 80..319. */
 static uint8_t _e4strip[196608];
-static uint8_t _row_sig[200]; /* CS:0x1CF7: the row-signature cache    */
+static uint8_t _row_sig[VIDEO_PAGE_H]; /* CS:0x1CF7: the row-signature cache */
 static int32_t _row_sig_init; /* the shipped 0x80 fill runs once       */
 static uint8_t *_credtext; /* [0xC9F]: the loaded _credtext.bin      */
 static uint32_t _credtext_size;
@@ -158,10 +159,10 @@ static void _clear_vram(void) { memset(_vram, 0, sizeof _vram); }
  */
 static void _blit_planar(const uint8_t *src, uint32_t dest)
 {
-    for (uint32_t r = 0; r < 200u; r++) {
+    for (uint32_t r = 0; r < VIDEO_PAGE_H; r++) {
         uint32_t a = dest + r * 80u;
         if (a + 79u >= 65536u) break; /* never taken: dest is safe */
-        const uint8_t *s = src + r * 320u;
+        const uint8_t *s = src + r * VIDEO_PAGE_W;
         for (uint32_t c = 0; c < 80u; c++) {
             _vram[a + c][0] = s[c * 4u];
             _vram[a + c][1] = s[c * 4u + 1u];
@@ -198,10 +199,10 @@ static void _compose_window(void)
 {
     uint8_t *page = video_page(0);
     if (!page) return;
-    for (uint32_t y = 0; y < 200u; y++) {
+    for (uint32_t y = 0; y < VIDEO_PAGE_H; y++) {
         const uint32_t row = (_display_start + y * 80u) & 0xFFFFu;
-        uint8_t *d = page + y * 320u;
-        for (uint32_t x = 0; x < 320u; x++)
+        uint8_t *d = page + y * VIDEO_PAGE_W;
+        for (uint32_t x = 0; x < VIDEO_PAGE_W; x++)
             d[x] = _vram[(row + (x >> 2)) & 0xFFFFu][x & 3u];
     }
 }
@@ -483,23 +484,25 @@ static int32_t _e2_load(void)
     uint32_t sz = 0;
     _unload_img();
     _img_buf = res_load_chunk("LBM\\GAMEINT.BIT", &sz, NULL);
-    if (!_img_buf || sz < 64000u + 768u) {
+    if (!_img_buf || sz < VIDEO_PAGE_BYTES + 768u) {
         _unload_img();
         return 0;
     }
 
-    palette_load_working(_img_buf + 64000u);
+    palette_load_working(_img_buf + VIDEO_PAGE_BYTES);
 
     /* blit_fullscreen 1000:15B1: two 75-pixel, 200-row strips */
-    for (uint32_t r = 0; r < 200u; r++) {
-        memcpy(_img_buf + r * 320u, _img_buf + 0x9Eu + r * 320u, 75u);
-        memcpy(_img_buf + 0xF5u + r * 320u, _img_buf + 0x55u + r * 320u, 75u);
+    for (uint32_t r = 0; r < VIDEO_PAGE_H; r++) {
+        memcpy(_img_buf + r * VIDEO_PAGE_W, _img_buf + 0x9Eu + r * VIDEO_PAGE_W,
+               75u);
+        memcpy(_img_buf + 0xF5u + r * VIDEO_PAGE_W,
+               _img_buf + 0x55u + r * VIDEO_PAGE_W, 75u);
     }
     /* decode_page_in_place 1000:15E6 + hash_three_bytes 1000:43D5: the
      * luma conversion through gameint's own palette */
     {
         const uint8_t *pal = palette_working();
-        for (uint32_t i = 0; i < 64000u; i++) {
+        for (uint32_t i = 0; i < VIDEO_PAGE_BYTES; i++) {
             const uint8_t *p = pal + _img_buf[i] * 3u;
             /* hash_three_bytes' CH = (77R+151G+28B)>>8, then SHR CH,1 */
             _img_buf[i] =
@@ -977,7 +980,7 @@ int32_t attract_tick(const InputState *in)
         _blit_scroll(_scroll_row);
         _flip_page();
         _scroll_row++;
-        if (_scroll_row == (uint16_t)(_rows_built - 0xC8u)) {
+        if (_scroll_row == (uint16_t)(_rows_built - VIDEO_PAGE_H)) {
             /* 1a72: the terminator check; more _credtext -> the next
              * screenful in the same instant (the clear + the fill + the
              * fade_wait's one poll, the fade being done), then row 0 on

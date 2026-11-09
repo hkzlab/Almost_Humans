@@ -1419,8 +1419,8 @@ static void _load_sprite(uint8_t *page, uint32_t off, int32_t x, int32_t y)
             int32_t px = x + (int32_t)c;
             uint8_t v = _loading_bank[off + r * 16u + c];
 
-            if (px < 0 || px >= 320 || !v) continue;
-            page[(y + r) * 320u + (uint32_t)px] = v;
+            if (px < 0 || px >= (int32_t)VIDEO_PAGE_W || !v) continue;
+            page[(y + r) * VIDEO_PAGE_W + (uint32_t)px] = v;
         }
 }
 
@@ -1447,7 +1447,7 @@ static void _load_draw_one(uint8_t *page, const uint8_t *list, uint32_t entries,
         if (x <= lo || x >= hi) continue; /* the screen window */
         uint32_t off = 0x400u + spr * 0x180u;
         if (off + 0x180u > _loading_size) continue; /* the 0x25 sentinel  */
-        if (y < 0 || y + 24 > 200) continue;
+        if (y < 0 || y + 24 > (int32_t)VIDEO_PAGE_H) continue;
         _load_sprite(page, off, x, y);
     }
 }
@@ -1464,7 +1464,7 @@ static void _load_draw_list(uint8_t *page)
     if (_load_phase == 2 && _load_walker_count)
         _load_draw_one(page, _load_walker_snap, _load_walker_count, 0x60 - 1,
                        0xD0 + 1, -0x32);
-    _load_draw_one(page, _load_list, _load_entries, -16, 320, -0x32);
+    _load_draw_one(page, _load_list, _load_entries, -16, VIDEO_PAGE_W, -0x32);
 }
 
 void level_loading_tick(void)

@@ -37,7 +37,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define SCORE_PAGE (320u * 200u)
+#define SCORE_PAGE VIDEO_PAGE_BYTES
 
 /* --- 1000:46FC / 0x4697 / 0x46A3: the NEW RECORD stamp -------------------
  *
@@ -400,8 +400,9 @@ static void _score_digit_block(uint8_t *page, uint32_t digit, int32_t x,
             int32_t dx = x + (int32_t)px;
             int32_t dy = y + (int32_t)r;
 
-            if (dx >= 0 && dx < 320 && dy >= 0 && dy < 200)
-                page[(uint32_t)dy * 320u + (uint32_t)dx] = v;
+            if (dx >= 0 && dx < (int32_t)VIDEO_PAGE_W && dy >= 0 &&
+                dy < (int32_t)VIDEO_PAGE_H)
+                page[(uint32_t)dy * VIDEO_PAGE_W + (uint32_t)dx] = v;
         }
 }
 

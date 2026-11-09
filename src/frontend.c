@@ -176,7 +176,8 @@ static uint32_t _code2_size, _codehum_size, _codes_size;
 static uint32_t _codeb1_size, _codeb2_size, _restore_size;
 static uint8_t _arena[16000]; /* the font _arena (the [0x1E20] analog) */
 static const uint8_t _ramp0[768]; /* the 0x48BC ramp: zeroed = black     */
-static uint32_t _split_row = 200; /** [0x5B0A]: the CRTC split (0x88 on the
+static uint32_t _split_row =
+    VIDEO_PAGE_H; /** [0x5B0A]: the CRTC split (0x88 on the
                                    * name screen — the fixed band below) */
 
 int32_t frontend_init(const OSystem *osys)
@@ -592,10 +593,10 @@ static void _draw_character(void)
  */
 static void _set_scroll(void)
 {
-    uint32_t s = 0x140u;
+    uint32_t s = VIDEO_PAGE_W;
     if (_char_y >= 0x64u) {
         s = (uint16_t)(_char_x - 0x92u);
-        if (s >= 0x140u) s = 0x140u;
+        if (s >= VIDEO_PAGE_W) s = VIDEO_PAGE_W;
     }
     _scroll = s;
 }
@@ -805,7 +806,7 @@ static void _do_load(void)
     /* the room's opening state (frontend_room_setup's seeds) */
     _page_draw = 0;
     _page_disp = 0x7D00;
-    _split_row = 200; /* [0x5B0A] := 0xC8 (no split)  */
+    _split_row = VIDEO_PAGE_H; /* [0x5B0A] := 0xC8 (no split)  */
     _cell = 0;
     _walk_state = 0xFFFF;
     _char_x = 0x1D2;
@@ -833,8 +834,8 @@ static void _do_load(void)
          * `_code2_size` here.  reset_display_mode's 320x192 field (1000:82C6,
          * called at 1000:A544) ends on row 191, so the original never shows
          * them either. */
-        _planarise_rows(_code2, _code2_size, 0, 200u);
-        _planarise_rows(_code2, _code2_size, 0x7D00, 200u);
+        _planarise_rows(_code2, _code2_size, 0, VIDEO_PAGE_H);
+        _planarise_rows(_code2, _code2_size, 0x7D00, VIDEO_PAGE_H);
         /* the setup's 2-_frame loop (A5A1..A5DB): the full _frame — the
          * badges, the character, the name line — drawn on BOTH pages
          * before the fade, so the fade-in holds a complete static _frame

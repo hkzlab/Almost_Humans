@@ -35,7 +35,7 @@
 #include <string.h>
 
 #define ANI_NAME  "ANM\\ANI%02u.ANI"
-#define PAGE_SIZE (320u * 200u)
+#define PAGE_SIZE VIDEO_PAGE_BYTES
 #define OBJ_SEG_SIZE                                                           \
     65536u   /* the original decodes objects into a 64K segment */
 
@@ -531,7 +531,7 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
              * thumbnail 64 px left per row. */
             const uint8_t *src = _scoops_buf + srcOff;
             for (uint32_t row = 0; row < 0x38u; row++) {
-                memcpy(page + 0x8270u + row * 0x140u, src, 0x40u);
+                memcpy(page + 0x8270u + row * VIDEO_PAGE_W, src, 0x40u);
                 src += 0x40u;
             }
         }
@@ -889,8 +889,8 @@ static void _boot_blit_sprite(const uint8_t *spr, uint32_t width,
                               uint32_t pageYOff, uint8_t *page)
 {
     uint32_t x = ((uint32_t)worldX - _boot_scroll_pos) & 0xFFFFu;
-    if (x >= 320u) return; /* CMP AX,0x140 / JC */
-    uint32_t visible = 320u - x;
+    if (x >= VIDEO_PAGE_W) return; /* CMP AX,0x140 / JC */
+    uint32_t visible = VIDEO_PAGE_W - x;
     if (visible > width) visible = width;
     uint8_t *dst = page + pageYOff + x;
     const uint8_t *src = spr;
@@ -899,7 +899,7 @@ static void _boot_blit_sprite(const uint8_t *spr, uint32_t width,
             uint8_t b = src[i];
             if (b) dst[i] = b; /* 0 = transparent */
         }
-        dst += 0x140u; /* the 320-byte row stride */
+        dst += VIDEO_PAGE_W; /* the 320-byte row stride */
         src += width; /* the clipped part skipped */
         if (dst + visible > page + PAGE_SIZE) return;
     }
@@ -920,14 +920,14 @@ static void _boot_scroll_render(uint8_t *page, const uint8_t *bac,
                                 uint32_t bacSize, uint32_t scroll,
                                 uint32_t destOff)
 {
-    uint32_t ax = scroll % 0x140u;
+    uint32_t ax = scroll % VIDEO_PAGE_W;
     uint32_t dx, bp, si, di = destOff;
     if (di != 0) {
-        dx = 0x140u - di;
+        dx = VIDEO_PAGE_W - di;
         bp = di;
         si = 0;
     } else {
-        dx = 0x140u - ax;
+        dx = VIDEO_PAGE_W - ax;
         bp = ax;
         si = ax;
     }
@@ -996,7 +996,7 @@ static void _boot_blit_record(const uint8_t *rsc, uint32_t rscSize,
             uint8_t b = so < bodySize ? body[so] : 0u; /* past the object: 0 */
             if (b) page[di + i] = b; /* 0 = transparent */
         }
-        di += 0x140u;
+        di += VIDEO_PAGE_W;
         if (di >= PAGE_SIZE) return;
     }
 }
@@ -1117,7 +1117,7 @@ static void _boot_scene_render(void)
     uint8_t *page = video_page(0);
     _boot_scroll_render(page, _boot_bac, 0xE600u, _boot_scroll_pos, 0u);
     _boot_scroll_render(page, _boot_bac, 0xE600u, _boot_scroll_pos,
-                        0x140u - (_boot_scroll_pos % 0x140u));
+                        VIDEO_PAGE_W - (_boot_scroll_pos % VIDEO_PAGE_W));
     _boot_blit_sprite(_boot_treetop, 140u, 113u, 0x5A2u, 0x140u, page);
     _boot_blit_sprite(_boot_treebot, 21u, 59u, 0x608u, 0x8E80u, page);
     if (_boot_frame < 331u) /* the apple leaves at frame 331 */
