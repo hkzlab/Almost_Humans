@@ -47,32 +47,6 @@ typedef enum AttractPhase {
     ATTRACT_DONE
 } AttractPhase;
 
-/** @brief 202F:0x4DE — the top-10 (re_formats.md §11): the shipped defaults live in
- * hiscore.c, which HISCORES.HUM overrides once a game has been played.
- *
- * The shipped 202F:0x4DE top-10 (the attract's default table), for the
- * MAP/score screens' list.
- *
- * @return the number of attract high-score rows
- */
-uint32_t attract_hiscore_count(void);
-
-/**
- * @brief Accessor: one high-score score.
- *
- * @param i the index
- * @return One high-score score.
- */
-uint32_t attract_hiscore_score(uint32_t i);
-
-/**
- * @brief Accessor: one high-score name.
- *
- * @param i the index
- * @return One high-score name.
- */
-const char *attract_hiscore_name(uint32_t i);
-
 /** @brief [0x1E7C] and [0xD3D] are not carried: in the decoded image they are
  * write-only (the cycle/effect tag and the skip flag — the writers are in
  * re_map.md § "The ATTRACT loop decoded"; no reader is traced), so the

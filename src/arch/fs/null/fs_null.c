@@ -1,8 +1,9 @@
 /* fs/null/fs_null.c — the null filesystem module: every operation fails.
  *
- * For ports that have nothing to load (the headless no-data builds) and as
- * the deliberate "no disc" state.  openVolume returns NULL, which the core's
- * callers treat as "the volume is not available" and own the error path. */
+ * The deliberately blank backend: no current target links it.  It is kept as
+ * the reference all-fail module for a no-data port and as the original's
+ * "no disc" state.  openVolume returns NULL, which the core's callers treat
+ * as "the volume is not available" and own the error path. */
 #include "fs/fs.h"
 
 #include <stdio.h>

@@ -298,7 +298,7 @@ static void _blit_marker(uint8_t *page, uint32_t x0, uint32_t y0,
 }
 
 /** @brief text_page_outline (1000:9FB1, called at the tail of draw_map_object 9EA3):
- * a glyph pixel is any byte in [0xF4,0xFC) — the bar bank's grey ramp; every
+ * a glyph pixel is any byte in [0xF4,0xFC): the bar bank's grey ramp; every
  * 4-neighbour that is not one of those (< 0xF4) is set to 0, which is the
  * black outline the original draws around the box text.  The original walks
  * the four planes with the map mask/read map (1000:A012 + A025) and re-tests

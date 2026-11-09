@@ -112,12 +112,6 @@ static uint16_t _scroll_row; /* [0xD78]: the scroll window's start row */
 static uint32_t _wipe_pos, _wipe_speed;
 static int32_t _wipe_dir;
 
-/* --- the shipped DS tables (re_formats.md §9.4, extracted 2026-10-25) -- */
-
-uint32_t attract_hiscore_count(void) { return 10u; }
-uint32_t attract_hiscore_score(uint32_t i) { return hiscore_score(i); }
-const char *attract_hiscore_name(uint32_t i) { return hiscore_name(i); }
-
 /* 202F:0x38C — 160 per-level records of [seconds][minutes] (two
  * pseudo-decimal nibbles / one digit), shipped as 99 09 ("9:99") for every
  * level. */

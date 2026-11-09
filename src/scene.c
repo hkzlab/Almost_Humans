@@ -1328,6 +1328,13 @@ static int32_t _boot_black(void)
 static int32_t _boot_frame_step(void)
 {
     script_fire(&_boot_script, _boot_frame);
+    /* the dwell cue (cmd 7, 1000:B94E): both [0x6460] and [0x6462] take the
+     * argument, restarting the group countdown at the cue's frame */
+    if (script_dwell_pending(&_boot_script)) {
+        _boot_group_dwell = script_group_dwell(&_boot_script);
+        _boot_dwell_count = _boot_group_dwell;
+        script_dwell_done(&_boot_script);
+    }
     if (script_quit(&_boot_script) || script_done(&_boot_script)) {
         /* b791-b7b8: the scene's tail — the final frame stays up for
          * 0x8C ticks, then everything fades to the zeroed ramp (to
@@ -1699,8 +1706,10 @@ int32_t scene_play_boot_intro(void)
 
 uint32_t scene_boot_phase_for_probe(void) { return (uint32_t)_boot_phase; }
 
+#if defined(HUMANSRE_DEBUG_EXTRAS)
 /** @brief probe hook: the AL expander, for the offline byte-comparisons against the
- * validated python decoder (tools/ani_lzw.py)
+ * validated python decoder (tools/ani_lzw.py).  Built in Debug configurations
+ * only (CMakeLists.txt's HUMANSRE_DEBUG_EXTRAS).
  *
  * @param src the source buffer
  * @param src_size the source size
@@ -1710,3 +1719,4 @@ uint32_t scene_boot_phase_for_probe(void) { return (uint32_t)_boot_phase; }
 void scene_al_expand_for_probe(const uint8_t *src, uint32_t src_size,
                                uint8_t *dst, uint32_t dst_size)
 { _scene_al_expand(src, src_size, dst, dst_size); }
+#endif

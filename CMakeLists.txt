@@ -60,6 +60,11 @@ add_library(core STATIC
 target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 humansre_warnings(core)
 
+# Probe hooks that only offline tools call (scene_al_expand_for_probe) are
+# extra, not part of the game: a Debug configure (cmake -DCMAKE_BUILD_TYPE=Debug)
+# compiles them in, a release/default one leaves them out.
+target_compile_definitions(core PRIVATE $<$<CONFIG:Debug>:HUMANSRE_DEBUG_EXTRAS>)
+
 # The headless tests: assert-based, no framework.
 add_executable(test_loop tests/test_loop.c
     src/arch/null/OSystem.c)          # the null backend: the attract composes
@@ -267,8 +272,11 @@ add_test(NAME attract COMMAND test_attract ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR} 
 
 enable_testing()
 
-# The filesystem modules (port_structure.md §2): the arch backends link
+# The filesystem modules (port_structure.md §2b): the arch backends link
 # exactly one at build time; both export the same `fs` interface (fs/fs.h).
+# fs_null is the intentionally blank backend (every call fails); it is built
+# but linked into no current target, and is kept as the reference module for a
+# no-data port and as the original's deliberate "no disc" state.
 add_library(fs_null  src/arch/fs/null/fs_null.c)
 add_library(fs_posix src/arch/fs/posix/fs_posix.c)
 target_include_directories(fs_null  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
@@ -279,7 +287,9 @@ target_include_directories(fs_posix PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 # ADLIB.DRV's sequencer over a vendored Nuked-OPL3 (thirdparty/,
 # LGPL-2.1-or-later); beeper/sound_driver_beeper.c is BEEPER.DRV's sequencer
 # over DOSBox Staging's PC-speaker impulse model (thirdparty/,
-# GPL-2.0-or-later); null/ prints every command and renders silence.
+# GPL-2.0-or-later); null/ prints every command and renders silence.  The
+# audio_null module is intentionally blank and linked into no executable
+# (port_structure.md §2d).
 add_library(audio_adlib
     src/arch/audio/adlib/sound_driver_adlib.c
     src/arch/audio/adlib/thirdparty/opl3.c)
