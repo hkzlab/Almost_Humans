@@ -2,7 +2,7 @@
  *
  * The backend owns the sample stream; the sound-driver module
  * (audio/sound_driver.h) owns the synth.  Every OSystem audio member is one
- * INT 60h command the game sends (re_snd_drv.md §2.4), so this file is a
+ * INT 60h command the game sends, so this file is a
  * thin, thread-safe wrapper around the module - the game-side schedules (the
  * 2-of-3 music tick, the master-volume fades, the tune transitions) live in
  * the core (src/audio.c), where the original runs them.

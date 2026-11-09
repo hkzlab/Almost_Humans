@@ -1,5 +1,5 @@
-/* scene.c - the .ANI/.RSC interpreter (game_structure.md §1 subsystem 11,
- * re_formats.md §8.5-8.7a): the playlist script, the display list, the
+/* scene.c - the .ANI/.RSC interpreter (subsystem 11): the playlist script,
+ * the display list, the
  * frame-keyed event cues.
  *
  * scene_play_level_intro(introIndex) ports cd_file_op (1000:AFF8) as a
@@ -103,7 +103,7 @@ typedef enum {
  *      overlays at the records' destinations; at the group terminator the
  *      dwell counts down and the next group + frame follow
  *   5. present, then the frame wait (2 ticks at 1000:b780; 4 in the port -
- *      port_deviations.md D-248)
+ *      deviation D-248)
  * The quit cue (frame 385) ends it; the frame counter ran 0..386 live.
  * A held key/fire also aborts the boot: c0c6 is polled after every frame's
  * wait (1000:b787) and in the transition's fade wait (1000:c0af).
@@ -1003,7 +1003,7 @@ static void _boot_blit_record(const uint8_t *rsc, uint32_t rscSize,
 
 /** @brief blit_display_list (1000:B955): blit the current group's records; returns
  * the position after the group's 0xFFFF terminator.  The records are the
- * decoded object 0's OWN TAIL - §8.7a: nobody builds the list at runtime,
+ * decoded object 0's OWN TAIL: nobody builds the list at runtime,
  * `MOV SI,[0x6468]` ([0x6468] = obj0 base+2) walks the scratch segment, so
  * the records read from the DECODED buffer and bounds against its size.
  * The objects themselves still LZW-decode out of the raw RSC's table.
@@ -1044,7 +1044,7 @@ static uint32_t _boot_blit_group(const uint8_t *listBuf, uint32_t listSize,
 
 /** @brief The seek (cmd 4): walk `frame` 0xFFFF group terminators from the list
  * start - the group for `frame`.  The terminators live in the decoded
- * object 0's tail (§8.7a: the list is consumed straight out of the decoded
+ * object 0's tail: the list is consumed straight out of the decoded
  * object, [0x6468] runs in the scratch segment), so the walk bounds
  * against the DECODED size, not the raw RSC file.  Returns the group's
  * offset in the decoded buffer.
@@ -1069,7 +1069,7 @@ static uint32_t _boot_seek(const uint8_t *listBuf, uint32_t listSize,
 }
 
 /** @brief the bar text (run_screen_transition's builder, 1000:B89D -> B8A8): the
- * words' 1-bit block at [0x8689 + arg*0x258] - 16 rows × 40 bytes, each
+ * words' 1-bit block at [0x8689 + arg*0x258] - 16 rows x 40 bytes, each
  * bit = one pixel, MSB first, colour 0xE0+row (bac's grey gradient bank)
  * or black - written into the visible bar, rows 182-197, once per
  * transition; the per-frame present never touches those rows so the bar
@@ -1248,7 +1248,7 @@ static int32_t _boot_gt_frame(void)
      * holds count+1 words - the object tail is consumed exactly); the
      * key test lives in BOOT_GT_FLIP (the asm's b2ba, between the flip
      * and the next frame).  LIVE-VERIFIED (2026-10-24): the machine's
-     * relocated count word reads 32 (→ CX = 33) - the loop _plays all
+     * relocated count word reads 32 (-> CX = 33) - the loop _plays all
      * count+1 frames including the last (obj 29), whose expansion
      * wipes the assembled logo down to a small entry-8 blob; that
      * vanish-and-blob is authentic machine behavior. */
@@ -1401,7 +1401,7 @@ static int32_t _boot_frame_step(void)
     _boot_compose_present(video_page(0));
     _scene_osys->videoPresent(0);
     /* 1000:b780 waits `[0x5AC8] >= 2`; doubled only for this scene -
-     * port_deviations.md D-248 (requested slowdown) */
+     * deviation D-248 (requested slowdown) */
     _boot_wait_ticks = 4u;
     _boot_phase = BOOT_WAIT;
     return 1;

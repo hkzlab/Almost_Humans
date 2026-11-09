@@ -2,16 +2,15 @@
  *
  * level_intro_screen (1000:2508): the fresh-load briefing.  The screen is
  * reached from FLOW_LEVEL's fresh-load path (level_run's 307a call; the
- * .ANI cutscene is not part of this screen - see next_step.md's note).
+ * .ANI cutscene is not part of this screen).
  * party_intro_start seeds and runs the setup (the 5 asset loads, the
  * double .BIT bake with the flip, the master-palette copy, the 35-step
  * fade-in); party_intro_tick is one display period of the machine, and
  * returns 1 while the screen plays, 0 after its exit's music_stop.
  * A headless run without the disc data skips the screen (start returns 0).
  *
- * Facts: re_map.md → "The level-intro party screen decoded end to end
- * (2026-10-29)" (all render gates closed); the memory model and the
- * machine notes are in party_intro.c's header.
+ * Facts (decoded 2026-10-29, all render gates closed): the memory model and
+ * the machine notes are in party_intro.c's header.
  */
 
 #ifndef HUMANSRE_PARTY_INTRO_H
@@ -92,7 +91,7 @@ void party_intro_format_score(uint32_t v, char *out);
  * pixel (x,y) = _vram[pagebase + 8 + y*88 + (x>>2)][x&3] of the DISPLAY page
  * (_page_disp - the just-flipped bake target).
  *
- * @param pg the page
+ * @param page320x200 the composed page
  */
 void party_intro_compose(uint8_t *page320x200);
 

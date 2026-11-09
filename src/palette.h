@@ -1,4 +1,4 @@
-/* palette.h - the interface of src/palette.c: fades/DAC (subsystem 4, §6) */
+/* palette.h - the interface of src/palette.c: fades/DAC (subsystem 4) */
 
 #ifndef HUMANSRE_PALETTE_H
 #define HUMANSRE_PALETTE_H
@@ -19,10 +19,9 @@ int32_t palette_init(const OSystem *osys);
 void palette_tick(void);
 
 /**
- * @brief palette_load_6bit (1000:8d24): the _working palette := 768 6-bit bytes.
+ * @brief palette_load_6bit (1000:8d24): the 202F:0x4BBC working palette :=
+ * 768 6-bit bytes.
  *
- * palette_load_6bit (1000:8d24): the 202F:0x4BBC working palette := 768 6-bit
- * bytes.
  * The RAM copy only - the DAC moves through fades or palette_set_dac.
  *
  * @param p6 the 6-bit palette
@@ -59,13 +58,9 @@ void palette_seal_triples(uint8_t *p6, uint32_t first, uint32_t entries);
  */
 void palette_set_dac(const uint8_t *p6, uint32_t first, uint32_t n);
 
-/** @brief palette_build_fade (1000:8bac): fade DAC entries first..first+entries-1
- * toward `target` (the 6-bit palette whose triple for entry `first` is
- * target[0]) in ~div ticks.
- *
- * palette_build_fade (1000:8bac): fade DAC entries first..first+entries-1
- * toward `target` (its triple for `first` at target[0]) in ~div ticks; poll
- * with palette_fade_active.
+/** @brief palette_build_fade (1000:8bac): fade DAC entries
+ * first..first+entries-1 toward `target` (its triple for `first` at
+ * target[0]) in ~div ticks; poll with palette_fade_active.
  *
  * @param first the first entry
  * @param entries the entry count

@@ -35,9 +35,9 @@
  * (1000:95B5), exposed as statusbar_elapsed_word() in the packing
  * check_highscore uses for the per-level best-time compare (1000:42CE).
  *
- * The line-compare reveal ([0x5B0A] 0xC9→0x98, one per tick) is ported:
+ * The line-compare reveal ([0x5B0A] 0xC9->0x98, one per tick) is ported:
  * `_bar_split` offsets the band, marks and action row; the time-up dialog
- * ([0x5E44] → the input_dispatch_loop pause branch) is menu_open_time_up /
+ * ([0x5E44] -> the input_dispatch_loop pause branch) is menu_open_time_up /
  * menu_tick.  draw_level_text (0x342B) parks [0x5B0A] at 0xC9 for the level
  * end, which the port models as `statusbar_hide` (no composition at all,
  * since the bar is a display overlay there and the page shows the world).
@@ -52,7 +52,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define STRIP_LEN     1280u /* PANELN1 (768) + PANELN2 (512), §12.7a    */
+#define STRIP_LEN     1280u /* PANELN1 (768) + PANELN2 (512), level strip */
 #define BAR_FIRST_ROW 152u /* the line-compare split, [0x5B0A] = 0x98  */
 #define BAR_ROWS      40u /* _panel4's top 40 rows                      */
 #define MARK_Y        172u /* bar row 20 (the destinations 0x6E2..)     */
@@ -685,7 +685,7 @@ void statusbar_start(uint16_t packedTimeBcd, uint16_t tribeMembers,
     free(n2);
 
     /* level_video_init's load (1000:32AD): the +0xC0 paragraph stride puts
-     * PANELN2 right after PANELN1 - one 1280-byte _strip (§12.7a)         */
+     * PANELN2 right after PANELN1 - one 1280-byte _strip         */
     free(_panel4);
     _p4_size = 0;
     _panel4 = res_load_chunk("LBM\\PANEL4.BIT", &_p4_size, &chk);

@@ -14,7 +14,7 @@
 #include <stdint.h>
 
 /* One poll's input: the two bytes the game's foreground reads, plus the
- * host's quit request (re_formats.md §12, re_map.md "Two input channels").
+ * host's quit request.
  *
  *   [0x5ACE]  the control bits.  poll_input (1000:8526) rebuilds them every
  *             frame: read_input_state (1000:85BD) clears the byte and loads
@@ -121,10 +121,9 @@ typedef struct OSystem {
     TickSyncFn tickSync; /* the [0x5AC8] counter gate, not [0x48BA] */
 
     /* --- audio ------------------------------------------------------- *
-     * One member per INT 60h command the game sends (re_snd_drv.md §2.4,
-     * port_structure.md §2d).  The module behind them is the resident
-     * driver's replacement; the backend owns the sample stream and pulls
-     * the module's generate().                                          */
+     * One member per INT 60h command the game sends.  The module behind them
+     * is the resident driver's replacement; the backend owns the sample
+     * stream and pulls the module's generate().                           */
     int32_t (*audioInstall)(void); /* the install entry (1E95:00DD)      */
     int32_t (*audioLoadTune)(const uint8_t *image, uint32_t size); /* 0x0C */
     void (*audioResume)(void); /* cmd 5, CX = 0 (music_resume)       */

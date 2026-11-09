@@ -10,13 +10,12 @@
  * end page and the post-level newspaper.  START: SCORE.BIT + the score line
  * + the key/ACTION exit and the 0x100-entry fade to 0x48BC (div 0x23). */
 
-/** @brief check_highscore's score terms (1000:41AE).  [0x1F41] = the level number
- * (1-based, the same value draw_level_text prints), [0x11FC] = the members.
+/** @brief check_highscore's score terms (1000:41AE): level x members x 10 +
+ * the remaining seconds x 10; a lost level is 0.
  *
- * check_highscore's score terms (1000:41AE): level x members x 10 + the
- * remaining seconds x 10; a lost level is 0.
- * The placed-object bonuses are the one term the object array (0x3E75) still
- * owes.
+ * [0x1F41] = the level number (1-based, the same value draw_level_text
+ * prints), [0x11FC] = the members.  The placed-object bonuses are the one term
+ * the object array (0x3E75) still owes.
  *
  * @return the level's score
  */

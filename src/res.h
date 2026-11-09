@@ -1,4 +1,4 @@
-/* res.h - the interface of src/res.c: resource I/O (subsystem 2, re_formats.md §8)
+/* res.h - the interface of src/res.c: resource I/O (subsystem 2)
  * The volume file (named chunks), the LZW decode, the offset-based pool
  * arena standing in for the original's segment pool. */
 
@@ -55,8 +55,7 @@ uint8_t res_movie_disc(uint32_t idx);
  * Load a named chunk case-insensitively out of the CURRENT disc's volume (the
  * name is the relative path inside the volume, e.g.
  * "ANM\ANI03.ANI"); NULL when absent - the original's CF to the INT 63 caller
- * (the "PLEASE INSERT HUMANS DISK A/B/C" prompt territory, re_formats.md
- * §8.3).
+ * (the "PLEASE INSERT HUMANS DISK A/B/C" prompt territory).
  * `chkOut` (nullable) receives the BP analog, the resource-level checksum
  * exactly as resource_load leaves it in BP (1000:9183 OR BP,BP / RET): stored
  * blocks XOR their flag + payload words in; LZ blocks RESET the accumulator to
@@ -76,15 +75,13 @@ uint8_t res_movie_disc(uint32_t idx);
  */
 uint8_t *res_load_chunk(const char *name, uint32_t *sizeOut, uint16_t *chkOut);
 
-/** @brief Decode one LZW object from a memory buffer:
- *   [u16 decompressed_size][u16 checksum][u16 bit buffer][LZW bits]
- * Returns the decompressed size written to `out`, or -1 on failure.
- * *chkOut mirrors the machine's final BP accumulator.
+/** @brief Decode one LZW object straight out of a memory buffer (an .ANI's
+ * chunk image): [u16 decompressed_size][u16 checksum][u16 bit buffer][LZW
+ * bits].
  *
- * Decode one LZW object straight out of a memory buffer (an .ANI's chunk
- * image): [u16 decompressed_size][u16 checksum][u16 bit buffer][LZW bits].
- * *chkOut mirrors the machine's final checksum accumulator (BP) - the
- * scene-object gate tests it against 0 (1000:B444).
+ * Returns the decompressed size written to `out`, or -1 on failure.  *chkOut
+ * mirrors the machine's final checksum accumulator (BP) - the scene-object
+ * gate tests it against 0 (1000:B444).
  *
  * @param data the data buffer
  * @param data_size the data size

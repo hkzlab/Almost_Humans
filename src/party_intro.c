@@ -1,13 +1,12 @@
 /* party_intro.c - the level-intro party screen: level_intro_screen
- * (1000:2508–27EA) with every helper its body reaches, ported
- * listing-for-listing from re_map.md → "The level-intro party screen
- * decoded end to end (2026-10-29)".  Both render gates have been
+ * (1000:2508-27EA) with every helper its body reaches, ported
+ * listing-for-listing (decoded 2026-10-29).  Both render gates have been
  * measurement-closed this session:
  *
- *   • the 2C1D funnel: hardware VGA write-mode-2 semantics - per plane p,
+ *   - the 2C1D funnel: hardware VGA write-mode-2 semantics - per plane p,
  *     post_p = (pre_p & ~mask) | ((src>>p)&1 replicated over the masked
  *     positions) - fitted 21760/21760 against parked-state dumps.
- *   • the A000↔.BIT↔screen layout law: the GC-4=p view byte at offset n is
+ *   - the A000<->.BIT<->screen layout law: the GC-4=p view byte at offset n is
  *     the .BIT pixel (y = 20+q, x = 4n+p); an A000 byte = 4 pixels; the
  *     band = screen/.BIT rows 20..87 (83.5% .BIT-exact, 0 mismatches off
  *     the stamp bands); the composed page = the .BIT verbatim 1:1 per row
@@ -18,21 +17,21 @@
  *   row pitch = 88 bytes (CRTC[13] = 0x2C words: 80 written + 8 hidden);
  *   the page pair 0x1200/0x8100 (A000 byte addresses); the screen row y's
  *   byte base = pagebase + 8 + y*88; the band base = pagebase + 0x6E8.
- * The heap _canvas ([0x1e20] = the [0x11fe] segment) is the 200-row × 80-B
- * draw arena: the draw anchors are absolute arena rows (y = 0x14 → the
+ * The heap _canvas ([0x1e20] = the [0x11fe] segment) is the 200-row x 80-B
+ * draw arena: the draw anchors are absolute arena rows (y = 0x14 -> the
  * byte 0x640), 2af5 clears exactly rows 20..87 (0x640..0x1B80 as words)
  * before each stamp set, and 2c1d reads those rows to stamp the band.
- * The identity 20·80 = 0x640 marshals the three layers.
+ * The identity 20*80 = 0x640 marshals the three layers.
  *
  * Machine (one op = one tick where the original iterates):
  *   the 5 loads + consumers (2570..25b6); 0x1208 <- 0x4D3C (25bc);
- *   the bake ×2 with the 28e9 flip between (25ca..25d8); 28d0 (25da);
+ *   the bake x2 with the 28e9 flip between (25ca..25d8); 28d0 (25da);
  *   palette_build_fade(0, 0x100, 0x23, 0x4bbc) (25dd); the 25ec wait; the
  *   2600 loop:
- *     2600: 2af5; 4× stanza (number-slot fmt + 2e94 draw + anim);
- *           _intro_anim 2b9c; wait_frames_or_key 0xC8; JNS→exit;
+ *     2600: 2af5; 4x stanza (number-slot fmt + 2e94 draw + anim);
+ *           _intro_anim 2b9c; wait_frames_or_key 0xC8; JNS->exit;
  *           2bda fade_and_animate;
- *     269e: 2af5; the second set; _intro_anim; wait 0xC8; JNS→exit;
+ *     269e: 2af5; the second set; _intro_anim; wait 0xC8; JNS->exit;
  *           2bda; JMP 2600;
  *   and the 270b exit: 2bda; 2af5; whole-256 fade 35 steps toward the
  *   zeroed ramp 0x48BC; wait; present_frames_75 (0x4B frames), music_stop,
@@ -63,7 +62,7 @@
  * 28d0 blues into that grey snapshot (the fade-in), and 2bda re-runs 28d0
  * and fades back (the text then equals the background and vanishes).
  *
- * Port-only caveats (port_deviations.md D-01/D-19): with no disc the loads
+ * Port-only caveats (deviations D-01/D-19): with no disc the loads
  * fail and the screen is
  * skipped - the _load-failure path the scene player established; the
  * music/marker calls (play_tune 8437, music_resume 83f7, timing_loop 84a5,
@@ -139,7 +138,7 @@ static uint8_t _sheet[2784]; /* [0x1202]: the 29x96 party sprites  */
 static uint8_t _strip[15360]; /* [0x1206]: the rescaled birdy       */
 static uint8_t _workpal[768]; /* 202F:0x4bbc                        */
 /* 0x4d3c is not a buffer of its own: it is 0x4bbc + 0x180, the .PAL working
- * palette's own upper half (28d0 = 4 × 0x60 B from .PAL[0..31]). */
+ * palette's own upper half (28d0 = 4 x 0x60 B from .PAL[0..31]). */
 static uint8_t *const _pal_upper = _workpal + 0x180; /* 202F:0x4d3c       */
 static uint8_t _prevpal[0x180]; /* 202F:0x1208: the party-write DAC snapshot */
 static uint8_t _ramp_tbl[150]; /* CS:0x2DFE..0x2E93 (0x96 bytes)      */
@@ -378,7 +377,7 @@ static void _band_stamp(uint32_t pagebase)
 }
 
 /**
- * @brief 29d9 blit_slot_colour_block: 24 rows × 4 bytes; frame clamps 0x1C
+ * @brief 29d9 blit_slot_colour_block: 24 rows x 4 bytes; frame clamps 0x1C
  *
  * @param frame the frame index
  */
@@ -505,7 +504,7 @@ static void _draw_text_ramped(const char *s, uint32_t centreX, uint32_t row)
                                             * the _canvas glyph is NOT rendered */
 }
 
-/** @brief 28d0 palette_copy_low_to_upper: 4 × 0x60 bytes .PAL[0..31] ->
+/** @brief 28d0 palette_copy_low_to_upper: 4 x 0x60 bytes .PAL[0..31] ->
  * .PAL[128..255] (so the window fade targets the blues, not the file's grey
  * upper half).
  */

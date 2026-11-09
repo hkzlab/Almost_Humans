@@ -15,7 +15,7 @@
  *
  * The cells and counts are 202F:0x5E46 (cell 2 = LEVEL/3, 3 = MUSIC/2,
  * 5 = ANIMATIONS/2, 6 = RESTORE GAME/21) and the signs are painted in
- * code2.raw (re_map.md §"The front-end room").
+ * code2.raw.
  *
  * argv[1] = the game data directory holding HUMANS.000/001/002.
  * Missing volumes = skip. */

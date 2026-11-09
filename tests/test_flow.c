@@ -1836,7 +1836,7 @@ int main(int argc, char **argv)
                             "the idle stream reaches the 0x12..0x16 yawn frames");
                     }
                 }
-                /* The human stack, end to end (re_map.md: 0x6F22).  Op 1
+                /* The human stack, end to end (0x6F22).  Op 1
                  * registers the base (frame 0x20, type 8), 1000:E697 pushes a
                  * human standing just above it (frame 0x25, type 7), 1000:FDED
                  * pops the top member, and 1000:F453 + 1000:FA13 dissolve the
@@ -3896,7 +3896,7 @@ int main(int argc, char **argv)
                "an out-of-table header dispatches no op (D-186)");
         object_action_set_program(1u);
 
-        /* the save's +0x06 byte is the raw [0x5B56] (re_formats.md) */
+        /* the save's +0x06 byte is the raw [0x5B56] */
         {
             uint8_t pb[0x20];
 
@@ -5352,7 +5352,7 @@ int main(int argc, char **argv)
         }
     }
 
-    /* 8b. HISCORES.HUM (re_formats.md §11 / menu_loop 1000:012A): the
+    /* 8b. HISCORES.HUM (menu_loop 1000:012A): the
      * obfuscation is an involution, the shipped table is the 0x0999 bests and
      * the ten defaults, the insert shifts 18-byte entries, and the name entry
      * follows the grid's 0x1C/0x1D columns. */
@@ -7640,7 +7640,7 @@ int main(int argc, char **argv)
                        map_name_for_probe()[0] == 'Q',
                    "D-201: the typed letter moves the ring and appends");
             /* D-209 (closed 2026-11-05): the appended glyph starts at
-             * (0x95,0x16) and slides toward row 0x45 by ≤4 px per draw. */
+             * (0x95,0x16) and slides toward row 0x45 by <=4 px per draw. */
             {
                 int32_t tx = 0, ty = 0, cx = 0, cy = 0;
 
@@ -8126,7 +8126,7 @@ int main(int argc, char **argv)
 
         /* --- 1000:DE7E (type 30): the 0x687C {dx, dy, flag} walk.  Every flag
          * byte in the shipped table is 0x01, so the armed tribe counter probe inside
-         * this tail is unreachable with the shipped data (re_map.md). --- */
+         * this tail is unreachable with the shipped data. --- */
         memset(spare, 0, 0x12u);
         wr_le_u16(spare + 8u, 30u);
         wr_le_u16(spare + 4u, 0x20u);
@@ -8163,14 +8163,14 @@ int main(int argc, char **argv)
         (void)object_command_run(spare, 0x01u);
         _check(spare[6] == 0x80u && rd_le_u16(spare + 4u) == 0u,
                "0xDED1: with bit 7 set a 2/3 entity holds");
-        /* bit 7 set and the entity outside 2..3 → the probe (taken branch) */
+        /* bit 7 set and the entity outside 2..3 -> the probe (taken branch) */
         wr_le_u16(ent + 2u + 4u, 5u);
         entity_load_fixed(ent);
         wr_le_u16(spare + 0x10u, 0x40u);
         (void)object_command_run(spare, 0x01u);
         _check(rd_le_u16(spare + 0u) == 0xFFFFu && spare[6] == 0xFFu,
                "0xDED1: bit 7 + a non-2/3 entity runs the probe");
-        /* bit 7 clear and the entity outside 2..3 → the home form */
+        /* bit 7 clear and the entity outside 2..3 -> the home form */
         memset(spare, 0, 0x12u);
         wr_le_u16(spare + 8u, 34u);
         wr_le_u16(spare + 0xAu, 0x8000u);

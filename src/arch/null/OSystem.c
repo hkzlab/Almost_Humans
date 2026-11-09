@@ -3,7 +3,7 @@
  * Builds with no dependencies at all; used by CI and the headless tests.
  * The _pages are plain buffers, the input is always idle, the timer stores
  * the callback for the test to drive manually.  It is also the shape every
- * other backend must match (port_structure.md §2). */
+ * other backend must match. */
 #include "osystem.h"
 
 #include <stdlib.h>
@@ -167,16 +167,19 @@ const OSystem g_osys_null = {
 
 static void _null_set_mode(VideoMode mode) { _mode_set = mode; }
 static uint8_t *_null_page(int32_t which) { return _pages[which & 1]; }
+/* Present a page: run the test's hook. */
 static void _null_present(int32_t which)
 {
     (void)which;
     if (_present_hook) _present_hook(_script_i);
 }
+/* Store the palette window, clamped to 256 entries. */
 static void _null_set_palette(const uint8_t *p6, uint32_t first, uint32_t n)
 {
     if (first + n > 256) n = 256 - first;
     memcpy(_pal + first * 3, p6, (size_t)n * 3);
 }
+/* Deliver the scripted input state and the tick-limit quit. */
 static void _null_poll(InputState *out)
 {
     if (_script_states && _script_i < _script_n)
@@ -187,11 +190,13 @@ static void _null_poll(InputState *out)
      * (game_main's input.quit check), not from inside the backend */
     if (_tick_limit && _tick_counter >= _tick_limit) out->quit = 1;
 }
+/* Record the tick callback the tests drive. */
 static void _null_timer_start(uint32_t rate, TickFn tick)
 {
     _the_rate = rate;
     _the_tick = tick;
 }
+/* One tick boundary: bump the counter and run the ISR body. */
 static void _null_tick_sync(uint32_t *lastSeen)
 {
     /* one tickSync = one tick: the ISR's INC [0x5AC8] (1000:8AA4) then the
@@ -202,11 +207,13 @@ static void _null_tick_sync(uint32_t *lastSeen)
     if (_the_tick) _the_tick();
     *lastSeen = _tick_counter;
 }
+/* Count audio installs. */
 static int32_t _null_audio_install(void)
 {
     _audio_installs++;
     return 0;
 }
+/* Count audio loads and keep the last tune size. */
 static int32_t _null_audio_load(const uint8_t *image, uint32_t size)
 {
     (void)image;
@@ -217,6 +224,7 @@ static int32_t _null_audio_load(const uint8_t *image, uint32_t size)
 }
 static void _null_audio_resume(void) { _audio_starts++; }
 static void _null_audio_stop(void) { _audio_stops++; }
+/* Count sfx and keep the last id. */
 static void _null_audio_sfx(uint16_t id)
 {
     _audio_sfx_count++;
@@ -226,6 +234,7 @@ static void _null_audio_tempo(uint8_t cl) { _audio_tempo = cl; }
 static void _null_audio_tick(void) { _audio_ticks++; }
 static int32_t _null_audio_driver_id(void) { return 1; }
 static void _null_warn(const char *msg) { fprintf(stderr, "%s\n", msg); }
+/* Print a fatal message and exit. */
 static void _null_fatal(const char *msg)
 {
     fprintf(stderr, "fatal: %s\n", msg);

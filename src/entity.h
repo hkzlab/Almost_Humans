@@ -1,11 +1,4 @@
-/* entity.h - the interface of src/entity.c: entity table/bytecode (subsystem 10, §12)
- *
- * The ported, closed §12.6 system: tile 0xB3 spawns a dinosaur, a 0xB4 on
- * the same row supplies the far endpoint (entity_find_by_id), and the
- * game itself alternates the dispatched handler (the shared tail's +4 ^=
- * 1 flip) so the dino paces between the two endpoints at ±1 px per tick.
- * All field meanings and the per-tick machine are in re_formats §12.6.
- */
+/* entity.h - the interface of src/entity.c: entity table/bytecode */
 
 #ifndef HUMANSRE_ENTITY_H
 #define HUMANSRE_ENTITY_H

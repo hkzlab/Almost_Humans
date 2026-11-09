@@ -1,4 +1,4 @@
-/* script.h - the interface of src/script.c: the frame-keyed cue interpreter (§8.7a)
+/* script.h - the interface of src/script.c: the frame-keyed cue interpreter
  * The boot intro's event script: 25 verbatim cues from 202F:0x843C,
  * dispatched on the exact frame (JE) through a 7-command dispatch. */
 
@@ -23,7 +23,7 @@ typedef struct {
     uint16_t cursor; /* the next cue to fire                       */
 } CueScript;
 
-/* --- src/script.c - interpreter skeleton (re_scripts.md) -------------- */
+/* --- src/script.c - interpreter skeleton -------------------------------- */
 
 /**
  * @brief Bind the cue-script module to the backend.

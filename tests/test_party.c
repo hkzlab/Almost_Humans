@@ -1,5 +1,5 @@
 /* test_party.c - the level party screen's bake-frame check, byte-exact
- * against the closed A000↔.BIT↔screen layout law (2026-10-29 session):
+ * against the closed A000<->.BIT<->screen layout law (2026-10-29 session):
  *
  * the composed page's pixel (x,y) = the .BIT's pixel (x,y), 320x200, 1:1 per
  * row (the bake's pitch 88 with the +8 head; the band rows 20..87 = the

@@ -1,8 +1,6 @@
 /* frontend.c - the front-end room: the walkable level-select / game-start
  * menu (subsystem 8; frontend_room_setup 1000:A48E + the _frame web +
- * level_select_event_loop 1000:AA2C), ported from re_map.md -> "The
- * front-end room (the level-select / game-start menu) - the core decoded
- * (2026-10-26)" and its "Closed since" list.
+ * level_select_event_loop 1000:AA2C).
  *
  * THE ROOM.  A 640-px-wide walkable side view on the original's unchained
  * mode-X space: two pages at byte offsets 0 / 0x7D00, 160 bytes per row
@@ -57,7 +55,7 @@
  * frontend_option() is the read side's one accessor.
  *
  * DEVIATIONS (all port-only, each waiting on its named step; the
- * authoritative list is port_deviations.md - D-01/D-19/D-20 here):
+ * deviations D-01/D-19/D-20 here):
  *  - the INT 60h calls (music_resume/stop 83F7/8389, the cmd-0xA pump) are
  *    not made: the audio backend is an M5 stub.  audio_music_gate ports the
  *    gate and the [0x40BB] latch; only the tune handle is missing (M6).
@@ -68,7 +66,7 @@
  *  - the name line is the AB8D render proper (2026-10-27): the typed
  *    name goes to the _arena via draw_text and the WM2 bit-7 copy loop
  *    carries it to the page - DARWIN shows in the entry box; the prior
- *    "never displayed" reading is archived in re_history.md..
+ *    "never displayed" reading has been withdrawn.
  *  - the backdrop copy is the original's 200-row one (`room_backdrop_build`
  *    `1000:AF07`, CX = 0xC8): rows 192..199 are the bytes past the 640x192
  *    image - its palette tail, then the heap pool.  The room's field is

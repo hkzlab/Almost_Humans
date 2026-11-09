@@ -1,5 +1,5 @@
 /* menu.c - the in-level dialogs: the pause menu and the SAVE GAME number
- * grid (re_map.md §"The in-level pause menu", re_formats.md §10.0).
+ * grid.
  *
  * BEHAVIOUR (ported from the listing):
  *  - pause_toggle (1000:3523) opens the menu on the ACTION bit (0x80) with

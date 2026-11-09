@@ -1,4 +1,5 @@
-/* scene.h - the interface of src/scene.c: .ANI/.RSC interpreter (subsystem 11, §8.5-8.7a) */
+/* scene.h - the interface of src/scene.c: the .ANI/.RSC interpreter
+ * (subsystem 11) */
 
 #ifndef HUMANSRE_SCENE_H
 #define HUMANSRE_SCENE_H

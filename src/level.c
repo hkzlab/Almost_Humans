@@ -1,8 +1,8 @@
-/* level.c - the level definitions (game_structure.md §1 subsystem 9,
- * re_formats.md §2): LEVELS\LA.BIN … LP.BIN, 16 files x 10 records = 160
+/* level.c - the level definitions (subsystem 9): LEVELS\LA.BIN ... LP.BIN,
+ * 16 files x 10 records = 160
  * levels.
  *
- * Record layout (re_formats.md §2/§2.1a, census-verified over all 160):
+ * Record layout (census-verified over all 160):
  *
  *   +0x00  13-byte header:
  *            u16 style       low byte = the tile style 1..6 -> DEFS\BD<n>.BIN
@@ -56,7 +56,7 @@
 #define SIG_LEN   6u
 #define FIELD_LEN 8u
 
-/* --- the level's visual assets (re_formats.md §3-§5) -------------------
+/* --- the level's visual assets -----------------------------------------
  *
  * DEFS\BD<style>.BIN: the defs walk - the loader steps the buffer
  * sequentially (array_max_word over the A/B offset tables, then the fixed
@@ -88,8 +88,8 @@ static struct {
     uint16_t x, y, age;
 } _spark[0x58];
 
-/* The BD walk (re_formats.md §4): returns the end offset (== the file size
- * for all six shipped files), 0 on a bounds failure.  The doc's "D" row -
+/* The BD walk: returns the end offset (== the file size
+ * for all six shipped files), 0 on a bounds failure.  The format's "D" row -
  * the 5 far pointers - is loader-constructed, 0 file bytes; row J advances
  * by the LITERAL si += word[si] (the length word is part of the skip), then
  * 8 bytes; field M (a u16 count + 4-byte entries) is the palette-rotation
@@ -1546,7 +1546,7 @@ void level_set_view(uint16_t x, uint16_t y)
 /** @brief The pair the follower adds to the record's position ([0x2D90] indexes
  * DS:0x2D92..0x2DA4).  Outside that range the original would read whatever
  * follows in DS; the pointer cannot leave it (see the walk below), so the port
- * returns zero there (port_deviations.md D-25).
+ * returns zero there (deviation D-25).
  *
  * @param dx the x delta
  * @param dy the y delta
@@ -1932,6 +1932,7 @@ static void _present_plane(void)
             page[y * VIDEO_PAGE_W + x] = _lvl_plane[y * 88u + (x >> 2)][x & 3u];
 }
 
+/* Bake the visible page back into the planar work buffer. */
 static void _bake_page_to_plane(void)
 {
     const uint8_t *page = _level_osys->videoPage(0);
@@ -2255,8 +2256,7 @@ uint8_t level_tick(void)
     }
 
     /* the colours are the working palette 202F:0x14D3, built in level_load
-     * and faded in by the first tick above (re_map.md "The level's working
-     * palette"). */
+     * and faded in by the first tick above. */
     return 1;
 }
 

@@ -21,12 +21,11 @@
  * the attract.
  *
  * The one port-only escape point is the ASSET-LOAD-FAILURE skip
- * (port_deviations.md D-19): the
- * original has no such path (a failed INT 63h prompts for the disc), and
- * the port's headless tests run without data - so the skip consumes the
- * escape to stay drivable.  With data present that path never runs and the
- * polling is the original's.  (Load failures otherwise skip the effect -
- * the scene player's established pattern.)
+ * (deviation D-19): the original has no such path (a failed INT 63h prompts
+ * for the disc), and the port's headless tests run without data - so the
+ * skip consumes the escape to stay drivable.  With data present that path
+ * never runs and the polling is the original's.  (Load failures otherwise
+ * skip the effect - the scene player's established pattern.)
  *
  * The escape itself (the longjmp 1000:13B2): the saved page pair is
  * restored, [0x1E7C]:=0x0A, one fade of all 256 DAC entries to the zeroed
@@ -35,7 +34,7 @@
  * the front-end (FLOW_MENU - the original's RET into entry LAB_002B).
  *
  * Effect 4's credits scroller is the real machine (decoded 2026-10-25,
- * re_map.md "Effect 4" items 3-6): the fill builds the 192-KB strip at
+ * items 3-6): the fill builds the 192-KB strip at
  * [0xD76] (clear_bitmaps_6) as a vertical bitmap of 80-byte rows - [0]
  * the signature, [1] the write-mode-2 mask, [20..79] the presented 60
  * bytes - one 15-row tile per text line (BP += 75 paras) or 16-row blank
@@ -70,7 +69,7 @@ static uint16_t _page_draw, _page_disp; /* [0x5AC4]/[0x5AC6]                */
 static uint16_t _display_start; /* [0x4106]: the CRTC start (bytes) */
 static uint16_t _saved_draw, _saved_disp; /* game_loop's PUSH pair (1387)     */
 
-/* the strings at 202F:0xC38/0xC4D/0xC73/0xC79 (re_formats.md §9.4) are
+/* the strings at 202F:0xC38/0xC4D/0xC73/0xC79 are
  * game_strs' ATTRACT entries */
 
 /* the 0x48BC ramp analog: it enters the attract zeroed (the boot's
@@ -91,7 +90,7 @@ static uint8_t *_img_buf; /* [0xC32]: the loaded image             */
 static uint8_t *_text_spr; /* [0x1E1C] analog: the loaded font      */
 static uint8_t _colour1881 = 0x43; /* CS:0x1881: _blit_80x200's colour base  */
 
-/* --- effect 4's credits strip (re_map.md "Effect 4") ----------------------
+/* --- effect 4's credits strip ---------------------------------------------
  * The 192-KB work area [0xD76] (clear_bitmaps_6 1000:1B3B, re-zeroed per
  * screenful): a vertical bitmap of 80-byte rows - [0] the row signature,
  * [1] the write-mode-2 bit mask, [2..19] pad, [20..79] the presented 60

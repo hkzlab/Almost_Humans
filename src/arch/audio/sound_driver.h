@@ -2,10 +2,10 @@
  *
  * The game never touches a synth: it loads one of three resident drivers out
  * of the resource archive (ADLIB.DRV / MT32.DRV / BEEPER.DRV, chosen by the
- * launcher's [0x5AFE] sound_driver_id) and talks to it over INT 60h
- * (re_snd_drv.md §2, re_map.md "Audio subsystem").  This header is that same
- * conversation: every function below is one INT 60h command the game sends,
- * and the module behind it is the driver image's replacement.
+ * launcher's [0x5AFE] sound_driver_id) and talks to it over INT 60h.
+ * This header is that same conversation: every function below is one INT 60h
+ * command the game sends, and the module behind it is the driver image's
+ * replacement.
  *
  *   game wrapper (verified)              INT 60h        this interface
  *   driver_reset 1000:84DE, entry AX=0x60  install       create(rate)
@@ -36,12 +36,12 @@
  * Modules (each exports its own `g_sound_driver_*`; a port links the ones
  * it offers and picks one at run time, the way the launcher picks the
  * resident driver through `[0x5AFE]`):
- *   adlib/sound_driver_adlib.c     ADLIB.DRV's sequencer (re_snd_drv.md
- *                                  §3.5) over a vendored Nuked-OPL3
- *   beeper/sound_driver_beeper.c   BEEPER.DRV's sequencer (bep_format.md)
- *                                  over the PIT channel-2 square wave
- *   mt32/sound_driver_mt32.c       MT32.DRV's sequencer (rld_format.md) over
- *                                  a system mt32emu (needs its ROM images)
+ *   adlib/sound_driver_adlib.c     ADLIB.DRV's sequencer over a vendored
+ *                                  Nuked-OPL3
+ *   beeper/sound_driver_beeper.c   BEEPER.DRV's sequencer over the PIT
+ *                                  channel-2 square wave
+ *   mt32/sound_driver_mt32.c       MT32.DRV's sequencer over a system
+ *                                  mt32emu (needs its ROM images)
  *   null/sound_driver_null.c       no sound; prints every command it receives
  */
 #ifndef HUMANSRE_SOUND_DRIVER_H

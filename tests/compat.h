@@ -1,6 +1,6 @@
 /* compat.h - the host-OS shims for the test mains.
  *
- * The core stays pure C99 with no host #ifdefs (port_structure.md §5); only
+ * The core stays pure C99 with no host #ifdefs; only
  * these host-facing mains need the POSIX calls: chdir (fs opens its volumes
  * relative to the cwd) and realpath (the fixture paths resolve against the
  * caller's cwd before the chdir).  Windows spells them _chdir/_fullpath

@@ -1,6 +1,6 @@
 /* test_save.c - the RESTORE GAME slot's load (pass 8).
  *
- * Builds a byte-exact 0x1800 save fixture (re_formats.md §10/§10.0) named
+ * Builds a byte-exact 0x1800 save fixture named
  * `SAVEB` - the fs module's file for slot 2 - then drives the front-end room
  * with synthetic input: walk to RESTORE GAME, press ACTION twice (GAME 2),
  * walk off the right edge.  Asserts:
@@ -241,7 +241,7 @@ int main(int argc, char **argv)
                     level_tribe_members());
             bad = 1;
         }
-        /* the blob is carried verbatim (offsets per re_formats.md §10) */
+        /* the blob is carried verbatim */
         if (save_blob()[0x0D] != 0xC3u || save_blob()[0x17F0] != 0x5Au) {
             fprintf(stderr, "FAIL the save blob was not carried\n");
             bad = 1;

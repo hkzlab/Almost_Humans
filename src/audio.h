@@ -1,5 +1,5 @@
 /* audio.h - the interface of src/audio.c: the tune/sfx state machine
- * (game_structure.md §1 subsystem 7) over the OSystem's INT 60h calls. */
+ * over the OSystem's INT 60h calls. */
 
 #ifndef HUMANSRE_AUDIO_H
 #define HUMANSRE_AUDIO_H
@@ -7,10 +7,9 @@
 #include "osystem.h"
 
 /* The game's tune base names (202F:002A, 0x77A, 0xF91, 0x11AA, 0x1391,
- * 0x139B and 0x62E3/0x62EC - re_snd_drv.md §2.5).  The address is the
- * dedup key in the original, so they are objects here, not string
- * literals: `audio_tune_lev` is the mutable 0x139B buffer whose letter at
- * +7 is [0x13A2]. */
+ * 0x139B and 0x62E3/0x62EC).  The address is the dedup key in the original,
+ * so they are objects here, not string literals: `audio_tune_lev` is the
+ * mutable 0x139B buffer whose letter at +7 is [0x13A2]. */
 extern const char audio_tune_title[];
 extern const char audio_tune_hiscore[];
 extern const char audio_tune_disk[];
@@ -61,10 +60,8 @@ void audio_tick(void);
 void audio_render_tick(void);
 
 /**
- * @brief Say whether the backend drives the audio tick from the sample clock.
- *
- * Declare that the backend drives the audio tick from its sample clock, so
- * audio_tick (the game-tick call) must not step it too.
+ * @brief Declare that the backend drives the audio tick from its sample clock,
+ * so audio_tick (the game-tick call) must not step it too.
  *
  * @param on 1 while an audio stream is running and calls audio_render_tick
  */
@@ -82,7 +79,7 @@ void audio_set_render_clock(uint8_t on);
  * When the file is missing the original exits with an error (D-252); the port
  * stops the current record and stays silent until a later tune loads.  That
  * is the forced-Beeper case: only `LEVA.BEP` of the lettered level tunes
- * ships (bep_format.md §10).
+ * ships.
  *
  * @param name the base name, e.g. "mus\\title"
  */
@@ -116,10 +113,8 @@ void audio_music_stop(void);
 /**
  * @brief The front-end frame web's music gate (1000:A5E8).
  *
- * the front-end frame web's gate (1000:A5E8): `off` = the MUSIC board's
- * counter [0x5E5B] non-zero -> music_stop; zero -> music_resume + cmd 0x0A
- * 0x4B (1000:A5F7).
- * One call per room tick.
+ * `off` (the MUSIC board's counter [0x5E5B]) non-zero -> music_stop; zero ->
+ * music_resume + cmd 0x0A 0x4B (1000:A5F7).  One call per room tick.
  *
  * @param off the MUSIC board's counter [0x5E5B]
  */
@@ -128,21 +123,16 @@ void audio_music_gate(uint32_t off);
 /**
  * @brief timing_loop (1000:84A5): start the master-volume fade-in.
  *
- * The original blocks for 75 x two vsyncs; the steps are spread over the
- * tick here (audio_tick), which is the same audio timeline and does not
- * stall the foreground.
- *
- * timing_loop (1000:84A5): master volume 0..0x4A, two ticks per step, latched
- * by [0x40BA].
- * Non-blocking: the steps run from audio_tick.
+ * Master volume 0..0x4A, two ticks per step, latched by [0x40BA].  The
+ * original blocks for 75 x two vsyncs; here the steps run from audio_tick,
+ * the same audio timeline, without stalling the foreground.
  */
 void audio_fade_in(void);
 
 /**
  * @brief present_frames_75 (1000:835A): start the master-volume fade-out.
  *
- * present_frames_75's fade (1000:835A): 0x4B..0, two ticks per step, then
- * clears [0x40BA].
+ * 0x4B..0, two ticks per step, then clears [0x40BA].
  */
 void audio_fade_out(void);
 

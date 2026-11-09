@@ -1,5 +1,5 @@
 /* hiscore.h - the interface of src/hiscore.c: HISCORES.HUM, its
- * obfuscation and the top-10 insert (re_formats.md §11). */
+ * obfuscation and the top-10 insert. */
 
 #ifndef HUMANSRE_HISCORE_H
 #define HUMANSRE_HISCORE_H
@@ -8,7 +8,7 @@
 
 #include <stdint.h>
 
-/* --- HISCORES.HUM (re_formats.md §11, menu_loop 1000:012A) ------------ */
+/* --- HISCORES.HUM (menu_loop 1000:012A) ------------------------------- */
 
 /** @brief the runtime table's first state.  `1000:069F` (the loader) has no
  * caller in the listing, so the shipped game always starts from the image's

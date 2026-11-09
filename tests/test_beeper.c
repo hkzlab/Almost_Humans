@@ -6,7 +6,7 @@
  * rendered impulse-model output is then measured for pitch.
  *
  * The assertions this test exists for:
- *   - the .BEP header/offset-table geometry from `bep_format.md` §2;
+ *   - the .BEP header/offset-table geometry;
  *   - the row decoder's stride: the 4-byte cell plus the 0x12 gap is 0x16,
  *     so track 1 reaches slot 1 and both voices sound;
  *   - the renderer's frequency is the PIT's 1193182 / divisor;
@@ -185,7 +185,7 @@ int main(int argc, char **argv)
     assert(drv->tempo == (uint8_t)((0xA3u * 0x4Au) >> 8));
     g_sound_driver_beeper.loadTune(drv, image, size);
 
-    /* `bep_format.md` §2: K, P, Stream, N, SDS. */
+    /* K, P, Stream, N, SDS. */
     for (i = 0; i < 0x7Fu; i++)
         if (image[0x18u + i] > max_order) max_order = image[0x18u + i];
     patterns = max_order + 1u;

@@ -1,7 +1,7 @@
 /* test_fadeladder.c - the port's own fade ladder, dumped per tick for
  * comparison against the original's recorded DAC reads (2026-10-30,
- * `OUT 3C7/IN 3C9` per entry at both phases - re_map.md, "the party's
- * entry-palette source").  Measured ORIGINAL ground truth:
+ * `OUT 3C7/IN 3C9` per entry at both phases).  Measured ORIGINAL ground
+ * truth:
  *
  *   the blues phase (end of the entry 0x100 fade - 28d0 has already run at
  *   25da, so the window's target is the replicated ramp, not the .PAL's
@@ -152,8 +152,8 @@ int main(int argc, char **argv)
     }
     _dump_window(dac, 940u);
 
-    /* the ground-truth asserts, one per phase (re_map.md, "the party's
-     * entry-palette source": the live DAC walk of 2026-10-30) */
+    /* the ground-truth asserts, one per phase (the live DAC walk of
+     * 2026-10-30) */
     int32_t fails = 0;
     struct {
         uint32_t e;

@@ -5,8 +5,7 @@
  * _strip, PANEL4.BIT = the band art): the band (_panel4's top 40 rows,
  * +0xC0-tagged) and the five digit marks (the countdown's minutes /
  * sec-tens / sec-ones + the tribe pair's tens / ones, each an 8x8 glyph at
- * the (digit+1)*16 _strip slot, re_map.md → "The in-level status bar,
- * decoded end to end").
+ * the (digit+1)*16 _strip slot).
  *
  * Cases: the seeded stamp; the first per-second roll (6:00 -> 5:59, the
  * tribe counter's one-frame roll-start phase, then the settled glyph); the

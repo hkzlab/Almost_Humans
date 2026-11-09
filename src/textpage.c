@@ -34,7 +34,7 @@
  * The palette: the tile bytes are indices into the level's palette (0..63)
  * and the marker indices 0xE3/0xE4 are the bar's bank (0xC0..0xFF,
  * level_video_init's panel4 copy).  The level DAC base is the working palette
- * 202F:0x14D3 (level.c; re_map.md "The level's working palette") and the
+ * 202F:0x14D3 (level.c) and the
  * box's indices ride it.
  *
  * The text's shading: blit_text_tile writes through write mode 2 with the OR

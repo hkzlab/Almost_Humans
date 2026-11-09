@@ -34,13 +34,11 @@ typedef struct {
     uint8_t command;
 } ObjCommand;
 
-/** @brief The program header `1000:98F8` resolves for `group`: the six table
- * words at `0x5B2B` select the overlapping runs at `0x5B37..0x5B53`.  An id
- * outside 1..6 is bounded (D-186).
+/** @brief The program header `1000:98F8` resolves for a raw id: the six word
+ * pointers at `202F:0x5B2B` select the overlapping runs at 0x5B37..0x5B53,
+ * read as {count, cursor, icon...}.
  *
- * The program header `1000:98F8` resolves for a raw id: the six word pointers
- * at `202F:0x5B2B` select the overlapping runs at 0x5B37..0x5B53, read as
- * {count, cursor, icon...}.
+ * An id outside 1..6 is bounded (D-186).
  *
  * @param group the raw program id
  * @return the 12-byte header, or NULL outside 1..6
@@ -289,7 +287,7 @@ void object_bg_at(uint32_t i, uint32_t *x, uint32_t *y);
  * fixed pointers, the 20 class bytes, [0x3E73] live count and the 29 0x12
  * records at 0x3E75.  The pointer table is the image's constant run.
  *
- * the SAVE GAME state ranges (re_formats.md §10/§12.3): object table (0x3E20,
+ * the SAVE GAME state ranges: object table (0x3E20,
  * 0x25F), pools (0x6F20, 0x13CA), programs (0x5B37, 0x20), TER slots (0x649A,
  * 0x28) and the 0x6F92 copy (0x54).
  *
@@ -423,7 +421,7 @@ int16_t object_entities_finished(void);
 /** @brief 1000:36AB - the record's type is <= 2 and the map cell under it equals the
  * test's byte.
  *
- * @param want the wanted value
+ * @param cell the cell value to test against
  * @return -1 when the cell matches, 0 otherwise
  */
 int16_t object_map_cell_equals(uint32_t cell);
@@ -607,8 +605,8 @@ void object_publish_bank(const uint8_t *bank, uint32_t size);
  * load_terrain_b's per-tile object walk (1000:5168): [0x3E73] = 8, the 20
  * behaviour bytes cleared, then every map cell of the 25 table tiles in table
  * order (0xAA the human into the first free static slot, frame 0x10, type 2;
- * 0xAB the spear, appended, frame 0x60, +8 = 0xFFFF, behaviour 5; the rest per
- * re_map.md); returns [0x3E73].
+ * 0xAB the spear, appended, frame 0x60, +8 = 0xFFFF, behaviour 5); returns
+ * [0x3E73].
  *
  * @param map the 640-cell map
  * @return the live record count after the spawn
@@ -1057,7 +1055,7 @@ uint8_t object_settle_gate_for_probe(uint8_t *actor);
  * The ACTION program machine (script_op_dispatch, 1000:3979): ACTION with no
  * direction held runs the acting record's program.
  * The acting record is [0x3E22]; object_action_run() performs one press,
- * object_cycle_entity(±1) is the object selector (1000:410A/4147).
+ * object_cycle_entity(+/-1) is the object selector (1000:410A/4147).
  */
 void object_action_run(void);
 
@@ -1151,7 +1149,7 @@ void object_marker_tick(void);
 /**
  * @brief Accessor: set the acting record.
  *
- * @param i the index
+ * @param index the acting record's index
  */
 void object_set_action_entity(uint16_t index);
 

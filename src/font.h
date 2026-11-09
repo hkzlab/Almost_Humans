@@ -1,4 +1,4 @@
-/* font.h - the interface of src/font.c: glyphs/packed ASCII (subsystem 12, §9) */
+/* font.h - the interface of src/font.c: glyphs/packed ASCII (subsystem 12) */
 
 #ifndef HUMANSRE_FONT_H
 #define HUMANSRE_FONT_H
@@ -27,8 +27,8 @@ void font_publish(const uint8_t *textSpr);
  * `row`.  Unknown characters _advance by the terminator slot but draw
  * nothing (the two search loops' no-match paths).
  *
- * draw_text (1000:4989): centre `s` on `centreX` (the advance table,
- * re_formats.md §`TEXT.SPR`) and blit its glyphs into `arena` - the caller's
+ * draw_text (1000:4989): centre `s` on `centreX` (the advance table) and
+ * blit its glyphs into `arena` - the caller's
  * [0x1E20] text arena (200 rows x 80 B, 1 bpp, 4 px per byte, bit 0 =
  * leftmost; each 2-bpp glyph pixel becomes two 1-bpp pixels, so the glyph
  * doubles horizontally) - at `row`.
@@ -43,8 +43,8 @@ void font_draw_text(uint8_t *arena, const char *s, uint32_t centreX,
 
 /** @brief draw_text into a bounded arena: a glyph whose 16-row tile would pass
  * `capacity` is dropped, and the first drop is reported through the OSystem's
- * `warn`.  The original writes through ES unbounded (port_deviations.md
- * D-258); `textpage.c` passes its arena's size here.
+ * `warn`.  The original writes through ES unbounded (deviation D-258);
+ * `textpage.c` passes its arena's size here.
  *
  * @param arena the text arena
  * @param capacity the arena size in bytes

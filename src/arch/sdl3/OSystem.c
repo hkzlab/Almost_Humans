@@ -1,4 +1,4 @@
-/* arch/sdl3/OSystem.c - the SDL3 vtable + main (port_structure.md §2). */
+/* arch/sdl3/OSystem.c - the SDL3 vtable + main. */
 #include "osystem.h"
 
 #include <SDL3/SDL.h>
@@ -172,16 +172,18 @@ const OSystem g_osys_sdl3 = { sdl3_video_set_mode,
                               _fatal,
                               &g_fs_posix };
 
+/* Log a warning through SDL. */
 static void _warn(const char *msg)
 { SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "%s", msg); }
 
+/* Log a fatal error and exit. */
 static void _fatal(const char *msg)
 {
     SDL_LogCritical(SDL_LOG_CATEGORY_APPLICATION, "%s", msg);
     exit(1);
 }
 
-/* The arch layer owns main() (port_structure.md §2). */
+/* The arch layer owns main(). */
 
 /* The parsed command line (see main()'s usage block). */
 typedef struct CliOptions {
@@ -299,7 +301,7 @@ static int _select_audio(const CliOptions *opts)
     }
 }
 
-/* The arch layer owns main() (port_structure.md §2).
+/* The arch layer owns main().
  *
  * Usage: humans-sdl3 [--audio adlib|beeper|mt32] [--mt32-roms <dir>]
  *                    [--version] <path-to-game-resources>

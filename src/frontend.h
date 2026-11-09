@@ -1,8 +1,9 @@
-/* frontend.h - the interface of src/frontend.c: the front-end room (subsystem 8, §10)
+/* frontend.h - the interface of src/frontend.c: the front-end room
+ * (subsystem 8)
  *
  * The walkable level-select / game-start menu (frontend_room_setup
- * 1000:A48E + the frame web + level_select_event_loop 1000:AA2C -
- * re_map.md → "The front-end room"): the room the attract escape hands
+ * 1000:A48E + the frame web + level_select_event_loop 1000:AA2C): the room
+ * the attract escape hands
  * into (entry LAB_002B).  One tick per call, exactly the original's
  * per-display-period frame.  1 = the room runs; 0 = the room exited
  * (the confirm: the walk off the right edge at x=0x280, or Enter on the
@@ -77,10 +78,9 @@ void frontend_restart(void);
 uint8_t frontend_option(uint32_t idx);
 
 /**
- * @brief The room's write side, for the audio/sfx gate's tests.
+ * @brief The room's write side, exposed for the audio/sfx gate's tests.
  *
- * The room's write side, exposed for the audio/sfx gate's tests (the room
- * itself writes the counters from its input).
+ * The room itself writes the counters from its input.
  *
  * @param idx the index
  * @param value the value

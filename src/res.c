@@ -1,8 +1,8 @@
-/* res.c - resource I/O (game_structure.md §1 subsystem 2, re_formats.md §8).
+/* res.c - resource I/O (subsystem 2).
  *
  * The volume file (one per disc) is
  *
- *     u16 count, then count × 0x40-byte records:
+ *     u16 count, then count x 0x40-byte records:
  *         name[18] NUL-padded, secondary[10], pad,
  *         u16 block @0x36 (0x4000 on this disc),
  *         u32 length @0x38, u32 offset @0x3c (bytes into the volume file)
@@ -12,7 +12,7 @@
  *     flag 0        -> the next min(block, remaining) bytes are stored raw,
  *                      and EVERY block again starts with a flag word (so the
  *                      in-memory image is not the payload sliced after the
- *                      first flag - re_formats.md §8.0)
+ *                      first flag)
  *     flag non-zero -> u16 clen, then [u16 unused][u16 init bit buffer] and
  *                      an LZ bitstream expanding to exactly clen bytes
  *
@@ -228,7 +228,7 @@ static void _lz_match(LzState *s, uint32_t n, uint32_t distbits)
 
 /* shortcut: a corrupt stream can read up to 4095 bytes past the written
  * region of `out` here (the asm wraps inside its always-mapped 64K scratch
- * segment; the port has no such floor).  port_deviations.md D-23.  Every
+ * segment; the port has no such floor).  Deviation D-23.  Every
  * shipped asset passes the
  * checksum gate, so only corrupt data reaches this - bound the read when
  * handling untrusted RSCs. */
@@ -324,8 +324,8 @@ int32_t res_decode_lzw_mem(const uint8_t *data, uint32_t data_size,
  * record (the live DS:0x4799 header: `MUS\LEVJ.ALB      `), so the compare
  * folds case and accepts 0 or ' ' as the pad.
  *
- * @param req the required count
- * @param bytes the byte buffer
+ * @param req the required name
+ * @param rec the record's 18 name bytes
  * @return 1 on a match, 0 otherwise
  */
 static int32_t _name_equal(const char *req, const uint8_t *rec /* 18 bytes */)
@@ -351,7 +351,7 @@ static int32_t _name_equal(const char *req, const uint8_t *rec /* 18 bytes */)
  *
  * @param r the volume reader
  * @param off the offset
- * @param bytes the byte buffer
+ * @param rec the record's 0x40 bytes
  * @param length the length
  * @param chkOut the output checksum
  * @return the decoded buffer, or NULL on failure
@@ -367,7 +367,7 @@ static uint8_t *_res_decode_chunk(VolReader *r, uint32_t off,
     if (block == 0u) { /* the original's stored loop copies 0x10000 words
                         * (LOOP with CX = 0) and never advances the chunk;
                         * the port refuses the malformed record instead -
-                        * port_deviations.md D-198. */
+                        * deviation D-198. */
         free(out);
         return NULL;
     }

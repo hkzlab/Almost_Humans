@@ -5,13 +5,13 @@
  * The state machine: the card's own-palette DAC fade-in (b68f/c0af), the
  * 280-tick initial dwell, the fade-out to the zeroed ramp + the 0x8C-tick
  * black hold (b6f2-b707), then 387 display-list frames (2 ticks each in the
- * original; 4 in the port - port_deviations.md D-248) with
+ * original; 4 in the port - deviation D-248) with
  * the transition white-flash blocks, ending on the quit cue (frame 385).
  * The palette fades step from palette_tick - the ISR body's work - so the
  * loop below drives it once per scene call, like game_main's game_tick.
  *
- * The display list is the DECODED object 0's own tail (re_formats.md
- * §8.7a): the records [u16 dest][u16 index-1] are consumed straight out of
+ * The display list is the DECODED object 0's own tail: the records
+ * [u16 dest][u16 index-1] are consumed straight out of
  * the decoded buffer, the objects themselves LZW-decode out of the raw
  * RSC's u32 table.  Check 4 pins that end-to-end: the last rendered
  * frame's overlay (group 384's caveman frame, object 148 at dest 25877)

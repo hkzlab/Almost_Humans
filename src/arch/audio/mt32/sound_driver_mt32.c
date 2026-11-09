@@ -3,8 +3,7 @@
  * MT32.DRV is 5600 bytes of position-independent 8086 code (a CD resource,
  * loaded into a DOS-allocated segment; every address below is an offset into
  * the shipped image).  This file is that image's behaviour, read from the
- * Ghidra listing on 2026-11-07; the tune byte layout is rld_format.md, the
- * sequencer model its §9 and the routine table its §13.
+ * Ghidra listing on 2026-11-07.
  *
  *   INT 60h            MT32.DRV                     here
  *   install AX=0x60    0x00DE                       _mt32_create
@@ -32,7 +31,7 @@
  * output gains (dry and reverb) sit at 0.501 - DOSBox Staging's default
  * -6 dB mixer master gain - so the port's level matches DOSBox's.
  *
- * Tune image (rld_format.md §1):
+ * Tune image:
  *   header    0x000..0x117 (new format), order list +0x18, instruments +0x98
  *   records   rec_base + id*16, 128 slots, 8 runtime records
  *   offsets   off_base .. +0x200, 256 le16 paragraphs
@@ -1148,6 +1147,7 @@ _report_version(mt32emu_report_handler_i i)
     return MT32EMU_REPORT_HANDLER_VERSION_0;
 }
 
+/* Drop the debug output. */
 static void MT32EMU_C_CALL _report_debug(void *data, const char *fmt,
                                          va_list list)
 {
@@ -1156,56 +1156,69 @@ static void MT32EMU_C_CALL _report_debug(void *data, const char *fmt,
     (void)list;
 }
 
+/* Drop the control-ROM error (create() reports it). */
 static void MT32EMU_C_CALL _report_error_control(void *data) { (void)data; }
+/* Drop the PCM-ROM error (create() reports it). */
 static void MT32EMU_C_CALL _report_error_pcm(void *data) { (void)data; }
 
+/* Drop the LCD text (some ROMs write it to stderr). */
 static void MT32EMU_C_CALL _report_lcd(void *data, const char *message)
 {
     (void)data;
     (void)message;
 }
 
+/* Drop the played-note echo. */
 static void MT32EMU_C_CALL _report_midi_played(void *data) { (void)data; }
 
+/* Never ask the host to slow down. */
 static mt32emu_boolean MT32EMU_C_CALL _report_queue_overflow(void *data)
 {
     (void)data;
     return MT32EMU_BOOL_FALSE;
 }
 
+/* Drop the realtime message. */
 static void MT32EMU_C_CALL _report_realtime(void *data, mt32emu_bit8u byte)
 {
     (void)data;
     (void)byte;
 }
 
+/* Drop the reset notice. */
 static void MT32EMU_C_CALL _report_reset(void *data) { (void)data; }
+/* Drop the reconfig notice. */
 static void MT32EMU_C_CALL _report_reconfig(void *data) { (void)data; }
 
+/* Drop the reverb-mode echo. */
 static void MT32EMU_C_CALL _report_reverb_mode(void *data, mt32emu_bit8u mode)
 {
     (void)data;
     (void)mode;
 }
 
+/* Drop the reverb-time echo. */
 static void MT32EMU_C_CALL _report_reverb_time(void *data, mt32emu_bit8u time)
 {
     (void)data;
     (void)time;
 }
 
+/* Drop the reverb-level echo. */
 static void MT32EMU_C_CALL _report_reverb_level(void *data, mt32emu_bit8u level)
 {
     (void)data;
     (void)level;
 }
 
+/* Drop the poly change echo. */
 static void MT32EMU_C_CALL _report_poly(void *data, mt32emu_bit8u part)
 {
     (void)data;
     (void)part;
 }
 
+/* Drop the program change echo. */
 static void MT32EMU_C_CALL _report_program(void *data, mt32emu_bit8u part,
                                            const char *group, const char *patch)
 {

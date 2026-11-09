@@ -26,7 +26,7 @@
  * goes through _write_reg, which keeps the driver's own 256-byte shadow
  * (CS:0x1456) because the sequencer reads it back for read-modify-writes.
  *
- * Image layout (re_formats.md §13.1-§13.3):
+ * Image layout:
  *   header   0x000..0x157, copied to the driver's CS:0x10FD by cmd 0x0C
  *   records  0x158 + id*16, K of them (header[0x11B]); cmd 5 takes one
  *   offsets  0x158 + K*16, N = ((P*2) & 0xFFF0) + 0x10 bytes, paragraphs

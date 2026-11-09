@@ -1,8 +1,8 @@
 /* fs/posix/fs_posix.c - the POSIX filesystem module: the byte reader over
  * the volume files (HUMANS  .00N) and the save files (SAVEA..SAVET in the
  * game directory).  The volume's internal format (the chunk directory, the
- * LZW payloads) and the save format are the core's business (re_formats.md
- * §8/§10); the module only opens, sizes and reads bytes through stdio. */
+ * LZW payloads) and the save format are the core's business; the module
+ * only opens, sizes and reads bytes through stdio. */
 #include "fs/fs.h"
 
 #include <stdio.h>
@@ -113,6 +113,7 @@ const FSModule g_fs_posix = { _posix_open_volume, _posix_close_volume,
                               _posix_close_save,  _posix_open_named,
                               _posix_create_named };
 
+/* Open the disc's volume file (HUMANS.00N) for reading. */
 static FSVolume *_posix_open_volume(uint16_t disc)
 {
     char name[32];
@@ -120,17 +121,20 @@ static FSVolume *_posix_open_volume(uint16_t disc)
     return (FSVolume *)fopen(name, "rb");
 }
 
+/* Close a volume handle. */
 static void _posix_close_volume(FSVolume *v)
 {
     if (v) fclose((FILE *)v);
 }
 
+/* The volume's byte size. */
 static uint32_t _posix_volume_size(FSVolume *v)
 {
     if (fseek((FILE *)v, 0, SEEK_END)) return 0;
     return (uint32_t)ftell((FILE *)v);
 }
 
+/* Read n volume bytes at off; returns the count actually read. */
 static uint32_t _posix_read(FSVolume *v, uint32_t off, uint8_t *dst, uint32_t n)
 {
     /* long is fseek's parameter type, not a host-dependent integer here. */
@@ -138,6 +142,7 @@ static uint32_t _posix_read(FSVolume *v, uint32_t off, uint8_t *dst, uint32_t n)
     return (uint32_t)fread(dst, 1, n, (FILE *)v);
 }
 
+/* Open SAVEA..SAVET for reading. */
 static FSSave *_posix_open_save(char letter)
 {
     char name[16];
@@ -146,6 +151,7 @@ static FSSave *_posix_open_save(char letter)
     return (FSSave *)fopen(name, "rb");
 }
 
+/* Read n save bytes at off. */
 static uint32_t _posix_save_read(FSSave *s, uint32_t off, uint8_t *dst,
                                  uint32_t n)
 {
@@ -153,6 +159,7 @@ static uint32_t _posix_save_read(FSSave *s, uint32_t off, uint8_t *dst,
     return (uint32_t)fread(dst, 1, n, (FILE *)s);
 }
 
+/* Create/truncate SAVEA..SAVET for writing. */
 static FSSave *_posix_create_save(char letter)
 {
     char name[16];
@@ -161,6 +168,7 @@ static FSSave *_posix_create_save(char letter)
     return (FSSave *)fopen(name, "wb");
 }
 
+/* Write n save bytes at off. */
 static uint32_t _posix_save_write(FSSave *s, uint32_t off, const uint8_t *src,
                                   uint32_t n)
 {
@@ -168,6 +176,7 @@ static uint32_t _posix_save_write(FSSave *s, uint32_t off, const uint8_t *src,
     return (uint32_t)fwrite(src, 1, n, (FILE *)s);
 }
 
+/* Close a save handle. */
 static void _posix_close_save(FSSave *s)
 {
     if (s) fclose((FILE *)s);

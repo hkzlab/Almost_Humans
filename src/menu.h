@@ -3,8 +3,7 @@
  * The 5-option pause menu (202F:0x5BBC, A167) and the SAVE GAME number grid
  * (202F:0x5CD8, render_frame_loop's cursor): the behaviour is the original's
  * (0-based rows, wrap, ACTION/Enter selects; the countdown is suspended).
- * The dialog draws through draw_map_object (1000:9EA3); known deviations are
- * in port_deviations.md.
+ * The dialog draws through draw_map_object (1000:9EA3).
  */
 
 #ifndef HUMANSRE_MENU_H

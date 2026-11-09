@@ -1,7 +1,7 @@
 /* map.c - menu_loop (1000:012A), the MAP screen after the ending, and the
  * high-score insert that runs at its top.
  *
- * BEHAVIOUR (re_formats.md §11, from the listing):
+ * BEHAVIOUR (from the listing):
  *  - the screen opens on the running total `[0x592]/[0x594]`; `1000:01CD`
  *    walks the ten 18-byte entries at DS:0x4DE from the bottom up and drops the
  *    candidate in below the first it beats, shifting the rest down one slot.
@@ -572,7 +572,7 @@ void alpha_draw_name(uint8_t *page, const char *name)
     }
 }
 
-/** @brief One ≤4-px step of `current` toward `target` (1000:0D32..0x0D76).
+/** @brief One <=4-px step of `current` toward `target` (1000:0D32..0x0D76).
  *
  * @param cur the current coordinate
  * @param target the target coordinate
@@ -589,7 +589,7 @@ static int32_t _map_step_toward(int32_t cur, int32_t target)
 
 /**
  * @brief 1000:0CBE's name pass: refresh each target, advance the display
- * list's current positions by ≤4 px and draw the glyphs there.
+ * list's current positions by <=4 px and draw the glyphs there.
  *
  * @param page the page buffer
  * @param record non-zero to add each glyph address to the dirty list
@@ -1105,6 +1105,7 @@ void map_draw_name(uint8_t *page)
     _map_name_draw(page, 1);
 }
 
+/* Start a map page: clear it, then lay HIGH.BIT under it. */
 static void _map_page_copy(uint8_t *page)
 {
     if (!page) return;

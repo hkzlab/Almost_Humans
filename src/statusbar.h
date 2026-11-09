@@ -3,10 +3,9 @@
  * The level's bottom 40 rows (y 152..191): panel4.bit's top 40 rows
  * +0xC0-tagged, plus five digit marks (y 172..179) cut from the
  * PANELN1+PANELN2 glyph strip: the countdown's minutes / sec-tens /
- * sec-ones and the tribe counter's tens / ones (re_map.md → "The in-level
- * status bar, decoded end to end").  statusbar_tick is the INT 8 hook at
- * 1000:96AD: the 70-frame second, the packed-decimal countdown with its
- * slides, the tribe counter, and the per-frame stamp.
+ * sec-ones and the tribe counter's tens / ones.  statusbar_tick is the INT 8
+ * hook at 1000:96AD: the 70-frame second, the packed-decimal countdown with
+ * its slides, the tribe counter, and the per-frame stamp.
  */
 
 #ifndef HUMANSRE_STATUSBAR_H
@@ -186,7 +185,7 @@ void statusbar_charge_bar(uint32_t v);
 /** @brief 1000:99D8 + 0x9B7D + 0x9A18 at the charge entry (0x36DB):
  * `shift_screen_up` prepares the clean band, the `0x9B7D` call with
  * `AX=0x5F/BX=0x0C/CX=0x82/DX=0x0F` draws the sunken 130x15 trough (the four
- * ±4 edge passes from the zeroed `0x48BC` ramp), and `blit_area_if_dirty`
+ * +/-4 edge passes from the zeroed `0x48BC` ramp), and `blit_area_if_dirty`
  * carries the x 48..271 slice to the visible band.  The port's page is
  * recomposed each tick, so this runs before every charging frame's strokes.
  *

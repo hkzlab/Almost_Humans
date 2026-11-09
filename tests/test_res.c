@@ -1,8 +1,8 @@
 /* test_res.c - res_load_chunk against the real volume files.
  *
  * Byte-exact fixture test: the expected bytes are the extracted resource
- * files themselves (documented byte-identical to the game's loaded image,
- * re_formats.md §8.0/§8.5).  argv[1] = the game data directory holding
+ * files themselves (documented byte-identical to the game's loaded image).
+ * argv[1] = the game data directory holding
  * HUMANS.000/001/002, argv[2] = the extracted-tree expectation root.
  * Missing volume files = skip (exit 0 with a notice); a wrong decode with
  * data present = fail.
@@ -13,8 +13,8 @@
  *
  * The resource-level checksum values (chkOut) are asserted against the
  * corpus measurement (the 2026-10-23 sweep in the decode's own model -
- * the last-block reset semantics of resource_load's BP, re_formats.md
- * §8.4): ANI03 = 0x3c3f, ITB = 0x2adb. */
+ * the last-block reset semantics of resource_load's BP): ANI03 = 0x3c3f,
+ * ITB = 0x2adb. */
 #include "osystem.h"
 #include "res.h"
 #include "compat.h"
@@ -162,7 +162,7 @@ int main(int argc, char **argv)
     bad |= _check_chunk("intro\\itb.bit", 0, path, 0x2adb);
 
     /* A resource that is not on the CURRENT disc must fail - the scan is
-     * gone, the original never crosses discs (re_map.md [0xF7E]). */
+     * gone, the original never crosses discs ([0xF7E]). */
     res_set_disc(1);
     uint32_t sz = 0;
     if (res_load_chunk("INTRO\\ITB.BIT", &sz, NULL) != NULL) {

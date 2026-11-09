@@ -1,4 +1,4 @@
-/* level.h - the interface of src/level.c: the level definitions (subsystem 9, §2)
+/* level.h - the interface of src/level.c: the level definitions (subsystem 9)
  *
  * LEVELS\LA.BIN..LP.BIN: 16 files x 10 records = 160 levels.  The record:
  * the 13-byte header, the goal/author ASCIIZ text, the 8-byte editor
@@ -83,21 +83,17 @@ const uint8_t *level_palette(void);
  */
 void level_palette_score_prepare(const uint8_t *cardPalette);
 
-/** @brief draw_level_text 0x33E2 + 0x33F2: the level palette's 0..0x7F becomes grey
- * (seal_triples), then the shipped gradient fills 0x80..0xBF.  The 0x33FD
- * fade targets this palette.
+/** @brief draw_level_text 0x33E2/0x33F2: seal the level palette's 0..0x7F to
+ * grey (seal_triples) and copy the shipped gradient into 0x80..0xBF (the
+ * 0x14D3 buffer).
  *
- * draw_level_text 0x33E2/0x33F2: seal the level palette's 0..0x7F to grey and
- * copy the shipped gradient into 0x80..0xBF (the 0x14D3 buffer).
+ * The 0x33FD fade targets this palette.
  */
 void level_end_palette(void);
 
-/** @brief draw_level_text 0x344C/0x3450: blit_bitmap_planes + render_objects render
- * the _world into the page after the caption has been dismissed, so the page
- * behind check_highscore's card is the _world, not the caption.
- *
- * draw_level_text 0x344C/0x3450: re-render the world page (blit_bitmap_planes
- * + render_objects), erasing the caption before check_highscore's card.
+/** @brief draw_level_text 0x344C/0x3450: re-render the world page
+ * (blit_bitmap_planes + render_objects), erasing the caption before
+ * check_highscore's card.
  */
 void level_redraw_page(void);
 
@@ -230,7 +226,12 @@ void level_follow_view(void);
  */
 void level_set_updates(uint8_t on);
 
-/** [0x2D8E]: the follower's +-1 px offset walk enabler (1000:DAC7 / 0xF8CE). */
+/**
+ * @brief [0x2D8E]: the follower's +-1 px offset walk enabler (1000:DAC7 /
+ * 0xF8CE).
+ *
+ * @param v the offset word
+ */
 void level_set_offset_word(uint16_t v);
 
 /**
@@ -421,14 +422,11 @@ void level_add_member(void);
  */
 void level_set_members(uint32_t n);
 
-/** @brief level_restore (1000:35AF): the members go back to the level's own start
- * value, then level_start re-picks the time (the port re-runs level_load, so
- * this is called after it).
+/** @brief level_restore (1000:35AF): [0x11FC] := [0x1970], the members the
+ * level started with, before its own joins.
  *
- * level_restore (1000:35AF): [0x11FC] := [0x1970] - the members the level
- * started with, before the level's own joins (level_start 1000:3032 then
- * re-picks the time; the port re-runs level_load, so the snapshot is put back
- * afterwards).
+ * level_start (1000:3032) then re-picks the time; the port re-runs level_load,
+ * so the snapshot is put back afterwards.
  */
 void level_restore_members(void);
 

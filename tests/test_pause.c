@@ -1,9 +1,9 @@
 /* test_pause.c - the in-level pause menu + SAVE GAME's writer (pass 9).
  *
- * The dialog behaviour is the original's (re_map.md §"The in-level pause
- * menu"): the 0-based rows of 202F:0x5BBC with up/down wrap and ACTION/Enter
- * select, the SAVE GAME grid (202F:0x5CD8, 4 rows x 5 columns column-major,
- * cell r,c = game 4c+r+1), and the writer's header read back by save.c.
+ * The dialog behaviour is the original's: the 0-based rows of 202F:0x5BBC
+ * with up/down wrap and ACTION/Enter select, the SAVE GAME grid (202F:0x5CD8,
+ * 4 rows x 5 columns column-major, cell r,c = game 4c+r+1), and the writer's
+ * header read back by save.c.
  *
  * Drives `menu_tick` directly (the pause lives in game_main's level branch;
  * its five actions are five lines there, exercised by the smoke test's flow).

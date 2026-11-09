@@ -1,11 +1,11 @@
 /* arch/sdl3/events.c - host events -> the game's two input paths
- * (+0x5ACE fire/joystick bits, +0x48A3 last key; re_map.md input section).
+ * (+0x5ACE fire/joystick bits, +0x48A3 last key).
  *
  * The arrows + the ACTION key map to the joystick bits; the printable keys
  * pass through as their ASCII codes (the room's name/code screen).  The
  * action bit is set ONLY by the configured action key (the shipped
  * [0x5B05] default = scancode 0x2C = Z).  The control keys map to the INT 9
- * translate table's codes (re_map.md → the two-channel input row): ESC =
+ * translate table's codes: ESC =
  * 0x1B (the 0x5F11 table's ESC - the room's act0 clears the name), Enter =
  * 0x0D (the name screen's confirm), Backspace = 0x0E (the erase).  Every
  * key-UP clears the code (the ISR's 942F) - a tap must not linger. */
@@ -93,7 +93,7 @@ static uint8_t _key_code(SDL_Keycode k)
     default: break;
     }
     /* the ISR's XLAT table (0x4260) delivers letters UPPERCASE ('a' -> 0x41,
-     * re_map.md's input row) - the name screen's dispatch expects those */
+     * input row) - the name screen's dispatch expects those */
     if (k >= 'a' && k <= 'z') return (uint8_t)(k - 0x20u);
     if (k >= 0x20 && k < 0x80) return (uint8_t)k;   /* the printables     */
     return 0u;

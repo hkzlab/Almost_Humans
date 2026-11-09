@@ -1,7 +1,7 @@
 /* tests/test_mt32.c - the MT-32 driver module end to end.
  *
  * White-box (the driver module is included) so the .RLD geometry can be
- * checked against rld_format.md §2 - every pattern decodes to 64 rows and
+ * checked: every pattern decodes to 64 rows and
  * ends 0..15 bytes before the next pattern's paragraph - and the whole INT
  * 60h conversation is then rendered through a real mt32emu ROM set.
  *
@@ -46,7 +46,7 @@ static uint8_t *_read(const char *path, uint32_t *size)
 }
 
 /**
- * @brief rld_format.md §2: 64 rows decode inside the pattern's span.
+ * @brief 64 rows decode inside the pattern's span.
  *
  * @param drv the loaded driver
  * @param order the order-list index

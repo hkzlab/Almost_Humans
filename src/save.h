@@ -1,6 +1,6 @@
 /* save.h - the interface of src/save.c: the save-game format (load side)
  *
- * re_formats.md §10/§10.0: the 0x1800 file `SAVE<'A'+n-1>` (the fs module's
+ * The 0x1800 file `SAVE<'A'+n-1>` (the fs module's
  * name for the original's `\humans\cdrom\saveX`).  The load is entry:004C's
  * path: the slot is the front-end room's RESTORE GAME counter (GAME 1..20),
  * and a hit overrides the room's level, the time limit and the tribe.
@@ -79,12 +79,11 @@ void save_restore_state(void);
  */
 void save_consume(void);
 
-/** @brief SAVE GAME (save_progress 1FE7:0000, re_formats.md §10.0): the 13-byte
- * header from the port's live state + the five state ranges.
+/** @brief SAVE GAME (save_progress 1FE7:0000): the live 13-byte header and the
+ * five state ranges, 0x1800 bytes.
  *
- * SAVE GAME (save_progress 1FE7:0000): the live header and the five state
- * ranges, 0x1800 bytes; save_restore_state puts them back after level_load.
- * The +0x17F0 parameter block is the image's [0x5B22] defaults.
+ * save_restore_state puts them back after level_load.  The +0x17F0 parameter
+ * block is the image's [0x5B22] defaults.
  *
  * @param slot the slot
  * @param level the level number

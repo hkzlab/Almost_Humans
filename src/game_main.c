@@ -1,9 +1,8 @@
 /* game_main.c - the game core's entry: the original `entry` (1000:0000)
  * re-read.
  *
- * The arch layer owns main() and hands us the filled OSystem vtable
- * (port_structure.md §2).  The boot order below mirrors the original's
- * (game_structure.md §2):
+ * The arch layer owns main() and hands us the filled OSystem vtable.
+ * The boot order below mirrors the original's:
  *
  *   entry -> apply_relocations (skipped: the port ships plain code)
  *         -> init_video/init_crtc_timer   (one unchained mode-X set)
@@ -11,11 +10,10 @@
  *         -> the level walk               (the cutscenes, once per level)
  *         -> menu_loop                    (the map / level-select room)
  *
- * The loop structure copies the original's split (re_map.md, "Timer / INT 8"):
+ * The loop structure copies the original's split:
  * the tick callback is the ISR body - flip apply, palette step, then the
  * music/keyed events - and the foreground advances the flow exactly once per
- * tick boundary.  The modules are real; the open deviations are listed in
- * port_deviations.md.
+ * tick boundary.  The modules are real.
  */
 #include "gameflow.h"
 #include "attract.h"
@@ -276,7 +274,7 @@ static void _level_restart_finish(void)
     /* 1000:3073: level_start tests [0x34] and plays the party screen when it
      * is zero.  A restart is not the RESTORE GAME path (the only writer of
      * 0xFF, 1000:008A), so the party runs again - live-confirmed in the
-     * original (re_history.md, 2026-11-02). */
+     * original (2026-11-02). */
     _party_tried = 0;
     _party_playing = 0;
 }

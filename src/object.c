@@ -1,5 +1,5 @@
 /* object.c - the placed-object array (0x3E75), its renderer, its fill, the
- * adjacent-object claim and the goal predicates (re_map.md §"`1000:3A6A`").
+ * adjacent-object claim and the goal predicates.
  *
  * The array is **8 records of 0x12 bytes at 0x3E75**, then the live records
  * the claim appends at `0x3F17 + 0x12*n` (`[0x3E73]` counts the used slots
@@ -81,7 +81,7 @@
  *                    `+4 = 0x10`, `+6 = 0`, `+8 = 2`, `[0x3E20]++`.
  *                    Live-confirmed 2026-10-30: level 1's records read
  *                    `(48,25) (208,25) (256,137) (464,265)` = `row*16 - 7`
- *                    for rows 2/2/9/17, exactly this store (re_map.md).
+ *                    for rows 2/2/9/17, exactly this store.
  *   0xAB  `1000:527D`  the spear: **appended** at the live end, `x = col*16`,
  *                    `y = row*16` (no bias), `+4 = 0x60`, `+6 = 0`, `+8 = 0xFFFF`,
  *                    `+0xA = 0`, the behaviour 5 into `[0x3E5F + n]`, `[0x3E73]++`.
@@ -173,7 +173,7 @@ enum {
  * for frames 0x10..0x16 are 01 00 12 12 12 12 12, all drawable).
  *
  * The storage law was measured on the running game and reproduces the screen
- * pixel-exactly (re_map.md, "the renderer chain"): 16 px wide, h rows,
+ * pixel-exactly: 16 px wide, h rows,
  * 0 = transparent, byte-per-pixel, and
  *
  *   value(col,row) = SPRITES.DAT[frame_data + (col % 4)*(h*4) + row*4 + (col/4)]
@@ -184,7 +184,7 @@ enum {
  * The frames come from the descriptor table `DS:0x39A8`, which the game builds
  * at boot in `apply_relocations` (1000:569E) from the six manifests at
  * `DS:0x252C`.  The rule is derived and was verified against a live dump
- * (248/248 descriptors byte-identical, re_map.md "the renderer chain"):
+ * (248/248 descriptors byte-identical):
  *
  *   id[F]  = word at image DS:0x39A8 + 4F        (pre-baked in the image)
  *   rank   = number of earlier slots with the same id
@@ -284,8 +284,7 @@ static int32_t _obj_step_probe_at(const uint8_t *actor, int32_t dx, int32_t dy,
  * flat cell keeps y, a slope adds its low bits, a solid cell takes the slope of
  * the row below (blocked = -1 when that is solid too) or, for a zero byte, the
  * row above.  The original's third argument is the item table in `BP`; the port
- * reads the same table through `level_page_byte` (see re_map.md, "the handler's
- * BP", for what the dispatcher leaves in BP).
+ * reads the same table through `level_page_byte`.
  *
  * @param x the x coordinate
  * @param y the y coordinate
@@ -1325,8 +1324,8 @@ static const uint8_t _obj_drop_frame[8] = { 0x00, 0x00, 0x00, 0x00,
  * 0x00, and 16..20 -> 1 - and the original reads straight on into the next
  * tables (0x6ECB is `_obj_type_run[8]`, then the 0/1 run that follows), so
  * the port keeps the whole 64-byte read window verbatim instead of bounding
- * the index (port_deviations.md used to carry the 21-vs-8 truncation as
- * D-160; closed 2026-11-04, re_history.md). */
+ * the index (the 21-vs-8 truncation was a port deviation, closed
+ * 2026-11-04). */
 static const uint8_t _obj_beh_state[0x40] = {
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01, 0x03, 0x02, 0x0F, 0xFF, 0xC2,
     0x1D, 0xA0, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00,
@@ -1346,7 +1345,7 @@ static const uint8_t _obj_beh_state[0x40] = {
  *                   of the input picks the second), ending exactly at 0x6DEA;
  *  - _obj_cmd_handlers the 57 handler addresses, index n = word at 0x6918+2(n-1).
  * Index 2 is 1000:E609 (its tail holds the human-stack push), 10/11 the leaves,
- * 14 the snap - re_map.md, "What selects the stack's verbs". */
+ * 14 the snap. */
 static const uint16_t _obj_cmd_handlers[57] = {
     0xE4F8u, 0xE609u, 0xE6FBu, 0xE72Au, 0xE764u, 0xE790u, 0xE7C0u, 0xE802u,
     0xE831u, 0xE860u, 0xE8DDu, 0xE93Du, 0xE952u, 0xE963u, 0xE99Du, 0xEA0Eu,
@@ -1680,7 +1679,7 @@ static uint8_t _obj_debounce; /* [0x197A]: the previous dispatch code     */
 static uint8_t _obj_flag6f_e6;
 
 /* DS:0x6E5C - the frame list 0xECB7 walks: twelve ramp words and then 3-word
- * vectors from 0x6E74 (re_formats.md §"the value table"). */
+ * vectors from 0x6E74. */
 static const uint16_t _obj_anim_list[0x1A] = {
     0x0010, 0x007F, 0x0080, 0x0081, 0x0080, 0x0081, 0x0080, 0x0081, 0x0080,
     0x0081, 0x007F, 0x0010, 0xFFFF, 0x0003, 0xFFFB, 0x0000, 0x0000, 0x0002,
@@ -1937,9 +1936,9 @@ void object_set_player(int16_t slot)
  * The six handlers are reachable from the level's goal-test word at
  * [0x17F2] through the CS word table at 0x35F4.  All six are ported here
  * (0x3600 is object_low_phase_match below); the earlier "[0x1996] byte" reading
- * was wrong (re_history.md).
+ * was wrong.
  *
- * 0xF761 is NOT a random generator (the earlier docs called it that): it adds
+ * 0xF761 is NOT a random generator: it adds
  * the record's x/y to its arguments and turns them into a **map address** -
  * `cell = 32*((y+0xC)/16) + (x+8)/16` - returning the map byte there and a
  * tile-row pointer in BP.  So `pred_map_cell_equals` compares the map cell
@@ -1981,7 +1980,7 @@ int16_t object_type_equals(uint32_t type)
  * The live first 640 bytes are `level_map()`; the tail is `_obj_map_tail`, seeded
  * at level load (gap zero, second copy = the load-time map).  The `0xA9`
  * handler is the only tail writer (`_obj_map_put`).  Reads before the buffer and
- * past the second copy are the port's bounds (port_deviations.md D-233).
+ * past the second copy are the port's bounds (deviation D-233).
  *
  * @param idx the index
  * @return the map byte (0xFF before the buffer, 0 past the second copy)
@@ -2012,6 +2011,7 @@ static uint32_t _obj_map_byte_at(const uint8_t *map, int32_t idx)
     return 0u;
 }
 
+/* Read one byte of the live map buffer (the level map plus its tail). */
 static uint32_t _obj_map_buffer_byte(int32_t idx)
 { return _obj_map_byte_at(level_map(), idx); }
 
@@ -2096,7 +2096,7 @@ int16_t object_low_phase_match(void)
         /* 1000:361F..3629: the feet cell, then the cell one map row *below* it
          * (`[DI+0x20]`, which is `map[cell + 32]`).  Either being the goal tile
          * 0xA8 counts; the earlier reading of this as a `[0x1996]` byte was
-         * wrong - see re_history.md. */
+         * wrong. */
         const uint8_t *map = level_map();
         uint16_t cell = (uint16_t)(_obj_map_cell_index(_obj_actor()));
         uint8_t goal = map != NULL &&
@@ -2661,7 +2661,7 @@ static void _obj_spawn_b8(uint32_t col, uint32_t row)
  * behaviour 6) and 1000:52EB (0xAE, frame 0x38 -> behaviour 4): one appended
  * record each, then the shared tail 1000:5639 snaps its y to the terrain step.
  * Note the behaviours: the campfire (0x96) is 7 and the torch (0x9C) is 6 - the
- * summary row in re_map.md had those two swapped until this read.
+ * summary row had those two swapped until this read.
  * 1000:5662 (called first) nudges y by 3 on a style-6 level when the cell
  * diagonally below-left is marked in the static 0x1F20 table. */
 static uint32_t _obj_style_nudge(const uint8_t *map, uint32_t col, uint32_t row)
@@ -2780,7 +2780,7 @@ static void _obj_append_row9(uint8_t *map, uint32_t col, uint32_t row)
 
 /** @brief 1000:556B terrain_append_decoration, the tile handler 0xF0/0xF1/0xF2 share
  * (0xF0 is a four-instruction stub that sets BX and jumps in; the frame is
- * 0xC1 / 0xC5 / 0xC9, per the table in re_map.md): an appended record
+ * 0xC1 / 0xC5 / 0xC9): an appended record
  * {x, y, frame, +6 = 0, +8 = frame, +0xA = 0} with behaviour 1.
  *
  * @param x the x coordinate
@@ -2853,8 +2853,8 @@ uint32_t object_load_terrain_objects(uint8_t *map)
     memset(_obj_slot_class + 1u, 0, 20u); /* 1000:5175: 0x3E5F..0x3E72 */
     for (uint16_t t = 0; t < 25u; t++) {
         uint8_t tile = _obj_tiles[t];
-        /* all 25 tiles' bodies are ported (re_map.md has each one's
-         * summary); the guard is the table walk's tile list. */
+        /* all 25 tiles' bodies are ported; the guard is the table walk's
+         * tile list. */
         if (tile != 0xA9u && tile != 0xAAu && tile != 0xABu && tile != 0xACu &&
             tile != 0xADu && tile != 0xAEu && tile != 0xAFu && tile != 0xB0u &&
             tile != 0xB1u && tile != 0xB2u && tile != 0xB6u && tile != 0xB7u &&
@@ -4094,6 +4094,7 @@ static void _obj_selectors(uint16_t oldFrame, uint16_t newFrame, int16_t *selC,
                       (int8_t)_obj_mover_tab[n + 3]);
 }
 
+/* Rope mover: advance the record along its 0x658C table. */
 static void _obj_walk_rope(uint8_t *r)
 {
     uint16_t f;
@@ -4615,8 +4616,8 @@ static int32_t _obj_bg_mark(const uint8_t *actor);
 /**
  * @brief Cull the projectile and advance its x, as `1000:D1E3` does.
  *
- * The original writes `BX` (the record x): it adds `±(|vx| >> 3)` and puts the
- * value back only when the cull fails.  On shipped data that is the wheel's
+ * The original writes `BX` (the record x): it adds `+/- (|vx| >> 3)` and puts
+ * the value back only when the cull fails.  On shipped data that is the wheel's
  * only horizontal motion: the path handlers wind `+8` and this routine turns
  * it into x steps.
  *
@@ -6278,6 +6279,7 @@ static uint32_t _obj_map_at_abs(int32_t x, int32_t y, uint32_t *sub)
     return _obj_map_buffer_byte((int32_t)cell);
 }
 
+/* The 1000:E361 ground probe: the surface row under (x,y) and its cell. */
 static int32_t _obj_land_y(int32_t x, int32_t y, uint32_t *cellOut)
 {
     /* 1000:E361 does AND BX,0xFFF0 on the probe y, so every return below is
@@ -6315,6 +6317,7 @@ static int32_t _obj_land_y(int32_t x, int32_t y, uint32_t *cellOut)
 int32_t object_land_y_for_probe(int32_t x, int32_t y, uint32_t *cellOut)
 { return _obj_land_y(x, y, cellOut); }
 
+/* Probe the ground one step (dx,dy) from the actor. */
 static int32_t _obj_step_probe_at(const uint8_t *actor, int32_t dx, int32_t dy,
                                   uint32_t *cellOut)
 {
@@ -6454,6 +6457,7 @@ static int32_t _obj_settle_gate(uint8_t *actor)
 uint8_t object_settle_gate_for_probe(uint8_t *actor)
 { return (uint8_t)(_obj_settle_gate(actor)); }
 
+/* Mark the background pixel under the actor's feet. */
 static int32_t _obj_bg_mark(const uint8_t *actor)
 {
     uint32_t sub, cell = _obj_map_at_abs((int32_t)_obj_foot_x,
@@ -6579,6 +6583,7 @@ static void _shade_row(const ObjSprite *sp, uint32_t pass, uint32_t row,
     }
 }
 
+/* Build the 4-pass shade mask for one sprite frame. */
 static void _obj_build_shade(uint32_t frame, uint8_t *out)
 {
     const ObjSprite *sp;
@@ -6645,6 +6650,7 @@ uint8_t object_action_latched(void) { return _obj_action_latch != 0; }
 void object_set_action_latched(uint8_t on)
 { _obj_action_latch = on ? 0xFFu : 0u; }
 
+/* Record and play a sound effect. */
 static void _obj_driver_call(uint32_t n)
 {
     _obj_sfx = (uint8_t)(n);
@@ -6699,8 +6705,8 @@ static int32_t _obj_frame_cadence(uint8_t *actor)
  * ([0x4230], 0x18) comes back 0..7 px below that row.  The probe is
  * `1000:E389`'s; its `0xE361` prologue adds the record's own x/y, so the
  * arguments are offsets from the actor, not absolute coordinates.  Its `BP`
- * argument is the item table - see re_map.md, "the handler's BP", for the
- * open question about what the dispatcher leaves there.
+ * argument is the item table; what the dispatcher leaves there is an open
+ * question.
  *
  * @param actor the object record
  */
@@ -6926,6 +6932,7 @@ static void _obj_cmd_enter(uint8_t *actor)
 static void _obj_flag6f_e6_set(void) { _obj_flag6f_e6 = 0xFFu; }
 uint8_t object_flag6f_e6(void) { return _obj_flag6f_e6 != 0u; }
 
+/* Step the frame down within [lo,hi] and count +0xA down. */
 static void _obj_frame_step_down(uint8_t *actor, uint32_t lo, uint32_t hi)
 {
     uint16_t f;
@@ -7606,7 +7613,7 @@ static void _obj_tail_type17(uint8_t *actor)
     wr_le_u16(actor + 0xAu, 0u);
     wr_le_u16(actor + 0xCu, 0u);
     /* 1000:ECF1 writes [0x1F1C]'s +4 = 0x82 and +8 = 0; that pointer has no
-     * ported writer (re_map.md, "the [0x1F1C] record"), so it is not stored. */
+     * ported writer, so it is not stored. */
 }
 
 /** @brief 1000:DDDA (type 29): the "join the tribe" tail.  It compares the *acting*
@@ -7783,6 +7790,7 @@ static void _obj_tail_type33(uint8_t *actor)
     }
 }
 
+/* Resolve a stream offset back to its object record. */
 static uint8_t *_obj_link_record(uint32_t off)
 {
     uint16_t idx;
@@ -8079,6 +8087,7 @@ static void _obj_cmd_frame_step(uint8_t *actor, uint32_t bound, int32_t up)
     wr_le_u16(actor + 4u, (uint16_t)(up ? f + 1u : f - 1u));
 }
 
+/* Command: return the record to its home frame/type. */
 static int32_t _obj_cmd_home_state(uint8_t *actor)
 {
     uint16_t t = rd_le_u16(actor + 8u);
@@ -8444,6 +8453,7 @@ static void _obj_fall_machine(uint8_t *actor)
     _obj_fall_land_pair(actor);
 }
 
+/* Command: enter the fall machine with facing/target/frame. */
 static void _obj_cmd_fall(uint8_t *actor, int32_t x, int32_t y, uint32_t frame)
 {
     _obj_side = (uint16_t)(int16_t)x;
@@ -8848,6 +8858,7 @@ static void _obj_group_clear_list(uint8_t *e)
         wr_le_u16(e + 4u + 2u * i, 0xFFFFu);
 }
 
+/* Dissolve a grouped record and restore its members. */
 static void _obj_group_dissolve(uint8_t *e)
 {
     uint8_t *bp;
@@ -9120,7 +9131,7 @@ void object_action_run(void)
          * left; only when both are free does it set type 0x12/frame 0x8C
          * (type 0) or type 0x14/frame 0x91.  `1000:ED1D..0xED3E` forms
          * `DI = [0x1FA0] + 2*(y & 0xFFF0) + (x >> 4)` and takes the
-         * neighbour as `DI ± 1`, with no range test - the map buffer's gap
+         * neighbour as `DI +/- 1`, with no range test - the map buffer's gap
          * and second copy are legitimate.  The original's single exit
          * (1000:ED49) clears the sequence latch [0x6F1D] on every path and
          * nothing in the body reads it, so the clear is done here. */
@@ -9162,7 +9173,7 @@ void object_action_run(void)
     }
 }
 
-/* --- SAVE GAME state ranges (re_formats.md §10/§12.3) ------------------ */
+/* --- SAVE GAME state ranges -------------------------------------------- */
 
 void object_save_table(uint8_t *dst)
 {

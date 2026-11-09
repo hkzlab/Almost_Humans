@@ -10,7 +10,7 @@
  * The run drives the attract with idle input from a fresh start into
  * effect 4 (effects 1, 3 and 2 play for real first), then checks:
  *   - the strip: all 192 KB vs e4_strip.bin, and rowsBuilt == 1579 - the
- *     fixture census (101 lines, one screenful, re_map.md "Effect 4");
+ *     fixture census (101 lines, one screenful);
  *   - the scroll: exactly 1379 ATTRACT_E4_SCROLL ticks (one strip row
  *     per display period), page 0 compared byte-for-byte at the sim's
  *     selected rows - the first draws, the skip regime, band transitions,

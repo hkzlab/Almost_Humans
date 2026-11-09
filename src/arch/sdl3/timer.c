@@ -3,7 +3,7 @@
  * the game's foreground loop runs on the main thread (the same split as
  * the original's ISR/foreground pair).
  *
- * Pacing (re_map.md "Timer / INT 8"): the original's ISR increments the
+ * Pacing: the original's ISR increments the
  * tick counter [0x5AC8] once per display period and re-arms the PIT
  * one-shot, re-syncing to vsync - so one tick = one display period
  * (GAME_TICK_HZ), never twice per period and never host-refresh-paced.

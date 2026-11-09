@@ -1,12 +1,12 @@
 /* gameflow.h - the flow helpers of src/game_main.c: the top-level flow
  * (the original's main loop).  game_main() itself, the core's entry the arch
  * layer calls, is declared in osystem.h - that header is the whole
- * arch↔core handshake.
+ * arch<->core handshake.
  *
  * The original's foreground loop is one flow-step per display period: the
  * ISR does the fixed work (flip apply, palette step, music tick) and the
  * foreground advances the flow once per tick boundary.  The states mirror
- * the original's top-level control (game_structure.md §1):
+ * the original's top-level control:
  *
  *     ATTRACT --(the escape: the action key or any held key, after the
  *                13B2 fade completes -- attract_tick)--> MENU
@@ -27,7 +27,7 @@
  * bit-3-of-3DA wait making up the remainder to one display period.
  *
  * This rate is the SOLE pacer: game_main's loop gates on osys->tickSync
- * (the [0x5AC8] counter gate - re_map.md "Timer / INT 8"),
+ * (the [0x5AC8] counter gate),
  * so the host display's refresh rate must never enter the pacing.
  * The foreground runs exactly one flow step per tick boundary and drops 
  * missed boundaries (the original's delta-spin semantics), it never catches up.
@@ -138,10 +138,8 @@ uint8_t gameflow_key_list(const InputState *in);
  */
 uint8_t gameflow_goal_page_up(void);
 
-/** @brief Test seam: level_setup armed the goal/title page ([0x5BBA]).
- *
- * Test seam: level_setup armed the goal/title page ([0x5BBA]) but the first
- * play frame has not shown it yet.
+/** @brief Test seam: level_setup armed the goal/title page ([0x5BBA]) but the
+ * first play frame has not shown it yet.
  *
  * @return 1 when the page is pending its first play frame.
  */
@@ -179,7 +177,7 @@ uint8_t gameflow_restart_pending(void);
  * of the 160.  When they run out, COMPLETE: cd_file_op([0x1E]) (the ending
  * scene), draw_status_indicator, menu_loop (the MAP screen), then the
  * attract.  The ending/MAP arm is game_main's FLOW_ENDING (scene 6/7, the
- * disc-0 probe, map_begin/map_tick).  Known deviations: port_deviations.md.
+ * disc-0 probe, map_begin/map_tick).
  *
  * @param levelCurrent the current level number
  * @return the next flow state

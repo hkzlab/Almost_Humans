@@ -9,8 +9,7 @@
  * by one display period, composes the visible planar window into page 0
  * (game_main's videoPresent shows it) and returns 1 while the attract
  * plays, 0 once the escape's fade completed.  The details and the one
- * documented latency deviation are in attract.c's header and
- * port_deviations.md.
+ * documented latency deviation are in attract.c's header.
  */
 
 #ifndef HUMANSRE_ATTRACT_H
@@ -48,9 +47,8 @@ typedef enum AttractPhase {
 } AttractPhase;
 
 /** @brief [0x1E7C] and [0xD3D] are not carried: in the decoded image they are
- * write-only (the cycle/effect tag and the skip flag - the writers are in
- * re_map.md § "The ATTRACT loop decoded"; no reader is traced), so the
- * port records their semantics in comments instead of dead state.
+ * write-only (the cycle/effect tag and the skip flag; no reader is traced),
+ * so the port records their semantics in comments instead of dead state.
  *
  * @param osys the backend interface
  * @return 0 on success
@@ -80,15 +78,15 @@ uint32_t attract_phase_for_probe(void);
  * tools/attract_scroll_sim.py's dump.
  * Valid from the first ATTRACT_E4 load until the next effect begins.
  *
- * @param rowsOut the output row count
+ * @param rowsBuilt the output row count
  * @return the pointer, or NULL when unavailable
  */
 const uint8_t *attract_strip_for_probe(uint32_t *rowsBuilt);
 
 /** @brief Test seam: the attract's decimal formatter (1000:0AEC).
  *
- * Test seam: the attract's decimal formatter (1000:0AEC); the digits are built
- * LSB-first and reversed once, so every value prints in order.
+ * The digits are built LSB-first and reversed once, so every value prints in
+ * order.
  *
  * @param v the value
  * @param out the output buffer (at least 8 bytes)

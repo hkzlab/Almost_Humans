@@ -2,7 +2,7 @@
  *
  * The resident driver is 4272 bytes of position-independent 8086 code loaded
  * into a DOS-allocated segment, so every address below is a segment-relative
- * offset of the shipped image; the full image map is `bep_format.md` §12.
+ * offset of the shipped image.
  * This file is that image's behaviour, read from the Ghidra listing on
  * 2026-11-07:
  *
@@ -34,13 +34,13 @@
  * so the sequencer is stepped by the game's own tick (2 of every 3 game
  * ticks) exactly as the AdLib module is.
  *
- * Image layout (`bep_format.md` §1-§6):
+ * Image layout:
  *   header   0x000..0x157, copied to the driver's CS:0x0B0B by cmd 0x0C
  *   records  0x158 + id*16, K of them (header[0x11B])
  *   offsets  0x158 + K*16, N = ((P*2) & 0xFFF0) + 0x10 bytes, paragraphs
  *   songs    0x158 + K*16 + N, pattern b at +(T[b]-T[0])*16
  * A row has no mask: two 4-byte cells, `note, instrument, command, param`,
- * and the cursor advances a fixed 8 bytes (`bep_format.md` §4).
+ * and the cursor advances a fixed 8 bytes.
  *
  * The row decoder (1E95:0660/06BB) copies cell i to speaker slot i: each
  * `MOVSW` pair writes the 4-byte cell and `ADD DI,0x12` skips the rest of the
@@ -83,7 +83,7 @@ enum {
 
 /* CS:0x08B2, 84 words: the note byte is the table index (1E95:07DE).
  * Indices 12..71 are the 12-TET run A1..G#6; the outer two groups are the
- * extra octaves `bep_format.md` §6 records.  Shipped songs index 14..71. */
+ * extra octaves.  Shipped songs index 14..71. */
 static const uint16_t _period[84] = {
     27120, 25595, 24160, 22805, 21525, 20315, 19175, 18100, 17080, 16125, 15220,
     14365, 21696, 20476, 19328, 18244, 17220, 16252, 15340, 14480, 13664, 12900,
@@ -236,7 +236,7 @@ static void _switch_slot(SoundDriver *drv, unsigned slot)
 /**
  * @brief The note-path command table, CS:0x099A (1E95:0734).
  *
- * Table entries transcribed (`bep_format.md` §9): 4 -> 0x07C9 RET, 6 note
+ * Table entries: 4 -> 0x07C9 RET, 6 note
  * off, 0x0B jump, 0x0C set volume, 0x0D toggle advance, 0x0F ticks per row,
  * everything else -> 0x0740 RET.
  *

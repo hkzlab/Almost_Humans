@@ -202,7 +202,7 @@ int main(int argc, char **argv)
     script[7400].joyBits = 0x80u;         /* the attract escape */
     for (uint32_t i = 7500; i <= 7750u; i++)
         script[i].joyBits = 0x08u; /* hold RIGHT: the room's confirm */
-    /* the party pre-screen (t≈7712..8371, per the probe's timeline): its
+    /* the party pre-screen (t~7712..8371, per the probe's timeline): its
      * wait fires [0x48A3]-shaped aborts exactly like the original's
      * wait_frames_or_key - one key inside the first set's wait exits  */
     script[8100].lastKey = 1u; /* the party's SET1W window    */

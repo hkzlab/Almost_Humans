@@ -1,5 +1,4 @@
-/* font.c - TEXT.SPR _glyphs + draw_text (game_structure.md §1 subsystem 12,
- * re_formats.md §`TEXT.SPR` + §9.4 "The attract text arena").
+/* font.c - TEXT.SPR _glyphs + draw_text (subsystem 12).
  *
  * The shipped tables, extracted from the EXE image (file 0x106F0 + off):
  *   the _charset at 202F:0x1E28 - 44 _glyphs, then the NUL terminator;
@@ -81,7 +80,7 @@ static uint8_t _rev4(uint32_t v)
 
 /** @brief The port's arena bound: the glyph is dropped and the caller warned
  * instead of writing past the buffer.  The original writes through ES with no
- * bound; see port_deviations.md D-258.
+ * bound; see deviation D-258.
  *
  * @param capacity the arena size in bytes
  * @param row the arena row

@@ -1,4 +1,4 @@
-/* save.c - the save-game format (re_formats.md §10/§10.0), load side.
+/* save.c - the save-game format, load side.
  *
  * The file is 0x1800 bytes, named by the slot letter: the original keeps
  * `"\humans\cdrom\save"` at 202F:0x1C7E whose NUL at 0x1C90 is overwritten
@@ -6,7 +6,7 @@
  * `'A'+(n-1)` (save_progress) - one file per game 1..20.  The filesystem
  * module owns the actual filename (fs.h).
  *
- * Layout (re_formats.md §10):
+ * Layout:
  *   +0x00 u16 level id 1..160        -> [0x1F41], and via the entry push to
  *                                       [0x22] it OVERRIDES the room's code match
  *   +0x02 u16 / +0x04 u16            -> [0x592]/[0x594], the 32-bit score

@@ -30,7 +30,7 @@ function(humansre_warnings tgt)
     endif()
 endfunction()
 
-# The narrowing audit (port_structure.md §5): with this ON, every implicit
+# The narrowing audit: with this ON, every implicit
 # integer truncation or sign change aborts the program at the site, so the test
 # suite proves the narrowed locals never silently wrap.  The third-party OPL3
 # emulator keeps its intentional 16-bit sample conversions (excluded below).
@@ -44,8 +44,8 @@ if(HUMANSRE_SANITIZE_IMPLICIT)
         PROPERTIES COMPILE_OPTIONS "-fno-sanitize=implicit-conversion")
 endif()
 
-# The game core: pure C99, no port #ifdefs, no dependencies beyond the CRT
-# (port_structure.md §5).  It talks to the machine only through OSystem.
+# The game core: pure C99, no port #ifdefs, no dependencies beyond the CRT.
+# It talks to the machine only through OSystem.
 add_library(core STATIC
     src/game_main.c
     src/res.c
@@ -73,7 +73,7 @@ add_library(core STATIC
 )
 target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 humansre_warnings(core)
-# The width audit (port_structure.md §5): every implicit integer narrowing in
+# The width audit: every implicit integer narrowing in
 # the core must be an explicit cast.  -Wno-sign-conversion keeps the many
 # deliberate word/byte sign tests out of the noise.
 if(NOT MSVC)
@@ -253,7 +253,7 @@ target_link_libraries(test_statusbar PRIVATE core fs_posix)
 humansre_warnings(test_statusbar)
 add_test(NAME statusbar COMMAND test_statusbar ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 
-# The entity test: the closed §12.6 system - the lb#1 spawn fields, the
+# The entity test: the closed entity system - the lb#1 spawn fields, the
 # 0xB4 join, the exact-flip walk over the baked waypoint words, and the
 # 160-level spawn census.
 add_executable(test_entity tests/test_entity.c
@@ -304,7 +304,7 @@ add_test(NAME attract COMMAND test_attract ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR} 
 
 enable_testing()
 
-# The filesystem modules (port_structure.md §2b): the arch backends link
+# The filesystem modules: the arch backends link
 # exactly one at build time; both export the same `fs` interface (fs/fs.h).
 # fs_null is the intentionally blank backend (every call fails); it is built
 # but linked into no current target, and is kept as the reference module for a
@@ -320,8 +320,7 @@ target_include_directories(fs_posix PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 # LGPL-2.1-or-later); beeper/sound_driver_beeper.c is BEEPER.DRV's sequencer
 # over DOSBox Staging's PC-speaker impulse model (thirdparty/,
 # GPL-2.0-or-later); null/ prints every command and renders silence.  The
-# audio_null module is intentionally blank and linked into no executable
-# (port_structure.md §2d).
+# audio_null module is intentionally blank and linked into no executable.
 add_library(audio_adlib
     src/arch/audio/adlib/sound_driver_adlib.c
     src/arch/audio/adlib/thirdparty/opl3.c)

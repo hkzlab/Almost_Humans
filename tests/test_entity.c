@@ -5,13 +5,12 @@
  *      col 20,row 15) with the closed appender fields: +0 = +6 = 320,
  *      +8 = 193 (row*16 - 0x30 + 1), +0xA = 3, +0xE = 1 (the goal word
  *      0x0101's high byte).  These are the values the DOSBox live
- *      session read off the running game (re_formats.md §12.6, the
- *      live-confirmed tables).
+ *      session read off the running game (the live-confirmed tables).
  *   2. the 0xB4 tile at col 25 of the same row joins the walker:
  *      +2 = 400 - the far endpoint, so the dino paces 320 <-> 400.
  *   3. the per-tick machine: the handler re-latches its fixed triple
  *      every call (the baked image words), so the walk is a constant
- *      ±1 px per tick; the flip fires ONLY at an exact endpoint hit;
+ *      +/-1 px per tick; the flip fires ONLY at an exact endpoint hit;
  *      the index only ever takes 0 and 1; legs run 80 ticks exactly
  *      (80 px at 1 px/tick), matching the live 21-flips/25 s census.
  *   4. all 160 levels: the spawn count always equals the number of 0xB3

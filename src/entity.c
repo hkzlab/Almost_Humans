@@ -1,11 +1,6 @@
-/* entity.c - the entity table and its per-tick dispatch (game_structure.md
- * subsystem 10, re_formats.md §12.6 - the closed system).  The actor is a
- * dinosaur: map tile 0xB3 spawns one, a 0xB4 on the same row supplies the
- * far endpoint, and the game itself alternates the dispatched handler so
- * the dino paces between the two endpoints (the live-verified ping-pong).
+/* entity.c - the entity table and its per-tick dispatch
  *
- * Ported routines, all read from the Ghidra listing (byte-checked against
- * the listing passages in re_formats.md §12.6):
+ * Ported routines:
  *
  *   entity_dispatch         1000:C93C  the count walk + the indexed call
  *   entity_advance_fixed_e4 1000:C96C  handler 0: latches the 0x64E4 words
@@ -30,7 +25,7 @@
  *
  * The tail's interaction pass (0xCA43..CB77) is ported as
  * `_entity_tail_interact`: it walks the placed-object array (0x3E75), tests the
- * ±x/±y overlap windows and posts the type-0x22 carry record with a call to
+ * +/-x/+/-y overlap windows and posts the type-0x22 carry record with a call to
  * the sound driver (9).  It writes the entity's handler/waypoint/hold, which
  * is what makes handlers 2 and 3 (the carry animation) reachable.
  */
@@ -57,7 +52,7 @@
  * level_init (1000:4CAB) zeroes ONLY the count [0x64C2], so the image's
  * values survive to runtime - this is how a level with up to two 0xB3
  * tiles walks on tables it never wrote (live-verified: the injected single
- * record walked on the baked words; re_plan.md live table +0x4 = 0/1). */
+ * record walked on the baked words; live table +0x4 = 0/1). */
 static uint16_t _ents[ENT_MAX][8] = {
     /* 0x64C4: slot 0 - the appender's first record (image: zero)       */
     { 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000 },
@@ -113,7 +108,7 @@ static const uint8_t _style6_flags[32] = {
  * x - 0xC, its y, its waypoint as the animation index and mode 2.  That routine
  * doubles the index (`SHL CX,1`) and draws TWO cells 0x20 px apart, whose index
  * `a` is `2*waypoint + k`.  For each cell the bank is read through three
- * BIG-ENDIAN tables (the file is a byte-swapped export - re_formats.md §7.3):
+ * BIG-ENDIAN tables (the file is a byte-swapped export):
  *
  *   BE16(4a + 2)      the block offset; the sprite data starts 0x1C0 into it
  *   BE16(2a + 0xE0)   a y offset added to the entity's y

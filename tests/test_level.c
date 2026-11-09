@@ -2,8 +2,8 @@
  * real LEVELS\L*.BIN files.
  *
  * All 16 files x 10 records = 160 levels.  The census validation compares
- * the parsed headers against the measured distributions (re_formats.md
- * §2.1a-bis): the style 1..6 (26/26/27/28/26/27), the goal count 1..3,
+ * the parsed headers against the measured distributions: the style 1..6
+ * (26/26/27/28/26/27), the goal count 1..3,
  * +0x06 = 0 in all 160, the intro index distribution (FF x146), and the
  * record tiling (the file ends exactly on a record boundary).  Each
  * level's 640-byte map is verified against the fixture file at the offset
