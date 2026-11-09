@@ -1,9 +1,9 @@
-/* textpage.h — the interface of src/textpage.c: the in-level text page (draw_map_object 9EA3)
+/* textpage.h - the interface of src/textpage.c: the in-level text page (draw_map_object 9EA3)
  *
  * The dialog box + its lines + the option markers, ported from
  * draw_scroll_text / draw_map_object / blit_sprite_planar / blit_text_tile
- * (re_map.md §"The in-level pause menu").  The box tiles are APL\BOX.SPR
- * (9 x 16x16, loaded with the level's assets).
+ * ("in-level menu").
+ * The box tiles are APL\BOX.SPR (9 x 16x16, loaded with the level's assets).
  */
 
 #ifndef HUMANSRE_TEXTPAGE_H
@@ -12,16 +12,21 @@
 #include <stdint.h>
 
 /**
- * @brief Publish the text box's tile bank.
+ * @brief Publish the in-level dialog's box tile bank.
  *
- * @param box the box address
+ * load_level_assets (1000:3468): apl\box.spr, 9 x 16x16 planar tiles (0x900
+ * bytes), read by textpage_draw; NULL = no box drawn.
+ *
+ * The bank is borrowed, not copied — it must outlive the publish.
+ *
+ * @param bank the loaded APL\BOX.SPR tile bank
  */
-void textpage_publish_box(const uint8_t *box);
+void textpage_publish_box(const uint8_t *bank);
 
 /**
  * @brief Draw a page of text into the page buffer.
  *
- * `text` = the block (CR-separated lines, NUL-terminated); cursorRow >= 0
+* `text` = the block (CR-separated lines, NUL-terminated); cursorRow >= 0
  * draws the marker pair on that option row (grid = the cell pair).
  *
  * @param page the page buffer

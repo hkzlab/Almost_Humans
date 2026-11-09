@@ -77,7 +77,7 @@ static const uint8_t _marker_r[88] = {
     0xE3, 0xE3, 0xE4, 0xE4, 0xE4, 0xE4, 0xE4, 0xE4, 0xE4, 0xE3, 0xE4,
 };
 
-void textpage_publish_box(const uint8_t *box) { _tp_box = box; }
+void textpage_publish_box(const uint8_t *bank) { _tp_box = bank; }
 
 /**
  * @brief One line's measure: the advance sum (draw_text's own walk).

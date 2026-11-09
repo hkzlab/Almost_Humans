@@ -1,8 +1,8 @@
 /* ver_detect.c - identify the resource language
  *
  * The digests are the FNV-1a 32-bit values of the first 2048 bytes of each
- * shipped language's HUMANS.001 (binaries/volumes/<LANG>/), measured
- * 2026-11-08 and pinned by tests/test_ver_detect.c against the real files.
+ * GOG's shipped language's HUMANS.001 .
+ *
  * HUMANS.000 cannot tell ENG, GER and ITA apart (those three are byte-
  * identical) and HUMANS.002 is identical in every language, so .001 is the
  * only volume that carries the distinction.
