@@ -67,14 +67,38 @@ int main(int argc, char **argv)
 
     if (_bad) return 1;
 
+    /* the chdir into the scratch directory below breaks a relative root, so
+     * resolve the fixture root before it */
+    char root[PATH_MAX];
+    int32_t have_root = argc >= 2 && compat_realpath(argv[1], root);
+
+    /* A volume that is absent or shorter than the window is a failure to
+     * detect the installed data, not an English fallback: the boot must
+     * abort instead (ver_detect.h). */
+    {
+        static const char nodata[] = "humans_ver_detect_nodata";
+
+        (void)compat_mkdir(nodata); /* already present is fine */
+        if (compat_chdir(nodata)) {
+            perror(nodata);
+            return 1;
+        }
+        _check(ver_detect_run(&g_osys_null) < 0, "missing volume is an error");
+        FILE *v = fopen("HUMANS.001", "wb");
+        if (v) {
+            fputs("short", v);
+            fclose(v);
+        }
+        _check(ver_detect_run(&g_osys_null) < 0, "short volume is an error");
+        remove("HUMANS.001");
+        if (_bad) return 1;
+    }
+
     if (argc < 2) {
         printf("skip: no volume-set root given\n");
         return 0;
     }
-    /* the loop chdirs into each language directory, so the root must be
-     * absolute before the first one */
-    char root[PATH_MAX];
-    if (!compat_realpath(argv[1], root)) {
+    if (!have_root) {
         printf("skip: no volume-set root at %s\n", argv[1]);
         return 0;
     }

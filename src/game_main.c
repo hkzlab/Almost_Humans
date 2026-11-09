@@ -1017,6 +1017,11 @@ int32_t game_main(const OSystem *osys)
     /* The original's language is the executable's; the port has one binary
      * and takes the column from the installed volume set (ver_detect.h). */
     g_game_lang = ver_detect_run(osys);
+    if (g_game_lang < 0) {
+        osys->fatalError("HUMANS.001 is missing or too short; the installed "
+                         "language cannot be identified");
+        return 1;
+    }
 
     // Initialize resources
     if (resources_init(osys)) return 1;

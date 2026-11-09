@@ -1,4 +1,7 @@
-/* video.h — the interface of src/video.c: pages/scroll/dirty cells (subsystem 3, §5/§7) */
+/* video.h - the interface of src/video.c: pages/scroll/dirty cells
+ * 
+ * It's mostly an empty shell that interfaces to the backend code.
+ */
 
 #ifndef HUMANSRE_VIDEO_H
 #define HUMANSRE_VIDEO_H
@@ -14,7 +17,7 @@
 int32_t video_init(const OSystem *osys);
 
 /**
- * @brief The video module's per-tick hook (nothing to do).
+ * @brief The video module's per-tick hook.
  */
 void video_tick(void);
 
@@ -26,11 +29,10 @@ void video_tick(void);
  */
 uint8_t *video_page(int32_t which);
 
-/** @brief The mode sets the core performs: the CRTC field the backend must present.
- * The pages stay 320x200x8; a mode-X screen's rows 192..199 are not shown.
+/** @brief The game will switch video modes (see the VideoMode enum) while
+ *  switching between different screens. This will notify the backend.
  *
- * the mode set, forwarded to the backend (osystem.h's VideoMode): the page
- * layout never changes, only which field the display scans out.
+ * The page layout never changes, only which field the display scans out.
  *
  * @param mode the mode
  */

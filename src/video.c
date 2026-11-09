@@ -1,8 +1,11 @@
-/* video.c — pages, scroll, dirty cells (game_structure.md §1 subsystem 3,
- * re_formats.md §5/§7).  The core owns two abstract 320x200x8 pages; mode-X
- * plane quirks stay in the core's blitters, the backend sees flat pages.
- * The page MEMORY is the backend's (OSystem::videoPage) — the core only
- * blits into it. */
+/* video.c - pages, scroll, dirty cells
+ *
+ * The core owns two abstract 320x200x8 pages; mode-X plane quirks stay in the
+ * core's blitters, the backend sees flat pages.
+ * 
+ * The page MEMORY is the backend's (OSystem::videoPage): the core only
+ * blits into it.
+ */
 #include "video.h"
 #include "osystem.h"
 
@@ -14,7 +17,7 @@ int32_t video_init(const OSystem *osys)
     return 0;
 }
 
-void video_tick(void) {}
+void video_tick(void) { /* Nothing to do here... */ }
 
 uint8_t *video_page(int32_t which) { return _video_osys->videoPage(which); }
 
