@@ -56,22 +56,28 @@ typedef enum GameFlow {
 GameFlow gameflow_step(GameFlow state, const InputState *input);
 
 /**
- * @brief --- the flow state machine ------------------------------------------
+ * @brief The current level, 0-based: the original's level number
+ *        ([0x22] / [0x1F41], 1..160) minus 1.
  *
- * The level index the MENU exit chose (0-based; [0x22]-1) — the save's +0x00
- * when a slot loaded, otherwise the room's code match.
- * Probe for the save/restore test (the same role as attract_phase_for_probe).
+ * The MENU exit stores (room selection - 1); a loaded slot's header
+ * level overrides it, also - 1.  gameflow_after_level advances it after
+ * a won level, up to level 160.
  *
- * @return the current level
+ * Core code reads the original's 1-based id back as
+ * gameflow_level_current() + 1 (score.c's [0x1F41] terms and the level
+ * tune).
+ *
+ * @return the current 0-based level index
  */
-uint32_t gameflow_level_for_probe(void);
+uint32_t gameflow_level_current(void);
 
 /** @brief dispatch_by_result_a167 (1000:38EA): the pause menu's five 0-based
  * results.  Returns the flow the action leaves (FLOW_MENU for RESTART THIS
  * GAME) and sets *quit for QUIT THIS GAME.
  *
  * @param choice the selected entry
- * @param quit the quit flag
+ * @param quit the quit flag: 0/1 out-flag, the port's deferred game_exit
+ *             (1000:8DD6), honoured by game_main after the frame
  * @return the next flow state
  */
 GameFlow gameflow_pause_action(int32_t choice, int32_t *quit);
@@ -153,7 +159,8 @@ int32_t gameflow_key_wait_active(void);
  * (level_restore), 1 restart this game (the room), 2 quit.
  *
  * @param choice the selected entry
- * @param quit the quit flag
+ * @param quit the quit flag: 0/1 out-flag, the port's deferred game_exit
+ *             (1000:8DD6), honoured by game_main after the frame
  * @return the next flow state
  */
 GameFlow gameflow_time_up_action(int32_t choice, int32_t *quit);

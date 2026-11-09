@@ -213,15 +213,15 @@ int main(int argc, char **argv)
     }
 
     /* entry:004C: the slot loaded and its level overrode the match */
-    if (!save_present() || gameflow_level_for_probe() != 1u) {
+    if (!save_present() || gameflow_level_current() != 1u) {
         fprintf(stderr, "FAIL save not applied (present %d, level %u)\n",
-                save_present(), gameflow_level_for_probe());
+                save_present(), gameflow_level_current());
         bad = 1;
     }
 
-    if (level_load(gameflow_level_for_probe()) != 0) {
+    if (level_load(gameflow_level_current()) != 0) {
         fprintf(stderr, "FAIL level %u did not load\n",
-                gameflow_level_for_probe());
+                gameflow_level_current());
         bad = 1;
     } else {
         const LevelData *d = level_data();

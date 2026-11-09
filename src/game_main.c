@@ -346,8 +346,11 @@ static GameFlow _room_enter(void)
 GameFlow gameflow_pause_action(int32_t choice, int32_t *quit)
 {
     switch (choice) {
-    case 0: /* continue            */ break;
-    case 1: /* restart this level  */ _level_restart(); break;
+    case 0: /* continue            */
+        break;
+    case 1: /* restart this level  */ 
+        _level_restart();
+        break;
     case 2: /* restart this game   */
         /* 1000:390F..1000:3923: [0x138E] = 0 (lost), [0x1809] = 0xFF and
          * [0x1979] = 2.  State 2 of the pending table (0x197B) is
@@ -361,7 +364,9 @@ GameFlow gameflow_pause_action(int32_t choice, int32_t *quit)
         (void)save_write_slot(menu_slot(), _level_current + 1u,
                               statusbar_time_word(), level_tribe_members());
         break;
-    case 4: /* quit this game      */ *quit = 1; break;
+    case 4: /* quit this game      */
+        *quit = 1;
+        break;
     }
     return FLOW_LEVEL;
 }
@@ -436,7 +441,7 @@ GameFlow gameflow_after_level(uint32_t *levelCurrent)
     return FLOW_ATTRACT;
 }
 
-uint32_t gameflow_level_for_probe(void) { return _level_current; }
+uint32_t gameflow_level_current(void) { return _level_current; }
 
 GameFlow gameflow_step(GameFlow state, const InputState *input)
 {

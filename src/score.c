@@ -165,7 +165,7 @@ uint16_t score_level_term_for_probe(void) { return _score_level_term; }
  */
 static void _score_terms(void)
 {
-    uint32_t levelNo = gameflow_level_for_probe() + 1u;
+    uint32_t levelNo = gameflow_level_current() + 1u;
     uint32_t members = score_members();
 
     /* 1000:41E6: the recount is STORED into [0x11FC] before the terms use it
@@ -203,7 +203,7 @@ void score_set_total(uint32_t lo, uint32_t hi)
 
 void score_prepare(void)
 {
-    uint32_t levelNo = gameflow_level_for_probe() + 1u;
+    uint32_t levelNo = gameflow_level_current() + 1u;
     uint16_t elapsed = statusbar_elapsed_word(); /* [0x1E84] */
     uint32_t idx = levelNo;
 
@@ -308,7 +308,7 @@ uint32_t score_level_score(void)
     secs = (uint32_t)(((t >> 4) & 0xFu) * 10u + (t & 0xFu));
     remaining = mins * 60u + secs;
 
-    levelNo = gameflow_level_for_probe() + 1u; /* [0x1F41] */
+    levelNo = gameflow_level_current() + 1u; /* [0x1F41] */
     /* the original multiplies by the *recounted* [0x11FC] (1000:41B8: the
      * tribe counter digits plus the live records), not by the level-start tribe */
     bonus = levelNo * score_members() * 10u + remaining * 10u;
