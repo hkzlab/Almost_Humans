@@ -1,4 +1,4 @@
-/* test_boot_flash.c — D-246: the frame-0 white flash runs over the scene.
+/* test_boot_flash.c - D-246: the frame-0 white flash runs over the scene.
  *
  * load_intro_scene (1000:b63b) renders and presents the scene's first frame
  * (1000:b71e-b739) before entering the frame-keyed cue loop.  The port used

@@ -1,9 +1,9 @@
-/* attract.h — the interface of src/attract.c: the ATTRACT loop (game_loop 1000:131E)
+/* attract.h - the interface of src/attract.c: the ATTRACT loop (game_loop 1000:131E)
  *
  * The four intro effects in the original's order (1 -> 3 -> 2 -> 4),
  * cycled forever; the only exit is attract_exit (1000:13E9): the
  * configured action key ([0x5ACE] bit 7) or any held key ([0x48A3]),
- * which runs the 13B2 escape — the page pair restored, one fade to black
+ * which runs the 13B2 escape - the page pair restored, one fade to black
  * whose completion hands control to the front-end.  Per tick, exactly like
  * the original's wait_vsync cadence: attract_tick() advances the machine
  * by one display period, composes the visible planar window into page 0
@@ -18,7 +18,7 @@
 
 #include "osystem.h"
 
-/* The machine's phases — public for the flow tests (the cycle-order and
+/* The machine's phases - public for the flow tests (the cycle-order and
  * escape assertions in tests/test_loop.c). */
 typedef enum AttractPhase {
     ATTRACT_IDLE = 0,
@@ -48,7 +48,7 @@ typedef enum AttractPhase {
 } AttractPhase;
 
 /** @brief [0x1E7C] and [0xD3D] are not carried: in the decoded image they are
- * write-only (the cycle/effect tag and the skip flag — the writers are in
+ * write-only (the cycle/effect tag and the skip flag - the writers are in
  * re_map.md § "The ATTRACT loop decoded"; no reader is traced), so the
  * port records their semantics in comments instead of dead state.
  *
@@ -72,7 +72,7 @@ uint8_t attract_tick(const InputState *in);
  */
 uint32_t attract_phase_for_probe(void);
 
-/** @brief the strip probe: the 192-KB work area and [0xD39] (the rows built) —
+/** @brief the strip probe: the 192-KB work area and [0xD39] (the rows built) -
  * the byte-exact fixture test compares these against the sim's dump.
  *
  * Effect 4's strip probe (the 192-KB work area at [0xD76] + the rows built,

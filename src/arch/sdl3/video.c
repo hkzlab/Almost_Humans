@@ -1,4 +1,4 @@
-/* arch/sdl3/video.c — window/renderer + the two 8bpp _pages.
+/* arch/sdl3/video.c - window/renderer + the two 8bpp _pages.
  *
  * The original's video: two VGA modes, 320x200 (mode 13h) and 320x192
  * (reset_display_mode's mode X), 8bpp with a 6-bit DAC palette, displayed
@@ -24,7 +24,7 @@ static int32_t _present_probe; /* HUMANSRE_RATE_PROBE: report the
                                          * loop/present rate every 5 s    */
 
 /** @brief The field each mode scans out (osystem.h's VideoMode): mode 13h is the
- * full 320x200 page, mode X shows only the top 192 rows — the rest of a
+ * full 320x200 page, mode X shows only the top 192 rows - the rest of a
  * mode-X page is stale (the level's status bar ends on row 191).
  *
  * @return VIDEO_PAGE_H_MODEX for mode X, VIDEO_PAGE_H_MODE13H otherwise
@@ -64,8 +64,8 @@ static void _vid_init_video(void)
         SDL_Log("window: %s", SDL_GetError());
     /* No renderer vsync: the loop is paced by the tick gate (game_main's
      * tickSync, the [0x5AC8] equivalent).  The original's foreground never
-     * blocks on the display either — the CRTC flip is latched at vsync by
-     * the ISR — so a 60 Hz host display must not drag the 70 Hz flow. */
+     * blocks on the display either - the CRTC flip is latched at vsync by
+     * the ISR - so a 60 Hz host display must not drag the 70 Hz flow. */
     _vid_make_texture(VIDEO_PAGE_H_MODE13H);
     for (uint32_t i = 0; i < 256u; i++)
         _lut[i] = 0xFF000000u; /* opaque black */

@@ -1,4 +1,4 @@
-/* test_pause.c — the in-level pause menu + SAVE GAME's writer (pass 9).
+/* test_pause.c - the in-level pause menu + SAVE GAME's writer (pass 9).
  *
  * The dialog behaviour is the original's (re_map.md §"The in-level pause
  * menu"): the 0-based rows of 202F:0x5BBC with up/down wrap and ACTION/Enter
@@ -925,7 +925,7 @@ int main(int argc, char **argv)
     /* the port's dialog over the level page (the stand-in renderer) */
     if (dump_dir) {
         (void)level_load(0);
-        /* level_fade_in (1000:3334) first — the dump is the settled level */
+        /* level_fade_in (1000:3334) first - the dump is the settled level */
         level_begin();
         for (uint32_t i = 0; i < 400u && level_starting(); i++) {
             level_tick();

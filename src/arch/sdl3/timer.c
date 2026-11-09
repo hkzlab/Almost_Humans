@@ -1,18 +1,18 @@
-/* arch/sdl3/timer.c — the fixed-tick source: the PIT/INT 8 heartbeat's
+/* arch/sdl3/timer.c - the fixed-tick source: the PIT/INT 8 heartbeat's
  * equivalent.  A dedicated thread calls the tick callback at ticksPerSec;
  * the game's foreground loop runs on the main thread (the same split as
  * the original's ISR/foreground pair).
  *
  * Pacing (re_map.md "Timer / INT 8"): the original's ISR increments the
  * tick counter [0x5AC8] once per display period and re-arms the PIT
- * one-shot, re-syncing to vsync — so one tick = one display period
+ * one-shot, re-syncing to vsync - so one tick = one display period
  * (GAME_TICK_HZ), never twice per period and never host-refresh-paced.
  * tickSync is that counter's foreground gate: the loop blocks on it, so
  * SDL_SetRenderVSync is a presentation detail, not a clock.
  *
  * Why a thread and not SDL_AddTimerNS: measured live (HUMANSRE_RATE_PROBE,
  * Windows/ARM64), SDL's timer thread delivers a 14.29 ms schedule at
- * 63.5 Hz — its scheduler granularity eats a tick every ~6. OS timers
+ * 63.5 Hz - its scheduler granularity eats a tick every ~6. OS timers
  * cannot be trusted for the game's heartbeat; this thread sleeps until
  * close and spins the last stretch on the QPC-backed clock instead. */
 #include "osystem.h"

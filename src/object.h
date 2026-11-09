@@ -1,4 +1,4 @@
-/* object.h — the interface of src/object.c: the placed-object array (0x3E75)
+/* object.h - the interface of src/object.c: the placed-object array (0x3E75)
  *
  * 8 records of 0x12 bytes (check_highscore 1000:41D7 walks all eight); the
  * fields and the remaining machine are in object.c's header.  The predicates
@@ -389,13 +389,13 @@ int16_t object_player(void);
 void object_set_player(int16_t slot);
 
 /**
- * @brief 1000:3640 — -1 when NO record's type is 0x1D.
+ * @brief 1000:3640 - -1 when NO record's type is 0x1D.
  *
  * @return -1 when no record is type 0x1D, 0 otherwise
  */
 int16_t object_none_type1d(void);
 
-/** @brief 1000:3659 — the current record's +7 indexes the source-slot table 0x3E5E;
+/** @brief 1000:3659 - the current record's +7 indexes the source-slot table 0x3E5E;
  * a zero slot is false, and the slot's low six bits are compared with the
  * test's byte.
  *
@@ -405,14 +405,14 @@ int16_t object_none_type1d(void);
 int16_t object_class_matches(uint32_t want);
 
 /**
- * @brief 1000:3678 — the current record's type equals the test's word.
+ * @brief 1000:3678 - the current record's type equals the test's word.
  *
  * @param type the type
  * @return -1 when the type matches, 0 otherwise
  */
 int16_t object_type_equals(uint32_t type);
 
-/** @brief 1000:3688 — the entity table (count 0x64C2, records 0x64C4, stride 0x10):
+/** @brief 1000:3688 - the entity table (count 0x64C2, records 0x64C4, stride 0x10):
  * -1 when there are none or every one's +4 is 5 (the knocked/finished state),
  * 0 as soon as one is not.
  *
@@ -420,7 +420,7 @@ int16_t object_type_equals(uint32_t type);
  */
 int16_t object_entities_finished(void);
 
-/** @brief 1000:36AB — the record's type is <= 2 and the map cell under it equals the
+/** @brief 1000:36AB - the record's type is <= 2 and the map cell under it equals the
  * test's byte.
  *
  * @param want the wanted value
@@ -964,7 +964,7 @@ uint8_t object_claim_settle_active(void);
 
 /** @brief 1000:40CA render_frame_objects: the claim's presented frames draw
  * only the selected record (`[0x180A]`) and the claimed one (`[0x1AF2]`) over
- * the frozen page — never the whole world.
+ * the frozen page - never the whole world.
  *
  * @param page the page buffer
  * @param scrollX the scroll x

@@ -10,7 +10,7 @@
  * digest is identical on every architecture; nothing host-sized or host-ordered enters it.
  *
  * One byte-order note: compare the digest as an integer (or print it), never
- * by memcmp-ing the digest's in-memory bytes — that would be endian-tagged.
+ * by memcmp-ing the digest's in-memory bytes - that would be endian-tagged.
  */
 #ifndef HUMANSRE_VER_DETECT_H
 #define HUMANSRE_VER_DETECT_H

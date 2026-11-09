@@ -1,4 +1,4 @@
-/* arch/audio/mt32/sound_driver_mt32.c — MT32.DRV's replacement over mt32emu.
+/* arch/audio/mt32/sound_driver_mt32.c - MT32.DRV's replacement over mt32emu.
  *
  * MT32.DRV is 5600 bytes of position-independent 8086 code (a CD resource,
  * loaded into a DOS-allocated segment; every address below is an offset into
@@ -23,14 +23,14 @@
  *
  * MIDI goes to mt32emu through the byte-stream parser (mt32emu_parse_stream),
  * so every byte the driver would put on the MPU-401 data port is the byte the
- * emulator sees — running status included.  The emulator library is a system
+ * emulator sees - running status included.  The emulator library is a system
  * dependency; the ROM images are read here and handed over with
  * mt32emu_add_rom_data() (never mt32emu_add_rom_file), and the buffers stay
  * alive for the context's lifetime.  A multi-model ROM directory resolves to
  * the newest MT-32 model present (control ROM 2.07 first, then 2.06, 2.04,
  * 2.03, 1.07, 1.06, 1.05, 1.04, and only then CM-32L), and both emulator
- * output gains (dry and reverb) sit at 0.501 — DOSBox Staging's default
- * -6 dB mixer master gain — so the port's level matches DOSBox's.
+ * output gains (dry and reverb) sit at 0.501 - DOSBox Staging's default
+ * -6 dB mixer master gain - so the port's level matches DOSBox's.
  *
  * Tune image (rld_format.md §1):
  *   header    0x000..0x117 (new format), order list +0x18, instruments +0x98
@@ -235,7 +235,7 @@ static void _midi(SoundDriver *drv, uint8_t status, uint8_t d1, uint8_t d2)
 }
 
 /**
- * @brief Emit one program change — the driver's only 2-byte message.
+ * @brief Emit one program change - the driver's only 2-byte message.
  *
  * @param drv the driver
  * @param channel the part (1..8)
@@ -556,7 +556,7 @@ static void _cmd_pan(SoundDriver *drv, unsigned slot_no)
 /**
  * @brief Note command 4 (0x0C70): modulation, CC 1.
  *
- * The value is (cell note 4 & 0x0F) << 3 — the original reads SI+3 (the
+ * The value is (cell note 4 & 0x0F) << 3 - the original reads SI+3 (the
  * fourth chord note), not the parameter byte.
  *
  * @param drv the driver
@@ -798,7 +798,7 @@ static void _decode_row(SoundDriver *drv, Mt32Record *rec)
         _store_cell(drv, rec->track_slot[i] & 7u, &cursor, cls);
     }
     /* 0x0920: the cursor is restored to the post-mask byte and the driver
-     * re-sums the first header[0x118] classes of the same mask — the file
+     * re-sums the first header[0x118] classes of the same mask - the file
      * encodes exactly that many classes, and their sizes are the payload. */
     cursor = post_mask;
     mask = original;

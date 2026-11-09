@@ -1,4 +1,4 @@
-/* hiscore.h — the interface of src/hiscore.c: HISCORES.HUM, its
+/* hiscore.h - the interface of src/hiscore.c: HISCORES.HUM, its
  * obfuscation and the top-10 insert (re_formats.md §11). */
 
 #ifndef HUMANSRE_HISCORE_H
@@ -28,7 +28,7 @@ void hiscore_bind(const OSystem *osys);
  */
 void hiscore_reset(void);
 
-/** @brief 1000:06DE crypt_table_38a — the involution, same routine for both
+/** @brief 1000:06DE crypt_table_38a - the involution, same routine for both
  * directions: [di] ^= bl; bl = rol8(bl,1) + 3.
  *
  * @param p the table

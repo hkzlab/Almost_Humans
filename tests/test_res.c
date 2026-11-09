@@ -1,4 +1,4 @@
-/* test_res.c — res_load_chunk against the real volume files.
+/* test_res.c - res_load_chunk against the real volume files.
  *
  * Byte-exact fixture test: the expected bytes are the extracted resource
  * files themselves (documented byte-identical to the game's loaded image,
@@ -12,7 +12,7 @@
  * runs on disc 0 ([0xF7E] = 0 in attract mode, live-verified).
  *
  * The resource-level checksum values (chkOut) are asserted against the
- * corpus measurement (the 2026-10-23 sweep in the decode's own model —
+ * corpus measurement (the 2026-10-23 sweep in the decode's own model -
  * the last-block reset semantics of resource_load's BP, re_formats.md
  * §8.4): ANI03 = 0x3c3f, ITB = 0x2adb. */
 #include "osystem.h"
@@ -161,7 +161,7 @@ int main(int argc, char **argv)
     /* Case-insensitive lookup mirrors the original's name comparison. */
     bad |= _check_chunk("intro\\itb.bit", 0, path, 0x2adb);
 
-    /* A resource that is not on the CURRENT disc must fail — the scan is
+    /* A resource that is not on the CURRENT disc must fail - the scan is
      * gone, the original never crosses discs (re_map.md [0xF7E]). */
     res_set_disc(1);
     uint32_t sz = 0;

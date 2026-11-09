@@ -1,13 +1,13 @@
-/* test_boot.c — the per-tick boot-intro player against the real INTRO.RSC.
+/* test_boot.c - the per-tick boot-intro player against the real INTRO.RSC.
  *
  * The boot intro (load_intro_scene, 1000:B63B) plays INTRO.RSC's display
  * list over the scrolled bac.bit background with the tree/apple sprites.
  * The state machine: the card's own-palette DAC fade-in (b68f/c0af), the
  * 280-tick initial dwell, the fade-out to the zeroed ramp + the 0x8C-tick
  * black hold (b6f2-b707), then 387 display-list frames (2 ticks each in the
- * original; 4 in the port — port_deviations.md D-248) with
+ * original; 4 in the port - port_deviations.md D-248) with
  * the transition white-flash blocks, ending on the quit cue (frame 385).
- * The palette fades step from palette_tick — the ISR body's work — so the
+ * The palette fades step from palette_tick - the ISR body's work - so the
  * loop below drives it once per scene call, like game_main's game_tick.
  *
  * The display list is the DECODED object 0's own tail (re_formats.md
@@ -18,7 +18,7 @@
  * must appear byte-exact in the final page.  Check 5 pins the bottom bar
  * (rows 184-199): the 184-row scroll render never touches it and the
  * ported words.bit expansion (run_screen_transition's builder) is the only
- * writer — any byte outside the words' 0xE0-0xEF/black shape there is the
+ * writer - any byte outside the words' 0xE0-0xEF/black shape there is the
  * frame-0 garbage-burst bug again
  * (reading the records out of the raw RSC ran the whole file as one group
  * and blitted real overlays at pseudo-random dests).
@@ -26,7 +26,7 @@
  * argv[1] = the game data directory holding HUMANS.000/001/002.
  * argv[2] = the extracted-tree fixture root (expected bytes).
  * argv[3] = optional PPM frame-dump directory (frames 0, 100, 322, 344,
- *           384 rendered with bac.bit's palette — for eyeballing/analysis).
+ *           384 rendered with bac.bit's palette - for eyeballing/analysis).
  * Missing volumes = skip. */
 #include "osystem.h"
 #include "palette.h"
@@ -46,7 +46,7 @@ extern const uint8_t *osys_null_palette(void);
 extern const OSystem g_osys_null;
 
 /* the render call indices for the PPM dumps predate the palette-fade
- * phases (2026-10-23) — the fade/black-hold blocks shift every offset, so
+ * phases (2026-10-23) - the fade/black-hold blocks shift every offset, so
  * these no longer pin their frames.  shortcut: stale indices, recompute
  * from a traced run when the dumps are next used. */
 static const uint32_t _dump_ticks[] = { 281, 581, 1247, 1340, 1460 };
@@ -165,7 +165,7 @@ int main(int argc, char **argv)
     }
     /* the expected shape: the Gametek logo (the fade-in, 33 groups, the 4
      * bank cycles, the 0x1a4 hold), the IDI card, the FIRST card's 7-bank
-     * staggered fade-in, the ITB card + the scene, and the outro fade —
+     * staggered fade-in, the ITB card + the scene, and the outro fade -
      * the full boot_intro_sequence (1000:B590), ~6.7k ticks with D-248's
      * doubled scene wait (~5.9k in the original). */
     if (ticks < 6400u || ticks > 7000u) {
@@ -175,7 +175,7 @@ int main(int argc, char **argv)
 
     /* 2. the page: the present composes the pool's rows 4-183 into the
      * visible rows 0-179 (deplanarise_bitmap, 1000:BB05: SI+0x500, 180
-     * rows) — the scrolled bac screen covers all 57600 bytes of that
+     * rows) - the scrolled bac screen covers all 57600 bytes of that
      * window; rows 180-199 are the bar region (check 5). */
     {
         const uint8_t *page = osys_null_page(0);
@@ -190,7 +190,7 @@ int main(int argc, char **argv)
     }
 
     /* 3. the palette: the outro (b60e-b620) fades everything to the zeroed
-     * 0x48BC ramp, so the boot ends with the DAC BLACK — the verbatim exit
+     * 0x48BC ramp, so the boot ends with the DAC BLACK - the verbatim exit
      * state.  (bac.bit's palette drives the scene itself; the transitions'
      * fade-backs pin it mid-run, the bar check below pins its bank.) */
     {
@@ -208,8 +208,8 @@ int main(int argc, char **argv)
     }
 
     /* 4. the display-list oracle: the last rendered frame (384) blits
-     * group 384's overlay — stored index 148, INC'd to table entry 149
-     * (43x94: a walking-figure frame, b95d's `INC AX`) — at dest 25877
+     * group 384's overlay - stored index 148, INC'd to table entry 149
+     * (43x94: a walking-figure frame, b95d's `INC AX`) - at dest 25877
      * (row 80, col 237).  Every non-zero body byte must be in the final
      * page byte-exact (the blit is transparent-0, one record, nothing
      * overwrites it afterwards). */
@@ -301,7 +301,7 @@ int main(int argc, char **argv)
 
     /* 5. the bar region: the visible rows 182-197 hold the last
      * transition's words expansion (colours 0xE0-0xEF = bac's grey
-     * gradient), rows 180-181 and 198-199 stay black — anything outside
+     * gradient), rows 180-181 and 198-199 stay black - anything outside
      * that shape is the display-list garbage bug again.  The bar's grey
      * gradient gives a strictly increasing non-zero count down the rows. */
     {

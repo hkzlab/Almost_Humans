@@ -1,4 +1,4 @@
-/* test_level.c — the level record walk + the header/map parse against the
+/* test_level.c - the level record walk + the header/map parse against the
  * real LEVELS\L*.BIN files.
  *
  * All 16 files x 10 records = 160 levels.  The census validation compares
@@ -272,8 +272,8 @@ int main(int argc, char **argv)
              * survive level_begin. */
             memset((uint8_t *)osys_null_page(0), 0xAA, 320u * 200u);
             memset((uint8_t *)osys_null_page(1), 0xAA, 320u * 200u);
-            /* level_fade_in (1000:3334): the start chain — fade out, the
-             * eight update_world frames, the fade in — must finish before
+            /* level_fade_in (1000:3334): the start chain - fade out, the
+             * eight update_world frames, the fade in - must finish before
              * the level is playable. */
             level_begin();
             {
@@ -591,9 +591,9 @@ int main(int argc, char **argv)
 
             /* The palette rotation (palette_rotate_table 1000:8C78), from
              * the level's ISR hook: BD3's field M (timer 3, reload 3, first
-             * 0x71, 4 entries) rotates that range one step every 4 ticks —
+             * 0x71, 4 entries) rotates that range one step every 4 ticks -
              * each entry takes its predecessor's colour, entry 0 the last
-             * one's — and re-sends them to the DAC. */
+             * one's - and re-sends them to the DAC. */
             {
                 uint8_t before[4][3];
                 for (uint32_t i = 0; i < 4u; i++)

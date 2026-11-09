@@ -1,4 +1,4 @@
-/* test_statusbar.c — the in-level status bar against the shipped assets.
+/* test_statusbar.c - the in-level status bar against the shipped assets.
  *
  * The bar's page composition is checked against an independent model built
  * straight from the fixture files (PANELN1.SPR + PANELN2.SPR = the glyph
@@ -16,7 +16,7 @@
  * argv[1] = the game data directory holding HUMANS.000/001/002.
  * argv[2] = the extracted-tree fixture root (expected bytes).
  * argv[3] = optional PPM dump directory (the level page at t=0 and t=90,
- *           rendered with the installed DAC — for eyeballing/analysis).
+ *           rendered with the installed DAC - for eyeballing/analysis).
  * Missing volumes = skip. */
 #include "level.h"
 #include "object.h"
@@ -340,7 +340,7 @@ int main(int argc, char **argv)
     palette_init(&g_osys_null);
     statusbar_init(&g_osys_null);
     level_init(&g_osys_null);
-    /* the level flow's disc: level_load's res_set_disc(1) — the panel
+    /* the level flow's disc: level_load's res_set_disc(1) - the panel
      * assets ship on HUMANS.001 (the direct statusbar_start cases below
      * run outside level_load, so install the same disc here) */
     res_set_disc(1u);
@@ -555,7 +555,7 @@ int main(int argc, char **argv)
             }
             _dump_ppm(dump_dir, "statusbar_port_t90", page,
                       osys_null_palette());
-            /* t90: one second rolled — recompute the settled phases      */
+            /* t90: one second rolled - recompute the settled phases      */
             for (uint32_t i = 0; i < 16u; i++) {
                 level_tick();
                 palette_tick();
@@ -698,7 +698,7 @@ int main(int argc, char **argv)
     }
 
     /* D-195: the second-half bar reads the +0x3200 staging at 0x3EE0, i.e.
-     * panel4's 0xCE0 with the +0xC0 tag — not panel4's zeroed 0x3EE0. */
+     * panel4's 0xCE0 with the +0xC0 tag - not panel4's zeroed 0x3EE0. */
     {
         const uint8_t *pg = osys_null_page(0);
         uint8_t *a;

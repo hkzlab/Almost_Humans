@@ -1,4 +1,4 @@
-/* score.h — the interface of src/score.c: check_highscore (1000:41AE)
+/* score.h - the interface of src/score.c: check_highscore (1000:41AE)
  * and its score/record screen. */
 
 #ifndef HUMANSRE_SCORE_H

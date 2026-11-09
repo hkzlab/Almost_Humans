@@ -1,4 +1,4 @@
-/* entity.h — the interface of src/entity.c: entity table/bytecode (subsystem 10, §12)
+/* entity.h - the interface of src/entity.c: entity table/bytecode (subsystem 10, §12)
  *
  * The ported, closed §12.6 system: tile 0xB3 spawns a dinosaur, a 0xB4 on
  * the same row supplies the far endpoint (entity_find_by_id), and the
@@ -14,8 +14,8 @@
 
 /* One entity record: the DS layout word-for-word (+0x00..+0x0E). */
 typedef struct {
-    uint16_t x0; /* +0x0: endpoint A — handler 1's target        */
-    uint16_t x1; /* +0x2: endpoint B — handler 0's target        */
+    uint16_t x0; /* +0x0: endpoint A - handler 1's target        */
+    uint16_t x1; /* +0x2: endpoint B - handler 0's target        */
     uint16_t handler; /* +0x4: the dispatch index (game: 0/1 only)    */
     uint16_t x; /* +0x6: the live position                      */
     uint16_t y; /* +0x8: row*16 - 0x30 + 1                      */
@@ -79,7 +79,7 @@ uint8_t entity_frame_info(uint32_t a, uint32_t *src, uint32_t *rows,
  * load_terrain_b (1000:5168): the 25-pair map walk in table order, one handler
  * call per matching cell (CX = col*16, DX = row*16; the spawn's y is row*16 -
  * 0x30 + 1, +3 under the style-6 prologue).
- * Resets the count first (the level_init analog: the count only — the
+ * Resets the count first (the level_init analog: the count only - the
  * fixed-table slots keep the exe image's values).
  * `style` = the record's +0x00 byte (the prologue's [0x17EE]); `lifeSeed` =
  * the goal word's high byte ([0x17F1] -> the +0xE seed).

@@ -1,8 +1,8 @@
-/* party_intro.h — the interface of src/party_intro.c: the level-intro party screen (subsystem 14)
+/* party_intro.h - the interface of src/party_intro.c: the level-intro party screen (subsystem 14)
  *
  * level_intro_screen (1000:2508): the fresh-load briefing.  The screen is
  * reached from FLOW_LEVEL's fresh-load path (level_run's 307a call; the
- * .ANI cutscene is not part of this screen — see next_step.md's note).
+ * .ANI cutscene is not part of this screen - see next_step.md's note).
  * party_intro_start seeds and runs the setup (the 5 asset loads, the
  * double .BIT bake with the flip, the master-palette copy, the 35-step
  * fade-in); party_intro_tick is one display period of the machine, and
@@ -90,7 +90,7 @@ void party_intro_format_score(uint32_t v, char *out);
 
 /** @brief the closed layout law, exposed for the byte-exact fixtures: the page's
  * pixel (x,y) = _vram[pagebase + 8 + y*88 + (x>>2)][x&3] of the DISPLAY page
- * (_page_disp — the just-flipped bake target).
+ * (_page_disp - the just-flipped bake target).
  *
  * @param pg the page
  */

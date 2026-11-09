@@ -1,9 +1,9 @@
-/* tests/test_adlib_live.c — the module's state against the live ADLIB.DRV.
+/* tests/test_adlib_live.c - the module's state against the live ADLIB.DRV.
  *
  * White-box: includes the driver module so it can read the private shadow and
  * voice records (the ABI exposes only the sound).  The expected values are a
  * snapshot of the *original* driver in DOSBox while it played TITLE.ALB:
- * record 0 at order 6, row 1, tick 4 — 2314 driver ticks after the tune
+ * record 0 at order 6, row 1, tick 4 - 2314 driver ticks after the tune
  * started, master volume at the post-fade 0x2F.
  *
  * This pins the exact state the original reached: the voice cells (row

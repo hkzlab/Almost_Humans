@@ -1,4 +1,4 @@
-/* test_party.c — the level party screen's bake-frame check, byte-exact
+/* test_party.c - the level party screen's bake-frame check, byte-exact
  * against the closed A000↔.BIT↔screen layout law (2026-10-29 session):
  *
  * the composed page's pixel (x,y) = the .BIT's pixel (x,y), 320x200, 1:1 per
@@ -111,7 +111,7 @@ int main(int argc, char **argv)
     /* level A's [live] values */
     party_intro_set_values(1u, 4u, 12u, 0u, "DARWIN");
     if (!party_intro_start()) {
-        printf("PARTY: SKIP (the load path returned 0 — no volume data)\n");
+        printf("PARTY: SKIP (the load path returned 0 - no volume data)\n");
         free(bit);
         return 0;
     }
@@ -145,7 +145,7 @@ int main(int argc, char **argv)
 
     if (bitdiffs == 0)
         printf(
-            "PARTY: law OK — the composed page = the .BIT 320x200 verbatim\n");
+            "PARTY: law OK - the composed page = the .BIT 320x200 verbatim\n");
     else {
         uint32_t first = (uint32_t)-1;
         for (uint32_t i = 0; i < 64000u && first == (uint32_t)-1; i++)

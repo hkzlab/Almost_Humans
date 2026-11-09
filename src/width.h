@@ -1,4 +1,4 @@
-/* width.h — checked narrowing for the explicit casts in the width work.
+/* width.h - checked narrowing for the explicit casts in the width work.
  *
  * The build rejects implicit narrowing (-Wconversion) and the sanitizer gate
  * (HUMANSRE_SANITIZE_IMPLICIT) aborts on implicit conversions at run time.

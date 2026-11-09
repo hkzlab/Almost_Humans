@@ -1,4 +1,4 @@
-/* arch/audio/beeper/sound_driver_beeper.c — BEEPER.DRV's replacement.
+/* arch/audio/beeper/sound_driver_beeper.c - BEEPER.DRV's replacement.
  *
  * The resident driver is 4272 bytes of position-independent 8086 code loaded
  * into a DOS-allocated segment, so every address below is a segment-relative
@@ -17,7 +17,7 @@
  *   cmd 0x0E           1E95:01BE (identity block)   _beeper_command_block
  *
  * The "tempo" command is a master *volume*: `(0xA3 * CL) >> 8` goes to
- * CS:0x0E64, and the apply routine it calls (0x01FF) is a bare RET — no
+ * CS:0x0E64, and the apply routine it calls (0x01FF) is a bare RET - no
  * routine ever reads the byte.  BEEPER is a fixed-level square wave: the
  * per-instrument volume and voice command 0x0C are computed and discarded
  * the same way.  Reproduced here as state only, so a future reader of the
@@ -478,7 +478,7 @@ static void _step_record(SoundDriver *drv, BeeperRecord *rec)
 }
 
 /**
- * @brief cmd 2: one driver tick — the records and the speaker multiplex.
+ * @brief cmd 2: one driver tick - the records and the speaker multiplex.
  *
  * 1E95:051A: step every active record, turn the speaker on/off when record
  * 0's active flag changes, then split the row window between slots 0 and 1.

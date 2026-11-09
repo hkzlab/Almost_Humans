@@ -1,4 +1,4 @@
-/* hiscore.c — HISCORES.HUM: the table at DS:0x38A, its obfuscation, the
+/* hiscore.c - HISCORES.HUM: the table at DS:0x38A, its obfuscation, the
  * top-10 insert and the name entry (re_formats.md §11).
  *
  * The file is a runtime file in the game directory (not on the disc), 520

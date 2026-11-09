@@ -1,4 +1,4 @@
-/* font.h — the interface of src/font.c: glyphs/packed ASCII (subsystem 12, §9) */
+/* font.h - the interface of src/font.c: glyphs/packed ASCII (subsystem 12, §9) */
 
 #ifndef HUMANSRE_FONT_H
 #define HUMANSRE_FONT_H
@@ -17,7 +17,7 @@ int32_t font_init(const OSystem *osys);
  * @brief Publish the TEXT.SPR glyph bank.
  *
  * game_loop's publish ([0x1E1C] := the loaded apl\text.spr).
- * NULL clears it (drawText then draws nothing) — the headless no-data case.
+ * NULL clears it (drawText then draws nothing) - the headless no-data case.
  *
  * @param textSpr the TEXT.SPR glyph bank
  */
@@ -28,10 +28,10 @@ void font_publish(const uint8_t *textSpr);
  * nothing (the two search loops' no-match paths).
  *
  * draw_text (1000:4989): centre `s` on `centreX` (the advance table,
- * re_formats.md §`TEXT.SPR`) and blit its glyphs into `arena` — the caller's
+ * re_formats.md §`TEXT.SPR`) and blit its glyphs into `arena` - the caller's
  * [0x1E20] text arena (200 rows x 80 B, 1 bpp, 4 px per byte, bit 0 =
  * leftmost; each 2-bpp glyph pixel becomes two 1-bpp pixels, so the glyph
- * doubles horizontally) — at `row`.
+ * doubles horizontally) - at `row`.
  *
  * @param arena the text arena
  * @param s the text

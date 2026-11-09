@@ -1,4 +1,4 @@
-/* arch/null/OSystem.c — the headless reference backend.
+/* arch/null/OSystem.c - the headless reference backend.
  *
  * Builds with no dependencies at all; used by CI and the headless tests.
  * The _pages are plain buffers, the input is always idle, the timer stores
@@ -195,7 +195,7 @@ static void _null_timer_start(uint32_t rate, TickFn tick)
 static void _null_tick_sync(uint32_t *lastSeen)
 {
     /* one tickSync = one tick: the ISR's INC [0x5AC8] (1000:8AA4) then the
-     * ISR body (the palette step et al) — the foreground never sees a tick
+     * ISR body (the palette step et al) - the foreground never sees a tick
      * boundary the ISR body has not already run (the real machine's INT 8
      * fires while the foreground spins) */
     _tick_counter++;

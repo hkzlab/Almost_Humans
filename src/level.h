@@ -1,4 +1,4 @@
-/* level.h — the interface of src/level.c: the level definitions (subsystem 9, §2)
+/* level.h - the interface of src/level.c: the level definitions (subsystem 9, §2)
  *
  * LEVELS\LA.BIN..LP.BIN: 16 files x 10 records = 160 levels.  The record:
  * the 13-byte header, the goal/author ASCIIZ text, the 8-byte editor
@@ -187,7 +187,7 @@ uint32_t level_item_byte(uint32_t id, uint32_t off);
 uint8_t level_tick(void);
 
 /** @brief [0x0]/[0x2]: the display window into the 512x320 level page, in pixels and
- * rows — `set_display_ptr` (1000:882D) starts the CRTC at
+ * rows - `set_display_ptr` (1000:882D) starts the CRTC at
  * `pagebase + 0x58*[0x2] + [0x0]/4`, and the object pass subtracts the same
  * pair (`draw_object_scaled_x1` 1000:66EC clips `x - [0x0]` against
  * [-0x10,0x140]).  The two stores are level_reset_view's (`1000:319D`), and in
@@ -200,7 +200,7 @@ uint8_t level_tick(void);
  */
 void level_set_view(uint16_t x, uint16_t y);
 
-/** @brief 1000:5CB6 — the first call of `update_world` (`1000:80AD`), guarded there by
+/** @brief 1000:5CB6 - the first call of `update_world` (`1000:80AD`), guarded there by
  * `[0xC] != 0`: the camera follows the **acting record** (`get_object_ptr`,
  * `1000:79F4`, walks the 29-word table at `0x3E24` with `[0x3E22]`, i.e.
  * `object_slot(object_action_entity())`), or the record `[0x2D8C]` names while
@@ -344,7 +344,7 @@ void level_note_input(const InputState *in);
 /**
  * @brief level_fade_in: start the level's fade and first play frame.
  *
- * level_fade_in (1000:3334): the start chain — fade out of the pre-level
+ * level_fade_in (1000:3334): the start chain - fade out of the pre-level
  * screen, the eight update_world frames, the fade in to the working palette,
  * then the bar's ticking gate.
  * level_begin arms it once; the phases advance in level_tick, so
@@ -373,7 +373,7 @@ uint8_t level_starting(void);
 uint8_t level_loading_screen(void);
 
 /** @brief particle_frame (1000:1E78) + update_particles (1000:1E98): one frame of
- * the list — the counter reload, the per-entry step and sprite cycle — then
+ * the list - the counter reload, the per-entry step and sprite cycle - then
  * the draw and the present.
  */
 void level_loading_tick(void);
@@ -425,7 +425,7 @@ void level_set_members(uint32_t n);
  * value, then level_start re-picks the time (the port re-runs level_load, so
  * this is called after it).
  *
- * level_restore (1000:35AF): [0x11FC] := [0x1970] — the members the level
+ * level_restore (1000:35AF): [0x11FC] := [0x1970] - the members the level
  * started with, before the level's own joins (level_start 1000:3032 then
  * re-picks the time; the port re-runs level_load, so the snapshot is put back
  * afterwards).
@@ -477,7 +477,7 @@ void level_disk_status_reset(void);
  * ends the play loop; [0x138E] stays 0xFF for a win and is cleared for the
  * extinct/time-out paths.  The six handlers all exist now: object_test_dispatch
  * maps the level's own mode word onto them (the array predicates, the entity
- * table and the two data conditions this file owns — the goal hook and the
+ * table and the two data conditions this file owns - the goal hook and the
  * tribe count).  level_end_test runs from level_tick's play phase, like the
  * original's call in input_dispatch_loop.
  *
@@ -583,7 +583,7 @@ uint16_t level_bg_index_for_probe(void);
  */
 const uint8_t *level_c_block_for_probe(void);
 
-/** @brief 1000:5F54 — render_objects' tail: for each 0x32B9 entry it blits the two
+/** @brief 1000:5F54 - render_objects' tail: for each 0x32B9 entry it blits the two
  * 32 x 24 mode-2 C-block sprites at (x, y) and (x + 0x20, y) (0x5FBE ADDs
  * 0x300 to the source and 0x20 to x for the second).  The queue holds one
  * entry per 0xA9 cell, and all 14 shipped levels with a 0xA9 have exactly

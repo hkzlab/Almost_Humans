@@ -1,4 +1,4 @@
-/* test_byteorder.c — the byteorder module's known-value _check.
+/* test_byteorder.c - the byteorder module's known-value _check.
  *
  * Runs on any host: the expected byte layouts are absolute, so the same
  * assertions prove the little-endian and big-endian paths on a LE host and a

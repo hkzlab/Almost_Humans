@@ -1,4 +1,4 @@
-/* map.c — menu_loop (1000:012A), the MAP screen after the ending, and the
+/* map.c - menu_loop (1000:012A), the MAP screen after the ending, and the
  * high-score insert that runs at its top.
  *
  * BEHAVIOUR (re_formats.md §11, from the listing):

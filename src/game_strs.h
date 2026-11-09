@@ -1,4 +1,4 @@
-/* game_strs.h — the localisable text of the game core.
+/* game_strs.h - the localisable text of the game core.
  *
  * `game_strs[language][id]` is the only source of displayed text: the first
  * index picks the language, the second the string a routine needs. 
@@ -45,7 +45,7 @@ enum GameStr {
 
     /* map: the qualifying page's seven lines, then the top-ten header.
      * FRE and GER fit the sentence in six lines, so their seventh line is
-     * their header string — that is what `menu_loop` draws (1000:0252). */
+     * their header string - that is what `menu_loop` draws (1000:0252). */
     GAME_STR_MAP_CONGRATS_0,
     GAME_STR_MAP_CONGRATS_1,
     GAME_STR_MAP_CONGRATS_2,
@@ -89,7 +89,7 @@ enum GameStr {
     /* The two intro asset names that change per build.  NOTHING LOADS THEM
      * TODAY: the language bitmap's only loader site (ENG `1000:BDF5`) sits
      * inside `intro_flags_screen` (`1000:BDD8..BE38`), which has no caller
-     * in the database and never fires in the documented runtime capture —
+     * in the database and never fires in the documented runtime capture -
      * and a fresh analysis of the translated builds creates no function
      * around their site at all.  The protection bitmap never reaches a
      * loader (in ENG its name appears only as a `MOV CX` operand inside

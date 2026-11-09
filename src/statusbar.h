@@ -28,11 +28,11 @@ int32_t statusbar_init(const OSystem *osys);
  * counter (`[0x5E65]`, `frontend_option(FRONTEND_OPT_LEVEL)`), and the
  * members 12/10/8 by the same byte (entry `1000:00B1`); a loaded save
  * replaces both with its `+0x07` word and `+0x0B` members (`level.c`).
- * The tribe counter = [0x11FC] - [0x17FB] (members - required), DIV/MOD 10 —
+ * The tribe counter = [0x11FC] - [0x17FB] (members - required), DIV/MOD 10 -
  * the caller owns both counts: the required = the map's 0xAA-tile count
  * (load_level 1000:315F).
  *
- * Loads its own assets from the CURRENT disc — the level flow's HUMANS.001
+ * Loads its own assets from the CURRENT disc - the level flow's HUMANS.001
  * (level_load's res_set_disc); a failed load leaves the bar inactive (the
  * headless no-data case).
  *
@@ -44,7 +44,7 @@ void statusbar_start(uint16_t packedTimeBcd, uint16_t tribeMembers,
                      uint16_t tribeRequired);
 
 /** @brief The INT 8 hook at 1000:96AD (gated on [0x5B12]) + the JMP to the stamp:
- * the marks are stamped every frame — frozen at their last state once the
+ * the marks are stamped every frame - frozen at their last state once the
  * bar goes inactive, exactly as the original's page keeps them.
  */
 void statusbar_tick(void);
@@ -57,7 +57,7 @@ void statusbar_tick(void);
 const uint8_t *statusbar_palette(void);
 
 /** @brief object_record_init's goal form (1000:F682: [0x5B22] := 0xFF): a human
- * is lost — the displayed tribe counter rolls down by one.
+ * is lost - the displayed tribe counter rolls down by one.
  */
 void statusbar_arm_tribe_count(void);
 
@@ -149,7 +149,7 @@ void statusbar_hide(void);
  */
 uint16_t statusbar_split(void);
 
-/* [0x5B56]: the current ACTION program — a raw byte; draws both the program
+/* [0x5B56]: the current ACTION program - a raw byte; draws both the program
  * and the action row's group.  An id outside 1..6 has no header (D-186).
  * object.c owns it; the bar follows. */
 
@@ -190,7 +190,7 @@ void statusbar_charge_bar(uint32_t v);
  * carries the x 48..271 slice to the visible band.  The port's page is
  * recomposed each tick, so this runs before every charging frame's strokes.
  *
- * 1000:36DB's entry: 0x99D8 + 0x9B7D + 0x9A18 — restore the band's x 48..271
+ * 1000:36DB's entry: 0x99D8 + 0x9B7D + 0x9A18 - restore the band's x 48..271
  * slice over the action row and draw the sunken trough.
  */
 void statusbar_charge_begin(void);
@@ -231,7 +231,7 @@ uint8_t statusbar_action_cell(uint32_t group);
 uint16_t statusbar_time_word(void);
 
 /** @brief [0x1E84] after check_highscore's repack (1000:42CE): the *_elapsed* clock as
- * minutes<<8 | tens<<4 | ones — the value the per-level best compares.
+ * minutes<<8 | tens<<4 | ones - the value the per-level best compares.
  *
  * the elapsed clock [0x5B0C..0E] repacked as check_highscore does (1000:42CE)
  *

@@ -1,4 +1,4 @@
-/* object.c — the placed-object array (0x3E75), its renderer, its fill, the
+/* object.c - the placed-object array (0x3E75), its renderer, its fill, the
  * adjacent-object claim and the goal predicates (re_map.md §"`1000:3A6A`").
  *
  * The array is **8 records of 0x12 bytes at 0x3E75**, then the live records
@@ -27,7 +27,7 @@
  *
  * The ACTION machine (`script_op_dispatch` 1000:3979, `object_action_run`) is
  * ported with ops 1, 2/6, 3, 4, 5, 8, 9 and 10/11/12, the collision pass with
- * both direction actions (the pickup writes the class — level 1's win), the
+ * both direction actions (the pickup writes the class - level 1's win), the
  * object selector and the pending-action arm; op 7 is the ride command.
  *
  * The human stack (`0x6F22`) is ported through the verbs the rows reach: push
@@ -85,7 +85,7 @@
  *   0xAB  `1000:527D`  the spear: **appended** at the live end, `x = col*16`,
  *                    `y = row*16` (no bias), `+4 = 0x60`, `+6 = 0`, `+8 = 0xFFFF`,
  *                    `+0xA = 0`, the behaviour 5 into `[0x3E5F + n]`, `[0x3E73]++`.
- *                    Level 1's map has exactly one 0xAB cell, at (28,2) — which
+ *                    Level 1's map has exactly one 0xAB cell, at (28,2) - which
  *                    is why the live `[0x3E73] = 9`, slot byte `[0x3E5F] = 5`
  *                    and record 9 hold `+4 = 0x60, +8 = 0xFFFF`.
  */
@@ -139,7 +139,7 @@ static struct {
  *   reveal  `init_dirty_cell_list` (`1000:3E73`) then `flush_dirty_cell_list`
  *           (`1000:3F4A`) looping `queue_dirty_cell_packed` (`1000:3FB3`) until
  *           `[0x1B02]`: 0x100 dirty cells queued from the 0x1B76 coordinate
- *           table over the 0x48BC list, shaded from 0x19EA — ported as
+ *           table over the 0x48BC list, shaded from 0x19EA - ported as
  *           `level_spark_begin`/`sparkStep`/`sparkDraw`, with `CLAIM_REVEAL`
  *           holding the sequence until the list finishes
  *   hold    41 frames, then 1..0xBF -> white div 5, one frame, the neighbour's
@@ -179,7 +179,7 @@ enum {
  *   value(col,row) = SPRITES.DAT[frame_data + (col % 4)*(h*4) + row*4 + (col/4)]
  *
  * i.e. four column-class blocks of h*4 bytes.  A frame advances 0x180 and
- * (for h = 24) its slot is 4*0x60 = 0x180 — block = h*4.
+ * (for h = 24) its slot is 4*0x60 = 0x180 - block = h*4.
  *
  * The frames come from the descriptor table `DS:0x39A8`, which the game builds
  * at boot in `apply_relocations` (1000:569E) from the six manifests at
@@ -220,7 +220,7 @@ typedef struct {
  * `0x399C`:
  *
  *   1  0x3A26 register the object in the 0x6F22 table (8 slots, stride 0xE), frame 0x20, type 8
- *   2  0x9C1B the collision pass (also op 6) — see below
+ *   2  0x9C1B the collision pass (also op 6) - see below
  *   3  0x3A1A -> 0xECFE  `cmd_select_8c_or_91_and_draw` (needs a class; sets frame 0x8C/0x91)
  *                        - ported inline (`OP_SELECT`)
  *   4  0x3A05 -> 0xEFA1/0xEFB9 per type (<= 2) -> `_obj_op_set_state`: type 1/frame 0xBB for type
@@ -248,7 +248,7 @@ typedef struct {
  *
  * **The pickup (`0x9D38`, direction 1 = behaviours 5/6/7)** is what wins level 1: if the found
  * record's `+8 == 0xFFFF` and `+0xA == 0`, it writes the record's **ordinal** into the *actor's*
- * `+7` (the class — `[SI+3] = DL`, DL = the loop's 1-based counter) and marks the found record's
+ * `+7` (the class - `[SI+3] = DL`, DL = the loop's 1-based counter) and marks the found record's
  * slot `| 0x80`.  Live 2026-10-30: the spear's slot went `0x05 -> 0x85` and a record got class 1,
  * so `pred_sprite_class_match(5)` matched (`0x85 & 0x3F = 5`) and the level ended.
  */
@@ -563,7 +563,7 @@ static const uint8_t _obj_anim_stream[] = {
     0x12, 0x05, 0x10, 0xC8, 0x10, 0xC8, 0xFF, 0xFF,
 };
 
-/* [0x3E5E + b] — the class byte of the object in source slot b (0 = none).
+/* [0x3E5E + b] - the class byte of the object in source slot b (0 = none).
  * `pred_sprite_class_match` (1000:3659) reads it as `[0x3E5E + rec[+7]] & 0x3F`
  * and the claim frees the slot (`[0x3E5E + rec[7]] = 0`, 1000:3B1E); the spawn
  * writes the behaviour id at `[0x3E5F + n]`, i.e. slot (n+1). */
@@ -1290,7 +1290,7 @@ uint8_t object_marker_mode(void) { return _obj_marker_mode; }
  * empty record 0x85, whose `&0x3F` is 5), so 8/9 are the only values past
  * the table that occur; the image's bytes there are 0x5C (program), 0xFF/
  * 0xFF (direction), 0xFF/0xF0 (collide program) and 0xFF/0x94 (class
- * index), i.e. an out-of-range program id (ignored), skip, return, return —
+ * index), i.e. an out-of-range program id (ignored), skip, return, return -
  * exactly what the bound `beh < 8 ? table[beh] : 0xFF` reproduces.  The
  * 10..0x3F values read whatever follows those tables in the image
  * (e.g. 0x5B81[13..15] = 6/2/4) and no writer produces them.
@@ -1318,11 +1318,11 @@ static const uint16_t _obj_throw_dx_word[0x22] = {
 static const uint8_t _obj_drop_frame[8] = { 0x00, 0x00, 0x00, 0x00,
                                             0x00, 0x60, 0x9C, 0x96 };
 
-/* DS:0x6EB6 — the per-behaviour *state* byte `test_class_against_6eb6`
+/* DS:0x6EB6 - the per-behaviour *state* byte `test_class_against_6eb6`
  * (0xF2CF) gates on: `MOV BL,[BX+0x3E5E] / AND BL,0x3F / CMP AL,[BX+0x6EB6]`
- * with BX = the behaviour (0..0x3F).  The table proper is 21 bytes —
+ * with BX = the behaviour (0..0x3F).  The table proper is 21 bytes -
  * behaviours 5/6/7 -> 1/3/2, 8 -> 0x0F, 9 -> 0xFF, 10..15 -> 0xC2/0x1D/0xA0/
- * 0x00, and 16..20 -> 1 — and the original reads straight on into the next
+ * 0x00, and 16..20 -> 1 - and the original reads straight on into the next
  * tables (0x6ECB is `_obj_type_run[8]`, then the 0/1 run that follows), so
  * the port keeps the whole 64-byte read window verbatim instead of bounding
  * the index (port_deviations.md used to carry the 21-vs-8 truncation as
@@ -1336,7 +1336,7 @@ static const uint8_t _obj_beh_state[0x40] = {
     0x00, 0x00, 0x00, 0x60, 0x9C, 0x96, 0xFE, 0xFE, 0xFF,
 };
 
-/* DS:0x6908, DS:0x698A, DS:0x6918 — the command dispatch's three tables
+/* DS:0x6908, DS:0x698A, DS:0x6918 - the command dispatch's three tables
  * (1000:E3F6), copied verbatim from the image (file offset = DS offset + 0x106F0):
  *  - _obj_cmd_key      the input bit (low nibble of [0x5ACE]) -> command byte: bit 7
  *                   = no handler, bit 6 = one-shot, low 6 bits = the command
@@ -1346,7 +1346,7 @@ static const uint8_t _obj_beh_state[0x40] = {
  *                   of the input picks the second), ending exactly at 0x6DEA;
  *  - _obj_cmd_handlers the 57 handler addresses, index n = word at 0x6918+2(n-1).
  * Index 2 is 1000:E609 (its tail holds the human-stack push), 10/11 the leaves,
- * 14 the snap — re_map.md, "What selects the stack's verbs". */
+ * 14 the snap - re_map.md, "What selects the stack's verbs". */
 static const uint16_t _obj_cmd_handlers[57] = {
     0xE4F8u, 0xE609u, 0xE6FBu, 0xE72Au, 0xE764u, 0xE790u, 0xE7C0u, 0xE802u,
     0xE831u, 0xE860u, 0xE8DDu, 0xE93Du, 0xE952u, 0xE963u, 0xE99Du, 0xEA0Eu,
@@ -1636,7 +1636,7 @@ static const uint8_t _obj_foot_b[32] = {
 /* [0x4220] / [0x4222]: the settle's footing, read by 1000:DF2C. */
 static uint16_t _obj_foot_x, _obj_foot_y;
 
-/* 1000:E4BD's `CALL word ptr [BX + 0x6916]` — the ported handlers, by address.
+/* 1000:E4BD's `CALL word ptr [BX + 0x6916]` - the ported handlers, by address.
  * Returns 0 when the address has no port yet (the caller reports it). */
 /* [0x6916] / [0x6917]: the per-call output state the handlers may set.  The
  * dispatcher zeroes the word before the handler (1000:E447) and copies it to
@@ -1831,7 +1831,7 @@ static uint32_t _obj_program_id(void)
 { return (uint32_t)_obj_program_region[0x1Fu]; }
 
 /** @brief the acting record: get_object_ptr (1000:8DF4) = the 29-word table baked at
- * DS:0x3E24, indexed by [0x3E22] — i.e. _obj_array[_obj_entity].
+ * DS:0x3E24, indexed by [0x3E22] - i.e. _obj_array[_obj_entity].
  *
  * @return the pointer, or NULL when unavailable
  */
@@ -1940,8 +1940,8 @@ void object_set_player(int16_t slot)
  * was wrong (re_history.md).
  *
  * 0xF761 is NOT a random generator (the earlier docs called it that): it adds
- * the record's x/y to its arguments and turns them into a **map address** —
- * `cell = 32*((y+0xC)/16) + (x+8)/16` — returning the map byte there and a
+ * the record's x/y to its arguments and turns them into a **map address** -
+ * `cell = 32*((y+0xC)/16) + (x+8)/16` - returning the map byte there and a
  * tile-row pointer in BP.  So `pred_map_cell_equals` compares the map cell
  * under the current object with the test's byte.
  *
@@ -1968,7 +1968,7 @@ int16_t object_type_equals(uint32_t type)
 { return rd_le_u16(_obj_actor() + 8u) == type ? -1 : 0; }
 
 /* 0xF761's map addressing for a record: `cell = 32*((y+0xC)&0xFFF0)/16 +
- * ((x+8)>>4)` — the row is the record's y rounded down to the 16-px grid,
+ * ((x+8)>>4)` - the row is the record's y rounded down to the 16-px grid,
  * doubled into the 32-column row stride.  0xFFFF when it falls outside the
  * map (the original would read whatever follows it). */
 
@@ -2251,7 +2251,7 @@ void object_claim_tick(const uint8_t *levelPal)
     case CLAIM_PAN: /* 1000:3D04, two frames */
         /* 1000:3D04 presents the world twice (5810, 5d56, 3d5e); on the first
          * pass 1000:3D41 hands min(player, claimed) to 1000:3DC0, which SAVES a
-         * 64x18-byte page strip at that point to A000:0xF000 — a scratch save
+         * 64x18-byte page strip at that point to A000:0xF000 - a scratch save
          * for the sequence, not a scroll: no [0x0]/[0x2] write exists anywhere
          * in it.  The camera stays where the follower left it (frozen above). */
         if (++_claim_timer < 2u) break;
@@ -2525,7 +2525,7 @@ static void _obj_spawn_c1(uint32_t col, uint32_t row)
  * tiles fill the two 0x649A / 0x64AE TER slots.
  *
  * 0xAF (and 0xB1) stores the cell in the slot's current and primary-target
- * words (+0/+2, +4/+6) and zeroes +0xC..+0x12 — which includes the +0x10
+ * words (+0/+2, +4/+6) and zeroes +0xC..+0x12 - which includes the +0x10
  * disable word, so the slot draws and the 0xC7A0 patrol starts.  It does NOT
  * touch +8/+0xA.  0xB0 (and 0xB2) writes +8/+0xA of the same slot: the
  * secondary target the patrol moves to while +0x10 is zero.
@@ -2901,7 +2901,7 @@ void object_publish_bank(const uint8_t *bank, uint32_t size)
 }
 
 /** @brief 1000:653C's base blit: the sprite at `src`, top-left (x,y), 0 = transparent.
- * `cols` is 16 for mode 1 (`1000:66EC`) and 32 for mode 2 (`1000:6C74`) — the
+ * `cols` is 16 for mode 1 (`1000:66EC`) and 32 for mode 2 (`1000:6C74`) - the
  * only difference between the two (the frame stride confirms it: mode-2 frames
  * advance rows*32 bytes).  The layout is derived, not probed: the blit is four
  * plane passes (`67BA: AH = 1 << ([0x6C32] & 3)`, `OUT 0x3C4`), each row-taking
@@ -4439,7 +4439,7 @@ static void _obj_stack8_move(uint8_t *r, int32_t vx, int32_t vy,
         uint32_t probeCell;
 
         /* 1000:C62C: AX = [0x4234] + 8, BX = 0x18, and 1000:E389's 0xE361
-         * adds the record's own x/y — so the probe is at
+         * adds the record's own x/y - so the probe is at
          * (x + vy + 8, y + 0x18), not at the raw offsets. */
         land = _obj_step_probe_at(r, vy + 8, 0x18, &probeCell);
         (void)probeCell;
@@ -5154,7 +5154,7 @@ static void _obj_walk_projectile(uint8_t *r, uint32_t idx)
 /** @brief 0xC444 (behaviour 9): the marker use.  0xC541 first animates the map cell
  * the record points at (+8) every 4th frame; then the tile-aligned record
  * position is matched against the eight fixed slots, and the matched **slot**
- * (the human) takes x -= 8, frame 0x28, type 0x16, +0xA = 5 and effect 4 —
+ * (the human) takes x -= 8, frame 0x28, type 0x16, +0xA = 5 and effect 4 -
  * `1000:C4E9..C4F6` stores through SI, which is the scan's slot.
  *
  * The four stores target the matched `slot` (the human), not the marker, so
@@ -8994,7 +8994,7 @@ static void _obj_op_reset_span(void)
  * event_anim_script_advance (1000:382D): it rewinds the program's cursor byte
  * to [0x1988], then calls blit_sprite_loop (1000:990A), which re-draws the
  * status bar's action row for the program's first two bytes (count, gold
- * flag) — the same bytes as the 0x5B2B group header.  That drawing is already
+ * flag) - the same bytes as the 0x5B2B group header.  That drawing is already
  * ported in statusbar.c as draw_actions() and runs every tick via
  * statusbar_tick(), so the press needs no extra call here. */
 /** @brief 1000:3747 with the acting record's +0xE (the bar drawing lives in
@@ -9120,7 +9120,7 @@ void object_action_run(void)
          * left; only when both are free does it set type 0x12/frame 0x8C
          * (type 0) or type 0x14/frame 0x91.  `1000:ED1D..0xED3E` forms
          * `DI = [0x1FA0] + 2*(y & 0xFFF0) + (x >> 4)` and takes the
-         * neighbour as `DI ± 1`, with no range test — the map buffer's gap
+         * neighbour as `DI ± 1`, with no range test - the map buffer's gap
          * and second copy are legitimate.  The original's single exit
          * (1000:ED49) clears the sequence latch [0x6F1D] on every path and
          * nothing in the body reads it, so the clear is done here. */

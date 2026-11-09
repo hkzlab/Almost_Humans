@@ -1,8 +1,8 @@
-/* tests/test_mt32.c — the MT-32 driver module end to end.
+/* tests/test_mt32.c - the MT-32 driver module end to end.
  *
  * White-box (the driver module is included) so the .RLD geometry can be
- * checked against rld_format.md §2 — every pattern decodes to 64 rows and
- * ends 0..15 bytes before the next pattern's paragraph — and the whole INT
+ * checked against rld_format.md §2 - every pattern decodes to 64 rows and
+ * ends 0..15 bytes before the next pattern's paragraph - and the whole INT
  * 60h conversation is then rendered through a real mt32emu ROM set.
  *
  * The ROMs are not part of the repository, so the render half skips cleanly

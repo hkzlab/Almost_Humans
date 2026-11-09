@@ -1,4 +1,4 @@
-/* level.c — the level definitions (game_structure.md §1 subsystem 9,
+/* level.c - the level definitions (game_structure.md §1 subsystem 9,
  * re_formats.md §2): LEVELS\LA.BIN … LP.BIN, 16 files x 10 records = 160
  * levels.
  *
@@ -25,7 +25,7 @@
  *
  * The map start is deterministic: the author's NUL + 8 bytes. The next
  * record begins at the first candidate at or after the map's end (the
- * census walk, tools/level_census.py) — some records carry a 0/1-byte
+ * census walk, tools/level_census.py) - some records carry a 0/1-byte
  * alignment trailer after the map.
  */
 #include "audio.h"
@@ -58,7 +58,7 @@
 
 /* --- the level's visual assets (re_formats.md §3-§5) -------------------
  *
- * DEFS\BD<style>.BIN: the defs walk — the loader steps the buffer
+ * DEFS\BD<style>.BIN: the defs walk - the loader steps the buffer
  * sequentially (array_max_word over the A/B offset tables, then the fixed
  * blocks); field L (the u16 background index) selects BACKS\BG<n>.RAW.
  * LEVELS\BS<style>.BLK: the 169x16x16 tile _atlas behind a 0x400 APL header.
@@ -69,7 +69,7 @@
 
 #define ATLAS_TILES 169u
 
-/* level_fade_in (1000:3334) — the level's start chain.  The original blocks
+/* level_fade_in (1000:3334) - the level's start chain.  The original blocks
  * in the foreground for each fade (wait_palette_fade_done) while the ISR
  * steps it; the port's loop is tick-driven, so the chain advances one phase
  * per level_tick and the play loop only starts once it is done. */
@@ -89,8 +89,8 @@ static struct {
 } _spark[0x58];
 
 /* The BD walk (re_formats.md §4): returns the end offset (== the file size
- * for all six shipped files), 0 on a bounds failure.  The doc's "D" row —
- * the 5 far pointers — is loader-constructed, 0 file bytes; row J advances
+ * for all six shipped files), 0 on a bounds failure.  The doc's "D" row -
+ * the 5 far pointers - is loader-constructed, 0 file bytes; row J advances
  * by the LITERAL si += word[si] (the length word is part of the skip), then
  * 8 bytes; field M (a u16 count + 4-byte entries) is the palette-rotation
  * table, handed back to the caller.  Byte-exact over BD1..BD6 (2026-10-23). */
@@ -208,7 +208,7 @@ static uint8_t _warmup_left;
 static const uint8_t _black_pal[768];
 /* level_video_init's palette state at its fades (32F4/3309): 0x14D3 holds
  * only the bar's bank (0xC0..0xFF) at that point, everything else still
- * zeroed by level_setup — the screen goes black except the bar before
+ * zeroed by level_setup - the screen goes black except the bar before
  * level_fade_in runs.  Installing it at the chain's start keeps the port's
  * first level frame off the pre-level screen's palette. */
 static uint8_t _pal_bar_only[768];
@@ -257,7 +257,7 @@ static uint8_t _goal_pan_state;
 static uint8_t _goal_pan_left;
 static uint16_t _goal_pan_view_x, _goal_pan_view_y;
 /* The chained screen the original draws into: one byte = 4 pixels, 88 bytes per
- * row (352 px, of which the visible window is 320 — that slack is what lets the
+ * row (352 px, of which the visible window is 320 - that slack is what lets the
  * CRTC start sit on a 4-px column boundary, 1000:3DC0's `y*88 + x/4`). */
 static uint8_t _lvl_plane[VIDEO_PAGE_H_MODE13H * 88u][4];
 
@@ -357,7 +357,7 @@ static uint8_t _k_bytes[4]; /* field K: [0x6F20], [0x6F0B]        */
 static uint8_t *_anim_table;
 static uint16_t _anim_count;
 
-/* DS:0x1413 — the shipped 64-entry gradient that draw_level_text copies into
+/* DS:0x1413 - the shipped 64-entry gradient that draw_level_text copies into
  * palette entries 0x80..0xBF (0x33F2, 0xC0 bytes).  The runtime buffer was
  * read live from the running game (DS 0x123A:0x1413) on 2026-11-01. */
 static const uint8_t _level_end_gradient[0xC0] = {
@@ -1001,7 +1001,7 @@ int32_t level_exit_stamp_y(uint32_t col, uint32_t row)
 
 /** @brief 1000:5159 load_terrain_a + 1000:54A9: every map cell 0xB9 stamps the BD
  * page's P block (64 x 64, zero transparent) into the background image at
- * (col*16, level_exit_stamp_y(col, row)) — the level's exit/igloo art.
+ * (col*16, level_exit_stamp_y(col, row)) - the level's exit/igloo art.
  */
 static void _level_stamp_exits(void)
 {
@@ -1054,7 +1054,7 @@ int32_t level_init(const OSystem *osys)
 const LevelData *level_data(void)
 { return _level_loaded ? &_level_data_cur : NULL; }
 
-/** @brief The level text carries literal CR and tab from the authoring tool — the
+/** @brief The level text carries literal CR and tab from the authoring tool - the
  * census's _TEXT set (tools/level_census.py); rejecting them silently
  * truncates the walk (level 9 of LA.BIN is the first casualty).
  *
@@ -1243,8 +1243,8 @@ int32_t level_load(uint16_t levelId)
     /* the bar (level_start 1000:957B + build_statusbar_layout 1000:961B):
      * the time limit and the tribe pair.  On a fresh game both come from the
      * LEVEL board's counter [0x5E65] read at entry: render_level_frame
-     * (1000:9589) selects [0x17F5]/[0x17F7]/[0x17F9] — this record's
-     * timeA/B/C — by 0/1/else, and entry (1000:009F) maps the same byte to
+     * (1000:9589) selects [0x17F5]/[0x17F7]/[0x17F9] - this record's
+     * timeA/B/C - by 0/1/else, and entry (1000:009F) maps the same byte to
      * the starting tribe [0x11FC] := 12/10/8.  With a save loaded ([0x34],
      * render_level_frame 1000:959E) the save's own +0x07 word and +0x0B
      * members replace both.  The required = the map's 0xAA-tile count
@@ -1341,7 +1341,7 @@ void level_loading_begin(void)
     _load_dic = NULL;
     _load_dic_size = 0;
     /* 1000:1E9C's style table f,s,c,w,d,p indexed by style-1; 0xEA8 is
-     * the 'd' in "backs\dicon.apl" — the level's own preview card */
+     * the 'd' in "backs\dicon.apl" - the level's own preview card */
     {
         static const char letter[6] = { 'f', 's', 'c', 'w', 'd', 'p' };
         uint8_t st = _level_data_cur.style;
@@ -1382,9 +1382,9 @@ uint8_t level_loading_screen(void)
 /** @brief The background: a clean black page plus BACKS\DICON.APL's 80x56 card at
  * (0x50,0x60), above the level's 40-row status bar (152..191).  The 3310
  * blit writes 20 bytes per plane from the 80-pixel source with the page
- * row stride 0x58; the image is 4 pixels per byte (80 px, not 160 — the
+ * row stride 0x58; the image is 4 pixels per byte (80 px, not 160 - the
  * party compose's x>>2 law), so it must NOT be doubled.  The card is
- * opaque (index 0 = its black frame) — the level's DESERT preview.
+ * opaque (index 0 = its black frame) - the level's DESERT preview.
  *
  * @param page the page buffer
  */
@@ -1533,7 +1533,7 @@ void level_loading_tick(void)
 }
 
 /* level_fade_in (1000:3334), first half: after the party and the level
- * intro, fade the DAC out of the pre-level screen — entries 0..0xBF toward
+ * intro, fade the DAC out of the pre-level screen - entries 0..0xBF toward
  * the zeroed 0x48BC ramp, div 0x19.  The rest of the chain (the eight
  * update_world frames, the fade in to 0x14D3, the tick hook) advances in
  * level_tick. */
@@ -1739,8 +1739,8 @@ void level_begin(void)
     if (palette_fade_active()) return;
     /* 1000:32D6 (level_video_init -> reset_display_mode -> clear_vram
      * 1000:833A): the whole A000 window is zeroed BEFORE the 32F4/3309
-     * fades, so the pre-level page — the front-end room on a save load,
-     * the party screen on a fresh start — never shows through them.
+     * fades, so the pre-level page - the front-end room on a save load,
+     * the party screen on a fresh start - never shows through them.
      * Both port pages model the one cleared VRAM window. */
     {
         uint8_t *p0 = _level_osys->videoPage(0);
@@ -1966,7 +1966,7 @@ static void _render_world(void)
     }
 
     /* 1000:3D5E's four-plane presented frame, as a flat compose: the visible
-     * window is the _world at the display window ([0x0], [0x2] — see
+     * window is the _world at the display window ([0x0], [0x2] - see
      * `level_follow_view`), written through the chained page and read back.
      * ([0x1AEA]/[0x1AEC] are 1000:3DC0's *strip save* coordinate, not the
      * window: that routine copies a 64x18-byte page strip to A000:0xF000 and
@@ -2062,7 +2062,7 @@ uint8_t level_tick(void)
 
     if (!_world || !_level_osys) return 1;
 
-    /* level_fade_in (1000:3334) — the chain: the fade-out waits for its
+    /* level_fade_in (1000:3334) - the chain: the fade-out waits for its
      * steps, then the eight update_world (1000:80AD) frames, then the final
      * 256-entry fade to 0x14D3 (div 0x32), then the hook is installed (the
      * bar's ticking gate [0x5B12] := 0xFF).  The _world is kept drawn behind
@@ -2363,7 +2363,7 @@ uint8_t level_disk_status_tick(const InputState *in)
                 palette_build_fade(0u, 0x100u, 0x1Eu, _disk_black);
                 _disk_phase = DISK_FADE_OUT;
             }
-            /* else: still the wrong disc — stay on the prompt */
+            /* else: still the wrong disc - stay on the prompt */
         }
         return 1;
     case DISK_FADE_OUT:

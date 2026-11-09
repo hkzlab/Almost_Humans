@@ -1,4 +1,4 @@
-/* test_entity.c — the entity system against the shipped data.
+/* test_entity.c - the entity system against the shipped data.
  *
  * What is asserted:
  *   1. lb#1 (level 10): exactly one spawn (the single 0xB3 tile at
@@ -8,7 +8,7 @@
  *      session read off the running game (re_formats.md §12.6, the
  *      live-confirmed tables).
  *   2. the 0xB4 tile at col 25 of the same row joins the walker:
- *      +2 = 400 — the far endpoint, so the dino paces 320 <-> 400.
+ *      +2 = 400 - the far endpoint, so the dino paces 320 <-> 400.
  *   3. the per-tick machine: the handler re-latches its fixed triple
  *      every call (the baked image words), so the walk is a constant
  *      ±1 px per tick; the flip fires ONLY at an exact endpoint hit;
@@ -485,7 +485,7 @@ int main(int argc, char **argv)
                 if (pe->x != pe->x0) _failf("x == x0", id, pe->x, pe->x0);
                 {
                     /* the prologue reads the cell below (matchIdx+0x20)
-                     * and grants +3 px; y is a 16-bit word — rows 0..2
+                     * and grants +3 px; y is a 16-bit word - rows 0..2
                      * wrap negative */
                     uint32_t bonus = _prologue_bonus(lv, r * 32u + c);
                     uint16_t yWant =
@@ -532,7 +532,7 @@ int main(int argc, char **argv)
                     _bad = 1;
                 }
                 /* handler 0 steps +1; x1 = 0 windows walk up freely (the
-                 * un-joined walker — the original does the same) */
+                 * un-joined walker - the original does the same) */
                 if (pe->x < pe->x0 || pe->x > pe->x0 + 4u) {
                     fprintf(stderr, "FAIL level %u: x %u out of window\n", id,
                             pe->x);

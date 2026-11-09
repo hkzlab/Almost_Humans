@@ -1,4 +1,4 @@
-/* fs/posix/fs_posix.c — the POSIX filesystem module: the byte reader over
+/* fs/posix/fs_posix.c - the POSIX filesystem module: the byte reader over
  * the volume files (HUMANS  .00N) and the save files (SAVEA..SAVET in the
  * game directory).  The volume's internal format (the chunk directory, the
  * LZW payloads) and the save format are the core's business (re_formats.md

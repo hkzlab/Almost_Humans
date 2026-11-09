@@ -1,4 +1,4 @@
-/* test_boot_key.c — D-245: a held key aborts the boot intro.
+/* test_boot_key.c - D-245: a held key aborts the boot intro.
  *
  * The original's [0x48A3] is a held-key level (INT 9 writes the code on a
  * make and 0 on the release).  play_scene_sequence tests it at 1000:b2ba,
@@ -29,7 +29,7 @@
 extern const uint8_t *osys_null_palette(void);
 extern const OSystem g_osys_null;
 
-/* BootPhase values (the private enum in scene.c) — the probe returns the
+/* BootPhase values (the private enum in scene.c) - the probe returns the
  * raw phase, and these are the two the test observes. */
 enum {
     BOOT_ABORT_PHASE = 11

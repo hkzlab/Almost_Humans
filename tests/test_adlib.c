@@ -1,4 +1,4 @@
-/* tests/test_adlib.c — the AdLib sound-driver module against a real tune.
+/* tests/test_adlib.c - the AdLib sound-driver module against a real tune.
  *
  * Drives the module through the INT 60h ABI the game uses (loadTune, cmd 5,
  * cmd 2, cmd 0x0A) and checks what the port can be held to without a

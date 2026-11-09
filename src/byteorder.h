@@ -1,4 +1,4 @@
-/* byteorder.h — the one place the game's data bytes become integers.
+/* byteorder.h - the one place the game's data bytes become integers.
  *
  * Every on-disk format is little-endian (port_structure.md §5), but a few
  * asset tables are big-endian (REX.DAT's frame words, the terrain bank), so

@@ -1,4 +1,4 @@
-/* test_game_strs.c — the text table's invariants across every language column.
+/* test_game_strs.c - the text table's invariants across every language column.
  *
  * The text itself is verified against the shipped images by
  * `tools/extract_game_strs.py` (which derives each column from its build);

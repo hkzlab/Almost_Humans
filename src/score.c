@@ -1,4 +1,4 @@
-/* score.c — check_highscore (1000:41AE), the score/record screen between the
+/* score.c - check_highscore (1000:41AE), the score/record screen between the
  * level's end page and the post-level newspaper.
  *
  * The screen, in the original's order:

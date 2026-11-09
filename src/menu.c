@@ -1,4 +1,4 @@
-/* menu.c — the in-level dialogs: the pause menu and the SAVE GAME number
+/* menu.c - the in-level dialogs: the pause menu and the SAVE GAME number
  * grid (re_map.md §"The in-level pause menu", re_formats.md §10.0).
  *
  * BEHAVIOUR (ported from the listing):
@@ -47,7 +47,7 @@ typedef enum {
     MENU_DONE
 } MenuPhase;
 
-/* 202F:0x5BBC+1 and 202F:0x5CD8+1, 202F:0x5C2B+1 — the pause block, the
+/* 202F:0x5BBC+1 and 202F:0x5CD8+1, 202F:0x5C2B+1 - the pause block, the
  * 4x5 column-major SAVE GAME grid (games 1..20) and the time-up block, all in
  * game_strs.  The blocks' leading count byte ([0x5E41], not part of the text)
  * is not stored. */

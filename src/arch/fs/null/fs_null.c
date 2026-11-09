@@ -1,4 +1,4 @@
-/* fs/null/fs_null.c — the null filesystem module: every operation fails.
+/* fs/null/fs_null.c - the null filesystem module: every operation fails.
  *
  * The deliberately blank backend: no current target links it.  It is kept as
  * the reference all-fail module for a no-data port and as the original's

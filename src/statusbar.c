@@ -20,7 +20,7 @@
  *   ones.  A mark shows an 8x8 glyph cut from the PANELN1+PANELN2 _strip:
  *   the phase words are (digit+1)*16 glyph slots (build_statusbar_layout
  *   1000:961B) and mark row r is the _strip's 8 consecutive bytes at
- *   4*(phase + 2*r) — the seconds-tens mark reads at +0xC0 (PANELN2 = the
+ *   4*(phase + 2*r) - the seconds-tens mark reads at +0xC0 (PANELN2 = the
  *   _strip's second half).  The stamp (1000:9846) runs every frame.
  *
  * - statusbar_tick ports the INT 8 hook at 1000:96AD (armed by level_fade_in
@@ -80,7 +80,7 @@ static uint8_t _bar_hidden;
 static uint8_t _time_up; /* [0x5E44]: the countdown reached zero     */
 
 /* the countdown: values [0x5B19..1B], phases [0x5B1C/1E/20], slides
- * [0x5B16..18] — indices 0 = minutes, 1 = seconds-tens, 2 = seconds-ones */
+ * [0x5B16..18] - indices 0 = minutes, 1 = seconds-tens, 2 = seconds-ones */
 static uint8_t _cd[3];
 static uint16_t _cd_phase[3];
 static uint8_t _cd_slide[3];
@@ -94,7 +94,7 @@ static uint8_t _slide_div; /* [0x5B10], seeded 2                      */
 static uint8_t _elapsed[3];
 
 /* the tribe counter: values [0x5B25/26], phases [0x5B27/29], state
- * [0x5B22], slides [0x5B23/24] — indices 0 = tens, 1 = ones */
+ * [0x5B22], slides [0x5B23/24] - indices 0 = tens, 1 = ones */
 static uint8_t _td[2];
 static uint16_t _td_phase[2];
 static uint8_t _tc_state;
@@ -103,7 +103,7 @@ static uint8_t _tc_slide[2];
 /* The mark x positions: the five destinations 0x6E2/0x6E6/0x6E8/0x728/0x72A
  * are bar row 20's bytes 2/6/8/72/74 at the 88-byte pitch; the flat page's
  * x = 4 * byte.  The seconds-tens mark (index 1) reads its glyphs at
- * +0xC0 — PANELN2, the _strip's cells 12..19. */
+ * +0xC0 - PANELN2, the _strip's cells 12..19. */
 static const uint16_t _mark_x[5] = { 8, 24, 32, 288, 296 };
 static const uint16_t _mark_bias[5] = { 0, 0xC0, 0, 0, 0 };
 
@@ -228,7 +228,7 @@ static void _stamp_marks(uint8_t *page)
 
 /** @brief The bar's background: _panel4's top 40 rows, +0xC0-tagged (shift_screen_up
  * 1000:99D8 + blit_area_if_dirty 1000:9A18).  The page's rows 192..199 stay
- * the world's — the original's visible mode is 192 rows and its page holds
+ * the world's - the original's visible mode is 192 rows and its page holds
  * unpainted memory below the band; the flat page has no such band, so the
  * present's crop decides (the 200-row page also serves the boot intro's
  * rows 182..197).
@@ -323,7 +323,7 @@ uint8_t statusbar_action_cell(uint32_t group)
     return h ? (uint8_t)((uint32_t)h[1]) : 0u;
 }
 
-/** @brief 0xAFFE: one frame pixel — the mask byte when it is non-zero, else the
+/** @brief 0xAFFE: one frame pixel - the mask byte when it is non-zero, else the
  * destination shaded by `d` and clamped to the bar bank.
  *
  * @param page the page buffer
@@ -685,7 +685,7 @@ void statusbar_start(uint16_t packedTimeBcd, uint16_t tribeMembers,
     free(n2);
 
     /* level_video_init's load (1000:32AD): the +0xC0 paragraph stride puts
-     * PANELN2 right after PANELN1 — one 1280-byte _strip (§12.7a)         */
+     * PANELN2 right after PANELN1 - one 1280-byte _strip (§12.7a)         */
     free(_panel4);
     _p4_size = 0;
     _panel4 = res_load_chunk("LBM\\PANEL4.BIT", &_p4_size, &chk);
@@ -724,7 +724,7 @@ void statusbar_start(uint16_t packedTimeBcd, uint16_t tribeMembers,
     _sec_div = 70; /* [0x5B14] = 0x46          */
     _slide_div = 2; /* [0x5B10] = 2             */
     /* _active stays 0: [0x5B12] is level_fade_in's, set when the start chain
-     * completes — the countdown must not run during the fade (see level.c) */
+     * completes - the countdown must not run during the fade (see level.c) */
     _time_up = 0;
 }
 

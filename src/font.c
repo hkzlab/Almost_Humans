@@ -1,11 +1,11 @@
-/* font.c — TEXT.SPR _glyphs + draw_text (game_structure.md §1 subsystem 12,
+/* font.c - TEXT.SPR _glyphs + draw_text (game_structure.md §1 subsystem 12,
  * re_formats.md §`TEXT.SPR` + §9.4 "The attract text arena").
  *
  * The shipped tables, extracted from the EXE image (file 0x106F0 + off):
- *   the _charset at 202F:0x1E28 — 44 _glyphs, then the NUL terminator;
- *   the per-glyph advances at 202F:0x1E55 — 44 entries, and the byte at
+ *   the _charset at 202F:0x1E28 - 44 _glyphs, then the NUL terminator;
+ *   the per-glyph advances at 202F:0x1E55 - 44 entries, and the byte at
  *   0x1E81 (= 0x50) is the terminator's "_advance" (draw_text's no-match
- *   path stops at the terminator and reads its slot — 1000:49ad).
+ *   path stops at the terminator and reads its slot - 1000:49ad).
  *
  * draw_text (1000:4989) measures the string through the _advance table,
  * centres it (AX -= width/2) and blits each glyph through _blit_glyph
@@ -14,8 +14,8 @@
  * (tools/attract_text_sim.py; render analysis/spr_renders/attract_sim_arena.png):
  * each source byte's high nibble, 4-bit-reversed, ORs into arena byte
  * [DI], its low nibble into [DI+1], the second row byte's nibbles into
- * [DI+2]/[DI+3], and the two nibbles of DH — the bits the x%4 pre-shift
- * (XCHG / SHR AX,1 / RCR DH,1) rotated out of the row word — into
+ * [DI+2]/[DI+3], and the two nibbles of DH - the bits the x%4 pre-shift
+ * (XCHG / SHR AX,1 / RCR DH,1) rotated out of the row word - into
  * [DI+4]/[DI+5].  With the arena's 1-bpp packing (4 px per byte, bit 0 =
  * the leftmost), the net effect is that every 2-bpp glyph pixel becomes
  * two consecutive 1-bpp pixels: the glyph doubles horizontally, which is
@@ -28,16 +28,16 @@
 
 #include <stdio.h>
 
-/* 202F:0x1E28 — the _charset (44 _glyphs + the terminator). */
+/* 202F:0x1E28 - the _charset (44 _glyphs + the terminator). */
 static const char _charset[45] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!., '?ae";
 
-/* 202F:0x1E55 — the advances, then the terminator slot's 0x50. */
+/* 202F:0x1E55 - the advances, then the terminator slot's 0x50. */
 static const uint8_t _advance[45] = { 7, 8, 8, 8,  7, 7, 8, 8, 3,   7, 8,  7,
                                       9, 8, 8, 7,  8, 7, 8, 9, 7,   8, 11, 8,
                                       7, 9, 7, 7,  8, 8, 7, 8, 7,   7, 8,  7,
                                       3, 3, 3, 10, 3, 7, 7, 7, 0x50 };
 
-/* [0x1E1C] — the published apl\text.spr (loaded by the attract's
+/* [0x1E1C] - the published apl\text.spr (loaded by the attract's
  * game_loop prologue and the front-end later; _blit_glyph's only source). */
 static const uint8_t *_glyphs;
 
@@ -100,7 +100,7 @@ static void _arena_overflow(uint32_t capacity, uint32_t row, uint32_t col)
     if (_osys && _osys->warn) _osys->warn(msg);
 }
 
-/** @brief _blit_glyph (1000:49FC) — one 16-row glyph into the arena.  `x` is the
+/** @brief _blit_glyph (1000:49FC) - one 16-row glyph into the arena.  `x` is the
  * screen-pixel column (the doubled scale), `row` the arena row (0..199).
  *
  * @param arena the text arena

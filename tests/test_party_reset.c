@@ -1,4 +1,4 @@
-/* test_party_reset.c — D-49: level_intro_screen (1000:2508) is a
+/* test_party_reset.c - D-49: level_intro_screen (1000:2508) is a
  * self-contained blocking routine, entered fresh on every level.  The port's
  * split start/tick must therefore re-initialise the briefing machine's
  * statics; before the fix a second briefing inherited the first one's final

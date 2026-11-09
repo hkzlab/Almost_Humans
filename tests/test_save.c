@@ -1,7 +1,7 @@
-/* test_save.c — the RESTORE GAME slot's load (pass 8).
+/* test_save.c - the RESTORE GAME slot's load (pass 8).
  *
  * Builds a byte-exact 0x1800 save fixture (re_formats.md §10/§10.0) named
- * `SAVEB` — the fs module's file for slot 2 — then drives the front-end room
+ * `SAVEB` - the fs module's file for slot 2 - then drives the front-end room
  * with synthetic input: walk to RESTORE GAME, press ACTION twice (GAME 2),
  * walk off the right edge.  Asserts:
  *   - the slot reached the loader (save_present, [0x34]);
@@ -13,8 +13,8 @@
  * Then slot 0 asserts the fresh path is untouched.
  *
  * argv[1] = the game data directory (the volumes; the room and the level
- * need them).  The fixture is written next to them — the module's save
- * location — and removed at the end.  A pre-existing SAVEB is never
+ * need them).  The fixture is written next to them - the module's save
+ * location - and removed at the end.  A pre-existing SAVEB is never
  * clobbered: the test skips.
  * Missing volumes = skip. */
 #include "audio.h"

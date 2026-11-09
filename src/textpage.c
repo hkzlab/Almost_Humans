@@ -1,4 +1,4 @@
-/* textpage.c — the in-level text page: the dialog box + its lines
+/* textpage.c - the in-level text page: the dialog box + its lines
  * ("in-level menu").  This is the renderer behind the pause menu, 
  * the SAVE GAME grid, the out-of-time dialog and the level's own
  * messages ("WELL DONE!", "YOUR TRIBE IS EXTINCT!!", etc).
@@ -41,11 +41,11 @@
  * ALU (GC3 := 0x10, 1000:9F76) and the bit mask = its DL argument (0x10 at
  * 1000:9F90), so a glyph pixel becomes `box pixel | 0x10`.  BOX.SPR's fill
  * tile (tile 4) is a vertical ramp EB EA E9 E8 E7 E6 E5 E4 E4 E5 E6 E7 E8 E9
- * EA EB — eight distinct indices that are all (30,0,0) in the palette, so the
+ * EA EB - eight distinct indices that are all (30,0,0) in the palette, so the
  * box looks flat while `| 0x10` turns its rows into the bar bank's grey ramp
  * F4..FB.  The goal page's one line lands on fill rows 3..12 (box top =
  * 76-(lines+2)*8 = 52, text top = +15, glyph rows 4..13) and so prints
- * F8 F7 F6 F5 F4 F4 F5 F6 F7 F8 — the live capture's ramp, exactly.
+ * F8 F7 F6 F5 F4 F4 F5 F6 F7 F8 - the live capture's ramp, exactly.
  */
 #include "textpage.h"
 #include "font.h"
@@ -59,11 +59,11 @@ static const uint8_t *_tp_box;          /* APL\BOX.SPR: 9 x 16x16 tiles */
 
 /* [0x1E20]: the text arena.  The original carves 0x640 paragraphs = 25600 B =
  * 320 rows x 80 (init_buffer_ptrs 1000:31e9); the port keeps the 20 rows a
- * line can reach here — the 1280-B clear plus the widest line's spill — and
+ * line can reach here - the 1280-B clear plus the widest line's spill - and
  * font_draw_text_bounded drops + warns on anything past that (D-258). */
 static uint8_t _tp_arena[1600];
 
-/* 202F:0x5D33 / 0x5D8B / 0x5DE3 — the 8x11 marker patterns (88 bytes). */
+/* 202F:0x5D33 / 0x5D8B / 0x5DE3 - the 8x11 marker patterns (88 bytes). */
 static const uint8_t _marker_l[88] = {
     0xE4, 0xE3, 0xE4, 0xE4, 0xE4, 0xE4, 0xE4, 0xE4, 0xE4, 0xE3, 0xE3,
     0xE4, 0xE4, 0xE4, 0xE4, 0xE4, 0xE4, 0xE3, 0xE3, 0xE3, 0xE4, 0xE4,
@@ -139,7 +139,7 @@ static void _scroll_text_measure(const char *text, uint32_t *tiles,
  * @brief Store the set pixels of one 1-bpp arena byte into the page.
  *
  * `bits` keeps the arena's packing: bit p is the page pixel at `x0 + p`,
- * bit 0 the leftmost.  Only set bits are written — under write mode 2 a 0
+ * bit 0 the leftmost.  Only set bits are written - under write mode 2 a 0
  * bit selects the latch, so a blank byte (or a blank glyph row) leaves the
  * box beneath the line untouched instead of erasing it.
  *
@@ -382,7 +382,7 @@ void textpage_draw(uint8_t *page, const char *text, int32_t cursorRow,
     }
 
     /* the black outline (draw_map_object 1000:9FA7 -> 9FB1), after the lines
-     * and before the markers — dialog_menu_loop draws those last */
+     * and before the markers - dialog_menu_loop draws those last */
     _draw_outline(page, top, left, tiles, lines);
 
     /* the cursor: the pause rows' edge markers, or the grid's cell pair */

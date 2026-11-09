@@ -1,14 +1,14 @@
-/* arch/sdl3/audio.c — the SDL3 port's audio backend.
+/* arch/sdl3/audio.c - the SDL3 port's audio backend.
  *
  * The backend owns the sample stream; the sound-driver module
  * (audio/sound_driver.h) owns the synth.  Every OSystem audio member is one
  * INT 60h command the game sends (re_snd_drv.md §2.4), so this file is a
- * thin, thread-safe wrapper around the module — the game-side schedules (the
+ * thin, thread-safe wrapper around the module - the game-side schedules (the
  * 2-of-3 music tick, the master-volume fades, the tune transitions) live in
  * the core (src/audio.c), where the original runs them.
  *
  * Threading: the SDL audio thread runs the sample callback, and it is the
- * audio clock — the core's audio tick (audio_render_tick) is stepped from
+ * audio clock - the core's audio tick (audio_render_tick) is stepped from
  * inside the render at the exact sample where the next game tick is due, so
  * a note's key-on/key-off lands on the sample the original's ISR wrote it at,
  * not on a render-chunk boundary.  The game-tick thread (arch/sdl3/timer.c)
@@ -51,7 +51,7 @@ static SDL_Mutex *_lock;
 static uint16_t _voice = 0xFFFFu; /* the current cmd-5 handle ([0x5AF0]) */
 /* The game-tick grid in samples: SDL3_AUDIO_RATE / GAME_TICK_HZ.  _tick_acc
  * counts in frames * GAME_TICK_HZ, so a tick is due when it reaches
- * SDL3_AUDIO_RATE — exact integer arithmetic, no drift. */
+ * SDL3_AUDIO_RATE - exact integer arithmetic, no drift. */
 static uint32_t _tick_acc;
 
 /* The audio _probe (HUMANSRE_AUDIO_PROBE set): reports the rendered peak

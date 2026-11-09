@@ -1,4 +1,4 @@
-/* compat.h — the host-OS shims for the test mains.
+/* compat.h - the host-OS shims for the test mains.
  *
  * The core stays pure C99 with no host #ifdefs (port_structure.md §5); only
  * these host-facing mains need the POSIX calls: chdir (fs opens its volumes

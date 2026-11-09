@@ -1,4 +1,4 @@
-/* tests/test_beeper.c — the Beeper sound-driver module against a real .BEP.
+/* tests/test_beeper.c - the Beeper sound-driver module against a real .BEP.
  *
  * White-box (the module is included) so the checks can pin what the INT 60h
  * ABI alone cannot see: the loader geometry, the row decoder's slot cells,

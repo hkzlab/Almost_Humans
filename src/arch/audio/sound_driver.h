@@ -1,4 +1,4 @@
-/* arch/audio/sound_driver.h — the common resident synth-driver interface.
+/* arch/audio/sound_driver.h - the common resident synth-driver interface.
  *
  * The game never touches a synth: it loads one of three resident drivers out
  * of the resource archive (ADLIB.DRV / MT32.DRV / BEEPER.DRV, chosen by the
@@ -25,7 +25,7 @@
  * and all three shipped drivers implement the same 15-entry table: their
  * entries sit at ADLIB.DRV 0x1A2, MT32.DRV 0x19D and BEEPER.DRV 0x180, and
  * cmd 0x0E returns the driver's command block (AdLib 0x1577, MT-32 0x15D1,
- * Beeper 0x0E87) — empty in every observed session, and not consumed by the
+ * Beeper 0x0E87) - empty in every observed session, and not consumed by the
  * port yet.
  *
  * Nothing here names a chip.  A module is free to emulate an OPL3, an
@@ -59,7 +59,7 @@ typedef struct SoundDriverModule {
     void (*destroy)(SoundDriver *drv);
     /* cmd 0x0A: CL = the game's tempo byte (clamped to 0x64 by the drivers). */
     void (*setTempo)(SoundDriver *drv, uint8_t tempo);
-    /* cmd 0x0E: identify — the driver's 8-byte command block, ES:DI. */
+    /* cmd 0x0E: identify - the driver's 8-byte command block, ES:DI. */
     const uint8_t *(*commandBlock)(SoundDriver *drv);
     /* cmd 0x0C: DS:DX = the loaded .ALB/.RLD/.BEP image.  The size is the
      * port's buffer bound; the original only has the far pointer. */

@@ -1,4 +1,4 @@
-/* map.h — the interface of src/map.c: the MAP screen, its letter wheel
+/* map.h - the interface of src/map.c: the MAP screen, its letter wheel
  * and the draw helpers. */
 
 #ifndef HUMANSRE_MAP_H

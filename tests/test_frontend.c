@@ -1,4 +1,4 @@
-/* test_frontend.c — the front-end room's option read side (the ACTION key).
+/* test_frontend.c - the front-end room's option read side (the ACTION key).
  *
  * Drives frontend_tick with synthetic input: walks the rails to each option
  * cell, presses ACTION (joyBits bit 7), and asserts:
@@ -6,7 +6,7 @@
  *   (b) the composed page's badge pixels are the next shipped sprite cell
  *       (byte-checked against CODEB1/CODEB2/RESTORE, the files the placer
  *       reads: a cell's opaque pixels must equal the page's);
- *   (c) the value reaches its consumer — LEVEL -> the record's time B and
+ *   (c) the value reaches its consumer - LEVEL -> the record's time B and
  *       the 10-member tribe (entry 1000:009F / render_level_frame 1000:958C);
  *       MUSIC -> the frame web's gate (audio_music_gate 1000:A5E8) stopping
  *       and resuming the backend; ANIMATIONS -> scene_play_level_intro's
@@ -106,7 +106,7 @@ static void _press_action(void)
 }
 
 /** @brief (b): the shipped cell's opaque pixels must be on the composed page at the
- * badge's place — skipping the 16x16 block the walker's own sprite overlays
+ * badge's place - skipping the 16x16 block the walker's own sprite overlays
  * (room_draw_character draws him in front of the sign; the sign's copy in
  * code2.raw is patched too, so the rest of his 27x20 backdrop box must still
  * carry the new badge).  set_scroll is 0x140 at all four cells this test
@@ -415,7 +415,7 @@ int main(int argc, char **argv)
             fprintf(stderr, "FAIL the name screen did not open\n");
             bad = 1;
         } else {
-            /* the typed name must land in the 1000:AB8D strip — destination
+            /* the typed name must land in the 1000:AB8D strip - destination
              * [0x5AC4]+0x38F5 + 0xA0/row, i.e. page rows ~0x5B..0x65.  An
              * 8-bit truncation of that address was invisible to the old
              * checks: it dropped the text at the top of the page. */

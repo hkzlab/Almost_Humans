@@ -1,4 +1,4 @@
-/* test_ver_detect.c — the language detector (ver_detect.h).
+/* test_ver_detect.c - the language detector (ver_detect.h).
  *
  * Unit part: the FNV-1a known vectors and the digest -> game_strs column map.
  * Data part: the real volume sets, argv[1] being a directory that holds one

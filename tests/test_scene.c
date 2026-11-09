@@ -1,4 +1,4 @@
-/* test_scene.c — the per-tick level-intro player against the real ANI data.
+/* test_scene.c - the per-tick level-intro player against the real ANI data.
  *
  * Level 0 -> disc 2 (the ported 0x6287 table) -> ANI00.ANI.  The intro is
  * driven one tick per scene_play_level_intro call: 210-tick dwell, then 35
@@ -128,11 +128,11 @@ int main(int argc, char **argv)
     video_init(&g_osys_null);
     palette_init(&g_osys_null);
 
-    /* 1. the intro plays: dwell (210) + 34 objects (6 ticks each) — well
+    /* 1. the intro plays: dwell (210) + 34 objects (6 ticks each) - well
      * past that, every call still returns 1 (the scene-0 chain replays).
      * 34, not 35: the display list's last object is a tail-eater (its
      * stream runs to the loaded image's exact end) and the machine's
-     * checksum gate rejects it — decode runs, the blit never does
+     * checksum gate rejects it - decode runs, the blit never does
      * (dosbox-staging debugger session, 2026-10-24: GT obj 29 fails the
      * b444 gate, EBP=0x613C; every scene file's last object is a
      * tail-eater, slack = 0 in all 12). */
@@ -217,7 +217,7 @@ int main(int argc, char **argv)
                 bad = 1;
             }
             /* the panel's headline (1000:B0D4: blit_text_tile, centre
-             * 0xA0, row 0x41, mask 0x10) — bit 4 forced over the paper,
+             * 0xA0, row 0x41, mask 0x10) - bit 4 forced over the paper,
              * i.e. `daily pixel | 0x10`, inside the line's 0x45..0x4E band */
             {
                 uint32_t ink = 0;
@@ -365,7 +365,7 @@ int main(int argc, char **argv)
     }
 
     /* 3. the DAC is the last played scene object's own 768-byte palette
-     * (each object carries one after its u16 count) — 6-bit, and NOT the
+     * (each object carries one after its u16 count) - 6-bit, and NOT the
      * panel's daily.bit palette (which used to stay installed). */
     {
         uint32_t pal_size = 0;

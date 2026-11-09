@@ -1,4 +1,4 @@
-/* game_main.c — the game core's entry: the original `entry` (1000:0000)
+/* game_main.c - the game core's entry: the original `entry` (1000:0000)
  * re-read.
  *
  * The arch layer owns main() and hands us the filled OSystem vtable
@@ -12,8 +12,8 @@
  *         -> menu_loop                    (the map / level-select room)
  *
  * The loop structure copies the original's split (re_map.md, "Timer / INT 8"):
- * the tick callback is the ISR body — flip apply, palette step, then the
- * music/keyed events — and the foreground advances the flow exactly once per
+ * the tick callback is the ISR body - flip apply, palette step, then the
+ * music/keyed events - and the foreground advances the flow exactly once per
  * tick boundary.  The modules are real; the open deviations are listed in
  * port_deviations.md.
  */
@@ -57,7 +57,7 @@ enum {
 
 /* --- the level's foreground: the pause gate + the actions ------------- */
 
-/* level_run's fresh-load party state (307A) — file scope so the pause's
+/* level_run's fresh-load party state (307A) - file scope so the pause's
  * restart can suppress the party (level_restore 35AF re-enters level_start,
  * not the party path). */
 static uint8_t _party_tried, _party_playing;
@@ -96,7 +96,7 @@ static uint8_t _end_scene_index;
 
 /* The level the walk is currently on: the menu selection feeds it
  * (frontend_selected_level = the matched codes.bin index, 1-based, minus
- * one — the [0x22] := [0x5F09] hand-off), and a loaded save overrides it
+ * one - the [0x22] := [0x5F09] hand-off), and a loaded save overrides it
  * with its own +0x00 (entry:004C's POP AX). */
 static uint16_t _level_current = 0u;
 
@@ -247,8 +247,8 @@ static void _level_publish_goal(void)
     if (_goal_page) statusbar_set_active(0);
 }
 
-/** @brief level_restore (1000:35AF): [0x11FC] := [0x1970] — the members the level
- * started with — then JMP level_start (1000:3032), which re-picks the time,
+/** @brief level_restore (1000:35AF): [0x11FC] := [0x1970] - the members the level
+ * started with - then JMP level_start (1000:3032), which re-picks the time,
  * re-runs present_frames_75 + music_stop and re-enters the level (the party
  * screen runs again, 1000:3073).  The port reloads the record (the header is
  * the same file record; the original skips the read) and re-spawns the map's
@@ -261,7 +261,7 @@ static void _level_restart_finish(void)
      * level_start, so start the audio fade here and let that branch wait it
      * out before the party.  Skipping it leaves [0x40BB] set, and the
      * party's play_tune loads a new image (MT-32 resets its voices) while
-     * music_resume stays gated off — silence for the rest of the level. */
+     * music_resume stays gated off - silence for the rest of the level. */
     _level_music_done = 0;
     _level_start_fade = 1;
     audio_fade_out(); /* 1000:303A */
@@ -451,7 +451,7 @@ GameFlow gameflow_step(GameFlow state, const InputState *input)
 {
     switch (state) {
     case FLOW_ATTRACT:
-        /* game_loop 1000:131E never returns normally — the boot intro
+        /* game_loop 1000:131E never returns normally - the boot intro
          * (played via scene_play_boot_intro, game_main's hook above) hands
          * into the four-effect cycle, whose only exit is attract_exit
          * 1000:13E9: the action key or any held key -> the 13B2 escape,
@@ -485,20 +485,20 @@ GameFlow gameflow_step(GameFlow state, const InputState *input)
             frontend_restart(); /* 1000:0048 */
         }
         /* The front-end room (the walkable level-select): frontend_tick
-         * runs the original's per-frame web — the walk on the rails, the
+         * runs the original's per-frame web - the walk on the rails, the
          * action key's option cycles, the name/code screen's key table.
          * The room's exits are the walk off the right edge (x=0x280) or
          * Enter with a codes.bin match; both fade out and hand the level
          * to the flow (entry's PUSH AX at 004B / POP AX at 00BA move
-         * [0x5F09] into [0x22] — the level counter here).  ESC stays in
+         * [0x5F09] into [0x22] - the level counter here).  ESC stays in
          * the room (it clears the typed name; the decode settled the
          * stub-era ESC-to-attract guess was wrong). */
         if (frontend_tick(input)) return FLOW_MENU;
         _level_current = frontend_selected_level() - 1u;
         /* entry:004C: the room's RESTORE GAME counter ([0x5E6F], carried
          * out in BL by the walk-out exit) loads the slot.  A hit pushes the
-         * save's +0x00 level through the entry stack to [0x22] — it
-         * OVERRIDES the room's code match — and the header seeds
+         * save's +0x00 level through the entry stack to [0x22] - it
+         * OVERRIDES the room's code match - and the header seeds
          * level_load's time/members.  Slot 0 (GAME OFF) resets the state;
          * the 1..160 bound only rejects a corrupt saved id. */
         if (save_load_slot(frontend_option(FRONTEND_OPT_GAME))) {
@@ -637,8 +637,8 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
                  * ranges replace the level's fresh spawn. */
             if (save_present()) save_restore_state();
             /* level_run 3060/3062: a tribe smaller than the level
-                 * needs — party_intro_set_game_over plays the briefing's
-                 * GAME OVER variant — and the level is skipped by the
+                 * needs - party_intro_set_game_over plays the briefing's
+                 * GAME OVER variant - and the level is skipped by the
                  * entry *state machine's next-level arm. */
             _level_skipped =
                 gameflow_tribe_too_small(level_required(), level_members());
@@ -661,9 +661,9 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
         if (!save_present()) {
             /* level_intro_screen's values: the level number
                  * ([0x1F41]), the humans needed ([0x17FB] = the map's
-                 * 0xAA count — NOT the record's goal-count byte), the
+                 * 0xAA count - NOT the record's goal-count byte), the
                  * tribe ([0x11FC]) and the score ([0x592]; the port has
-                 * no running score yet — 0, documented). */
+                 * no running score yet - 0, documented). */
             party_intro_set_game_over(_level_skipped);
             party_intro_set_values(
                 _level_current + 1u, level_required(), level_tribe_members(),
@@ -703,7 +703,7 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
             *state = _post_level_step(*state);
         }
     } else if (_post_scene) {
-        /* entry 1000:00FF: cd_file_op([0x17EF]) — the newspaper for
+        /* entry 1000:00FF: cd_file_op([0x17EF]) - the newspaper for
              * the level just finished, after check_highscore. */
         if (scene_play_level_intro(_post_scene_idx)) return 1;
         _post_scene = 0;
@@ -725,7 +725,7 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
     } else if (level_loading_screen()) {
         /* load_sprite_pal (1000:1DC0): the LOADING screen, between
              * the party and the level's fade-in (a skipped level never
-             * reaches it — level_run 3065 returns first) */
+             * reaches it - level_run 3065 returns first) */
         level_loading_tick();
     } else if (_end_page_up) {
         /* draw_level_text (1000:33A3).  [0x138E] selects "WELL DONE!
@@ -805,7 +805,7 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
         }
     } else if (level_starting()) {
         /* level_fade_in (1000:3334): after the party and the intro,
-             * before the first play frame — the foreground blocks on the
+             * before the first play frame - the foreground blocks on the
              * fades, so the goal page and the play loop wait here. */
         level_begin();
         level_tick();
@@ -996,7 +996,7 @@ static uint8_t _game_frame(const OSystem *osys, GameFlow *state,
 
     /* the attract phase plays the boot intro first (the original's
          * boot chain runs once at power-on); then gameflow_step runs the
-         * real attract cycle — game_loop's four effects — until the exit */
+         * real attract cycle - game_loop's four effects - until the exit */
     if (*state == FLOW_ATTRACT && scene_play_boot_intro())
         return 1; /* the intro's rendered frame */
     /* entry 0x001C's timing_loop: the attract waits for the title fade */

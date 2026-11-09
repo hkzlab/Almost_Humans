@@ -1,9 +1,9 @@
-/* test_fadeladder.c — the port's own fade ladder, dumped per tick for
+/* test_fadeladder.c - the port's own fade ladder, dumped per tick for
  * comparison against the original's recorded DAC reads (2026-10-30,
- * `OUT 3C7/IN 3C9` per entry at both phases — re_map.md, "the party's
+ * `OUT 3C7/IN 3C9` per entry at both phases - re_map.md, "the party's
  * entry-palette source").  Measured ORIGINAL ground truth:
  *
- *   the blues phase (end of the entry 0x100 fade — 28d0 has already run at
+ *   the blues phase (end of the entry 0x100 fade - 28d0 has already run at
  *   25da, so the window's target is the replicated ramp, not the .PAL's
  *   grey upper half): window 0x81 = 00000b (.PAL[1]), 0x85 = 00000e
  *   (.PAL[5]), 0x78 = 200620 (.PAL[120]), 0xa0 = 000000 (.PAL[0]),
@@ -11,12 +11,12 @@
  *   0xff = 1a0722 (.PAL[31]).
  *   The 0xff value is the discriminator: window 0x80+j takes the buffer
  *   byte 3j, and 28d0 replicates .PAL[0..31] four times over 0x4d3c, so
- *   j = 127 lands on .PAL[31] — not on .PAL[127], which is what a straight
+ *   j = 127 lands on .PAL[31] - not on .PAL[127], which is what a straight
  *   .PAL[0..127] window would give.
  *
  *   the grey phase (2b9c done): window 0x81..0x9f = 222222-flat,
  *   0xa0 = 0, 0xc0 = 0, 0xe0 = 0 (the per-32 separators), 0xff = 3a3a3a
- *   — i.e. the snapshot taken at 25bc, which is the .PAL's own upper half.
+ *   - i.e. the snapshot taken at 25bc, which is the .PAL's own upper half.
  *
  * This harness reproduces that measurement from the port's side: it drives
  * party_intro_start + party_intro_tick one tick at a time (the palette step

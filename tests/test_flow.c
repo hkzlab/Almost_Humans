@@ -1,4 +1,4 @@
-/* test_flow.c — the flow's connections (entry's state machine + level_run's
+/* test_flow.c - the flow's connections (entry's state machine + level_run's
  * arms), against the decoded original:
  *
  *   level_run 3060/3062   need > members -> the level is skipped
@@ -289,7 +289,7 @@ int main(int argc, char **argv)
         }
 
         /* object_blit_sprite (the object bank's blit): the source index is
-         * (col&3)*rows*(cols/4) + row*(cols/4) + col/4 — the block stride is a
+         * (col&3)*rows*(cols/4) + row*(cols/4) + col/4 - the block stride is a
          * product that exceeds a byte for a 32x32 tile (256), so a byte-sized
          * stride transposes/garbles large sprites (the PARKVIEW dinosaur).
          * Drive it with a 32x32, all-ink, position-tagged source. */
@@ -349,7 +349,7 @@ int main(int argc, char **argv)
     }
 
     /* 3. load_sprite_pal's LOADING screen (1000:1DC0): ten walkers for
-     * 0xA0 frames, then the letters (blocks 0x11..0x18) — the letters land
+     * 0xA0 frames, then the letters (blocks 0x11..0x18) - the letters land
      * as the 16x24 "L" block at x=0xB0 falling from y=0x1A. */
     if (level_load(0) == 0) {
         /* level_run 1000:3054 runs level_video_init's two fades (1000:3083)
@@ -381,7 +381,7 @@ int main(int argc, char **argv)
             }
         }
         /* the background: a clean black page plus BACKS\DICON.APL's 80x56
-         * card at (0x50,0x60) above the status bar — the 1000:3310 blit's
+         * card at (0x50,0x60) above the status bar - the 1000:3310 blit's
          * visible position, 4 px/byte (not doubled) */
         level_loading_tick(); /* the first frame composes it */
         {
@@ -465,7 +465,7 @@ int main(int argc, char **argv)
             _check(bank && sz >= 0x400u + 0x19u * 0x180u,
                    "LOADING.APL readable");
             if (bank) {
-                /* the state after one tick: the "L" at (0xB0, 0x1C) — the
+                /* the state after one tick: the "L" at (0xB0, 0x1C) - the
                  * template's y=0x1A plus one dy step.  The D-111 tick above
                  * is the walkers' 0xA0th, so the letters still get 0x20. */
                 for (uint32_t k = 0; k < 0x20u; k++) level_loading_tick();
@@ -739,8 +739,8 @@ int main(int argc, char **argv)
         r[8] = 0x02;
 
         /* the claim (1000:3A6A): the gate, the scan, the writes and then the
-         * whole sequence — red/white flash, blinks, the animation, the spawn
-         * and the settle — driven with object_tick + palette_tick */
+         * whole sequence - red/white flash, blinks, the animation, the spawn
+         * and the settle - driven with object_tick + palette_tick */
 
         /* the window is not 4-aligned on the way in: 1000:3B28 snaps it */
         level_set_view(18u, 8u);
@@ -1083,7 +1083,7 @@ int main(int argc, char **argv)
                 if ((object_frame_counter_probe() & 1u) != parity)
                     object_claim_frame(level_palette());
             }
-            /* D-48: 1000:34E6 — the play loop's exit.  The tick that detects
+            /* D-48: 1000:34E6 - the play loop's exit.  The tick that detects
              * the end plays sound 0xC (1000:83B7) and freezes the world for
              * the 15 x 1000:8B56 waits before draw_level_text's chain. */
             if (!level_starting()) {
@@ -1161,7 +1161,7 @@ int main(int argc, char **argv)
 
     /* 6c. load_terrain_b's object walk (1000:5168): level 1's four 0xAA cells
      * become the humans in static slots 0..3 and its one 0xAB cell (28,2) the
-     * spear appended at index 9 — the live [0x3E73] = 9 / [0x3E5F] = 5 state */
+     * spear appended at index 9 - the live [0x3E73] = 9 / [0x3E5F] = 5 state */
     if (level_load(0) == 0) {
         const uint8_t *sp = object_slot(9);
         _check(object_live_count() == 9u && object_placed_humans() == 4u,
@@ -1202,7 +1202,7 @@ int main(int argc, char **argv)
     }
 
     /* 6c2. the ACTION program machine (script_op_dispatch 1000:3979): level 1's
-     * win is the pickup — the collision pass finds the spear, marks its slot
+     * win is the pickup - the collision pass finds the spear, marks its slot
      * 0x85 and writes the live ordinal as the actor's class, which the goal
      * word 0x0502 (class match, argument 5) then accepts */
     if (level_load(0) == 0) {

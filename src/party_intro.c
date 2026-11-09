@@ -1,12 +1,12 @@
-/* party_intro.c — the level-intro party screen: level_intro_screen
+/* party_intro.c - the level-intro party screen: level_intro_screen
  * (1000:2508–27EA) with every helper its body reaches, ported
  * listing-for-listing from re_map.md → "The level-intro party screen
  * decoded end to end (2026-10-29)".  Both render gates have been
  * measurement-closed this session:
  *
- *   • the 2C1D funnel: hardware VGA write-mode-2 semantics — per plane p,
+ *   • the 2C1D funnel: hardware VGA write-mode-2 semantics - per plane p,
  *     post_p = (pre_p & ~mask) | ((src>>p)&1 replicated over the masked
- *     positions) — fitted 21760/21760 against parked-state dumps.
+ *     positions) - fitted 21760/21760 against parked-state dumps.
  *   • the A000↔.BIT↔screen layout law: the GC-4=p view byte at offset n is
  *     the .BIT pixel (y = 20+q, x = 4n+p); an A000 byte = 4 pixels; the
  *     band = screen/.BIT rows 20..87 (83.5% .BIT-exact, 0 mismatches off
@@ -44,7 +44,7 @@
  * The animators' slot seeding is CLOSED (2026-10-30 pass-3): the 8 slot
  * structs at DS:0xFA8, the 7 script pointers at DS:0x1028 and the script
  * bodies DS:0x1036..0x105E are STATIC in the MZ image (Ghidra 202F:0xFA8
- * hexdump == the live DS:0xFA8 read-back, sub-lists byte-identical) — no
+ * hexdump == the live DS:0xFA8 read-back, sub-lists byte-identical) - no
  * seed writer exists.  The tables below are the file's verbatim bytes.
  * The interpreter is 28e9 verbatim: per slot per tick, DEC the countdown;
  * when it hits zero reload 8 and set the advance _step; ALWAYS walk the
@@ -53,11 +53,11 @@
  * stamp restores them); on 0xFF switch to sub-list entry (loopc+1) mod 10,
  * fpos = 0, and re-walk from the new script's byte 0 in the same tick.
  * The bird _marquee's source group is (cell*4 + (_phase&3)) at a 320-byte
- * stride [0x1206] — exactly the rescale group grid (47*320+319 = 15359 =
+ * stride [0x1206] - exactly the rescale group grid (47*320+319 = 15359 =
  * the _strip's last byte; the numbers close).
  *
  * The palette buffers (2026-10-30): 0x4bbc is the .PAL working palette, and
- * 0x4d3c is NOT a separate buffer — it is 0x4bbc + 0x180, the file's own
+ * 0x4d3c is NOT a separate buffer - it is 0x4bbc + 0x180, the file's own
  * upper half (entries 128..255). 28d0 replicates .PAL[0..31] four times
  * over it, 25bc snapshots it to 0x1208, 2b9c fades the text window from the
  * 28d0 blues into that grey snapshot (the fade-in), and 2bda re-runs 28d0
@@ -65,7 +65,7 @@
  *
  * Port-only caveats (port_deviations.md D-01/D-19): with no disc the loads
  * fail and the screen is
- * skipped — the _load-failure path the scene player established; the
+ * skipped - the _load-failure path the scene player established; the
  * music/marker calls (play_tune 8437, music_resume 83f7, timing_loop 84a5,
  * music_stop 8389, INT 60 service 0xA inside present_frames_75) ride the
  * OSystem audio contract, which the null build stubs.
@@ -117,7 +117,7 @@ enum {
 };
 
 /* 2bda's internal split: its own fade-wait (2bec..2bf2), THEN the 0xE0
- * mask reset (2bf4) + clear + band redraws (2c01..2c1c) — the tail is
+ * mask reset (2bf4) + clear + band redraws (2c01..2c1c) - the tail is
  * what wipes the previous text and re-bakes the _canvas-empty band. */
 enum {
     SW_FADEWAIT = 0,
@@ -174,7 +174,7 @@ static struct Script _scripts[SCRIPT_COUNT];
 static uint8_t *_script_store; /* the seeded bodies (memcpy'd)       */
 
 /* === the file-image script seed (2026-10-30: the tables are STATIC bytes
- * of the MZ image — the 202F:0xFA8 / 0x1028 hexdumps == the live DS
+ * of the MZ image - the 202F:0xFA8 / 0x1028 hexdumps == the live DS
  * read-back; the sub-lists are never rewritten by traced code, so no seed
  * writer exists.  The countdowns slug the _slots' _phase: {10,8,6,4,5,0,7,9};
  * a count of 0 (slot 5) counts up to 8 on its first tick per 2909
@@ -272,7 +272,7 @@ void party_intro_format_score(uint32_t v, char *out)
 
 /** @brief the party's in-place number formatter (1000:3F1B): writes `width`
  * characters at `dst` (zero- or space-padded) and returns; the string's
- * tail is untouched, and a number wider than the field spills into it —
+ * tail is untouched, and a number wider than the field spills into it -
  * both exactly as the original does (its "HUMANS TO COMPLETE" and
  * " MEMBERS!" tails survive the patch).
  *
@@ -360,7 +360,7 @@ static void _write_mode2(uint8_t *px, uint8_t c, uint32_t m)
 }
 
 /**
- * @brief 2c1d draw_intro_frame — the closed funnel
+ * @brief 2c1d draw_intro_frame - the closed funnel
  *
  * @param pagebase the page base
  */
@@ -393,7 +393,7 @@ static void _blit_slot(uint32_t frame)
     for (uint16_t r = 0; r < 24u; r++) {
         for (uint16_t w = 0; w < 4u; w++) {
             uint8_t c = s[r * 4u + w];
-            /* write mode 2 reads AL's bits 0..3 only — the _sheet's nibble
+            /* write mode 2 reads AL's bits 0..3 only - the _sheet's nibble
              * is the plane value itself; no palette bias applies to the
              * byte (the +0xC0 story lives in the palette table, not here). */
             _write_mode2(_vram[di + w], c, MASK);
@@ -451,7 +451,7 @@ static void _marquee(void)
 }
 
 /**
- * @brief 28e9 animate_entities — verbatim: every tick, per slot
+ * @brief 28e9 animate_entities - verbatim: every tick, per slot
  */
 static void _anim_entities(void)
 {
@@ -486,10 +486,10 @@ static void _anim_entities(void)
     _flip_page();
 }
 
-/** @brief 2e94 _draw_text_ramped — _canvas-resident per the original: the glyph
+/** @brief 2e94 _draw_text_ramped - _canvas-resident per the original: the glyph
  * stroke lands in the CANVAS only (the = "2c1d never runs here"); the
  * per-call 28e9 animates the _slots/_marquee and flips, but the TEXT does
- * not reach the display until the next 2C1D (inside 2b9c/2bda) — the
+ * not reach the display until the next 2C1D (inside 2b9c/2bda) - the
  * original's "all text fades in together at the first band redraw".
  *
  * @param s the text line
@@ -499,9 +499,9 @@ static void _anim_entities(void)
 static void _draw_text_ramped(const char *s, uint32_t centreX, uint32_t row)
 {
     memcpy(_ramp_tbl + row, _ramp10, 10u); /* 2e94: the ramp slides with the
-                                            * row param — CS:0x2DFE + row */
+                                            * row param - CS:0x2DFE + row */
     if (_font_bytes) font_draw_text(_canvas, s, centreX, row);
-    _anim_entities(); /* 28e9: _slots + _marquee + flip —
+    _anim_entities(); /* 28e9: _slots + _marquee + flip -
                                             * the _canvas glyph is NOT rendered */
 }
 
@@ -516,7 +516,7 @@ static void _copy_palette(void)
 }
 
 /** @brief 2b9c _intro_anim: the backdrop band twice, then the snapshot restore and
- * the 0x80..0xFF window fade toward it — 0x1208 (25bc) is the .PAL's own
+ * the 0x80..0xFF window fade toward it - 0x1208 (25bc) is the .PAL's own
  * upper half, so the text window dissolves from the 28d0 blues into the
  * file's grey ramp (the fade-in).
  */
@@ -530,12 +530,12 @@ static void _intro_anim(void)
     palette_build_fade(0x80u, 0x80u, 0x28u, _pal_upper); /* 2bca: BX=0x80 */
 }
 
-/** @brief 2bda fade_and_animate — verbatim _phase-split: 2bda runs [28d0]; builds
+/** @brief 2bda fade_and_animate - verbatim _phase-split: 2bda runs [28d0]; builds
  * the window fade; THEN BLOCKS ON ITS OWN FADE ({28e9; 8b9a; JC} at
  * 2bec..2bf2) before the 0xE0 mask reset (2bf4), the 2af5 clear (2c01)
  * and the two 2c1d band redraws (2c04..2c1c).  The clear/redraw tail is
  * therefore separated from the next set's stamps by the fade's own
- * completion — the original's "text fades in at the next set" rhythm:
+ * completion - the original's "text fades in at the next set" rhythm:
  * every 2c1d renders the _canvas under the fade state CURRENT AT THAT
  * MOMENT, and the holds are the built fades' converged end-states.
  *
@@ -849,7 +849,7 @@ uint8_t party_intro_tick(const InputState *in)
                 _g_level) = '\0'; /* 260e    */
             _draw_text_ramped(_s_all, 0xA0u, 0x14u);
             break;
-        case 1u: /* 2623..263a: no NUL — the
+        case 1u: /* 2623..263a: no NUL - the
                                                 * " HUMANS TO COMPLETE" tail
                                                 * survives the patch        */
             (void)_put_number(

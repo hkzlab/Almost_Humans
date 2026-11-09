@@ -1,4 +1,4 @@
-/* menu.h — the interface of src/menu.c: the in-level dialogs (pause menu + SAVE GAME)
+/* menu.h - the interface of src/menu.c: the in-level dialogs (pause menu + SAVE GAME)
  *
  * The 5-option pause menu (202F:0x5BBC, A167) and the SAVE GAME number grid
  * (202F:0x5CD8, render_frame_loop's cursor): the behaviour is the original's

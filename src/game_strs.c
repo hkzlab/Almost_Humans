@@ -1,4 +1,4 @@
-/* game_strs.c — the text table; see game_strs.h.
+/* game_strs.c - the text table; see game_strs.h.
  *
  * Every column is verbatim from the shipped image of that language; a
  * pointer here is behaviour-identical to the literal it replaced.  The only

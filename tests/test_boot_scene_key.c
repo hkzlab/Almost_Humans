@@ -1,7 +1,7 @@
-/* test_boot_scene_key.c — D-247: a held key aborts the INTRO.RSC scene.
+/* test_boot_scene_key.c - D-247: a held key aborts the INTRO.RSC scene.
  *
  * load_intro_scene's loop polls the held-key abort twice: c0c6 after every
- * frame's wait (2 ticks at 1000:b787, 4 in the port — D-248) and c0af in the
+ * frame's wait (2 ticks at 1000:b787, 4 in the port - D-248) and c0af in the
  * transition's white-fade
  * wait (1000:b863).  Both jump 1000:b60a on a held key/fire.  The port used
  * to run the scene to the final 0x8C-tick hold instead.

@@ -1,4 +1,4 @@
-/* arch/sdl3/OSystem.c — the SDL3 vtable + main (port_structure.md §2). */
+/* arch/sdl3/OSystem.c - the SDL3 vtable + main (port_structure.md §2). */
 #include "osystem.h"
 
 #include <SDL3/SDL.h>

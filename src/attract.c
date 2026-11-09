@@ -1,46 +1,44 @@
-/* attract.c — the ATTRACT loop: game_loop (1000:131E) + the four intro
- * effects, ported from re_map.md § "The ATTRACT loop decoded end to end
- * (2026-10-25)"; the data formats and the shipped tables are in
- * re_formats.md §9.4.
+/* attract.c 0 the ATTRACT loop: game_loop (1000:131E) + the four intro
+ * effects
  *
  * The machine model: the original's 64-KB mode-X address space (the CRTC
- * byte mode bios_set_mode_13h installed — one address byte = 4 pixels, one
+ * byte mode bios_set_mode_13h installed - one address byte = 4 pixels, one
  * per plane; 80 bytes per scanline; the start address a byte offset) becomes
  * _vram[addr][plane]; the CRTC start becomes _display_start; every present
  * composes the 200-row window at _display_start into the flat page 0
- * (game_main's per-tick videoPresent shows it — the same contract
+ * (game_main's per-tick videoPresent shows it - the same contract
  * scene_play_boot_intro uses).
  *
  * attract_tick() advances the machine by exactly ONE display period (the
  * original's wait_vsync cadence).  The exit (attract_exit 1000:13E9: the
  * configured action key [0x5ACE bit 7] or any held key [0x48A3]) is polled
- * EXACTLY where the original polls it — at the fade waits (fade_wait
+ * EXACTLY where the original polls it - at the fade waits (fade_wait
  * 1000:13E0) and the holds (fade_step_frames 1000:13FB), once per tick of
  * those phases; the no-poll windows (the two wipes, the _frame draws, the
  * slide's tail) see no key until their next poll, as in the listing.  The
  * local polls (effect 3's slide skip, effect 4's scroller skip) stay local
- * exactly as in the listing — they skip the current hold, they do NOT exit
+ * exactly as in the listing - they skip the current hold, they do NOT exit
  * the attract.
  *
  * The one port-only escape point is the ASSET-LOAD-FAILURE skip
  * (port_deviations.md D-19): the
  * original has no such path (a failed INT 63h prompts for the disc), and
- * the port's headless tests run without data — so the skip consumes the
+ * the port's headless tests run without data - so the skip consumes the
  * escape to stay drivable.  With data present that path never runs and the
- * polling is the original's.  (Load failures otherwise skip the effect —
+ * polling is the original's.  (Load failures otherwise skip the effect -
  * the scene player's established pattern.)
  *
  * The escape itself (the longjmp 1000:13B2): the saved page pair is
  * restored, [0x1E7C]:=0x0A, one fade of all 256 DAC entries to the zeroed
  * 0x48BC ramp (black) div 0x23, waited WITHOUT further polling
  * (wait_palette_fade_done 1000:8B8B); its completion is the hand-off to
- * the front-end (FLOW_MENU — the original's RET into entry LAB_002B).
+ * the front-end (FLOW_MENU - the original's RET into entry LAB_002B).
  *
  * Effect 4's credits scroller is the real machine (decoded 2026-10-25,
  * re_map.md "Effect 4" items 3-6): the fill builds the 192-KB strip at
- * [0xD76] (clear_bitmaps_6) as a vertical bitmap of 80-byte rows — [0]
+ * [0xD76] (clear_bitmaps_6) as a vertical bitmap of 80-byte rows - [0]
  * the signature, [1] the write-mode-2 mask, [20..79] the presented 60
- * bytes — one 15-row tile per text line (BP += 75 paras) or 16-row blank
+ * bytes - one 15-row tile per text line (BP += 75 paras) or 16-row blank
  * tile (BP += 80 paras), [0xD39] counting rows; _blit_scroll (1000:1B58)
  * then presents ONE strip row per tick into the draw page's scanline
  * bytes 20..79 (screen x 80..319) in write mode 2 with the row's own bit
@@ -95,7 +93,7 @@ static uint8_t _colour1881 = 0x43; /* CS:0x1881: _blit_80x200's colour base  */
 
 /* --- effect 4's credits strip (re_map.md "Effect 4") ----------------------
  * The 192-KB work area [0xD76] (clear_bitmaps_6 1000:1B3B, re-zeroed per
- * screenful): a vertical bitmap of 80-byte rows — [0] the row signature,
+ * screenful): a vertical bitmap of 80-byte rows - [0] the row signature,
  * [1] the write-mode-2 bit mask, [2..19] pad, [20..79] the presented 60
  * bytes = _arena pixels 80..319. */
 static uint8_t _e4strip[196608];
@@ -114,10 +112,10 @@ static uint16_t _scroll_row; /* [0xD78]: the scroll window's start row */
 static uint8_t _wipe_pos, _wipe_speed;
 static uint8_t _wipe_dir;
 
-/* 202F:0x38C — 160 per-level records of [seconds][minutes] (two
+/* 202F:0x38C - 160 per-level records of [seconds][minutes] (two
  * pseudo-decimal nibbles / one digit), shipped as 99 09 ("9:99") for every
  * level. */
-/** @brief 202F:0x38C — the per-level bests: `hiscore_best(level)` (the same 160 u16
+/** @brief 202F:0x38C - the per-level bests: `hiscore_best(level)` (the same 160 u16
  * the score screen compares against).
  *
  * @param levelMinus1 the zero-based level
@@ -152,7 +150,7 @@ const uint8_t *attract_strip_for_probe(uint32_t *rowsOut)
 static void _clear_vram(void) { memset(_vram, 0, sizeof _vram); }
 
 /** @brief blit_planar_to_vga (1000:888E): one 320x200 chunky image planarised into
- * the 16000-byte block at `dest` — dest[base + r*80 + c] plane p
+ * the 16000-byte block at `dest` - dest[base + r*80 + c] plane p
  * = src[r*320 + c*4 + p].
  *
  * @param src the source buffer
@@ -394,7 +392,7 @@ static void _blit_strip8(uint32_t x, uint32_t row)
 
 /** @brief _wipe_row (1000:1722): eleven 16-row chunks tiling rows 8..183,
  * alternating between the right-sweeping column (the arg_swap variant,
- * x = 319-4k) and the left-sweeping one (x = 4k) — the criss-cross.
+ * x = 319-4k) and the left-sweeping one (x = 4k) - the criss-cross.
  *
  * @param k the loop counter
  */
@@ -525,7 +523,7 @@ static int32_t _e2_load(void)
     return 1;
 }
 
-/** @brief _fill_pattern (1000:1AFC) — draw_char_advance's blank path: the tile's 16
+/** @brief _fill_pattern (1000:1AFC) - draw_char_advance's blank path: the tile's 16
  * rows of [sig 0xFF, mask 0x20]; the data bytes keep the zeroed strip.
  *
  * @param tile the tile byte
@@ -538,11 +536,11 @@ static void _fill_pattern(uint8_t *tile)
     }
 }
 
-/** @brief _fill_pattern_clip (1000:1B13) — the text path: rows 0..3 the [0xFF, 0xE0]
+/** @brief _fill_pattern_clip (1000:1B13) - the text path: rows 0..3 the [0xFF, 0xE0]
  * band above the text (the presenter clamps the background to index & 0x1F
  * there, erasing stale ink), rows 4..14 the [0..10, 0x20] per-row
  * signatures (adjacent glyph rows always mismatch the cache, so ink rows
- * are always redrawn).  The original's dead MOV BX,0xD2E (1b1a — BX pushed
+ * are always redrawn).  The original's dead MOV BX,0xD2E (1b1a - BX pushed
  * and never read) is dropped.
  *
  * @param tile the tile byte
@@ -556,9 +554,9 @@ static void _fill_pattern_clip(uint8_t *tile)
 }
 
 /** @brief the screenful of 1A07: clear_bitmaps_6 (the 192-KB zero), [0xD39]:=0,
- * the fill loop — strcpy_cae (1AA4) + draw_char_advance (1AB9) per line
+ * the fill loop - strcpy_cae (1AA4) + draw_char_advance (1AB9) per line
  * until the next _credtext byte is 0xFF or _rows_built >= 0x989 (the max
- * build 2456 rows * 80 B fits the strip exactly) — and the INC SI at
+ * build 2456 rows * 80 B fits the strip exactly) - and the INC SI at
  * 1a37 that walks the cursor onto the terminator (the shipped file's
  * four-byte 0xFF run absorbs it).
  */
@@ -584,7 +582,7 @@ static void _e4_fill(void)
             _rows_built = (uint16_t)(_rows_built + 0xFu);
             _fill_pattern_clip(_e4strip + tile * 80u);
             /* 1ae9..1af4: [0x1E20] := BP, draw_text(scratch, 0xC8, row 0)
-             * — the tile is the _arena at row `tile`, so blit_glyph's 16th
+             * - the tile is the _arena at row `tile`, so blit_glyph's 16th
              * row lands on the NEXT tile's row 0 exactly as the spill does */
             font_draw_text(_e4strip, scratch, 0xC8u, tile);
         }
@@ -608,7 +606,7 @@ static void _mask_four(uint8_t *px, uint8_t v, uint8_t mask)
             (uint8_t)((px[j] & (uint8_t)~mask) | (((v >> j) & 1u) ? mask : 0u));
 }
 
-/** @brief _blit_scroll (1000:1B58): present strip row `row` — the 200-row window
+/** @brief _blit_scroll (1000:1B58): present strip row `row` - the 200-row window
  * written into the draw page's scanline bytes 20..79 (screen x 80..319),
  * VGA write mode 2 with the row's own bit mask: each 1-bpp source byte
  * sets 4 pixels, plane j := (latch & ~M) | (bit j of the byte ? M : 0).
@@ -650,7 +648,7 @@ static void _blit_scroll(uint32_t row)
  */
 static int32_t _e4_load(void)
 {
-    /* 19b9/19be: [0xD3D]:=0, [0x1E7C]:=8 — both write-only (no reader is
+    /* 19b9/19be: [0xD3D]:=0, [0x1E7C]:=8 - both write-only (no reader is
      * traced; see the note by the module state) */
     free(_credtext);
     _credtext = NULL;
@@ -673,7 +671,7 @@ static int32_t _e4_load(void)
 
     /* 1a01/1a07: the cursor at 0, then the first screenful.  The signature
      * cache mirrors the shipped CS:0x1CF7 sentinel (0x80 x200, a value no
-     * real signature matches) and — like the original's CS bytes — is
+     * real signature matches) and - like the original's CS bytes - is
      * never reset after the first fill: it persists across cycles. */
     _cred_cursor = 0;
     if (!_row_sig_init) {
@@ -693,7 +691,7 @@ static void _attract_restart(void)
     res_set_disc(0u); /* LAB_000E: [0xF7E] := 0         */
     free(_text_spr);
     _text_spr = res_load_chunk("APL\\TEXT.SPR", NULL, NULL);
-    font_publish(_text_spr); /* [0x1E1C] — may be NULL (headless) */
+    font_publish(_text_spr); /* [0x1E1C] - may be NULL (headless) */
 
     _saved_draw = _page_draw;
     _saved_disp = _page_disp; /* 1387: the PUSH pair */
@@ -708,7 +706,7 @@ static void _attract_restart(void)
 static void _next_effect(void)
 {
     /* the cycle boundary (13AB/13BE in the original) also sets the
-     * write-only [0x1E7C]:=0x0A — see the note by the module state */
+     * write-only [0x1E7C]:=0x0A - see the note by the module state */
     switch (_phase) {
     case ATTRACT_E1_OUT: _phase = ATTRACT_E3_LOAD; break;
     case ATTRACT_E3_OUT: _phase = ATTRACT_E2_LOAD; break;
@@ -721,7 +719,7 @@ static void _next_effect(void)
 
 /** @brief the local poll (the skip tests inside the slide 198C..1998 and effect
  * 4's scroll 1A58..1A67): the same bits as the escape, a different
- * consequence — it skips the current hold, it does NOT exit the attract.
+ * consequence - it skips the current hold, it does NOT exit the attract.
  *
  * @param in the input state
  * @return 1 when a key or fire is held, 0 otherwise
@@ -732,7 +730,7 @@ static int32_t _local_key(const InputState *in)
            (in->joyBits & 0x80u) != 0u;
 }
 
-/** @brief attract_exit (1000:13E9): the escape test — the configured action key
+/** @brief attract_exit (1000:13E9): the escape test - the configured action key
  * ([0x5ACE] bit 7) or any held key ([0x48A3]).  Polled ONLY at the
  * original's poll points: the fade waits (fade_wait 1000:13E0) and the
  * holds (fade_step_frames 1000:13FB), once per tick of those phases.
@@ -747,8 +745,8 @@ static int32_t _escape_test(const InputState *in)
 }
 
 /** @brief the longjmp 1000:13B2: restore the saved page pair, the one fade of all
- * 256 entries to the zeroed 0x48BC ramp (black) div 0x23 — the running
- * fade/state is abandoned exactly as the longjmp does — then wait without
+ * 256 entries to the zeroed 0x48BC ramp (black) div 0x23 - the running
+ * fade/state is abandoned exactly as the longjmp does - then wait without
  * further polling (wait_palette_fade_done 1000:8B8B).
  */
 static void _latch_escape(void)
@@ -846,7 +844,7 @@ uint8_t attract_tick(const InputState *in)
         _wait_page(_d3b);
         if (_local_key(in)) { /* 198c: the skip poll   */
             /* 19a9: the original sets [0xD3D]:=0xFF (the write-only
-             * skip flag) and returns — the hold follows, the slide is cut  */
+             * skip flag) and returns - the hold follows, the slide is cut  */
             _counter = 70u;
             _phase = ATTRACT_E3_HOLD;
             break;
@@ -1001,12 +999,12 @@ uint8_t attract_tick(const InputState *in)
                 _scroll_row = 0;
                 break;
             }
-            /* 1a82: the tail — [0x1E7C]:=0x0A (write-only) */
+            /* 1a82: the tail - [0x1E7C]:=0x0A (write-only) */
             palette_build_fade(0u, 256u, 0x1Eu, _ramp0);
             _phase = ATTRACT_E4_OUT;
             break;
         }
-        /* 1a58: the LOCAL poll — a key ends the effect via the tail
+        /* 1a58: the LOCAL poll - a key ends the effect via the tail
          * ([0xD3D]:=0xFF, write-only); it is not the attract escape      */
         if (_local_key(in)) {
             palette_build_fade(0u, 256u, 0x1Eu, _ramp0);

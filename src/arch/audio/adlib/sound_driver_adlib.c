@@ -1,4 +1,4 @@
-/* arch/audio/adlib/sound_driver_adlib.c — ADLIB.DRV's replacement.
+/* arch/audio/adlib/sound_driver_adlib.c - ADLIB.DRV's replacement.
  *
  * The resident driver is 6 KB of position-independent 8086 code (no Ghidra
  * image: it is a CD resource loaded into a DOS-allocated segment, so every
@@ -343,7 +343,7 @@ static void _silence(SoundDriver *drv, unsigned voice)
  * @brief Apply the master volume to all eleven voices (1E95:0A01).
  *
  * The floor is 0x3F - tempo and only quieter voices are changed, so a
- * decreasing tempo (the fade-in) never lifts an already-written level — that
+ * decreasing tempo (the fade-in) never lifts an already-written level - that
  * fade works through each note's own volume instead.
  *
  * @param drv the driver
@@ -662,7 +662,7 @@ static void _tick_command(SoundDriver *drv, unsigned voice)
         _set_volume(drv, voice, (uint8_t)next);
         break;
     }
-    /* 1E95:0813 / 1E95:0814 — no voice state changes. */
+    /* 1E95:0813 / 1E95:0814 - no voice state changes. */
     case 0x00:
     case 0x04:
     case 0x05:

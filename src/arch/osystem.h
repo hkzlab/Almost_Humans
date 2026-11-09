@@ -103,7 +103,7 @@ typedef enum VideoMode {
  * safe to call from the foreground.
  * 
  * Call it once per foreground iteration, before that iteration's
- * flow step — one flow step per tick boundary. */
+ * flow step - one flow step per tick boundary. */
 typedef void (*TickSyncFn)(uint32_t *lastSeen);
 
 typedef struct OSystem {
@@ -139,8 +139,8 @@ typedef struct OSystem {
 
     /* --- misc -------------------------------------------------------- */
     /* A non-fatal diagnostic: the core formats the message, the backend owns
-     * the destination (SDL log, stderr, nothing).  Not a DOS behaviour — the
-     * original had no logging — but the core must not know a stream either. */
+     * the destination (SDL log, stderr, nothing).  Not a DOS behaviour - the
+     * original had no logging - but the core must not know a stream either. */
     void (*warn)(const char *msg);
     void (*fatalError)(const char *msg); /* does not return            */
 

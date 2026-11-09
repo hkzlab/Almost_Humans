@@ -1,8 +1,8 @@
-/* palette.c — fades and DAC (game_structure.md §1 subsystem 4, §6).
+/* palette.c - fades and DAC (game_structure.md §1 subsystem 4, §6).
  *
  * The original's machine, ported 1:1: a 256-entry 6-bit _working palette
  * (202F:0x4BBC) refilled by palette_load_6bit (1000:8d24) from each loaded
- * image — the RAM copy only, it never touches the DAC — and the DAC fade
+ * image - the RAM copy only, it never touches the DAC - and the DAC fade
  * state (_ramp 202F:0x4EBC, control 0x48B0..0x48B4) stepped once per tick by
  * palette_fade_step (1000:8bfd) from the ISR body.  palette_build_fade
  * (1000:8bac) reads the CURRENT DAC into the _ramp and stores per-component
@@ -13,7 +13,7 @@
 #include "width.h"
 
 static const OSystem *_pal_osys;
-static uint8_t _working[768];   /* 202F:0x4BBC — the _working palette       */
+static uint8_t _working[768];   /* 202F:0x4BBC - the _working palette       */
 static uint8_t _dac[768];       /* the DAC's 6-bit shadow (8bac's IN 3C9h) */
 
 /* the fade state: 202F:0x48B0/48B2/48B6/48B8 + the 0x4EBC _ramp          */

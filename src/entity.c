@@ -1,5 +1,5 @@
-/* entity.c — the entity table and its per-tick dispatch (game_structure.md
- * subsystem 10, re_formats.md §12.6 — the closed system).  The actor is a
+/* entity.c - the entity table and its per-tick dispatch (game_structure.md
+ * subsystem 10, re_formats.md §12.6 - the closed system).  The actor is a
  * dinosaur: map tile 0xB3 spawns one, a 0xB4 on the same row supplies the
  * far endpoint, and the game itself alternates the dispatched handler so
  * the dino paces between the two endpoints (the live-verified ping-pong).
@@ -22,7 +22,7 @@
  *   EVERY tick; primary -> [0x423C], step -> [0x4238]; the walk branch adds
  *   the step to x and flips the dispatch index at an exact endpoint hit;
  *   the non-arrival path counts the +0xA hold down and walks the +0xC
- *   waypoint, which snaps back to the primary when it reaches primary+8 —
+ *   waypoint, which snaps back to the primary when it reaches primary+8 -
  *   an 8-frequency animation clock.  Nothing here reads the map or the
  *   video.  The sprite draw is the REX.DAT consumer, ported below:
  *   `entity_render` (1000:5823 -> 0x5894 -> 0x58A5 -> 0x5C5F), two mode-2
@@ -55,20 +55,20 @@
  * byte-verified 2026-10-23).  Slots 2 and 3 are not just array slots:
  * handlers 0 and 1 read them as their fixed word tables, and
  * level_init (1000:4CAB) zeroes ONLY the count [0x64C2], so the image's
- * values survive to runtime — this is how a level with up to two 0xB3
+ * values survive to runtime - this is how a level with up to two 0xB3
  * tiles walks on tables it never wrote (live-verified: the injected single
  * record walked on the baked words; re_plan.md live table +0x4 = 0/1). */
 static uint16_t _ents[ENT_MAX][8] = {
-    /* 0x64C4: slot 0 — the appender's first record (image: zero)       */
+    /* 0x64C4: slot 0 - the appender's first record (image: zero)       */
     { 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000 },
-    /* 0x64D4: slot 1 — the appender's second record (image: zero)      */
+    /* 0x64D4: slot 1 - the appender's second record (image: zero)      */
     { 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000 },
-    /* 0x64E4: slot 2 — handler 0's fixed words (compare, primary, step,
+    /* 0x64E4: slot 2 - handler 0's fixed words (compare, primary, step,
      * then the walk tail the pair reader walks past)                   */
     { 0x000C, 0x0000, 0x0001, 0xFFDD, 0x0020, 0x000A, 0x0002, 0x0025 },
-    /* 0x64F4: slot 3 — handler 1's fixed words start at w[2]           */
+    /* 0x64F4: slot 3 - handler 1's fixed words start at w[2]           */
     { 0x0003, 0x0008, 0x001A, 0x000E, 0xFFFF, 0x0010, 0x001F, 0x0018 },
-    /* 0x6504: slot 4 — the tail of the baked words; appender slot 4
+    /* 0x6504: slot 4 - the tail of the baked words; appender slot 4
      * starts here (the image is zero from 0x650C)                      */
     { 0x0000, 0xFFF0, 0x0002, 0x0016, 0x0000, 0x0000, 0x0000, 0x0000 },
     /* 0x6514 .. 0x6534: image-zero padding to the end of the reservation */
@@ -89,7 +89,7 @@ static uint8_t _cur_style;      /* [0x17EE]: the level header's style    */
 
 /* 202F:0x1EB1 = the pair count (25); 0x1EB3 = the tile-id bytes; 0x1ECC =
  * the handler offsets.  The port runs only the two handlers that touch
- * the entity array — table #10 (0xB3 -> the appender) and #11 (0xB4 ->
+ * the entity array - table #10 (0xB3 -> the appender) and #11 (0xB4 ->
  * the finder); the other 23 handlers spawn placed objects / write the
  * 0x64A2..0x64BA globals and land with object.c. */
 static const uint8_t _tile_ids[25] = {
@@ -129,12 +129,12 @@ static uint32_t _ent_bank_size;
 /* --- the appender (1000:5360) and the prologue (1000:5662) -------------- */
 
 /** @brief style_handler_prologue (1000:5662): the walked record's style is 6 and
- * the map cell DIRECTLY BELOW the match (matchIdx + 0x20 — the +0x1F the
+ * the map cell DIRECTLY BELOW the match (matchIdx + 0x20 - the +0x1F the
  * prologue reads is offset from the walker's cursor, which has already
  * stepped +1 past the match) is <= 0x90 and passes the 0x1F20 flag bit
  * 0x80>>(v&7): y gains 3 px.  Everything (the finder too) pre-calls this,
  * before the -0x30+1.  A row-19 match reads past the 640-byte map copy
- * into the original's DS neighbours — not reproducible from the map; the
+ * into the original's DS neighbours - not reproducible from the map; the
  * corpus has no B3/B4 on row 19, so the port yields 0 there (the guard
  * keeps the read in bounds).
  *
@@ -151,7 +151,7 @@ static int32_t _style6_y_bonus(const uint8_t *map, uint32_t mapLen,
     uint8_t v = map[matchIdx + 0x20u];
     if (v > 0x90u) return 0;
     uint8_t flag = _style6_flags[(v >> 3) & 31u];
-    /* MOV AX,1 / SHL AX,CL with CL = 7-(v&7) — bit 0x80>>(v&7) */
+    /* MOV AX,1 / SHL AX,CL with CL = 7-(v&7) - bit 0x80>>(v&7) */
     if ((flag >> (7u - (v & 7u))) & 1u) return 1;
     return 0;
 }
@@ -253,7 +253,7 @@ int32_t entity_spawn_from_map(const uint8_t *map, uint8_t style,
 {
     if (!map) return -1;
 
-    /* level_init (1000:4CAB): the count and nothing else — the fixed
+    /* level_init (1000:4CAB): the count and nothing else - the fixed
      * table slots keep their image values (the array's initialiser). */
     _ent_count = 0;
     _cur_style = style;
@@ -387,7 +387,7 @@ static void _entity_tail(Entity *ep, uint32_t slot, uint32_t off, uint16_t endX)
 {
     uint16_t w0 = _ent_word(slot, off, 0);
     _sel_primary = w0; /* c9c1/c9c5 */
-    /* c9c8: ADD BP,2 — the walk branch reads the NEXT words          */
+    /* c9c8: ADD BP,2 - the walk branch reads the NEXT words          */
 
     if (w0 != ep->waypoint) { /* c9cb/c9ce: the walk branch */
         _sel_primary = _ent_word(slot, off, 1); /* c9dd */

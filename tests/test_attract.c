@@ -1,19 +1,19 @@
-/* test_attract.c — effect 4's credits scroller, byte-exact against the
+/* test_attract.c - effect 4's credits scroller, byte-exact against the
  * reference dump from tools/attract_scroll_sim.py (the independent python
  * model of the strip fill + the presenter, written from the listings).
  *
  * argv[1] = the volume dir (HUMANS.00N), argv[2] = the extracted tree
- * (informational — the port loads through res), argv[3] = the reference
+ * (informational - the port loads through res), argv[3] = the reference
  * dump dir (analysis/attract_scroll: e4_strip.bin + e4_frames.bin).
  * Missing volumes or dumps = skip with a notice, like test_res.
  *
  * The run drives the attract with idle input from a fresh start into
  * effect 4 (effects 1, 3 and 2 play for real first), then checks:
- *   - the strip: all 192 KB vs e4_strip.bin, and rowsBuilt == 1579 — the
+ *   - the strip: all 192 KB vs e4_strip.bin, and rowsBuilt == 1579 - the
  *     fixture census (101 lines, one screenful, re_map.md "Effect 4");
  *   - the scroll: exactly 1379 ATTRACT_E4_SCROLL ticks (one strip row
  *     per display period), page 0 compared byte-for-byte at the sim's
- *     selected rows — the first draws, the skip regime, band transitions,
+ *     selected rows - the first draws, the skip regime, band transitions,
  *     the final rows;
  *   - the natural end: the tail fade, then the cycle continues into
  *     effect 1 with no key pressed anywhere.
@@ -195,7 +195,7 @@ int main(int argc, char **argv)
     }
 
     /* 3. the scroll: one strip row per SCROLL tick, page 0 vs the dump.
-     * The fade-in (div 0x1E, ~30 ticks) still runs when we get here — the
+     * The fade-in (div 0x1E, ~30 ticks) still runs when we get here - the
      * FADEWAIT ticks are skipped without counting a row. */
     {
         const uint8_t *cursor = ref_frames + 4;

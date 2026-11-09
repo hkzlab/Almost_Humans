@@ -1,4 +1,4 @@
-/* test_smoke.c — full-game_main smoke test under the null backend.
+/* test_smoke.c - full-game_main smoke test under the null backend.
  *
  * A scripted input sequence drives the whole flow: the attract dwell, fire
  * into the room, walk right into level 1, leave the party, the LOADING
@@ -175,26 +175,26 @@ int main(int argc, char **argv)
     int32_t bad = 0;
 
     /* the input script (per eventsPoll call):
-     *   0..7399    idle     — the boot intro plays (~6687 ticks: the
+     *   0..7399    idle     - the boot intro plays (~6687 ticks: the
      *                           gametek logo, the idi/first/itb cards, the
-     *                           scene — ~5887 plus D-248's ~800 extra scene
+     *                           scene - ~5887 plus D-248's ~800 extra scene
      *                           ticks), then the attract cycle starts
      *                           (game_loop: effects 1->3->2->4)
-     *   7400       fire     — the attract escape (attract_exit 1000:13E9):
+     *   7400       fire     - the attract escape (attract_exit 1000:13E9):
      *                           the 13B2 fade (~35 ticks) then FLOW_MENU
      *                           (the room loads code2.raw + fades in)
-     *   7500..7750 right    — the room's confirm: the rails walk
+     *   7500..7750 right    - the room's confirm: the rails walk
      *                           0x1D2 -> 0x208 (cell 6) -> 0x280, the
      *                           right-edge exit matches "DARWIN" (level 1
      *                           = levelId 0) and fades out -> FLOW_LEVEL
      *                           (disk probe -> party -> LOADING -> level;
      *                           the newspaper is POST-level, entry 00FF)
-     *   7950       key      — leaves the party's SET1W window
-     *   8000..8490 key      — the level's goal page waits on any key
+     *   7950       key      - leaves the party's SET1W window
+     *   8000..8490 key      - the level's goal page waits on any key
      *                           (scroll_map 9E51); the page follows the
      *                           LOADING screen
-     *   8502..9498 idle      — the level proper
-     *   9499       quit     — game_main exits                                */
+     *   8502..9498 idle      - the level proper
+     *   9499       quit     - game_main exits                                */
     static InputState script[SCRIPT_N];
     memset(script, 0, sizeof script);
     /* the attract cycle runs from the boot's end (~6687) until the fire
@@ -204,7 +204,7 @@ int main(int argc, char **argv)
         script[i].joyBits = 0x08u; /* hold RIGHT: the room's confirm */
     /* the party pre-screen (t≈7712..8371, per the probe's timeline): its
      * wait fires [0x48A3]-shaped aborts exactly like the original's
-     * wait_frames_or_key — one key inside the first set's wait exits  */
+     * wait_frames_or_key - one key inside the first set's wait exits  */
     script[8100].lastKey = 1u; /* the party's SET1W window    */
     /* the LOADING screen follows, then the level's goal page.  Hold RIGHT
      * (no key) while the page is up: scroll_map (1000:9E51) polls input only,
@@ -230,7 +230,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "FAIL game_main returned nonzero\n");
         return 1;
     }
-    /* D-01: the audio wiring ran through the whole flow — the driver
+    /* D-01: the audio wiring ran through the whole flow - the driver
      * installed once, the boot/party/level tunes loaded, the sequencer
      * ticked and the master volume was driven. */
     if (osys_null_audio_installs() != 1u) {
@@ -302,7 +302,7 @@ int main(int argc, char **argv)
     }
 
     /* the page: the level's rendered viewport (level_tick: BG4 + the terrain
-     * tiles at scroll 0,0 + the status bar's band) — the byte-exact
+     * tiles at scroll 0,0 + the status bar's band) - the byte-exact
      * composite is test_level/test_statusbar's; here the assertion is the
      * coverage (the measured nonzero count of the level-0 composite's
      * first 184 rows, which since the bar include rows 152..183 of its

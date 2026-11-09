@@ -1,7 +1,7 @@
-/* frontend.c — the front-end room: the walkable level-select / game-start
+/* frontend.c - the front-end room: the walkable level-select / game-start
  * menu (subsystem 8; frontend_room_setup 1000:A48E + the _frame web +
  * level_select_event_loop 1000:AA2C), ported from re_map.md -> "The
- * front-end room (the level-select / game-start menu) — the core decoded
+ * front-end room (the level-select / game-start menu) - the core decoded
  * (2026-10-26)" and its "Closed since" list.
  *
  * THE ROOM.  A 640-px-wide walkable side view on the original's unchained
@@ -10,14 +10,14 @@
  * _scroll word [0x0] (set_scroll_x 1000:AA05) picking the 320-px window the
  * CRTC scans out.  The name/code screen is another window at page offset
  * 0x2800 (name_screen_show 1000:AF92).  Every present composes the window
- * into the flat page 0 — game_main's videoPresent shows it (the attract's
+ * into the flat page 0 - game_main's videoPresent shows it (the attract's
  * contract).
  *
  * THE SELECT.  The typed name is matched against levels\_codes.bin (160
- * NUL-terminated strings, string i = level i, #1 "DARWIN" — menu_code_match
+ * NUL-terminated strings, string i = level i, #1 "DARWIN" - menu_code_match
  * 1000:AB39); the matched index [0x5F09] becomes the level: entry's PUSH AX
  * at 004B / POP AX at 00BA feed [0x22].  The exits: walk off the right edge
- * (x=0x280, via _cell 6's R rail) — the match runs, the result is NOT tested,
+ * (x=0x280, via _cell 6's R rail) - the match runs, the result is NOT tested,
  * the fade happens either way; or Enter on the name screen, which exits
  * only on a match (a miss resets the name to DARWIN and stays).  ESC clears
  * the name and never exits (0x5F11's act0); Backspace erases the last
@@ -50,14 +50,14 @@
  *   _cell 3 = MUSIC, ON/OFF -> [0x5E5B]: the _frame web (1000:A5E8) stops
  *            the music when non-zero and resumes it when zero;
  *   _cell 5 = ANIMATIONS, ON/OFF -> [0x5E79]: cd_file_op (1000:AFFD) RETs
- *            at once when non-zero — the .ANI cutscenes are off;
+ *            at once when non-zero - the .ANI cutscenes are off;
  *   _cell 6 = RESTORE GAME, OFF/1..20 -> [0x5E6F]: the exit hands it to
  *            entry 1000:004C in BL, which appends 'A'+n-1 to
  *            "\humans\cdrom\save" and loads that save _slot.
  * frontend_option() is the read side's one accessor.
  *
  * DEVIATIONS (all port-only, each waiting on its named step; the
- * authoritative list is port_deviations.md — D-01/D-19/D-20 here):
+ * authoritative list is port_deviations.md - D-01/D-19/D-20 here):
  *  - the INT 60h calls (music_resume/stop 83F7/8389, the cmd-0xA pump) are
  *    not made: the audio backend is an M5 stub.  audio_music_gate ports the
  *    gate and the [0x40BB] latch; only the tune handle is missing (M6).
@@ -67,11 +67,11 @@
  *    there); the original latches the same at vsync.
  *  - the name line is the AB8D render proper (2026-10-27): the typed
  *    name goes to the _arena via draw_text and the WM2 bit-7 copy loop
- *    carries it to the page — DARWIN shows in the entry box; the prior
+ *    carries it to the page - DARWIN shows in the entry box; the prior
  *    "never displayed" reading is archived in re_history.md..
  *  - the backdrop copy is the original's 200-row one (`room_backdrop_build`
  *    `1000:AF07`, CX = 0xC8): rows 192..199 are the bytes past the 640x192
- *    image — its palette tail, then the heap pool.  The room's field is
+ *    image - its palette tail, then the heap pool.  The room's field is
  *    `reset_display_mode`'s 320x192 (`1000:82C6`, called at `1000:A544`),
  *    so those 8 rows are written but never presented, exactly as in the
  *    original.  Past the loaded chunk the port writes zeros where the
@@ -79,7 +79,7 @@
  *    observable output (the field ends on row 191).
  *  - with no data (the headless tests) a failed load skips the palette and
  *    the fade phases, and the code match answers index 1 (DARWIN) so the
- *    flow completes — the attract's asset-failure pattern.
+ *    flow completes - the attract's asset-failure pattern.
  */
 #include "frontend.h"
 #include "audio.h"
@@ -105,12 +105,12 @@ typedef enum FePhase {
 
 /* --- the planar space (A000, unchained, byte mode) -------------------- */
 static uint8_t _vram[65536][4];   /* [address][plane]: 1 byte = 4 pixels   */
-static uint16_t _page_draw, _page_disp; /* [0x5AC4]/[0x5AC6] — page bases   */
+static uint16_t _page_draw, _page_disp; /* [0x5AC4]/[0x5AC6] - page bases   */
 static uint16_t _scroll; /* [0x0]: the front-end _scroll      */
 
 /* --- the shipped tables, verbatim -------------------------------------- */
 
-/* 202F:0x5ECD — 7 cells x 4 words (L,R,U,D):
+/* 202F:0x5ECD - 7 cells x 4 words (L,R,U,D):
  * (target_cell << 12) | target_coord (x for L/R, y for U/D). */
 static const uint16_t _rails[7][4] = {
     { 0x0108, 0x6208, 0x1037, 0x0000 }, { 0x2190, 0x0000, 0x4020, 0x00A0 },
@@ -119,19 +119,19 @@ static const uint16_t _rails[7][4] = {
     { 0x01D2, 0x0280, 0x0000, 0x0000 },
 };
 
-/* 202F:0x5E46 — per _cell (struct-idx, count); count 0 = no option.
+/* 202F:0x5E46 - per _cell (struct-idx, count); count 0 = no option.
  * _cell 2 = LEVEL (3 states), _cell 3 = MUSIC (2), _cell 5 = ANIMATIONS (2),
  * _cell 6 = RESTORE GAME (21 = 0x15). */
 static const uint8_t _cell_opts[7][2] = {
     { 0, 0 }, { 0, 0 }, { 1, 3 }, { 0, 2 }, { 0, 0 }, { 3, 2 }, { 2, 0x15 },
 };
 
-/* 202F:0x5EC5 — the walk cycle's _frame low per dir; the presets' cycle
+/* 202F:0x5EC5 - the walk cycle's _frame low per dir; the presets' cycle
  * high (the CX at 0x5EBD's entries) alongside. */
 static const uint16_t _dir_frame_low[4] = { 0x0B, 0x03, 0x14, 0x16 };
 static const uint16_t _dir_cycle_high[4] = { 0x13, 0x0B, 0x17, 0x13 };
 
-/* 202F:0x5E7E — the floor table, indexed (x - 0xFD); y = byte - 0x18. */
+/* 202F:0x5E7E - the floor table, indexed (x - 0xFD); y = byte - 0x18. */
 static const uint8_t _floor_tab[0x3B] = {
     0xB1, 0xB1, 0xB0, 0xB0, 0xAF, 0xAF, 0xAF, 0xAE, 0xAE, 0xAE, 0xAE, 0xAE,
     0xAE, 0xAE, 0xAE, 0xAE, 0xAE, 0xAE, 0xAE, 0xAF, 0xAF, 0xAF, 0xB0, 0xB0,
@@ -140,10 +140,10 @@ static const uint8_t _floor_tab[0x3B] = {
     0xB6, 0xB6, 0xB6, 0xB6, 0xB6, 0xB7, 0xB7, 0xB7, 0xB7, 0xB7, 0xB7,
 };
 
-/* 202F:0x61A3 — the anim _slot table: 60 data bytes, then the 0x00 wrap
+/* 202F:0x61A3 - the anim _slot table: 60 data bytes, then the 0x00 wrap
  * terminator at [60] (verbatim from the image; an earlier embed had a
  * duplicated 0x99 there, which made the +3 _slot walk run past the table
- * and never wrap — the humans' cut column and the name screen's pan both
+ * and never wrap - the humans' cut column and the name screen's pan both
  * went garbage-derived: the humans vanished behind the range guard and
  * the window scrolled wildly). */
 static const uint8_t _slot_tab[61] = {
@@ -178,7 +178,7 @@ static uint8_t _arena[16000]; /* the font _arena (the [0x1E20] analog) */
 static const uint8_t _ramp0[768]; /* the 0x48BC ramp: zeroed = black     */
 static uint16_t _split_row =
     VIDEO_PAGE_H_MODE13H; /** [0x5B0A]: the CRTC split (0x88 on the
-                                   * name screen — the fixed band below) */
+                                   * name screen - the fixed band below) */
 
 int32_t frontend_init(const OSystem *osys)
 {
@@ -218,7 +218,7 @@ static void _put_pixel(uint32_t rowBase, uint32_t px, uint8_t v)
 { _vram[(rowBase + (px >> 2)) & 0xFFFFu][px & 3u] = v; }
 
 /** @brief blit_planar_strip (1000:AEAD): planarise chunky 640-px rows into the
- * page at `base` — dest[base + r*160 + c] plane p = src[r*640 + c*4 + p].
+ * page at `base` - dest[base + r*160 + c] plane p = src[r*640 + c*4 + p].
  * `size` is the whole loaded chunk, so the 200-row backdrop copy reads the 8
  * rows past the 192-row image out of its palette tail, as `1000:AEDB`'s row
  * loop does; only the bytes past the chunk (the original's uninitialised
@@ -248,9 +248,9 @@ static void _planarise_rows(const uint8_t *src, uint32_t size, uint32_t base,
         }
 }
 
-/** @brief The present: the 200-row window, flat — pixel x of the window = the
+/** @brief The present: the 200-row window, flat - pixel x of the window = the
  * world pixel (_scroll + x), i.e. set_display_ptr's byte start (882D:
- * [0x5AC4] + [0x2]*88 + [0x0]/4) plus the pel-pan _phase ([0x0] & 3 —
+ * [0x5AC4] + [0x2]*88 + [0x0]/4) plus the pel-pan _phase ([0x0] & 3 -
  * 8848/884a).  Rows >= _split_row ([0x5B0A]) are the CRTC split's FIXED
  * band: they display from ABSOLUTE _vram 0 (the level's status bar and the
  * name screen's human stage both live there), unpanned.  The room is
@@ -325,11 +325,11 @@ static void _patch_code2(uint32_t pOff, const uint8_t *src, uint32_t w,
         }
 }
 
-/** @brief place_4_sprites_to_vga (1000:A684) — the option-value badges at the
+/** @brief place_4_sprites_to_vga (1000:A684) - the option-value badges at the
  * MUSIC / LEVEL / RESTORE GAME / ANIMATIONS signs.  The entry table at
  * 202F:0x5E54
  * (10 bytes apart, verbatim): {u16 dest, u16 srcOff, u8 w, u8 h,
- * u8 _cell, u16 &srcSeg} — and the +7 `_cell` field IS the option counter
+ * u8 _cell, u16 &srcSeg} - and the +7 `_cell` field IS the option counter
  * (the "option structs" and this table are the same bytes: 0x5E5B /
  * 0x5E65 / 0x5E6F / 0x5E79).  The sprite = w*h chunky bytes at
  * srcOff + _cell*w*h, nonzero-transparent, at the page byte `dest`
@@ -365,9 +365,9 @@ static void _draw_option_sprites(void)
         uint32_t off = e[i].srcOff + _cell * w * h;
         if (off + w * h > size[i]) continue;
         /* the stager's inner pass (A6CB..A6F5) FIRST patches the badge
-         * into the LOADED _code2.raw image itself — ES := [0x625D] +
+         * into the LOADED _code2.raw image itself - ES := [0x625D] +
          * dest/4 PARAGRAPHS = the chunky byte offset dest*4, w bytes per
-         * row at +640 stride, nonzero-transparent — so the character's
+         * row at +640 stride, nonzero-transparent - so the character's
          * backdrop-restored box carries the badge and both the occlusion
          * and the 2-col page-alternation trail stay clean.  The cells'
          * transparent masks are uniform within each badge's _cell group,
@@ -383,14 +383,14 @@ static void _draw_option_sprites(void)
 }
 
 /** @brief name_screen_anim_frame's two human draws (via name_entry_render's ADB6
- * entry): a 20x20 cut of _code2's human strip bank — rows 0..19 at column
- * (0x9E - nibble), the nibble from the NEXT TWO _slot bytes — copied to
+ * entry): a 20x20 cut of _code2's human strip bank - rows 0..19 at column
+ * (0x9E - nibble), the nibble from the NEXT TWO _slot bytes - copied to
  * the SAME x; on the name screen to the fixed band (rows 0..19/16..35),
  * on the room screen to [0x5AC4]+0x5500 + those (page rows 136..155/
- * 152..171 — the middle pair of the four-human stack holding the board).
+ * 152..171 - the middle pair of the four-human stack holding the board).
  * The stager's OVERLAY pass (AE6E..AE9E) then composites _codehum _frame 2
  * (CS:[0xadb4]=0, 16 rows of 16 bytes, nonzero-only) at scratch rows 1..16,
- * cols 2..17 — ported here as the same overlay.
+ * cols 2..17 - ported here as the same overlay.
  */
 static void _draw_humans(void)
 {
@@ -402,7 +402,7 @@ static void _draw_humans(void)
         uint8_t cx = 0x9Eu - nibble; /* 0x9E - nibble */
         /* ADB6's flag pick: [0x6267] set -> DI used directly (the fixed
          * band's rows 0..19/16..35); clear -> DI += 0x5500 (page row 136)
-         * + [0x5AC4] — the room screen: page rows 136..155/152..171 at the
+         * + [0x5AC4] - the room screen: page rows 136..155/152..171 at the
          * same world x, the art's empty gap between the painted rail-
          * gripper (rows 112..138) and the floored one (166..188).  It is
          * exactly this middle pair that turns the screen's hanging human
@@ -415,7 +415,7 @@ static void _draw_humans(void)
 
             _page_cells(base, _code2 + bankBase[h] + cx, 640u, 20u, 20u, cx);
             /* the overlay's scratch offset CS:[0xaeab] is 0 for the anim
-             * draws (ada2's room draw leaves it 0) — the sprite lands at
+             * draws (ada2's room draw leaves it 0) - the sprite lands at
              * box rows 0..15, cols 2..17 (0x5F65 = base+2) */
             if (_codehum && _codehum_size >= 16u * 16u)
                 _page_cells(base, _codehum, 16u, 16u, 16u, cx + 2u);
@@ -438,24 +438,24 @@ static void _wm2_set(uint32_t addr, uint8_t v)
             (uint8_t)((_vram[addr][p] & 0x7F) | ((v >> p) & 1u) << 7);
 }
 
-/** @brief name_entry_blit (1000:AB8D) — the typed name IS displayed: the last
+/** @brief name_entry_blit (1000:AB8D) - the typed name IS displayed: the last
  * claim ("never displayed, live-verified") misidentified this routine's
  * purpose; its callers were verified across the room path (addchar,
  * backspace, ESC-clear, the match's miss path, the room backdrop build)
- * and the loop's raw bytes settle the shape: 10 rows x 40 copy-pairs —
+ * and the loop's raw bytes settle the shape: 10 rows x 40 copy-pairs -
  * the ARENA (draw_text already wrote the glyphs at rows 4..13, bytes
  * 18..57) read at 0x152+80/row, written to the page at [0x5AC4]+0x38F5
  * +160/row under vga_set_write_mode2's bit-mask 0x80 (299b: OUT DX,AX
  * with AH=0x80).  Each write sets the color-index TOP bit of the 4 dest
- * pixels from the _arena byte's bits 3..0 — the bright-variant palette
+ * pixels from the _arena byte's bits 3..0 - the bright-variant palette
  * (0x80+n) the dark bar's pixels sit in.  Ported verbatim.
  */
 static void _draw_name_line(void)
 {
     /* AB8D's exact sequence: clear the _arena's first 1600 bytes, draw the
-     * name into it (draw_text centres at x 0x98, rows 0..15 — the glyphs
+     * name into it (draw_text centres at x 0x98, rows 0..15 - the glyphs
      * land at _arena rows 4..13), then the WM2 copy: 10 rows x 40 bytes,
-     * source _arena 0x152+80/row, dest [0x5AC4]+0x38F5+0xA0/row — AB8D
+     * source _arena 0x152+80/row, dest [0x5AC4]+0x38F5+0xA0/row - AB8D
      * writes 40 bytes (DI +40) then skips 0x78 (120): 40+0x78 = 0xA0. */
     memset(_arena, 0, 1600u);
     font_draw_text(_arena, _name_buf, 0x98u, 0);
@@ -546,7 +546,7 @@ static int32_t _code_match(void)
  * The _frame is the record's unless x < 0x10B (the idle pose), the draw x
  * clamped >= 0x108.  The box (sprite_stage_rows 1000:AE39 +
  * sprite_blit_4plane 1000:ADC8) is the BACKDROP RESTORED FROM _code2.raw
- * ITSELF — the stager copies _code2's own 20-byte strips at the character's
+ * ITSELF - the stager copies _code2's own 20-byte strips at the character's
  * position (DS := code2seg + (y-1)*0x28 paragraphs, SI := x, +0x26C after
  * 20 bytes = one 640-byte row per strip) into the scratch, then overlays
  * only the sprite's NONZERO bytes (box rows 1..24, cols 2..17); the blit
@@ -571,7 +571,7 @@ static void _draw_character(void)
         uint8_t srcRow = (uint8_t)((uint8_t)(ry - 1u) + r);
         /* AD78..AD7F: on the name screen ([0x6267]) the blit dest skips the
          * [0x5AC4] page add entirely (screen show holds [0x5AC4]=0 across
-         * the call) and is forced to ABSOLUTE 0x820 — page rows 13..39 of
+         * the call) and is forced to ABSOLUTE 0x820 - page rows 13..39 of
          * the fixed band, i.e. screen rows 149..175 at the char's own x:
          * the human standing on the small hill at the bottom right. */
         uint32_t base =
@@ -672,7 +672,7 @@ static void _walk_step(uint32_t dir)
 static void _room_walk(const InputState *in)
 {
     uint8_t dir = 4;
-    if (in->joyBits & 0x04u) dir = 0; /* left  — the cascade's order */
+    if (in->joyBits & 0x04u) dir = 0; /* left  - the cascade's order */
     else if (in->joyBits & 0x08u) dir = 1; /* right                        */
     else if (in->joyBits & 0x01u) dir = 2; /* up                           */
     else if (in->joyBits & 0x02u) dir = 3; /* down                         */
@@ -756,15 +756,15 @@ static void _name_screen_enter(void)
     _split_row = 0x88; /* [0x5B0A] := 0x88: the split */
     /* the transition's two strip blits (AFBD..AFDF): the room's LEFT view
      * (_code2 rows 0..135) onto the window base, and the humans' stage
-     * (_code2+0x15400, 56 rows — the strip bank 0x1540 PARAGRAPHS in) onto
+     * (_code2+0x15400, 56 rows - the strip bank 0x1540 PARAGRAPHS in) onto
      * the fixed band at absolute 0. */
     if (_code2 && _code2_size >= 0x1E000u) {
         /* AF92's order is load-bearing: the stage strip first (rows 0..55),
          * then the character (band rows 13..39), then the main art (rows
          * 40..175, starting just below him).  Drawing the strip after the
-         * character — as an earlier revision did — paints over him. */
+         * character - as an earlier revision did - paints over him. */
         _planarise_rows(_code2 + 0x15400u, _code2_size - 0x15400u, 0, 56u);
-        /* afcf: the character draw runs here, with [0x5AC4] held 0 — the
+        /* afcf: the character draw runs here, with [0x5AC4] held 0 - the
          * 0x820-band branch in _draw_character fires and the walked-in
          * human lands on the fixed band's hill (screen rows 149..175). */
         _draw_character();
@@ -781,7 +781,7 @@ static void _name_screen_enter(void)
 static void _start_exit(void)
 {
     /* the event loop's exit tail (AA86..): the fade to the 0x48BC ramp
-     * (black) div 0x23 — the original then resets the video mode, which
+     * (black) div 0x23 - the original then resets the video mode, which
      * the port's level flow owns. */
     palette_build_fade(0, 256, 0x23, _ramp0);
     _phase = FE_EXITFADE;
@@ -794,7 +794,7 @@ static void _do_load(void)
 {
     uint8_t *textSpr = NULL;
     video_set_mode(VIDEO_MODE_X); /* frontend_room_setup: reset_display_mode
-                                        * (1000:82c6) — the 320x192 field   */
+                                        * (1000:82c6) - the 320x192 field   */
     _code2 = res_load_chunk("LBM\\CODE2.RAW", &_code2_size, NULL);
     _codehum = res_load_chunk("APL\\CODEHUM.SPR", &_codehum_size, NULL);
     _codes = res_load_chunk("LEVELS\\CODES.BIN", &_codes_size, NULL);
@@ -826,19 +826,19 @@ static void _do_load(void)
 
     if (_code2 && _code2_size >= 0x1E000u + 768u) {
         /* the palette: the caller computes the source segment as
-         * [0x625D] + 0x1E00 PARAGRAPHS = byte offset 0x1E000 — the
+         * [0x625D] + 0x1E00 PARAGRAPHS = byte offset 0x1E000 - the
          * file's tail, right after the 640x192 image (0x1E000 bytes).
          * palette_load_6bit (1000:8D24) masks each byte & 0x3F. */
         palette_load_working(_code2 + 0x1E000u);
         /* 200 rows (room_backdrop_build 1000:AF07, CX=0xC8): rows 192..199
-         * are the chunk's palette tail, then the pool — copied from
+         * are the chunk's palette tail, then the pool - copied from
          * `_code2_size` here.  reset_display_mode's 320x192 field (1000:82C6,
          * called at 1000:A544) ends on row 191, so the original never shows
          * them either. */
         _planarise_rows(_code2, _code2_size, 0, VIDEO_PAGE_H_MODE13H);
         _planarise_rows(_code2, _code2_size, 0x7D00, VIDEO_PAGE_H_MODE13H);
-        /* the setup's 2-_frame loop (A5A1..A5DB): the full _frame — the
-         * badges, the character, the name line — drawn on BOTH pages
+        /* the setup's 2-_frame loop (A5A1..A5DB): the full _frame - the
+         * badges, the character, the name line - drawn on BOTH pages
          * before the fade, so the fade-in holds a complete static _frame
          * while the _compose alternates (drawing one page only made the
          * character flicker through the fade).  The original then waits
@@ -916,7 +916,7 @@ uint8_t frontend_tick(const InputState *in)
         _compose(0); /* the name screen is single-buffered */
         if (in->lastKey) {
             uint8_t k = in->lastKey;
-            /* AA4E/AA50: the event loop reads AND clears [0x48A3] — one
+            /* AA4E/AA50: the event loop reads AND clears [0x48A3] - one
              * consume per key event; a held key re-fires only via the
              * (BIOS/SDL) typematic repeat. Without the clear one backspace
              * tap spans several ticks and erases the whole name. */

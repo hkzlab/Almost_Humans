@@ -1,4 +1,4 @@
-/* res.c — resource I/O (game_structure.md §1 subsystem 2, re_formats.md §8).
+/* res.c - resource I/O (game_structure.md §1 subsystem 2, re_formats.md §8).
  *
  * The volume file (one per disc) is
  *
@@ -12,7 +12,7 @@
  *     flag 0        -> the next min(block, remaining) bytes are stored raw,
  *                      and EVERY block again starts with a flag word (so the
  *                      in-memory image is not the payload sliced after the
- *                      first flag — re_formats.md §8.0)
+ *                      first flag - re_formats.md §8.0)
  *     flag non-zero -> u16 clen, then [u16 unused][u16 init bit buffer] and
  *                      an LZ bitstream expanding to exactly clen bytes
  *
@@ -24,16 +24,16 @@
  * distance is signed by the backward cursor, and draining the buffer steals
  * the refill's first bit for the current consumption.  Every word read
  * XORs into the running checksum (BP), which decode_bitstream re-seeds
- * from the stream's checksum field per block (91c9 MOV BP,AX — the 91bc
+ * from the stream's checksum field per block (91c9 MOV BP,AX - the 91bc
  * size-word XOR never survives it) and resource_load returns to its
  * caller through the flags (1000:9183 OR BP,BP / RET).
  *
  * The chunk lookup uses the ported disc table (202F:0x6287) through
- * res_movie_disc + the current-disc state res_set_disc — the original
+ * res_movie_disc + the current-disc state res_set_disc - the original
  * opens ONE volume ([0xF7E]-named) and never scans across discs.
  *
  * Shortcut: the resource-level checksum is carried and exposed (chkOut)
- * but not gated — the original does not gate it either (levels\CODES.BIN
+ * but not gated - the original does not gate it either (levels\CODES.BIN
  * loads live with a nonzero block accumulator); the verified gate is the
  * scene-object test (1000:B444) which lands with the scene player.
  */
@@ -87,7 +87,7 @@ static const uint8_t _res_movie_disc_table[10] = {
 };
 
 /* The [0xF7E]: the disc number name-based loads come from.  The original
- * never scans the discs — the disk-screen sequence and the level headers
+ * never scans the discs - the disk-screen sequence and the level headers
  * ([+0x01] through the table above) pick the number, the loaders build the
  * ONE volume-file name from it. */
 static uint16_t _res_current_disc = 0;
@@ -190,7 +190,7 @@ static void _lz_literals(LzState *s, uint32_t n)
             return;
         } /* b4fd: DI == -1 -> END:
                         * the store is skipped but the read's XOR stays in
-                        * BP — the aborted decode fails the checksum (the
+                        * BP - the aborted decode fails the checksum (the
                         * game's b446 unwind) */
         s->out[--s->p] = (uint8_t)byte;
     }
@@ -219,7 +219,7 @@ static void _lz_match(LzState *s, uint32_t n, uint32_t distbits)
                                          * resource_load re-bases ES every 16K
                                          * chunk (1000:9156), so the source
                                          * never wraps at 64K of the flat
-                                         * buffer — the mask that put it there
+                                         * buffer - the mask that put it there
                                          * corrupted BG4's chunk 4. */
         byte = s->out[s->p + d];
         s->out[s->p] = byte;
@@ -230,12 +230,12 @@ static void _lz_match(LzState *s, uint32_t n, uint32_t distbits)
  * region of `out` here (the asm wraps inside its always-mapped 64K scratch
  * segment; the port has no such floor).  port_deviations.md D-23.  Every
  * shipped asset passes the
- * checksum gate, so only corrupt data reaches this — bound the read when
+ * checksum gate, so only corrupt data reaches this - bound the read when
  * handling untrusted RSCs. */
 
 /** @brief One compressed block: `clen` bytes, checker fresh per block exactly as
  * decode_bitstream resets BP to the stream's checksum field (the 91c7 XOR
- * is dead — 91c9 MOV BP,AX overwrites it), then XORs the bit-buffer word
+ * is dead - 91c9 MOV BP,AX overwrites it), then XORs the bit-buffer word
  * and every refill word.  Returns the block's final accumulator.
  *
  * @param s the LZ decoder state
@@ -295,13 +295,13 @@ int32_t res_decode_lzw_mem(const uint8_t *data, uint32_t data_size,
     MemRd mr = { data, off + 2, data_size, 0, 0 };
     /* p starts at 0: _lz_block sets base = p and p += size, so the backwards
      * fill lands at out[0 .. size).  _lz_block reads [checksum][bit buffer]
-     * first — the stream starts right after the size word. */
+     * first - the stream starts right after the size word. */
     LzState st = { _mem_word_reader, &mr, out, 0, 0, 0, 0, 0 };
     uint16_t chk = _lz_block(&st, size);
     if (mr.over || mr.ate_tail) {
         /* Machine-verified (dosbox-staging debugger session, 2026-10-24):
          * the GT loop's 33rd object (obj 29, the display list's last word,
-         * size 1378) FAILS the b444 gate on the machine — EBP = 0x613C at
+         * size 1378) FAILS the b444 gate on the machine - EBP = 0x613C at
          * B446 with ESI = 0x312 (394 words = exactly our consumption); the
          * piece buffer's last word read 0x237E where the shipped file has
          * 0x4242, and 0x4242 ^ 0x237E = 0x613C = the whole failure.  Every
@@ -345,7 +345,7 @@ static int32_t _name_equal(const char *req, const uint8_t *rec /* 18 bytes */)
 /** @brief Decode the chunk whose record lives at `off` in volume `r->v` into a
  * malloc'd buffer of `length` bytes (caller frees).  NULL = failure.
  * `chkOut` receives the resource-level BP: the accumulator runs the way
- * resource_decode_chunk drives it — the flag word XORs in for both paths
+ * resource_decode_chunk drives it - the flag word XORs in for both paths
  * (1000:9193), stored blocks XOR their payload words (1000:919f..91a7)
  * and each LZ block RESETS the accumulator (the MOV BP,AX at 91c9).
  *
@@ -418,7 +418,7 @@ static uint8_t *_res_decode_chunk(VolReader *r, uint32_t off,
 uint8_t *res_load_chunk(const char *name, uint32_t *sizeOut, uint16_t *chkOut)
 {
     uint8_t *result = NULL;
-    /* One volume, the disc the caller installed (the original's [0xF7E]—
+    /* One volume, the disc the caller installed (the original's [0xF7E]-
      * built "HUMANS  .00N" open; a miss is the insert-disc-prompt case). */
     FSVolume *v = _res_osys->fs->openVolume(_res_current_disc);
     if (!v) return NULL;

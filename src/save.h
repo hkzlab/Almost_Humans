@@ -1,4 +1,4 @@
-/* save.h — the interface of src/save.c: the save-game format (load side)
+/* save.h - the interface of src/save.c: the save-game format (load side)
  *
  * re_formats.md §10/§10.0: the 0x1800 file `SAVE<'A'+n-1>` (the fs module's
  * name for the original's `\humans\cdrom\saveX`).  The load is entry:004C's
@@ -74,7 +74,7 @@ const uint8_t *save_blob(void);
  */
 void save_restore_state(void);
 
-/** @brief level_run's tail (1000:30B4): [0x34] := 0 after the level has started —
+/** @brief level_run's tail (1000:30B4): [0x34] := 0 after the level has started -
  * a later "restart this level" takes the LEVEL board's time again.
  */
 void save_consume(void);

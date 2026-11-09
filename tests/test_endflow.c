@@ -1,4 +1,4 @@
-/* test_endflow.c — the level-end transition (draw_level_text 1000:33A3) and
+/* test_endflow.c - the level-end transition (draw_level_text 1000:33A3) and
  * check_highscore's _outcome gate (1000:41AE), driven through game_main.
  *
  * argv[1] = the game data directory holding HUMANS.000/001/002.
@@ -10,7 +10,7 @@
  *   - grey:  entries 0..0x7F are the grey luma (r==g==b, non-zero) AND
  *            entries 0x80..0x83 are the shipped gradient (3C283C 3C263C ...);
  *   - black: the whole DAC is zero (the 0x48BC fade);
- *   - card:  entry 0xC0 is SCORE.BIT's palette entry 0 (00 20 3C) — the card
+ *   - card:  entry 0xC0 is SCORE.BIT's palette entry 0 (00 20 3C) - the card
  *            bank installed by reblit 1000:4403.
  * A won level must reach all three and then the card; a lost level must reach
  * grey and black but NEVER the card (check_highscore's 0x41AE gate jumps to

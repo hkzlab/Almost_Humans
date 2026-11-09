@@ -27,7 +27,7 @@
  * bit-3-of-3DA wait making up the remainder to one display period.
  *
  * This rate is the SOLE pacer: game_main's loop gates on osys->tickSync
- * (the [0x5AC8] counter gate — re_map.md "Timer / INT 8"),
+ * (the [0x5AC8] counter gate - re_map.md "Timer / INT 8"),
  * so the host display's refresh rate must never enter the pacing.
  * The foreground runs exactly one flow step per tick boundary and drops 
  * missed boundaries (the original's delta-spin semantics), it never catches up.
@@ -175,7 +175,7 @@ GameFlow gameflow_time_up_action(int16_t choice, uint8_t *quit);
 uint8_t gameflow_restart_pending(void);
 
 /** @brief entry LAB_00CD's post-level step: [0x22]++ / [0x26]-- (0xA0 - [0x22]).
- * While the window has levels left the PLAY arm runs again — the next level
+ * While the window has levels left the PLAY arm runs again - the next level
  * of the 160.  When they run out, COMPLETE: cd_file_op([0x1E]) (the ending
  * scene), draw_status_indicator, menu_loop (the MAP screen), then the
  * attract.  The ending/MAP arm is game_main's FLOW_ENDING (scene 6/7, the

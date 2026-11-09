@@ -1,9 +1,9 @@
-/* fs/fs.h — the common filesystem-module interface.
+/* fs/fs.h - the common filesystem-module interface.
  *
  * The game core never touches the OS's files or types: it asks the selected
  * module for random-access reads over the volume files (HUMANS  .000/.001/.002)
  * and the save files, through opaque handles.  FILE and the host paths never
- * cross this header — the exotic platforms implement the module on their own
+ * cross this header - the exotic platforms implement the module on their own
  * storage primitives.
  *
  * Contract:
@@ -15,7 +15,7 @@
  *   volumeSize(v)      the volume's size in bytes (0 = unknown/unavailable).
  *   closeVolume(v)     releases the handle; NULL is accepted.
  *
- *   openSave(letter)   opens the save file for slot letter 'A'..'T' — the
+ *   openSave(letter)   opens the save file for slot letter 'A'..'T' - the
  *                      game's `'A' + (n-1)` law (re_formats.md §10/§10.0).
  *                      The module owns the filename/path; the POSIX module
  *                      uses SAVEA..SAVET in the game directory (the
@@ -29,11 +29,11 @@
  *   closeSave(s)       releases the handle; NULL is accepted.
  *
  *   openNamed(name)    opens a runtime file of the game directory for reading
- *                      — the original's non-disc files (`HISCORES.HUM`,
+ *                      - the original's non-disc files (`HISCORES.HUM`,
  *                      re_formats.md §11).  NULL = absent.
  *   createNamed(name)  creates/truncates it for writing.
  *
- * The modules never abort.  Every byte the game I/O needs goes through here —
+ * The modules never abort.  Every byte the game I/O needs goes through here -
  * the core (and its tests' game-side code) never includes a stdio path.
  */
 #ifndef HUMANSRE_FS_H

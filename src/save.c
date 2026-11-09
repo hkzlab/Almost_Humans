@@ -1,9 +1,9 @@
-/* save.c — the save-game format (re_formats.md §10/§10.0), load side.
+/* save.c - the save-game format (re_formats.md §10/§10.0), load side.
  *
  * The file is 0x1800 bytes, named by the slot letter: the original keeps
  * `"\humans\cdrom\save"` at 202F:0x1C7E whose NUL at 0x1C90 is overwritten
  * with `'A'+([0x5E6F]-1)` (entry:004C) or with the save-number prompt's
- * `'A'+(n-1)` (save_progress) — one file per game 1..20.  The filesystem
+ * `'A'+(n-1)` (save_progress) - one file per game 1..20.  The filesystem
  * module owns the actual filename (fs.h).
  *
  * Layout (re_formats.md §10):

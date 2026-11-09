@@ -1,4 +1,4 @@
-/* arch/audio/mt32/sound_driver_mt32.h — the MT-32 module's one port-side hook.
+/* arch/audio/mt32/sound_driver_mt32.h - the MT-32 module's one port-side hook.
  *
  * SoundDriverModule::create() has no room for the ROM directory, and it is
  * not part of the INT 60h conversation, so the port hands the path over

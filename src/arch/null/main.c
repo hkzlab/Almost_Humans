@@ -1,4 +1,4 @@
-/* arch/null/main.c — the arch layer owns main() (port_structure.md §2). */
+/* arch/null/main.c - the arch layer owns main() (port_structure.md §2). */
 #include "osystem.h"
 
 #include <stdio.h>

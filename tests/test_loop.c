@@ -1,16 +1,16 @@
-/* test_loop.c — the flow/tick state machine under the null backend.
+/* test_loop.c - the flow/tick state machine under the null backend.
  *
  * Assert-based (no framework): exits 0 silently on success, prints the
  * failing fact to stderr and exits 1 otherwise.
  *
  * With the real attract loop in place (game_loop 1000:131E), FLOW_ATTRACT
  * no longer auto-advances: the four-effect cycle runs until the escape
- * (attract_exit 1000:13E9 — the action key or any held key), whose final
+ * (attract_exit 1000:13E9 - the action key or any held key), whose final
  * fade completes inside attract_tick.  Without the game data the effects
  * skip (the headless pattern), so the cycle spins and the phase probe can
  * still assert the 1 -> 3 -> 2 -> 4 order; palette_tick() is driven by
  * hand, once per flow step, like game_main's game_tick.  The test therefore
- * chdirs into an empty scratch directory first — a build tree that carries
+ * chdirs into an empty scratch directory first - a build tree that carries
  * HUMANS.00N links must not turn this into the real, multi-hundred-tick
  * playback (test_attract and test_smoke drive that path). */
 #include "attract.h"
@@ -114,7 +114,7 @@ int main(void)
         }
     }
 
-    /* 1. ATTRACT holds on idle — the cycle never auto-advances (the old
+    /* 1. ATTRACT holds on idle - the cycle never auto-advances (the old
      *    5 s dwell is gone; only the escape exits it). */
     {
         InputState in = _make_input();
@@ -156,7 +156,7 @@ int main(void)
         }
         /* the cycle edges: 1 -> 3 -> 2 -> 4 -> 1, rotation-independent
          * (test 1's idle ticks already left the machine mid-cycle, so the
-         * sequence's start is arbitrary — its structure is not) */
+         * sequence's start is arbitrary - its structure is not) */
         static const uint32_t after[5] = { 0u, 3u, 4u, 2u, 1u };
         if (runs < 8u) {
             fprintf(stderr, "FAIL: only %u effect runs observed\n", runs);
@@ -198,7 +198,7 @@ int main(void)
         }
     }
 
-    /* 4. the room holds: idle, ESC (clears the name — 0x5F11's act0, no
+    /* 4. the room holds: idle, ESC (clears the name - 0x5F11's act0, no
      *    exit), and the action key (the option cycle; nothing at cell 0)
      *    all stay in MENU. */
     {
@@ -219,7 +219,7 @@ int main(void)
     }
 
     /* 5. the re-entry: the attract re-arms (game_loop's prologue runs
-     *    again — LAB_000E) and plays until the next escape. */
+     *    again - LAB_000E) and plays until the next escape. */
     {
         InputState idle = _make_input();
         GameFlow s = FLOW_ATTRACT;
@@ -245,7 +245,7 @@ int main(void)
         bad |= _expect_state(s, FLOW_MENU, 0, "second escape -> menu");
     }
 
-    /* 6. the room's confirm: hold RIGHT — the rails walk 0x1D2 -> 0x208
+    /* 6. the room's confirm: hold RIGHT - the rails walk 0x1D2 -> 0x208
      *    (cell 6) -> 0x280, the right-edge exit runs the codes.bin match
      *    and the fade, and the flow lands in LEVEL. */
     {

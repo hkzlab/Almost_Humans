@@ -224,7 +224,7 @@ target_link_libraries(test_boot_flash PRIVATE core fs_posix)
 humansre_warnings(test_boot_flash)
 add_test(NAME boot_flash COMMAND test_boot_flash ${HUMANS_DATA_DIR})
 
-# D-247: the INTRO.RSC scene's two held-key polls — c0c6 after the frame
+# D-247: the INTRO.RSC scene's two held-key polls - c0c6 after the frame
 # wait (1000:b787) and c0af in the transition fade (1000:b863).
 add_executable(test_boot_scene_key tests/test_boot_scene_key.c
     src/arch/null/OSystem.c)          # the null backend's test hooks
@@ -253,7 +253,7 @@ target_link_libraries(test_statusbar PRIVATE core fs_posix)
 humansre_warnings(test_statusbar)
 add_test(NAME statusbar COMMAND test_statusbar ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 
-# The entity test: the closed §12.6 system — the lb#1 spawn fields, the
+# The entity test: the closed §12.6 system - the lb#1 spawn fields, the
 # 0xB4 join, the exact-flip walk over the baked waypoint words, and the
 # 160-level spawn census.
 add_executable(test_entity tests/test_entity.c
@@ -340,7 +340,7 @@ if(NOT MSVC)
 endif()
 
 # The MT-32 driver (audio/mt32): MT32.DRV's sequencer over the system
-# mt32emu library, which is a hard requirement for this module — the port
+# mt32emu library, which is a hard requirement for this module - the port
 # simply does not offer `--audio mt32` when it is missing.  mt32emu is
 # LGPL-2.1-or-later, same as the vendored Nuked-OPL3.
 find_path(MT32EMU_INCLUDE_DIR mt32emu.h)

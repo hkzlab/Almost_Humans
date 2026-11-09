@@ -1,4 +1,4 @@
-/* palette.h — the interface of src/palette.c: fades/DAC (subsystem 4, §6) */
+/* palette.h - the interface of src/palette.c: fades/DAC (subsystem 4, §6) */
 
 #ifndef HUMANSRE_PALETTE_H
 #define HUMANSRE_PALETTE_H
@@ -23,7 +23,7 @@ void palette_tick(void);
  *
  * palette_load_6bit (1000:8d24): the 202F:0x4BBC working palette := 768 6-bit
  * bytes.
- * The RAM copy only — the DAC moves through fades or palette_set_dac.
+ * The RAM copy only - the DAC moves through fades or palette_set_dac.
  *
  * @param p6 the 6-bit palette
  */
