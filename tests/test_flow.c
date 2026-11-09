@@ -300,14 +300,14 @@ int main(int argc, char **argv)
 
             /* i/4 repeats every 1024 bytes but differs at +256/+512, so a
              * wrong block stride reads a different value. */
-            for (uint32_t i = 0; i < sizeof spr; i++) spr[i] = (uint8_t)(i / 4u + 1u);
+            for (uint32_t i = 0; i < sizeof spr; i++)
+                spr[i] = (uint8_t)(i / 4u + 1u);
             memset(page, 0, sizeof page);
             object_blit_sprite(page, spr, 32u, 32u, 10, 10);
             for (uint32_t y = 10u; y < 42u; y++)
                 for (uint32_t x = 10u; x < 42u; x++) {
-                    uint32_t want =
-                        spr[(x - 10u & 3u) * 256u + (y - 10u) * 8u +
-                            ((x - 10u) >> 2)];
+                    uint32_t want = spr[(x - 10u & 3u) * 256u + (y - 10u) * 8u +
+                                        ((x - 10u) >> 2)];
                     if (page[y * VIDEO_PAGE_W + x] != want) bad++;
                 }
             _check(bad == 0u, "object_blit_sprite's block stride is a word");
@@ -5300,7 +5300,8 @@ int main(int argc, char **argv)
         }
         _check(score_best_for(1u) == 0x0999u,
                "the best-time table ships as the 0x0999 sentinel");
-        before = (uint32_t)score_total_lo() | ((uint32_t)score_total_hi() << 16);
+        before =
+            (uint32_t)score_total_lo() | ((uint32_t)score_total_hi() << 16);
         level_set_members(3u); /* a stale count the recount overwrites */
         score_prepare();
         _check(level_members() == 12u,
@@ -5317,7 +5318,8 @@ int main(int argc, char **argv)
         score_prepare(); /* the same elapsed time */
         _check(score_is_record() == 0,
                "an equal (not better) time is not a new record");
-        _check(((uint32_t)score_total_lo() | ((uint32_t)score_total_hi() << 16)) > t1,
+        _check(((uint32_t)score_total_lo() |
+                ((uint32_t)score_total_hi() << 16)) > t1,
                "a second level adds its terms again");
         {
             uint32_t guard = 0;
@@ -8438,8 +8440,7 @@ int main(int argc, char **argv)
         }
         /* the claim runs after the start chain: level_spark_begin needs the
          * composed level page */
-        if (player >= 0 && nb >= 0 &&
-            object_claim_begin(3u, player) == nb) {
+        if (player >= 0 && nb >= 0 && object_claim_begin(3u, player) == nb) {
             t = 0u;
             while (object_claim_active() && t++ < 5000u) {
                 level_tick();
@@ -8486,7 +8487,7 @@ int main(int argc, char **argv)
             _check(rd_le_u16(it + 0u) <= 0x85u,
                    "D-260: the wheel stops before the wall corner (x <= 133)");
             _check((uint32_t)rd_le_u16(actor + 0u) + 8u ==
-                       (uint32_t)rd_le_u16(it + 0u) &&
+                           (uint32_t)rd_le_u16(it + 0u) &&
                        rd_le_u16(actor + 8u) == 0x000Fu,
                    "D-260: the rider stays mounted at the wall");
         }

@@ -307,8 +307,7 @@ static const int8_t _spark_dir[8][2] = {
     { -1, 0 }, { -1, 1 }, { 0, 1 },  { 1, 1 },
 };
 static uint8_t _spark_write;
-static uint16_t
-    _spark_spawned; /* [0x1AF8] cursor, [0x1AFC] count */
+static uint16_t _spark_spawned; /* [0x1AF8] cursor, [0x1AFC] count */
 static uint16_t _spark_ox, _spark_oy; /* [0x1AFE] / [0x1B00]            */
 static uint8_t _spark_shade[16][16]; /* 0x19EA, from the recipe sprite */
 static uint8_t _spark_on;
@@ -492,7 +491,8 @@ void level_spark_begin(uint16_t ox, uint16_t oy, const uint8_t *shade)
      * claim's frozen black page plus the two records it drew last frame. */
     _bake_page_to_plane();
     /* 1000:3E73's tail: the strip origin is (origin - 0x20) in both axes. */
-    _spark_strip_save((int16_t)((int32_t)ox - 0x20), (int16_t)((int32_t)oy - 0x20));
+    _spark_strip_save((int16_t)((int32_t)ox - 0x20),
+                      (int16_t)((int32_t)oy - 0x20));
 }
 
 uint8_t level_spark_active(void) { return _spark_on; }
@@ -2176,8 +2176,7 @@ uint8_t level_tick(void)
         if (_world_updates && !object_claim_active()) {
             _level_goal_pan_tick(); /* 1000:3540, before update_world */
             level_follow_view(); /* 1000:5CB6, first in update_world */
-            if (actor)
-                (void)object_command_run(actor, _level_joy);
+            if (actor) (void)object_command_run(actor, _level_joy);
             object_update_list(); /* 1000:C295, 1000:80BD            */
             object_camera_slots_tick(); /* 1000:C7A0, 1000:80C0     */
             entity_tick(); /* 1000:C93C, inside the [0xC] gate */
@@ -2230,8 +2229,7 @@ uint8_t level_tick(void)
                 _bake_page_to_plane();
             }
         }
-    } else if (object_claim_page_frozen() &&
-               !object_claim_settle_active()) {
+    } else if (object_claim_page_frozen() && !object_claim_settle_active()) {
         level_claim_frame();
     }
     /* CLAIM_SETTLE: the page is the final 1000:3CB5 frame (world + objects);
@@ -2301,19 +2299,16 @@ static void _disk_draw(uint16_t disc)
     font_publish(_disk_font);
 
     char line[32];
-    textpage_draw_line(page,
-                       game_strs[g_game_lang][GAME_STR_LEVEL_PUT_DISK], 0x50u,
-                       0x0Fu);
+    textpage_draw_line(page, game_strs[g_game_lang][GAME_STR_LEVEL_PUT_DISK],
+                       0x50u, 0x0Fu);
     snprintf(line, sizeof line,
              game_strs[g_game_lang][GAME_STR_LEVEL_INTO_DRIVE],
              (char)('1' + disc));
     textpage_draw_line(page, line, 0x60u, 0x0Fu);
-    textpage_draw_line(page,
-                       game_strs[g_game_lang][GAME_STR_LEVEL_PRESS_FIRE], 0x88u,
-                       0x0Fu);
-    textpage_draw_line(page,
-                       game_strs[g_game_lang][GAME_STR_LEVEL_WHEN_READY], 0x98u,
-                       0x0Fu);
+    textpage_draw_line(page, game_strs[g_game_lang][GAME_STR_LEVEL_PRESS_FIRE],
+                       0x88u, 0x0Fu);
+    textpage_draw_line(page, game_strs[g_game_lang][GAME_STR_LEVEL_WHEN_READY],
+                       0x98u, 0x0Fu);
 }
 
 uint8_t level_disk_status_begin(uint16_t disc)

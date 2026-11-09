@@ -34,7 +34,8 @@ enum GameStr {
     GAME_STR_ATTRACT_TIMES_LABEL,
     GAME_STR_ATTRACT_SCORE_HEADER,
 
-    /* gameflow */    GAME_STR_GAMEFLOW_LEVEL_DONE, /* snprintf format, one %03u          */
+    /* gameflow */
+    GAME_STR_GAMEFLOW_LEVEL_DONE, /* snprintf format, one %03u          */
     GAME_STR_GAMEFLOW_EXTINCT,
 
     /* level: the insert-disc page (not localised in any build) */

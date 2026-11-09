@@ -25,3 +25,4 @@ _First release: a C99 port of the 1992 DOS game Humans, reimplemented from the o
 ### Changed
 
 - Normalize every source comment to ASCII and drop references to documents outside this repository
+- Reformat the port sources with the project's `.clang-format`

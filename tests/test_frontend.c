@@ -437,9 +437,10 @@ int main(int argc, char **argv)
                             if (y > bottom) bottom = y;
                         }
                 if (top == 200u || top < 88u || bottom > 108u) {
-                    fprintf(stderr,
-                            "FAIL the typed name left its strip (rows %u..%u)\n",
-                            (unsigned)top, (unsigned)bottom);
+                    fprintf(
+                        stderr,
+                        "FAIL the typed name left its strip (rows %u..%u)\n",
+                        (unsigned)top, (unsigned)bottom);
                     bad = 1;
                 }
             }

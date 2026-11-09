@@ -17,7 +17,8 @@ static VideoMode _vid_mode = (VideoMode)-1;   /* the core's last mode set */
 static SDL_Window *_win;
 static SDL_Renderer *_ren;
 static SDL_Texture *_tex;
-static int32_t _tex_rows = VIDEO_PAGE_H_MODE13H; /* the texture's height = the field */
+static int32_t _tex_rows =
+    VIDEO_PAGE_H_MODE13H; /* the texture's height = the field */
 static uint8_t _pages[2][VIDEO_PAGE_BYTES];
 static uint32_t _lut[256]; /* the palette LUT, 6-bit expanded */
 static int32_t _present_probe; /* HUMANSRE_RATE_PROBE: report the
@@ -30,7 +31,10 @@ static int32_t _present_probe; /* HUMANSRE_RATE_PROBE: report the
  * @return VIDEO_PAGE_H_MODEX for mode X, VIDEO_PAGE_H_MODE13H otherwise
  */
 static int32_t _mode_rows(void)
-{ return _vid_mode == VIDEO_MODE_X ? VIDEO_PAGE_H_MODEX : VIDEO_PAGE_H_MODE13H; }
+{
+    return _vid_mode == VIDEO_MODE_X ? VIDEO_PAGE_H_MODEX
+                                     : VIDEO_PAGE_H_MODE13H;
+}
 
 /**
  * @brief 6-bit -> 8-bit: the original's values are the DAC's; the expand is << 2 | >> 4
@@ -59,8 +63,9 @@ static void _vid_make_texture(int32_t rows)
  */
 static void _vid_init_video(void)
 {
-    if (!SDL_CreateWindowAndRenderer(HUMANSRE_PROJECT_TITLE " " HUMANSRE_VERSION, 960, 720,
-                                     SDL_WINDOW_RESIZABLE, &_win, &_ren))
+    if (!SDL_CreateWindowAndRenderer(
+            HUMANSRE_PROJECT_TITLE " " HUMANSRE_VERSION, 960, 720,
+            SDL_WINDOW_RESIZABLE, &_win, &_ren))
         SDL_Log("window: %s", SDL_GetError());
     /* No renderer vsync: the loop is paced by the tick gate (game_main's
      * tickSync, the [0x5AC8] equivalent).  The original's foreground never

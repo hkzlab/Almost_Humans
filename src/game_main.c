@@ -348,11 +348,8 @@ static GameFlow _room_enter(void)
 GameFlow gameflow_pause_action(int16_t choice, uint8_t *quit)
 {
     switch (choice) {
-    case 0: /* continue            */
-        break;
-    case 1: /* restart this level  */ 
-        _level_restart();
-        break;
+    case 0: /* continue            */ break;
+    case 1: /* restart this level  */ _level_restart(); break;
     case 2: /* restart this game   */
         /* 1000:390F..1000:3923: [0x138E] = 0 (lost), [0x1809] = 0xFF and
          * [0x1979] = 2.  State 2 of the pending table (0x197B) is
@@ -366,9 +363,7 @@ GameFlow gameflow_pause_action(int16_t choice, uint8_t *quit)
         (void)save_write_slot(menu_slot(), _level_current + 1u,
                               statusbar_time_word(), level_tribe_members());
         break;
-    case 4: /* quit this game      */
-        *quit = 1;
-        break;
+    case 4: /* quit this game      */ *quit = 1; break;
     }
     return FLOW_LEVEL;
 }
@@ -575,8 +570,8 @@ static GameFlow _post_level_step(GameFlow state)
  *         frame continues (the post-level arm can jump straight to the ending)
  */
 static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
-                                 const InputState *input, uint8_t rawFire,
-                                 GameFlow prev, uint8_t *quit_requested)
+                                const InputState *input, uint8_t rawFire,
+                                GameFlow prev, uint8_t *quit_requested)
 {
     /* 1000:35AF's restart prologue blocks on the fade to black before
          * level_start re-enters; hold the whole branch while it runs. */
@@ -1006,7 +1001,7 @@ static uint8_t _game_frame(const OSystem *osys, GameFlow *state,
     *state = gameflow_step(*state, &input);
     if (*state == FLOW_LEVEL) {
         int8_t r = _flow_level_frame(osys, state, &input, rawFire, prev,
-                                      quit_requested);
+                                     quit_requested);
         if (r >= 0) return r;
     }
 

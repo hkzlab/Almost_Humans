@@ -88,7 +88,8 @@ int main(int argc, char **argv)
             src_lo != (uint16_t)((3u * 4u + 3u) * 320u) ||
             src_hi != (uint16_t)((3u * 4u) * 320u)) {
             printf("PARTY: FAIL the marquee phase is not a word "
-                   "(dhi %04X/%04X)\n", dhi_lo, dhi_hi);
+                   "(dhi %04X/%04X)\n",
+                   dhi_lo, dhi_hi);
             return 1;
         }
     }

@@ -96,7 +96,8 @@ static uint8_t _colour1881 = 0x43; /* CS:0x1881: _blit_80x200's colour base  */
  * [1] the write-mode-2 bit mask, [2..19] pad, [20..79] the presented 60
  * bytes = _arena pixels 80..319. */
 static uint8_t _e4strip[196608];
-static uint8_t _row_sig[VIDEO_PAGE_H_MODE13H]; /* CS:0x1CF7: the row-signature cache */
+static uint8_t
+    _row_sig[VIDEO_PAGE_H_MODE13H]; /* CS:0x1CF7: the row-signature cache */
 static uint8_t _row_sig_init; /* the shipped 0x80 fill runs once       */
 static uint8_t *_credtext; /* [0xC9F]: the loaded _credtext.bin      */
 static uint32_t _credtext_size;
@@ -320,8 +321,7 @@ static void _draw_times_row(uint8_t *ar, uint32_t levelMinus1,
     secs[1] = (char)('0' + (rec[0] & 0xFu));
     secs[2] = 0;
     font_draw_text(ar, game_strs[g_game_lang][GAME_STR_ATTRACT_TIMES_LABEL],
-                   0x92u,
-                   row); /* 16D3, redrawn per row */
+                   0x92u, row); /* 16D3, redrawn per row */
     font_draw_text(ar, num, 0x3Du, row);
     font_draw_text(ar, mins, 0x74u, row);
     font_draw_text(ar, secs, 0xD8u, row);
@@ -899,15 +899,15 @@ uint8_t attract_tick(const InputState *in)
         memcpy(_page_b, _img_buf, VIDEO_PAGE_BYTES); /* copy_page 18a4 */
         memset(_arena, 0, sizeof _arena); /* clear_screen_buf 1882 */
         if (_frame == 0u) { /* intro_frame_1 1625 */
-            font_draw_text(_arena,
-                           game_strs[g_game_lang][GAME_STR_ATTRACT_SCORE_HEADER],
-                           0xA0u, 4u);
+            font_draw_text(
+                _arena, game_strs[g_game_lang][GAME_STR_ATTRACT_SCORE_HEADER],
+                0xA0u, 4u);
             _draw_score_block(_arena);
         } else { /* intro_frame_2 1652 */
             uint16_t base = (_frame - 1u) * 10u;
-            font_draw_text(_arena,
-                           game_strs[g_game_lang][GAME_STR_ATTRACT_TIMES_HEADER],
-                           0xA0u, 4u);
+            font_draw_text(
+                _arena, game_strs[g_game_lang][GAME_STR_ATTRACT_TIMES_HEADER],
+                0xA0u, 4u);
             for (uint16_t r = 0; r < 10u; r++) {
                 uint8_t rec[2];
 
@@ -987,8 +987,8 @@ uint8_t attract_tick(const InputState *in)
              * past the buffer only for data without the 0xFF terminator,
              * which the shipped file always has. */
             uint8_t next = (_cred_cursor < _credtext_size)
-                                ? _credtext[_cred_cursor]
-                                : 0xFFu;
+                               ? _credtext[_cred_cursor]
+                               : 0xFFu;
             if (next != 0xFFu) {
                 _e4_fill();
                 if (_escape_test(in)) {

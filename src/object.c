@@ -606,7 +606,8 @@ static void _obj_class_byte_set(uint32_t b, uint8_t value)
         return;
     }
     if (b == 0x16u) {
-        _obj_live_count = (uint16_t)((_obj_live_count & 0x00FFu) | ((uint16_t)value << 8));
+        _obj_live_count =
+            (uint16_t)((_obj_live_count & 0x00FFu) | ((uint16_t)value << 8));
         return;
     }
     _obj_array[b - 0x17u] = value;
@@ -2099,8 +2100,8 @@ int16_t object_low_phase_match(void)
          * wrong. */
         const uint8_t *map = level_map();
         uint16_t cell = (uint16_t)(_obj_map_cell_index(_obj_actor()));
-        uint8_t goal = map != NULL &&
-                       _obj_map_buffer_byte((int32_t)cell) == 0xA8u;
+        uint8_t goal =
+            map != NULL && _obj_map_buffer_byte((int32_t)cell) == 0xA8u;
 
         /* 1000:3624: the original reads `[DI+0x20]` with no wrap, and for the
          * last map row that is the buffer's 32-byte gap (0x00 = tile 0). */
@@ -3285,8 +3286,7 @@ static void _obj_span_draw(uint8_t *page, int32_t scrollX, int32_t scrollY)
         }
         seed = _obj_span_top[i];
         x = rd_le_u16(e + 0xAu);
-        for (int16_t row = (int16_t)seed; row < (int16_t)cur;
-             row++) {
+        for (int16_t row = (int16_t)seed; row < (int16_t)cur; row++) {
             int32_t px = (int32_t)x - scrollX;
             int32_t py = row - scrollY;
 
@@ -4961,7 +4961,8 @@ static void _obj_proj_target(uint8_t *r, int32_t x, int32_t y, int32_t frame,
 
         wr_le_u16(t + 0u, (uint16_t)(x > 8 ? x - 8 : 0)); /* 1000:D17A */
         wr_le_u16(t + 2u, (uint16_t)(y - 0x10)); /* 1000:D185 */
-        _obj_hit_dispatch(r, t, (int16_t)(frame), (int16_t)(vx), (int16_t)(vy)); /* 1000:D1BD */
+        _obj_hit_dispatch(r, t, (int16_t)(frame), (int16_t)(vx),
+                          (int16_t)(vy)); /* 1000:D1BD */
     }
 }
 
@@ -5599,7 +5600,8 @@ static void _obj_op_collide(uint8_t *actor)
     }
     ax = (int16_t)rd_le_u16(actor + 0u);
     bx = (int16_t)rd_le_u16(actor + 2u);
-    live = _obj_live_count > OBJ_LIVE0 ? (uint8_t)(_obj_live_count - OBJ_LIVE0) : 0u;
+    live = _obj_live_count > OBJ_LIVE0 ? (uint8_t)(_obj_live_count - OBJ_LIVE0)
+                                       : 0u;
     /* 1000:9C4E: count < 9 (no live records) jumps straight to the tail. */
     if (live == 0u) {
         _obj_collide_tail();
@@ -6760,7 +6762,8 @@ static void _obj_scan_point(uint8_t *actor, uint32_t xoff)
     while (1) { /* 1000:FCBA */
         uint32_t idx = 2u * ((uint32_t)y & 0xFFF0u) + ((uint32_t)x >> 4);
 
-        b = (uint8_t)(level_page_byte(_obj_map_buffer_byte(idx), (uint32_t)x & 0xFu));
+        b = (uint8_t)(level_page_byte(_obj_map_buffer_byte(idx),
+                                      (uint32_t)x & 0xFu));
         if (!(b & 0x80u)) { /* 1000:FCE0: a surface */
             y += (int32_t)(int8_t)b;
             break;
@@ -6826,7 +6829,9 @@ static void _obj_neighbour_pass(uint8_t *actor, uint32_t offX, uint32_t offY,
 {
     int32_t x = (int32_t)(int16_t)(uint16_t)(rd_le_u16(actor + 0u) + offX);
     int32_t y = (int32_t)(int16_t)(uint16_t)(rd_le_u16(actor + 2u) + offY);
-    uint8_t n = (uint8_t)(_obj_live_count > OBJ_LIVE0 ? _obj_live_count - OBJ_LIVE0 : 0u);
+    uint8_t n =
+        (uint8_t)(_obj_live_count > OBJ_LIVE0 ? _obj_live_count - OBJ_LIVE0
+                                              : 0u);
 
     _obj_aux = (uint16_t)delta; /* 1000:FAF9 */
     _obj_sel_frame = delta >= 0 ? 0x10u : 0u; /* 1000:FAFD */
@@ -6851,7 +6856,8 @@ static void _obj_neighbour_pass(uint8_t *actor, uint32_t offX, uint32_t offY,
                 (int32_t)(int16_t)rd_le_u16(r + 0u) + (delta >= 0 ? 0x10 : 0);
             int32_t py = (int32_t)(int16_t)rd_le_u16(r + 2u) + 8;
             uint32_t sub, tile = _obj_map_at_abs(px, py, &sub);
-            uint16_t word = (uint16_t)(level_item_word(tile, (uint32_t)(py & 0xF)));
+            uint16_t word =
+                (uint16_t)(level_item_word(tile, (uint32_t)(py & 0xF)));
             uint16_t bit = (uint16_t)(1u << (0xFu - ((uint32_t)px & 0xFu)));
 
             if (!(word & bit)) /* 1000:FC17 */
@@ -7129,7 +7135,8 @@ static void _obj_tail_type30(uint8_t *actor)
             nxt = (uint16_t)(nxt - 4u); /* 1000:DEA5 */
             e = (uint16_t)(rd_le_u16(actor + 0xEu) - 1u);
             wr_le_u16(actor + 0xEu, e); /* 1000:DEA8 */
-            if ((int16_t)e < 0 && statusbar_tribe_count_nonzero()) { /* 1000:DEB4 */
+            if ((int16_t)e < 0 &&
+                statusbar_tribe_count_nonzero()) { /* 1000:DEB4 */
                 _obj_side = rd_le_u16(actor + 0u); /* [0x4220] */
                 _obj_sel_xoff = rd_le_u16(actor + 2u); /* [0x4222] */
                 _obj_level_end_probe(actor, -1); /* 1000:DEC4 */
@@ -8280,7 +8287,8 @@ static void _obj_fall_item_word(uint8_t *actor, int32_t ax, int32_t bx)
     int32_t px = ax + (int32_t)(int16_t)_obj_sel_frame;
     int32_t py = bx + 0x18;
     uint16_t tile = (uint16_t)(_obj_map_at_abs(px, py, NULL));
-    uint16_t item = (uint16_t)(level_item_word(tile, (uint32_t)((uint32_t)py & 0xFu)));
+    uint16_t item =
+        (uint16_t)(level_item_word(tile, (uint32_t)((uint32_t)py & 0xFu)));
     uint32_t lo, hi, mask;
 
     _obj_sel_type = item;
@@ -8391,7 +8399,8 @@ static void _obj_fall_machine(uint8_t *actor)
         if (below == want) { /* 1000:F7CD */
             /* 1000:F7D7: `[DI+0x20]` is the cell one row below the feet, in
              * the same column, through the same `BP` (0x92A0 + fine). */
-            uint8_t b2 = (uint8_t)(_obj_map_at_abs(col, (int32_t)row + 0x10, NULL));
+            uint8_t b2 =
+                (uint8_t)(_obj_map_at_abs(col, (int32_t)row + 0x10, NULL));
 
             if (level_page_byte(b2, fine) == 0u) { /* 1000:F7EE */
                 _obj_fall_land_at_y(actor, bx);

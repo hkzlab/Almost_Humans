@@ -184,7 +184,8 @@ static uint32_t _lz_bits(LzState *s, uint32_t n)
 static void _lz_literals(LzState *s, uint32_t n)
 {
     while (n--) {
-        uint8_t byte = (uint8_t)(_lz_bits(s, 8)); /* b4e8: the read happens FIRST */
+        uint8_t byte =
+            (uint8_t)(_lz_bits(s, 8)); /* b4e8: the read happens FIRST */
         if (s->p == 0) {
             s->under = 1;
             return;

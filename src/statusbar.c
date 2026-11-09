@@ -146,7 +146,8 @@ static const uint8_t _action_gold[40] = {
 };
 
 uint8_t statusbar_tribe_count_nonzero(void) { return (_td[0] | _td[1]) != 0; }
-uint8_t statusbar_tribe_value(void) { return u8((uint32_t)_td[0] * 10u + _td[1]); }
+uint8_t statusbar_tribe_value(void)
+{ return u8((uint32_t)_td[0] * 10u + _td[1]); }
 uint8_t statusbar_tribe_digit(uint32_t i) { return _td[i & 1u]; }
 void statusbar_set_tribe_digits(uint32_t tens, uint32_t ones)
 {
@@ -257,7 +258,8 @@ void statusbar_charge_bar(uint32_t v)
 
     if (!page || !_panel4) return; /* no bar art: nothing to draw */
     if (v < 0x100u) {
-        uint16_t ax = (uint16_t)(0x60u + (v >> 1)); /* 0x372E's `SHR AX,1`        */
+        uint16_t ax =
+            (uint16_t)(0x60u + (v >> 1)); /* 0x372E's `SHR AX,1`        */
         uint8_t col = (uint8_t)(ax >> 2), p = ax & 3u;
 
         for (i = 0; i < 2u; i++) { /* 0x376D: CX = 2 passes      */
@@ -277,7 +279,8 @@ void statusbar_charge_bar(uint32_t v)
         return;
     }
     {
-        uint16_t len = (uint16_t)((0x1FFu - v) >> 1); /* 0x3726-0x372E              */
+        uint16_t len =
+            (uint16_t)((0x1FFu - v) >> 1); /* 0x3726-0x372E              */
         uint8_t col = (uint8_t)(24u + (len >> 2)), p = len & 3u;
         /* 0x3EE0 in the +0x3200 staging = staged panel4 0xCE0 (the trough
          * is already in it, so the inset slices carry the trough edges). */

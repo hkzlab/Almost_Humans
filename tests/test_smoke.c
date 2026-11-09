@@ -55,10 +55,10 @@ static uint32_t _dumped;
 static const uint32_t _dump_at[] = { 7400, 7500, 7900, 8100, 8350, 8600,
                                      8750, 8800, 8900, 8950, 9100, 9250 };
 static const char *_dump_name[] = {
-    "flow_7400_roomexit", "flow_7500_room",    "flow_7900_party_a",
+    "flow_7400_roomexit", "flow_7500_room",      "flow_7900_party_a",
     "flow_8100_party_b",  "flow_8350_loading_a", "flow_8600_loading_b",
-    "flow_8750_goal",     "flow_8800_level_a", "flow_8900_level_b",
-    "flow_8950_level_c",  "flow_9100_level_d", "flow_9250_level_e"
+    "flow_8750_goal",     "flow_8800_level_a",   "flow_8900_level_b",
+    "flow_8950_level_c",  "flow_9100_level_d",   "flow_9250_level_e"
 };
 
 static uint8_t _saw_pause;
@@ -285,7 +285,8 @@ int main(int argc, char **argv)
     if (_goal_poll < 8780u || _goal_poll > 8900u) {
         fprintf(stderr,
                 "FAIL the goal page arrived at poll %u, want ~8822 "
-                "(the audio fade holds)\n", _goal_poll);
+                "(the audio fade holds)\n",
+                _goal_poll);
         bad = 1;
     }
     /* D-41: the F2 make at 7750 selected record 1; D-42: the SPACE make at

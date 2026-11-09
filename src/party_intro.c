@@ -217,7 +217,8 @@ void party_intro_seed_scripts(const uint8_t *bytes, uint32_t len)
     _script_store = (uint8_t *)malloc(len ? len : 1u);
     if (_script_store) memcpy(_script_store, bytes, len);
     for (uint16_t i = 0; i < SCRIPT_COUNT; i++) {
-        uint16_t rel = (offs[i] >= 0x1036u) ? ((uint16_t)(offs[i] - 0x1036u)) : 0u;
+        uint16_t rel =
+            (offs[i] >= 0x1036u) ? ((uint16_t)(offs[i] - 0x1036u)) : 0u;
         _scripts[i].len = (rel < len) ? ((uint16_t)(len - rel)) : 0u;
         _scripts[i].b = _script_store ? (_script_store + rel) : NULL;
     }
@@ -656,8 +657,7 @@ void party_intro_set_values(uint16_t level, uint16_t need, uint16_t members,
     if (tribe) memcpy(_g_tribe, tribe, sizeof _g_tribe - 1u);
     /* the image's verbatim strings (202F:0x105F..; the digit fields are
      * fixed-width and the formatter rewrites them in place, 0x3F1B) */
-    strncpy(_s_all,
-            game_strs[g_game_lang][GAME_STR_PARTY_COMING_UP],
+    strncpy(_s_all, game_strs[g_game_lang][GAME_STR_PARTY_COMING_UP],
             sizeof _s_all - 1u);
     strncpy(_s_need, game_strs[g_game_lang][GAME_STR_PARTY_NEED],
             sizeof _s_need - 1u);
@@ -943,16 +943,14 @@ uint8_t party_intro_tick(const InputState *in)
                                                 * variant of the briefing  */
         if (_step == 0u) {
             _clear_canvas();
-            _draw_text_ramped(
-                game_strs[g_game_lang][GAME_STR_PARTY_GAME_OVER], 0xA0u, 0x14u);
-            _draw_text_ramped(
-                game_strs[g_game_lang][GAME_STR_PARTY_TOO_SMALL], 0xA0u,
-                0x28u);
-            _draw_text_ramped(
-                game_strs[g_game_lang][GAME_STR_PARTY_IN_RACE], 0xA0u, 0x34u);
-            _draw_text_ramped(
-                game_strs[g_game_lang][GAME_STR_PARTY_TRY_AGAIN], 0xA0u,
-                0x48u);
+            _draw_text_ramped(game_strs[g_game_lang][GAME_STR_PARTY_GAME_OVER],
+                              0xA0u, 0x14u);
+            _draw_text_ramped(game_strs[g_game_lang][GAME_STR_PARTY_TOO_SMALL],
+                              0xA0u, 0x28u);
+            _draw_text_ramped(game_strs[g_game_lang][GAME_STR_PARTY_IN_RACE],
+                              0xA0u, 0x34u);
+            _draw_text_ramped(game_strs[g_game_lang][GAME_STR_PARTY_TRY_AGAIN],
+                              0xA0u, 0x48u);
             _intro_anim(); /* 2b9c: the band redraws carry
                                             * the _canvas text to the display */
             _step = 1u;

@@ -438,7 +438,8 @@ static void _entity_carry_anim(Entity *ep)
     {
         uint8_t sub = b[0xBu]; /* cbaa */
 
-        frame = (uint16_t)((uint32_t)(rd_le_u16(b + 0xCu) + 1u)); /* cbb3: INC word [BP] */
+        frame = (uint16_t)((uint32_t)(rd_le_u16(b + 0xCu) +
+                                      1u)); /* cbb3: INC word [BP] */
         wr_le_u16(b + 0xCu, (uint16_t)frame);
         if (frame != _sel_primary) return; /* cbba */
         wr_le_u16(b + 0xCu, (uint16_t)(frame - 2u)); /* cbc0 */

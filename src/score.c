@@ -348,9 +348,10 @@ void score_stamp_draw(uint8_t *page, uint8_t on)
             uint8_t py = (uint8_t)(STAMP_ROW + r);
             uint16_t px = u16(STAMP_COL * 4u + j);
 
-            _stamp_under[r * 64u + j] = (py < VIDEO_PAGE_H_MODE13H && px < VIDEO_PAGE_W)
-                                            ? page[py * VIDEO_PAGE_W + px]
-                                            : 0u;
+            _stamp_under[r * 64u + j] =
+                (py < VIDEO_PAGE_H_MODE13H && px < VIDEO_PAGE_W)
+                    ? page[py * VIDEO_PAGE_W + px]
+                    : 0u;
         }
     /* 1000:46FC: apl\RECORD.SPR is chunky 64x24; the four passes read
      * src[4j+p] into plane p at address j, i.e. pixel 4j+p = src[4j+p].
@@ -361,7 +362,8 @@ void score_stamp_draw(uint8_t *page, uint8_t on)
             uint8_t py = (uint8_t)(STAMP_ROW + r);
             uint16_t px = u16(STAMP_COL * 4u + j);
 
-            if (!v || py >= VIDEO_PAGE_H_MODE13H || px >= VIDEO_PAGE_W) continue;
+            if (!v || py >= VIDEO_PAGE_H_MODE13H || px >= VIDEO_PAGE_W)
+                continue;
             page[py * VIDEO_PAGE_W + px] = (uint8_t)(v + 0xC0u);
         }
 }
@@ -462,7 +464,8 @@ static void _score_num_block(uint8_t *page, uint32_t digit, uint32_t bp,
     uint16_t row = (uint16_t)(off / 88u), col = off % 88u;
     uint16_t px = col * 4u; /* one address = 4 px */
 
-    if (!page || !_score_num || digit > 19u || row >= VIDEO_PAGE_H_MODE13H) return;
+    if (!page || !_score_num || digit > 19u || row >= VIDEO_PAGE_H_MODE13H)
+        return;
     /* 1000:450F: 8 rows x 2 addresses.  Pass p takes src[slot + r*8 + p] and
      * src[slot + r*8 + 4 + p], so pixel x of the row is src[r*8 + x]: the
      * slot is a chunky 8x8 image, stored as v | 0xC0. */

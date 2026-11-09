@@ -62,8 +62,8 @@ int main(void)
 
         /* the two printf formats keep exactly one conversion each */
         check(count(game_strs[l][GAME_STR_GAMEFLOW_LEVEL_DONE], '%') == 1 &&
-                  strstr(game_strs[l][GAME_STR_GAMEFLOW_LEVEL_DONE],
-                         "%03u") != NULL,
+                  strstr(game_strs[l][GAME_STR_GAMEFLOW_LEVEL_DONE], "%03u") !=
+                      NULL,
               "level-done format", lang);
         check(count(game_strs[l][GAME_STR_LEVEL_INTO_DRIVE], '%') == 1 &&
                   strstr(game_strs[l][GAME_STR_LEVEL_INTO_DRIVE], "%c") != NULL,
@@ -112,8 +112,8 @@ int main(void)
         for (int i = 0; i < 2; i++) {
             const char *n = game_strs[l][GAME_STR_INTRO_LANG_BIT + i];
 
-            check(strncmp(n, "intro\\", 6) == 0 &&
-                      strlen(n) > 4 && strcmp(n + strlen(n) - 4, ".bit") == 0,
+            check(strncmp(n, "intro\\", 6) == 0 && strlen(n) > 4 &&
+                      strcmp(n + strlen(n) - 4, ".bit") == 0,
                   "intro asset name", lang);
         }
     }

@@ -488,7 +488,8 @@ static void _alpha_blit_cell(uint8_t *page, uint16_t src, uint16_t dst)
             uint16_t px = (at % 80u) * 4u + c * 4u;
             uint16_t py = at / 80u;
 
-            if (!v || py >= VIDEO_PAGE_H_MODE13H || px + 3u >= VIDEO_PAGE_W) continue;
+            if (!v || py >= VIDEO_PAGE_H_MODE13H || px + 3u >= VIDEO_PAGE_W)
+                continue;
             _splat_four(page, px, py, v);
         }
     }
@@ -1014,17 +1015,16 @@ void map_draw_list_header(uint8_t *page)
         map_draw_rect(page, 0x32u, y, 0xA0u, 0x0Fu);
         map_draw_rect(page, 0xD6u, y, 0x58u, 0x0Fu);
     }
-    textpage_draw_line_mask_at(
-        page, game_strs[g_game_lang][GAME_STR_MAP_TOP_TEN], 0xA0u, 0x14u,
-        0x20u);
+    textpage_draw_line_mask_at(page,
+                               game_strs[g_game_lang][GAME_STR_MAP_TOP_TEN],
+                               0xA0u, 0x14u, 0x20u);
 }
 
 void map_draw_congrats(uint8_t *page)
 {
     for (uint16_t i = 0; i < 7u; i++)
         textpage_draw_line_mask_at(
-            page,
-            game_strs[g_game_lang][GAME_STR_MAP_CONGRATS_0 + i], 0xA0u,
+            page, game_strs[g_game_lang][GAME_STR_MAP_CONGRATS_0 + i], 0xA0u,
             0x19u + 0x10u * i, 0x20u);
 }
 
@@ -1296,7 +1296,7 @@ static void _map_exit_begin(void)
 {
     _map_build_fade_to(0u, 0x100u, 0x23u, _map_black, 0xFFFFu); /* 0x062B */
     _map_exit_hold = 0x4Bu; /* 0x063D */
-    audio_fade_out();       /* 0x063D: present_frames_75 */
+    audio_fade_out(); /* 0x063D: present_frames_75 */
     _map_phase = MAP_EXIT_FADE;
 }
 
@@ -1305,7 +1305,7 @@ static void _map_close(void)
 {
     _map_up = 0;
     audio_music_stop(); /* 0x0640 */
-    hiscore_write();    /* 0x06CC */
+    hiscore_write(); /* 0x06CC */
     free(_map_high);
     _map_high = NULL;
     free(_map_font);

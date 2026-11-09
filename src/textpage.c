@@ -402,7 +402,7 @@ void textpage_draw(uint8_t *page, const char *text, int32_t cursorRow,
                 n++;
             }
             line[n] = 0;
-            uint8_t pre = (uint8_t)(1u + 3u * cursorCol);      /* " 01 05 ..." */
+            uint8_t pre = (uint8_t)(1u + 3u * cursorCol); /* " 01 05 ..." */
             char prebuf[24];
             uint8_t k = pre < n ? pre : n;
             memcpy(prebuf, line, k);
