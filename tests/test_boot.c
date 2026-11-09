@@ -144,7 +144,7 @@ int main(int argc, char **argv)
 
     /* 1. the intro plays until the quit cue, then reports done. */
     uint32_t ticks = 0;
-    int32_t r;
+    uint8_t r;
     while (1) {
         r = scene_play_boot_intro();
         palette_tick();                        /* the ISR body's fade step */

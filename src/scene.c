@@ -178,12 +178,12 @@ static const uint8_t _scene_bg_table[10] = { 1, 2, 3, 4, 5, 6, 8, 0, 5, 7 };
 
 static const OSystem *_scene_osys;
 static ScenePhase _scene_phase = SCENE_IDLE;
-static uint32_t _scene_level = 0xFFFFu; /* the level the intro is for */
+static uint16_t _scene_level = 0xFFFFu; /* the level the intro is for */
 
 static uint8_t *_ani_data;
 static Ani _ani;
 static uint8_t *_script_buf; /* decoded script object                */
-static uint32_t _plays;
+static uint16_t _plays;
 static const uint16_t *_indices; /* into _script_buf + 2 + 768             */
 static uint8_t *_obj_buf; /* 64K segment model                    */
 static uint8_t *_scoops_buf;
@@ -191,10 +191,10 @@ static uint32_t _scoops_size;
 static uint8_t *_text_spr; /* apl\text.spr — the panel's font */
 
 static uint8_t _cur_scene;
-static int32_t _chain_replay; /* 210-tick wait ends in a self-replay */
+static uint8_t _chain_replay; /* 210-tick wait ends in a self-replay */
 static uint16_t _dwell_ticks;
 static uint8_t _panel_pal[768]; /* daily.bit's palette (masked 6-bit) */
-static int32_t _panel_pal_valid;
+static uint8_t _panel_pal_valid;
 /* c537/c563's target: [0x48BC] is the 256x3 scratch ramp, and every writer
  * restores it to zero — clear_fade_ramp (1000:B90F) at boot, the level's
  * discovery op (1000:3A6A) on every exit (1000:3CF9/3D01), run_screen_
@@ -206,10 +206,10 @@ static const uint8_t _scene_black_pal[768];
  * reads it twice: the pre-frame palette fade is 4 entries div 2 instead of
  * 0x100 div 0x19 (1000:B263), and wait_flag_timeout waits 1 tick instead of
  * 6 per object (1000:B2D3).  The level's .ANI always runs with it clear. */
-static int32_t _scene_fast;
+static uint8_t _scene_fast;
 static uint16_t _obj_wait;
 static uint16_t _chain_wait;
-static uint32_t _obj_index;
+static uint16_t _obj_index;
 
 /* The boot's flag-style key tests (b2ba and c0c6) read the original's
  * level-triggered ISR flags ([0x48A3] / +0x5ACE bit-7) — not an event
@@ -226,7 +226,7 @@ static uint8_t *_boot_treebot; /* intro\treebot.bit 21x59                 */
 static uint8_t *_boot_apple; /* intro\apple.spr 16x16                   */
 static uint8_t *_boot_words; /* intro\words.bit — the bar's 1-bit text  */
 static uint8_t _boot_bar[16u * VIDEO_PAGE_W]; /* the bar, rows 182-197 */
-static int32_t _boot_bar_arg = -1; /* the transition the bar holds      */
+static int8_t _boot_bar_arg = -1; /* the transition the bar holds      */
 static uint8_t *_boot_rsc; /* intro\intro.rsc — the display list      */
 static uint32_t _boot_rsc_size;
 static uint32_t *_boot_entries;
@@ -236,24 +236,24 @@ static uint32_t _boot_list_size; /* its decoded size                        */
 static uint8_t *_boot_obj; /* the records' decoded overlay objects    */
 static uint32_t _boot_list_start; /* 0x6FEA: the records' start              */
 static uint32_t _boot_list_pos; /* [0x6468]: the current group             */
-static uint32_t _boot_frame; /* [0x6466]: the display-list group index  */
-static uint32_t _boot_group_dwell; /* [0x6460]: frames per group              */
-static uint32_t _boot_dwell_count; /* [0x6462]: the group dwell countdown     */
-static uint32_t _boot_scroll_pos; /* [0x6473]: the horizontal scroll         */
+static uint16_t _boot_frame; /* [0x6466]: the display-list group index  */
+static uint16_t _boot_group_dwell; /* [0x6460]: frames per group              */
+static uint16_t _boot_dwell_count; /* [0x6462]: the group dwell countdown     */
+static uint16_t _boot_scroll_pos; /* [0x6473]: the horizontal scroll         */
 static uint16_t _boot_wait_ticks;
 static uint8_t _boot_ramp[768]; /* the fade-target scratch (202F:0x48BC)   */
-static uint32_t _boot_trans_ticks; /* the 0xa-tick words hold (b869)          */
-static uint32_t _boot_bank_countdown; /* [0x644E]: the b7c0 bank-fade timer   */
+static uint8_t _boot_trans_ticks; /* the 0xa-tick words hold (b869)          */
+static uint16_t _boot_bank_countdown; /* [0x644E]: the b7c0 bank-fade timer   */
 static uint8_t *_boot_gt; /* intro\gametek.rsc — the logo display list */
 static uint32_t _boot_gt_size;
 static uint32_t *_boot_gt_entries; /* its u32 object table                    */
 static uint32_t _boot_gt_entry_count;
 static uint8_t *_boot_gt_list; /* decoded object 0: [u16 count][768-byte  *
                                    * palette][u16 object index x count]      */
-static uint32_t _boot_gt_group; /* the group loop counter (b29b's CX)      */
-static uint32_t _boot_gt_bank; /* the 4-bank palette-cycle counter        */
+static uint16_t _boot_gt_group; /* the group loop counter (b29b's CX)      */
+static uint8_t _boot_gt_bank; /* the 4-bank palette-cycle counter        */
 static uint8_t *_boot_itb; /* intro\itb.bit held until its stage      */
-static uint32_t _boot_hold; /* the stages' hold counters (c0b8's CX)   */
+static uint16_t _boot_hold; /* the stages' hold counters (c0b8's CX)   */
 
 /** @brief --- AL expander: blit_background_data (1000:B2EB) --------------------
  *
@@ -287,13 +287,13 @@ static void _scene_al_expand(const uint8_t *src, uint32_t src_size,
             if (si + 1 >= src_size) break;
             uint8_t count = src[si++];
             uint8_t fill = src[si++];
-            for (uint32_t i = 0; i < count && di < dst_size; i++)
+            for (uint16_t i = 0; i < count && di < dst_size; i++)
                 dst[di++] = fill;
             continue;
         }
 
         if (cl < 0x80) { /* literal copy */
-            for (uint32_t i = 0; i < cl && si < src_size && di < dst_size; i++)
+            for (uint16_t i = 0; i < cl && si < src_size && di < dst_size; i++)
                 dst[di++] = src[si++];
             continue;
         }
@@ -313,7 +313,7 @@ static void _scene_al_expand(const uint8_t *src, uint32_t src_size,
             uint8_t ch =
                 (uint8_t)((cw >> 8) & 0x7f); /* high byte, bit 15 cleared */
             if (ch < 0x40) { /* copy CX bytes from stream */
-                for (uint32_t i = 0; i < cx && si < src_size && di < dst_size;
+                for (uint16_t i = 0; i < cx && si < src_size && di < dst_size;
                      i++)
                     dst[di++] = src[si++];
             } else { /* fill (CX - 0x4000) bytes */
@@ -321,7 +321,7 @@ static void _scene_al_expand(const uint8_t *src, uint32_t src_size,
                 uint8_t fill = src[si++];
                 uint32_t run = (uint32_t)cx -
                                0x4000u; /* the listing's SUB CH,0x40 (b365) */
-                for (uint32_t i = 0; i < run && di < dst_size; i++)
+                for (uint16_t i = 0; i < run && di < dst_size; i++)
                     dst[di++] = fill;
             }
             continue;
@@ -383,7 +383,7 @@ static int32_t _ani_decode_object(const Ani *a, uint32_t idx, uint8_t *out,
                               out_size, chkOut);
 }
 
-void scene_set_fast_mode(int32_t on) { _scene_fast = on ? 1u : 0u; }
+void scene_set_fast_mode(uint8_t on) { _scene_fast = on ? 1u : 0u; }
 
 void scene_reset_intro(void)
 {
@@ -506,7 +506,7 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
          * panel's first 0x20 entries FADE in (1000:B0DA) */
         _panel_pal_valid = dailySize >= PAGE_SIZE + 768u;
         if (_panel_pal_valid)
-            for (uint32_t i = 0; i < 768u; i++) /* 1000:8D24's AND 0x3F */
+            for (uint16_t i = 0; i < 768u; i++) /* 1000:8D24's AND 0x3F */
                 _panel_pal[i] = daily[PAGE_SIZE + i] & 0x3Fu;
         free(daily);
     }
@@ -530,7 +530,7 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
              * panel's 320-byte row; taking only the 0x100 shears the
              * thumbnail 64 px left per row. */
             const uint8_t *src = _scoops_buf + srcOff;
-            for (uint32_t row = 0; row < 0x38u; row++) {
+            for (uint16_t row = 0; row < 0x38u; row++) {
                 memcpy(page + 0x8270u + row * VIDEO_PAGE_W, src, 0x40u);
                 src += 0x40u;
             }
@@ -561,7 +561,7 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
     return 0;
 }
 
-int32_t scene_play_level_intro(uint32_t introIndex)
+uint8_t scene_play_level_intro(uint16_t introIndex)
 {
     /* cd_file_op's head (1000:AFFD): the ANIMATIONS board (cell 5,
      * [0x5E79]) non-zero RETs before any file op — cutscenes are off. */
@@ -591,7 +591,7 @@ int32_t scene_play_level_intro(uint32_t introIndex)
             _scene_phase = SCENE_DONE;
             return 0;
         }
-        _plays = (uint32_t)rd_le_u16(_script_buf) + 1u;
+        _plays = (uint16_t)(rd_le_u16(_script_buf) + 1u);
         if (2u + 768u + _plays * 2u > (uint32_t)script_size) {
             _scene_unload();
             _scene_phase = SCENE_DONE;
@@ -894,8 +894,8 @@ static void _boot_blit_sprite(const uint8_t *spr, uint32_t width,
     if (visible > width) visible = width;
     uint8_t *dst = page + pageYOff + x;
     const uint8_t *src = spr;
-    for (uint32_t row = 0; row < height; row++) {
-        for (uint32_t i = 0; i < visible; i++) {
+    for (uint16_t row = 0; row < height; row++) {
+        for (uint16_t i = 0; i < visible; i++) {
             uint8_t b = src[i];
             if (b) dst[i] = b; /* 0 = transparent */
         }
@@ -920,7 +920,7 @@ static void _boot_scroll_render(uint8_t *page, const uint8_t *bac,
                                 uint32_t bacSize, uint32_t scroll,
                                 uint32_t destOff)
 {
-    uint32_t ax = scroll % VIDEO_PAGE_W;
+    uint16_t ax = scroll % VIDEO_PAGE_W;
     uint32_t dx, bp, si, di = destOff;
     if (di != 0) {
         dx = VIDEO_PAGE_W - di;
@@ -931,14 +931,14 @@ static void _boot_scroll_render(uint8_t *page, const uint8_t *bac,
         bp = ax;
         si = ax;
     }
-    for (uint32_t i = 0; i < 0x5cu; i++) { /* 92 two-row pairs */
-        for (uint32_t j = 0; j < dx; j++) {
+    for (uint16_t i = 0; i < 0x5cu; i++) { /* 92 two-row pairs */
+        for (uint16_t j = 0; j < dx; j++) {
             if (si >= bacSize || di >= PAGE_SIZE) return;
             page[di++] = bac[si++];
         }
         di += bp;
         si += bp;
-        for (uint32_t j = 0; j < dx; j++) {
+        for (uint16_t j = 0; j < dx; j++) {
             if (si >= bacSize || di >= PAGE_SIZE) return;
             page[di++] = bac[si++];
         }
@@ -985,13 +985,13 @@ static void _boot_blit_record(const uint8_t *rsc, uint32_t rscSize,
         src = _obj_buf;
         srcSize = (uint32_t)sz;
     }
-    uint32_t width = rd_le_u16(src);
-    uint32_t height = rd_le_u16(src + 2);
+    uint16_t width = rd_le_u16(src);
+    uint16_t height = rd_le_u16(src + 2);
     const uint8_t *body = src + 4;
     uint32_t bodySize = srcSize - 4u;
     uint32_t di = dest;
-    for (uint32_t r = 0; r < height; r++) {
-        for (uint32_t i = 0; i < width && di + i < PAGE_SIZE; i++) {
+    for (uint16_t r = 0; r < height; r++) {
+        for (uint16_t i = 0; i < width && di + i < PAGE_SIZE; i++) {
             uint32_t so = (uint32_t)r * width + i;
             uint8_t b = so < bodySize ? body[so] : 0u; /* past the object: 0 */
             if (b) page[di + i] = b; /* 0 = transparent */
@@ -1059,7 +1059,7 @@ static uint32_t _boot_seek(const uint8_t *listBuf, uint32_t listSize,
                            uint32_t listStart, uint32_t frame)
 {
     uint32_t si = listStart;
-    for (uint32_t g = 0; g < frame && si + 2 <= listSize;) {
+    for (uint16_t g = 0; g < frame && si + 2 <= listSize;) {
         if (rd_le_u16(listBuf + si) == 0xFFFFu) {
             si += 2;
             g++;
@@ -1079,10 +1079,10 @@ static uint32_t _boot_seek(const uint8_t *listBuf, uint32_t listSize,
  */
 static void _boot_bar_draw(uint32_t arg)
 {
-    for (uint32_t r = 0; r < 16u; r++) {
+    for (uint16_t r = 0; r < 16u; r++) {
         uint8_t *dst = _boot_bar + r * VIDEO_PAGE_W;
         const uint8_t *src = _boot_words + arg * 600u + r * 40u;
-        for (uint32_t x = 0; x < VIDEO_PAGE_W; x++) {
+        for (uint16_t x = 0; x < VIDEO_PAGE_W; x++) {
             uint8_t b = src[x / 8u];
             dst[x] = ((b >> (7u - (x % 8u))) & 1u) ? (uint8_t)(0xE0u + r) : 0u;
         }
@@ -1226,7 +1226,7 @@ static int32_t _boot_gt_pre(void)
      * 256 entries at BP=0x19 — would show the 4-19 dark reds/teals
      * instead: the wrong colours.) */
     {
-        uint32_t idx = rd_le_u16(_boot_gt_list + 0x302u);
+        uint16_t idx = rd_le_u16(_boot_gt_list + 0x302u);
         _boot_gt_show(idx);
     }
     /* b26a: the boot's first fade — the fast branch ([0x627C] is set for
@@ -1252,14 +1252,14 @@ static int32_t _boot_gt_frame(void)
      * count+1 frames including the last (obj 29), whose expansion
      * wipes the assembled logo down to a small entry-8 blob; that
      * vanish-and-blob is authentic machine behavior. */
-    uint32_t count = rd_le_u16(_boot_gt_list);
+    uint16_t count = rd_le_u16(_boot_gt_list);
     if (_boot_gt_group > count) {
         _boot_hold = 30u; /* bf19: the 30-tick pre-bank hold */
         _boot_phase = BOOT_GT_BANK_HOLD;
         return 1;
     }
     {
-        uint32_t idx = rd_le_u16(_boot_gt_list + 0x302u + _boot_gt_group * 2u);
+        uint16_t idx = rd_le_u16(_boot_gt_list + 0x302u + _boot_gt_group * 2u);
         if (!_boot_gt_show(idx)) {
             /* the game's b446->b2c4: a failed decode (the checksum!)
              * unwinds play_scene_sequence — the remaining groups are
@@ -1356,9 +1356,9 @@ static int32_t _boot_frame_step(void)
      * the white flash (the 0x48BC ramp at BP=2), then the words redraw
      * and the fade back.  It blocks the frame loop in the original. */
     {
-        uint32_t ti = script_transition_index(&_boot_script);
+        uint16_t ti = script_transition_index(&_boot_script);
         if ((int32_t)ti != _boot_bar_arg) {
-            _boot_bar_arg = (int32_t)ti;
+            _boot_bar_arg = (int8_t)ti;
             /* b840-b852: the white ramp — 0x3F everywhere but entry 0
              * (bytes 0x48BC-0x48BE are never filled) and the 0xE0-0xEF
              * bank (zeroed: the captions stay black through the flash) */
@@ -1407,7 +1407,7 @@ static int32_t _boot_frame_step(void)
     return 1;
 }
 
-int32_t scene_play_boot_intro(void)
+uint8_t scene_play_boot_intro(void)
 {
     if (_boot_phase == BOOT_DONE) {
         _scene_fast = 0;
@@ -1415,9 +1415,9 @@ int32_t scene_play_boot_intro(void)
     } /* 1000:B623 */
 
     switch (_boot_phase) {
-    case BOOT_START: return _boot_start();
+    case BOOT_START: return (uint8_t)(_boot_start());
 
-    case BOOT_GT_PRE: return _boot_gt_pre();
+    case BOOT_GT_PRE: return (uint8_t)(_boot_gt_pre());
 
     case BOOT_GT_FADE0:
         if (palette_fade_active()) return 1;
@@ -1425,7 +1425,7 @@ int32_t scene_play_boot_intro(void)
         _boot_phase = BOOT_GT_FRAME;
         return 1;
 
-    case BOOT_GT_FRAME: return _boot_gt_frame();
+    case BOOT_GT_FRAME: return (uint8_t)(_boot_gt_frame());
 
     case BOOT_GT_FLIP:
         /* the cadence's remaining tick: wait_flag_timeout (b2d3)'s boot
@@ -1634,9 +1634,9 @@ int32_t scene_play_boot_intro(void)
     case BOOT_BLACK:
         if (_boot_abort_poll()) return 1; /* c0b8's c0c6 poll (b707) */
         if (--_dwell_ticks > 0) return 1;
-        return _boot_black();
+        return (uint8_t)(_boot_black());
 
-    case BOOT_FRAME: return _boot_frame_step();
+    case BOOT_FRAME: return (uint8_t)(_boot_frame_step());
 
     case BOOT_WAIT:
         if (--_boot_wait_ticks == 0) {

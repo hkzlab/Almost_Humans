@@ -77,6 +77,22 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    /* 2a76..2a95: the marquee phase is the 0x160 word [0xf9e].  A byte-sized
+     * copy wrapped at 0x100 and the bird stopped half-way across the screen. */
+    {
+        uint16_t src_lo = 0, dhi_lo = 0, src_hi = 0, dhi_hi = 0;
+
+        party_intro_marquee_for_probe(0xFFu, 3u, &src_lo, &dhi_lo);
+        party_intro_marquee_for_probe(0x100u, 3u, &src_hi, &dhi_hi);
+        if (dhi_lo != 0x2260u + 0xFFu / 4u || dhi_hi != 0x2260u + 0x100u / 4u ||
+            src_lo != (uint16_t)((3u * 4u + 3u) * 320u) ||
+            src_hi != (uint16_t)((3u * 4u) * 320u)) {
+            printf("PARTY: FAIL the marquee phase is not a word "
+                   "(dhi %04X/%04X)\n", dhi_lo, dhi_hi);
+            return 1;
+        }
+    }
+
     char path[512];
     uint8_t *bit, *page, *vgapage;
     uint32_t sz = 0;

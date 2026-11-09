@@ -63,7 +63,7 @@ int32_t attract_init(const OSystem *osys);
  * @param in the input state
  * @return 1 while the attract cycle is playing
  */
-int32_t attract_tick(const InputState *in);
+uint8_t attract_tick(const InputState *in);
 
 /**
  * @brief Accessor: the attract phase (the tests' phase read).

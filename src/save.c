@@ -41,7 +41,7 @@
 #define SAVE_HDR 0x0Du           /* the 13-byte header               */
 
 static uint8_t _save_buf[SAVE_LEN];   /* the [0x1C92] buffer          */
-static int32_t _save_loaded;          /** [0x34]: a save is present    */
+static uint8_t _save_loaded;          /** [0x34]: a save is present    */
 
 /* The backend (and through it the filesystem module); save_init binds it. */
 static const OSystem *_save_osys;
@@ -52,7 +52,7 @@ int32_t save_init(const OSystem *osys)
     return 0;
 }
 
-int32_t save_load_slot(uint32_t slot)
+uint8_t save_load_slot(uint8_t slot)
 {
     _save_loaded = 0;
     memset(_save_buf, 0, sizeof _save_buf);
@@ -69,28 +69,28 @@ int32_t save_load_slot(uint32_t slot)
 
 void save_consume(void) { _save_loaded = 0; }
 
-int32_t save_present(void) { return _save_loaded; }
+uint8_t save_present(void) { return _save_loaded; }
 uint16_t save_level(void) { return rd_le_u16(_save_buf + 0x00); }
 uint16_t save_time(void) { return rd_le_u16(_save_buf + 0x07); }
-uint32_t save_members(void) { return rd_le_u16(_save_buf + 0x0B); }
+uint16_t save_members(void) { return rd_le_u16(_save_buf + 0x0B); }
 const uint8_t *save_blob(void) { return _save_buf; }
 
-int32_t save_write_slot(uint32_t slot, uint32_t level, uint16_t timeWord,
-                        uint32_t members)
+int32_t save_write_slot(uint8_t slot, uint16_t level, uint16_t timeWord,
+                        uint16_t members)
 {
     static uint8_t out[SAVE_LEN];
 
     if (slot == 0u || slot > 20u) return 0;
 
     memset(out, 0, sizeof out);
-    wr_le_u16(out + 0x00u, (uint16_t)level);
+    wr_le_u16(out + 0x00u, level);
     wr_le_u16(out + 0x02u, score_total_lo());
     wr_le_u16(out + 0x04u, score_total_hi());
     out[0x06] = (uint8_t)object_action_program();   /* [0x5B56] */
     wr_le_u16(out + 0x07u, timeWord);               /* BCD sec  | min    */
     out[0x09] = (uint8_t)statusbar_tribe_digit(0u);  /* [0x5B25] */
     out[0x0A] = (uint8_t)statusbar_tribe_digit(1u);  /* [0x5B26] */
-    wr_le_u16(out + 0x0Bu, (uint16_t)members);
+    wr_le_u16(out + 0x0Bu, members);
 
     object_save_table(out + 0x000Du);          /* 0x3E20, 0x25F          */
     object_save_pool(out + 0x026Cu);           /* 0x6F20, 0x13CA         */

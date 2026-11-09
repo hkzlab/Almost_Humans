@@ -10,16 +10,17 @@
  * target and clears the active flag once every component reached it. */
 #include "palette.h"
 #include "osystem.h"
+#include "width.h"
 
 static const OSystem *_pal_osys;
 static uint8_t _working[768];   /* 202F:0x4BBC — the _working palette       */
 static uint8_t _dac[768];       /* the DAC's 6-bit shadow (8bac's IN 3C9h) */
 
 /* the fade state: 202F:0x48B0/48B2/48B6/48B8 + the 0x4EBC _ramp          */
-static uint32_t _fade_first;    /* [0x48B8]: the DAC's first entry    */
-static uint32_t _fade_comps;    /* [0x48B0]: components (entries * 3) */
+static uint16_t _fade_first;    /* [0x48B8]: the DAC's first entry    */
+static uint16_t _fade_comps;    /* [0x48B0]: components (entries * 3) */
 static const uint8_t *_fade_target;   /* [0x48B6]: the target palette bytes */
-static int32_t _fade_active;   /* [0x48B4]                           */
+static uint8_t _fade_active;   /* [0x48B4]                           */
 static uint16_t _ramp[768][2]; /** [0x4EBC]: {cur<<8, delta<<8}       */
 
 int32_t palette_init(const OSystem *osys)
@@ -30,17 +31,17 @@ int32_t palette_init(const OSystem *osys)
 
 void palette_load_working(const uint8_t *p6)
 {
-    for (uint32_t i = 0; i < 768u; i++) _working[i] = p6[i] & 0x3Fu;
+    for (uint16_t i = 0; i < 768u; i++) _working[i] = p6[i] & 0x3Fu;
 }
 
 const uint8_t *palette_working(void) { return _working; }
 
 void palette_seal_triples(uint8_t *p6, uint32_t first, uint32_t entries)
 {
-    for (uint32_t i = 0; i < entries; i++) {
-        uint32_t at = (first + i) * 3u;
-        uint32_t r = p6[at], g = p6[at + 1u], b = p6[at + 2u];
-        uint32_t v = (77u * r + 151u * g + 28u * b) >> 9;
+    for (uint16_t i = 0; i < entries; i++) {
+        uint16_t at = (uint16_t)((first + i) * 3u);
+        uint8_t r = p6[at], g = p6[at + 1u], b = p6[at + 2u];
+        uint8_t v = (77u * r + 151u * g + 28u * b) >> 9;
 
         p6[at] = p6[at + 1u] = p6[at + 2u] = (uint8_t)v;
     }
@@ -48,17 +49,17 @@ void palette_seal_triples(uint8_t *p6, uint32_t first, uint32_t entries)
 
 void palette_set_dac(const uint8_t *p6, uint32_t first, uint32_t n)
 {
-    for (uint32_t i = 0; i < n * 3u; i++) _dac[first * 3u + i] = p6[i] & 0x3Fu;
+    for (uint16_t i = 0; i < n * 3u; i++) _dac[first * 3u + i] = p6[i] & 0x3Fu;
     _pal_osys->videoSetPalette(p6, first, n);
 }
 
-void palette_build_fade(uint32_t first, uint32_t entries, uint32_t div,
+void palette_build_fade(uint16_t first, uint16_t entries, uint16_t div,
                         const uint8_t *target)
 {
     _fade_first = first;
-    _fade_comps = entries * 3u;
+    _fade_comps = u16(entries * 3u);
     _fade_target = target;
-    for (uint32_t c = 0; c < _fade_comps; c++) {
+    for (uint16_t c = 0; c < _fade_comps; c++) {
         uint32_t cur = _dac[first * 3u + c];
         uint32_t tgt = target[c];
         _ramp[c][0] = (uint16_t)(cur << 8);
@@ -68,18 +69,18 @@ void palette_build_fade(uint32_t first, uint32_t entries, uint32_t div,
     _fade_active = 1;
 }
 
-int32_t palette_fade_active(void) { return _fade_active; }
+uint8_t palette_fade_active(void) { return _fade_active; }
 
 const uint8_t *palette_dac_shadow(void) { return _dac; }
 const uint8_t *palette_fade_target(void) { return _fade_target; }
-uint32_t palette_fade_first(void) { return _fade_first; }
-uint32_t palette_fade_comps(void) { return _fade_comps; }
+uint16_t palette_fade_first(void) { return _fade_first; }
+uint16_t palette_fade_comps(void) { return _fade_comps; }
 
 void palette_tick(void)
 {
     if (!_fade_active) return;
-    uint32_t done = 0;
-    for (uint32_t c = 0; c < _fade_comps; c++) {
+    uint16_t done = 0;
+    for (uint16_t c = 0; c < _fade_comps; c++) {
         uint16_t cur = _ramp[c][0];
         uint8_t t = _fade_target[c];
         uint8_t v = (uint8_t)(cur >> 8);

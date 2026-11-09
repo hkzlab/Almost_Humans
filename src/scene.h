@@ -23,7 +23,7 @@ int32_t scene_init(const OSystem *osys);
  * @param introIndex the intro scene index
  * @return 1 while the newspaper is still showing
  */
-int32_t scene_play_level_intro(uint32_t introIndex);
+uint8_t scene_play_level_intro(uint16_t introIndex);
 
 /**
  * @brief Test seam: skip the intro's per-frame waits.
@@ -35,7 +35,7 @@ int32_t scene_play_level_intro(uint32_t introIndex);
  *
  * @param on the on/off flag
  */
-void scene_set_fast_mode(int32_t on);
+void scene_set_fast_mode(uint8_t on);
 
 /** @brief Start a NEW cutscene on the next scene_play_level_intro call: cd_file_op has
  * no cache of its own, so two consecutive levels with the same intro index
@@ -60,7 +60,7 @@ void scene_reset_intro(void);
  *
  * @return 1 while the boot intro is still showing
  */
-int32_t scene_play_boot_intro(void);
+uint8_t scene_play_boot_intro(void);
 
 /**
  * @brief Latch this tick's input for the scene waits.

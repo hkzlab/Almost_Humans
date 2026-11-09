@@ -61,7 +61,7 @@ static const char *_dump_name[] = {
     "flow_8950_level_c",  "flow_9100_level_d", "flow_9250_level_e"
 };
 
-static int32_t _saw_pause;
+static uint8_t _saw_pause;
 /* the goal page (scroll_map 1000:9E51): the actor must not move while it is
  * up even with a direction held, and the page must be seen at all */
 static int32_t _saw_goal, _goal_moved, _goal_ticks, _goal_x;

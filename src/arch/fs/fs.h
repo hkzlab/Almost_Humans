@@ -45,7 +45,7 @@ typedef struct FSVolume FSVolume;
 typedef struct FSSave FSSave;
 
 typedef struct FSModule {
-    FSVolume *(*openVolume)(uint32_t disc);
+    FSVolume *(*openVolume)(uint16_t disc);
     void (*closeVolume)(FSVolume *v);
     uint32_t (*volumeSize)(FSVolume *v);
     uint32_t (*read)(FSVolume *v, uint32_t off, uint8_t *dst, uint32_t n);

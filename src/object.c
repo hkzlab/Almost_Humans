@@ -395,12 +395,12 @@ int32_t object_stack_scan_dissolve(uint32_t recIndex);
 static void _obj_cmd_fall(uint8_t *actor, int32_t x, int32_t y, uint32_t frame);
 
 static uint8_t _obj_array[OBJ_SLOTS * OBJ_STRIDE];
-static int32_t _obj_current = -1; /* [0x1AF2], -1 = none */
-static int32_t _obj_player = -1; /* [0x180A], -1 = none */
-static uint32_t _obj_live_count =
+static int16_t _obj_current = -1; /* [0x1AF2], -1 = none */
+static int16_t _obj_player = -1; /* [0x180A], -1 = none */
+static uint16_t _obj_live_count =
     OBJ_LIVE0; /* [0x3E73]: the array's used slots     */
-static uint32_t _obj_placed_humans; /* [0x3E20]: the 0xAA handlers' count   */
-static uint32_t _obj_entity; /* [0x3E22]: the acting record          */
+static uint16_t _obj_placed_humans; /* [0x3E20]: the 0xAA handlers' count   */
+static uint16_t _obj_entity; /* [0x3E22]: the acting record          */
 static uint16_t _obj_cmd_timer; /* [0x6DEA]: the command one-shot */
 static uint16_t _obj_stream_count; /* [0x6DEC]: stream hold countdown */
 static const uint8_t *_obj_stream_ptr; /* [0x6DEE]: the script stream    */
@@ -409,14 +409,14 @@ static const uint8_t *_obj_stream_ptr; /* [0x6DEE]: the script stream    */
  * set_camera_from (1000:C8A4) reads the very bits the stack pushes and the
  * 1000:F423 attach box set, and carries the marked records with the patrol. */
 static int16_t _obj_side; /* [0x4230]: which side the settle stepped from */
-static int32_t _obj_lat; /* [0x6F1D]: sequence owns input */
-static uint32_t _obj_bg_count;
-static uint32_t _obj_pending; /* [0x1979]                             */
-static uint32_t _obj_cursor = 1; /* [0x1988]                             */
+static uint8_t _obj_lat; /* [0x6F1D]: sequence owns input */
+static uint8_t _obj_bg_count;
+static uint8_t _obj_pending; /* [0x1979]                             */
+static uint8_t _obj_cursor = 1; /* [0x1988]                             */
 /* [0x1987] / the port's "inside 0x36DB" state: the turn arms the flag
  * (1000:EE35) and the pending-event 4 charge loop consumes it (1000:370C). */
 static uint8_t _obj_charge_arm;
-static int32_t _obj_charging;
+static uint8_t _obj_charging;
 /* [0x5ACE] latched when event 4 starts: the original's 0x36DB loop does not
  * poll input, so every update_world reuses the press frame's word.  The live
  * charge has the fire bit set and [0x13A4] clear. */
@@ -436,11 +436,11 @@ static uint16_t _obj_span[2][14]; /* 0x6F92, 2 x 0x1C: {id, .. +6, +8, +0x12} */
 static uint16_t _obj_span_top[2];
 /* [0x6530]: count_tile_collisions' level-complete flag (1000:C438). */
 static uint8_t _obj_goal_flag;
-static int32_t _obj_anim_div; /* [0x66B1]: the 6-tick divider */
+static uint8_t _obj_anim_div; /* [0x66B1]: the 6-tick divider */
 /* 0x67F1's pending-move chain: tag, phase-2 countdown, slot, phase-1
  * divider/index/cursor into the 0x67FF (offset, divider) table. */
 static uint16_t _pend_tag, _pend_count, _pend_slot, _pend_index, _pend_cursor;
-static int32_t _pend_div;
+static uint8_t _pend_div;
 static const int16_t _obj_anim_x[6][15][9] = {
     {
         /* length 3 */
@@ -603,11 +603,11 @@ static void _obj_class_byte_set(uint32_t b, uint8_t value)
         return;
     }
     if (b == 0x15u) {
-        _obj_live_count = (_obj_live_count & ~0xFFu) | value;
+        _obj_live_count = (uint16_t)((_obj_live_count & 0xFF00u) | value);
         return;
     }
     if (b == 0x16u) {
-        _obj_live_count = (_obj_live_count & ~0xFF00u) | ((uint32_t)value << 8);
+        _obj_live_count = (uint16_t)((_obj_live_count & 0x00FFu) | ((uint16_t)value << 8));
         return;
     }
     _obj_array[b - 0x17u] = value;
@@ -638,14 +638,15 @@ static const uint8_t _obj_recipes[4][12] = {
 static uint8_t _obj_uses[4]; /* the live copy of [DI+0] */
 
 /* the frame counter the low-phase predicate gates on ([0x4103]) */
-static uint32_t _obj_frame;
-static uint32_t _low_phase_count; /* [0x1976]: 0x8C = 140 */
+static uint16_t _obj_frame;
+static uint16_t _low_phase_count; /* [0x1976]: 0x8C = 140 */
 
-static int32_t _claim_phase = CLAIM_OFF;
-static int32_t _claim_neighbour = -1;
-static uint32_t _claim_behav, _claim_sprite;
-static uint32_t _claim_params[4];
-static uint32_t _claim_blinks, _claim_timer;
+static uint8_t _claim_phase = CLAIM_OFF;
+static int8_t _claim_neighbour = -1;
+static uint8_t _claim_behav;
+static uint16_t _claim_sprite;
+static uint16_t _claim_params[4];
+static uint8_t _claim_blinks, _claim_timer;
 static uint8_t _claim_red[768], _claim_white[768];
 
 /* 202F:0x1EB3, the tile ids the walk matches, in table order. */
@@ -657,7 +658,7 @@ static const uint8_t _obj_tiles[25] = {
 
 /* 0xBE / 0xBF's hand-off: 0xBE keeps the record it appended (`0x1F1C`) and the
  * slot 0xBF joins into (`0x1F1E`); the port keeps the record index. */
-static int32_t _obj_join_slot = -1;
+static int8_t _obj_join_slot = -1;
 
 static const ObjSprite _obj_sprites[OBJ_FRAME_SLOTS] = {
     /* 000 */ { 12416, 24, 0, 1 },
@@ -1090,7 +1091,8 @@ static const uint8_t _obj_overlay_ent[0x240] = {
  * the water-hole sprites.  The image's own slots are zero there, which is why
  * the generator leaves them blank; the live table holds the G pointers. */
 static const uint8_t *_obj_g_sprites;
-static uint32_t _obj_g_blocks, _obj_gn;
+static uint16_t _obj_g_blocks;
+static uint8_t _obj_gn;
 static const uint8_t *_obj_e_sprite, *_obj_h_sprites;
 
 /* --- 1000:5C2F draw_objects_pass2: the two TER.DAT slots (DS:0x649A) ----
@@ -1169,17 +1171,17 @@ static const uint8_t _obj_type_run[0x5F] = {
 static uint32_t _obj_ds_word_byte(uint16_t w, uint32_t i)
 { return ((uint32_t)w >> (8u * (i & 1u))) & 0xFFu; }
 
-int32_t object_type_blocked(uint32_t type)
+uint8_t object_type_blocked(uint32_t type)
 {
     if (type < sizeof _obj_type_run) return _obj_type_run[type] != 0u;
     if (type < 0xCFu) {
-        uint32_t n = type - 0x5Fu;
+        uint8_t n = (uint8_t)(type - 0x5Fu);
 
         return _obj_ds_word_byte(_obj_register[n / 14u][(n % 14u) / 2u], n) !=
                0u;
     }
     if (type <= 0xFFu) {
-        uint32_t n = type - 0xCFu;
+        uint8_t n = (uint8_t)(type - 0xCFu);
 
         return _obj_ds_word_byte(_obj_span[n / 28u][(n % 28u) / 2u], n) != 0u;
     }
@@ -1272,8 +1274,8 @@ static const int8_t _obj_proj_curve[25] = {
 /* 0x6531: cmd 9's mode flag (zero in the image; the port keeps it too). */
 static uint8_t _obj_marker_mode;
 
-void object_set_marker_mode(int32_t on) { _obj_marker_mode = on ? 1u : 0u; }
-int32_t object_marker_mode(void) { return _obj_marker_mode; }
+void object_set_marker_mode(uint8_t on) { _obj_marker_mode = on ? 1u : 0u; }
+uint8_t object_marker_mode(void) { return _obj_marker_mode; }
 
 
 /* DS:0x1C76 (behaviour -> program - 1) and DS:0x5B81 (behaviour -> the
@@ -1667,7 +1669,7 @@ static uint8_t _obj_out_state, _obj_out_state_hi;
  * so the fire column keeps reaching `1000:EE07` (D-80). */
 static uint8_t _obj_action_latch;
 
-static uint32_t _obj_sfx; /* the last `1000:83B7` driver argument     */
+static uint8_t _obj_sfx; /* the last `1000:83B7` driver argument     */
 static uint16_t _obj_pt_x,
     _obj_pt_y; /* [0x4224] / [0x4226]                      */
 static uint16_t _obj_aux; /* [0x4228]                                */
@@ -1836,12 +1838,12 @@ static uint32_t _obj_program_id(void)
 static uint8_t *_obj_actor(void)
 { return _obj_array + _obj_entity * OBJ_STRIDE; }
 
-uint32_t object_static_slots(void) { return OBJ_STATIC; }
+uint8_t object_static_slots(void) { return OBJ_STATIC; }
 
 void object_init(void)
 {
     memset(_obj_array, 0, sizeof _obj_array);
-    for (uint32_t i = 0; i < OBJ_SLOTS; i++) {
+    for (uint16_t i = 0; i < OBJ_SLOTS; i++) {
         uint8_t *r = _obj_array + i * OBJ_STRIDE;
         wr_le_u16(r + 0u, 0xFFFFu);
         wr_le_u16(r + 2u, 0xFFFFu);
@@ -1875,18 +1877,18 @@ void object_init(void)
            sizeof _obj_span); /* 0x6F92: 0x38 bytes at 0x60FF */
     memset(_obj_span_top, 0, sizeof _obj_span_top);
     _obj_goal_flag = 0u; /* [0x6530] */
-    for (uint32_t i = 0; i < 4u; i++) _obj_uses[i] = _obj_recipes[i][0];
+    for (uint16_t i = 0; i < 4u; i++) _obj_uses[i] = _obj_recipes[i][0];
     object_ter_slot_init(); /* 1000:4CC3/4CC6: both slots off */
 }
 
-uint32_t object_placed_humans(void) { return _obj_placed_humans; }
+uint16_t object_placed_humans(void) { return _obj_placed_humans; }
 
 uint8_t *object_slot(uint32_t i)
 { return i < OBJ_SLOTS ? _obj_array + i * OBJ_STRIDE : NULL; }
 
 uint32_t object_slots(void) { return OBJ_SLOTS; }
 
-uint32_t object_live_count(void) { return _obj_live_count; }
+uint16_t object_live_count(void) { return _obj_live_count; }
 
 uint8_t object_slot_class(uint32_t slot) { return _obj_class_byte_at(slot); }
 
@@ -1920,14 +1922,14 @@ void object_set_slot_class(uint32_t slot, uint32_t cls)
 uint8_t object_beh_state_for_probe(uint32_t beh)
 { return _obj_beh_state[beh & 0x3Fu]; }
 
-int32_t object_current(void) { return _obj_current; }
+int16_t object_current(void) { return _obj_current; }
 
-void object_set_current(int32_t slot)
+void object_set_current(int16_t slot)
 { _obj_current = (slot >= 0 && (uint32_t)slot < OBJ_SLOTS) ? slot : -1; }
 
-int32_t object_player(void) { return _obj_player; }
+int16_t object_player(void) { return _obj_player; }
 
-void object_set_player(int32_t slot)
+void object_set_player(int16_t slot)
 { _obj_player = (slot >= 0 && (uint32_t)slot < OBJ_SLOTS) ? slot : -1; }
 
 /* --- object_test_dispatch's predicates (1000:35D6) ---------------------
@@ -1946,23 +1948,23 @@ void object_set_player(int32_t slot)
  * The convention is the original's: -1 = true, 0 = false.  Every handler runs
  * against SI = the current record, i.e. what `object_current()` selects. */
 
-int32_t object_none_type1d(void)
+int16_t object_none_type1d(void)
 {
-    for (uint32_t i = 0; i < OBJ_STATIC; i++)
+    for (uint16_t i = 0; i < OBJ_STATIC; i++)
         if (rd_le_u16(_obj_array + i * OBJ_STRIDE + 8u) == 0x1Du) return 0;
     return -1;
 }
 
-int32_t object_class_matches(uint32_t want)
+int16_t object_class_matches(uint32_t want)
 {
-    uint32_t b;
+    uint8_t b;
 
     b = _obj_actor()[7u];
     if (!b) return 0;
     return ((_obj_class_byte_at(b) & 0x3Fu) == (uint8_t)want) ? -1 : 0;
 }
 
-int32_t object_type_equals(uint32_t type)
+int16_t object_type_equals(uint32_t type)
 { return rd_le_u16(_obj_actor() + 8u) == type ? -1 : 0; }
 
 /* 0xF761's map addressing for a record: `cell = 32*((y+0xC)&0xFFF0)/16 +
@@ -2040,8 +2042,8 @@ static void _obj_map_put(uint8_t *map, uint32_t idx, uint8_t value)
 static uint32_t _obj_map_cell_index(const uint8_t *rec)
 {
     /* 1000:E361: ADD AX,[SI] / ADD BX,[SI+2] are 16-bit, ADD DI,BX is 16-bit. */
-    uint32_t x = (uint32_t)(uint16_t)(rd_le_u16(rec + 0u) + 8u);
-    uint32_t y = (uint32_t)(uint16_t)(rd_le_u16(rec + 2u) + 0xCu);
+    uint16_t x = (uint16_t)(uint16_t)(rd_le_u16(rec + 0u) + 8u);
+    uint16_t y = (uint16_t)(uint16_t)(rd_le_u16(rec + 2u) + 0xCu);
 
     if (!level_map()) return 0xFFFFu;
     /* 1000:E369: MOV DI,BX / ADD DI,BX is 16-bit, so 2*y wraps. */
@@ -2066,24 +2068,24 @@ uint32_t object_record_map_cell(uint32_t slot)
     return _obj_map_cell(_obj_array + slot * OBJ_STRIDE);
 }
 
-int32_t object_map_cell_equals(uint32_t want)
+int16_t object_map_cell_equals(uint32_t want)
 {
     if (rd_le_u16(_obj_actor() + 8u) > 2u) return 0;
     return _obj_map_cell(_obj_actor()) == (uint16_t)want ? -1 : 0;
 }
 
-int32_t object_entities_finished(void)
+int16_t object_entities_finished(void)
 {
-    uint32_t n = entity_count();
+    uint16_t n = entity_count();
 
-    for (uint32_t i = 0; i < n; i++) {
+    for (uint16_t i = 0; i < n; i++) {
         const Entity *e = entity_at(i);
         if (e && e->handler != 5u) return 0;
     }
     return -1;
 }
 
-int32_t object_low_phase_match(void)
+int16_t object_low_phase_match(void)
 {
     static uint32_t lastFrame = ~0u;
 
@@ -2096,8 +2098,8 @@ int32_t object_low_phase_match(void)
          * 0xA8 counts; the earlier reading of this as a `[0x1996]` byte was
          * wrong - see re_history.md. */
         const uint8_t *map = level_map();
-        uint32_t cell = _obj_map_cell_index(_obj_actor());
-        int32_t goal = map != NULL &&
+        uint16_t cell = (uint16_t)(_obj_map_cell_index(_obj_actor()));
+        uint8_t goal = map != NULL &&
                        _obj_map_buffer_byte((int32_t)cell) == 0xA8u;
 
         /* 1000:3624: the original reads `[DI+0x20]` with no wrap, and for the
@@ -2124,7 +2126,7 @@ int32_t object_low_phase_match(void)
  */
 static void _claim_fill_ramp(uint8_t *ramp, uint32_t r, uint32_t g, uint32_t b)
 {
-    for (uint32_t i = 0; i < 256u; i++) {
+    for (uint16_t i = 0; i < 256u; i++) {
         ramp[i * 3u] = (uint8_t)r;
         ramp[i * 3u + 1u] = (uint8_t)g;
         ramp[i * 3u + 2u] = (uint8_t)b;
@@ -2141,7 +2143,7 @@ int32_t object_find_neighbour(int32_t actor)
     cx = (int16_t)rd_le_u16(cur + 0u);
     cy = (int16_t)rd_le_u16(cur + 2u);
 
-    for (uint32_t i = 0; i < OBJ_STATIC; i++) {
+    for (uint16_t i = 0; i < OBJ_STATIC; i++) {
         const uint8_t *r = _obj_array + i * OBJ_STRIDE;
         int32_t dx, dy;
 
@@ -2162,7 +2164,7 @@ int32_t object_claim_begin(uint32_t recipe, int32_t actor)
 {
     int32_t n;
     uint8_t *rec, *live;
-    uint32_t cls;
+    uint8_t cls;
 
     if (actor < 0 || (uint32_t)actor >= OBJ_STATIC) return -1;
     if (recipe >= 4u) return -1;
@@ -2179,7 +2181,7 @@ int32_t object_claim_begin(uint32_t recipe, int32_t actor)
         live = _obj_array + (OBJ_LIVE0 + cls) * OBJ_STRIDE;
         wr_le_u16(live + 6u, 0xFFFFu); /* 0x3F17 + 0x12*(cls-1) */
     }
-    object_set_current(n); /* 1000:3B03 */
+    object_set_current((int16_t)(n)); /* 1000:3B03 */
     wr_le_u16(rec + 4u, 0x0103u); /* 1000:3B07 */
     wr_le_u16(rec + 6u, 0u); /* 1000:3B0D */
     wr_le_u16(_obj_array + actor * OBJ_STRIDE + 4u, 0x0020u); /* 1000:3B13 */
@@ -2195,10 +2197,10 @@ int32_t object_claim_begin(uint32_t recipe, int32_t actor)
     _obj_uses[recipe]--;
     _claim_behav = _obj_recipes[recipe][1];
     _claim_sprite = rd_be_u16(_obj_recipes[recipe] + 2u);
-    for (uint32_t k = 0; k < 4u; k++)
+    for (uint16_t k = 0; k < 4u; k++)
         _claim_params[k] = rd_le_u16(_obj_recipes[recipe] + 4u + 2u * k);
 
-    _claim_neighbour = n;
+    _claim_neighbour = (int8_t)(n);
     _claim_blinks = 10u; /* 1000:3BAC */
     _claim_timer = 0u;
     _claim_fill_ramp(_claim_red, 0x3Fu, 0u, 0u); /* 1000:3B4F: AX=0, BL=0x3F */
@@ -2209,18 +2211,18 @@ int32_t object_claim_begin(uint32_t recipe, int32_t actor)
     return n;
 }
 
-int32_t object_claim_active(void) { return _claim_phase != CLAIM_OFF; }
+uint8_t object_claim_active(void) { return _claim_phase != CLAIM_OFF; }
 
-int32_t object_claim_pan_active(void) { return _claim_phase == CLAIM_PAN; }
+uint8_t object_claim_pan_active(void) { return _claim_phase == CLAIM_PAN; }
 
-int32_t object_claim_anim_active(void) { return _claim_phase == CLAIM_ANIM; }
+uint8_t object_claim_anim_active(void) { return _claim_phase == CLAIM_ANIM; }
 
-int32_t object_claim_flip_active(void) { return _claim_phase == CLAIM_FLIP; }
+uint8_t object_claim_flip_active(void) { return _claim_phase == CLAIM_FLIP; }
 
-int32_t object_claim_page_frozen(void)
+uint8_t object_claim_page_frozen(void)
 { return _claim_phase >= CLAIM_WHITE_BACK; }
 
-int32_t object_claim_settle_active(void)
+uint8_t object_claim_settle_active(void)
 { return _claim_phase == CLAIM_SETTLE; }
 
 void object_claim_tick(const uint8_t *levelPal)
@@ -2375,9 +2377,9 @@ void object_claim_tick(const uint8_t *levelPal)
  */
 static int32_t _obj_place_human(uint32_t col, uint32_t row)
 {
-    uint32_t y = row * 16u + _obj_style_nudge(NULL, col, row) - 7u;
+    uint16_t y = (uint16_t)(row * 16u + _obj_style_nudge(NULL, col, row) - 7u);
 
-    for (uint32_t i = 0; i < OBJ_STATIC; i++) {
+    for (uint16_t i = 0; i < OBJ_STATIC; i++) {
         uint8_t *r = _obj_array + i * OBJ_STRIDE;
         if (!(r[6] & 0x80u)) continue;
         wr_le_u16(r + 0u, (uint16_t)(col * 16u));
@@ -2463,7 +2465,7 @@ static void _obj_spawn_be(uint32_t col, uint32_t row)
     wr_le_u16(r + 0xEu, 0x0001u);
     _obj_slot_class[_obj_live_count - 7u] = 2u;
     _obj_join_slot =
-        (int32_t)(_obj_live_count + 1u); /* the record, not the count */
+        (int8_t)(_obj_live_count + 1u); /* the record, not the count */
     _obj_live_count++;
 }
 
@@ -2494,7 +2496,7 @@ static void _obj_spawn_c0(uint32_t col, uint32_t row)
      * static slots are full, and 1000:553A stores SI in [0x180A] regardless.
      * Unreachable in the 160 shipped levels (the worst 0xC0 map needs all
      * eight), but the store has no guard in the listing. */
-    _obj_player = slot >= 0 ? slot : (int32_t)OBJ_LIVE0;
+    _obj_player = slot >= 0 ? (int16_t)(slot) : (int32_t)OBJ_LIVE0;
 }
 
 /**
@@ -2541,7 +2543,7 @@ static void _obj_write_pair(uint32_t tile, uint32_t x, uint32_t y)
         wr_le_u16(e + 2u, (uint16_t)y);
         wr_le_u16(e + 4u, (uint16_t)x);
         wr_le_u16(e + 6u, (uint16_t)y);
-        for (uint32_t i = 0xCu; i <= 0x12u; i += 2u) /* 1000:531E..0x532B */
+        for (uint16_t i = 0xCu; i <= 0x12u; i += 2u) /* 1000:531E..0x532B */
             wr_le_u16(e + i, 0u);
     } else {
         wr_le_u16(e + 8u, (uint16_t)x); /* 1000:5332/0x535A */
@@ -2559,7 +2561,7 @@ static void _obj_write_pair(uint32_t tile, uint32_t x, uint32_t y)
  */
 static void _obj_spawn_b6(uint32_t col, uint32_t row)
 {
-    for (uint32_t i = 0; i < OBJ_STATIC; i++) {
+    for (uint16_t i = 0; i < OBJ_STATIC; i++) {
         uint8_t *r = _obj_array + i * OBJ_STRIDE;
 
         if (!(r[6] & 0x80u)) continue;
@@ -2592,23 +2594,23 @@ static void _obj_spawn_b6(uint32_t col, uint32_t row)
 static void _obj_spawn_b7(const uint8_t *map, uint32_t col, uint32_t row)
 {
     uint8_t *r;
-    uint32_t cell;
-    int32_t variant = 0; /* 0 none, 1 left, 2 right */
+    uint16_t cell;
+    uint8_t variant = 0; /* 0 none, 1 left, 2 right */
 
     if (_obj_live_count + 2u >= OBJ_SLOTS) return;
     r = _obj_array + (_obj_live_count + 1u) * OBJ_STRIDE;
-    cell = row * OBJ_COLS + col;
+    cell = (uint16_t)(row * OBJ_COLS + col);
     if (map) {
         static const int32_t left[4] = { -5, -4, -3, -2 };
         static const int32_t right[4] = { 0, 1, 2, 3 };
 
-        for (uint32_t k = 0; k < 4u && !variant; k++) {
+        for (uint16_t k = 0; k < 4u && !variant; k++) {
             int64_t c = (int64_t)cell + left[k];
 
             /* 1000:541D..0x5431: [SI-5..SI-2], no range test (D-233). */
             if (_obj_map_byte_at(map, (int32_t)c) == 0xB6u) variant = 1;
         }
-        for (uint32_t k = 0; k < 4u && !variant; k++) {
+        for (uint16_t k = 0; k < 4u && !variant; k++) {
             int64_t c = (int64_t)cell + right[k];
 
             /* 1000:5434..0x5446: [SI]..[SI+3], no range test. */
@@ -2668,8 +2670,8 @@ static uint32_t _obj_style_nudge(const uint8_t *map, uint32_t col, uint32_t row)
         0x00, 0x00, 0x00, 0x00, 0x07, 0xFE, 0x00, 0x07, 0xE0, 0x00,
         0x02, 0x02, 0x00, 0x03, 0xC3, 0x81, 0x80, 0x01, 0x80,
     };
-    uint32_t cell = row * OBJ_COLS + col;
-    uint32_t tile;
+    uint16_t cell = (uint16_t)(row * OBJ_COLS + col);
+    uint8_t tile;
 
     if (!map) map = level_map();
     if (level_style() != 6u || !map || cell + OBJ_COLS >= 640u) return 0u;
@@ -2707,12 +2709,12 @@ static void _obj_append_style(const uint8_t *map, uint32_t col, uint32_t row,
     r = _obj_array + (_obj_live_count + 1u) * OBJ_STRIDE;
     wr_le_u16(r + 0u, (uint16_t)(col * 16u));
     wr_le_u16(r + 2u, (uint16_t)(row * 16u + y3));
-    wr_le_u16(r + 4u, frame);
+    wr_le_u16(r + 4u, (uint16_t)(frame));
     wr_le_u16(r + 6u, 0u);
-    wr_le_u16(r + 8u, f8);
+    wr_le_u16(r + 8u, (uint16_t)(f8));
     wr_le_u16(r + 0xAu, 0u);
-    wr_le_u16(r + 0xCu, fc);
-    wr_le_u16(r + 0xEu, fe);
+    wr_le_u16(r + 0xCu, (uint16_t)(fc));
+    wr_le_u16(r + 0xEu, (uint16_t)(fe));
     _obj_slot_class[_obj_live_count - 7u] = (uint8_t)behaviour;
     _obj_live_count++;
     bx = _obj_step_probe_at(r, 8, 0x10, &probeCell); /* 1000:5639 */
@@ -2738,10 +2740,10 @@ static void _obj_append_row9(uint8_t *map, uint32_t col, uint32_t row)
         { 0x10, 0x13, 0x33 }, { 0x16, 0x15, 0x34 }, { 0x1C, 0x16, 0x35 },
         { 0x23, 0x15, 0x36 }, { 0x29, 0x13, 0x37 },
     };
-    uint32_t first = _obj_live_count + 1u;
+    uint8_t first = (uint8_t)(_obj_live_count + 1u);
     uint8_t *firstRec = _obj_array + first * OBJ_STRIDE;
 
-    for (uint32_t i = 0; i < 5u; i++) {
+    for (uint16_t i = 0; i < 5u; i++) {
         uint8_t *r;
 
         if (_obj_live_count + 1u >= OBJ_SLOTS) return;
@@ -2762,7 +2764,7 @@ static void _obj_append_row9(uint8_t *map, uint32_t col, uint32_t row)
      * test; at row 18 col 30 the second lands in the gap and at row 19 both do,
      * so both go through the buffer tail (_obj_map_put). */
     {
-        uint32_t cell = row * OBJ_COLS + col;
+        uint16_t cell = (uint16_t)(row * OBJ_COLS + col);
 
         _obj_map_put(map, cell + OBJ_COLS + 1u, 0xC2u);
         _obj_map_put(map, cell + OBJ_COLS + 2u, 0xC9u);
@@ -2811,8 +2813,8 @@ static void _obj_append_decoration(uint32_t x, uint32_t y, uint8_t tile)
  */
 static void _spawn_terrain_tile(uint8_t *map, uint32_t tile)
 {
-    for (uint32_t row = 0; row < OBJ_ROWS; row++)
-        for (uint32_t col = 0; col < OBJ_COLS; col++) {
+    for (uint16_t row = 0; row < OBJ_ROWS; row++)
+        for (uint16_t col = 0; col < OBJ_COLS; col++) {
             if (map[row * OBJ_COLS + col] != tile) continue;
             /* live-confirmed (2026-10-30): level 1's records read
              * (48,25) (208,25) (256,137) (464,265) = row*16 - 7, exactly
@@ -2840,7 +2842,7 @@ static void _spawn_terrain_tile(uint8_t *map, uint32_t tile)
                  * gate 0x9CF6 tests with bit 15). */
                 _obj_append_style(map, col, row, 0x38u, 4u, 0x0000u, 0xFFFFu,
                                   0xFFFFu);
-            else _obj_append_decoration(col * 16u, row * 16u, tile);
+            else _obj_append_decoration(col * 16u, row * 16u, (uint8_t)(tile));
         }
 }
 
@@ -2849,7 +2851,7 @@ uint32_t object_load_terrain_objects(uint8_t *map)
     if (!map) return _obj_live_count;
     _obj_live_count = OBJ_LIVE0; /* 1000:516F */
     memset(_obj_slot_class + 1u, 0, 20u); /* 1000:5175: 0x3E5F..0x3E72 */
-    for (uint32_t t = 0; t < 25u; t++) {
+    for (uint16_t t = 0; t < 25u; t++) {
         uint8_t tile = _obj_tiles[t];
         /* all 25 tiles' bodies are ported (re_map.md has each one's
          * summary); the guard is the table walk's tile list. */
@@ -2866,7 +2868,7 @@ uint32_t object_load_terrain_objects(uint8_t *map)
 
 uint32_t object_frame_slots(void) { return OBJ_FRAME_SLOTS; }
 
-uint32_t object_frame_counter_probe(void) { return _obj_frame; }
+uint16_t object_frame_counter_probe(void) { return _obj_frame; }
 
 void object_frame_for_probe(uint32_t frame, uint32_t *off, uint32_t *rows)
 {
@@ -2879,7 +2881,7 @@ void object_frame_for_probe(uint32_t frame, uint32_t *off, uint32_t *rows)
     *rows = _obj_sprites[frame].rows;
 }
 
-uint32_t object_bg_count(void) { return _obj_bg_count; }
+uint8_t object_bg_count(void) { return _obj_bg_count; }
 
 void object_bg_at(uint32_t i, uint32_t *x, uint32_t *y)
 {
@@ -2920,10 +2922,10 @@ static void _blit_sprite(uint8_t *page, const uint8_t *src, uint32_t rows,
 {
     uint32_t w = cols >> 2, block = rows * w;
 
-    for (uint32_t row = 0; row < rows; row++) {
+    for (uint16_t row = 0; row < rows; row++) {
         int32_t py = y + (int32_t)row;
         if (py < 0 || py >= (int32_t)VIDEO_PAGE_H_MODE13H) continue;
-        for (uint32_t col = 0; col < cols; col++) {
+        for (uint16_t col = 0; col < cols; col++) {
             uint8_t v = src[(col & 3u) * block + row * w + (col >> 2)];
             int32_t px = x + (int32_t)col;
             if (!v) continue;
@@ -2947,7 +2949,7 @@ static uint32_t _obj_overlay_row(uint32_t frame)
     return frame < 0x11Au ? _obj_frame_row[frame] : 0u;
 }
 
-void object_publish_g_sprites(const uint8_t *data, uint32_t blocks, uint32_t n)
+void object_publish_g_sprites(const uint8_t *data, uint16_t blocks, uint8_t n)
 {
     _obj_g_sprites = data;
     _obj_g_blocks = blocks;
@@ -2997,7 +2999,7 @@ static int32_t _obj_blit_g_frame(uint8_t *page, uint32_t frame, int32_t x,
 static void _obj_blit_frame(uint8_t *page, uint32_t frame, int32_t x, int32_t y)
 {
     const ObjSprite *sp;
-    uint32_t cols;
+    uint8_t cols;
 
     if (_obj_blit_g_frame(page, frame, x, y)) return;
     /* The DEFS field-D/H pointers land in these slots: 0x33..0x37 (the five
@@ -3047,7 +3049,7 @@ static void _obj_draw_player_overlay(uint8_t *page, int32_t scrollX,
                                      int32_t scrollY, const uint8_t *r,
                                      uint32_t i)
 {
-    uint32_t f = rd_le_u16(r + 4u), idx, spr;
+    uint16_t f = rd_le_u16(r + 4u), idx, spr;
     int16_t w;
     int32_t ox, oy;
 
@@ -3082,7 +3084,7 @@ static void _obj_draw_player_overlay(uint8_t *page, int32_t scrollX,
 static void _obj_draw_class_overlay(uint8_t *page, int32_t scrollX,
                                     int32_t scrollY, uint8_t *rec)
 {
-    uint32_t cls = rec[7];
+    uint8_t cls = rec[7];
     uint32_t col, row, idx, x, y, frame;
     const uint8_t *e;
     uint8_t *carried;
@@ -3143,7 +3145,7 @@ static void _obj_draw_record(uint8_t *page, int32_t scrollX, int32_t scrollY,
     uint8_t *r = _obj_array + i * OBJ_STRIDE;
     int32_t x = (int32_t)(int16_t)rd_le_u16(r + 0u) - scrollX;
     int32_t y = (int32_t)(int16_t)rd_le_u16(r + 2u) - scrollY;
-    uint32_t frame = rd_le_u16(r + 4u);
+    uint16_t frame = rd_le_u16(r + 4u);
 
     /* 1000:653C's own gates.  They only skip the BASE draw: 0x6495 always
      * continues to the player-overlay half below. */
@@ -3187,9 +3189,9 @@ static void _obj_partition(uint8_t *back, uint32_t *nb, uint8_t *front,
 {
     uint32_t b = 0, f = 0;
 
-    for (uint32_t i = 0; i < 8u; i++) {
+    for (uint16_t i = 0; i < 8u; i++) {
         uint8_t *r = _obj_array + i * OBJ_STRIDE;
-        uint32_t t;
+        uint16_t t;
 
         if (r[6] & 0x80u) continue;
         if (i == _obj_entity) continue;
@@ -3198,7 +3200,7 @@ static void _obj_partition(uint8_t *back, uint32_t *nb, uint8_t *front,
         else back[b++] = (uint8_t)i;
     }
     {
-        uint32_t t;
+        uint16_t t;
 
         if (_obj_entity >= OBJ_SLOTS) {
             *nb = b;
@@ -3239,7 +3241,7 @@ static void _obj_partition(uint8_t *back, uint32_t *nb, uint8_t *front,
  */
 static void _obj_span_draw(uint8_t *page, int32_t scrollX, int32_t scrollY)
 {
-    for (uint32_t i = 0; i < 2u; i++) {
+    for (uint16_t i = 0; i < 2u; i++) {
         uint8_t *e = (uint8_t *)_obj_span[i];
         uint32_t state, cur, len, tgt, x, seed;
 
@@ -3250,10 +3252,10 @@ static void _obj_span_draw(uint8_t *page, int32_t scrollX, int32_t scrollY)
         len = rd_le_u16(e + 0x6u);
         tgt = rd_le_u16(e + 0x8u);
         if (state <= 1u && (_obj_frame & 1u)) {
-            uint32_t e13 = rd_le_u16(e + 0xEu);
-            int32_t stop = 0;
+            uint16_t e13 = rd_le_u16(e + 0xEu);
+            uint8_t stop = 0;
 
-            for (uint32_t k = 0; k < 4u && !stop; k++) {
+            for (uint16_t k = 0; k < 4u && !stop; k++) {
                 if (state != 0u) { /* growing (1000:5DCE) */
                     cur = (uint16_t)(cur + 1u);
                     len = (uint16_t)(len + 1u);
@@ -3283,7 +3285,7 @@ static void _obj_span_draw(uint8_t *page, int32_t scrollX, int32_t scrollY)
         }
         seed = _obj_span_top[i];
         x = rd_le_u16(e + 0xAu);
-        for (int32_t row = (int32_t)(int16_t)seed; row < (int32_t)(int16_t)cur;
+        for (int16_t row = (int16_t)seed; row < (int16_t)cur;
              row++) {
             int32_t px = (int32_t)x - scrollX;
             int32_t py = row - scrollY;
@@ -3309,17 +3311,17 @@ void object_render(uint8_t *page, int32_t scrollX, int32_t scrollY)
 
     _obj_partition(back, &nb, front, &nf); /* 1000:C23C */
 
-    for (uint32_t k = 0; k < nb; k++) /* 1000:6429 */
+    for (uint16_t k = 0; k < nb; k++) /* 1000:6429 */
         _obj_draw_record(page, scrollX, scrollY, back[k], 0);
 
     /* scan_object_rows (1000:6433): AX = [0x3E73] - 8, then `DEC AX / JNS`,
      * so the walk covers 0x3F05 .. the record at [0x3E73] INCLUSIVE -
      * `[0x3E73]` counts the top live index, not the number of records
      * (level 1: 9 draws slots 8 and 9). */
-    for (uint32_t i = 8u; i <= _obj_live_count && i < OBJ_SLOTS; i++)
+    for (uint16_t i = 8u; i <= _obj_live_count && i < OBJ_SLOTS; i++)
         _obj_draw_record(page, scrollX, scrollY, i, 1);
 
-    for (uint32_t k = 0; k < nf; k++) /* 1000:642E */
+    for (uint16_t k = 0; k < nf; k++) /* 1000:642E */
         _obj_draw_record(page, scrollX, scrollY, front[k], 0);
 }
 
@@ -3355,7 +3357,7 @@ void object_publish_ter(const uint8_t *bank, uint32_t size)
 void object_render_ter(uint8_t *page, int32_t scrollX, int32_t scrollY)
 {
     if (!page || !_obj_ter_bank) return;
-    for (uint32_t s = 0; s < 2u; s++) {
+    for (uint16_t s = 0; s < 2u; s++) {
         uint8_t *e = _obj_ter_slot[s];
         uint32_t index, idx, src, yoff, rows;
 
@@ -3369,15 +3371,16 @@ void object_render_ter(uint8_t *page, int32_t scrollX, int32_t scrollY)
         rows = rd_be_u16(_obj_ter_bank + 2u * idx + 0x30u);
         if (src + rows * 8u > _obj_ter_size) continue;
         object_blit_sprite(page, _obj_ter_bank + src, rows, 32u,
-                           (int32_t)(int16_t)rd_le_u16(e + 0u) - 0xCu - scrollX,
+                           (int32_t)(int16_t)rd_le_u16(e + 0u) - 0xC -
+                               (int32_t)scrollX,
                            (int32_t)(int16_t)rd_le_u16(e + 2u) + (int32_t)yoff -
-                               scrollY);
+                               (int32_t)scrollY);
     }
 }
 
 void object_camera_slots_tick(void)
 {
-    for (uint32_t s = 0; s < 2u; s++) {
+    for (uint16_t s = 0; s < 2u; s++) {
         uint8_t *e = _obj_ter_slot[s];
         int32_t curx = (int16_t)rd_le_u16(e + 0u);
         int32_t cury = (int16_t)rd_le_u16(e + 2u);
@@ -3439,16 +3442,16 @@ void object_camera_slots_tick(void)
         bx = (uint16_t)(curx - oldx); /* 0xC8E0: the per-frame delta */
         cx = (uint16_t)(cury - oldy);
         if ((mask & 0xFFu) == 0u) continue;
-        for (uint32_t i = 0; i < 8u; i++) {
+        for (uint16_t i = 0; i < 8u; i++) {
             uint8_t *r = _obj_array + i * OBJ_STRIDE;
 
             if (!(mask & (uint16_t)(0x80u >> i))) continue;
             wr_le_u16(r + 2u, (uint16_t)(rd_le_u16(r + 2u) + cx));
             wr_le_u16(r + 0u, (uint16_t)(rd_le_u16(r + 0u) + bx));
         }
-        for (uint32_t i = 0; i < 8u; i++) {
+        for (uint16_t i = 0; i < 8u; i++) {
             uint8_t *g = (uint8_t *)_obj_register[i];
-            uint32_t index = g[5];
+            uint8_t index = g[5];
             uint16_t bit;
 
             if (index & 0x80u) continue;
@@ -3460,10 +3463,10 @@ void object_camera_slots_tick(void)
     }
 }
 
-int32_t object_test_dispatch(uint16_t mode)
+int16_t object_test_dispatch(uint16_t mode)
 {
-    uint32_t op = mode & 0x7Fu;
-    uint32_t arg = (mode >> 8) & 0xFFu;
+    uint8_t op = (uint8_t)(mode & 0x7Fu);
+    uint8_t arg = (uint8_t)((mode >> 8) & 0xFFu);
 
     switch (op) {
     case 0: return object_low_phase_match() == -1; /* 1000:3600 */
@@ -3497,8 +3500,8 @@ static const uint8_t _obj_goal_mask[5] = { 0x1F, 0x99, 0x02, 0x1C, 0x20 };
  */
 static uint32_t _obj_goal_cell_index(uint32_t x, uint32_t y)
 {
-    uint32_t yy = (uint32_t)(uint16_t)(y + 0x0Cu);
-    uint32_t xx = (uint32_t)(uint16_t)(x + 8u);
+    uint16_t yy = (uint16_t)(uint16_t)(y + 0x0Cu);
+    uint16_t xx = (uint16_t)(uint16_t)(x + 8u);
 
     return 32u * ((yy & 0xFFF0u) >> 4) + (xx >> 4);
 }
@@ -3513,10 +3516,10 @@ static uint32_t _obj_goal_cell_index(uint32_t x, uint32_t y)
  */
 static int32_t _goal_group(uint32_t i, uint32_t *x, uint32_t *y)
 {
-    for (uint32_t g = 0; g < 8u; g++) { /* 1000:C319 */
+    for (uint16_t g = 0; g < 8u; g++) { /* 1000:C319 */
         uint8_t *e = (uint8_t *)_obj_register[g];
         uint8_t *p;
-        int32_t hit = 0;
+        uint8_t hit = 0;
 
         if (rd_le_u16(e + 0u) & 0x8000u) continue; /* 1000:C32B */
         p = e + 5;
@@ -3538,11 +3541,11 @@ static int32_t _goal_group(uint32_t i, uint32_t *x, uint32_t *y)
 
 void object_goal_scan(void)
 {
-    uint32_t count = 0;
+    uint16_t count = 0;
 
     _obj_goal_flag = 0; /* 1000:C2CE */
 
-    for (uint32_t i = 0; i < OBJ_STATIC; i++) {
+    for (uint16_t i = 0; i < OBJ_STATIC; i++) {
         uint8_t *r = _obj_array + i * OBJ_STRIDE;
         uint32_t x, y, type;
 
@@ -3554,10 +3557,10 @@ void object_goal_scan(void)
             if (_goal_group(i, &x, &y) < 0) continue; /* 1000:C35B */
         } else {
             /* 1000:C389 test_goal_cell_occupancy: the id's mask bit skips. */
-            uint32_t bit;
+            uint8_t bit;
 
             if (type >= 40u) continue; /* the mask read is past its table */
-            bit = 1u << (7u - (type & 7u));
+            bit = (uint8_t)(1u << (7u - (type & 7u)));
             if (_obj_goal_mask[type >> 3] & bit) continue; /* 1000:C3A5 */
         }
         if (_obj_map_buffer_byte((int32_t)_obj_goal_cell_index(x, y)) == 0xBAu)
@@ -3565,7 +3568,7 @@ void object_goal_scan(void)
     }
 
     /* 1000:C3D6: the live records whose behaviour byte is 4. */
-    for (uint32_t k = 0; OBJ_LIVE0 + 1u + k <= _obj_live_count; k++) {
+    for (uint16_t k = 0; OBJ_LIVE0 + 1u + k <= _obj_live_count; k++) {
         uint8_t *r = _obj_array + (OBJ_LIVE0 + 1u + k) * OBJ_STRIDE;
 
         if (r[6] & 0x80u) continue; /* 1000:C3F1 */
@@ -3581,7 +3584,7 @@ void object_goal_scan(void)
     if (count != 0u && count >= level_goal_count()) _obj_goal_flag = 0xFFu;
 }
 
-int32_t object_goal_flag(void) { return _obj_goal_flag != 0u; }
+uint8_t object_goal_flag(void) { return _obj_goal_flag != 0u; }
 
 /** @brief 1000:D5E4: the per-frame 0x32B9 pass over the 0xA9 log records.  A record
  * whose +8 the settle's 0xDF2C poked (the tables 0x689E/0x68BE write 0xFF at
@@ -3602,19 +3605,19 @@ static void _obj_bg_tick(void)
         0x01, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7, 0xC8, 0x00,
         0xC9, 0xCA, 0xCB, 0xCC, 0xCD, 0xCE, 0xCF, 0x00,
     };
-    uint32_t i;
+    uint8_t i;
 
     for (i = 0; i < _obj_bg_count; i++) {
         uint8_t *r = _obj_bg[i].dst;
-        uint32_t cx = 0, dx = 0, t = 0, k;
+        uint8_t cx = 0, dx = 0, t = 0, k;
 
         if (!r) continue;
         for (k = 0; k < 5u; k++, r += OBJ_STRIDE, t += 2u) {
             if (!(r[6] & 0x80u)) {
-                uint32_t y;
+                uint16_t y;
 
                 if (rd_le_u16(r + 8u) == 0u) continue; /* 1000:D614: no OR  */
-                y = (uint32_t)rd_le_u16(r + 2u) + 2u;
+                y = (uint16_t)((uint32_t)rd_le_u16(r + 2u) + 2u);
                 wr_le_u16(r + 2u, (uint16_t)y);
                 if (y > 0x138u) r[6] = 0xFFu; /* 1000:D61F         */
             }
@@ -3635,7 +3638,7 @@ static void _obj_bg_tick(void)
  */
 static void _obj_walk_step1(uint8_t *r)
 {
-    uint32_t a = rd_le_u16(r + 0xAu);
+    uint16_t a = rd_le_u16(r + 0xAu);
 
     if (a != 0u) {
         wr_le_u16(r + 0xAu, a - 1u);
@@ -3643,8 +3646,8 @@ static void _obj_walk_step1(uint8_t *r)
     }
     wr_le_u16(r + 0xAu, 8u);
     {
-        uint32_t base = rd_le_u16(r + 8u);
-        uint32_t f = (uint32_t)(rd_le_u16(r + 4u) + 1u);
+        uint16_t base = rd_le_u16(r + 8u);
+        uint16_t f = (uint16_t)(rd_le_u16(r + 4u) + 1u);
 
         if (f >= base + level_anim_frames()) f = base;
         wr_le_u16(r + 4u, (uint16_t)f);
@@ -3663,12 +3666,12 @@ static void _obj_walk_seq(uint8_t *r)
     if (rd_le_u16(r + 8u) != 1u) return;
     a = rd_le_u16(r + 0xAu);
     if (a != 0u) {
-        wr_le_u16(r + 0xAu, a - 1u);
+        wr_le_u16(r + 0xAu, (uint16_t)(a - 1u));
         return;
     }
     wr_le_u16(r + 0xAu, 4u);
     cur = rd_le_u16(r + 0xCu);
-    wr_le_u16(r + 0xCu, cur + 1u);
+    wr_le_u16(r + 0xCu, (uint16_t)(cur + 1u));
     i = cur;
     wr_le_u16(r + 4u, i < sizeof _obj_seq6568 ? _obj_seq6568[i] : 0u);
     if (i + 1u < sizeof _obj_seq6568 && _obj_seq6568[i + 1u] == 0u) {
@@ -3726,9 +3729,9 @@ static void _obj_walk_wander(uint8_t *r)
     wr_le_u16(r + 8u, (uint16_t)cx);
     if (cx != 0u) return;
     /* 1000:CC65: the (x-3, y-8) match against the eight fixed slots. */
-    for (uint32_t i = 0; i < OBJ_STATIC; i++) {
+    for (uint16_t i = 0; i < OBJ_STATIC; i++) {
         uint8_t *slot = _obj_array + i * OBJ_STRIDE;
-        uint32_t type;
+        uint16_t type;
 
         if ((uint32_t)(int16_t)(ax - 3) != rd_le_u16(slot + 0u)) continue;
         if ((uint32_t)(int16_t)(bx - 8) != rd_le_u16(slot + 2u)) continue;
@@ -3772,7 +3775,7 @@ static void _obj_walk_torch(uint8_t *r)
 {
     if ((_obj_frame & 3u) == 0u && rd_le_u16(r + 8u) == 0xFFFFu &&
         rd_le_u16(r + 0xAu) == 0u) {
-        uint32_t f = (uint32_t)(rd_le_u16(r + 4u) + 1u);
+        uint16_t f = (uint16_t)(rd_le_u16(r + 4u) + 1u);
 
         if (f >= 0x9Fu) f = 0x9Cu;
         wr_le_u16(r + 4u, (uint16_t)f);
@@ -3826,7 +3829,7 @@ static int32_t _obj_land_probe(int16_t ax, int16_t bx, int16_t *cxOut)
             _obj_map_buffer_byte((int32_t)(si + 0x20u)), sub);
         if (page < 0) return 0;
     } else if (page == 0) { /* 1000:E304 */
-        uint32_t above = _obj_map_buffer_byte((int32_t)(si - 0x20u));
+        uint8_t above = (uint8_t)(_obj_map_buffer_byte((int32_t)(si - 0x20u)));
 
         /* 1000:E30E/E314 compare against the field-K *second* word
          * ([0x6F0B]/[0x6F0C]), unlike the settle and the step states, which
@@ -3889,7 +3892,7 @@ static void _obj_move_settle(uint8_t *r, int16_t cx)
 static void _obj_move_equal(uint8_t *r)
 {
     int16_t fi = (int16_t)(rd_le_u16(r + 4u) - 0x58u);
-    int32_t step = -1;
+    int8_t step = -1;
 
     if ((uint16_t)fi < sizeof _obj_land_step)
         step = _obj_land_step[(uint16_t)fi];
@@ -3931,7 +3934,7 @@ static void _obj_move_impact(uint8_t *r, const uint8_t *tab, uint32_t idx)
         hi = (rd_le_u16(r + 0xCu) & 0x8000u) ? 0xFFFFu : 0u;
         lo = hi ? 0u : 0xFFFFu;
         for (k = 0; k < sub; k++) {
-            uint32_t carry = hi & 1u;
+            uint8_t carry = hi & 1u;
 
             hi >>= 1;
             lo = (lo >> 1) | (carry << 15);
@@ -4021,7 +4024,7 @@ static void _obj_move_pair_b(uint8_t *r, const uint8_t *tab, int16_t selB,
 static void _obj_move_scan(uint8_t *r, const uint8_t *tab, int16_t selC,
                            int16_t selB)
 {
-    uint32_t idx = (uint32_t)((r - _obj_array) / OBJ_STRIDE);
+    uint8_t idx = (uint8_t)((uint32_t)((r - _obj_array) / OBJ_STRIDE));
     int16_t ax, bx, cx, d;
 
     _obj_sum_step(tab, r, &ax, &bx);
@@ -4093,7 +4096,7 @@ static void _obj_selectors(uint16_t oldFrame, uint16_t newFrame, int16_t *selC,
 
 static void _obj_walk_rope(uint8_t *r)
 {
-    uint32_t f;
+    uint16_t f;
     const uint8_t *tab;
 
     if (!(rd_le_u16(r + 8u) & 0x8000u)) return; /* 1000:CD33 */
@@ -4125,7 +4128,7 @@ static void _obj_walk_rope(uint8_t *r)
  */
 static void _obj_mover_pass_records(uint8_t *r, int32_t ax, int32_t bx)
 {
-    for (uint32_t i = 0; i <= _obj_live_count; i++) {
+    for (uint16_t i = 0; i <= _obj_live_count; i++) {
         uint8_t *t = _obj_array + i * OBJ_STRIDE;
         uint8_t *beh = _obj_slot_class + (i - 8u);
         int32_t dx, dy;
@@ -4135,7 +4138,7 @@ static void _obj_mover_pass_records(uint8_t *r, int32_t ax, int32_t bx)
         dx = (int16_t)rd_le_u16(t + 0u) - ax;
         if (!(dx < 0 && dx + 0x10 >= 0)) continue; /* 1000:5A55/0x5A5D */
         dy = (int16_t)rd_le_u16(t + 2u) - bx;
-        if (!(dy < 0 && dy + 0x1Au >= 0)) continue; /* 1000:5A66/0x5A6E */
+        if (!(dy < 0 && dy + 0x1A >= 0)) continue; /* 1000:5A66/0x5A6E */
         if (rd_le_u16(r + 0xCu) != 0u || (rd_le_u16(r + 0xEu) & 0x8000u) ||
             rd_le_u16(r + 0xEu) > 1u) {
             uint8_t cls;
@@ -4165,7 +4168,7 @@ static void _obj_mover_pass_records(uint8_t *r, int32_t ax, int32_t bx)
              * OR 0x80 into the ACTING record's class byte and link the
              * candidate to it by that class ordinal; the scan then moves on
              * to the next record (0x5B31). */
-            uint32_t ord = (uint32_t)((r - _obj_array) / OBJ_STRIDE) - 8u;
+            uint8_t ord = (uint8_t)((r - _obj_array) / OBJ_STRIDE) - 8u;
 
             wr_le_u16(r + 6u, 0u);
             wr_le_u16(r + 8u, 0u);
@@ -4188,10 +4191,10 @@ static void _obj_mover_pass_records(uint8_t *r, int32_t ax, int32_t bx)
  */
 static void _obj_mover_pass_entity(uint8_t *r, int32_t ax, int32_t bx)
 {
-    uint32_t n = entity_count();
+    uint16_t n = entity_count();
 
     if (rd_le_u16(r + 0xCu) == 0u && rd_le_u16(r + 0xEu) == 0u) return;
-    for (uint32_t i = 0; i < n; i++) {
+    for (uint16_t i = 0; i < n; i++) {
         Entity *e = entity_at_mut(i);
         int32_t ex, anim;
 
@@ -4242,7 +4245,7 @@ static void _obj_mover_pass_entity(uint8_t *r, int32_t ax, int32_t bx)
  */
 static void _obj_mover_pass_placed(uint8_t *r, int32_t ax, int32_t bx)
 {
-    uint32_t i;
+    uint8_t i;
 
     /* 1000:5B3E's gate is on the record's +0xA/+0xC/+0xE (arg_SI = r+6). */
     if (rd_le_u16(r + 0xAu) != 0u) return;
@@ -4296,7 +4299,7 @@ static void _obj_mover_stepper(uint8_t *r, uint32_t mode)
     oldFrame = rd_le_u16(r + 4u);
     newFrame = oldFrame;
     if (mode != 0u) { /* 0xCE38 / 0xCE3D -> 0xCE40 */
-        int32_t b = (int16_t)((mode == 1u ? 1 : -1) + oldFrame);
+        int16_t b = (int16_t)((mode == 1u ? 1 : -1) + oldFrame);
 
         if (b >= 0x68) b = 0x58;
         if (b <= 0x57) b = 0x67;
@@ -4382,7 +4385,7 @@ static void _obj_stack8_fail(uint8_t *r, uint32_t frame)
  */
 static void _obj_stack8_slots(uint8_t *r)
 {
-    uint32_t i;
+    uint8_t i;
 
     if (r[7] == 0u) return;
     for (i = 0; i < OBJ_STATIC; i++) {
@@ -4469,13 +4472,13 @@ static void _obj_stack8_move(uint8_t *r, int32_t vx, int32_t vy,
     wr_le_u16(r + 0u, (uint16_t)(rd_le_u16(r + 0u) + (uint16_t)vy));
     wr_le_u16(r + 2u, (uint16_t)bx);
     {
-        uint32_t s = rd_le_u16(r + 8u);
+        uint16_t s = rd_le_u16(r + 8u);
 
         if (s == 0u) {
-            uint32_t f;
+            uint16_t f;
 
             wr_le_u16(r + 8u, 3u);
-            f = (uint32_t)(rd_le_u16(r + 4u) + 1u);
+            f = (uint16_t)((uint32_t)(rd_le_u16(r + 4u) + 1u));
             if (f == endFrame) f -= 8u;
             wr_le_u16(r + 4u, (uint16_t)f);
         } else {
@@ -4492,7 +4495,7 @@ static void _obj_stack8_move(uint8_t *r, int32_t vx, int32_t vy,
  */
 static void _obj_stack8_anim(uint8_t *r, uint32_t endFrame)
 {
-    uint32_t s = rd_le_u16(r + 8u);
+    uint16_t s = rd_le_u16(r + 8u);
 
     if (s != 0u) {
         wr_le_u16(r + 8u, s - 1u);
@@ -4500,7 +4503,7 @@ static void _obj_stack8_anim(uint8_t *r, uint32_t endFrame)
     }
     wr_le_u16(r + 8u, 6u);
     {
-        uint32_t f = (uint32_t)(rd_le_u16(r + 4u) + 1u);
+        uint16_t f = (uint16_t)(rd_le_u16(r + 4u) + 1u);
 
         wr_le_u16(r + 4u, (uint16_t)f);
         if (f == endFrame) wr_le_u16(r + 4u, (uint16_t)(f - 4u));
@@ -4519,15 +4522,15 @@ static void _obj_stack8_anim(uint8_t *r, uint32_t endFrame)
 static void _obj_stack8_land(uint8_t *r, uint32_t bx, int32_t ax, int32_t bx2,
                              uint32_t idx)
 {
-    uint32_t s = rd_le_u16(r + 8u);
+    uint16_t s = rd_le_u16(r + 8u);
 
-    s = (uint32_t)(s - 1u);
+    s = (uint16_t)(s - 1u);
     wr_le_u16(r + 8u, (uint16_t)s);
     if ((int16_t)s >= 0) return;
     wr_le_u16(r + 8u, 2u);
     wr_le_u16(r + 4u, (uint16_t)(rd_le_u16(r + 4u) + 1u));
     if (bx == rd_le_u16(r + 4u)) {
-        uint32_t cls = r[7];
+        uint8_t cls = r[7];
 
         r[7] = 0u;
         if (cls) _obj_class_byte_set(cls, _obj_class_byte_at(cls) & 0x3Fu);
@@ -4576,14 +4579,14 @@ static void _obj_walk_stack(uint8_t *r, uint32_t idx)
     case 4u: _obj_stack8_land(r, 0xDDu, 0xA, -3, idx); break;
     case 5u: _obj_stack8_land(r, 0xE9u, -0xA, -3, idx); break;
     default: { /* state 6, the exit */
-        uint32_t s = rd_le_u16(r + 8u);
+        uint16_t s = rd_le_u16(r + 8u);
 
-        s = (uint32_t)(s - 1u);
+        s = (uint16_t)(s - 1u);
         wr_le_u16(r + 8u, (uint16_t)s);
         if ((int16_t)s >= 0) break;
         wr_le_u16(r + 8u, 3u);
         {
-            uint32_t f = (uint32_t)(rd_le_u16(r + 4u) + 1u);
+            uint16_t f = (uint16_t)(rd_le_u16(r + 4u) + 1u);
 
             wr_le_u16(r + 4u, (uint16_t)f);
             if (f == 0x2Eu) {
@@ -4739,7 +4742,7 @@ static int32_t _obj_proj_advance(uint8_t *r, int16_t bx, int16_t cx)
         return _obj_scan_y;
     }
     if (page == 0) { /* 1000:D540: the row above decides */
-        uint32_t above = _obj_map_buffer_byte((int32_t)(idx - 0x20u));
+        uint8_t above = (uint8_t)(_obj_map_buffer_byte((int32_t)(idx - 0x20u)));
 
         page = (int32_t)(int8_t)(uint8_t)level_page_byte(above, sub);
         if (page < 0) { /* 1000:D565: re-read the cell, then one row up */
@@ -4757,6 +4760,10 @@ static int32_t _obj_proj_advance(uint8_t *r, int16_t bx, int16_t cx)
 /**
  * @brief 1000:D3E3 bounce_value_4230: reflect the velocity and lose 0x20.
  *
+ * Each arm keeps the reflected/stepped value only while it is still on the
+ * reflected side of zero; a bounce that does not cross the sign is zeroed
+ * (`1000:D3EE` `JS` / `1000:D3FD` `JNS` skip the `MOV [0x4230],0`).
+ *
  * @param vx the x velocity
  * @param vy the y velocity
  */
@@ -4769,7 +4776,7 @@ static void _obj_proj_bounce(int16_t *vx, int16_t *vy)
         if (v < 0) v = 0;
     } else {
         v = (int16_t)(v + 0x20);
-        if (v < 0) v = 0;
+        if (v >= 0) v = 0;
     }
     *vx = v;
     if (*vy != 0 && (uint16_t)*vy < 0x10u) *vy = 0x10;
@@ -4792,17 +4799,17 @@ static void _obj_proj_burst(uint8_t *r, int16_t bx, int16_t cx, int16_t *vx,
     {
         int16_t sx = _obj_scan_x, sy = _obj_scan_y;
         uint32_t si = 2u * ((uint16_t)sy & 0xFFF0u) + ((uint16_t)sx >> 4);
-        uint32_t sub = (uint16_t)sx & 0xFu;
+        uint16_t sub = (uint16_t)sx & 0xFu;
         uint32_t word = level_item_word(_obj_map_buffer_byte((int32_t)si),
                                         (uint16_t)sy & 0xFu);
-        uint32_t hi = (*vx < 0) ? 0xFFFFu : 0u;
-        uint32_t lo = hi ? 0u : 0xFFFFu, k;
+        uint16_t hi = (*vx < 0) ? 0xFFFFu : 0u;
+        uint16_t lo = hi ? 0u : 0xFFFFu, k;
 
         for (k = 0; k < sub; k++) {
-            uint32_t carry = hi & 1u;
+            uint8_t carry = hi & 1u;
 
             hi >>= 1;
-            lo = (lo >> 1) | (carry << 15);
+            lo = (uint16_t)((lo >> 1) | (carry << 15));
         }
         if ((word & lo) != 0u) { /* 1000:D3B3 */
             _obj_proj_bounce(vx, vy);
@@ -4855,7 +4862,7 @@ static void _obj_hit_dispatch(uint8_t *r, uint8_t *t, int16_t frame, int16_t vx,
 {
     uint16_t s38 = (uint16_t)((r[7] & 7u) * 4u); /* [0x4238] */
     uint16_t s3c = (uint16_t)(r[7] >> 3); /* [0x423C] */
-    uint32_t op = (uint32_t)(r[7] & 7u);
+    uint8_t op = (uint8_t)(r[7] & 7u);
 
     if (op == 0u) { /* 1000:D228 hit_op_frame_default */
         s38 = 0x41u;
@@ -4953,7 +4960,7 @@ static void _obj_proj_target(uint8_t *r, int32_t x, int32_t y, int32_t frame,
 
         wr_le_u16(t + 0u, (uint16_t)(x > 8 ? x - 8 : 0)); /* 1000:D17A */
         wr_le_u16(t + 2u, (uint16_t)(y - 0x10)); /* 1000:D185 */
-        _obj_hit_dispatch(r, t, frame, vx, vy); /* 1000:D1BD */
+        _obj_hit_dispatch(r, t, (int16_t)(frame), (int16_t)(vx), (int16_t)(vy)); /* 1000:D1BD */
     }
 }
 
@@ -4987,7 +4994,7 @@ static void _obj_walk_projectile(uint8_t *r, uint32_t idx)
     if (vy == 0) { /* phase 1 */
         int16_t sx = (int16_t)(x + 8);
         int16_t sy = (int16_t)((y + 0x10) & ~0xF);
-        uint32_t ci = 2u * (uint16_t)sy + ((uint16_t)sx >> 4);
+        uint16_t ci = 2u * (uint16_t)sy + ((uint16_t)sx >> 4);
         int16_t slope = (int16_t)level_slope_byte(
             _obj_map_buffer_byte((int32_t)ci), (uint16_t)sx & 0xFu);
         int16_t step = 1;
@@ -5065,7 +5072,7 @@ static void _obj_walk_projectile(uint8_t *r, uint32_t idx)
         cxreg = y;
         if (curve >= 0) { /* 1000:D069 */
             /* D135 = fall, D11B = bounce/land, D0B5 = target hit. */
-            int32_t mode = 0;
+            uint8_t mode = 0;
 
             _obj_scan_x = 8;
             {
@@ -5159,10 +5166,10 @@ static void _obj_walk_projectile(uint8_t *r, uint32_t idx)
 static void _obj_walk_marker(uint8_t *r)
 {
     const uint8_t *map = level_map();
-    uint32_t i;
+    uint8_t i;
 
     if ((_obj_frame & 3u) == 0u) { /* 1000:C541 */
-        uint32_t f = rd_le_u16(r + 4u);
+        uint16_t f = rd_le_u16(r + 4u);
 
         if (_obj_marker_mode) {
             if (f == 0x26u) {
@@ -5186,8 +5193,8 @@ static void _obj_walk_marker(uint8_t *r)
      * frame (and the 0x26 arm with the flag clear) skipped the scan. */
     if (r[6] & 0x80u) return;
     {
-        uint32_t mx = (uint32_t)(rd_le_u16(r + 0u) + 8u) & ~0xFu;
-        uint32_t my = (uint32_t)(rd_le_u16(r + 2u) + 8u) & ~0xFu;
+        uint16_t mx = (uint16_t)(rd_le_u16(r + 0u) + 8u) & ~0xFu;
+        uint16_t my = (uint16_t)(rd_le_u16(r + 2u) + 8u) & ~0xFu;
 
         for (i = 0; i < OBJ_STATIC; i++) {
             uint8_t *slot = _obj_array + i * OBJ_STRIDE;
@@ -5208,8 +5215,8 @@ static void _obj_walk_marker(uint8_t *r)
             wr_le_u16(slot + 0xAu, 5u);
             _obj_driver_call(4); /* 1000:83B7, AX = 4 */
             {
-                uint32_t gx = (uint32_t)(_obj_settled[i][0] + 8u) & ~0xFu;
-                uint32_t gy = (uint32_t)(_obj_settled[i][1] + 0x0Cu) & ~0xFu;
+                uint16_t gx = (uint16_t)((_obj_settled[i][0] + 8u) & ~0xFu);
+                uint16_t gy = (uint16_t)((_obj_settled[i][1] + 0x0Cu) & ~0xFu);
 
                 if (gx == mx && gy == my) _obj_settled[i][0] += 0x10u;
             }
@@ -5220,9 +5227,9 @@ static void _obj_walk_marker(uint8_t *r)
 
 void object_update_list(void)
 {
-    for (uint32_t i = OBJ_LIVE0 + 1u; i <= _obj_live_count; i++) {
+    for (uint16_t i = OBJ_LIVE0 + 1u; i <= _obj_live_count; i++) {
         uint8_t *r = _obj_array + i * OBJ_STRIDE;
-        uint32_t beh = (uint32_t)(_obj_slot_class[i - 8u] & 0x3Fu);
+        uint8_t beh = (uint8_t)(_obj_slot_class[i - 8u] & 0x3Fu);
 
         _obj_act_class = &_obj_slot_class[i - 8u]; /* [0x4244] - 1 */
         switch (beh) {
@@ -5265,7 +5272,7 @@ void object_claim_frame(const uint8_t *levelPal)
     object_claim_tick(levelPal);
 }
 
-uint32_t object_action_entity(void) { return _obj_entity; }
+uint16_t object_action_entity(void) { return _obj_entity; }
 
 void object_level_start_record(void)
 {
@@ -5316,24 +5323,24 @@ void object_marker_tick(void)
                                  ((int32_t)mode - 1) * 8)); /* 1000:D66B */
     m[0xAu] = (uint8_t)(m[0xAu] - 1u); /* 1000:D68F */
     if (!(m[0xAu] & 0x80u)) { /* 1000:D693 JNS */
-        wr_le_u16(m + 8u, type);
+        wr_le_u16(m + 8u, (uint16_t)(type));
         return;
     }
     m[0xAu] = 2u; /* 1000:D695 */
     ax = type - 2u; /* 1000:D699 */
     if (ax >= 0x12u) { /* 1000:D69F JNC */
-        wr_le_u16(m + 8u, ax);
+        wr_le_u16(m + 8u, (uint16_t)(ax));
         return;
     }
     ax = 0x001Au; /* 1000:D6A1 */
     m[0xBu] = (uint8_t)(m[0xBu] - 1u); /* 1000:D6A4 */
     if (m[0xBu] & 0x80u) m[6] = 0x80u; /* 1000:D6A8 */
-    wr_le_u16(m + 8u, ax); /* 1000:D6AE */
+    wr_le_u16(m + 8u, (uint16_t)(ax)); /* 1000:D6AE */
 }
 
-void object_set_action_entity(uint32_t i)
+void object_set_action_entity(uint16_t i)
 { _obj_entity = i < OBJ_STATIC ? i : _obj_entity; }
-uint32_t object_action_program(void) { return _obj_program_id(); }
+uint8_t object_action_program(void) { return (uint8_t)(_obj_program_id()); }
 
 const uint8_t *object_program_header(uint32_t group)
 { return _obj_program_slot(group); }
@@ -5344,10 +5351,10 @@ const uint8_t *object_action_header(void)
 uint8_t object_action_byte(uint32_t k)
 {
     uint8_t *h = _obj_program_slot(_obj_program_id());
-    uint32_t off;
+    uint16_t off;
 
     if (!h) return 0u;
-    off = (uint32_t)(h - _obj_program_region) + k;
+    off = (uint16_t)((uint32_t)(h - _obj_program_region) + k);
     return off < sizeof _obj_program_region ? _obj_program_region[off] : 0u;
 }
 
@@ -5373,14 +5380,14 @@ void object_step_action_cell(void)
 
 void object_action_set_program(uint32_t index)
 { _obj_set_program_index(index); }
-void object_action_set_cursor(uint32_t cursor)
+void object_action_set_cursor(uint8_t cursor)
 {
     uint8_t *p = _obj_program_slot(_obj_program_id());
 
     _obj_cursor = cursor;
     if (p) p[1] = (uint8_t)cursor; /* D-186 */
 }
-uint32_t object_action_pending(void) { return _obj_pending; }
+uint8_t object_action_pending(void) { return _obj_pending; }
 
 /**
  * @brief 0x3A26 (op 1): register the object in the 0x6F22 table and turn it into type 8.
@@ -5390,7 +5397,7 @@ uint32_t object_action_pending(void) { return _obj_pending; }
 static void _obj_op_register(uint8_t *actor)
 {
     if (rd_le_u16(actor + 8u) > 2u) return;
-    for (uint32_t i = 0; i < 8u; i++) {
+    for (uint16_t i = 0; i < 8u; i++) {
         uint16_t *s = _obj_register[i];
         if (!(s[0] & 0x8000u)) continue; /* testw $0x8000 -> free  */
         s[0] = rd_le_u16(actor + 0u);
@@ -5409,7 +5416,7 @@ static void _obj_op_register(uint8_t *actor)
  */
 static void _obj_op_set_frame(uint8_t *actor)
 {
-    uint32_t t = rd_le_u16(actor + 8u);
+    uint16_t t = rd_le_u16(actor + 8u);
     if (t >= 2u) return;
     wr_le_u16(actor + 8u, (uint16_t)(t + 0x1Fu));
     wr_le_u16(actor + 4u, (uint16_t)(0x010Eu + 4u * t));
@@ -5470,7 +5477,7 @@ static int32_t _obj_give_found(uint8_t *actor, uint8_t *found, uint8_t *slot,
  */
 static void _obj_class_drop(uint8_t *actor, uint8_t *found, uint8_t *slot)
 {
-    uint32_t ax = 0, bx = 0;
+    uint8_t ax = 0, bx = 0;
 
     actor[7] = 0u; /* 1000:9D94 */
     *slot &= 0x7Fu;
@@ -5500,8 +5507,8 @@ static void _obj_class_drop(uint8_t *actor, uint8_t *found, uint8_t *slot)
  */
 static void _obj_class_throw(uint8_t *actor, uint8_t *found, uint8_t *slot)
 {
-    uint32_t type = rd_le_u16(actor + 8u);
-    uint32_t beh = (uint32_t)(*slot & 0x3Fu);
+    uint16_t type = rd_le_u16(actor + 8u);
+    uint8_t beh = (uint8_t)(*slot & 0x3Fu);
     int32_t landed;
     uint32_t cell;
 
@@ -5534,7 +5541,7 @@ static void _obj_class_throw(uint8_t *actor, uint8_t *found, uint8_t *slot)
  */
 static void _obj_op_class_path(uint8_t *actor)
 {
-    uint32_t cls = actor[7];
+    uint8_t cls = actor[7];
     uint32_t live =
         _obj_live_count > OBJ_LIVE0 ? _obj_live_count - OBJ_LIVE0 : 0u;
     uint8_t *found, *slot;
@@ -5565,7 +5572,7 @@ static void _obj_op_class_path(uint8_t *actor)
  */
 static void _obj_collide_tail(void)
 {
-    uint32_t prog = (uint32_t)(_obj_sel_type & 0xFFu);
+    uint8_t prog = (uint8_t)(_obj_sel_type & 0xFFu);
 
     if (prog & 0x80u) return; /* 1000:9CDF */
     _obj_pending = 5u; /* [0x1979] = 5 */
@@ -5580,9 +5587,9 @@ static void _obj_collide_tail(void)
  */
 static void _obj_op_collide(uint8_t *actor)
 {
-    uint32_t type = rd_le_u16(actor + 8u);
+    uint16_t type = rd_le_u16(actor + 8u);
     int32_t ax, bx;
-    uint32_t live;
+    uint8_t live;
 
     if (!(type == 0x0Fu || type <= 2u)) return;
     if (actor[7]) { /* 1000:9C37 -> the class path */
@@ -5591,15 +5598,15 @@ static void _obj_op_collide(uint8_t *actor)
     }
     ax = (int16_t)rd_le_u16(actor + 0u);
     bx = (int16_t)rd_le_u16(actor + 2u);
-    live = _obj_live_count > OBJ_LIVE0 ? _obj_live_count - OBJ_LIVE0 : 0u;
+    live = _obj_live_count > OBJ_LIVE0 ? (uint8_t)(_obj_live_count - OBJ_LIVE0) : 0u;
     /* 1000:9C4E: count < 9 (no live records) jumps straight to the tail. */
     if (live == 0u) {
         _obj_collide_tail();
         return;
     }
 
-    for (uint32_t k = 0; k < live; k++) {
-        uint32_t ordinal = k + 1u; /* DX */
+    for (uint16_t k = 0; k < live; k++) {
+        uint8_t ordinal = (uint8_t)(k + 1u); /* DX */
         /* DI starts at 0x3F17 = index 9 = OBJ_LIVE0 + 1 (OBJ_LIVE0 is the
          * count's base, 8). */
         uint8_t *found = _obj_array + (OBJ_LIVE0 + 1u + k) * OBJ_STRIDE;
@@ -5643,15 +5650,15 @@ static void _obj_resolve_sprite(uint32_t index)
 {
     uint8_t *cur = _obj_array + _obj_entity * OBJ_STRIDE;
     uint8_t *r = _obj_array + index * OBJ_STRIDE;
-    uint32_t prog = 0u;
+    uint8_t prog = 0u;
 
     if (rd_le_u16(cur + 8u) == 2u)
         wr_le_u16(cur + 4u, 0x0010u); /* the previous record */
-    _obj_entity = index;
+    _obj_entity = (uint16_t)(index);
     if (r[7]) {
         /* 0x1C76 is 8 bytes (the "\humans\" path string follows it); its
          * [8] = 0x5C gives program 0x5D, out of 1..6 like the bound's 0xFF. */
-        uint32_t b = _obj_class_byte_at(r[7]) & 0x3Fu;
+        uint8_t b = _obj_class_byte_at(r[7]) & 0x3Fu;
 
         prog = b < 8u ? _obj_beh_program[b] : 0xFFu;
     }
@@ -5661,7 +5668,7 @@ static void _obj_resolve_sprite(uint32_t index)
     _obj_marker_arm(); /* 1000:4188 */
 }
 
-int32_t object_select_by_index(uint32_t index)
+uint8_t object_select_by_index(uint32_t index)
 {
     uint8_t *r;
 
@@ -5672,7 +5679,7 @@ int32_t object_select_by_index(uint32_t index)
     return 1;
 }
 
-int32_t object_space_action(void)
+uint8_t object_space_action(void)
 {
     if (_obj_cmd_home_state(_obj_actor())) return 1; /* 1000:392D -> 0xEDB7 */
     _obj_driver_call(0); /* 1000:393A */
@@ -5686,8 +5693,8 @@ int32_t object_cycle_entity(int32_t step)
 
     /* 1000:4113 BX = 6 and the DEC BX / JNS leave: seven candidates, the
      * records other than the current one (the eighth would be itself). */
-    for (uint32_t n = 0; n + 1u < OBJ_STATIC; n++) {
-        int32_t idx = at + (step < 0 ? -1 : 1);
+    for (uint16_t n = 0; n + 1u < OBJ_STATIC; n++) {
+        int16_t idx = (int16_t)(at + (step < 0 ? -1 : 1));
         uint8_t *r;
 
         if (idx < 0) idx = (int32_t)OBJ_STATIC - 1;
@@ -5711,7 +5718,7 @@ int32_t object_cycle_entity(int32_t step)
  */
 static int32_t _obj_state_is(uint8_t *actor, uint32_t state)
 {
-    uint32_t b = actor[7u];
+    uint8_t b = actor[7u];
     if (!b) return 0;
     return (_obj_beh_state[_obj_class_byte_at(b) & 0x3Fu] == state);
 }
@@ -5731,7 +5738,7 @@ static int32_t _obj_record_walk(uint8_t *actor, uint32_t step)
     uint32_t live =
         _obj_live_count > OBJ_LIVE0 ? _obj_live_count - OBJ_LIVE0 : 0u;
 
-    for (uint32_t k = 0; k < live; k++) {
+    for (uint16_t k = 0; k < live; k++) {
         uint8_t *r = _obj_array + (OBJ_LIVE0 + 1u + k) * OBJ_STRIDE;
         int32_t dx, dy;
 
@@ -5780,10 +5787,10 @@ static void _obj_find_overlap(uint8_t *actor)
     int32_t ax = (int16_t)rd_le_u16(actor + 0u);
     int32_t bx = (int16_t)rd_le_u16(actor + 2u);
 
-    for (uint32_t i = 0; i < OBJ_STATIC; i++) {
+    for (uint16_t i = 0; i < OBJ_STATIC; i++) {
         uint8_t *r = _obj_array + i * OBJ_STRIDE;
         uint8_t *found;
-        uint32_t type;
+        uint16_t type;
         int32_t dx, dy;
 
         if (r == actor) continue;
@@ -5865,8 +5872,8 @@ ObjCommand object_command_select(uint8_t *rec, uint8_t input)
     uint8_t v = _obj_normalise_input(input);
     uint8_t cmd = _obj_cmd_key[v & 0x0Fu];
     const uint8_t *row;
-    uint32_t type = rd_le_u16(rec + 8u); /* [SI+8] */
-    uint32_t idx;
+    uint16_t type = rd_le_u16(rec + 8u); /* [SI+8] */
+    uint8_t idx;
 
     out.handler = 0u;
     out.tail = 0u;
@@ -5940,12 +5947,12 @@ static void _obj_stack_unmark(uint8_t *actor)
  */
 static void _obj_stack_mark(uint8_t *actor, const uint8_t *slot)
 {
-    uint32_t below = slot[-1];
+    uint8_t below = slot[-1];
 
     if (!(below & 0x80u)) {
-        uint32_t bit = _obj_index_bit(below);
+        uint8_t bit = (uint8_t)(_obj_index_bit(below));
 
-        for (uint32_t m = 0; m < 2u; m++) {
+        for (uint16_t m = 0; m < 2u; m++) {
             if (_obj_ter_slot[m][0x13] & bit) {
                 _obj_ter_slot[m][0x13] |= (uint8_t)_obj_index_bit(
                     (uint32_t)(actor - _obj_array) / OBJ_STRIDE);
@@ -5966,7 +5973,7 @@ static void _obj_stack_mark(uint8_t *actor, const uint8_t *slot)
  */
 static void _obj_frame_step(uint8_t *actor, uint32_t lo, uint32_t hi)
 {
-    uint32_t f;
+    uint16_t f;
 
     wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(actor + 2u) - 1u));
     wr_le_u16(actor + 0xAu, (uint16_t)(rd_le_u16(actor + 0xAu) - 1u));
@@ -5986,7 +5993,7 @@ int32_t object_stack_push(uint8_t *actor)
     uint16_t ax = rd_le_u16(actor + 0u);
     uint16_t bx = (uint16_t)(rd_le_u16(actor + 2u) + 0x18u);
 
-    for (uint32_t i = 0; i < 8u; i++) { /* `CX = 7` + `JNS`: 8 */
+    for (uint16_t i = 0; i < 8u; i++) { /* `CX = 7` + `JNS`: 8 */
         uint8_t *e = (uint8_t *)_obj_register[i];
         uint16_t ex, ey, dx;
         uint8_t *di;
@@ -6033,10 +6040,10 @@ int32_t object_stack_pop(uint16_t ax, uint8_t **below, uint8_t **entry)
 {
     *below = NULL;
     if (entry) *entry = NULL;
-    for (uint32_t i = 0; i < 8u; i++) {
+    for (uint16_t i = 0; i < 8u; i++) {
         uint8_t *e = (uint8_t *)_obj_register[i];
         uint8_t *di = e;
-        int32_t bl;
+        int8_t bl;
 
         if (entry) *entry = e; /* 1000:FDF7: DX = the entry */
 
@@ -6075,7 +6082,7 @@ int32_t object_stack_grab(uint8_t *actor)
     uint16_t bx = rd_le_u16(actor + 2u);
     uint8_t *lastFree = NULL;
 
-    for (uint32_t i = 0; i < 8u; i++) {
+    for (uint16_t i = 0; i < 8u; i++) {
         uint8_t *e = (uint8_t *)_obj_register[i];
         uint16_t ex = rd_le_u16(e + 0u), ey;
         uint8_t *di;
@@ -6115,10 +6122,10 @@ int32_t object_stack_grab(uint8_t *actor)
 
 int32_t object_stack_step_off(uint8_t *actor)
 {
-    uint32_t idx = (uint32_t)((actor - _obj_array) / OBJ_STRIDE);
+    uint8_t idx = (uint8_t)((actor - _obj_array) / OBJ_STRIDE);
     uint16_t ax = rd_le_u16(actor + 0u);
 
-    for (uint32_t i = 0; i < 8u; i++) {
+    for (uint16_t i = 0; i < 8u; i++) {
         uint8_t *e = (uint8_t *)_obj_register[i];
         uint8_t *di;
         uint16_t ey;
@@ -6155,10 +6162,10 @@ int32_t object_stack_step_off(uint8_t *actor)
 
 int32_t object_stack_leave(uint8_t *actor)
 {
-    uint32_t idx = (uint32_t)((actor - _obj_array) / OBJ_STRIDE);
+    uint8_t idx = (uint8_t)((actor - _obj_array) / OBJ_STRIDE);
     uint16_t ax = rd_le_u16(actor + 0u);
 
-    for (uint32_t i = 0; i < 8u; i++) {
+    for (uint16_t i = 0; i < 8u; i++) {
         uint8_t *e = (uint8_t *)_obj_register[i];
         uint8_t *di;
 
@@ -6176,7 +6183,7 @@ int32_t object_stack_leave(uint8_t *actor)
         wr_le_u16(actor + 4u, 0x0010u);
         wr_le_u16(actor + 8u, 0x0002u);
         {
-            uint32_t off = rd_le_u16(actor + 0xEu);
+            uint16_t off = rd_le_u16(actor + 0xEu);
 
             if (off < sizeof _obj_register) /* 1000:E922 */
                 ((uint8_t *)_obj_register)[off] = 0xFFu;
@@ -6188,12 +6195,12 @@ int32_t object_stack_leave(uint8_t *actor)
 
 int32_t object_stack_stand(uint8_t *actor)
 {
-    uint32_t idx = (uint32_t)((actor - _obj_array) / OBJ_STRIDE);
+    uint8_t idx = (uint8_t)((actor - _obj_array) / OBJ_STRIDE);
 
-    for (uint32_t i = 0; i < 8u; i++) {
+    for (uint16_t i = 0; i < 8u; i++) {
         uint8_t *e = (uint8_t *)_obj_register[i];
         uint8_t *di;
-        int32_t bl;
+        int8_t bl;
 
         if (rd_le_u16(e + 0u) & 0x8000u) continue;
         di = e + 5;
@@ -6228,9 +6235,9 @@ int32_t object_stack_stand(uint8_t *actor)
 
 int32_t object_stack_snap(uint8_t *actor)
 {
-    uint32_t idx = (uint32_t)((actor - _obj_array) / OBJ_STRIDE);
+    uint8_t idx = (uint8_t)((actor - _obj_array) / OBJ_STRIDE);
 
-    for (uint32_t i = 0; i < 8u; i++) {
+    for (uint16_t i = 0; i < 8u; i++) {
         uint8_t *e = (uint8_t *)_obj_register[i];
         uint8_t *di;
 
@@ -6260,7 +6267,7 @@ int32_t object_stack_snap(uint8_t *actor)
 static uint32_t _obj_map_at_abs(int32_t x, int32_t y, uint32_t *sub)
 {
     const uint8_t *map = level_map();
-    uint32_t cell;
+    uint16_t cell;
 
     if (sub)
         *sub = (uint32_t)x & 0xFu; /* the fine x, when the caller wants it */
@@ -6277,14 +6284,14 @@ static int32_t _obj_land_y(int32_t x, int32_t y, uint32_t *cellOut)
      * relative to the row start, not the raw probe line. */
     int32_t row = y & ~0xF;
     uint32_t sub, id = _obj_map_at_abs(x, row, &sub);
-    uint32_t b = level_page_byte(id, sub);
+    uint8_t b = (uint8_t)(level_page_byte(id, sub));
 
     *cellOut = id;
     if (!(b & 0x80u)) {
         if (b != 0u) return row + (int32_t)(int8_t)b;
         uint32_t above =
             _obj_map_at_abs(x, row - 0x10, &sub); /* 1000:E3BA, DI unmoved */
-        b = level_page_byte(above, sub);
+        b = (uint8_t)(level_page_byte(above, sub));
         if (b & 0x80u) {
             *cellOut = id; /* 1000:E3CA: DI is still the point's cell */
             return row; /* AX = 0 */
@@ -6295,7 +6302,7 @@ static int32_t _obj_land_y(int32_t x, int32_t y, uint32_t *cellOut)
     {
         uint32_t below =
             _obj_map_at_abs(x, row + 0x10, &sub); /* 1000:E3E7, DI unmoved */
-        b = level_page_byte(below, sub);
+        b = (uint8_t)(level_page_byte(below, sub));
         if (b & 0x80u) {
             *cellOut = id; /* 1000:E3F1: DI is still the point's cell */
             return -1;
@@ -6364,7 +6371,7 @@ static uint32_t _obj_walk_test(const uint8_t *actor)
  */
 static void _obj_walk(uint8_t *actor, int32_t left)
 {
-    uint32_t lo = left ? 8u : 0u, hi = left ? 0x10u : 8u, f;
+    uint8_t lo = left ? 8u : 0u, hi = left ? 0x10u : 8u, f;
 
     _obj_sel_frame = left ? 2u : 0xEu;
     _obj_sel_type = 0x10u;
@@ -6374,7 +6381,7 @@ static void _obj_walk(uint8_t *actor, int32_t left)
     wr_le_u16(actor + 0xAu, (uint16_t)(rd_le_u16(actor + 0xAu) - 1u));
     if ((int16_t)rd_le_u16(actor + 0xAu) >= 0) return;
     wr_le_u16(actor + 0xAu, 0x0004u);
-    f = (uint32_t)((rd_le_u16(actor + 4u) + 1u) & 0xFFFFu);
+    f = (uint8_t)((uint32_t)((rd_le_u16(actor + 4u) + 1u) & 0xFFFFu));
     if (f >= hi) f = lo;
     wr_le_u16(actor + 4u, (uint16_t)f);
 }
@@ -6429,7 +6436,7 @@ static int32_t _obj_ter_rect(uint8_t *e, int32_t bx, int32_t cx, uint8_t bit)
  */
 static int32_t _obj_settle_gate(uint8_t *actor)
 {
-    uint32_t t = rd_le_u16(actor + 8u);
+    uint16_t t = rd_le_u16(actor + 8u);
     uint8_t bit = (uint8_t)(1u << (7u - (t & 7u)));
     uint8_t rec_bit =
         (uint8_t)_obj_index_bit((uint32_t)(actor - _obj_array) / OBJ_STRIDE);
@@ -6444,20 +6451,20 @@ static int32_t _obj_settle_gate(uint8_t *actor)
     return 1;
 }
 
-int32_t object_settle_gate_for_probe(uint8_t *actor)
-{ return _obj_settle_gate(actor); }
+uint8_t object_settle_gate_for_probe(uint8_t *actor)
+{ return (uint8_t)(_obj_settle_gate(actor)); }
 
 static int32_t _obj_bg_mark(const uint8_t *actor)
 {
     uint32_t sub, cell = _obj_map_at_abs((int32_t)_obj_foot_x,
                                          (int32_t)_obj_foot_y, &sub);
-    uint32_t idx = (uint32_t)((actor - _obj_array) / OBJ_STRIDE);
+    uint8_t idx = (uint8_t)((actor - _obj_array) / OBJ_STRIDE);
     const uint8_t *tbl;
-    uint32_t bl;
+    int8_t bl;
 
     if (cell < 0xC2u || cell > 0xCFu) return 0; /* 1000:DF77 */
-    for (uint32_t i = 0; i < _obj_bg_count; i++) {
-        uint32_t rx = _obj_bg[i].x, ry = _obj_bg[i].y;
+    for (uint16_t i = 0; i < _obj_bg_count; i++) {
+        uint16_t rx = _obj_bg[i].x, ry = _obj_bg[i].y;
         int32_t d = (int32_t)_obj_foot_x - (int32_t)((rx + 0x10u) & 0xFFF0u);
 
         if ((_obj_foot_y & 0xFFF0u) != ((ry + 0x10u) & 0xFFF0u)) continue;
@@ -6563,9 +6570,9 @@ static void _obj_cmd_settle(uint8_t *actor)
  * @param s the source cursor (in/out)
  */
 static void _shade_row(const ObjSprite *sp, uint32_t pass, uint32_t row,
-                       uint8_t *out, uint32_t *s)
+                       uint8_t *out, uint16_t *s)
 {
-    for (uint32_t j = 0; j < 4u; j++) {
+    for (uint16_t j = 0; j < 4u; j++) {
         if ((uint32_t)(sp->off + *s) < _obj_bank_size)
             out[row * 16u + pass + 4u * j] = _obj_bank[sp->off + *s];
         (*s)++;
@@ -6575,13 +6582,13 @@ static void _shade_row(const ObjSprite *sp, uint32_t pass, uint32_t row,
 static void _obj_build_shade(uint32_t frame, uint8_t *out)
 {
     const ObjSprite *sp;
-    uint32_t s = 0;
+    uint16_t s = 0;
 
     memset(out, 0, 256u);
     if (frame >= OBJ_FRAME_SLOTS) return;
     sp = &_obj_sprites[frame];
-    for (uint32_t pass = 0; pass < 4u; pass++)
-        for (uint32_t row = 0; row < 16u; row++) {
+    for (uint16_t pass = 0; pass < 4u; pass++)
+        for (uint16_t row = 0; row < 16u; row++) {
             if (row < sp->ybias || row >= sp->ybias + sp->rows) continue;
             _shade_row(sp, pass, row, out, &s);
         }
@@ -6596,7 +6603,7 @@ static void _obj_build_shade(uint32_t frame, uint8_t *out)
  */
 static void _obj_cmd_idle_a(uint8_t *actor)
 {
-    uint32_t f = rd_le_u16(actor + 4u);
+    uint16_t f = rd_le_u16(actor + 4u);
 
     if (f < 8u || f > 0x10u) { /* 1000:E739: stand up */
         wr_le_u16(actor + 4u, 0x0010u);
@@ -6619,7 +6626,7 @@ static void _obj_cmd_idle_a(uint8_t *actor)
  */
 static void _obj_cmd_idle_b(uint8_t *actor)
 {
-    uint32_t f = rd_le_u16(actor + 4u);
+    uint16_t f = rd_le_u16(actor + 4u);
 
     if (f >= 8u && f != 0x10u) { /* 1000:E79D: stand up */
         wr_le_u16(actor + 4u, 0x0010u);
@@ -6634,17 +6641,17 @@ static void _obj_cmd_idle_b(uint8_t *actor)
     wr_le_u16(actor + 8u, 0x0000u);
     wr_le_u16(actor + 0xAu, 0x0004u);
 }
-int32_t object_action_latched(void) { return _obj_action_latch != 0; }
-void object_set_action_latched(int32_t on)
+uint8_t object_action_latched(void) { return _obj_action_latch != 0; }
+void object_set_action_latched(uint8_t on)
 { _obj_action_latch = on ? 0xFFu : 0u; }
 
 static void _obj_driver_call(uint32_t n)
 {
-    _obj_sfx = n;
+    _obj_sfx = (uint8_t)(n);
     audio_sfx(n); /* 1000:83B7: the gate lives in audio.c */
 }
 void object_driver_call(uint32_t n) { _obj_driver_call(n); }
-uint32_t object_last_sfx(void) { return _obj_sfx; }
+uint8_t object_last_sfx(void) { return _obj_sfx; }
 
 /** @brief 1000:EA33: the acting entity's bit in the two stack masks, 0x64AD and
  * 0x64C1, the same `1 << (7 - entity)` the stack verbs use.
@@ -6668,7 +6675,7 @@ static int32_t _obj_stack_masked(void)
  */
 static int32_t _obj_frame_cadence(uint8_t *actor)
 {
-    uint32_t ax = _obj_frame;
+    uint16_t ax = _obj_frame;
 
     if (ax == rd_le_u16(actor + 0xAu)) { /* 1000:F9FD */
         uint16_t e =
@@ -6736,9 +6743,9 @@ static void _obj_scan_point(uint8_t *actor, uint32_t xoff)
     int32_t x = (int32_t)(int16_t)rd_le_u16(actor + 0u) + (int32_t)xoff;
     int32_t y = (int32_t)(int16_t)rd_le_u16(actor + 2u) + 0x10;
     int32_t top = y, d;
-    uint32_t b;
+    uint8_t b;
     uint8_t *span = NULL;
-    int32_t fallback = -1;
+    int8_t fallback = -1;
 
     if (_obj_frame & 1u) { /* 1000:FC81 */
         object_set_action_latched(0);
@@ -6747,7 +6754,7 @@ static void _obj_scan_point(uint8_t *actor, uint32_t xoff)
     while (1) { /* 1000:FCBA */
         uint32_t idx = 2u * ((uint32_t)y & 0xFFF0u) + ((uint32_t)x >> 4);
 
-        b = level_page_byte(_obj_map_buffer_byte(idx), (uint32_t)x & 0xFu);
+        b = (uint8_t)(level_page_byte(_obj_map_buffer_byte(idx), (uint32_t)x & 0xFu));
         if (!(b & 0x80u)) { /* 1000:FCE0: a surface */
             y += (int32_t)(int8_t)b;
             break;
@@ -6765,16 +6772,16 @@ static void _obj_scan_point(uint8_t *actor, uint32_t xoff)
     _obj_sel_xoff = 0; /* 1000:FD0E */
     _obj_sel_frame = 0;
     _obj_side = 1; /* [0x4230] = the entry count - 1 */
-    for (uint32_t i = 0; i < 2u; i++) { /* 1000:FD20 */
+    for (uint16_t i = 0; i < 2u; i++) { /* 1000:FD20 */
         uint8_t *e = (uint8_t *)_obj_span[i];
 
-        if (rd_le_u16(e + 0u) & 0x8000u) fallback = (int32_t)i;
+        if (rd_le_u16(e + 0u) & 0x8000u) fallback = (int8_t)((int32_t)i);
         if (rd_le_u16(e + 0u) == (uint16_t)_obj_entity) {
             _obj_sel_frame = rd_le_u16(e + 6u);
             span = e;
             break;
         }
-        _obj_side = (uint16_t)(_obj_side - 1u); /* 1000:FD3B DEC [0x4230] */
+        _obj_side = (int16_t)(_obj_side - 1); /* 1000:FD3B DEC [0x4230] */
     }
     if (!span) { /* 1000:FD41 */
         if (fallback < 0) return;
@@ -6813,12 +6820,12 @@ static void _obj_neighbour_pass(uint8_t *actor, uint32_t offX, uint32_t offY,
 {
     int32_t x = (int32_t)(int16_t)(uint16_t)(rd_le_u16(actor + 0u) + offX);
     int32_t y = (int32_t)(int16_t)(uint16_t)(rd_le_u16(actor + 2u) + offY);
-    uint32_t n = _obj_live_count > OBJ_LIVE0 ? _obj_live_count - OBJ_LIVE0 : 0u;
+    uint8_t n = (uint8_t)(_obj_live_count > OBJ_LIVE0 ? _obj_live_count - OBJ_LIVE0 : 0u);
 
     _obj_aux = (uint16_t)delta; /* 1000:FAF9 */
     _obj_sel_frame = delta >= 0 ? 0x10u : 0u; /* 1000:FAFD */
     _obj_sel_type = 8u; /* 1000:FB03 */
-    for (uint32_t k = 0; k < n; k++) { /* 1000:FB29 */
+    for (uint16_t k = 0; k < n; k++) { /* 1000:FB29 */
         uint8_t *r = _obj_array + (OBJ_LIVE0 + 1u + k) * OBJ_STRIDE;
         int32_t d, ty;
 
@@ -6838,8 +6845,8 @@ static void _obj_neighbour_pass(uint8_t *actor, uint32_t offX, uint32_t offY,
                 (int32_t)(int16_t)rd_le_u16(r + 0u) + (delta >= 0 ? 0x10 : 0);
             int32_t py = (int32_t)(int16_t)rd_le_u16(r + 2u) + 8;
             uint32_t sub, tile = _obj_map_at_abs(px, py, &sub);
-            uint32_t word = level_item_word(tile, (uint32_t)(py & 0xF));
-            uint32_t bit = 1u << (0xFu - ((uint32_t)px & 0xFu));
+            uint16_t word = (uint16_t)(level_item_word(tile, (uint32_t)(py & 0xF)));
+            uint16_t bit = (uint16_t)(1u << (0xFu - ((uint32_t)px & 0xFu)));
 
             if (!(word & bit)) /* 1000:FC17 */
                 wr_le_u16(r + 8u, (uint16_t)(rd_le_u16(r + 8u) +
@@ -6917,11 +6924,11 @@ static void _obj_cmd_enter(uint8_t *actor)
  * @brief Set the 0x6FE6 flag.
  */
 static void _obj_flag6f_e6_set(void) { _obj_flag6f_e6 = 0xFFu; }
-int32_t object_flag6f_e6(void) { return _obj_flag6f_e6 != 0u; }
+uint8_t object_flag6f_e6(void) { return _obj_flag6f_e6 != 0u; }
 
 static void _obj_frame_step_down(uint8_t *actor, uint32_t lo, uint32_t hi)
 {
-    uint32_t f;
+    uint16_t f;
 
     wr_le_u16(actor + 2u,
               (uint16_t)(rd_le_u16(actor + 2u) + 1u)); /* 1000:FDBF */
@@ -7004,15 +7011,15 @@ static void _obj_level_end_goal(uint8_t *t, uint32_t idx)
 static void _obj_level_end_probe(uint8_t *actor, int32_t bx)
 {
     uint8_t *t;
-    uint32_t idx;
+    uint16_t idx;
 
     _obj_lat = 0; /* 1000:F5BC */
     if (bx >= 0) {
         t = object_slot((uint32_t)bx);
-        idx = (uint32_t)bx;
+        idx = (uint16_t)((uint32_t)bx);
     } else {
         t = actor;
-        idx = (uint32_t)((actor - _obj_array) / OBJ_STRIDE);
+        idx = (uint16_t)((uint32_t)((actor - _obj_array) / OBJ_STRIDE));
     }
     if (!t) return;
     if (statusbar_tribe_count_nonzero()) { /* 1000:F5E3 */
@@ -7024,7 +7031,7 @@ static void _obj_level_end_probe(uint8_t *actor, int32_t bx)
     t[6] = 0xFFu;
     wr_le_u16(t + 8u, 0x001Bu);
     if (t[7]) { /* 1000:F603 */
-        uint32_t cls = t[7];
+        uint8_t cls = t[7];
 
         _obj_class_byte_set(cls, 0u); /* 0x3E5F + cls - 1 */
         if (8u + cls < OBJ_SLOTS)
@@ -7032,9 +7039,9 @@ static void _obj_level_end_probe(uint8_t *actor, int32_t bx)
         t[7] = 0u;
     }
     if (idx != _obj_entity) return; /* 1000:F627 */
-    for (uint32_t i = 0; i < 8u; i++) { /* 1000:F630 */
+    for (uint16_t i = 0; i < 8u; i++) { /* 1000:F630 */
         uint8_t *r = object_slot(i);
-        uint32_t ty;
+        uint16_t ty;
 
         if (!r || (r[6] & 0x80u)) continue;
         ty = rd_le_u16(r + 8u);
@@ -7067,13 +7074,13 @@ static uint32_t _obj_tab_byte(const uint8_t *t, uint32_t n, uint32_t off)
  */
 static void _obj_tail_type28(uint8_t *actor)
 {
-    uint32_t a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
+    uint16_t a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
 
     wr_le_u16(actor + 0xAu, a); /* 1000:DBCD */
     if ((int16_t)a >= 0) return;
     wr_le_u16(actor + 0xAu, 9u);
     if (rd_le_u16(actor + 4u) != 0x00D3u) { /* 1000:DBD7 */
-        uint32_t off = rd_le_u16(actor + 0xCu);
+        uint16_t off = rd_le_u16(actor + 0xCu);
 
         actor[4] =
             (uint8_t)_obj_tab_byte(_obj_tab6868, sizeof _obj_tab6868, off);
@@ -7084,7 +7091,7 @@ static void _obj_tail_type28(uint8_t *actor)
         wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(actor + 2u) + 1u));
         return;
     }
-    _obj_side = 0xFFFFu; /* [0x4220] */
+    _obj_side = (int16_t)0xFFFF; /* [0x4220] */
     _obj_sel_xoff = 0xFFFFu; /* [0x4222] */
     _obj_level_end_probe(actor, -1); /* 1000:DC11 */
 }
@@ -7096,21 +7103,21 @@ static void _obj_tail_type28(uint8_t *actor)
  */
 static void _obj_tail_type30(uint8_t *actor)
 {
-    uint32_t a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
+    uint16_t a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
 
     wr_le_u16(actor + 0xAu, a); /* 1000:DE7E */
     if ((int16_t)a >= 0) return;
     {
-        uint32_t off = rd_le_u16(actor + 0xCu);
+        uint16_t off = rd_le_u16(actor + 0xCu);
         int32_t dx = (int32_t)(int8_t)(uint8_t)_obj_tab_byte(
             _obj_tab687_c, sizeof _obj_tab687_c, off);
         int32_t dy = (int32_t)(int8_t)(uint8_t)_obj_tab_byte(
             _obj_tab687_c, sizeof _obj_tab687_c, off + 1u);
-        uint32_t nxt = off + 2u;
+        uint16_t nxt = off + 2u;
 
         if (_obj_tab_byte(_obj_tab687_c, sizeof _obj_tab687_c, off + 2u) ==
             0u) { /* 1000:DE9F */
-            uint32_t e;
+            uint16_t e;
 
             nxt = (uint16_t)(nxt - 4u); /* 1000:DEA5 */
             e = (uint16_t)(rd_le_u16(actor + 0xEu) - 1u);
@@ -7142,9 +7149,9 @@ static void _obj_tail_type34(uint8_t *actor)
     /* 1000:DED1: +0xA is the ENTITY record pointer, not an object link.  The
      * entity interaction tags the index (0x8000|n); an untagged link is not
      * a carry and leaves the record alone. */
-    uint32_t link = rd_le_u16(actor + 0xAu);
+    uint16_t link = rd_le_u16(actor + 0xAu);
     const Entity *e = (link & 0x8000u) ? entity_at(link & 0x7FFFu) : NULL;
-    uint32_t v;
+    uint16_t v;
 
     if (!e) return;
     v = e->handler;
@@ -7173,14 +7180,14 @@ static void _obj_tail_type34(uint8_t *actor)
  */
 static void _obj_tail_type22(uint8_t *actor)
 {
-    uint32_t a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
+    uint16_t a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
 
     wr_le_u16(actor + 0xAu, a); /* 1000:EF66 */
     if ((int16_t)a >= 0) return;
     wr_le_u16(actor + 0xAu, 5u);
     wr_le_u16(actor + 4u, (uint16_t)(rd_le_u16(actor + 4u) + 1u));
     if (rd_le_u16(actor + 4u) != 0x2Eu) return; /* 1000:EF73 */
-    _obj_side = 0xFFFFu; /* [0x4220] */
+    _obj_side = (int16_t)0xFFFF; /* [0x4220] */
     _obj_sel_xoff = 0xFFFFu; /* [0x4222] */
     _obj_level_end_probe(actor, -1); /* 1000:EF93 */
 }
@@ -7200,7 +7207,7 @@ static void _obj_tail_type22(uint8_t *actor)
  */
 static void _obj_tail_frame_bound(uint8_t *actor, uint32_t bound)
 {
-    uint32_t a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
+    uint16_t a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
 
     wr_le_u16(actor + 0xAu, a); /* 1000:D9D0 */
     if ((int16_t)a >= 0) return;
@@ -7220,7 +7227,7 @@ static void _obj_tail_frame_bound(uint8_t *actor, uint32_t bound)
  */
 static void _obj_tail_frame_to_type(uint8_t *actor)
 {
-    uint32_t t = 2;
+    uint8_t t = 2;
 
     if (rd_le_u16(actor + 4u) < 0x10u) { /* 1000:DB33 */
         t = 1;
@@ -7266,7 +7273,7 @@ static void _obj_tail_type3_coast(uint8_t *actor, uint32_t dx)
  */
 static void _obj_tail_type3_land(uint8_t *actor, uint32_t bx)
 {
-    uint32_t sp;
+    uint16_t sp;
 
     wr_le_u16(actor + 2u, (uint16_t)(bx - 0x18u));
     sp = rd_le_u16(actor + 0xEu);
@@ -7418,7 +7425,7 @@ static uint8_t *_obj_span_owner(uint8_t *actor, int32_t *yes)
     uint8_t *found = NULL;
 
     *yes = 0;
-    for (uint32_t i = 0; i < 2u; i++) { /* AX = 1: two entries */
+    for (uint16_t i = 0; i < 2u; i++) { /* AX = 1: two entries */
         uint8_t *e = (uint8_t *)_obj_span[i];
 
         if (rd_le_u16(e + 0u) != (uint16_t)(idx & 0x7FFFu))
@@ -7443,7 +7450,7 @@ static uint8_t *_obj_span_owner(uint8_t *actor, int32_t *yes)
 static void _obj_tail_walk_to_frame(uint8_t *actor, uint32_t frame,
                                     const uint8_t *span)
 {
-    uint32_t a;
+    uint16_t a;
     uint16_t height = span ? rd_le_u16(span + 6u) : 0u;
     uint16_t dist = span ? rd_le_u16(span + 8u) : 0u;
 
@@ -7492,15 +7499,15 @@ static void _obj_tail_span_owner(uint8_t *actor, uint32_t frame, uint32_t f8,
  */
 static void _obj_tail_type16(uint8_t *actor)
 {
-    uint32_t a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
+    uint16_t a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
 
     wr_le_u16(actor + 0xAu, a);
     if ((int16_t)a < 0) { /* 1000:DD96 */
-        uint32_t f = rd_le_u16(actor + 4u);
+        uint16_t f = rd_le_u16(actor + 4u);
 
         wr_le_u16(actor + 0xAu, 0x0Au); /* 1000:DD98 */
         if (actor[0xCu] != 0u) { /* 1000:DD A0 */
-            f--;
+            f = (uint16_t)(f - 1u);
             if (f == 0x55u) { /* 1000:DD A7 */
                 actor[0xCu] = 0u;
                 _obj_driver_call(8);
@@ -7532,7 +7539,7 @@ static void _obj_tail_walk_countdown(uint8_t *actor, int32_t left)
     else _obj_walk(actor, 0); /* 1000:EB5C */
 
     {
-        uint32_t a = (uint16_t)(rd_le_u16(actor + 0xEu) - 1u);
+        uint16_t a = (uint16_t)(rd_le_u16(actor + 0xEu) - 1u);
 
         wr_le_u16(actor + 0xEu, a); /* 1000:EB5F */
         if ((int16_t)a < 0)
@@ -7581,12 +7588,12 @@ static void _obj_tail_special_tile(uint8_t *actor, uint32_t type, int32_t yoff,
  */
 static void _obj_tail_type17(uint8_t *actor)
 {
-    uint32_t a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
+    uint16_t a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
 
     wr_le_u16(actor + 0xAu, a); /* 1000:ECB7 */
     if ((int16_t)a >= 0) return; /* 1000:ECBB JNS 0xECDC */
     {
-        uint32_t off = rd_le_u16(actor + 0xCu);
+        uint16_t off = rd_le_u16(actor + 0xCu);
 
         wr_le_u16(actor + 0xAu, 9u);
         if (off < 0x1Au)
@@ -7614,7 +7621,7 @@ static void _obj_tail_type29(uint8_t *actor)
 {
     uint8_t *e = object_slot(object_action_entity());
     int32_t dx, dy;
-    uint32_t a;
+    uint16_t a;
 
     if (e && rd_le_u16(e + 8u) <= 2u) { /* 1000:DDE4 */
         dx = (int32_t)(int16_t)rd_le_u16(actor + 0u) -
@@ -7699,7 +7706,7 @@ static void _obj_tail_type11(uint8_t *actor)
         return;
     }
     {
-        uint32_t f = rd_le_u16(t + 8u);
+        uint16_t f = rd_le_u16(t + 8u);
 
         wr_le_u16(actor + 8u, (uint16_t)(f + 4u)); /* 1000:EAC9 */
         wr_le_u16(actor + 4u, f == 9u ? 8u : 0u);
@@ -7724,11 +7731,11 @@ static void _obj_tail_type12(uint8_t *actor)
     if (sum > ry) { /* 1000:EAF6: span end below the record */
         uint32_t cell, sub;
         int32_t y = (int32_t)(int16_t)ry + 0x18;
-        uint32_t b;
+        uint8_t b;
 
         cell = _obj_map_at_abs((int32_t)(int16_t)rd_le_u16(actor + 0u) + 8, y,
                                &sub);
-        b = level_page_byte(cell, sub);
+        b = (uint8_t)(level_page_byte(cell, sub));
         /* 1000:EB4B: a solid page byte takes the stepper; otherwise the
          * surface line 1000:EB4D is tested against the probe line `y`. */
         if ((b & 0x80u) ||
@@ -7750,7 +7757,7 @@ static void _obj_tail_type12(uint8_t *actor)
  */
 static void _obj_tail_type33(uint8_t *actor)
 {
-    uint32_t a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
+    uint16_t a = (uint16_t)(rd_le_u16(actor + 0xAu) - 1u);
 
     wr_le_u16(actor + 0xAu, a); /* 1000:F0C9 */
     if ((int16_t)a >= 0) return;
@@ -7778,10 +7785,10 @@ static void _obj_tail_type33(uint8_t *actor)
 
 static uint8_t *_obj_link_record(uint32_t off)
 {
-    uint32_t idx;
+    uint16_t idx;
 
     if (off < 4u) return NULL;
-    idx = (off - 4u) / OBJ_STRIDE;
+    idx = (uint16_t)((off - 4u) / OBJ_STRIDE);
     return idx < OBJ_SLOTS ? _obj_array + idx * OBJ_STRIDE : NULL;
 }
 
@@ -7797,7 +7804,7 @@ static uint8_t *_obj_link_record(uint32_t off)
 static void _obj_nudge(uint8_t *actor, int32_t step)
 {
     uint8_t *node = _obj_link_record(rd_le_u16(actor + 0xEu));
-    uint32_t bx;
+    uint16_t bx;
     int32_t cx;
 
     if (!node) return;
@@ -7942,8 +7949,8 @@ static void _obj_carry_form(uint8_t *rec, uint32_t phase)
  */
 static void _obj_cmd_type15_give(uint8_t *actor)
 {
-    uint32_t cls = actor[7];
-    uint32_t slot;
+    uint8_t cls = actor[7];
+    uint8_t slot;
     uint8_t *rec;
 
     actor[7] = 0u;
@@ -7974,14 +7981,14 @@ static void _obj_cmd_type15_tail(uint8_t *actor)
 {
     uint8_t *node = _obj_link_record(rd_le_u16(actor + 0xEu));
     int32_t ax, bx;
-    uint32_t phase;
+    uint8_t phase;
 
     if (!node) return; /* 1000:DC1F (DI = the node) */
     ax = (int32_t)rd_le_u16(node + 0u) + 8; /* 1000:DC32 */
     bx = (int32_t)rd_le_u16(node + 2u) + 0x10; /* 1000:DC34 */
     phase = _obj_frame & 0x3Fu; /* 1000:DC3D -> [0x4230] */
     if (rd_le_u16(node + 8u) != 0u) { /* 1000:DC22 */
-        for (uint32_t i = 0; i < 8u; i++) { /* 1000:DC3A: CX = 7 */
+        for (uint16_t i = 0; i < 8u; i++) { /* 1000:DC3A: CX = 7 */
             uint8_t *r = object_slot(i);
             int32_t d;
 
@@ -8001,7 +8008,7 @@ static void _obj_cmd_type15_tail(uint8_t *actor)
             return;
         }
     }
-    for (uint32_t g = 0; g < 8u; g++) { /* 1000:DCD0 */
+    for (uint16_t g = 0; g < 8u; g++) { /* 1000:DCD0 */
         uint8_t *e = (uint8_t *)_obj_register[g];
         int32_t d;
 
@@ -8045,7 +8052,7 @@ static void _obj_cmd_ride(uint8_t *actor, uint32_t frame, uint32_t xoff,
     if (_obj_stack_masked()) return; /* 1000:EA1A */
     wr_le_u16(actor + 4u, (uint16_t)frame);
     wr_le_u16(actor + 0xAu, 3u);
-    _obj_sel_type = bit; /* 1000:EA29 / 1000:EA67 */
+    _obj_sel_type = (uint16_t)(bit); /* 1000:EA29 / 1000:EA67 */
     _obj_scan_point(actor, xoff); /* 1000:FC81 */
 }
 
@@ -8060,7 +8067,7 @@ static void _obj_cmd_ride(uint8_t *actor, uint32_t frame, uint32_t xoff,
  */
 static void _obj_cmd_frame_step(uint8_t *actor, uint32_t bound, int32_t up)
 {
-    uint32_t f;
+    uint16_t f;
 
     if (_obj_lat) {
         _obj_cmd_enter(actor);
@@ -8074,7 +8081,7 @@ static void _obj_cmd_frame_step(uint8_t *actor, uint32_t bound, int32_t up)
 
 static int32_t _obj_cmd_home_state(uint8_t *actor)
 {
-    uint32_t t = rd_le_u16(actor + 8u);
+    uint16_t t = rd_le_u16(actor + 8u);
 
     if (t == 0x12u || t == 0x17u || t == 0x1Fu) {
         wr_le_u16(actor + 4u, 0u); /* 1000:EDD9 */
@@ -8133,9 +8140,9 @@ static void _obj_cmd_turn(uint8_t *actor)
  */
 static void _obj_cmd_leave(uint8_t *actor)
 {
-    uint32_t cx = rd_le_u16(actor + 0xEu);
+    uint16_t cx = rd_le_u16(actor + 0xEu);
     int32_t ax = 4, bx = 2;
-    int32_t down = 1;
+    uint8_t down = 1;
 
     _obj_lat = 0; /* 1000:EFE4 */
     if (rd_le_u16(actor + 4u) != 0x00BBu) { /* 1000:EFF5 */
@@ -8263,8 +8270,8 @@ static void _obj_fall_item_word(uint8_t *actor, int32_t ax, int32_t bx)
 {
     int32_t px = ax + (int32_t)(int16_t)_obj_sel_frame;
     int32_t py = bx + 0x18;
-    uint32_t tile = _obj_map_at_abs(px, py, NULL);
-    uint32_t item = level_item_word(tile, (uint32_t)((uint32_t)py & 0xFu));
+    uint16_t tile = (uint16_t)(_obj_map_at_abs(px, py, NULL));
+    uint16_t item = (uint16_t)(level_item_word(tile, (uint32_t)((uint32_t)py & 0xFu)));
     uint32_t lo, hi, mask;
 
     _obj_sel_type = item;
@@ -8276,8 +8283,8 @@ static void _obj_fall_item_word(uint8_t *actor, int32_t ax, int32_t bx)
     }
     /* 1000:F90B/F950: the shift count is `(x + +0x10 + [0x4238]) & 0xF` -
      * the *item* probe's sub-column, not the actor probe's `fine`. */
-    for (uint32_t i = 0; i < ((uint32_t)px & 0xFu); i++) { /* 1000:F952 */
-        uint32_t carry = lo & 1u;
+    for (uint16_t i = 0; i < ((uint32_t)px & 0xFu); i++) { /* 1000:F952 */
+        uint8_t carry = lo & 1u;
 
         lo >>= 1;
         hi = (hi >> 1) | (carry << 15);
@@ -8300,7 +8307,7 @@ static void _obj_fall_machine(uint8_t *actor)
     int32_t ax, bx, col, d;
     uint32_t row, fine, page;
     uint32_t probeY, above, below;
-    uint32_t anim;
+    uint16_t anim;
     int32_t vy;
 
     if (!_obj_settle_gate(actor)) { /* 1000:F6F6 */
@@ -8346,7 +8353,7 @@ static void _obj_fall_machine(uint8_t *actor)
     if (above >= 0xF0u) { /* 1000:F766 */
         /* 1000:F772: AX is the record.x + [+0x10] captured at 1000:F736, not
          * the probe x in CX (`ADD AX,8` then `AND AX,0xFFF0`). */
-        uint32_t gx = (uint32_t)(ax + 8) & ~0xFu;
+        uint16_t gx = (uint16_t)(ax + 8) & ~0xFu;
 
         if (above != 0xF1u) {
             gx -= 4u; /* 1000:F778 */
@@ -8370,12 +8377,12 @@ static void _obj_fall_machine(uint8_t *actor)
         _obj_map_at_abs(col, (int32_t)probeY, NULL); /* 1000:F7B9: the feet */
     page = level_page_byte(below, fine); /* 1000:F7F3 */
     if (rd_le_u16(actor + 0x10u) != 0u) { /* 1000:F7BB */
-        uint32_t want = _obj_type_tile_byte(rd_le_u16(actor + 8u));
+        uint8_t want = (uint8_t)(_obj_type_tile_byte(rd_le_u16(actor + 8u)));
 
         if (below == want) { /* 1000:F7CD */
             /* 1000:F7D7: `[DI+0x20]` is the cell one row below the feet, in
              * the same column, through the same `BP` (0x92A0 + fine). */
-            uint32_t b2 = _obj_map_at_abs(col, (int32_t)row + 0x10, NULL);
+            uint8_t b2 = (uint8_t)(_obj_map_at_abs(col, (int32_t)row + 0x10, NULL));
 
             if (level_page_byte(b2, fine) == 0u) { /* 1000:F7EE */
                 _obj_fall_land_at_y(actor, bx);
@@ -8384,8 +8391,8 @@ static void _obj_fall_machine(uint8_t *actor)
         }
     }
     if (page == 0u) { /* 1000:F80A: the row above decides */
-        uint32_t a2 = _obj_map_at_abs(col, (int32_t)row - 0x10, NULL);
-        uint32_t want = _obj_type_tile_byte(rd_le_u16(actor + 8u));
+        uint8_t a2 = (uint8_t)(_obj_map_at_abs(col, (int32_t)row - 0x10, NULL));
+        uint8_t want = (uint8_t)(_obj_type_tile_byte(rd_le_u16(actor + 8u)));
         /* 1000:F83A/F84C park these two in [0x422C]/[0x422E] only to compare
          * them; the port compares the cells directly. */
         if (want == a2) { /* 1000:F856 */
@@ -8441,7 +8448,7 @@ static void _obj_cmd_fall(uint8_t *actor, int32_t x, int32_t y, uint32_t frame)
 {
     _obj_side = (uint16_t)(int16_t)x;
     _obj_sel_xoff = (uint16_t)y;
-    _obj_sel_frame = frame;
+    _obj_sel_frame = (uint16_t)(frame);
     _obj_fall_machine(actor);
 }
 
@@ -8455,9 +8462,9 @@ static void _obj_cmd_fall(uint8_t *actor, int32_t x, int32_t y, uint32_t frame)
  */
 static void _obj_cmd_place(uint8_t *actor, int32_t x, int32_t y, uint32_t frame)
 {
-    _obj_side = (uint16_t)(int16_t)x; /* 1000:F08D */
+    _obj_side = (int16_t)x; /* 1000:F08D */
     _obj_sel_xoff = (uint16_t)y;
-    _obj_sel_frame = frame;
+    _obj_sel_frame = (uint16_t)(frame);
     _obj_place_at(actor); /* 1000:F23A */
 }
 
@@ -8516,7 +8523,7 @@ void object_set_command_timer(uint32_t v) { _obj_cmd_timer = (uint16_t)v; }
  * @param addr the record address
  * @return 1 when the address was handled, 0 otherwise
  */
-static int32_t _obj_cmd_call(uint8_t *actor, uint32_t addr)
+static int32_t _obj_cmd_call(uint8_t *actor, uint16_t addr)
 {
     switch (addr) {
     case 0xD9C7u: return 1; /* the common tail: a bare RET */
@@ -8598,9 +8605,9 @@ static int32_t _obj_cmd_call(uint8_t *actor, uint32_t addr)
 int32_t object_command_run(uint8_t *actor, uint8_t input)
 {
     ObjCommand c;
-    uint32_t before;
+    uint16_t before;
     int32_t ran = OBJ_CMD_NONE;
-    int32_t skip = 0;
+    uint8_t skip = 0;
     uint8_t dispatch = input;
 
     /* 1000:3702 reuses the press frame's [0x5ACE] for every update_world of
@@ -8644,7 +8651,7 @@ void object_row_pass(void)
 {
     uint8_t *actor = _obj_actor();
 
-    for (uint32_t i = 0; i < OBJ_STATIC; i++) {
+    for (uint16_t i = 0; i < OBJ_STATIC; i++) {
         uint8_t *r = _obj_array + i * OBJ_STRIDE;
         const uint8_t *row;
         uint32_t type, tail;
@@ -8656,7 +8663,7 @@ void object_row_pass(void)
         row = _obj_cmd_rows[type];
         if (row[0xAu]) _obj_cmd_settle(r); /* 1000:D89F */
         tail = rd_le_u16(row + 0xCu);
-        if (tail) (void)_obj_cmd_call(r, tail); /* 1000:D8A8 */
+        if (tail) (void)_obj_cmd_call(r, (uint16_t)(tail)); /* 1000:D8A8 */
     }
 }
 
@@ -8675,7 +8682,7 @@ int32_t object_step_down(uint8_t *actor)
         wr_le_u16(actor + 0xCu, 0x0000u);
         return 1;
     }
-    for (uint32_t i = 0; i < 2u; i++) {
+    for (uint16_t i = 0; i < 2u; i++) {
         uint16_t *s = _obj_span[i];
         int32_t sx = (int16_t)s[1], sy = (int16_t)s[2], sh = (int16_t)s[3], d;
 
@@ -8719,7 +8726,7 @@ int32_t object_step_up(uint8_t *actor)
         wr_le_u16(actor + 0xCu, 0x0000u);
         return 1;
     }
-    for (uint32_t i = 0; i < 2u; i++) {
+    for (uint16_t i = 0; i < 2u; i++) {
         uint16_t *s = _obj_span[i];
         int32_t sx = (int16_t)s[1], sy = (int16_t)s[2], sh = (int16_t)s[3], d;
         int32_t line = y + 0x18;
@@ -8837,21 +8844,21 @@ void object_group_dissolve_at(uint32_t slot)
  */
 static void _obj_group_clear_list(uint8_t *e)
 {
-    for (uint32_t i = 0; i < 5u; i++) /* 1000:FAC1/FAC4: five words */
+    for (uint16_t i = 0; i < 5u; i++) /* 1000:FAC1/FAC4: five words */
         wr_le_u16(e + 4u + 2u * i, 0xFFFFu);
 }
 
 static void _obj_group_dissolve(uint8_t *e)
 {
     uint8_t *bp;
-    uint32_t n;
+    uint8_t n;
     uint8_t *owner;
 
     wr_le_u16(e + 0u, 0xFFFFu); /* 1000:FA16 */
     wr_le_u16(e + 2u, 0xFFFFu); /* 1000:FA1C */
     bp = e + 5;
     while (!(bp[0] & 0x80u)) bp++; /* past the terminator */
-    n = (uint32_t)(bp - (e + 5)) - 1u; /* list length - 1     */
+    n = (uint8_t)((uint32_t)(bp - (e + 5)) - 1u); /* list length - 1     */
     if (n == 0u) {
         owner = object_slot(bp[-1]); /* 1000:FA49: the only member */
         if (owner) {
@@ -8862,7 +8869,7 @@ static void _obj_group_dissolve(uint8_t *e)
         return;
     }
     /* 1000:FA64/0xFA78: reset the last n list bytes (top .. second). */
-    for (uint32_t k = 0u; k < n; k++) {
+    for (uint16_t k = 0u; k < n; k++) {
         uint8_t *m = object_slot(bp[-1 - (int32_t)k]);
 
         if (m) _obj_group_restore_member(m);
@@ -8887,9 +8894,9 @@ static void _obj_group_dissolve(uint8_t *e)
 static void _obj_class_transfer(uint32_t recIndex)
 {
     uint8_t *rec = _obj_array + recIndex * OBJ_STRIDE;
-    uint32_t cls = rec[7];
+    uint8_t cls = rec[7];
     uint8_t *live, *slot;
-    uint32_t beh;
+    uint8_t beh;
 
     if (!cls) return; /* 1000:F4E6 */
     rec[7] = 0u; /* 1000:F4EF */
@@ -8897,7 +8904,7 @@ static void _obj_class_transfer(uint32_t recIndex)
         _obj_array + (OBJ_LIVE0 + cls) * OBJ_STRIDE; /* 0x3F17+0x12*(cls-1) */
     slot = _obj_slot_class + cls; /* 0x3E5F + cls - 1 */
     *slot &= 0x7Fu; /* 1000:F504 */
-    beh = (uint32_t)(*slot & 0x3Fu);
+    beh = (uint8_t)((uint32_t)(*slot & 0x3Fu));
     if (beh == 4u) { /* 1000:F50B: the live record is the wheel */
         uint32_t ax, bx;
 
@@ -8936,9 +8943,9 @@ static void _obj_class_transfer(uint32_t recIndex)
 
 int32_t object_stack_scan_dissolve(uint32_t recIndex)
 {
-    int32_t found = 0;
+    uint8_t found = 0;
 
-    for (uint32_t i = 0; i < 8u; i++) {
+    for (uint16_t i = 0; i < 8u; i++) {
         uint8_t *e = (uint8_t *)_obj_register[i];
         if (e[1] & 0x80u) continue; /* +0 bit 15 set = free */
         for (uint8_t *p = e + 5; !(p[0] & 0x80u); p++)
@@ -8963,7 +8970,7 @@ void object_find_overlap_for_probe(uint8_t *actor) { _obj_find_overlap(actor); }
 static void _obj_op_reset_span(void)
 {
     if (!(_obj_frame & 1u)) return;
-    for (uint32_t i = 0; i < 2u; i++) {
+    for (uint16_t i = 0; i < 2u; i++) {
         uint16_t *e = _obj_span[i];
         if (e[0] != _obj_entity) continue;
         /* 1000:EA94..0xEAA1: +8 != 0 clears outright, and with +8 == 0 the
@@ -8996,7 +9003,7 @@ static void _obj_op_reset_span(void)
 static void _obj_charge_draw(void)
 {
     uint8_t *actor = object_slot(object_action_entity());
-    uint32_t v;
+    uint16_t v;
 
     if (!actor) return;
     /* 1000:36DB's entry: 0x99D8/0x9B7D/0x9A18 restore the band over the
@@ -9007,15 +9014,15 @@ static void _obj_charge_draw(void)
      * -> 0x3747, +0xE stepping by 4); its page is never rebuilt, so the
      * strokes stay.  The port recomposes the page every tick, so it redraws
      * the whole run - the same pixels the original accumulated (D-81). */
-    v = (uint32_t)(rd_le_u16(actor + 0xEu) & 0x1FFu);
+    v = (uint16_t)((uint32_t)(rd_le_u16(actor + 0xEu) & 0x1FFu));
     statusbar_charge_bar(0u); /* 1000:36F7 */
     statusbar_charge_bar(2u); /* 1000:36FF */
-    for (uint32_t x = 4u; x <= v; x += 4u) statusbar_charge_bar(x);
+    for (uint16_t x = 4u; x <= v; x += 4u) statusbar_charge_bar(x);
 }
 
 void object_pending_run(void)
 {
-    uint32_t code = _obj_pending;
+    uint8_t code = _obj_pending;
 
     _obj_pending = 0u;
     if (code == 0u) return;
@@ -9048,9 +9055,9 @@ void object_pending_run(void)
     }
 }
 
-int32_t object_charge_active(void) { return _obj_charging; }
+uint8_t object_charge_active(void) { return _obj_charging; }
 
-int32_t object_charge_tick(void)
+uint8_t object_charge_tick(void)
 {
     if (!_obj_charging) return 0;
     if (!_obj_charge_arm) { /* 1000:370C */
@@ -9083,7 +9090,7 @@ void object_action_run(void)
 
     uint8_t *actor = _obj_array + _obj_entity * OBJ_STRIDE;
     /* 1000:3987: cursor = [SI+1] (after the two INCs), op = [SI+1+cursor]. */
-    uint32_t op = object_action_byte(1u + object_action_byte(1u));
+    uint8_t op = object_action_byte(1u + object_action_byte(1u));
 
     switch (op) {
     case OP_REGISTER: _obj_op_register(actor); break;
@@ -9119,9 +9126,9 @@ void object_action_run(void)
          * nothing in the body reads it, so the clear is done here. */
         _obj_lat = 0;
         {
-            uint32_t t = rd_le_u16(actor + 8u);
+            uint16_t t = rd_le_u16(actor + 8u);
             int32_t step = (t == 0u) ? 1 : -1;
-            uint32_t frame = (t == 0u) ? 0x8Cu : 0x91u;
+            uint16_t frame = (t == 0u) ? 0x8Cu : 0x91u;
             const uint8_t *map = level_map();
             int32_t cell =
                 (int32_t)(uint16_t)(2u * ((uint32_t)rd_le_u16(actor + 2u) &
@@ -9142,7 +9149,7 @@ void object_action_run(void)
          * `cmd_ride_ad`, already ported as `_obj_cmd_ride` (the same bodies
          * the type rows reach as command 8). */
         {
-            uint32_t t = rd_le_u16(actor + 8u);
+            uint16_t t = rd_le_u16(actor + 8u);
 
             if (t < 2u) { /* 1000:39D2 CMP AX,2 / JNC */
                 if (t == 0u)
@@ -9163,9 +9170,9 @@ void object_save_table(uint8_t *dst)
     memset(dst, 0, 0x25Fu);
     wr_le_u16(dst + 0u, _obj_placed_humans);
     wr_le_u16(dst + 2u, _obj_entity);
-    for (uint32_t i = 0; i < OBJ_SLOTS; i++)
+    for (uint16_t i = 0; i < OBJ_SLOTS; i++)
         wr_le_u16(dst + 4u + 2u * i, (uint16_t)(0x3E75u + 0x12u * i));
-    for (uint32_t i = 0; i < 21u; i++) dst[0x3Eu + i] = _obj_slot_class[i];
+    for (uint16_t i = 0; i < 21u; i++) dst[0x3Eu + i] = _obj_slot_class[i];
     wr_le_u16(dst + 0x53u, (uint16_t)_obj_live_count); /* [0x3E73] word */
     memcpy(dst + 0x55u, _obj_array, OBJ_SLOTS * OBJ_STRIDE);
 }
@@ -9177,7 +9184,7 @@ void object_load_table(const uint8_t *src)
     _obj_entity = rd_le_u16(src + 2u);
     if (_obj_entity >= OBJ_SLOTS) _obj_entity = 0u;
     memset(_obj_slot_class, 0, sizeof _obj_slot_class);
-    for (uint32_t i = 0; i < 21u; i++) _obj_slot_class[i] = src[0x3Eu + i];
+    for (uint16_t i = 0; i < 21u; i++) _obj_slot_class[i] = src[0x3Eu + i];
     _obj_live_count = rd_le_u16(src + 0x53u); /* [0x3E73] word */
     if (_obj_live_count > OBJ_SLOTS) _obj_live_count = OBJ_SLOTS;
     memcpy(_obj_array, src + 0x55u, OBJ_SLOTS * OBJ_STRIDE);
@@ -9233,7 +9240,7 @@ void object_save_pool(uint8_t *dst)
  */
 static void _obj_span_top_reset(void)
 {
-    for (uint32_t i = 0; i < 2u; i++)
+    for (uint16_t i = 0; i < 2u; i++)
         _obj_span_top[i] = rd_le_u16((uint8_t *)_obj_span[i] + 0xCu);
 }
 
@@ -9264,15 +9271,17 @@ void object_load_spans(const uint8_t *src)
  */
 static void _obj_pending_moves_tick(void)
 {
-    uint32_t placed = object_placed_humans();
+    uint16_t placed = object_placed_humans();
 
     if (_pend_tag == 0u) {
-        if (_pend_div-- > 0) return;
+        uint8_t div = _pend_div;
+        _pend_div = (uint8_t)(div - 1u);
+        if (div > 0u) return;
         if (_pend_cursor / 4u < 17u && placed != 0u) {
-            uint32_t idx = _pend_index + _pend_off[_pend_cursor / 4u];
+            uint16_t idx = _pend_index + _pend_off[_pend_cursor / 4u];
 
             while (idx >= placed) idx -= placed;
-            _pend_div = _pend_wait[_pend_cursor / 4u];
+            _pend_div = (uint8_t)(_pend_wait[_pend_cursor / 4u]);
             _pend_index = (uint16_t)idx;
             _pend_cursor = (uint16_t)(_pend_cursor + 4u);
             if (_pend_off[_pend_cursor / 4u] == 0xFFFFu) _pend_cursor = 0u;
@@ -9301,11 +9310,12 @@ void object_animator_tick(void)
 {
     _obj_pending_moves_tick();
 
-    if (_obj_anim_div-- <= 0) _obj_anim_div = 6;
+    if (_obj_anim_div == 0u) _obj_anim_div = 6;
+    else _obj_anim_div = (uint8_t)(_obj_anim_div - 1u);
 
-    for (uint32_t gi = 0; gi < 8u; gi++) {
+    for (uint16_t gi = 0; gi < 8u; gi++) {
         uint8_t *g = (uint8_t *)_obj_register[gi];
-        uint32_t len = 0, limit, c;
+        uint8_t len = 0, limit, c;
         uint8_t dl;
 
         if (rd_le_u16(g + 0u) & 0x8000u) continue;
@@ -9333,9 +9343,9 @@ void object_animator_tick(void)
          * member takes the run's first offset and the owner takes the last -
          * which is 0 in every shipped run.  `_obj_anim_x[..][c][j]` is the run's
          * word j+1, so the list index m takes column `len - 1 - m`. */
-        for (uint32_t m = 0; m < len; m++) {
+        for (uint16_t m = 0; m < len; m++) {
             uint8_t *r = object_slot(g[5u + m]);
-            uint32_t frame;
+            uint16_t frame;
 
             if (!r) continue;
             frame = rd_le_u16(r + 4u);

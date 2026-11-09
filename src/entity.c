@@ -39,6 +39,7 @@
 #include "osystem.h"
 #include "score.h"
 #include "byteorder.h"
+#include "width.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -75,14 +76,14 @@ static uint16_t _ents[ENT_MAX][8] = {
     { 0, 0, 0, 0, 0, 0, 0, 0 },
     { 0, 0, 0, 0, 0, 0, 0, 0 },
 };
-static uint32_t _ent_count;    /* [0x64C2]                                */
+static uint16_t _ent_count;    /* [0x64C2]                                */
 
 /* The dispatcher's shared DS words: [0x4238] = the secondary selector
  * (the movement step this tick), [0x423C] = the primary selector. */
 static uint16_t _sel_secondary;  /* [0x4238]                              */
 static uint16_t _sel_primary;    /* [0x423C]                              */
 
-static uint32_t _cur_style;      /* [0x17EE]: the level header's style    */
+static uint8_t _cur_style;      /* [0x17EE]: the level header's style    */
 
 /* --- load_terrain_b's data (the exe image, byte-verified) --------------- */
 
@@ -147,7 +148,7 @@ static int32_t _style6_y_bonus(const uint8_t *map, uint32_t mapLen,
 {
     if (_cur_style != 6u) return 0;
     if (matchIdx + 0x20u >= mapLen) return 0;
-    uint32_t v = map[matchIdx + 0x20u];
+    uint8_t v = map[matchIdx + 0x20u];
     if (v > 0x90u) return 0;
     uint8_t flag = _style6_flags[(v >> 3) & 31u];
     /* MOV AX,1 / SHL AX,CL with CL = 7-(v&7) — bit 0x80>>(v&7) */
@@ -179,7 +180,7 @@ static void _entity_append(const uint8_t *map, uint32_t mapLen,
         return;
     }
     uint16_t *e = _ents[_ent_count++];
-    uint32_t dxAdj = dx + 1u - 0x30u;                     /* 5373/5376 */
+    uint16_t dxAdj = (uint16_t)(dx + 1u - 0x30u);         /* 5373/5376 */
     e[0] = (uint16_t)cx;          /* +0 = the spawn column * 16          */
     e[1] = 0;                     /* +2 = 0 (a 0xB4 writes the far end)  */
     e[2] = 0;                     /* +4 = the dispatch index: seeded 0   */
@@ -203,9 +204,9 @@ static void _entity_find(const uint8_t *map, uint32_t mapLen, uint32_t matchIdx,
                          uint32_t cx, uint32_t dx)
 {
     if (_style6_y_bonus(map, mapLen, matchIdx)) dx += 3;   /* 1000:5698 */
-    uint32_t match = dx + 1u - 0x30u;                     /* 53a5/53a8 */
+    uint16_t match = (uint16_t)(dx + 1u - 0x30u);         /* 53a5/53a8 */
 
-    for (uint32_t i = 0; i < _ent_count; i++) {
+    for (uint16_t i = 0; i < _ent_count; i++) {
         if (_ents[i][4] != (uint16_t)match) continue;      /* 53a9 */
         _ents[i][1] = (uint16_t)cx;                        /* 53ae */
         return;                                           /* 53b1 */
@@ -225,11 +226,11 @@ static void _entity_find(const uint8_t *map, uint32_t mapLen, uint32_t matchIdx,
 static void _spawn_tile_pair(uint32_t pair, uint8_t tile, const uint8_t *map,
                              uint32_t lifeSeed)
 {
-    for (uint32_t row = 0; row < MAP_ROWS; row++) {
-        for (uint32_t col = 0; col < MAP_COLS; col++) {
-            uint32_t idx = row * MAP_COLS + col;
-            uint32_t cx = col * 16u;
-            uint32_t dx = row * 16u;
+    for (uint16_t row = 0; row < MAP_ROWS; row++) {
+        for (uint16_t col = 0; col < MAP_COLS; col++) {
+            uint16_t idx = row * MAP_COLS + col;
+            uint16_t cx = col * 16u;
+            uint16_t dx = row * 16u;
 
             if (map[idx] != tile) continue;
             switch (pair) {
@@ -247,8 +248,8 @@ static void _spawn_tile_pair(uint32_t pair, uint8_t tile, const uint8_t *map,
     }
 }
 
-int32_t entity_spawn_from_map(const uint8_t *map, uint32_t style,
-                              uint32_t lifeSeed)
+int32_t entity_spawn_from_map(const uint8_t *map, uint8_t style,
+                              uint8_t lifeSeed)
 {
     if (!map) return -1;
 
@@ -258,7 +259,7 @@ int32_t entity_spawn_from_map(const uint8_t *map, uint32_t style,
     _cur_style = style;
     _sel_secondary = _sel_primary = 0;
 
-    for (uint32_t pair = 0; pair < 25u; pair++)
+    for (uint16_t pair = 0; pair < 25u; pair++)
         _spawn_tile_pair(pair, _tile_ids[pair], map, lifeSeed);
     return 0;
 }
@@ -282,7 +283,7 @@ int32_t entity_spawn_from_map(const uint8_t *map, uint32_t style,
 static uint16_t _ent_word(uint32_t slot, uint32_t off, uint32_t k)
 {
     const uint16_t *flat = &_ents[0][0];
-    uint32_t i = slot * 8u + off + k;
+    uint16_t i = (uint16_t)(slot * 8u + off + k);
 
     return i < ENT_MAX * 8u ? flat[i] : 0u;
 }
@@ -324,15 +325,15 @@ static uint32_t _ent_index(const Entity *ep)
  */
 static void _entity_tail_interact(Entity *ep, uint32_t slot, uint32_t off)
 {
-    uint32_t w3 = _ent_word(slot, off, 3), w4 = _ent_word(slot, off, 4);
-    uint32_t w5 = _ent_word(slot, off, 5), w6 = _ent_word(slot, off, 6);
-    uint32_t w7 = _ent_word(slot, off, 7), w8 = _ent_word(slot, off, 8);
-    uint32_t w9 = _ent_word(slot, off, 9);
+    uint16_t w3 = _ent_word(slot, off, 3), w4 = _ent_word(slot, off, 4);
+    uint16_t w5 = _ent_word(slot, off, 5), w6 = _ent_word(slot, off, 6);
+    uint16_t w7 = _ent_word(slot, off, 7), w8 = _ent_word(slot, off, 8);
+    uint16_t w9 = _ent_word(slot, off, 9);
 
-    for (uint32_t i = 0; i < 8u; i++) { /* DX = 7: the static eight */
+    for (uint16_t i = 0; i < 8u; i++) { /* DX = 7: the static eight */
         uint8_t *rec = object_slot(i);
         int32_t dx, dy;
-        uint32_t type;
+        uint16_t type;
 
         if (!rec) return;
         if (rec[6] & 0x80u) continue; /* 1000:CA6B */
@@ -360,7 +361,7 @@ static void _entity_tail_interact(Entity *ep, uint32_t slot, uint32_t off)
         wr_le_u16(rec + 0xAu, (uint16_t)(0x8000u | _ent_index(ep)));
         wr_le_u16(rec + 0xEu, (uint16_t)w5); /* 1000:CB23 */
         { /* 1000:CB35..CB4C */
-            uint32_t idx = w6 / 2u; /* the entity's word offset */
+            uint16_t idx = w6 / 2u; /* the entity's word offset */
             uint16_t base = 0;
 
             if (w6 <= 0xEu && !(w6 & 1u)) base = ((const uint16_t *)ep)[idx];
@@ -391,7 +392,7 @@ static void _entity_tail(Entity *ep, uint32_t slot, uint32_t off, uint16_t endX)
     if (w0 != ep->waypoint) { /* c9cb/c9ce: the walk branch */
         _sel_primary = _ent_word(slot, off, 1); /* c9dd */
         _sel_secondary = _ent_word(slot, off, 2); /* c9e4/c9e8 */
-        ep->x += _sel_secondary; /* c9ee/c9f1: ADD [DI],AX */
+        ep->x = (uint16_t)(ep->x + _sel_secondary); /* c9ee/c9f1: ADD [DI],AX */
         if (endX == ep->x) { /* c9f3: the endpoint hit   */
             _sel_primary ^= 0x000Eu; /* c9f7 */
             ep->waypoint = _sel_primary; /* c9fc/c9ff */
@@ -401,7 +402,8 @@ static void _entity_tail(Entity *ep, uint32_t slot, uint32_t off, uint16_t endX)
         /* ca09..ca3b: the beat (the hold countdown, then the waypoint step and
          * its 8-snap), and then CA43's interaction pass, which runs on BOTH
          * beat exits - ca18's JNS and the ca1a path both land on ca3f. */
-        if ((int16_t)--ep->hold < 0) { /* ca0f/ca13/ca17/ca18 */
+        ep->hold = (uint16_t)(ep->hold - 1u);
+        if ((int16_t)ep->hold < 0) { /* ca0f/ca13/ca17/ca18 */
             ep->hold = 4; /* ca1a */
             ep->waypoint += 1u; /* ca20 */
             _sel_secondary = (uint16_t)(_sel_primary + 8u); /* ca24/ca27/ca2a */
@@ -415,7 +417,8 @@ static void _entity_tail(Entity *ep, uint32_t slot, uint32_t off, uint16_t endX)
     /* c9d0: the beat branch (w0 == waypoint): hold down; on expiry the
      * waypoint takes the primary... the pair's +2 word (c9d5 uses [BP] at
      * the +2 position = wp[1]). */
-    if ((int16_t)--ep->hold < 0)
+    ep->hold = (uint16_t)(ep->hold - 1u);
+    if ((int16_t)ep->hold < 0)
         ep->waypoint = _ent_word(slot, off, 1); /* c9d5/c9d9 */
 }
 
@@ -432,14 +435,15 @@ static void _entity_tail(Entity *ep, uint32_t slot, uint32_t off, uint16_t endX)
 static void _entity_carry_anim(Entity *ep)
 {
     uint8_t *b = (uint8_t *)ep;
-    uint32_t frame;
+    uint16_t frame;
 
-    if ((int8_t)--b[0xAu] >= 0) return; /* cb9e/cba2 */
+    b[0xAu] = (uint8_t)(b[0xAu] - 1u);
+    if ((int8_t)b[0xAu] >= 0) return; /* cb9e/cba2 */
     b[0xAu] = 4; /* cba4 */
     {
-        uint32_t sub = b[0xBu]; /* cbaa */
+        uint8_t sub = b[0xBu]; /* cbaa */
 
-        frame = (uint32_t)(rd_le_u16(b + 0xCu) + 1u); /* cbb3: INC word [BP] */
+        frame = (uint16_t)((uint32_t)(rd_le_u16(b + 0xCu) + 1u)); /* cbb3: INC word [BP] */
         wr_le_u16(b + 0xCu, (uint16_t)frame);
         if (frame != _sel_primary) return; /* cbba */
         wr_le_u16(b + 0xCu, (uint16_t)(frame - 2u)); /* cbc0 */
@@ -457,7 +461,7 @@ static void _entity_carry_anim(Entity *ep)
     ep->handler = _sel_secondary; /* cbe2/cbe5: [0x4238] */
 }
 
-int32_t entity_frame_info(uint32_t a, uint32_t *src, uint32_t *rows,
+uint8_t entity_frame_info(uint32_t a, uint32_t *src, uint32_t *rows,
                           uint32_t *yoff)
 {
     if (!_ent_bank || 4u * a + 4u > _ent_bank_size ||
@@ -469,7 +473,7 @@ int32_t entity_frame_info(uint32_t a, uint32_t *src, uint32_t *rows,
     return (*src <= _ent_bank_size) ? 1 : 0;
 }
 
-int32_t entity_sprite_pixel(uint32_t src, uint32_t rows, uint32_t x, uint32_t y)
+uint8_t entity_sprite_pixel(uint32_t src, uint32_t rows, uint32_t x, uint32_t y)
 {
     uint32_t idx = src + y * 4u + (x >> 2) + (rows & 0x1Fu) * 8u * (x & 3u);
 
@@ -489,14 +493,14 @@ void entity_publish_bank(const uint8_t *bank, uint32_t size)
 void entity_render(uint8_t *page, int32_t scrollX, int32_t scrollY)
 {
     if (!page || !_ent_bank) return;
-    for (uint32_t i = 0; i < _ent_count; i++) {
+    for (uint16_t i = 0; i < _ent_count; i++) {
         const Entity *e = (const Entity *)_ents[i];
         int32_t x = (int32_t)(int16_t)e->x - 0xC;
         int32_t y = (int32_t)(int16_t)e->y;
 
         if ((int16_t)e->waypoint < 0) continue; /* 1000:583D OR CX,CX */
-        for (uint32_t k = 0; k < 2u; k++) { /* 1000:589A + 0x58A4 */
-            uint32_t a = (uint32_t)(2u * e->waypoint) + k;
+        for (uint16_t k = 0; k < 2u; k++) { /* 1000:589A + 0x58A4 */
+            uint16_t a = u16(2u * e->waypoint) + k;
             uint32_t src, rows, yoff;
 
             if (!entity_frame_info(a, &src, &rows, &yoff)) break;
@@ -512,7 +516,8 @@ void entity_tick(void)
 {
     /* 1000:C944: AX = [0x64C2]-1, DEC/JNS - the entity table is walked
      * DOWNWARD, so the highest index runs first. */
-    for (uint32_t i = _ent_count; i-- > 0u;) {
+    for (uint16_t i = _ent_count; i > 0u;) {
+        i--;
         Entity *ep = (Entity *)_ents[i];
         /* c94c-c951: BX = +0, CX = +2, DX = +4 into the handler switch.
          * The handlers re-latch their fixed words EVERY call (BP is not
@@ -537,7 +542,8 @@ void entity_tick(void)
             _entity_carry_anim(ep);
             break;
         case 4u: /* 1000:C998: the hold ran out */
-            if ((int16_t)--ep->hold < 0) { /* C99D/C9A1 */
+            ep->hold = (uint16_t)(ep->hold - 1u);
+            if ((int16_t)ep->hold < 0) { /* C99D/C9A1 */
                 ep->waypoint++; /* C9A6: INC word [record+0xC] */
                 ep->handler = 5u; /* C9AD */
                 object_driver_call(0x0Cu); /* C9B2 */
@@ -563,13 +569,13 @@ const Entity *entity_at(uint32_t i)
     return (const Entity *)_ents[i];
 }
 
-uint32_t entity_count(void) { return _ent_count; }
+uint16_t entity_count(void) { return _ent_count; }
 
 void entity_save_fixed(uint8_t *dst)
 {
     if (!dst) return;
     wr_le_u16(dst, (uint16_t)_ent_count);
-    for (uint32_t i = 0; i < 7u; i++) memcpy(dst + 2u + i * 16u, _ents[i], 16u);
+    for (uint16_t i = 0; i < 7u; i++) memcpy(dst + 2u + i * 16u, _ents[i], 16u);
 }
 
 void entity_load_fixed(const uint8_t *src)
@@ -577,5 +583,5 @@ void entity_load_fixed(const uint8_t *src)
     if (!src) return;
     _ent_count = rd_le_u16(src);
     if (_ent_count > ENT_MAX) _ent_count = ENT_MAX;
-    for (uint32_t i = 0; i < 7u; i++) memcpy(_ents[i], src + 2u + i * 16u, 16u);
+    for (uint16_t i = 0; i < 7u; i++) memcpy(_ents[i], src + 2u + i * 16u, 16u);
 }

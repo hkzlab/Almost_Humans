@@ -68,7 +68,7 @@ void entity_render(uint8_t *page, int32_t scrollX, int32_t scrollY);
  * @param yoff the y offset
  * @return 1 when the indices are inside the bank, 0 otherwise
  */
-int32_t entity_frame_info(uint32_t a, uint32_t *src, uint32_t *rows,
+uint8_t entity_frame_info(uint32_t a, uint32_t *src, uint32_t *rows,
                           uint32_t *yoff);
 
 /** @brief One pass over the whole 32x20 map per table pair, in table order, the
@@ -90,8 +90,8 @@ int32_t entity_frame_info(uint32_t a, uint32_t *src, uint32_t *rows,
  * @param lifeSeed the life seed
  * @return 0 on success, -1 when the map is missing
  */
-int32_t entity_spawn_from_map(const uint8_t *map, uint32_t style,
-                              uint32_t lifeSeed);
+int32_t entity_spawn_from_map(const uint8_t *map, uint8_t style,
+                              uint8_t lifeSeed);
 
 /**
  * @brief Accessor: one entity record, NULL past the count.
@@ -118,7 +118,7 @@ Entity *entity_at_mut(uint32_t i);
  * @param y the y coordinate
  * @return 1 when the pixel is non-zero, 0 otherwise
  */
-int32_t entity_sprite_pixel(uint32_t src, uint32_t rows, uint32_t x,
+uint8_t entity_sprite_pixel(uint32_t src, uint32_t rows, uint32_t x,
                             uint32_t y);
 
 /**
@@ -126,7 +126,7 @@ int32_t entity_sprite_pixel(uint32_t src, uint32_t rows, uint32_t x,
  *
  * @return The live entity count.
  */
-uint32_t entity_count(void);
+uint16_t entity_count(void);
 
 /** @brief Save +0x1656+0x28 = [0x64C2] (u16) + the first seven 0x10-byte records
  * (0x64C4..0x6534).  The original copies 0x70 bytes, i.e. slots 0..6.

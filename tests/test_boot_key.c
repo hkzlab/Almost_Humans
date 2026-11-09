@@ -69,7 +69,7 @@ int main(int argc, char **argv)
     memset(&idle, 0, sizeof idle);
     scene_note_input(&idle);
 
-    int32_t r = 1;
+    uint8_t r = 1;
     uint32_t t = 0;
     for (; t < 50u && r == 1; t++) {
         r = scene_play_boot_intro();

@@ -406,7 +406,7 @@ int main(int argc, char **argv)
             bad = 1;
         } else {
             uint32_t t = 0;
-            int32_t r = 1;
+            uint8_t r = 1;
             while (r == 1 && t < 100u) {
                 palette_tick();
                 r = scene_play_level_intro(0);
@@ -571,7 +571,7 @@ int main(int argc, char **argv)
                 fprintf(stderr, "FAIL the key did not start the quit fade\n");
                 bad = 1;
             } else {
-                int32_t r = 1;
+                uint8_t r = 1;
                 for (t = 0; t < 200u && r == 1; t++) {
                     palette_tick();
                     r = scene_play_level_intro(6);

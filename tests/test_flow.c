@@ -259,6 +259,59 @@ int main(int argc, char **argv)
         font_draw_text_bounded(tiny, sizeof tiny, "HELLO", 0xA0u, 0u);
         _check(_tf_warns == 1u, "the drop warning is reported once");
         font_init(&g_osys_null);
+
+        /* textpage_draw (1000:A08E): the 9-slice box sits at
+         * left = 160 - (tiles+2)*8, top = 76 - (lines+2)*8 and the text
+         * row at top+15.  Pixel-exact check of the level-text page. */
+        {
+            static uint8_t box[9u * 256u];
+            static uint8_t page[VIDEO_PAGE_BYTES];
+            uint32_t adv = font_text_width("M");
+            uint32_t tiles = adv / 16u + 2u;
+            uint32_t cols = tiles + 2u;
+            uint32_t left = 160u - cols * 8u;
+            uint32_t top = 76u - 3u * 8u; /* rows = 1 line + 2 */
+            uint32_t ink = 0;
+
+            memset(box, 0xFF, sizeof box);
+            textpage_publish_box(box);
+            memset(page, 0, sizeof page);
+            textpage_draw(page, "M", -1, 0u, 0);
+            _check(page[top * VIDEO_PAGE_W + left] != 0u,
+                   "the level text box's corner is at (left, top)");
+            _check(left > 0u && page[top * VIDEO_PAGE_W + left - 1u] == 0u,
+                   "the box does not bleed one pixel left of its corner");
+            for (uint32_t x = 128u; x < 192u; x++)
+                if (page[(top + 15u) * VIDEO_PAGE_W + x]) ink++;
+            _check(ink != 0u,
+                   "the level text line draws at the box's top+15 row");
+            textpage_publish_box(NULL);
+        }
+
+        /* object_blit_sprite (the object bank's blit): the source index is
+         * (col&3)*rows*(cols/4) + row*(cols/4) + col/4 — the block stride is a
+         * product that exceeds a byte for a 32x32 tile (256), so a byte-sized
+         * stride transposes/garbles large sprites (the PARKVIEW dinosaur).
+         * Drive it with a 32x32, all-ink, position-tagged source. */
+        {
+            static uint8_t spr[4u * 32u * 8u];
+            static uint8_t page[VIDEO_PAGE_BYTES];
+            uint32_t bad = 0;
+
+            /* i/4 repeats every 1024 bytes but differs at +256/+512, so a
+             * wrong block stride reads a different value. */
+            for (uint32_t i = 0; i < sizeof spr; i++) spr[i] = (uint8_t)(i / 4u + 1u);
+            memset(page, 0, sizeof page);
+            object_blit_sprite(page, spr, 32u, 32u, 10, 10);
+            for (uint32_t y = 10u; y < 42u; y++)
+                for (uint32_t x = 10u; x < 42u; x++) {
+                    uint32_t want =
+                        spr[(x - 10u & 3u) * 256u + (y - 10u) * 8u +
+                            ((x - 10u) >> 2)];
+                    if (page[y * VIDEO_PAGE_W + x] != want) bad++;
+                }
+            _check(bad == 0u, "object_blit_sprite's block stride is a word");
+        }
     }
     if (compat_chdir(vol_dir)) {
         perror(vol_dir);
@@ -284,7 +337,7 @@ int main(int argc, char **argv)
 
     /* 2. entry LAB_00CD: [0x22]++ while the 160 levels last, then COMPLETE */
     {
-        uint32_t lv = 0u;
+        uint16_t lv = 0u;
         _check(gameflow_after_level(&lv) == FLOW_LEVEL && lv == 1u,
                "level 0 -> the next level");
         lv = 158u;
@@ -457,7 +510,7 @@ int main(int argc, char **argv)
 
         /* 4. the start snapshot [0x1970] and level_restore's reset */
         {
-            uint32_t req = level_required(), mem = level_members();
+            uint16_t req = level_required(), mem = level_members();
             const uint8_t *map = level_map();
             uint32_t counted = 0;
             for (uint32_t i = 0; i < 640u; i++)
@@ -480,6 +533,22 @@ int main(int argc, char **argv)
             _check(memcmp(base, won, sizeof base) != 0, "the end page draws");
             _check(memcmp(won, gone, sizeof won) != 0,
                    "the two end texts differ");
+            /* pixel-exact: textpage_draw's line is a 16-row cell at
+             * top+15 = 67 for a one-line page; nothing else may change */
+            {
+                uint32_t bad = 0, ink = 0;
+
+                /* one line -> rows = 3, so the published BOX.SPR 9-slice
+                 * spans top..top+3*16-1 = 52..99 and the text row is 67 */
+                for (uint32_t i = 0; i < sizeof won; i++)
+                    if (won[i] != base[i]) {
+                        uint32_t y = i / 320u;
+                        if (y < 52u || y > 99u) bad++;
+                        if (y == 67u) ink++;
+                    }
+                _check(bad == 0u && ink != 0u,
+                       "the end page stays inside its 3-row box (52..99)");
+            }
         }
     } else {
         printf("skip: the level data is not on the disc\n");
@@ -504,7 +573,7 @@ int main(int argc, char **argv)
         _check(level_load(0) == 0 && !level_ended(),
                "a reload clears the end trigger");
         {
-            uint32_t n = level_members();
+            uint16_t n = level_members();
             for (uint32_t i = 0; i < n; i++) level_member_lost();
             _check(level_members() == 0u, "the tribe count reaches zero");
             _check(level_end_test() && level_ended() && !level_outcome(),
@@ -686,7 +755,7 @@ int main(int argc, char **argv)
         uint32_t spawned = 0;
         {
             uint32_t t = 0, moved = 0, sparkSeen = 0;
-            int32_t frozen = 0, sparkOK = 1;
+            uint8_t frozen = 0, sparkOK = 1;
 
             /* 1000:3B19/3B28: the sequence freezes the world and snaps the
              * window to 4 px; nothing in it writes the window (the 3D41/3DC0
@@ -5231,7 +5300,7 @@ int main(int argc, char **argv)
         }
         _check(score_best_for(1u) == 0x0999u,
                "the best-time table ships as the 0x0999 sentinel");
-        before = score_total_lo() | (score_total_hi() << 16);
+        before = (uint32_t)score_total_lo() | ((uint32_t)score_total_hi() << 16);
         level_set_members(3u); /* a stale count the recount overwrites */
         score_prepare();
         _check(level_members() == 12u,
@@ -5243,12 +5312,12 @@ int main(int argc, char **argv)
         _check(score_shown_lo() == (before & 0xFFFFu) &&
                    score_shown_hi() == (before >> 16),
                "the displayed total starts at the old running total");
-        t1 = score_total_lo() | (score_total_hi() << 16);
+        t1 = (uint32_t)score_total_lo() | ((uint32_t)score_total_hi() << 16);
         _check(t1 > before, "the running total keeps the level's two terms");
         score_prepare(); /* the same elapsed time */
         _check(score_is_record() == 0,
                "an equal (not better) time is not a new record");
-        _check((score_total_lo() | (score_total_hi() << 16)) > t1,
+        _check(((uint32_t)score_total_lo() | ((uint32_t)score_total_hi() << 16)) > t1,
                "a second level adds its terms again");
         {
             uint32_t guard = 0;
@@ -5289,7 +5358,7 @@ int main(int argc, char **argv)
      * follows the grid's 0x1C/0x1D columns. */
     {
         uint8_t buf[600];
-        uint32_t len = 0;
+        uint8_t len = 0;
         char nameBuf[17];
         char *name = nameBuf + 1; /* one byte before name[0] (0x756) */
         int32_t slot;
@@ -5802,13 +5871,13 @@ int main(int argc, char **argv)
              * so track the phase itself, not the non-zero returns). */
             {
                 uint32_t flips = 0, last = 0, badGap = 0;
-                uint32_t prev = (uint32_t)score_blink_on();
+                uint8_t prev = score_blink_on();
 
                 for (uint32_t i = 1; i <= 160u; i++) {
-                    uint32_t now;
+                    uint8_t now;
 
                     (void)score_blink_tick();
-                    now = (uint32_t)score_blink_on();
+                    now = score_blink_on();
                     if (now == prev) continue;
                     flips++;
                     if (last != 0u && i - last != 26u) badGap = 1;
@@ -7412,7 +7481,8 @@ int main(int argc, char **argv)
                     char ap[512];
                     FILE *af;
                     size_t an = 0;
-                    uint32_t src, dst, want_ink = 0, ok_ink = 0;
+                    uint16_t src, dst;
+                    uint32_t want_ink = 0, ok_ink = 0;
 
                     snprintf(ap, sizeof ap, "%s/HUMANS.000/APL/ALPHA.SPR",
                              fix_dir);
@@ -7781,7 +7851,7 @@ int main(int argc, char **argv)
          * parameters - sin table at DS:0xB8, [0xB2]/[0xB0] = 157/66 (the x),
          * [0xB6]/[0xB4] = 79/62 (the y), page stride 80. */
         {
-            uint32_t src, dst;
+            uint16_t src, dst;
 
             alpha_cell(0u, 0x10Eu, &src, &dst);
             _check(dst == 997u && src == 16396u,
@@ -7844,7 +7914,7 @@ int main(int argc, char **argv)
 
             /* the cursor spins the ring: the selected column sits at the top */
             {
-                uint32_t src, dst, top = 0xFFFFu;
+                uint16_t src, dst, top = 0xFFFFu;
 
                 for (uint32_t i = 0; i < 30u; i++) {
                     uint32_t ang = (0x10Eu - 7u * 0x0Cu + i * 0x0Cu) % 0x168u;
@@ -8343,6 +8413,83 @@ int main(int argc, char **argv)
         _check(minx <= 320u,
                "the leap crosses level 16's water hole (x <= 320, D-86)");
         _check(ty == 1u, "the water-hole leap lands standing, not drowning");
+    }
+
+    /* 6c6. D-260 (closed 2026-11-09): the wheel's wall bounce stops at the
+     * wall.  PARKVIEW (level 26) has no 0xAE tile; the witchdoctor's op-10
+     * claim (program 5, recipe 3 = sprite 0x38/behaviour 4) turns an adjacent
+     * human into the wheel (1000:3A6A).  Riding it right into the row-17/18
+     * wall must stop it (1000:D3E3 zeroes a bounce that does not cross the
+     * sign); the old positive-vx arm kept 0x20-vx and rolled it off the ledge,
+     * killing the rider.  A human walking the same floor stops at x=133, so
+     * the wall's item mask is real and the difference is the bounce arm. */
+    if (level_load(25) == 0) {
+        int32_t player = object_player();
+        int32_t nb = player >= 0 ? object_find_neighbour(player) : -1;
+        uint32_t wheel = 0u, t;
+
+        _check(player >= 0, "PARKVIEW has the 0xC0 player record");
+        _check(nb >= 0, "PARKVIEW's witchdoctor has a neighbour to claim");
+        level_begin();
+        for (t = 0; t < 4000u && level_starting(); t++) {
+            level_tick();
+            palette_tick();
+            if (level_loading_screen()) level_loading_tick();
+        }
+        /* the claim runs after the start chain: level_spark_begin needs the
+         * composed level page */
+        if (player >= 0 && nb >= 0 &&
+            object_claim_begin(3u, player) == nb) {
+            t = 0u;
+            while (object_claim_active() && t++ < 5000u) {
+                level_tick();
+                palette_tick();
+                if (level_loading_screen()) level_loading_tick();
+            }
+            _check(!object_claim_active(), "the PARKVIEW claim finishes");
+            for (t = 1u; t <= 20u; t++)
+                if (object_slot_class(t) == 4u) {
+                    wheel = t;
+                    break;
+                }
+            _check(wheel != 0u, "the claim appends the behaviour-4 wheel");
+        }
+        if (wheel != 0u) {
+            uint8_t *it = object_slot(8u + wheel);
+            uint8_t *actor = object_slot((uint32_t)player);
+            uint32_t ix = rd_le_u16(it + 0u), iy = rd_le_u16(it + 2u);
+
+            _check(rd_le_u16(it + 4u) == 0x0038u,
+                   "the claim's wheel is frame 0x38 (recipe 3)");
+            _tf_wr16(actor, 0u, ix - 8u);
+            _tf_wr16(actor, 2u, iy - 0x10u);
+            _tf_wr16(actor, 4u, 0x0010u);
+            actor[6] = 0u;
+            _tf_wr16(actor, 8u, 2u);
+            _tf_wr16(actor, 0xAu, 0u);
+            object_set_action_entity((uint32_t)player);
+            object_action_set_cursor(1u);
+            object_action_set_program(1u);
+            object_set_action_latched(0);
+            object_action_run(); /* the give / hold */
+            _check(rd_le_u16(actor + 8u) == 0x000Fu &&
+                       object_slot_class(wheel) == 0x84u,
+                   "the PARKVIEW wheel mounts");
+            for (t = 0; t < 200u; t++) {
+                (void)object_command_run(actor, 0x08u); /* right */
+                object_update_list();
+            }
+            _check((it[6] & 0x80u) == 0u,
+                   "D-260: the wheel is not freed at the wall");
+            _check(rd_le_u16(it + 8u) == 0u,
+                   "D-260: the wall bounce zeroes vx (1000:D3EE)");
+            _check(rd_le_u16(it + 0u) <= 0x85u,
+                   "D-260: the wheel stops before the wall corner (x <= 133)");
+            _check((uint32_t)rd_le_u16(actor + 0u) + 8u ==
+                       (uint32_t)rd_le_u16(it + 0u) &&
+                       rd_le_u16(actor + 8u) == 0x000Fu,
+                   "D-260: the rider stays mounted at the wall");
+        }
     }
 
     if (_bad) {

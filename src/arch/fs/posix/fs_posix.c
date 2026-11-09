@@ -13,7 +13,7 @@
  * @param disc the disc number
  * @return the pointer, or NULL when unavailable
  */
-static FSVolume *_posix_open_volume(uint32_t disc);
+static FSVolume *_posix_open_volume(uint16_t disc);
 
 /**
  * @brief Close a volume stream.
@@ -113,7 +113,7 @@ const FSModule g_fs_posix = { _posix_open_volume, _posix_close_volume,
                               _posix_close_save,  _posix_open_named,
                               _posix_create_named };
 
-static FSVolume *_posix_open_volume(uint32_t disc)
+static FSVolume *_posix_open_volume(uint16_t disc)
 {
     char name[32];
     snprintf(name, sizeof name, "HUMANS.%03u", disc % 1000u);

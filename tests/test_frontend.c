@@ -415,6 +415,34 @@ int main(int argc, char **argv)
             fprintf(stderr, "FAIL the name screen did not open\n");
             bad = 1;
         } else {
+            /* the typed name must land in the 1000:AB8D strip — destination
+             * [0x5AC4]+0x38F5 + 0xA0/row, i.e. page rows ~0x5B..0x65.  An
+             * 8-bit truncation of that address was invisible to the old
+             * checks: it dropped the text at the top of the page. */
+            {
+                static uint8_t before[64000];
+                const uint8_t *p0 = osys_null_page(0);
+                uint32_t top = 200u, bottom = 0;
+
+                memcpy(before, p0, sizeof before);
+                in = _idle();
+                in.lastKey = 'X';
+                _tick(&in);
+                _tick(&in); /* the next compose presents the redrawn line */
+                p0 = osys_null_page(0);
+                for (uint32_t y = 0; y < 200u; y++)
+                    for (uint32_t x = 0; x < 320u; x++)
+                        if (p0[y * 320u + x] != before[y * 320u + x]) {
+                            if (y < top) top = y;
+                            if (y > bottom) bottom = y;
+                        }
+                if (top == 200u || top < 88u || bottom > 108u) {
+                    fprintf(stderr,
+                            "FAIL the typed name left its strip (rows %u..%u)\n",
+                            (unsigned)top, (unsigned)bottom);
+                    bad = 1;
+                }
+            }
             /* ESC clears the seeded DARWIN */
             in = _idle();
             in.lastKey = 0x1Bu;
@@ -423,6 +451,22 @@ int main(int argc, char **argv)
                 fprintf(stderr, "FAIL ESC did not clear the name\n");
                 bad = 1;
             }
+            /* 1000:AB1E's BX = 13 walk stops at the 14th character (the
+             * BX < 0 guard); 20 keys must not write past the 15-byte
+             * buffer.  The seeded-then-cleared state keeps the screen up. */
+            for (uint32_t i = 0; i < 20u; i++) {
+                in = _idle();
+                in.lastKey = 'Z';
+                _tick(&in);
+            }
+            if (strlen(frontend_name_for_probe()) > 14u) {
+                fprintf(stderr, "FAIL the name buffer grew to %u chars\n",
+                        (unsigned)strlen(frontend_name_for_probe()));
+                bad = 1;
+            }
+            in = _idle();
+            in.lastKey = 0x1Bu;
+            _tick(&in); /* clear the Z run again */
             /* type a wrong code and Enter: the miss resets DARWIN */
             for (uint32_t i = 0; wrong[i]; i++) {
                 in = _idle();

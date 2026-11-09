@@ -28,14 +28,14 @@
  *
  * @param on the on/off flag
  */
-void party_intro_set_game_over(int32_t on);
+void party_intro_set_game_over(uint8_t on);
 
 /**
  * @brief Accessor: the briefing's score (g_score [0x592]).
  *
  * @return The briefing's score.
  */
-uint32_t party_intro_score(void);
+uint16_t party_intro_score(void);
 
 /**
  * @brief === the API =================================================================
@@ -46,8 +46,8 @@ uint32_t party_intro_score(void);
  * @param score the score
  * @param tribe the tribe name
  */
-void party_intro_set_values(uint32_t level, uint32_t need, uint32_t members,
-                            uint32_t score, const char *tribe);
+void party_intro_set_values(uint16_t level, uint16_t need, uint16_t members,
+                            uint16_t score, const char *tribe);
 
 /**
  * @brief Restore the intro's cue scripts from a save.
@@ -70,7 +70,7 @@ void party_intro_seed_slots(const uint8_t *raw);
  *
  * @return 1 while the briefing is playing
  */
-int32_t party_intro_start(void);
+uint8_t party_intro_start(void);
 
 /** @brief the game_main hook's per-tick compose into the flat page (the attract's
  * contract: the tick draws, videoPresent(0) shows)
@@ -78,7 +78,7 @@ int32_t party_intro_start(void);
  * @param in the input state
  * @return 1 while the briefing is playing, 0 when it exits
  */
-int32_t party_intro_tick(const InputState *in);
+uint8_t party_intro_tick(const InputState *in);
 
 /**
  * @brief === 2b1b format_score + 2b70 ================================================
@@ -111,5 +111,17 @@ const uint8_t *party_intro_workpal(void);
  * @return The upper palette half.
  */
 const uint8_t *party_intro_pal_upper(void);
+
+/**
+ * @brief 2a76..2a95: the marquee's source offset and destination row for a
+ * phase/cell pair (the phase is the 0x160 word [0xf9e]).
+ *
+ * @param phase the [0xf9e] phase (0..0x15F)
+ * @param cell the [0xf9c] cell (0..0xB)
+ * @param src the source offset (out)
+ * @param dhi the destination high byte (out)
+ */
+void party_intro_marquee_for_probe(uint16_t phase, uint16_t cell, uint16_t *src,
+                                   uint16_t *dhi);
 
 #endif /* HUMANSRE_PARTY_INTRO_H */

@@ -97,7 +97,7 @@ void textpage_publish_box(const uint8_t *bank) { _tp_box = bank; }
 static uint32_t _line_advance(const char *p, const char **end)
 {
     char buf[64];
-    uint32_t n = 0;
+    uint8_t n = 0;
     while (p[n] && p[n] != '\r' && p[n] != '\0' && n + 1 < sizeof buf) {
         buf[n] = p[n];
         n++;
@@ -117,11 +117,11 @@ static uint32_t _line_advance(const char *p, const char **end)
 static void _scroll_text_measure(const char *text, uint32_t *tiles,
                                  uint32_t *lines)
 {
-    uint32_t maxAdv = 1, nlines = 0;
+    uint16_t maxAdv = 1, nlines = 0;
     const char *p = text;
     while (1) {
         const char *end;
-        uint32_t w = _line_advance(p, &end);
+        uint16_t w = (uint16_t)(_line_advance(p, &end));
         if (w > maxAdv) maxAdv = w;
         nlines++;
         if (*end == 0) break;
@@ -164,12 +164,12 @@ static void _scroll_text_measure(const char *text, uint32_t *tiles,
 static void _glyph_px(uint8_t *page, uint32_t y, uint32_t x0, uint8_t bits,
                       uint8_t ink, int or_into)
 {
-    for (uint32_t k = 0; k < 4u; k++)
+    for (uint16_t k = 0; k < 4u; k++)
         if (bits & (1u << k)) {
-            uint32_t x = x0 + k;
+            uint16_t x = (uint16_t)(x0 + k);
 
             if (x < VIDEO_PAGE_W) {
-                uint32_t at = y * VIDEO_PAGE_W + x;
+                uint16_t at = (uint16_t)(y * VIDEO_PAGE_W + x);
 
                 if (or_into) page[at] |= ink;
                 else page[at] = ink;
@@ -204,10 +204,10 @@ static void _draw_line(uint8_t *page, const char *line, uint32_t centreX,
     memset(_tp_arena, 0, 0x280u * 2u);
     font_draw_text_bounded(_tp_arena, (uint32_t)sizeof _tp_arena, line, centreX,
                            0);
-    for (uint32_t r = 0; r < 16u; r++) {
+    for (uint16_t r = 0; r < 16u; r++) {
         uint32_t y = cellTop + r;
         if (y >= VIDEO_PAGE_H_MODE13H) break;
-        for (uint32_t c = 0; c < 80u; c++) {
+        for (uint16_t c = 0; c < 80u; c++) {
             uint8_t bits = _tp_arena[r * 80u + c];
 
             if (bits) _glyph_px(page, y, c * 4u, bits, ink, or_into);
@@ -238,9 +238,9 @@ void textpage_draw_line_mask_at(uint8_t *page, const char *line,
 static void _blit_16px(uint8_t *page, uint32_t y, uint32_t x0,
                        const uint8_t *row)
 {
-    for (uint32_t k = 0; k < 4u; k++)
-        for (uint32_t p = 0; p < 4u; p++) {
-            uint32_t x = x0 + k * 4u + p;
+    for (uint16_t k = 0; k < 4u; k++)
+        for (uint16_t p = 0; p < 4u; p++) {
+            uint16_t x = (uint16_t)(x0 + k * 4u + p);
 
             if (x < VIDEO_PAGE_W) page[y * VIDEO_PAGE_W + x] = row[p + 4u * k];
         }
@@ -257,7 +257,7 @@ static void _blit_16px(uint8_t *page, uint32_t y, uint32_t x0,
 static void _blit_box_tile(uint8_t *page, uint32_t x0, uint32_t y0,
                            const uint8_t *tile)
 {
-    for (uint32_t r = 0; r < 16u; r++) {
+    for (uint16_t r = 0; r < 16u; r++) {
         uint32_t y = y0 + r;
         if (y >= VIDEO_PAGE_H_MODE13H) continue;
         _blit_16px(page, y, x0, tile + r * 16u);
@@ -275,7 +275,7 @@ static void _blit_box_tile(uint8_t *page, uint32_t x0, uint32_t y0,
 static void _blit_4px(uint8_t *page, uint32_t y, uint32_t x0,
                       const uint8_t *src)
 {
-    for (uint32_t p = 0; p < 4u; p++)
+    for (uint16_t p = 0; p < 4u; p++)
         if (x0 + p < VIDEO_PAGE_W) page[y * VIDEO_PAGE_W + x0 + p] = src[p];
 }
 
@@ -290,10 +290,10 @@ static void _blit_4px(uint8_t *page, uint32_t y, uint32_t x0,
 static void _blit_marker(uint8_t *page, uint32_t x0, uint32_t y0,
                          const uint8_t *pat)
 {
-    for (uint32_t r = 0; r < 11u; r++) {
+    for (uint16_t r = 0; r < 11u; r++) {
         uint32_t y = y0 + r;
         if (y >= VIDEO_PAGE_H_MODE13H) continue;
-        for (uint32_t k = 0; k < 2u; k++)
+        for (uint16_t k = 0; k < 2u; k++)
             _blit_4px(page, y, x0 + k * 4u, pat + r * 8u + 4u * k);
     }
 }
@@ -316,13 +316,13 @@ static void _blit_marker(uint8_t *page, uint32_t x0, uint32_t y0,
 static void _draw_outline(uint8_t *page, uint32_t top, uint32_t left,
                           uint32_t tiles, uint32_t lines)
 {
-    uint32_t x0 = left, x1 = left + (tiles + 1u) * 16u;
-    uint32_t y0 = top + 16u, y1 = y0 + lines * 16u;
+    uint16_t x0 = (uint16_t)(left), x1 = (uint16_t)(left + (tiles + 1u) * 16u);
+    uint16_t y0 = (uint16_t)(top + 16u), y1 = (uint16_t)(y0 + lines * 16u);
 
     if (x1 > VIDEO_PAGE_W) x1 = VIDEO_PAGE_W;
     if (y1 > VIDEO_PAGE_H_MODE13H) y1 = VIDEO_PAGE_H_MODE13H;
-    for (uint32_t y = y0; y < y1; y++)
-        for (uint32_t x = x0; x < x1; x++) {
+    for (uint16_t y = y0; y < y1; y++)
+        for (uint16_t x = x0; x < x1; x++) {
             uint8_t v = page[y * VIDEO_PAGE_W + x];
             if (v < 0xF4u || v >= 0xFCu) continue;
             if (y && page[(y - 1u) * VIDEO_PAGE_W + x] < 0xF4u)
@@ -347,8 +347,8 @@ void textpage_draw(uint8_t *page, const char *text, int32_t cursorRow,
     _scroll_text_measure(text, &tiles, &lines);
     if (lines > 20u) return;
 
-    uint32_t cols = tiles + 2u;
-    uint32_t rows = lines + 2u;
+    uint8_t cols = (uint8_t)(tiles + 2u);
+    uint8_t rows = (uint8_t)(lines + 2u);
     uint32_t left = 160u - cols * 8u;
     uint32_t top = 76u - rows * 8u;
 
@@ -359,10 +359,10 @@ void textpage_draw(uint8_t *page, const char *text, int32_t cursorRow,
             { 0x100u, 0x400u, 0x700u },
             { 0x200u, 0x500u, 0x800u },
         };
-        for (uint32_t ty = 0; ty < rows; ty++)
-            for (uint32_t tx = 0; tx < cols; tx++) {
-                uint32_t ry = (ty == 0u) ? 0u : (ty == rows - 1u) ? 2u : 1u;
-                uint32_t rx = (tx == 0u) ? 0u : (tx == cols - 1u) ? 2u : 1u;
+        for (uint16_t ty = 0; ty < rows; ty++)
+            for (uint16_t tx = 0; tx < cols; tx++) {
+                uint8_t ry = (ty == 0u) ? 0u : (ty == rows - 1u) ? 2u : 1u;
+                uint8_t rx = (tx == 0u) ? 0u : (tx == cols - 1u) ? 2u : 1u;
                 _blit_box_tile(page, left + tx * 16u, top + ty * 16u,
                                _tp_box + tile[ry][rx]);
             }
@@ -372,8 +372,8 @@ void textpage_draw(uint8_t *page, const char *text, int32_t cursorRow,
     {
         const char *p = text;
         char buf[TEXT_LIMIT];
-        for (uint32_t i = 0; i < lines; i++) {
-            uint32_t n = 0;
+        for (uint16_t i = 0; i < lines; i++) {
+            uint8_t n = 0;
             while (*p && *p != '\r' && n + 1 < sizeof buf) buf[n++] = *p++;
             buf[n] = 0;
             if (*p == '\r') p++;
@@ -391,20 +391,20 @@ void textpage_draw(uint8_t *page, const char *text, int32_t cursorRow,
         if (grid) {
             /* the selected cell: the line's centring + the prefix width */
             const char *p = text;
-            for (uint32_t i = 0; i < 2u + (uint32_t)cursorRow && *p; i++) {
+            for (uint16_t i = 0; i < 2u + (uint32_t)cursorRow && *p; i++) {
                 while (*p && *p != '\r') p++;
                 if (*p == '\r') p++;
             }
             char line[TEXT_LIMIT];
-            uint32_t n = 0;
+            uint8_t n = 0;
             while (p[n] && p[n] != '\r' && n + 1 < sizeof line) {
                 line[n] = p[n];
                 n++;
             }
             line[n] = 0;
-            uint32_t pre = 1u + 3u * cursorCol;      /* " 01 05 ..." */
+            uint8_t pre = (uint8_t)(1u + 3u * cursorCol);      /* " 01 05 ..." */
             char prebuf[24];
-            uint32_t k = pre < n ? pre : n;
+            uint8_t k = pre < n ? pre : n;
             memcpy(prebuf, line, k);
             prebuf[k] = 0;
             int32_t cx = 160 - (int32_t)(font_text_width(line) / 2u) +

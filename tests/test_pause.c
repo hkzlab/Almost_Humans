@@ -139,7 +139,7 @@ static int32_t _press(uint32_t bits)
 {
     InputState in = _idle();
     in.joyBits = bits;
-    int32_t up = menu_tick(&in);
+    uint8_t up = menu_tick(&in);
     InputState rel = _idle();
     (void)menu_tick(&rel);
     return up;
@@ -150,7 +150,7 @@ static int32_t _press(uint32_t bits)
  *
  * @return 1 when the pause menu is up, 0 otherwise
  */
-static int32_t _open_pause(void)
+static uint8_t _open_pause(void)
 {
     menu_open_pause();
     return menu_active();
@@ -680,7 +680,7 @@ int main(int argc, char **argv)
     /* 5. the five actions (dispatch_by_result_a167): CONTINUE, RESTART THIS
      *    LEVEL, RESTART THIS GAME, SAVE GAME, QUIT */
     {
-        int32_t quit = 0;
+        uint8_t quit = 0;
         if (gameflow_pause_action(0, &quit) != FLOW_LEVEL || quit) {
             fprintf(stderr, "FAIL CONTINUE\n");
             bad = 1;
@@ -846,7 +846,7 @@ int main(int argc, char **argv)
     /* 6. the time-up dialog (202F:0x5C2B): the 3-option block + the inline
      *    dispatch (0 restart this level, 1 the room, 2 quit) */
     {
-        int32_t quit = 0;
+        uint8_t quit = 0;
         menu_open_time_up();
         if (!menu_active() || !menu_time_up()) {
             fprintf(stderr, "FAIL the time-up dialog did not open\n");

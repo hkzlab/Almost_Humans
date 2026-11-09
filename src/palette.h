@@ -72,7 +72,7 @@ void palette_set_dac(const uint8_t *p6, uint32_t first, uint32_t n);
  * @param div the divisor
  * @param target the target value
  */
-void palette_build_fade(uint32_t first, uint32_t entries, uint32_t div,
+void palette_build_fade(uint16_t first, uint16_t entries, uint16_t div,
                         const uint8_t *target);
 
 /**
@@ -80,7 +80,7 @@ void palette_build_fade(uint32_t first, uint32_t entries, uint32_t div,
  *
  * @return 1 while a fade runs, 0 otherwise
  */
-int32_t palette_fade_active(void);
+uint8_t palette_fade_active(void);
 
 /** @brief the DAC shadow, read-only: the fade-ladder harness compares the port's
  * per-tick DAC progression against the original's live IN 3C9h reads
@@ -103,13 +103,13 @@ const uint8_t *palette_fade_target(void);
  *
  * @return The fade's first entry.
  */
-uint32_t palette_fade_first(void);
+uint16_t palette_fade_first(void);
 
 /**
  * @brief Accessor: the fade's component count.
  *
  * @return The fade's component count.
  */
-uint32_t palette_fade_comps(void);
+uint16_t palette_fade_comps(void);
 
 #endif /* HUMANSRE_PALETTE_H */

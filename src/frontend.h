@@ -41,7 +41,7 @@ int32_t frontend_init(const OSystem *osys);
  * @param in the input state
  * @return 1 while the frontend keeps running
  */
-int32_t frontend_tick(const InputState *in);
+uint8_t frontend_tick(const InputState *in);
 
 /**
  * @brief Accessor: the level-code cursor.
@@ -54,7 +54,7 @@ int32_t frontend_tick(const InputState *in);
  *
  * @return The level-code cursor.
  */
-uint32_t frontend_selected_level(void);
+uint16_t frontend_selected_level(void);
 
 /** @brief entry's JMP LAB_002B: the room's setup runs again from the top (the
  * counters persist — frontend_room_setup seeds none of them).  The next
@@ -74,7 +74,7 @@ void frontend_restart(void);
  * @param idx the index
  * @return the option counter
  */
-uint32_t frontend_option(uint32_t idx);
+uint8_t frontend_option(uint32_t idx);
 
 /**
  * @brief The room's write side, for the audio/sfx gate's tests.
@@ -92,14 +92,14 @@ void frontend_option_set_for_probe(uint32_t idx, uint32_t value);
  *
  * @return the current option cell
  */
-uint32_t frontend_cell_for_probe(void);
+uint16_t frontend_cell_for_probe(void);
 
 /**
  * @brief the name screen's _phase and typed buffer, for the input-law tests.
  *
  * @return 1 when the name screen is up, 0 otherwise
  */
-int32_t frontend_name_screen_for_probe(void);
+uint8_t frontend_name_screen_for_probe(void);
 
 /**
  * @brief Accessor: the typed high-score name (0x61E0).

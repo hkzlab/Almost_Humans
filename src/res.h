@@ -24,7 +24,7 @@ int32_t res_init(const OSystem *osys);
  *
  * @param disc the disc number
  */
-void res_set_disc(uint32_t disc);
+void res_set_disc(uint16_t disc);
 
 /** @brief the disc-presence probe: draw_status_indicator's open test (1000:20CF)
  * opens the volume file for the disc and closes it; 0 = the disc is not
@@ -33,7 +33,7 @@ void res_set_disc(uint32_t disc);
  * @param disc the disc number
  * @return 1 when the volume opens, 0 otherwise
  */
-int32_t res_volume_present(uint32_t disc);
+uint8_t res_volume_present(uint16_t disc);
 
 /**
  * @brief The disc that holds one movie file.
@@ -47,7 +47,7 @@ int32_t res_volume_present(uint32_t disc);
  * @param idx the index
  * @return the disc number, or 0xFF when out of range
  */
-uint32_t res_movie_disc(uint32_t idx);
+uint8_t res_movie_disc(uint32_t idx);
 
 /**
  * @brief Load and decode one named resource from the current disc.

@@ -32,19 +32,19 @@ char audio_tune_lev[] = "mus\\levA";
 #define AUDIO_FADE_TICKS 2
 
 static const OSystem *_au_osys;
-static int32_t _music_active;  /* [0x40BB]: the music_resume latch   */
-static int32_t _fade_latch;    /* [0x40BA]: the fade-in latch        */
-static uint32_t _tick_phase;   /* [0x5AF2]: 1,2 tick; 3 resets       */
+static uint8_t _music_active;  /* [0x40BB]: the music_resume latch   */
+static uint8_t _fade_latch;    /* [0x40BA]: the fade-in latch        */
+static uint16_t _tick_phase;   /* [0x5AF2]: 1,2 tick; 3 resets       */
 /* 1 when the backend steps the tick from its audio sample clock (the SDL3
  * render path).  The game tick then skips audio_tick: one clock only. */
 static int32_t _render_clock;
 static const char *_tune_name; /* [0x40B8]: the dedup key            */
-static int32_t _fade_dir;      /* +1 in, -1 out, 0 idle              */
-static int32_t _fade_step;     /* the CL currently applied           */
-static int32_t _fade_wait;     /* ticks until the next step          */
-static int32_t _record_live;   /* a cmd-5 record is playing          */
-static int32_t _stop_after_fade; /* present_frames_75 then music_stop */
-static int32_t _tune_missing;  /* the last play_tune found no image  */
+static int8_t _fade_dir;      /* +1 in, -1 out, 0 idle              */
+static uint8_t _fade_step;     /* the CL currently applied           */
+static uint8_t _fade_wait;     /* ticks until the next step          */
+static uint8_t _record_live;   /* a cmd-5 record is playing          */
+static uint8_t _stop_after_fade; /* present_frames_75 then music_stop */
+static uint8_t _tune_missing;  /* the last play_tune found no image  */
 
 int32_t audio_init(const OSystem *osys)
 {
@@ -103,9 +103,9 @@ void audio_play_tune(const char *name)
     free(image);
 }
 
-void audio_play_level_tune(uint32_t level1)
+void audio_play_level_tune(uint16_t level1)
 {
-    uint32_t letter = level1 ? (level1 - 1u) % 18u : 0u;
+    uint8_t letter = level1 ? (level1 - 1u) % 18u : 0u;
     audio_tune_lev[7] = (char)('A' + letter);
     audio_play_tune(audio_tune_lev);
 }
@@ -177,7 +177,7 @@ void audio_fade_out(void)
     _au_osys->audioTempo((uint8_t)_fade_step);
 }
 
-int32_t audio_fade_busy(void) { return _fade_dir != 0; }
+uint8_t audio_fade_busy(void) { return _fade_dir != 0; }
 
 /**
  * @brief The tick body: the fade step and cmd 2 on 2 of every 3 ticks.
@@ -230,7 +230,7 @@ void audio_tick(void)
 
 void audio_render_tick(void) { _tick_body(); }
 
-void audio_set_render_clock(int32_t on) { _render_clock = on; }
+void audio_set_render_clock(uint8_t on) { _render_clock = on; }
 
 void audio_sfx(uint32_t id)
 {

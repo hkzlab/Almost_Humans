@@ -59,6 +59,7 @@
 #include "res.h"
 #include "video.h"
 #include "byteorder.h"
+#include "width.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -67,9 +68,9 @@
 
 /* --- the planar address space (A000, unchained, byte mode) ------------- */
 static uint8_t _vram[65536][4];   /* [address][plane]: 1 byte = 4 pixels   */
-static uint32_t _page_draw, _page_disp; /* [0x5AC4]/[0x5AC6]                */
-static uint32_t _display_start; /* [0x4106]: the CRTC start (bytes) */
-static uint32_t _saved_draw, _saved_disp; /* game_loop's PUSH pair (1387)     */
+static uint16_t _page_draw, _page_disp; /* [0x5AC4]/[0x5AC6]                */
+static uint16_t _display_start; /* [0x4106]: the CRTC start (bytes) */
+static uint16_t _saved_draw, _saved_disp; /* game_loop's PUSH pair (1387)     */
 
 /* the strings at 202F:0xC38/0xC4D/0xC73/0xC79 (re_formats.md §9.4) are
  * game_strs' ATTRACT entries */
@@ -81,10 +82,10 @@ static const uint8_t _ramp0[768];
 
 /* --- the module state --------------------------------------------------- */
 static AttractPhase _phase = ATTRACT_IDLE;
-static uint32_t _counter; /* the multi-tick _phase countdown        */
-static uint32_t _frame; /* effect 2's _frame: 0 = scores, 1..16   */
-static uint32_t _wipe_iter; /* effect 2's 79-step wipe iteration     */
-static uint32_t _d3b; /* [0xD3B]: the slide's display row      */
+static uint16_t _counter; /* the multi-tick _phase countdown        */
+static uint8_t _frame; /* effect 2's _frame: 0 = scores, 1..16   */
+static uint8_t _wipe_iter; /* effect 2's 79-step wipe iteration     */
+static uint16_t _d3b; /* [0xD3B]: the slide's display row      */
 static uint8_t _arena[16000]; /* [0xC9D]: the text _arena (200 x 80)    */
 static uint8_t
     _page_b[VIDEO_PAGE_BYTES]; /* [0xC9B]: the composed display page */
@@ -99,7 +100,7 @@ static uint8_t _colour1881 = 0x43; /* CS:0x1881: _blit_80x200's colour base  */
  * bytes = _arena pixels 80..319. */
 static uint8_t _e4strip[196608];
 static uint8_t _row_sig[VIDEO_PAGE_H_MODE13H]; /* CS:0x1CF7: the row-signature cache */
-static int32_t _row_sig_init; /* the shipped 0x80 fill runs once       */
+static uint8_t _row_sig_init; /* the shipped 0x80 fill runs once       */
 static uint8_t *_credtext; /* [0xC9F]: the loaded _credtext.bin      */
 static uint32_t _credtext_size;
 static uint32_t _cred_cursor; /* [0xD6C]: the _credtext cursor          */
@@ -110,8 +111,8 @@ static uint16_t _scroll_row; /* [0xD78]: the scroll window's start row */
  * The damped oscillator on [0xC35]=pos, [0xC36]=dir (0=shrink), [0xC37]=speed:
  * trace 199->0 (speed 32), grow 16 -> peak 136, shrink -> 0, grow 8 -> 36,
  * -> 0, 4 -> 10, 2 -> 3, 1 -> 1, 0 -> exit (pos==0 && dir==0). */
-static uint32_t _wipe_pos, _wipe_speed;
-static int32_t _wipe_dir;
+static uint8_t _wipe_pos, _wipe_speed;
+static uint8_t _wipe_dir;
 
 /* 202F:0x38C — 160 per-level records of [seconds][minutes] (two
  * pseudo-decimal nibbles / one digit), shipped as 99 09 ("9:99") for every
@@ -159,11 +160,11 @@ static void _clear_vram(void) { memset(_vram, 0, sizeof _vram); }
  */
 static void _blit_planar(const uint8_t *src, uint32_t dest)
 {
-    for (uint32_t r = 0; r < VIDEO_PAGE_H_MODE13H; r++) {
+    for (uint16_t r = 0; r < VIDEO_PAGE_H_MODE13H; r++) {
         uint32_t a = dest + r * 80u;
         if (a + 79u >= 65536u) break; /* never taken: dest is safe */
         const uint8_t *s = src + r * VIDEO_PAGE_W;
-        for (uint32_t c = 0; c < 80u; c++) {
+        for (uint16_t c = 0; c < 80u; c++) {
             _vram[a + c][0] = s[c * 4u];
             _vram[a + c][1] = s[c * 4u + 1u];
             _vram[a + c][2] = s[c * 4u + 2u];
@@ -179,7 +180,7 @@ static void _blit_planar(const uint8_t *src, uint32_t dest)
  */
 static void _flip_page(void)
 {
-    uint32_t t = _page_draw;
+    uint16_t t = _page_draw;
     _display_start = _page_draw;
     _page_draw = _page_disp;
     _page_disp = t;
@@ -190,7 +191,7 @@ static void _flip_page(void)
  *
  * @param row the row
  */
-static void _wait_page(uint32_t row) { _display_start = row * 80u; }
+static void _wait_page(uint16_t row) { _display_start = u16(row * 80u); }
 
 /**
  * @brief The present: the 200-row window at _display_start, flat.
@@ -199,10 +200,10 @@ static void _compose_window(void)
 {
     uint8_t *page = video_page(0);
     if (!page) return;
-    for (uint32_t y = 0; y < VIDEO_PAGE_H_MODE13H; y++) {
-        const uint32_t row = (_display_start + y * 80u) & 0xFFFFu;
+    for (uint16_t y = 0; y < VIDEO_PAGE_H_MODE13H; y++) {
+        uint16_t row = (_display_start + y * 80u) & 0xFFFFu;
         uint8_t *d = page + y * VIDEO_PAGE_W;
-        for (uint32_t x = 0; x < VIDEO_PAGE_W; x++)
+        for (uint16_t x = 0; x < VIDEO_PAGE_W; x++)
             d[x] = _vram[(row + (x >> 2)) & 0xFFFFu][x & 3u];
     }
 }
@@ -212,7 +213,7 @@ static void _compose_window(void)
  */
 static void _wipe_step(void)
 {
-    uint32_t pos = _wipe_pos, speed = _wipe_speed;
+    uint8_t pos = _wipe_pos, speed = _wipe_speed;
     if (_wipe_dir) { /* grow: 14e0 */
         pos += speed;
         if (pos > 0xC7u) pos = 0xC7u;
@@ -224,14 +225,15 @@ static void _wipe_step(void)
         }
         speed--;
     } else { /* shrink: 14f6 */
-        uint32_t r = pos - speed; /* SUB AX,CX flags */
-        if (r > 0xFFu || r == 0u) { /* negative or exact zero */
+        int32_t diff = (int32_t)pos - (int32_t)speed; /* SUB AX,CX flags */
+        uint32_t r = (uint32_t)diff;
+        if (diff <= 0 || diff > 0xFF) { /* negative or exact zero */
             _wipe_pos = 0u;
             _wipe_dir = 1;
             _wipe_speed = speed >> 1;
             return;
         }
-        pos = r;
+        pos = (uint8_t)(r);
         if (speed < 0x20u) speed++;
     }
     _wipe_pos = pos;
@@ -250,13 +252,13 @@ static void _wipe_step(void)
  */
 static void _format_decimal(uint32_t v, char *out)
 {
-    uint32_t n = 0, m = 0;
+    uint8_t n = 0, m = 0;
     char t[8];
 
     if (v >= 10000u) {
         uint32_t hi = v / 10000u, lo = v % 10000u;
 
-        for (uint32_t i = 0; i < 4u; i++) { /* 1000:0B0E: four LSB-first */
+        for (uint16_t i = 0; i < 4u; i++) { /* 1000:0B0E: four LSB-first */
             t[m++] = (char)('0' + lo % 10u);
             lo /= 10u;
         }
@@ -285,8 +287,8 @@ void attract_format_decimal_for_probe(uint32_t v, char *out)
  */
 static void _draw_score_block(uint8_t *ar)
 {
-    uint32_t row = 0x18u;
-    for (uint32_t k = 0; k < 10u; k++) {
+    uint8_t row = 0x18u;
+    for (uint16_t k = 0; k < 10u; k++) {
         char buf[12];
         _format_decimal(k + 1u, buf);
         font_draw_text(ar, buf, 0x20u, row);
@@ -308,7 +310,7 @@ static void _draw_score_block(uint8_t *ar)
 static void _draw_times_row(uint8_t *ar, uint32_t levelMinus1,
                             const uint8_t *rec, uint32_t row)
 {
-    uint32_t v = levelMinus1 + 1u;
+    uint16_t v = (uint16_t)(levelMinus1 + 1u);
     char num[5], mins[3], secs[3];
     num[0] = (char)('0' + v / 100u);
     num[1] = (char)('0' + (v / 10u) % 10u);
@@ -339,7 +341,7 @@ static void _draw_times_row(uint8_t *ar, uint32_t levelMinus1,
  */
 static void _splat_bits(uint8_t *d, uint8_t b, uint32_t dl)
 {
-    for (uint32_t bit = 0; bit < 4u; bit++) {
+    for (uint16_t bit = 0; bit < 4u; bit++) {
         if (b & 1u) d[bit] = (uint8_t)dl;
         b >>= 1;
     }
@@ -352,12 +354,12 @@ static void _splat_bits(uint8_t *d, uint8_t b, uint32_t dl)
  */
 static void _blit_80x200(const uint8_t *ar)
 {
-    uint32_t dl = 0xFDu;
-    for (uint32_t row = 0; row < VIDEO_PAGE_H_MODE13H; row++) {
+    uint8_t dl = 0xFDu;
+    for (uint16_t row = 0; row < VIDEO_PAGE_H_MODE13H; row++) {
         uint8_t *d = _page_b + 4u + row * VIDEO_PAGE_W;
         const uint8_t *s = ar + row * 80u;
-        for (uint32_t k = 0; k < 80u; k++) _splat_bits(d + k * 4u, s[k], dl);
-        uint32_t cx = VIDEO_PAGE_H_MODE13H - row; /* the pushed row countdown */
+        for (uint16_t k = 0; k < 80u; k++) _splat_bits(d + k * 4u, s[k], dl);
+        uint16_t cx = VIDEO_PAGE_H_MODE13H - row; /* the pushed row countdown */
         if (cx > 0xB0u) dl = 0xF0u | ((dl + 1u) & 0xFu);
         else if (cx == 0xB0u) dl = _colour1881;
         else {
@@ -380,10 +382,10 @@ static void _blit_80x200(const uint8_t *ar)
  */
 static void _blit_strip8(uint32_t x, uint32_t row)
 {
-    for (uint32_t j = 0; j < 8u; j++) {
+    for (uint16_t j = 0; j < 8u; j++) {
         uint32_t px = x + j;
-        for (uint32_t r = 0; r < 16u; r++) {
-            uint32_t sy = row + r;
+        for (uint16_t r = 0; r < 16u; r++) {
+            uint16_t sy = (uint16_t)(row + r);
             uint8_t v = _page_b[sy * VIDEO_PAGE_W + px];
             _vram[(_page_draw + sy * 80u + (px >> 2)) & 0xFFFFu][px & 3u] = v;
         }
@@ -400,9 +402,9 @@ static void _wipe_row(uint32_t k)
 {
     static const uint32_t rows[11] = { 0x8u,  0x18u, 0x28u, 0x38u, 0x48u, 0x58u,
                                        0x68u, 0x78u, 0x88u, 0x98u, 0xA8u };
-    uint32_t xs = 4u * k;
-    uint32_t xd = 0x13Fu - 4u * k;
-    for (uint32_t i = 0; i < 11u; i++)
+    uint16_t xs = u16(4u * k);
+    uint16_t xd = (uint16_t)(0x13Fu - 4u * k);
+    for (uint16_t i = 0; i < 11u; i++)
         _blit_strip8((i & 1u) ? xs : xd, rows[i]);
 }
 
@@ -492,7 +494,7 @@ static int32_t _e2_load(void)
     palette_load_working(_img_buf + VIDEO_PAGE_BYTES);
 
     /* blit_fullscreen 1000:15B1: two 75-pixel, 200-row strips */
-    for (uint32_t r = 0; r < VIDEO_PAGE_H_MODE13H; r++) {
+    for (uint16_t r = 0; r < VIDEO_PAGE_H_MODE13H; r++) {
         memcpy(_img_buf + r * VIDEO_PAGE_W, _img_buf + 0x9Eu + r * VIDEO_PAGE_W,
                75u);
         memcpy(_img_buf + 0xF5u + r * VIDEO_PAGE_W,
@@ -502,7 +504,7 @@ static int32_t _e2_load(void)
      * luma conversion through gameint's own palette */
     {
         const uint8_t *pal = palette_working();
-        for (uint32_t i = 0; i < VIDEO_PAGE_BYTES; i++) {
+        for (uint16_t i = 0; i < VIDEO_PAGE_BYTES; i++) {
             const uint8_t *p = pal + _img_buf[i] * 3u;
             /* hash_three_bytes' CH = (77R+151G+28B)>>8, then SHR CH,1 */
             _img_buf[i] =
@@ -530,7 +532,7 @@ static int32_t _e2_load(void)
  */
 static void _fill_pattern(uint8_t *tile)
 {
-    for (uint32_t r = 0; r < 16u; r++) {
+    for (uint16_t r = 0; r < 16u; r++) {
         tile[r * 80u] = 0xFFu;
         tile[r * 80u + 1u] = 0x20u;
     }
@@ -547,7 +549,7 @@ static void _fill_pattern(uint8_t *tile)
  */
 static void _fill_pattern_clip(uint8_t *tile)
 {
-    for (uint32_t r = 0; r < 15u; r++) {
+    for (uint16_t r = 0; r < 15u; r++) {
         tile[r * 80u] = (r < 4u) ? 0xFFu : (uint8_t)(r - 4u);
         tile[r * 80u + 1u] = (r < 4u) ? 0xE0u : 0x20u;
     }
@@ -566,7 +568,7 @@ static void _e4_fill(void)
     memset(_e4strip, 0, sizeof _e4strip);
     _rows_built = 0;
     do {
-        uint32_t n = 0; /* strcpy_cae: line -> scratch    */
+        uint16_t n = 0; /* strcpy_cae: line -> scratch    */
         while (_cred_cursor < _credtext_size) {
             uint8_t c = _credtext[_cred_cursor++];
             if (n + 1u < sizeof scratch) scratch[n++] = (char)c;
@@ -574,7 +576,7 @@ static void _e4_fill(void)
         }
         scratch[n] = 0;
 
-        uint32_t tile = _rows_built; /* BP: the tile's base row          */
+        uint16_t tile = _rows_built; /* BP: the tile's base row          */
         if (scratch[0] == 0) { /* 1ac1: the empty-line test       */
             _rows_built = (uint16_t)(_rows_built + 0x10u);
             _fill_pattern(_e4strip + tile * 80u);
@@ -601,7 +603,7 @@ static void _e4_fill(void)
  */
 static void _mask_four(uint8_t *px, uint8_t v, uint8_t mask)
 {
-    for (uint32_t j = 0; j < 4u; j++)
+    for (uint16_t j = 0; j < 4u; j++)
         px[j] =
             (uint8_t)((px[j] & (uint8_t)~mask) | (((v >> j) & 1u) ? mask : 0u));
 }
@@ -623,13 +625,13 @@ static void _mask_four(uint8_t *px, uint8_t v, uint8_t mask)
 static void _blit_scroll(uint32_t row)
 {
     uint32_t src = (row * 80u) % sizeof _e4strip;
-    uint32_t di = _page_draw + 0x14u;
-    for (uint32_t i = 0; i < VIDEO_PAGE_H_MODE13H; i++) {
+    uint16_t di = _page_draw + 0x14u;
+    for (uint16_t i = 0; i < VIDEO_PAGE_H_MODE13H; i++) {
         uint8_t sig = _e4strip[src];
         if (sig != _row_sig[i]) {
             _row_sig[i] = sig;
             uint8_t mask = _e4strip[src + 1u];
-            for (uint32_t k = 0; k < 60u; k++) {
+            for (uint16_t k = 0; k < 60u; k++) {
                 _mask_four(_vram[di + k],
                            _e4strip[(src + 0x14u + k) % sizeof _e4strip], mask);
             }
@@ -757,7 +759,7 @@ static void _latch_escape(void)
     _phase = ATTRACT_ESCAPE;
 }
 
-int32_t attract_tick(const InputState *in)
+uint8_t attract_tick(const InputState *in)
 {
     if (_phase == ATTRACT_DONE || _phase == ATTRACT_IDLE)
         _attract_restart(); /* a new epoch: game_loop's prologue */
@@ -787,12 +789,12 @@ int32_t attract_tick(const InputState *in)
         break;
     case ATTRACT_E1_WIPE: { /* the loop at 1462 */
         _wipe_step();
-        uint32_t bx = _wipe_pos * 80u;
+        uint16_t bx = u16(_wipe_pos * 80u);
         if (_page_draw < 0x8000u) {
             _page_draw = bx;
-            _page_disp = 0x8000u + bx;
+            _page_disp = (uint16_t)(0x8000u + bx);
         } else {
-            _page_draw = 0x8000u + bx;
+            _page_draw = (uint16_t)(0x8000u + bx);
             _page_disp = bx;
         }
         _flip_page();
@@ -905,11 +907,11 @@ int32_t attract_tick(const InputState *in)
                            0xA0u, 4u);
             _draw_score_block(_arena);
         } else { /* intro_frame_2 1652 */
-            uint32_t base = (_frame - 1u) * 10u;
+            uint16_t base = (_frame - 1u) * 10u;
             font_draw_text(_arena,
                            game_strs[g_game_lang][GAME_STR_ATTRACT_TIMES_HEADER],
                            0xA0u, 4u);
-            for (uint32_t r = 0; r < 10u; r++) {
+            for (uint16_t r = 0; r < 10u; r++) {
                 uint8_t rec[2];
 
                 _fastest_time(base + r, rec);
@@ -987,7 +989,7 @@ int32_t attract_tick(const InputState *in)
              * the next tick.  The bound mirrors the original's heap-read
              * past the buffer only for data without the 0xFF terminator,
              * which the shipped file always has. */
-            uint32_t next = (_cred_cursor < _credtext_size)
+            uint8_t next = (_cred_cursor < _credtext_size)
                                 ? _credtext[_cred_cursor]
                                 : 0xFFu;
             if (next != 0xFFu) {

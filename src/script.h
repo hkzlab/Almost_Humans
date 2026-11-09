@@ -8,19 +8,19 @@
 #include "osystem.h"
 
 typedef struct {
-    uint32_t frame; /* the current frame (the player advances it) */
-    uint32_t groupDwell; /* cmd 7: frames per display-list group       */
-    int32_t dwellPending; /* cmd 7 fired: [0x6462] must reload        */
-    int32_t scrollOn; /* cmd 3 on / cmd 2 off                       */
-    uint32_t scrollDelta; /* cmd 6: the scroll advance per frame        */
-    uint32_t transitionIdx; /* cmd 1: run_screen_transition index         */
-    int32_t quit; /* cmd 5: the quit flag                       */
-    int32_t done; /* the frame target reached                   */
-    int32_t seekPending; /* cmd 4 fired: the player must seek          */
-    uint32_t seekFrame; /*    ...to this frame                        */
+    uint16_t frame; /* the current frame (the player advances it) */
+    uint16_t groupDwell; /* cmd 7: frames per display-list group       */
+    uint8_t dwellPending; /* cmd 7 fired: [0x6462] must reload        */
+    uint8_t scrollOn; /* cmd 3 on / cmd 2 off                       */
+    uint16_t scrollDelta; /* cmd 6: the scroll advance per frame        */
+    uint16_t transitionIdx; /* cmd 1: run_screen_transition index         */
+    uint8_t quit; /* cmd 5: the quit flag                       */
+    uint8_t done; /* the frame target reached                   */
+    uint8_t seekPending; /* cmd 4 fired: the player must seek          */
+    uint16_t seekFrame; /*    ...to this frame                        */
     const uint16_t *cues; /* [frame][cmd][arg] triples, verbatim        */
-    uint32_t cueCount;
-    uint32_t cursor; /* the next cue to fire                       */
+    uint16_t cueCount;
+    uint16_t cursor; /* the next cue to fire                       */
 } CueScript;
 
 /* --- src/script.c — interpreter skeleton (re_scripts.md) -------------- */
@@ -52,7 +52,7 @@ void script_intro_start(CueScript *s);
  * @param s the cue script
  * @param frame the frame index
  */
-void script_fire(CueScript *s, uint32_t frame);
+void script_fire(CueScript *s, uint16_t frame);
 
 /**
  * @brief Accessor: the script requests a quit.
@@ -60,7 +60,7 @@ void script_fire(CueScript *s, uint32_t frame);
  * @param s the cue script
  * @return The script requests a quit.
  */
-int32_t script_quit(const CueScript *s);
+uint8_t script_quit(const CueScript *s);
 
 /**
  * @brief Accessor: the cue script finished.
@@ -68,7 +68,7 @@ int32_t script_quit(const CueScript *s);
  * @param s the cue script
  * @return The cue script finished.
  */
-int32_t script_done(const CueScript *s);
+uint8_t script_done(const CueScript *s);
 
 /**
  * @brief Accessor: the group dwell count (1000:B94E set [0x6460]).
@@ -76,7 +76,7 @@ int32_t script_done(const CueScript *s);
  * @param s the cue script
  * @return The group dwell count.
  */
-uint32_t script_group_dwell(const CueScript *s);
+uint16_t script_group_dwell(const CueScript *s);
 
 /**
  * @brief Accessor: a dwell cue fired (its handler set [0x6460] and [0x6462]).
@@ -84,7 +84,7 @@ uint32_t script_group_dwell(const CueScript *s);
  * @param s the cue script
  * @return A dwell cue fired since the last script_dwell_done().
  */
-int32_t script_dwell_pending(const CueScript *s);
+uint8_t script_dwell_pending(const CueScript *s);
 
 /**
  * @brief Clear the script's dwell-pending flag.
@@ -99,7 +99,7 @@ void script_dwell_done(CueScript *s);
  * @param s the cue script
  * @return The scroll gate.
  */
-int32_t script_scroll_on(const CueScript *s);
+uint8_t script_scroll_on(const CueScript *s);
 
 /**
  * @brief Accessor: the scroll delta.
@@ -107,7 +107,7 @@ int32_t script_scroll_on(const CueScript *s);
  * @param s the cue script
  * @return The scroll delta.
  */
-uint32_t script_scroll_delta(const CueScript *s);
+uint16_t script_scroll_delta(const CueScript *s);
 
 /**
  * @brief Accessor: the script's transition index.
@@ -115,7 +115,7 @@ uint32_t script_scroll_delta(const CueScript *s);
  * @param s the cue script
  * @return The script's transition index.
  */
-uint32_t script_transition_index(const CueScript *s);
+uint16_t script_transition_index(const CueScript *s);
 
 /**
  * @brief Accessor: a seek is pending.
@@ -123,7 +123,7 @@ uint32_t script_transition_index(const CueScript *s);
  * @param s the cue script
  * @return A seek is pending.
  */
-int32_t script_seek_pending(const CueScript *s);
+uint8_t script_seek_pending(const CueScript *s);
 
 /**
  * @brief Accessor: the seek frame.
@@ -131,7 +131,7 @@ int32_t script_seek_pending(const CueScript *s);
  * @param s the cue script
  * @return The seek frame.
  */
-uint32_t script_seek_frame(const CueScript *s);
+uint16_t script_seek_frame(const CueScript *s);
 
 /**
  * @brief Clear the script's seek-pending flag.

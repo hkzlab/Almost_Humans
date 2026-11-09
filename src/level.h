@@ -11,7 +11,7 @@
 #include "osystem.h"
 
 typedef struct {
-    uint32_t levelId; /* 0..159                                    */
+    uint16_t levelId; /* 0..159                                    */
     uint8_t style; /* +0x00 low: the tile style 1..6            */
     uint8_t introIndex; /* +0x01 high: the intro-movie index (0xFF=none) */
     uint8_t goalCount; /* +0x02 low: the solved-flag threshold      */
@@ -41,7 +41,7 @@ int32_t level_init(const OSystem *osys);
  * @param levelId the level id
  * @return 0 on success, -1 on failure
  */
-int32_t level_load(uint32_t levelId);
+int32_t level_load(uint16_t levelId);
 
 /**
  * @brief Accessor: the loaded LevelData record (NULL before a load).
@@ -131,7 +131,7 @@ void level_claim_frame(void);
  * @param id the identifier
  * @return 1 when the tile's page bytes are free, 0 otherwise
  */
-int32_t level_page_free(uint32_t id);
+uint8_t level_page_free(uint32_t id);
 
 /* The two level maps the walk reads: `0x92A0`'s page bytes (bit 7 = solid, the
  * low 7 bits the step, 1000:E389) and `[0x1FD6]`'s 16-word item records
@@ -184,7 +184,7 @@ uint32_t level_item_byte(uint32_t id, uint32_t off);
  *
  * @return 1 while the level is running
  */
-int32_t level_tick(void);
+uint8_t level_tick(void);
 
 /** @brief [0x0]/[0x2]: the display window into the 512x320 level page, in pixels and
  * rows — `set_display_ptr` (1000:882D) starts the CRTC at
@@ -198,7 +198,7 @@ int32_t level_tick(void);
  * @param x the x coordinate
  * @param y the y coordinate
  */
-void level_set_view(uint32_t x, uint32_t y);
+void level_set_view(uint16_t x, uint16_t y);
 
 /** @brief 1000:5CB6 — the first call of `update_world` (`1000:80AD`), guarded there by
  * `[0xC] != 0`: the camera follows the **acting record** (`get_object_ptr`,
@@ -228,7 +228,7 @@ void level_follow_view(void);
  *
  * @param on the on/off flag
  */
-void level_set_updates(int32_t on);
+void level_set_updates(uint8_t on);
 
 /** [0x2D8E]: the follower's +-1 px offset walk enabler (1000:DAC7 / 0xF8CE). */
 void level_set_offset_word(uint16_t v);
@@ -252,25 +252,25 @@ void level_reset_offset_walk(void);
  *
  * @return The world-update gate.
  */
-int32_t level_updates(void);
+uint8_t level_updates(void);
 
 /**
  * @brief Accessor: the camera's x.
  *
  * @return The camera's x.
  */
-uint32_t level_view_x(void);
+uint16_t level_view_x(void);
 
 /**
  * @brief Accessor: the camera's y.
  *
  * @return The camera's y.
  */
-uint32_t level_view_y(void);
+uint16_t level_view_y(void);
 
 /* menu_flag_tick's goal pan is blocked (the original's pan loop): a test seam
  * for the input latch/marker-mode sequence. */
-int32_t level_goal_pan_running_for_probe(void);
+uint8_t level_goal_pan_running_for_probe(void);
 
 /**
  * @brief 1000:3E73's tail (`JMP 0x3DC0` at (x - 0x20, y - 0x20)): clear the
@@ -283,14 +283,14 @@ int32_t level_goal_pan_running_for_probe(void);
  * @param oy the spark origin y
  * @param shade the 16x16 shade table
  */
-void level_spark_begin(uint32_t ox, uint32_t oy, const uint8_t *shade);
+void level_spark_begin(uint16_t ox, uint16_t oy, const uint8_t *shade);
 
 /**
  * @brief Accessor: the spark effect is running.
  *
  * @return The spark effect is running.
  */
-int32_t level_spark_active(void);
+uint8_t level_spark_active(void);
 
 /**
  * @brief Test seam: one byte of 1000:3DC0's scratch strip.
@@ -357,7 +357,7 @@ void level_begin(void);
  *
  * @return 1 while the fade-in chain runs, 0 otherwise
  */
-int32_t level_starting(void);
+uint8_t level_starting(void);
 
 /** @brief level_run (1000:3054) runs level_video_init's two fades (3083) BEFORE
  * load_sprite_pal (3086), so the loading screen exists only once the chain has
@@ -370,7 +370,7 @@ int32_t level_starting(void);
  *
  * @return 1 while the loading screen is up, 0 otherwise
  */
-int32_t level_loading_screen(void);
+uint8_t level_loading_screen(void);
 
 /** @brief particle_frame (1000:1E78) + update_particles (1000:1E98): one frame of
  * the list — the counter reload, the per-entry step and sprite cycle — then
@@ -389,7 +389,7 @@ void level_loading_tick(void);
  *
  * @return the members the level needs
  */
-uint32_t level_required(void);
+uint16_t level_required(void);
 
 /**
  * @brief [0x17F0]: the level header's +0x02 low byte, the goal scan's threshold.
@@ -403,7 +403,7 @@ uint32_t level_goal_count(void);
  *
  * @return The tribe's current member count.
  */
-uint32_t level_members(void);
+uint16_t level_members(void);
 
 /**
  * @brief 1000:DE1F: the join tail increments the tribe count ([0x11FC]).
@@ -445,7 +445,7 @@ void level_restore_members(void);
  *
  * @param won the won flag
  */
-void level_request_end(int32_t won);
+void level_request_end(uint8_t won);
 
 /**
  * @brief Start the disc-presence indicator for one disc.
@@ -458,7 +458,7 @@ void level_request_end(int32_t won);
  * @param disc the disc number
  * @return 1 when the prompt is up, 0 when the disc is present
  */
-int32_t level_disk_status_begin(uint32_t disc);
+uint8_t level_disk_status_begin(uint16_t disc);
 
 /**
  * @brief Tick the disc indicator; 1 = still waiting.
@@ -466,7 +466,7 @@ int32_t level_disk_status_begin(uint32_t disc);
  * @param in the input state
  * @return 1 while the prompt is still up
  */
-int32_t level_disk_status_tick(const InputState *in);
+uint8_t level_disk_status_tick(const InputState *in);
 
 /**
  * @brief Clear the disc indicator's state (test/lifecycle: drop the screen).
@@ -496,14 +496,14 @@ void level_member_lost(void);
  *
  * @return 1 when the level-end test fires, 0 otherwise
  */
-int32_t level_end_test(void);
+uint8_t level_end_test(void);
 
 /**
  * @brief Accessor: the play loop's end reached and its hold finished.
  *
  * @return The play loop's end reached and its hold finished.
  */
-int32_t level_ended(void);
+uint8_t level_ended(void);
 
 /** @brief 1000:34E6: the play loop's exit - after the end test's negative return the
  * loop plays sound 0xC (1000:83B7) and waits 15 vsyncs (1000:8B56) on the
@@ -511,7 +511,7 @@ int32_t level_ended(void);
  *
  * @return 1 while the exit hold runs, 0 otherwise
  */
-int32_t level_end_holding(void);
+uint8_t level_end_holding(void);
 
 /** @brief 1000:F66D: the goal-record tail's "no survivor" exit sets [0x138E] = 0 and
  * ends the play loop (the same state object_test_dispatch's negative return
@@ -519,14 +519,14 @@ int32_t level_end_holding(void);
  *
  * @param won the won flag
  */
-void level_set_end(int32_t won);
+void level_set_end(uint8_t won);
 
 /**
  * @brief Accessor: 1 when the level was won ([0x138E]: 1 won, 0 extinct).
  *
  * @return 1 when the level was won.
  */
-int32_t level_outcome(void);
+uint8_t level_outcome(void);
 
 /** @brief [0x5D31] and [0x11FC] after the LEVEL board's pick (the bar's seed; the
  * party screen reads the members too).
@@ -544,7 +544,7 @@ uint16_t level_time_limit(void);
  *
  * @return The tribe's member count.
  */
-uint32_t level_tribe_members(void);
+uint16_t level_tribe_members(void);
 
 /**
  * @brief the stamped background and the P block, for the exit/igloo test
@@ -574,7 +574,7 @@ const uint8_t *level_p_block_for_probe(void);
  *
  * @return The loaded background index.
  */
-uint32_t level_bg_index_for_probe(void);
+uint16_t level_bg_index_for_probe(void);
 
 /**
  * @brief Accessor: the record's C block (0xA9 background art).

@@ -14,7 +14,7 @@
  * @param disc the disc number
  * @return the pointer, or NULL when unavailable
  */
-static FSVolume *_null_open_volume(uint32_t disc);
+static FSVolume *_null_open_volume(uint16_t disc);
 
 /**
  * @brief The null filesystem: nothing to close.
@@ -111,7 +111,7 @@ const FSModule g_fs_null = {
     _null_close_save,  _null_open_named,   _null_create_named
 };
 
-static FSVolume *_null_open_volume(uint32_t disc)
+static FSVolume *_null_open_volume(uint16_t disc)
 {
     (void)disc;
     return NULL;

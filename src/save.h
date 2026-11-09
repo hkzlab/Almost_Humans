@@ -28,14 +28,14 @@ int32_t save_init(const OSystem *osys);
  * @param slot the slot
  * @return 1 when the slot loaded, 0 otherwise
  */
-int32_t save_load_slot(uint32_t slot);
+uint8_t save_load_slot(uint8_t slot);
 
 /**
  * @brief Accessor: a save is loaded ([0x34]).
  *
  * @return A save is loaded.
  */
-int32_t save_present(void);
+uint8_t save_present(void);
 
 /**
  * @brief Accessor: the saved level word (+0x00, 1..160 -> [0x22]).
@@ -56,7 +56,7 @@ uint16_t save_time(void);
  *
  * @return The saved member count.
  */
-uint32_t save_members(void);
+uint16_t save_members(void);
 
 /**
  * @brief Accessor: the save blob.
@@ -92,7 +92,7 @@ void save_consume(void);
  * @param members the member count
  * @return 1 when the whole save was written, 0 otherwise
  */
-int32_t save_write_slot(uint32_t slot, uint32_t level, uint16_t timeWord,
-                        uint32_t members);
+int32_t save_write_slot(uint8_t slot, uint16_t level, uint16_t timeWord,
+                        uint16_t members);
 
 #endif /* HUMANSRE_SAVE_H */

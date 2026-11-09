@@ -54,22 +54,22 @@ typedef enum {
 
 static const OSystem *_menu_osys;
 static MenuPhase _phase = MENU_NONE;
-static uint32_t _row, _col;        /* [0x5E3B], [0x5E3D]                  */
-static int32_t _result = -1;     /* the 0-based pause choice            */
-static uint32_t _slot;            /* the grid's game number 1..20        */
-static uint32_t _prev_bits;        /* the press-edge latch                */
-static int32_t _time_up_kind;      /** the open dialog is the time-up one  */
+static uint16_t _row, _col;   /* [0x5E3B]/[0x5E3D]: the original's words */
+static int16_t _result = -1;  /* the 0-based pause choice (A167's AX)    */
+static uint8_t _slot;         /* the grid's game number 1..20            */
+static uint8_t _prev_bits;    /* the [0x5ACE] press-edge latch           */
+static uint8_t _time_up_kind; /** the open dialog is the time-up one     */
 
 void menu_init(const OSystem *osys) { _menu_osys = osys; }
 
-int32_t menu_active(void)
+uint8_t menu_active(void)
 {
     return _phase == MENU_PAUSE || _phase == MENU_GRID ||
            _phase == MENU_TIMEOUT;
 }
-int32_t menu_time_up(void) { return _time_up_kind; }
-int32_t menu_result(void) { return _result; }
-uint32_t menu_slot(void) { return _slot; }
+uint8_t menu_time_up(void) { return _time_up_kind; }
+int16_t menu_result(void) { return _result; }
+uint8_t menu_slot(void) { return _slot; }
 void menu_close(void)
 {
     _phase = MENU_NONE;
@@ -122,25 +122,25 @@ void menu_draw(void)
                       (int32_t)_row, 0u, 0);
 }
 
-int32_t menu_tick(const InputState *in)
+uint8_t menu_tick(const InputState *in)
 {
     if (_phase == MENU_DONE || _phase == MENU_NONE) return 0;
 
     menu_draw();
 
-    uint32_t bits = in->joyBits;
-    uint32_t press = bits & ~_prev_bits;        /* one move per press */
+    uint8_t bits = in->joyBits; /* [0x5ACE], a byte */
+    uint8_t press = (uint8_t)(bits & ~_prev_bits); /* one move per press */
     _prev_bits = bits;
 
-    int32_t key = in->lastKey ? (int32_t)in->lastKey : -1;
+    int16_t key = in->lastKey ? (int16_t)in->lastKey : -1;
 
     if (_phase == MENU_PAUSE || _phase == MENU_TIMEOUT) {
-        uint32_t nrows = (_phase == MENU_PAUSE) ? MENU_ROWS : 3u;
+        uint8_t nrows = (_phase == MENU_PAUSE) ? MENU_ROWS : 3u; /* [0x5E41] */
         if (press & 0x01u) _row = _row ? _row - 1u : nrows - 1u;
         else if (press & 0x02u) _row = (_row + 1u) % nrows;
         if ((press & 0x80u) || key == 0x0D) {
             if (_phase == MENU_TIMEOUT) {
-                _result = (int32_t)_row;
+                _result = (int16_t)_row;
                 _phase = MENU_DONE;
             } else if (_row == 3u) {            /* SAVE GAME -> the grid */
                 _phase = MENU_GRID;
@@ -150,7 +150,7 @@ int32_t menu_tick(const InputState *in)
                  * level did not re-render since; the grid draws next tick */
                 return 1;
             } else {
-                _result = (int32_t)_row;
+                _result = (int16_t)_row;
                 _phase = MENU_DONE;
             }
         }
@@ -160,7 +160,7 @@ int32_t menu_tick(const InputState *in)
         else if (press & 0x08u) _col = (_col + 1u) % GRID_COLS;
         else if (press & 0x04u) _col = _col ? _col - 1u : GRID_COLS - 1u;
         if ((press & 0x80u) || key == 0x0D) {
-            _slot = 4u * _col + _row + 1u;        /* the 4c+r+1 law */
+            _slot = (uint8_t)(4u * _col + _row + 1u);        /* the 4c+r+1 law */
             _result = 3;
             _phase = MENU_DONE;
         }

@@ -68,7 +68,7 @@ void audio_render_tick(void);
  *
  * @param on 1 while an audio stream is running and calls audio_render_tick
  */
-void audio_set_render_clock(int32_t on);
+void audio_set_render_clock(uint8_t on);
 
 /**
  * @brief play_tune (1000:8437): load and start a tune image.
@@ -96,7 +96,7 @@ void audio_play_tune(const char *name);
  *
  * @param level1 the 1-based level number ([0x1F41])
  */
-void audio_play_level_tune(uint32_t level1);
+void audio_play_level_tune(uint16_t level1);
 
 /**
  * @brief music_resume (1000:83F7): start the loaded image's record 0.
@@ -153,7 +153,7 @@ void audio_fade_out(void);
  *
  * @return 1 while fading, 0 when idle
  */
-int32_t audio_fade_busy(void);
+uint8_t audio_fade_busy(void);
 
 /**
  * @brief driver_call (1000:83B7): start a sound-effect record.

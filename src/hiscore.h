@@ -66,7 +66,7 @@ void hiscore_set_best(uint32_t level, uint16_t value);
  *
  * @return The table's entry count.
  */
-uint32_t hiscore_count(void);
+uint8_t hiscore_count(void);
 
 /** @brief The on-disk table length (the original's 0x208 = 520 bytes).
  *
@@ -96,7 +96,7 @@ const char *hiscore_name(uint32_t i);
  * @param score the score
  * @return 1 when the score makes the table, 0 otherwise
  */
-int32_t hiscore_qualifies(uint32_t score);
+uint8_t hiscore_qualifies(uint32_t score);
 
 /** @brief 1000:01CD..0x0230: insert, shifting 18-byte entries down one slot.
  * Memory-only: the original flushes at the MAP exit (`0x06CC`). Returns the
@@ -119,6 +119,6 @@ int32_t hiscore_insert(uint32_t score, const char *name);
  * @param len the length
  * @return 1 when Enter commits, 0 otherwise
  */
-int32_t hiscore_name_apply(char *name, uint32_t column, uint32_t *len);
+uint8_t hiscore_name_apply(char *name, uint8_t column, uint8_t *len);
 
 #endif /* HUMANSRE_HISCORE_H */

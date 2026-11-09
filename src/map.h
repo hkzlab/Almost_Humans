@@ -15,7 +15,7 @@
  *
  * @return 1 when the MAP screen opened, 0 otherwise
  */
-int32_t map_begin(void);
+uint8_t map_begin(void);
 
 /**
  * @brief One MAP tick; 1 = still up.
@@ -23,7 +23,7 @@ int32_t map_begin(void);
  * @param in the input state
  * @return 1 while the MAP screen is up
  */
-int32_t map_tick(const InputState *in);
+uint8_t map_tick(const InputState *in);
 
 /* --- the MAP screen's letter wheel (apl\alpha.spr, 1000:0705/0F93/0CBE) --- */
 
@@ -44,7 +44,7 @@ void alpha_expand(const uint8_t *src, uint8_t *dst);
  * @param src the source buffer
  * @param dst the destination buffer
  */
-void alpha_cell(uint32_t cell, uint32_t angle, uint32_t *src, uint32_t *dst);
+void alpha_cell(uint32_t cell, uint32_t angle, uint16_t *src, uint16_t *dst);
 
 /**
  * @brief Draw the letter wheel.
@@ -108,7 +108,7 @@ void map_draw_congrats(uint8_t *page);
  *
  * @return the draw pass (1 or 2)
  */
-uint32_t map_congrats_draws(void);
+uint8_t map_congrats_draws(void);
 
 /** @brief 1000:1251: a rectangle outline in the flat page.  The top edge ORs 0x40,
  * the left and bottom 0x50, the right 0x40 (1000:1263..1298).
@@ -127,14 +127,14 @@ void map_draw_rect(uint8_t *page, uint32_t x, uint32_t y, uint32_t w,
  *
  * @return The MAP transition step.
  */
-uint32_t map_transition_step(void);
+uint8_t map_transition_step(void);
 
 /**
  * @brief Accessor: the MAP fade's start count (palette_build_fade calls).
  *
  * @return The MAP fade's start count.
  */
-uint32_t map_fade_starts(void);
+uint8_t map_fade_starts(void);
 
 /**
  * @brief Accessor: one MAP fade entry.
@@ -158,8 +158,8 @@ int32_t map_fade_at(uint32_t i, uint32_t *first, uint32_t *entries,
 void map_draw_name(uint8_t *page);
 
 /* --- the MAP screen's frame (the offscreen row page, 1000:0577/0595/0874/07E6) */
-extern uint32_t g_map_box_bottom; /* [0x8AE]                    */
-extern uint32_t g_map_panel; /* [0x8A2]: 1..6              */
+extern uint16_t g_map_box_bottom; /* [0x8AE]                    */
+extern uint16_t g_map_panel; /* [0x8A2]: 1..6              */
 
 /* --- the band's staging page and four-strip animation (1000:12D3/09DA/
  * 0A72/07B2/0E77/0EBE/0EEC/0F3E) --------------------------------------- */
@@ -185,13 +185,13 @@ void map_anim_tick_for_probe(void);
  *
  * @return the cell (0..29)
  */
-uint32_t map_name_col_for_probe(void);
+uint8_t map_name_col_for_probe(void);
 
 /** @brief Accessor: the ring angle [0x48] (the test seam).
  *
  * @return the angle
  */
-uint32_t map_name_angle_for_probe(void);
+uint16_t map_name_angle_for_probe(void);
 
 /** @brief Set the ring angle (the test seam for the erase check).
  *
@@ -203,19 +203,19 @@ void map_name_set_angle_for_probe(uint32_t angle);
  *
  * @return the 1000:021E..0x0285 step
  */
-uint32_t map_intro_step_for_probe(void);
+uint8_t map_intro_step_for_probe(void);
 
 /** @brief Accessor: the Enter sequence's phase (the test seam).
  *
  * @return 0 = fading to white, 1 = fading back, 2 = the header is up
  */
-uint32_t map_enter_step_for_probe(void);
+uint8_t map_enter_step_for_probe(void);
 
 /** @brief Accessor: the Enter spin's BX counter (the test seam).
  *
  * @return the 0x04B9/0x0515 counter
  */
-uint32_t map_enter_bx_for_probe(void);
+uint16_t map_enter_bx_for_probe(void);
 
 /** @brief Accessor: the offscreen list page (the test seam).
  *
@@ -240,7 +240,7 @@ int32_t map_glyph_for_probe(uint32_t i, int32_t *tx, int32_t *ty, int32_t *cx,
  *
  * @return the [0x5AC8] model
  */
-uint32_t map_name_fire_wait_for_probe(void);
+uint16_t map_name_fire_wait_for_probe(void);
 
 /** @brief Accessor: the typed name buffer (the test seam).
  *
@@ -252,7 +252,7 @@ const char *map_name_for_probe(void);
  *
  * @return 1 when ready
  */
-int32_t map_stage_ready_for_probe(void);
+uint8_t map_stage_ready_for_probe(void);
 
 /** @brief Accessor: one staging-page byte (the test seam; 1000:12D3 plane byte).
  *

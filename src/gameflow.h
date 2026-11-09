@@ -69,32 +69,33 @@ GameFlow gameflow_step(GameFlow state, const InputState *input);
  *
  * @return the current 0-based level index
  */
-uint32_t gameflow_level_current(void);
+uint16_t gameflow_level_current(void);
 
 /** @brief dispatch_by_result_a167 (1000:38EA): the pause menu's five 0-based
  * results.  Returns the flow the action leaves (FLOW_MENU for RESTART THIS
  * GAME) and sets *quit for QUIT THIS GAME.
  *
- * @param choice the selected entry
+ * @param choice the selected entry: the A167 result in AX (1000:A1FD,
+ *               `MOV AX, word ptr [0x5e3b]`), so an `int16_t`
  * @param quit the quit flag: 0/1 out-flag, the port's deferred game_exit
  *             (1000:8DD6), honoured by game_main after the frame
  * @return the next flow state
  */
-GameFlow gameflow_pause_action(int32_t choice, int32_t *quit);
+GameFlow gameflow_pause_action(int16_t choice, uint8_t *quit);
 
 /** @brief The briefing's YOUR SCORE IS value: the low word of [0x592]/[0x594],
  * which score_prepare maintains across levels.
  *
  * @return the party score
  */
-uint32_t gameflow_party_score(void);
+uint16_t gameflow_party_score(void);
 
 /**
  * @brief test seam: the restart left the party screen pending (1000:3073).
  *
  * @return 1 when the party screen is still pending, 0 otherwise
  */
-int32_t gameflow_party_pending(void);
+uint8_t gameflow_party_pending(void);
 
 /** @brief 1000:35CA `wait_palette_fade_done`: 1 while the restart's fade
  * runs, 0 when it is over (the level has then been reloaded).
@@ -104,7 +105,7 @@ int32_t gameflow_party_pending(void);
  *
  * @return 1 while the fade is still stepping, 0 otherwise
  */
-int32_t gameflow_restart_fade_tick(void);
+uint8_t gameflow_restart_fade_tick(void);
 
 /** @brief The briefing's code line (0x1189): load_level (1000:30BC) copies the level
  * record's author there (1000:312C), and level_intro_screen draws it.
@@ -126,7 +127,7 @@ const char *gameflow_party_tribe(void);
  * @param in the input state
  * @return 1 when an entry ran, 0 otherwise
  */
-int32_t gameflow_key_list(const InputState *in);
+uint8_t gameflow_key_list(const InputState *in);
 
 /**
  * @brief Accessor: the goal page is showing.
@@ -135,7 +136,7 @@ int32_t gameflow_key_list(const InputState *in);
  *
  * @return The goal page is showing.
  */
-int32_t gameflow_goal_page_up(void);
+uint8_t gameflow_goal_page_up(void);
 
 /** @brief Test seam: level_setup armed the goal/title page ([0x5BBA]).
  *
@@ -144,7 +145,7 @@ int32_t gameflow_goal_page_up(void);
  *
  * @return 1 when the page is pending its first play frame.
  */
-int32_t gameflow_goal_armed(void);
+uint8_t gameflow_goal_armed(void);
 
 /**
  * @brief Accessor: a scripted key wait is active.
@@ -153,24 +154,25 @@ int32_t gameflow_goal_armed(void);
  *
  * @return A scripted key wait is active.
  */
-int32_t gameflow_key_wait_active(void);
+uint8_t gameflow_key_wait_active(void);
 
 /** @brief input_dispatch_loop 34F9's inline time-up dispatch: 0 restart this level
  * (level_restore), 1 restart this game (the room), 2 quit.
  *
- * @param choice the selected entry
+ * @param choice the selected entry: the A167 result in AX (1000:A1FD,
+ *               `MOV AX, word ptr [0x5e3b]`), so an `int16_t`
  * @param quit the quit flag: 0/1 out-flag, the port's deferred game_exit
  *             (1000:8DD6), honoured by game_main after the frame
  * @return the next flow state
  */
-GameFlow gameflow_time_up_action(int32_t choice, int32_t *quit);
+GameFlow gameflow_time_up_action(int16_t choice, uint8_t *quit);
 
 /**
  * @brief test seam: the pause/time-up RESTART THIS GAME arm set [0x1809] = 0xFF.
  *
  * @return 1 when a restart is pending, 0 otherwise
  */
-int32_t gameflow_restart_pending(void);
+uint8_t gameflow_restart_pending(void);
 
 /** @brief entry LAB_00CD's post-level step: [0x22]++ / [0x26]-- (0xA0 - [0x22]).
  * While the window has levels left the PLAY arm runs again — the next level
@@ -182,7 +184,7 @@ int32_t gameflow_restart_pending(void);
  * @param levelCurrent the current level number
  * @return the next flow state
  */
-GameFlow gameflow_after_level(uint32_t *levelCurrent);
+GameFlow gameflow_after_level(uint16_t *levelCurrent);
 
 /** @brief entry 14E6/14FF: the post-level newspaper.  A lost level goes to the
  * ending ([0x138E]==0 at 14E6); a won one plays its header +1 index unless
@@ -196,7 +198,7 @@ GameFlow gameflow_after_level(uint32_t *levelCurrent);
  * @param introIndex the intro scene index
  * @return the newspaper index, or 0xFFFF when none
  */
-uint32_t gameflow_post_level_scene(int32_t won, uint32_t introIndex);
+uint32_t gameflow_post_level_scene(uint8_t won, uint32_t introIndex);
 
 /** @brief entry 150C/1512: [0x1e]=7 when the levels run out (COMPLETE); the lost
  * path reaches 1512 with [0x1e]=6 (the restart-game arm set it at 14BE).
@@ -204,7 +206,7 @@ uint32_t gameflow_post_level_scene(int32_t won, uint32_t introIndex);
  * @param won the won flag
  * @return the ending scene index (6 or 7)
  */
-uint32_t gameflow_ending_scene(int32_t won);
+uint32_t gameflow_ending_scene(uint8_t won);
 
 /** @brief level_run 3060/3062: load_level leaves [0x17FB] (the humans needed) and
  * [0x11FC] (the tribe); need > members takes the briefing's GAME OVER
@@ -214,6 +216,6 @@ uint32_t gameflow_ending_scene(int32_t won);
  * @param members the member count
  * @return 1 when the level needs more members, 0 otherwise
  */
-int32_t gameflow_tribe_too_small(uint32_t need, uint32_t members);
+uint8_t gameflow_tribe_too_small(uint16_t need, uint16_t members);
 
 #endif /* HUMANSRE_GAMEFLOW_H */

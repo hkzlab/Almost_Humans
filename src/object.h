@@ -28,10 +28,10 @@
  * stack's push.  Every handler body is ported (the former `0xE7C0` and
  * `0xEBCA` gaps were closed). */
 typedef struct {
-    uint32_t handler;
-    uint32_t tail;
-    uint32_t hook; /* the row's +0xA: run 1000:D8BD before the tail */
-    uint32_t command;
+    uint16_t handler;
+    uint16_t tail;
+    uint16_t hook; /* the row's +0xA: run 1000:D8BD before the tail */
+    uint8_t command;
 } ObjCommand;
 
 /** @brief The program header `1000:98F8` resolves for `group`: the six table
@@ -86,7 +86,7 @@ void object_step_action_cell(void);
  * @param blocks the block count
  * @param n the count
  */
-void object_publish_g_sprites(const uint8_t *data, uint32_t blocks, uint32_t n);
+void object_publish_g_sprites(const uint8_t *data, uint16_t blocks, uint8_t n);
 
 /**
  * @brief Publish the DEH sprite banks.
@@ -120,7 +120,7 @@ void object_goal_scan(void);
  *
  * @return The goal flag.
  */
-int32_t object_goal_flag(void);
+uint8_t object_goal_flag(void);
 
 /** @brief 1000:D860 collision_scan: update_world's last call (1000:80D5), the
  * per-frame row pass over the eight static records.  The acting record is
@@ -137,14 +137,14 @@ void object_row_pass(void);
  *
  * @param on the on/off flag
  */
-void object_set_marker_mode(int32_t on);
+void object_set_marker_mode(uint8_t on);
 
 /**
  * @brief Accessor: the marker mode flag.
  *
  * @return The marker mode flag.
  */
-int32_t object_marker_mode(void);
+uint8_t object_marker_mode(void);
 
 /** @brief The array's initial state (`1000:4CAB`): every one of the 29 records gets
  * `x = y = 0xFFFF` and `+6 = 0x80` (flags bit 7 = free, class 0), the rest 0;
@@ -256,7 +256,7 @@ uint32_t object_frame_slots(void);
  *
  * @return The frame counter.
  */
-uint32_t object_frame_counter_probe(void);
+uint16_t object_frame_counter_probe(void);
 
 /**
  * @brief one sprite-table entry, for the tests (the D-69 tail copies).
@@ -274,7 +274,7 @@ void object_frame_for_probe(uint32_t frame, uint32_t *off, uint32_t *rows);
  *
  * @return the background record count
  */
-uint32_t object_bg_count(void);
+uint8_t object_bg_count(void);
 
 /**
  * @brief Accessor: one background decoration's position.
@@ -365,35 +365,35 @@ void object_load_spans(const uint8_t *src);
  *
  * @return The current record index.
  */
-int32_t object_current(void);
+int16_t object_current(void);
 
 /**
  * @brief Accessor: set the current record.
  *
  * @param slot the slot
  */
-void object_set_current(int32_t slot);
+void object_set_current(int16_t slot);
 
 /**
  * @brief Accessor: the player record index ([0x180A], -1 = none).
  *
  * @return The player record index.
  */
-int32_t object_player(void);
+int16_t object_player(void);
 
 /**
  * @brief Accessor: set the player record.
  *
  * @param slot the slot
  */
-void object_set_player(int32_t slot);
+void object_set_player(int16_t slot);
 
 /**
  * @brief 1000:3640 — -1 when NO record's type is 0x1D.
  *
  * @return -1 when no record is type 0x1D, 0 otherwise
  */
-int32_t object_none_type1d(void);
+int16_t object_none_type1d(void);
 
 /** @brief 1000:3659 — the current record's +7 indexes the source-slot table 0x3E5E;
  * a zero slot is false, and the slot's low six bits are compared with the
@@ -402,7 +402,7 @@ int32_t object_none_type1d(void);
  * @param want the wanted value
  * @return -1 on a match, 0 otherwise
  */
-int32_t object_class_matches(uint32_t want);
+int16_t object_class_matches(uint32_t want);
 
 /**
  * @brief 1000:3678 — the current record's type equals the test's word.
@@ -410,7 +410,7 @@ int32_t object_class_matches(uint32_t want);
  * @param type the type
  * @return -1 when the type matches, 0 otherwise
  */
-int32_t object_type_equals(uint32_t type);
+int16_t object_type_equals(uint32_t type);
 
 /** @brief 1000:3688 — the entity table (count 0x64C2, records 0x64C4, stride 0x10):
  * -1 when there are none or every one's +4 is 5 (the knocked/finished state),
@@ -418,7 +418,7 @@ int32_t object_type_equals(uint32_t type);
  *
  * @return -1 when every entity finished, 0 otherwise
  */
-int32_t object_entities_finished(void);
+int16_t object_entities_finished(void);
 
 /** @brief 1000:36AB — the record's type is <= 2 and the map cell under it equals the
  * test's byte.
@@ -426,21 +426,21 @@ int32_t object_entities_finished(void);
  * @param want the wanted value
  * @return -1 when the cell matches, 0 otherwise
  */
-int32_t object_map_cell_equals(uint32_t cell);
+int16_t object_map_cell_equals(uint32_t cell);
 
 /**
  * @brief Accessor: the static record count (the 8 the predicates scan).
  *
  * @return The static record count.
  */
-uint32_t object_static_slots(void);
+uint8_t object_static_slots(void);
 
 /**
  * @brief Accessor: the live record count ([0x3E73]; 9 at the level start).
  *
  * @return The live record count.
  */
-uint32_t object_live_count(void);
+uint16_t object_live_count(void);
 
 /**
  * @brief Accessor: one slot's class byte ([0x3E5E + slot]).
@@ -588,7 +588,7 @@ uint8_t object_beh_state_for_probe(uint32_t beh);
  * @param mode the mode
  * @return 1 when the active test fires, 0 otherwise
  */
-int32_t object_test_dispatch(uint16_t mode);
+int16_t object_test_dispatch(uint16_t mode);
 
 /**
  * @brief Publish the object sprite bank.
@@ -631,7 +631,7 @@ void object_map_tail_reset(const uint8_t *map);
  *
  * @return The placed human count.
  */
-uint32_t object_placed_humans(void);
+uint16_t object_placed_humans(void);
 
 /** @brief The map cell under a record, for the score (55FA calls 0xF761 with AX = 8,
  * BX = 0xC on each of the eight static records): 0xFFFF for a non-static slot or
@@ -850,7 +850,7 @@ int32_t object_stack_scan_dissolve(uint32_t recIndex);
  * @param type the record type
  * @return 1 when the gate blocks the type, 0 otherwise
  */
-int32_t object_type_blocked(uint32_t type);
+uint8_t object_type_blocked(uint32_t type);
 
 /** @brief Test seam: 1000:F2E0's overlap conversion.
  *
@@ -916,28 +916,28 @@ int32_t object_claim_begin(uint32_t recipe, int32_t actor);
  *
  * @return The claim is running.
  */
-int32_t object_claim_active(void);
+uint8_t object_claim_active(void);
 
 /**
  * @brief Accessor: the claim's pan phase (the 1000:3D04 recolour frames).
  *
  * @return The claim's pan phase.
  */
-int32_t object_claim_pan_active(void);
+uint8_t object_claim_pan_active(void);
 
 /**
  * @brief Accessor: the claim's animation phase (1000:3BD6, the 56 frames).
  *
  * @return 1 while the claim is animating the neighbour.
  */
-int32_t object_claim_anim_active(void);
+uint8_t object_claim_anim_active(void);
 
 /**
  * @brief Accessor: the claim's page re-blit phase (1000:3CB5's re-blits).
  *
  * @return 1 while the world must be re-composed.
  */
-int32_t object_claim_flip_active(void);
+uint8_t object_claim_flip_active(void);
 
 /**
  * @brief Accessor: the claim has reached the pan and its page is frozen.
@@ -948,7 +948,7 @@ int32_t object_claim_flip_active(void);
  *
  * @return 1 from CLAIM_WHITE_BACK through CLAIM_SETTLE.
  */
-int32_t object_claim_page_frozen(void);
+uint8_t object_claim_page_frozen(void);
 
 /**
  * @brief Accessor: the claim's settle fade (1000:3CDE).
@@ -960,7 +960,7 @@ int32_t object_claim_page_frozen(void);
  *
  * @return 1 while the settle fade runs.
  */
-int32_t object_claim_settle_active(void);
+uint8_t object_claim_settle_active(void);
 
 /** @brief 1000:40CA render_frame_objects: the claim's presented frames draw
  * only the selected record (`[0x180A]`) and the claimed one (`[0x1AF2]`) over
@@ -1037,7 +1037,7 @@ void object_claim_frame(const uint8_t *levelPal);
  *
  * @return -1 on the once-per-frame match, 0 otherwise
  */
-int32_t object_low_phase_match(void);
+int16_t object_low_phase_match(void);
 
 /** @brief Test seam: run `1000:F3ED` on `actor`.
  *
@@ -1049,7 +1049,7 @@ int32_t object_low_phase_match(void);
  * @param actor the object record
  * @return 1 when the settle may run, 0 when a TER slot claimed the actor
  */
-int32_t object_settle_gate_for_probe(uint8_t *actor);
+uint8_t object_settle_gate_for_probe(uint8_t *actor);
 
 /**
  * @brief script_op_dispatch: one ACTION press.
@@ -1076,7 +1076,7 @@ void object_pending_run(void);
  *
  * @return 1 while the charge loop continues, 0 when it ends
  */
-int32_t object_charge_tick(void);
+uint8_t object_charge_tick(void);
 
 /** @brief One frame of the charge loop (0x3702): the world frame has already run, so
  * this redraws the bar at the record's new +0xE, or leaves when the turn did
@@ -1088,7 +1088,7 @@ int32_t object_charge_tick(void);
  *
  * @return 1 while the charge loop is active, 0 otherwise
  */
-int32_t object_charge_active(void);
+uint8_t object_charge_active(void);
 
 /**
  * @brief 0x410A (resolve_next_eligible_object_sprite): cycle the 8 static records.
@@ -1106,7 +1106,7 @@ int32_t object_cycle_entity(int32_t step);
  * @param index the index
  * @return 1 when the record was selected, 0 otherwise
  */
-int32_t object_select_by_index(uint32_t index);
+uint8_t object_select_by_index(uint32_t index);
 
 /** @brief 1000:3933 (the key list's id 8, SPACE).  1000:392D runs the home-state
  * conversion on the acting record (get_object_ptr + 0xEDB7) and the handler
@@ -1118,14 +1118,14 @@ int32_t object_select_by_index(uint32_t index);
  *
  * @return 1 when the ACTION program ran, 0 otherwise
  */
-int32_t object_space_action(void);
+uint8_t object_space_action(void);
 
 /**
  * @brief Accessor: the acting record's index.
  *
  * @return The acting record's index.
  */
-uint32_t object_action_entity(void);
+uint16_t object_action_entity(void);
 
 /** @brief 1000:3344..336C (level_fade_in): slot 8 (`0x3F05`) takes frame 0x17, type 0x1A,
  * +0xA = 0x1006 and +0xC = 0xFF.  `scan_object_rows` starts its walk there and
@@ -1153,28 +1153,28 @@ void object_marker_tick(void);
  *
  * @param i the index
  */
-void object_set_action_entity(uint32_t index);
+void object_set_action_entity(uint16_t index);
 
 /**
  * @brief Accessor: the action program index.
  *
  * @return The action program index.
  */
-uint32_t object_action_program(void);
+uint8_t object_action_program(void);
 
 /**
  * @brief Accessor: the pending event.
  *
  * @return The pending event.
  */
-uint32_t object_action_pending(void);
+uint8_t object_action_pending(void);
 
 /**
  * @brief [0x1988]: the program cursor byte (the pending action 5 writes it, 0x382D).
  *
  * @param cursor the cursor
  */
-void object_action_set_cursor(uint32_t cursor);
+void object_action_set_cursor(uint8_t cursor);
 
 /** @brief [0x5B56] (a raw byte), for tests and for a program restored from a
  * save.  The shipped writers produce 1..6; the collision tail can store the
@@ -1192,7 +1192,7 @@ void object_action_set_program(uint32_t index);
  *
  * @return The last sound effect.
  */
-uint32_t object_last_sfx(void);
+uint8_t object_last_sfx(void);
 
 /**
  * @brief the flag's reader is unported, so expose the store for the test
@@ -1201,7 +1201,7 @@ uint32_t object_last_sfx(void);
  *
  * @return 1 when the flag is set, 0 otherwise
  */
-int32_t object_flag6f_e6(void);
+uint8_t object_flag6f_e6(void);
 
 /**
  * @brief Test seam: call the sound driver (1000:83B7 from another module).
@@ -1217,13 +1217,13 @@ void object_driver_call(uint32_t n);
  *
  * @return The ACTION latch.
  */
-int32_t object_action_latched(void);
+uint8_t object_action_latched(void);
 
 /**
  * @brief Accessor: set the ACTION latch (7 = op 7 was dispatched).
  *
  * @param on the on/off flag
  */
-void object_set_action_latched(int32_t on);
+void object_set_action_latched(uint8_t on);
 
 #endif /* HUMANSRE_OBJECT_H */

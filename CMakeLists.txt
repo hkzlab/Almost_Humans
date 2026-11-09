@@ -30,6 +30,20 @@ function(humansre_warnings tgt)
     endif()
 endfunction()
 
+# The narrowing audit (port_structure.md §5): with this ON, every implicit
+# integer truncation or sign change aborts the program at the site, so the test
+# suite proves the narrowed locals never silently wrap.  The third-party OPL3
+# emulator keeps its intentional 16-bit sample conversions (excluded below).
+option(HUMANSRE_SANITIZE_IMPLICIT "Abort on implicit integer conversions" OFF)
+if(HUMANSRE_SANITIZE_IMPLICIT)
+    add_compile_options(-fsanitize=implicit-conversion
+                        -fno-sanitize-recover=implicit-conversion)
+    add_link_options(-fsanitize=implicit-conversion)
+    set_source_files_properties(
+        src/arch/audio/adlib/thirdparty/opl3.c
+        PROPERTIES COMPILE_OPTIONS "-fno-sanitize=implicit-conversion")
+endif()
+
 # The game core: pure C99, no port #ifdefs, no dependencies beyond the CRT
 # (port_structure.md §5).  It talks to the machine only through OSystem.
 add_library(core STATIC
@@ -59,6 +73,12 @@ add_library(core STATIC
 )
 target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 humansre_warnings(core)
+# The width audit (port_structure.md §5): every implicit integer narrowing in
+# the core must be an explicit cast.  -Wno-sign-conversion keeps the many
+# deliberate word/byte sign tests out of the noise.
+if(NOT MSVC)
+    target_compile_options(core PRIVATE -Wconversion -Wno-sign-conversion)
+endif()
 
 # Probe hooks that only offline tools call (scene_al_expand_for_probe) are
 # extra, not part of the game: a Debug configure (cmake -DCMAKE_BUILD_TYPE=Debug)

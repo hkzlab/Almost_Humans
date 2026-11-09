@@ -46,7 +46,7 @@
 #define HIS_TABLE  (2u + HIS_LEVELS * 2u + 18u + HIS_TOPN * HIS_ENTRY)
 
 static uint8_t _hiscore_table[HIS_TABLE];
-static int32_t _hiscore_loaded;
+static uint8_t _hiscore_loaded;
 
 /* The backend (and through it the filesystem module); hiscore_bind sets it. */
 static const OSystem *_hiscore_osys;
@@ -77,7 +77,7 @@ void hiscore_obfuscate(uint8_t *p, uint32_t n)
 {
     uint8_t key = 0x47u;
 
-    for (uint32_t i = 0; i < n; i++) {
+    for (uint16_t i = 0; i < n; i++) {
         p[i] ^= key;
         key = (uint8_t)(((uint8_t)((key << 1) | (key >> 7))) + 3u);
     }
@@ -96,9 +96,9 @@ static void _hiscore_defaults(void)
 {
     memset(_hiscore_table, 0, sizeof _hiscore_table);
     wr_le_u16(_hiscore_table, 0x0999u); /* [0x38A] = 0x0999 */
-    for (uint32_t n = 1; n <= HIS_LEVELS; n++)
+    for (uint16_t n = 1; n <= HIS_LEVELS; n++)
         wr_le_u16(_hiscore_table + 2u * n, 0x0999u);
-    for (uint32_t i = 0; i < HIS_TOPN; i++) {
+    for (uint16_t i = 0; i < HIS_TOPN; i++) {
         uint8_t *e = _hiscore_entry(i);
         uint32_t v = _hiscore_default[i].score;
 
@@ -150,7 +150,7 @@ void hiscore_set_best(uint32_t level, uint16_t value)
     wr_le_u16(_hiscore_table + 2u * level, value);
 }
 
-uint32_t hiscore_count(void) { return HIS_TOPN; }
+uint8_t hiscore_count(void) { return HIS_TOPN; }
 
 uint32_t hiscore_table_size(void) { return HIS_TABLE; }
 
@@ -183,22 +183,22 @@ static char _hiscore_char(char c)
     return c;
 }
 
-int32_t hiscore_qualifies(uint32_t score)
+uint8_t hiscore_qualifies(uint32_t score)
 { return score >= hiscore_score(HIS_TOPN - 1u); }
 
 int32_t hiscore_insert(uint32_t score, const char *name)
 {
-    uint32_t pos = 0;
+    uint8_t pos = 0;
 
     hiscore_init();
-    for (int32_t k = (int32_t)HIS_TOPN - 1; k >= 0; k--) {
+    for (int16_t k = (int16_t)HIS_TOPN - 1; k >= 0; k--) {
         if (score < hiscore_score((uint32_t)k)) {
-            pos = (uint32_t)k + 1u;
+            pos = (uint8_t)((uint32_t)k + 1u);
             break;
         }
     }
     if (pos >= HIS_TOPN) return -1; /* the last entry still wins */
-    for (uint32_t j = HIS_TOPN - 1u; j > pos; j--)
+    for (uint16_t j = HIS_TOPN - 1u; j > pos; j--)
         memmove(_hiscore_entry(j), _hiscore_entry(j - 1u), HIS_ENTRY);
     {
         uint8_t *e = _hiscore_entry(pos);
@@ -206,7 +206,7 @@ int32_t hiscore_insert(uint32_t score, const char *name)
         wr_le_u32(e, score);
         memset(e + 4, 0, HIS_NAME);
         if (name) {
-            for (uint32_t i = 0; i < HIS_NAME - 1u && name[i]; i++)
+            for (uint16_t i = 0; i < HIS_NAME - 1u && name[i]; i++)
                 e[4u + i] = (uint8_t)_hiscore_char(name[i]);
         }
     }
@@ -224,9 +224,9 @@ int32_t hiscore_insert(uint32_t score, const char *name)
  * @param len the length
  * @param c the character
  */
-static void _name_put(char *name, uint32_t *len, char c)
+static void _name_put(char *name, uint8_t *len, char c)
 {
-    uint32_t n = *len;
+    uint8_t n = *len;
 
     if (n > 13u) n = 13u;
     if (n < 13u) {
@@ -238,9 +238,9 @@ static void _name_put(char *name, uint32_t *len, char c)
     *len = n;
 }
 
-int32_t hiscore_name_apply(char *name, uint32_t column, uint32_t *len)
+uint8_t hiscore_name_apply(char *name, uint8_t column, uint8_t *len)
 {
-    uint32_t n = *len;
+    uint8_t n = *len;
 
     if (n > 13u) n = 13u;
     name[n] = '\0';

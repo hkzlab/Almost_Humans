@@ -49,7 +49,7 @@ int main(int argc, char **argv)
     /* play the first briefing and dismiss it with a key */
     {
         InputState in;
-        int32_t run = 1;
+        uint8_t run = 1;
         uint32_t t = 0;
 
         memset(&in, 0, sizeof in);

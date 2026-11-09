@@ -29,7 +29,7 @@ uint32_t score_level_score(void);
  *
  * @return the member count
  */
-uint32_t score_members(void);
+uint16_t score_members(void);
 
 /** @brief Accessor: the level's score term [0x1DCA] (the test seam for the
  * cross-level leftover).
@@ -55,28 +55,28 @@ void score_prepare(void);
  *
  * @return 1 while the counters still step, 0 when done
  */
-int32_t score_counters_run(void);
+uint8_t score_counters_run(void);
 
 /**
  * @brief Accessor: the score set a record ([0x1DD6]).
  *
  * @return The score set a record.
  */
-int32_t score_is_record(void);
+uint8_t score_is_record(void);
 
 /**
  * @brief Advance the score screen's blink (1000:467A: 1 = phase flipped).
  *
  * @return the new blink phase
  */
-int32_t score_blink_tick(void);
+uint8_t score_blink_tick(void);
 
 /**
  * @brief the stamp's current phase ([0x1DC4]): 1 = drawn.
  *
  * @return the current blink phase (1 = stamp drawn)
  */
-int32_t score_blink_on(void);
+uint8_t score_blink_on(void);
 
 /**
  * @brief Draw the record stamp (1000:46FC / 0x46A3).
@@ -84,7 +84,7 @@ int32_t score_blink_on(void);
  * @param page the page buffer
  * @param on the on/off flag
  */
-void score_stamp_draw(uint8_t *page, int32_t on);
+void score_stamp_draw(uint8_t *page, uint8_t on);
 
 /**
  * @brief Draw one score column.
@@ -148,14 +148,14 @@ uint16_t score_best_time(void);
  *
  * @return The total score's low word.
  */
-uint32_t score_total_lo(void);
+uint16_t score_total_lo(void);
 
 /**
  * @brief Accessor: the total score's high word ([0x594]).
  *
  * @return The total score's high word.
  */
-uint32_t score_total_hi(void);
+uint16_t score_total_hi(void);
 
 /** @brief 1000:42CE..4352: the best-time comparison, the NEW RECORD flag and the
  * running total (the save header's halves).
@@ -185,7 +185,7 @@ uint32_t score_shown_hi(void);
  * @param value the value
  * @return 1 when the score screen opened, 0 otherwise
  */
-int32_t score_begin(uint32_t value);
+uint8_t score_begin(uint32_t value);
 
 /**
  * @brief One score-screen tick; 1 = still up.
@@ -193,6 +193,6 @@ int32_t score_begin(uint32_t value);
  * @param in the input state
  * @return 1 while the score screen is up
  */
-int32_t score_tick(const InputState *in);
+uint8_t score_tick(const InputState *in);
 
 #endif /* HUMANSRE_SCORE_H */

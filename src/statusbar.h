@@ -40,8 +40,8 @@ int32_t statusbar_init(const OSystem *osys);
  * @param tribeMembers the tribe member count
  * @param tribeRequired the required member count
  */
-void statusbar_start(uint16_t packedTimeBcd, uint32_t tribeMembers,
-                     uint32_t tribeRequired);
+void statusbar_start(uint16_t packedTimeBcd, uint16_t tribeMembers,
+                     uint16_t tribeRequired);
 
 /** @brief The INT 8 hook at 1000:96AD (gated on [0x5B12]) + the JMP to the stamp:
  * the marks are stamped every frame — frozen at their last state once the
@@ -68,7 +68,7 @@ void statusbar_arm_tribe_count(void);
  *
  * @return The countdown reached zero.
  */
-int32_t statusbar_time_up(void);
+uint8_t statusbar_time_up(void);
 
 /**
  * @brief 1000:F5E3: the tribe counter is non-zero ([0x5B25] | [0x5B26] != 0).
@@ -78,7 +78,7 @@ int32_t statusbar_time_up(void);
  *
  * @return 1 when the counter is non-zero, 0 otherwise
  */
-int32_t statusbar_tribe_count_nonzero(void);
+uint8_t statusbar_tribe_count_nonzero(void);
 
 /** @brief The tribe counter's digits are [0x5B25]/[0x5B26]; the game only writes them through
  * statusbar_start (members - required) and the roll animation.  This setter is
@@ -99,7 +99,7 @@ void statusbar_set_tribe_digits(uint32_t tens, uint32_t ones);
  * @param i the index
  * @return One tribe-count digit.
  */
-uint32_t statusbar_tribe_digit(uint32_t i);
+uint8_t statusbar_tribe_digit(uint32_t i);
 
 /** @brief 0x5B22..0x5B29, the save's +0x17F0 block: state, the two slide
  * countdowns, the two digits, the two phase bytes and the 0x5B28 gap.
@@ -120,21 +120,21 @@ void statusbar_load_params(const uint8_t *in);
  *
  * @return the two-digit tribe value
  */
-uint32_t statusbar_tribe_value(void);
+uint8_t statusbar_tribe_value(void);
 
 /** @brief [0x5B12]: the ticking gate.  The in-level dialogs clear it (A167's head)
  * and restore it on return; the band keeps drawing while it is clear.
  *
  * @param on the on/off flag
  */
-void statusbar_set_active(int32_t on);
+void statusbar_set_active(uint8_t on);
 
 /**
  * @brief Set the bar's split row.
  *
  * @param row the row
  */
-void statusbar_set_split(uint32_t row);
+void statusbar_set_split(uint16_t row);
 
 /** @brief draw_level_text 0x342B: park the split at 0xC9 (off-screen) so the bar is
  * not composed; the level's ISR hook (0x331E) is already uninstalled, so it
@@ -147,7 +147,7 @@ void statusbar_hide(void);
  *
  * @return The bar's split row.
  */
-uint32_t statusbar_split(void);
+uint16_t statusbar_split(void);
 
 /* [0x5B56]: the current ACTION program — a raw byte; draws both the program
  * and the action row's group.  An id outside 1..6 has no header (D-186).
@@ -205,7 +205,7 @@ void statusbar_charge_end(void);
  *
  * @return the action group index
  */
-uint32_t statusbar_action_group(void);
+uint8_t statusbar_action_group(void);
 
 /**
  * @brief the group's icon count (its header's first byte), for the tests.
@@ -213,7 +213,7 @@ uint32_t statusbar_action_group(void);
  * @param group the group
  * @return the icon count
  */
-uint32_t statusbar_action_count(uint32_t group);
+uint8_t statusbar_action_count(uint32_t group);
 
 /**
  * @brief the group's selected-cell byte, for the tests (0 past the table).
@@ -221,7 +221,7 @@ uint32_t statusbar_action_count(uint32_t group);
  * @param group the group
  * @return the selected cell byte
  */
-uint32_t statusbar_action_cell(uint32_t group);
+uint8_t statusbar_action_cell(uint32_t group);
 
 /** @brief The countdown word the save writes at +0x07: minutes << 8 | BCD seconds
  * (the original's [0x5B19] and [0x5B1A]*16 + [0x5B1B]).

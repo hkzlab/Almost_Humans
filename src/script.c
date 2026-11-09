@@ -77,7 +77,7 @@ int32_t script_init(const OSystem *osys)
  * @param cues the cue script array
  * @param cueCount the cue count
  */
-void script_start(CueScript *s, const uint16_t *cues, uint32_t cueCount)
+void script_start(CueScript *s, const uint16_t *cues, uint16_t cueCount)
 {
     memset(s, 0, sizeof *s);
     s->cues = cues;
@@ -85,7 +85,7 @@ void script_start(CueScript *s, const uint16_t *cues, uint32_t cueCount)
     s->groupDwell = 1u;              /* the dwell cue at frame 0 sets it   */
 }
 
-void script_fire(CueScript *s, uint32_t frame)
+void script_fire(CueScript *s, uint16_t frame)
 {
     s->frame = frame;
 
@@ -118,17 +118,17 @@ void script_fire(CueScript *s, uint32_t frame)
         s->done = 1;
 }
 
-int32_t script_quit(const CueScript *s) { return s->quit; }
-int32_t script_done(const CueScript *s) { return s->done; }
-uint32_t script_group_dwell(const CueScript *s) { return s->groupDwell; }
-int32_t script_dwell_pending(const CueScript *s) { return s->dwellPending; }
+uint8_t script_quit(const CueScript *s) { return s->quit; }
+uint8_t script_done(const CueScript *s) { return s->done; }
+uint16_t script_group_dwell(const CueScript *s) { return s->groupDwell; }
+uint8_t script_dwell_pending(const CueScript *s) { return s->dwellPending; }
 void script_dwell_done(CueScript *s) { s->dwellPending = 0; }
-int32_t script_scroll_on(const CueScript *s) { return s->scrollOn; }
-uint32_t script_scroll_delta(const CueScript *s) { return s->scrollDelta; }
-uint32_t script_transition_index(const CueScript *s)
+uint8_t script_scroll_on(const CueScript *s) { return s->scrollOn; }
+uint16_t script_scroll_delta(const CueScript *s) { return s->scrollDelta; }
+uint16_t script_transition_index(const CueScript *s)
 { return s->transitionIdx; }
-int32_t script_seek_pending(const CueScript *s) { return s->seekPending; }
-uint32_t script_seek_frame(const CueScript *s) { return s->seekFrame; }
+uint8_t script_seek_pending(const CueScript *s) { return s->seekPending; }
+uint16_t script_seek_frame(const CueScript *s) { return s->seekFrame; }
 void script_seek_done(CueScript *s) { s->seekPending = 0; }
 
 void script_intro_start(CueScript *s) { script_start(s, _intro_cues, 25u); }

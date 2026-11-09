@@ -53,7 +53,7 @@ static void _hook(uint32_t poll)
         /* mode 2 = the pause menu's RESTART THIS GAME (1000:390F), which must
          * run the lost-level caption and fades before the restart */
         if (_outcome == 2) {
-            int32_t q = 0;
+            uint8_t q = 0;
             _starts_at_restart = osys_null_audio_starts();
             (void)gameflow_pause_action(2, &q);
         } else {

@@ -65,7 +65,7 @@ int main(int argc, char **argv)
     memset(&idle, 0, sizeof idle);
     scene_note_input(&idle);
 
-    int32_t r = 1;
+    uint8_t r = 1;
     uint32_t t = 0;
     int32_t seen_trans = 0, injected = 0;
 

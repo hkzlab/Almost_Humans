@@ -24,6 +24,7 @@
 #include "font.h"
 #include "osystem.h"
 #include "byteorder.h"
+#include "width.h"
 
 #include <stdio.h>
 
@@ -60,7 +61,7 @@ void font_publish(const uint8_t *textSpr) { _glyphs = textSpr; }
  */
 static uint32_t _charset_index(uint8_t c)
 {
-    for (uint32_t i = 0; i < 44u; i++)
+    for (uint16_t i = 0; i < 44u; i++)
         if ((uint8_t)_charset[i] == c) return i;
     return 44u;
 }
@@ -114,7 +115,7 @@ static int _blit_glyph(uint8_t *arena, uint32_t capacity, int32_t x,
 {
     if (!_glyphs) return 0;
 
-    uint32_t col = (uint32_t)((x >= 0 ? x : 0) >> 2);
+    uint8_t col = (uint8_t)((uint32_t)((x >= 0 ? x : 0) >> 2));
     uint32_t di = row * 80u + col;
 
     /* the tile's last write is row 15, byte di + 15*80 + 5 */
@@ -122,16 +123,16 @@ static int _blit_glyph(uint8_t *arena, uint32_t capacity, int32_t x,
         _arena_overflow(capacity, row, col);
         return 0;
     }
-    uint32_t si = gi * 32u; /* the glyph stride (SHL CX,1 x5) */
-    uint32_t k = (uint32_t)(x >= 0 ? x : 0) & 3u; /* the x%4 pre-shift */
+    uint16_t si = u16(gi * 32u); /* the glyph stride (SHL CX,1 x5) */
+    uint8_t k = (uint8_t)((x >= 0 ? x : 0) & 3); /* the x%4 pre-shift */
 
-    for (uint32_t r = 0; r < 16u; r++) {
+    for (uint16_t r = 0; r < 16u; r++) {
         uint16_t ax = rd_le_u16(_glyphs + si);
         si += 2;
         uint8_t dh = 0;
         if (k) { /* 4a2e..4a38 */
             ax = (uint16_t)((ax >> 8) | (ax << 8)); /* XCHG AL,AH */
-            for (uint32_t i = 0; i < k; i++) {
+            for (uint16_t i = 0; i < k; i++) {
                 uint8_t cf = (uint8_t)(ax & 1u);
                 ax = (uint16_t)(ax >> 1);
                 dh = (uint8_t)((dh >> 1) | (cf << 7)); /* RCR DH,1 */
@@ -157,7 +158,7 @@ static int _blit_glyph(uint8_t *arena, uint32_t capacity, int32_t x,
 
 uint32_t font_text_width(const char *s)
 {
-    uint32_t w = 0;
+    uint16_t w = 0;
     for (const uint8_t *p = (const uint8_t *)s; *p && *p != 0x0Du; p++)
         w += _advance[_charset_index(*p)];
     return w;
@@ -172,14 +173,14 @@ void font_draw_text_bounded(uint8_t *arena, uint32_t capacity, const char *s,
 {
     if (!_glyphs || !arena) return;
 
-    uint32_t width = 0;
+    uint16_t width = 0;
     for (const uint8_t *p = (const uint8_t *)s; *p && *p != 0x0Du; p++)
         width += _advance[_charset_index(*p)];
 
     int32_t x = (int32_t)centreX - (int32_t)(width >> 1);
 
     for (const uint8_t *p = (const uint8_t *)s; *p && *p != 0x0Du; p++) {
-        uint32_t gi = _charset_index(*p);
+        uint8_t gi = (uint8_t)_charset_index(*p);
         if (gi == 44u) continue; /* no glyph: skip, no _advance */
         _blit_glyph(arena, capacity, x, row, gi);
         x += _advance[gi];

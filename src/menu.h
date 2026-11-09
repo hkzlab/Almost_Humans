@@ -35,14 +35,14 @@ void menu_open_time_up(void);
  *
  * @return The menu is the time-up variant.
  */
-int32_t menu_time_up(void);
+uint8_t menu_time_up(void);
 
 /**
  * @brief Accessor: the pause/time-up menu is up.
  *
  * @return The pause/time-up menu is up.
  */
-int32_t menu_active(void);
+uint8_t menu_active(void);
 
 /**
  * @brief One menu tick; 1 = still up; draws.
@@ -50,7 +50,7 @@ int32_t menu_active(void);
  * @param in the input state
  * @return 1 while the menu is up
  */
-int32_t menu_tick(const InputState *in);
+uint8_t menu_tick(const InputState *in);
 
 /**
  * @brief Draw the menu.
@@ -60,16 +60,23 @@ void menu_draw(void);
 /**
  * @brief Accessor: the selected entry (the 0-based pause choice, -1).
  *
+ * The original's result is A167's AX, read from the word `[0x5E3B]`
+ * (`MOV AX, word ptr [0x5e3b]`, 1000:A1FD), so an `int16_t`.
+ *
  * @return The selected entry.
  */
-int32_t menu_result(void);
+int16_t menu_result(void);
 
 /**
  * @brief Accessor: the selected slot (the grid's game number 1..20).
  *
+ * The original computes the number in AX (`save_progress`, 1FE7:0008:
+ * `[0x5E3D]*4 + [0x5E3B]`) and turns it into the drive letter; 1..20 fits a
+ * `uint8_t`.
+ *
  * @return The selected slot.
  */
-uint32_t menu_slot(void);
+uint8_t menu_slot(void);
 
 /**
  * @brief Close the menu.

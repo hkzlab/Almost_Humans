@@ -36,7 +36,7 @@ uint32_t ver_detect_hash(const uint8_t *buf, uint32_t n)
 
 static uint32_t _hash_update(uint32_t h, const uint8_t *buf, uint32_t n)
 {
-    for (uint32_t i = 0; i < n; i++) {
+    for (uint16_t i = 0; i < n; i++) {
         h ^= buf[i];
         h *= FNV32_PRIME;
     }
@@ -62,8 +62,8 @@ int32_t ver_detect_run(const OSystem *osys)
     /* use chunked reading to save memory */
     uint8_t chunk[256];
     char msg[128];
-    FSVolume *v = osys->fs->openVolume(VER_DETECT_VOLUME);
-    uint32_t got = 0;
+    FSVolume *v = osys->fs->openVolume((uint16_t)VER_DETECT_VOLUME);
+    uint16_t got = 0;
     uint32_t hash = FNV32_OFFSET;
     int32_t lang;
 
