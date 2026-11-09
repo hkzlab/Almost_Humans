@@ -16,9 +16,11 @@
  *                                 load_level_assets 1000:3468 into [0x13B1]).
  *                                 The tile's pixel (k*4 + p, r) = the byte
  *                                 tile[r*16 + p + 4*k].
- *   blit_text_tile    (1000:47D5) the lines: 16-row pitch, the line's top =
- *                                 box top + 15, the text centred at x=160
- *                                 (draw_text 1000:4989).
+ *   blit_text_tile    (1000:47D5) the lines: the arena's first 1280 B cleared
+ *                                 (CX=0x280 words, 1000:47e2), draw_text at
+ *                                 row 0, then 16 rows of 80 B copied out;
+ *                                 the line's top = box top + 15, the text
+ *                                 centred at x=160 (draw_text 1000:4989).
  *   text_page_outline (1000:9FB1, its call at 1000:9FA7) the black outline:
  *                                 the box interior, every 4-neighbour of a
  *                                 pixel in [0xF4,0xFC) that is < 0xF4 -> 0.
@@ -53,7 +55,12 @@
 #define TEXT_LIMIT 96u
 
 static const uint8_t *_tp_box;          /* APL\BOX.SPR: 9 x 16x16 tiles */
-static uint8_t _tp_arena[16000];
+
+/* [0x1E20]: the text arena.  The original carves 0x640 paragraphs = 25600 B =
+ * 320 rows x 80 (init_buffer_ptrs 1000:31e9); the port keeps the 20 rows a
+ * line can reach here — the 1280-B clear plus the widest line's spill — and
+ * font_draw_text_bounded drops + warns on anything past that (D-258). */
+static uint8_t _tp_arena[1600];
 
 /* 202F:0x5D33 / 0x5D8B / 0x5DE3 — the 8x11 marker patterns (88 bytes). */
 static const uint8_t _marker_l[88] = {
@@ -169,8 +176,10 @@ static void _glyph_px(uint8_t *page, uint32_t y, uint32_t x0, uint8_t b,
 static void _draw_line(uint8_t *page, const char *line, uint32_t centreX,
                        uint32_t cell, uint32_t colour, int32_t mask)
 {
-    memset(_tp_arena, 0, sizeof _tp_arena);
-    font_draw_text(_tp_arena, line, centreX, 0);
+    /* blit_text_tile 1000:47e2: CX = 0x280 words = the 16 rows read below */
+    memset(_tp_arena, 0, 0x280u * 2u);
+    font_draw_text_bounded(_tp_arena, (uint32_t)sizeof _tp_arena, line, centreX,
+                           0);
     for (uint32_t r = 4u; r < 14u; r++) {
         uint32_t y = cell + r;
         if (y >= 200u) break;

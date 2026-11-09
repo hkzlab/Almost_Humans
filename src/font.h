@@ -41,6 +41,20 @@ void font_publish(const uint8_t *textSpr);
 void font_draw_text(uint8_t *arena, const char *s, uint32_t centreX,
                     uint32_t row);
 
+/** @brief draw_text into a bounded arena: a glyph whose 16-row tile would pass
+ * `capacity` is dropped, and the first drop is reported through the OSystem's
+ * `warn`.  The original writes through ES unbounded (port_deviations.md
+ * D-258); `textpage.c` passes its arena's size here.
+ *
+ * @param arena the text arena
+ * @param capacity the arena size in bytes
+ * @param s the text
+ * @param centreX the centring x
+ * @param row the row
+ */
+void font_draw_text_bounded(uint8_t *arena, uint32_t capacity, const char *s,
+                            uint32_t centreX, uint32_t row);
+
 /** @brief draw_text's own measure: the sum of the _advance table (the same walk
  * draw_text does before centring).  STOPs at CR/NUL, like draw_text.
  *

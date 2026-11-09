@@ -11,6 +11,7 @@
  * skips the level-loading parts.
  */
 #include "entity.h"
+#include "font.h"
 #include "gameflow.h"
 #include "hiscore.h"
 #include "level.h"
@@ -164,6 +165,15 @@ static void _tf_leap(int32_t x, int32_t y, uint32_t *minx, uint32_t *apex,
     *endFrame = _tf_rd16(a, 4u);
 }
 
+static uint32_t _tf_warns;
+
+/** @brief Count the font's arena warnings (the D-258 check). */
+static void _tf_warn(const char *msg)
+{
+    (void)msg;
+    _tf_warns++;
+}
+
 /**
  * @brief Run the foreground flow tests.
  *
@@ -180,6 +190,37 @@ int main(int argc, char **argv)
     palette_init(&g_osys_null);
     level_init(&g_osys_null);
     statusbar_init(&g_osys_null); /* the charge bar draws into the band */
+
+    /* 0. font_draw_text_bounded: a fitting line draws the same bytes as
+     * draw_text; a glyph whose 16-row tile would pass the arena's end is
+     * dropped, and the first drop warns once (D-258). */
+    {
+        static uint8_t bank[44 * 32];
+        static uint8_t wide[1600], same[1600], tiny[640];
+        OSystem os = g_osys_null;
+
+        memset(bank, 0xFF, sizeof bank); /* worst-case ink */
+        font_publish(bank);
+
+        memset(wide, 0, sizeof wide);
+        memset(same, 0, sizeof same);
+        font_draw_text(wide, "HELLO", 0xA0u, 0u);
+        font_draw_text_bounded(same, sizeof same, "HELLO", 0xA0u, 0u);
+        _check(memcmp(wide, same, sizeof wide) == 0,
+               "bounded draw == unbounded when the text fits");
+
+        os.warn = _tf_warn;
+        _tf_warns = 0;
+        font_init(&os);
+        memset(tiny, 0xCC, sizeof tiny);
+        font_draw_text_bounded(tiny, sizeof tiny, "HELLO", 0xA0u, 0u);
+        _check(tiny[0] == 0xCC && tiny[sizeof tiny - 1u] == 0xCC &&
+                   _tf_warns == 1u,
+               "an unfitting glyph is dropped and warned about");
+        font_draw_text_bounded(tiny, sizeof tiny, "HELLO", 0xA0u, 0u);
+        _check(_tf_warns == 1u, "the drop warning is reported once");
+        font_init(&g_osys_null);
+    }
     if (compat_chdir(vol_dir)) {
         perror(vol_dir);
         return 1;
