@@ -411,7 +411,7 @@ uint32_t level_members(void);
 void level_add_member(void);
 
 /**
- * @brief 1000:41E6 (check_highscore): store the odometer + live-record recount
+ * @brief 1000:41E6 (check_highscore): store the tribe counter + live-record recount
  * into [0x11FC].
  *
  * The only per-level write besides the difficulty pick/restore/join; the

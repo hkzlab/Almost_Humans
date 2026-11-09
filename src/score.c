@@ -73,7 +73,7 @@ enum {
 
 /* --- check_highscore's data (1000:41B8..4352) ---------------------------
  *
- * `1000:41B8` recomputes the member count `[0x11FC]` from the bar's odometer
+ * `1000:41B8` recomputes the member count `[0x11FC]` from the bar's tribe counter
  * digits plus the live placed records:
  *
  *   [0x11FC] = [0x5B25]*10 + [0x5B26]
@@ -310,7 +310,7 @@ uint32_t score_level_score(void)
 
     levelNo = gameflow_level_for_probe() + 1u; /* [0x1F41] */
     /* the original multiplies by the *recounted* [0x11FC] (1000:41B8: the
-     * odometer digits plus the live records), not by the level-start tribe */
+     * tribe counter digits plus the live records), not by the level-start tribe */
     bonus = levelNo * score_members() * 10u + remaining * 10u;
 
     /* 55FA..5635: the eight static records' cells, 0xA8 (+1000) / 0xA7 (+2000) */

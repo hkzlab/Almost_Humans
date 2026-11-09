@@ -370,8 +370,8 @@ int main(int argc, char **argv)
     /* 3c. D-59: the full eaten chain.  The carry link points at the entity,
      * so the type-34 tail marks the human consumed while the entity is on
      * handlers 2/3 and runs 0xF5BC when the carry ends; the probe's F682 arm
-     * turns the record into the type-0x21 lost marker and rolls the bar
-     * odometer down. */
+     * turns the record into the type-0x21 lost marker and rolls the bar's
+     * tribe counter down. */
     {
         uint8_t *cr;
         uint8_t params[8];
@@ -408,7 +408,7 @@ int main(int argc, char **argv)
             _failf("D-59: the carried human is consumed", 10u, type, 0x21);
         statusbar_save_params(params);
         if (params[0] != 0xFFu)
-            _failf("D-59: the loss arms the odometer", 10u, params[0], 0xFF);
+            _failf("D-59: the loss arms the tribe counter", 10u, params[0], 0xFF);
         if ((rd_le_u16(cr + 4)) != 0x2Du)
             _failf("D-59: the lost marker's frame", 10u, cr[4], 0x2D);
     }

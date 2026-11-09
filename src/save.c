@@ -22,7 +22,7 @@
  * state (score/counter, the object table, the group/span pools, the six
  * programs, the TER slots and the entity array), and `save_restore_state` puts
  * them back after `level_load`.  The 8 bytes at +0x17F0 are the live
- * [0x5B22] odometer block (statusbar_save_params/loadParams).
+ * [0x5B22] tribe counter block (statusbar_save_params/loadParams).
  *
  * The load mirrors entry:004C: a missing/short file is the original's JC
  * path (no save, the fresh game), never an abort. */

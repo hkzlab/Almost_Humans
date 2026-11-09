@@ -212,7 +212,7 @@ humansre_warnings(test_level)
 add_test(NAME level COMMAND test_level ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 
 # The status-bar test: the band + the five digit marks against the shipped
-# PANELN1/PANELN2/PANEL4 assets, the roll/slide arithmetic, the odometer,
+# PANELN1/PANELN2/PANEL4 assets, the roll/slide arithmetic, the tribe counter,
 # the time-up, and the level_load + level_tick integration.
 add_executable(test_statusbar tests/test_statusbar.c
     src/arch/null/OSystem.c)          # the null backend's test hooks

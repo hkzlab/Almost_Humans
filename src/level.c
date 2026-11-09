@@ -1783,7 +1783,7 @@ void level_goal_reached(void) { _goal_hit = 1; }
 void level_member_lost(void)
 {
     if (_tribe_members > 0u) _tribe_members--;
-    statusbar_arm_odometer(); /* the bar rolls down (1000:F682) */
+    statusbar_arm_tribe_count(); /* the tribe counter rolls down (1000:F682) */
     if (_tribe_members == 0u) {
         _end_requested = 1;
         _end_won = 0;

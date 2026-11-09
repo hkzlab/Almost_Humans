@@ -1,12 +1,12 @@
-/* statusbar.h — the interface of src/statusbar.c: the bottom bar (subsystem 13, §12.7)
+/* statusbar.h - the interface of src/statusbar.c: the in-level status bar
  *
  * The level's bottom 40 rows (y 152..191): panel4.bit's top 40 rows
  * +0xC0-tagged, plus five digit marks (y 172..179) cut from the
- * PANELN1+PANELN2 glyph strip — the countdown's minutes / sec-tens /
+ * PANELN1+PANELN2 glyph strip: the countdown's minutes / sec-tens /
  * sec-ones and the tribe counter's tens / ones (re_map.md → "The in-level
  * status bar, decoded end to end").  statusbar_tick is the INT 8 hook at
- * 1000:96AD: the 70-frame second, the packed-decimal countdown with the
- * odometer slides, the tribe odometer, and the per-frame stamp.
+ * 1000:96AD: the 70-frame second, the packed-decimal countdown with its
+ * slides, the tribe counter, and the per-frame stamp.
  */
 
 #ifndef HUMANSRE_STATUSBAR_H
@@ -28,7 +28,7 @@ int32_t statusbar_init(const OSystem *osys);
  * counter (`[0x5E65]`, `frontend_option(FRONTEND_OPT_LEVEL)`), and the
  * members 12/10/8 by the same byte (entry `1000:00B1`); a loaded save
  * replaces both with its `+0x07` word and `+0x0B` members (`level.c`).
- * The tribe digits = [0x11FC] - [0x17FB] (members - required), DIV/MOD 10 —
+ * The tribe counter = [0x11FC] - [0x17FB] (members - required), DIV/MOD 10 —
  * the caller owns both counts: the required = the map's 0xAA-tile count
  * (load_level 1000:315F).
  *
@@ -56,10 +56,10 @@ void statusbar_tick(void);
  */
 const uint8_t *statusbar_palette(void);
 
-/** @brief object_record_init's arm (1000:F682: [0x5B22] := 0xFF): a follower
- * joined — the displayed counter rolls down by one.
+/** @brief object_record_init's goal form (1000:F682: [0x5B22] := 0xFF): a human
+ * is lost — the displayed tribe counter rolls down by one.
  */
-void statusbar_arm_odometer(void);
+void statusbar_arm_tribe_count(void);
 
 /**
  * @brief Accessor: the countdown reached zero.
@@ -71,20 +71,21 @@ void statusbar_arm_odometer(void);
 int32_t statusbar_time_up(void);
 
 /**
- * @brief 1000:F5E3: the "anything collected" test ([0x5B25] | [0x5B26] != 0).
+ * @brief 1000:F5E3: the tribe counter is non-zero ([0x5B25] | [0x5B26] != 0).
  *
- * 1000:F5E3: [0x5B25] | [0x5B26] != 0 - the odometer is showing a count.
+ * The level-end probe's two branches key on this test: a count takes the
+ * goal form (type 0x21, the roll), an empty counter frees the record.
  *
- * @return 1 when any tribe counter is non-zero, 0 otherwise
+ * @return 1 when the counter is non-zero, 0 otherwise
  */
-int32_t statusbar_tribe_active(void);
+int32_t statusbar_tribe_count_nonzero(void);
 
-/** @brief The odometer's digits are [0x5B25]/[0x5B26]; the game only writes them through
+/** @brief The tribe counter's digits are [0x5B25]/[0x5B26]; the game only writes them through
  * statusbar_start (members - required) and the roll animation.  This setter is
  * a test seam for the object machine's level-end probe, whose two branches key
  * on that word.
  *
- * test seam: sets the odometer digits ([0x5B25]/[0x5B26]) that 1000:F5BC gates
+ * test seam: sets the tribe counter digits ([0x5B25]/[0x5B26]) that 1000:F5BC gates
  * on.
  *
  * @param tens the tens digit

@@ -5213,9 +5213,9 @@ int main(int argc, char **argv)
 
             if (r) r[6] |= 0x80u; /* all inactive */
         }
-        statusbar_set_tribe_digits(1u, 2u); /* the odometer shows 12 */
+        statusbar_set_tribe_digits(1u, 2u); /* the tribe counter shows 12 */
         _check(score_members() == 12u,
-               "the member count is the odometer plus the live records");
+               "the member count is the tribe counter plus the live records");
         {
             uint8_t *r0 = object_slot(0u);
 
@@ -8008,12 +8008,12 @@ int main(int argc, char **argv)
         uint8_t *spare = object_slot(5u);
         uint8_t ent[2u + 7u * 16u]; /* D-59: the +0xA entity records */
 
-        /* the odometer is armed from the level start (12 members, 4 required),
+        /* the tribe counter is armed from the level start (12 members, 4 required),
          * so the probes below would take the goal form; empty it first to
          * exercise 0xF5BC's taken branch, and re-arm it for the goal test. */
         statusbar_set_tribe_digits(0u, 0u);
-        _check(!statusbar_tribe_active(),
-               "an empty odometer is the taken branch");
+        _check(!statusbar_tribe_count_nonzero(),
+               "an empty tribe counter is the taken branch");
 
         /* --- 1000:DBCD (type 28): the 0x6868 table walk.  The stepper only
          * fires when +0xA counts below zero, so each step re-seeds it. --- */
@@ -8050,7 +8050,7 @@ int main(int argc, char **argv)
                "0xDBCD: a row boundary runs 0xF5BC's taken branch");
 
         /* --- 1000:DE7E (type 30): the 0x687C {dx, dy, flag} walk.  Every flag
-         * byte in the shipped table is 0x01, so the armed-odometer probe inside
+         * byte in the shipped table is 0x01, so the armed tribe counter probe inside
          * this tail is unreachable with the shipped data (re_map.md). --- */
         memset(spare, 0, 0x12u);
         wr_le_u16(spare + 8u, 30u);
@@ -8108,7 +8108,7 @@ int main(int argc, char **argv)
                "0xDED1: bit 7 clear + a non-2/3 entity is the home form");
 
         /* --- 1000:EF66 (type 22): the 5-frame step to frame 0x2E, then the
-         * probe.  With the odometer empty the record is taken. --- */
+         * probe.  With the tribe counter empty the record is taken. --- */
         memset(spare, 0, 0x12u);
         wr_le_u16(spare + 8u, 22u);
         wr_le_u16(spare + 4u, 0x2Du);
@@ -8120,11 +8120,11 @@ int main(int argc, char **argv)
                    rd_le_u16(spare + 8u) == 0x1Bu,
                "0xEF66: the step to 0x2E runs 0xF5BC's taken branch");
 
-        /* --- 1000:F5BC's goal branch: with the tribe odometer showing a count
+        /* --- 1000:F5BC's goal branch: with the tribe counter showing a count
          * the record takes the goal form instead (frame 0x2D / type 0x21). --- */
         statusbar_set_tribe_digits(0u, 4u); /* the digits show "04" */
-        _check(statusbar_tribe_active(),
-               "the odometer is armed for the goal form");
+        _check(statusbar_tribe_count_nonzero(),
+               "the tribe counter is armed for the goal form");
         wr_le_u16(ent + 2u + 4u, 5u);
         wr_le_u16(ent + 2u + 8u, 50u); /* -> [0x4222] = 50 + 0x28 */
         entity_load_fixed(ent);
@@ -8138,7 +8138,7 @@ int main(int argc, char **argv)
         _check(
             rd_le_u16(spare + 4u) == 0x2Du && rd_le_u16(spare + 8u) == 0x21u &&
                 rd_le_u16(spare + 0xAu) == 5u && rd_le_u16(spare + 0u) == 92u,
-            "0xF5BC: the armed odometer takes the goal form at [0x4220] - 8");
+            "0xF5BC: the armed tribe counter takes the goal form at [0x4220] - 8");
     }
 
     /* 7b12b. D-88: the behaviour-5 stepper now runs 1000:E039 (the mover's

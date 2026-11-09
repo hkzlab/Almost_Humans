@@ -6949,15 +6949,15 @@ static uint32_t _obj_anim_list_word(uint32_t off)
 /* --- 1000:F5BC: the level-end probe the movers' tails call --------------
  *
  * `BX` names the record (>= 0) or is -1 for the caller; `[0x6F1D]` is cleared
- * first.  The gate is the tribe odometer: while `[0x5B25] | [0x5B26]` is zero
+ * first.  The gate is the tribe counter: while `[0x5B25] | [0x5B26]` is zero
  * the record is **taken** - freed, its class slot cleared, and, when it was the
  * acting record, the first placed record whose type is neither 0x16, 0x1B..0x1E
  * nor 0x21 is resolved through `0x4147`; when none is, the level is lost
  * (`[0x138E] = [0x1809] = 0`, `[0x1979] = 2`, `[0x6916] = 2`).  With the
- * odometer showing a count it is the **goal form** instead: `[0x5B22] = 0xFF`,
- * the position from `[0x4220]`/`[0x4222]` (the settle cache `0x6847` when x is
- * negative), frame 0x2D / type 0x21 / `+0xA` = 5, the acting-record flags, and
- * the 0xE389 probe on the landing.
+ * tribe counter showing a count it is the **goal form** instead: a human is
+ * lost, so `[0x5B22] = 0xFF`, the position from `[0x4220]`/`[0x4222]` (the
+ * settle cache `0x6847` when x is negative), frame 0x2D / type 0x21 /
+ * `+0xA` = 5, the acting-record flags, and the 0xE389 probe on the landing.
  */
 /**
  * @brief 1000:F682: the level-end probe's goal form.
@@ -6967,7 +6967,7 @@ static uint32_t _obj_anim_list_word(uint32_t off)
  */
 static void _obj_level_end_goal(uint8_t *t, uint32_t idx)
 {
-    statusbar_arm_odometer(); /* [0x5B22] = 0xFF */
+    statusbar_arm_tribe_count(); /* [0x5B22] = 0xFF */
     wr_le_u16(t + 2u, _obj_sel_xoff); /* [0x4222] */
     wr_le_u16(t + 0u, _obj_side); /* [0x4220] */
     if ((int16_t)_obj_side < 0) { /* 1000:F692 */
@@ -7015,7 +7015,7 @@ static void _obj_level_end_probe(uint8_t *actor, int32_t bx)
         idx = (uint32_t)((actor - _obj_array) / OBJ_STRIDE);
     }
     if (!t) return;
-    if (statusbar_tribe_active()) { /* 1000:F5E3 */
+    if (statusbar_tribe_count_nonzero()) { /* 1000:F5E3 */
         _obj_level_end_goal(t, idx);
         return;
     }
@@ -7115,7 +7115,7 @@ static void _obj_tail_type30(uint8_t *actor)
             nxt = (uint16_t)(nxt - 4u); /* 1000:DEA5 */
             e = (uint16_t)(rd_le_u16(actor + 0xEu) - 1u);
             wr_le_u16(actor + 0xEu, e); /* 1000:DEA8 */
-            if ((int16_t)e < 0 && statusbar_tribe_active()) { /* 1000:DEB4 */
+            if ((int16_t)e < 0 && statusbar_tribe_count_nonzero()) { /* 1000:DEB4 */
                 _obj_side = rd_le_u16(actor + 0u); /* [0x4220] */
                 _obj_sel_xoff = rd_le_u16(actor + 2u); /* [0x4222] */
                 _obj_level_end_probe(actor, -1); /* 1000:DEC4 */

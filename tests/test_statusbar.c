@@ -9,8 +9,8 @@
  * decoded end to end").
  *
  * Cases: the seeded stamp; the first per-second roll (6:00 -> 5:59, the
- * odometer's one-frame roll-start phase, then the settled glyph); the
- * tribe odometer's roll-down; the time-up freeze; and the level_load +
+ * tribe counter's one-frame roll-start phase, then the settled glyph); the
+ * tribe counter's roll-down; the time-up freeze; and the level_load +
  * level_tick integration (level 0's own timeA and its map's 0xAA count).
  *
  * argv[1] = the game data directory holding HUMANS.000/001/002.
@@ -443,9 +443,9 @@ int main(int argc, char **argv)
     _model_page(model, ph);
     bad |= _diff_rows("the settled 5:59 (t=86)", page, model);
 
-    /* 3. the tribe odometer: the arm rolls the displayed pair down by one
+    /* 3. the tribe counter: the arm rolls the displayed pair down by one
      * (8 -> 7), sliding one glyph cell over 8 frames. */
-    statusbar_arm_odometer();
+    statusbar_arm_tribe_count();
     statusbar_tick(); /* the value rolls, phase stays  */
     /* D-108 (closed 2026-11-05): the save's [0x5B23]/[0x5B24] slots are the
      * always-armed / carry counters.  This tick armed only the always one. */
@@ -466,11 +466,11 @@ int main(int argc, char **argv)
     ph[3] = 0x10; /* tens 0: unchanged            */
     ph[4] = 0x90; /* ones: still the '8' cell     */
     _model_page(model, ph);
-    bad |= _diff_rows("the odometer roll start", page, model);
+    bad |= _diff_rows("the tribe counter roll start", page, model);
     for (uint32_t i = 0; i < 8u; i++) statusbar_tick();
     ph[4] = 0x80; /* 7            */
     _model_page(model, ph);
-    bad |= _diff_rows("the odometer settled (7)", page, model);
+    bad |= _diff_rows("the tribe counter settled (7)", page, model);
 
     /* 4. the time-up: a 0:00 seed dies on the first second; the marks
      * freeze and the band keeps drawing. */

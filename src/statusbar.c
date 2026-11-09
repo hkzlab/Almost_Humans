@@ -1,6 +1,4 @@
-/* statusbar.c — the in-level status bar (game_structure.md §1 subsystem 13,
- * re_map.md → "The in-level status bar, decoded end to end",
- * re_formats.md §12.7/§12.8).
+/* statusbar.c - the in-level status bar
  *
  * The original's mechanism, translated to the flat 320x200x8 page:
  *
@@ -26,9 +24,9 @@
  *   _strip's second half).  The stamp (1000:9846) runs every frame.
  *
  * - statusbar_tick ports the INT 8 hook at 1000:96AD (armed by level_fade_in
- *   patching CS:[0x8B1C] := 0x339D): the tribe odometer
+ *   patching CS:[0x8B1C] := 0x339D): the tribe counter
  *   (tick_state_machine_5b22 1000:9767), the 70-frame second ([0x5B14]),
- *   the packed-decimal countdown with the odometer slide animations
+ *   the packed-decimal countdown with its slide animations
  *   ([0x5B10] = 2: 2 phase-bytes per 2 frames), and the time-up
  *   ([0x5B12] := 0, [0x5E44] := 0xFF).
  *
@@ -94,12 +92,12 @@ static uint8_t _slide_div; /* [0x5B10], seeded 2                      */
  * best-time comparison (check_highscore 1000:42CE). */
 static uint8_t _elapsed[3];
 
-/* the tribe odometer: values [0x5B25/26], phases [0x5B27/29], state
+/* the tribe counter: values [0x5B25/26], phases [0x5B27/29], state
  * [0x5B22], slides [0x5B23/24] — indices 0 = tens, 1 = ones */
 static uint8_t _td[2];
 static uint16_t _td_phase[2];
-static uint8_t _odo_state;
-static uint8_t _odo_slide[2];
+static uint8_t _tc_state;
+static uint8_t _tc_slide[2];
 
 /* The mark x positions: the five destinations 0x6E2/0x6E6/0x6E8/0x728/0x72A
  * are bar row 20's bytes 2/6/8/72/74 at the 88-byte pitch; the flat page's
@@ -146,7 +144,7 @@ static const uint8_t _action_gold[40] = {
     0xD9, 0xD8, 0xD7, 0xD6, 0xD5, 0xD4, 0xD3, 0xD2, 0xD1, 0xD0,
 };
 
-int32_t statusbar_tribe_active(void) { return (_td[0] | _td[1]) != 0; }
+int32_t statusbar_tribe_count_nonzero(void) { return (_td[0] | _td[1]) != 0; }
 uint32_t statusbar_tribe_value(void) { return (uint32_t)_td[0] * 10u + _td[1]; }
 uint32_t statusbar_tribe_digit(uint32_t i) { return _td[i & 1u]; }
 void statusbar_set_tribe_digits(uint32_t tens, uint32_t ones)
@@ -158,13 +156,13 @@ void statusbar_set_tribe_digits(uint32_t tens, uint32_t ones)
 void statusbar_save_params(uint8_t *out)
 {
     if (!out) return;
-    out[0] = _odo_state;
+    out[0] = _tc_state;
     /* [0x5B23] is the always-armed counter (it animates the ones digit,
      * [0x5B29]); [0x5B24] is the carry counter (the tens, [0x5B27]).  The
-     * port's `_odo_slide[1]` is the always one, so the save slots swap -
+     * port's `_tc_slide[1]` is the always one, so the save slots swap -
      * D-108, closed 2026-11-05. */
-    out[1] = _odo_slide[1];
-    out[2] = _odo_slide[0];
+    out[1] = _tc_slide[1];
+    out[2] = _tc_slide[0];
     out[3] = _td[0];
     out[4] = _td[1];
     out[5] = (uint8_t)_td_phase[0];
@@ -175,9 +173,9 @@ void statusbar_save_params(uint8_t *out)
 void statusbar_load_params(const uint8_t *in)
 {
     if (!in) return;
-    _odo_state = in[0];
-    _odo_slide[1] = in[1]; /* [0x5B23] = the always-armed counter (D-108) */
-    _odo_slide[0] = in[2]; /* [0x5B24] = the carry counter               */
+    _tc_state = in[0];
+    _tc_slide[1] = in[1]; /* [0x5B23] = the always-armed counter (D-108) */
+    _tc_slide[0] = in[2]; /* [0x5B24] = the carry counter               */
     _td[0] = (uint8_t)(in[3] % 10u);
     _td[1] = (uint8_t)(in[4] % 10u);
     _td_phase[0] = in[5];
@@ -481,72 +479,72 @@ void statusbar_charge_end(void)
     _draw_actions(page);
 }
 
-/** @brief tick_state_machine_5b22 (1000:9767): the tribe odometer.  The value
+/** @brief tick_state_machine_5b22 (1000:9767): the tribe counter.  The value
  * changes are instant; the phases then slide one 16-byte cell over 8
  * frames so the new digit rolls in.  [0x5B22]: 0 idle, 0xFF roll down
- * (armed by object_record_init 1000:F682 when a follower joins), 1 roll
+ * (armed by object_record_init 1000:F682 when a human is lost), 1 roll
  * up (no reachable arm), 2/3 slide in progress.
  */
-static void _odometer_tick(void)
+static void _tribe_count_tick(void)
 {
     /* the guard tests the word at [0x5B25]: both digits zero -> stop */
     uint16_t both = rd_le_u16(_td);
 
-    switch (_odo_state) {
+    switch (_tc_state) {
     case 0: return;
     case 2:
-        if (_odo_slide[1]) {
+        if (_tc_slide[1]) {
             _td_phase[1] = (uint16_t)(_td_phase[1] - 2u);
-            _odo_slide[1]--;
+            _tc_slide[1]--;
         }
-        if (_odo_slide[0]) {
+        if (_tc_slide[0]) {
             _td_phase[0] = (uint16_t)(_td_phase[0] - 2u);
-            _odo_slide[0]--;
+            _tc_slide[0]--;
         }
-        if (!(_odo_slide[0] | _odo_slide[1])) _odo_state = 0;
+        if (!(_tc_slide[0] | _tc_slide[1])) _tc_state = 0;
         return;
     case 3:
-        if (_odo_slide[1]) {
+        if (_tc_slide[1]) {
             _td_phase[1] = (uint16_t)(_td_phase[1] + 2u);
-            _odo_slide[1]--;
+            _tc_slide[1]--;
         }
-        if (_odo_slide[0]) {
+        if (_tc_slide[0]) {
             _td_phase[0] = (uint16_t)(_td_phase[0] + 2u);
-            _odo_slide[0]--;
+            _tc_slide[0]--;
         }
-        if (!(_odo_slide[0] | _odo_slide[1])) _odo_state = 0;
+        if (!(_tc_slide[0] | _tc_slide[1])) _tc_state = 0;
         return;
     case 1:
         if (both == 0x0909u) {
-            _odo_state = 0;
+            _tc_state = 0;
             return;
         } /* 99: capped    */
-        _odo_state = 3;
-        _odo_slide[1] = 8;
+        _tc_state = 3;
+        _tc_slide[1] = 8;
         if (_td[1]++ == 9) {
             _td[1] = 0;
             _td_phase[1] = 0; /* roll up from the blank    */
-            _odo_slide[0] = 8;
+            _tc_slide[0] = 8;
             if (_td[0]++ == 9) {
-                _odo_state = 0;
-                _odo_slide[0] = 0;
+                _tc_state = 0;
+                _tc_slide[0] = 0;
             }
         }
         return;
     default: /* 0xFF: the roll down      */
         if (both == 0) {
-            _odo_state = 0;
+            _tc_state = 0;
             return;
         }
-        _odo_state = 2;
-        _odo_slide[1] = 8;
+        _tc_state = 2;
+        _tc_slide[1] = 8;
         if (_td[1]-- == 0) {
             _td[1] = 9;
             _td_phase[1] = 0xB0; /* slide down from cell 11  */
-            _odo_slide[0] = 8;
+            _tc_slide[0] = 8;
             if (_td[0]-- == 0) {
-                _odo_state = 0; /* 00: stop                 */
-                _odo_slide[0] = 0;
+                _tc_state = 0; /* 00: stop                 */
+                _tc_slide[0] = 0;
             }
         }
         return;
@@ -615,7 +613,7 @@ void statusbar_tick(void)
     if (_active) {
         int32_t died = 0;
 
-        _odometer_tick();
+        _tribe_count_tick();
 
         if (--_sec_div == 0) {
             _sec_div = 70; /* one second at 70 Hz      */
@@ -710,8 +708,8 @@ void statusbar_start(uint16_t packedTimeBcd, uint32_t tribeMembers,
     _td[1] = (uint8_t)(diff % 10u);
     _td_phase[0] = (uint16_t)((_td[0] + 1u) * 16u);
     _td_phase[1] = (uint16_t)((_td[1] + 1u) * 16u);
-    _odo_state = 0;
-    _odo_slide[0] = _odo_slide[1] = 0;
+    _tc_state = 0;
+    _tc_slide[0] = _tc_slide[1] = 0;
 
     _elapsed[0] = _elapsed[1] = _elapsed[2] = 0u; /* level_start 1000:95B5  */
     _sec_div = 70; /* [0x5B14] = 0x46          */
@@ -724,7 +722,7 @@ void statusbar_start(uint16_t packedTimeBcd, uint32_t tribeMembers,
 const uint8_t *statusbar_palette(void)
 { return _panel4 ? _panel4 + 0xFA00u : NULL; }
 
-void statusbar_arm_odometer(void) { _odo_state = 0xFF; }
+void statusbar_arm_tribe_count(void) { _tc_state = 0xFF; }
 
 int32_t statusbar_time_up(void) { return _time_up; }
 
