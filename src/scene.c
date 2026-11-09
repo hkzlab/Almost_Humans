@@ -225,7 +225,7 @@ static uint8_t *_boot_treetop; /* intro\treetop.bit 140x113               */
 static uint8_t *_boot_treebot; /* intro\treebot.bit 21x59                 */
 static uint8_t *_boot_apple; /* intro\apple.spr 16x16                   */
 static uint8_t *_boot_words; /* intro\words.bit — the bar's 1-bit text  */
-static uint8_t _boot_bar[16u * 320u]; /* the visible bar, rows 182-197     */
+static uint8_t _boot_bar[16u * VIDEO_PAGE_W]; /* the bar, rows 182-197 */
 static int32_t _boot_bar_arg = -1; /* the transition the bar holds      */
 static uint8_t *_boot_rsc; /* intro\intro.rsc — the display list      */
 static uint32_t _boot_rsc_size;
@@ -798,7 +798,7 @@ static int32_t _boot_gt_show(uint32_t idx)
         res_decode_lzw_mem(_boot_gt, _boot_gt_size, _boot_gt_entries[idx],
                            _boot_obj, OBJ_SEG_SIZE, &chk);
     if (sz < 0 || chk != 0) return 0; /* 1000:B444: skip */
-    _scene_al_expand(_boot_obj, (uint32_t)sz, video_page(0), 64000u);
+    _scene_al_expand(_boot_obj, (uint32_t)sz, video_page(0), VIDEO_PAGE_BYTES);
     return 1;
 }
 
@@ -813,12 +813,12 @@ static int32_t _boot_card_show(const char *name)
 {
     uint32_t size = 0;
     uint8_t *img = res_load_chunk(name, &size, NULL);
-    if (!img || size < 64000u) {
+    if (!img || size < VIDEO_PAGE_BYTES) {
         free(img);
         return 0;
     }
-    memcpy(video_page(0), img, 64000u);
-    palette_load_working(img + 64000u);
+    memcpy(video_page(0), img, VIDEO_PAGE_BYTES);
+    palette_load_working(img + VIDEO_PAGE_BYTES);
     free(img);
     return 1;
 }
@@ -1080,9 +1080,9 @@ static uint32_t _boot_seek(const uint8_t *listBuf, uint32_t listSize,
 static void _boot_bar_draw(uint32_t arg)
 {
     for (uint32_t r = 0; r < 16u; r++) {
-        uint8_t *dst = _boot_bar + r * 320u;
+        uint8_t *dst = _boot_bar + r * VIDEO_PAGE_W;
         const uint8_t *src = _boot_words + arg * 600u + r * 40u;
-        for (uint32_t x = 0; x < 320u; x++) {
+        for (uint32_t x = 0; x < VIDEO_PAGE_W; x++) {
             uint8_t b = src[x / 8u];
             dst[x] = ((b >> (7u - (x % 8u))) & 1u) ? (uint8_t)(0xE0u + r) : 0u;
         }
@@ -1102,10 +1102,10 @@ static void _boot_bar_draw(uint32_t arg)
  */
 static void _boot_compose_present(uint8_t *page)
 {
-    memmove(page, page + 0x500u, 180u * 320u); /* pool rows 4-183 */
-    memset(page + 180u * 320u, 0, 2u * 320u); /* rows 180-181    */
-    memcpy(page + 182u * 320u, _boot_bar, 16u * 320u);
-    memset(page + 198u * 320u, 0, 2u * 320u); /* rows 198-199    */
+    memmove(page, page + 0x500u, 180u * VIDEO_PAGE_W); /* pool rows 4-183 */
+    memset(page + 180u * VIDEO_PAGE_W, 0, 2u * VIDEO_PAGE_W); /* rows 180-181 */
+    memcpy(page + 182u * VIDEO_PAGE_W, _boot_bar, 16u * VIDEO_PAGE_W);
+    memset(page + 198u * VIDEO_PAGE_W, 0, 2u * VIDEO_PAGE_W); /* rows 198-199 */
 }
 
 /** @brief update_scene (1000:B9B5): the scrolled bac over the pool rows 0-183
@@ -1593,8 +1593,8 @@ int32_t scene_play_boot_intro(void)
          * bac's palette_load_6bit (b6bc, SI=0xE600) refills the working
          * palette before the dwell but the DAC keeps the card's colours
          * until the post-dwell fade — the port does the same. */
-        memcpy(video_page(0), _boot_itb, 64000u);
-        palette_load_working(_boot_itb + 64000u);
+        memcpy(video_page(0), _boot_itb, VIDEO_PAGE_BYTES);
+        palette_load_working(_boot_itb + VIDEO_PAGE_BYTES);
         free(_boot_itb);
         _boot_itb = NULL;
         /* b68f-b69e: fade the DAC to the working palette (= the card's own

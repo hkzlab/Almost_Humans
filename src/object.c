@@ -2922,7 +2922,7 @@ static void _blit_sprite(uint8_t *page, const uint8_t *src, uint32_t rows,
 
     for (uint32_t row = 0; row < rows; row++) {
         int32_t py = y + (int32_t)row;
-        if (py < 0 || py >= (int32_t)VIDEO_PAGE_H) continue;
+        if (py < 0 || py >= (int32_t)VIDEO_PAGE_H_MODE13H) continue;
         for (uint32_t col = 0; col < cols; col++) {
             uint8_t v = src[(col & 3u) * block + row * w + (col >> 2)];
             int32_t px = x + (int32_t)col;
@@ -3288,7 +3288,7 @@ static void _obj_span_draw(uint8_t *page, int32_t scrollX, int32_t scrollY)
             int32_t px = (int32_t)x - scrollX;
             int32_t py = row - scrollY;
 
-            if (py < 0 || py >= (int32_t)VIDEO_PAGE_H) continue;
+            if (py < 0 || py >= (int32_t)VIDEO_PAGE_H_MODE13H) continue;
             if (px >= 0 && px < (int32_t)VIDEO_PAGE_W)
                 page[(uint32_t)py * VIDEO_PAGE_W + (uint32_t)px] = 0x18u;
             if (px + 1 >= 0 && px + 1 < (int32_t)VIDEO_PAGE_W)

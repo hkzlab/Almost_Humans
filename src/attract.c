@@ -98,7 +98,7 @@ static uint8_t _colour1881 = 0x43; /* CS:0x1881: _blit_80x200's colour base  */
  * [1] the write-mode-2 bit mask, [2..19] pad, [20..79] the presented 60
  * bytes = _arena pixels 80..319. */
 static uint8_t _e4strip[196608];
-static uint8_t _row_sig[VIDEO_PAGE_H]; /* CS:0x1CF7: the row-signature cache */
+static uint8_t _row_sig[VIDEO_PAGE_H_MODE13H]; /* CS:0x1CF7: the row-signature cache */
 static int32_t _row_sig_init; /* the shipped 0x80 fill runs once       */
 static uint8_t *_credtext; /* [0xC9F]: the loaded _credtext.bin      */
 static uint32_t _credtext_size;
@@ -159,7 +159,7 @@ static void _clear_vram(void) { memset(_vram, 0, sizeof _vram); }
  */
 static void _blit_planar(const uint8_t *src, uint32_t dest)
 {
-    for (uint32_t r = 0; r < VIDEO_PAGE_H; r++) {
+    for (uint32_t r = 0; r < VIDEO_PAGE_H_MODE13H; r++) {
         uint32_t a = dest + r * 80u;
         if (a + 79u >= 65536u) break; /* never taken: dest is safe */
         const uint8_t *s = src + r * VIDEO_PAGE_W;
@@ -199,7 +199,7 @@ static void _compose_window(void)
 {
     uint8_t *page = video_page(0);
     if (!page) return;
-    for (uint32_t y = 0; y < VIDEO_PAGE_H; y++) {
+    for (uint32_t y = 0; y < VIDEO_PAGE_H_MODE13H; y++) {
         const uint32_t row = (_display_start + y * 80u) & 0xFFFFu;
         uint8_t *d = page + y * VIDEO_PAGE_W;
         for (uint32_t x = 0; x < VIDEO_PAGE_W; x++)
@@ -353,11 +353,11 @@ static void _splat_bits(uint8_t *d, uint8_t b, uint32_t dl)
 static void _blit_80x200(const uint8_t *ar)
 {
     uint32_t dl = 0xFDu;
-    for (uint32_t row = 0; row < 200u; row++) {
-        uint8_t *d = _page_b + 4u + row * 320u;
+    for (uint32_t row = 0; row < VIDEO_PAGE_H_MODE13H; row++) {
+        uint8_t *d = _page_b + 4u + row * VIDEO_PAGE_W;
         const uint8_t *s = ar + row * 80u;
         for (uint32_t k = 0; k < 80u; k++) _splat_bits(d + k * 4u, s[k], dl);
-        uint32_t cx = 200u - row; /* the pushed row countdown */
+        uint32_t cx = VIDEO_PAGE_H_MODE13H - row; /* the pushed row countdown */
         if (cx > 0xB0u) dl = 0xF0u | ((dl + 1u) & 0xFu);
         else if (cx == 0xB0u) dl = _colour1881;
         else {
@@ -384,7 +384,7 @@ static void _blit_strip8(uint32_t x, uint32_t row)
         uint32_t px = x + j;
         for (uint32_t r = 0; r < 16u; r++) {
             uint32_t sy = row + r;
-            uint8_t v = _page_b[sy * 320u + px];
+            uint8_t v = _page_b[sy * VIDEO_PAGE_W + px];
             _vram[(_page_draw + sy * 80u + (px >> 2)) & 0xFFFFu][px & 3u] = v;
         }
     }
@@ -426,12 +426,12 @@ static int32_t _e1_load(void)
     uint32_t sz = 0;
     _unload_img();
     _img_buf = res_load_chunk("LBM\\GAMEINT.BIT", &sz, NULL);
-    if (!_img_buf || sz < 64000u + 768u) {
+    if (!_img_buf || sz < VIDEO_PAGE_BYTES + 768u) {
         _unload_img();
         return 0;
     }
 
-    palette_load_working(_img_buf + 64000u);
+    palette_load_working(_img_buf + VIDEO_PAGE_BYTES);
     _blit_planar(_img_buf, _page_draw);
     _flip_page(); /* the image at 0 and   */
     _blit_planar(_img_buf, _page_draw);
@@ -492,7 +492,7 @@ static int32_t _e2_load(void)
     palette_load_working(_img_buf + VIDEO_PAGE_BYTES);
 
     /* blit_fullscreen 1000:15B1: two 75-pixel, 200-row strips */
-    for (uint32_t r = 0; r < VIDEO_PAGE_H; r++) {
+    for (uint32_t r = 0; r < VIDEO_PAGE_H_MODE13H; r++) {
         memcpy(_img_buf + r * VIDEO_PAGE_W, _img_buf + 0x9Eu + r * VIDEO_PAGE_W,
                75u);
         memcpy(_img_buf + 0xF5u + r * VIDEO_PAGE_W,
@@ -624,7 +624,7 @@ static void _blit_scroll(uint32_t row)
 {
     uint32_t src = (row * 80u) % sizeof _e4strip;
     uint32_t di = _page_draw + 0x14u;
-    for (uint32_t i = 0; i < 200u; i++) {
+    for (uint32_t i = 0; i < VIDEO_PAGE_H_MODE13H; i++) {
         uint8_t sig = _e4strip[src];
         if (sig != _row_sig[i]) {
             _row_sig[i] = sig;
@@ -657,12 +657,12 @@ static int32_t _e4_load(void)
     uint32_t sz = 0;
     _unload_img();
     _img_buf = res_load_chunk("LBM\\INTCRED4.BIT", &sz, NULL);
-    if (!_img_buf || sz < 64000u + 768u) {
+    if (!_img_buf || sz < VIDEO_PAGE_BYTES + 768u) {
         _unload_img();
         return 0;
     }
 
-    palette_load_working(_img_buf + 64000u);
+    palette_load_working(_img_buf + VIDEO_PAGE_BYTES);
     _blit_planar(_img_buf, _page_draw);
     _flip_page();
     _blit_planar(_img_buf, _page_draw);
@@ -897,7 +897,7 @@ int32_t attract_tick(const InputState *in)
         _phase = ATTRACT_E2_FRAME;
         break;
     case ATTRACT_E2_FRAME: { /* one intro_frame body   */
-        memcpy(_page_b, _img_buf, 64000u); /* copy_page 18a4 */
+        memcpy(_page_b, _img_buf, VIDEO_PAGE_BYTES); /* copy_page 18a4 */
         memset(_arena, 0, sizeof _arena); /* clear_screen_buf 1882 */
         if (_frame == 0u) { /* intro_frame_1 1625 */
             font_draw_text(_arena,
@@ -980,7 +980,7 @@ int32_t attract_tick(const InputState *in)
         _blit_scroll(_scroll_row);
         _flip_page();
         _scroll_row++;
-        if (_scroll_row == (uint16_t)(_rows_built - VIDEO_PAGE_H)) {
+        if (_scroll_row == (uint16_t)(_rows_built - VIDEO_PAGE_H_MODE13H)) {
             /* 1a72: the terminator check; more _credtext -> the next
              * screenful in the same instant (the clear + the fill + the
              * fade_wait's one poll, the fade being done), then row 0 on

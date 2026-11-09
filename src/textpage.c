@@ -206,7 +206,7 @@ static void _draw_line(uint8_t *page, const char *line, uint32_t centreX,
                            0);
     for (uint32_t r = 0; r < 16u; r++) {
         uint32_t y = cellTop + r;
-        if (y >= VIDEO_PAGE_H) break;
+        if (y >= VIDEO_PAGE_H_MODE13H) break;
         for (uint32_t c = 0; c < 80u; c++) {
             uint8_t bits = _tp_arena[r * 80u + c];
 
@@ -242,7 +242,7 @@ static void _blit_16px(uint8_t *page, uint32_t y, uint32_t x0,
         for (uint32_t p = 0; p < 4u; p++) {
             uint32_t x = x0 + k * 4u + p;
 
-            if (x < 320u) page[y * 320u + x] = row[p + 4u * k];
+            if (x < VIDEO_PAGE_W) page[y * VIDEO_PAGE_W + x] = row[p + 4u * k];
         }
 }
 
@@ -259,7 +259,7 @@ static void _blit_box_tile(uint8_t *page, uint32_t x0, uint32_t y0,
 {
     for (uint32_t r = 0; r < 16u; r++) {
         uint32_t y = y0 + r;
-        if (y >= 200u) continue;
+        if (y >= VIDEO_PAGE_H_MODE13H) continue;
         _blit_16px(page, y, x0, tile + r * 16u);
     }
 }
@@ -276,7 +276,7 @@ static void _blit_4px(uint8_t *page, uint32_t y, uint32_t x0,
                       const uint8_t *src)
 {
     for (uint32_t p = 0; p < 4u; p++)
-        if (x0 + p < 320u) page[y * 320u + x0 + p] = src[p];
+        if (x0 + p < VIDEO_PAGE_W) page[y * VIDEO_PAGE_W + x0 + p] = src[p];
 }
 
 /**
@@ -292,7 +292,7 @@ static void _blit_marker(uint8_t *page, uint32_t x0, uint32_t y0,
 {
     for (uint32_t r = 0; r < 11u; r++) {
         uint32_t y = y0 + r;
-        if (y >= 200u) continue;
+        if (y >= VIDEO_PAGE_H_MODE13H) continue;
         for (uint32_t k = 0; k < 2u; k++)
             _blit_4px(page, y, x0 + k * 4u, pat + r * 8u + 4u * k);
     }
@@ -319,20 +319,22 @@ static void _draw_outline(uint8_t *page, uint32_t top, uint32_t left,
     uint32_t x0 = left, x1 = left + (tiles + 1u) * 16u;
     uint32_t y0 = top + 16u, y1 = y0 + lines * 16u;
 
-    if (x1 > 320u) x1 = 320u;
-    if (y1 > 200u) y1 = 200u;
+    if (x1 > VIDEO_PAGE_W) x1 = VIDEO_PAGE_W;
+    if (y1 > VIDEO_PAGE_H_MODE13H) y1 = VIDEO_PAGE_H_MODE13H;
     for (uint32_t y = y0; y < y1; y++)
         for (uint32_t x = x0; x < x1; x++) {
-            uint8_t v = page[y * 320u + x];
+            uint8_t v = page[y * VIDEO_PAGE_W + x];
             if (v < 0xF4u || v >= 0xFCu) continue;
-            if (y && page[(y - 1u) * 320u + x] < 0xF4u)
-                page[(y - 1u) * 320u + x] = 0;
-            if (y + 1u < 200u && page[(y + 1u) * 320u + x] < 0xF4u)
-                page[(y + 1u) * 320u + x] = 0;
-            if (x && page[y * 320u + x - 1u] < 0xF4u)
-                page[y * 320u + x - 1u] = 0;
-            if (x + 1u < 320u && page[y * 320u + x + 1u] < 0xF4u)
-                page[y * 320u + x + 1u] = 0;
+            if (y && page[(y - 1u) * VIDEO_PAGE_W + x] < 0xF4u)
+                page[(y - 1u) * VIDEO_PAGE_W + x] = 0;
+            if (y + 1u < VIDEO_PAGE_H_MODE13H &&
+                page[(y + 1u) * VIDEO_PAGE_W + x] < 0xF4u)
+                page[(y + 1u) * VIDEO_PAGE_W + x] = 0;
+            if (x && page[y * VIDEO_PAGE_W + x - 1u] < 0xF4u)
+                page[y * VIDEO_PAGE_W + x - 1u] = 0;
+            if (x + 1u < VIDEO_PAGE_W &&
+                page[y * VIDEO_PAGE_W + x + 1u] < 0xF4u)
+                page[y * VIDEO_PAGE_W + x + 1u] = 0;
         }
 }
 

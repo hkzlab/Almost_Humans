@@ -202,7 +202,7 @@ static void _mark_row(uint8_t *page, uint32_t at, uint32_t x,
                       const uint8_t *src)
 {
     for (uint32_t j = 0; j < 8u; j++)
-        page[at * 320u + x + j] = (uint8_t)(0xC0u | src[j]);
+        page[at * VIDEO_PAGE_W + x + j] = (uint8_t)(0xC0u | src[j]);
 }
 
 /** @brief stamp_statusbar_plane_bits (1000:9846) + copy_8rows_2bytes_to_vga
@@ -221,7 +221,7 @@ static void _stamp_marks(uint8_t *page)
         uint32_t base = 4u * (uint32_t)(ph[m] + _mark_bias[m]);
         for (uint32_t r = 0; r < 8u; r++) {
             uint32_t at = _bar_split + 20u + r;
-            if (at >= 200u) continue;
+            if (at >= VIDEO_PAGE_H_MODE13H) continue;
             _mark_row(page, at, _mark_x[m], _strip + base + 8u * r);
         }
     }
@@ -243,9 +243,10 @@ static void _draw_band(uint8_t *page)
         uint8_t *dst;
         const uint8_t *src = _panel4 + y * 320u;
 
-        if (at >= 200u) continue;
-        dst = page + at * 320u;
-        for (uint32_t x = 0; x < 320u; x++) dst[x] = (uint8_t)(0xC0u | src[x]);
+        if (at >= VIDEO_PAGE_H_MODE13H) continue;
+        dst = page + at * VIDEO_PAGE_W;
+        for (uint32_t x = 0; x < VIDEO_PAGE_W; x++)
+            dst[x] = (uint8_t)(0xC0u | src[x]);
     }
 }
 void statusbar_charge_bar(uint32_t v)
@@ -266,7 +267,8 @@ void statusbar_charge_bar(uint32_t v)
             for (r = 0; r < 10u; r++) {
                 uint32_t y = _bar_split + 15u + r;
 
-                if (x < 320u && y < 200u) page[y * 320u + x] = shade[r];
+                if (x < VIDEO_PAGE_W && y < VIDEO_PAGE_H_MODE13H)
+                    page[y * VIDEO_PAGE_W + x] = shade[r];
             }
             if (++p == 4u) {
                 p = 0;
@@ -291,8 +293,10 @@ void statusbar_charge_bar(uint32_t v)
                 uint8_t a = _stage[src + r * 0x140u + i];
                 uint8_t b = _stage[src + r * 0x140u + i + 4u];
 
-                if (x < 320u && y < 200u) page[y * 320u + x] = a;
-                if (x + 4u < 320u && y < 200u) page[y * 320u + x + 4u] = b;
+                if (x < VIDEO_PAGE_W && y < VIDEO_PAGE_H_MODE13H)
+                    page[y * VIDEO_PAGE_W + x] = a;
+                if (x + 4u < VIDEO_PAGE_W && y < VIDEO_PAGE_H_MODE13H)
+                    page[y * VIDEO_PAGE_W + x + 4u] = b;
             }
             if (++p == 4u) {
                 p = 0;
@@ -334,8 +338,8 @@ static void _frame_px(uint8_t *page, uint32_t x, uint32_t y, int32_t d,
 {
     uint32_t at;
     int32_t v;
-    if (x >= 320u || y >= 200u) return;
-    at = y * 320u + x;
+    if (x >= VIDEO_PAGE_W || y >= VIDEO_PAGE_H_MODE13H) return;
+    at = y * VIDEO_PAGE_W + x;
     if (mask) {
         page[at] = mask;
         return;
@@ -393,8 +397,8 @@ static void _draw_action_icon(uint8_t *page, uint32_t x, uint32_t y,
         for (uint32_t c = 0; c < 16u; c++) {
             uint8_t v = src[r * 16u + c];
             if (!v) continue;
-            if (x + c < 320u && y + r < 200u)
-                page[(y + r) * 320u + x + c] = (uint8_t)(v + 0xC0u);
+            if (x + c < VIDEO_PAGE_W && y + r < VIDEO_PAGE_H_MODE13H)
+                page[(y + r) * VIDEO_PAGE_W + x + c] = (uint8_t)(v + 0xC0u);
         }
 }
 
@@ -447,9 +451,10 @@ static void _draw_band_slice(uint8_t *page)
     for (uint32_t y = 0; y < BAR_ROWS; y++) {
         uint32_t at = _bar_split + y;
 
-        if (at >= 200u) continue;
+        if (at >= VIDEO_PAGE_H_MODE13H) continue;
         for (uint32_t x = 48u; x <= 271u; x++)
-            page[at * 320u + x] = (uint8_t)(0xC0u | _panel4[y * 320u + x]);
+            page[at * VIDEO_PAGE_W + x] =
+                (uint8_t)(0xC0u | _panel4[y * 320u + x]);
     }
 }
 
@@ -726,7 +731,7 @@ int32_t statusbar_time_up(void) { return _time_up; }
 void statusbar_set_active(int32_t on) { _active = on ? 1 : 0; }
 void statusbar_set_split(uint32_t row)
 {
-    _bar_split = row > 200u ? 200u : row;
+    _bar_split = row > VIDEO_PAGE_H_MODE13H ? VIDEO_PAGE_H_MODE13H : row;
     _bar_hidden = 0; /* an explicit split re-composes it */
 }
 void statusbar_hide(void)

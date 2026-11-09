@@ -63,8 +63,6 @@
  * LEVELS\BS<style>.BLK: the 169x16x16 tile _atlas behind a 0x400 APL header.
  * BACKS\BG<n>.RAW: 512x320 chunky + a 768-byte 6-bit palette; draw_map_digit
  * copies only its first 64 entries (0xC0 bytes) into the DAC. */
-#define VIEW_W  320u
-#define VIEW_H  200u
 #define WORLD_W 512u
 #define WORLD_H 320u
 
@@ -260,7 +258,7 @@ static uint32_t _goal_pan_view_x, _goal_pan_view_y;
 /* The chained screen the original draws into: one byte = 4 pixels, 88 bytes per
  * row (352 px, of which the visible window is 320 — that slack is what lets the
  * CRTC start sit on a 4-px column boundary, 1000:3DC0's `y*88 + x/4`). */
-static uint8_t _lvl_plane[VIEW_H * 88u][4];
+static uint8_t _lvl_plane[VIDEO_PAGE_H_MODE13H * 88u][4];
 
 /* --- the claim's particles (1000:3E73 init, 0x3FB3 step, 0x3F4A flush) ------
  * The list at 0x48BC is 0x58 slots of 8 bytes {live, value, x, y, age}.  The
@@ -418,8 +416,8 @@ static void _spark_strip_save(int32_t ox, int32_t oy)
             int32_t sx = _spark_strip_x - (int32_t)_view_x + (int32_t)col * 4;
             int32_t sy = _spark_strip_y - (int32_t)_view_y + (int32_t)row;
 
-            if (sx >= 0 && sx < (int32_t)VIEW_W && sy >= 0 &&
-                sy < (int32_t)VIEW_H) {
+            if (sx >= 0 && sx < (int32_t)VIDEO_PAGE_W && sy >= 0 &&
+                sy < (int32_t)VIDEO_PAGE_H_MODE13H) {
                 const uint8_t *px =
                     _lvl_plane[(uint32_t)sy * 88u + ((uint32_t)sx >> 2)];
 
@@ -443,8 +441,8 @@ static void _spark_strip_restore(void)
             int32_t sx = _spark_strip_x - (int32_t)_view_x + (int32_t)col * 4;
             int32_t sy = _spark_strip_y - (int32_t)_view_y + (int32_t)row;
 
-            if (sx < 0 || sx >= (int32_t)VIEW_W || sy < 0 ||
-                sy >= (int32_t)VIEW_H)
+            if (sx < 0 || sx >= (int32_t)VIDEO_PAGE_W || sy < 0 ||
+                sy >= (int32_t)VIDEO_PAGE_H_MODE13H)
                 continue;
             {
                 uint8_t *px =
@@ -577,7 +575,8 @@ static void _spark_draw(void)
         if (!_spark[i].live || _spark[i].value == 0u) continue;
         sx = (int32_t)_spark[i].x - (int32_t)_view_x;
         sy = (int32_t)_spark[i].y - (int32_t)_view_y;
-        if (sx < 0 || sx >= (int32_t)VIEW_W || sy < 0 || sy >= (int32_t)VIEW_H)
+        if (sx < 0 || sx >= (int32_t)VIDEO_PAGE_W || sy < 0 ||
+            sy >= (int32_t)VIDEO_PAGE_H_MODE13H)
             continue;
         plane = (uint32_t)sx & 3u;
         addr = (uint32_t)sy * 88u + ((uint32_t)sx >> 2);
@@ -1391,13 +1390,13 @@ static void _load_draw_background(uint8_t *page)
     /* load_sprite_pal sets the vertical display scroll [0x2] := 0x32
      * (0x31F2), so every page-relative y loses 0x32: the card's source
      * DI=0x324E row 0x92 becomes 0x60, exactly above the 152-row bar. */
-    memset(page, 0, 320u * 200u);
+    memset(page, 0, VIDEO_PAGE_BYTES);
     if (_load_dic && _load_dic_size >= 0x400u + 80u * 56u) {
         const uint8_t *src = _load_dic + 0x400u;
         for (uint32_t r = 0; r < 56u; r++) {
             uint32_t y = 0x60u + r;
-            if (y >= 192u) break;
-            memcpy(page + y * 320u + 0x78u, src + r * 80u, 80u);
+            if (y >= VIDEO_PAGE_H_MODEX) break;
+            memcpy(page + y * VIDEO_PAGE_W + 0x78u, src + r * 80u, 80u);
         }
     }
     statusbar_set_active(0);
@@ -1447,7 +1446,7 @@ static void _load_draw_one(uint8_t *page, const uint8_t *list, uint32_t entries,
         if (x <= lo || x >= hi) continue; /* the screen window */
         uint32_t off = 0x400u + spr * 0x180u;
         if (off + 0x180u > _loading_size) continue; /* the 0x25 sentinel  */
-        if (y < 0 || y + 24 > (int32_t)VIDEO_PAGE_H) continue;
+        if (y < 0 || y + 24 > (int32_t)VIDEO_PAGE_H_MODE13H) continue;
         _load_sprite(page, off, x, y);
     }
 }
@@ -1744,8 +1743,8 @@ void level_begin(void)
         uint8_t *p0 = _level_osys->videoPage(0);
         uint8_t *p1 = _level_osys->videoPage(1);
 
-        if (p0) memset(p0, 0, 320u * 200u);
-        if (p1) memset(p1, 0, 320u * 200u);
+        if (p0) memset(p0, 0, VIDEO_PAGE_BYTES);
+        if (p1) memset(p1, 0, VIDEO_PAGE_BYTES);
     }
     /* [0x5B12] is level_fade_in's gate and is 0 until the chain completes, so
      * the bar's countdown cannot run during the fades (1000:95B5 reseeds the
@@ -1925,9 +1924,9 @@ static void _present_plane(void)
     uint8_t *page = _level_osys->videoPage(0);
 
     if (!page) return;
-    for (uint32_t y = 0; y < VIEW_H; y++)
-        for (uint32_t x = 0; x < VIEW_W; x++)
-            page[y * VIEW_W + x] = _lvl_plane[y * 88u + (x >> 2)][x & 3u];
+    for (uint32_t y = 0; y < VIDEO_PAGE_H_MODE13H; y++)
+        for (uint32_t x = 0; x < VIDEO_PAGE_W; x++)
+            page[y * VIDEO_PAGE_W + x] = _lvl_plane[y * 88u + (x >> 2)][x & 3u];
 }
 
 static void _bake_page_to_plane(void)
@@ -1935,9 +1934,9 @@ static void _bake_page_to_plane(void)
     const uint8_t *page = _level_osys->videoPage(0);
 
     if (!page) return;
-    for (uint32_t y = 0; y < VIEW_H; y++)
-        for (uint32_t x = 0; x < VIEW_W; x++)
-            _lvl_plane[y * 88u + (x >> 2)][x & 3u] = page[y * VIEW_W + x];
+    for (uint32_t y = 0; y < VIDEO_PAGE_H_MODE13H; y++)
+        for (uint32_t x = 0; x < VIDEO_PAGE_W; x++)
+            _lvl_plane[y * 88u + (x >> 2)][x & 3u] = page[y * VIDEO_PAGE_W + x];
 }
 
 /** @brief The _world pass: `render_level_frame`'s terrain + `render_objects` + the bar,
@@ -1969,8 +1968,8 @@ static void _render_world(void)
      * ([0x1AEA]/[0x1AEC] are 1000:3DC0's *strip save* coordinate, not the
      * window: that routine copies a 64x18-byte page strip to A000:0xF000 and
      * never scrolls.) */
-    for (uint32_t y = 0; y < VIEW_H; y++)
-        for (uint32_t x = 0; x < VIEW_W; x++) {
+    for (uint32_t y = 0; y < VIDEO_PAGE_H_MODE13H; y++)
+        for (uint32_t x = 0; x < VIDEO_PAGE_W; x++) {
             uint32_t wx = _view_x + x, wy = _view_y + y;
 
             _lvl_plane[y * 88u + (x >> 2)][x & 3u] =
@@ -2022,9 +2021,9 @@ void level_claim_recolour(void)
     uint8_t *page = video_page(0);
 
     if (!page) return;
-    for (uint32_t i = 0; i < VIEW_W * 200u; i++)
+    for (uint32_t i = 0; i < VIDEO_PAGE_BYTES; i++)
         if (page[i] < 0x80u) page[i] = 0x1Eu;
-    for (uint32_t i = 0; i < VIEW_H * 88u; i++)
+    for (uint32_t i = 0; i < VIDEO_PAGE_H_MODE13H * 88u; i++)
         for (uint32_t p = 0; p < 4u; p++)
             if (_lvl_plane[i][p] < 0x80u) _lvl_plane[i][p] = 0x1Eu;
 }
@@ -2266,7 +2265,7 @@ int32_t level_tick(void)
 static void _disk_draw(uint32_t disc)
 {
     uint8_t *page = video_page(0);
-    memset(page, 0, VIEW_W * 200u);
+    memset(page, 0, VIDEO_PAGE_BYTES);
 
     uint8_t *img = NULL;
     uint32_t isz = 0;
@@ -2280,7 +2279,8 @@ static void _disk_draw(uint32_t disc)
         if (isz >= 0x18u + 768u) memcpy(_disk_pal, img + 0x18, 768u);
         /* blit_sprite_to_page, 1000:2105: source byte 4g+p -> plane p of
          * destination byte g; each byte is 8 pixels, MSB left */
-        for (uint32_t g = 0; 4u * g + 3u < isz && g * 8u < VIEW_W * 200u; g++) {
+        for (uint32_t g = 0; 4u * g + 3u < isz && g * 8u < VIDEO_PAGE_BYTES;
+             g++) {
             const uint8_t *q = img + 4u * g;
             for (uint32_t bit = 0; bit < 8u; bit++) {
                 uint32_t px = ((q[0] >> (7u - bit)) & 1u) |

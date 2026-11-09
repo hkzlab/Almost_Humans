@@ -177,7 +177,7 @@ static uint32_t _codeb1_size, _codeb2_size, _restore_size;
 static uint8_t _arena[16000]; /* the font _arena (the [0x1E20] analog) */
 static const uint8_t _ramp0[768]; /* the 0x48BC ramp: zeroed = black     */
 static uint32_t _split_row =
-    VIDEO_PAGE_H; /** [0x5B0A]: the CRTC split (0x88 on the
+    VIDEO_PAGE_H_MODE13H; /** [0x5B0A]: the CRTC split (0x88 on the
                                    * name screen — the fixed band below) */
 
 int32_t frontend_init(const OSystem *osys)
@@ -263,17 +263,17 @@ static void _compose(int32_t swapPages)
 {
     uint8_t *page = video_page(0);
     if (page) {
-        for (uint32_t y = 0; y < 200u; y++) {
-            uint8_t *d = page + y * 320u;
+        for (uint32_t y = 0; y < VIDEO_PAGE_H_MODE13H; y++) {
+            uint8_t *d = page + y * VIDEO_PAGE_W;
             if (y < _split_row) {
                 uint32_t rowBase = _page_draw + y * 160u;
-                for (uint32_t x = 0; x < 320u; x++) {
+                for (uint32_t x = 0; x < VIDEO_PAGE_W; x++) {
                     uint32_t w = _scroll + x; /* the world pixel */
                     d[x] = _vram[(rowBase + (w >> 2)) & 0xFFFFu][w & 3u];
                 }
             } else { /* the fixed band: from _vram 0 */
                 uint32_t rowBase = (y - _split_row) * 160u;
-                for (uint32_t x = 0; x < 320u; x++)
+                for (uint32_t x = 0; x < VIDEO_PAGE_W; x++)
                     d[x] = _vram[(rowBase + (x >> 2)) & 0xFFFFu][x & 3u];
             }
         }
@@ -806,7 +806,7 @@ static void _do_load(void)
     /* the room's opening state (frontend_room_setup's seeds) */
     _page_draw = 0;
     _page_disp = 0x7D00;
-    _split_row = VIDEO_PAGE_H; /* [0x5B0A] := 0xC8 (no split)  */
+    _split_row = VIDEO_PAGE_H_MODE13H; /* [0x5B0A] := 0xC8 (no split)  */
     _cell = 0;
     _walk_state = 0xFFFF;
     _char_x = 0x1D2;
@@ -834,8 +834,8 @@ static void _do_load(void)
          * `_code2_size` here.  reset_display_mode's 320x192 field (1000:82C6,
          * called at 1000:A544) ends on row 191, so the original never shows
          * them either. */
-        _planarise_rows(_code2, _code2_size, 0, VIDEO_PAGE_H);
-        _planarise_rows(_code2, _code2_size, 0x7D00, VIDEO_PAGE_H);
+        _planarise_rows(_code2, _code2_size, 0, VIDEO_PAGE_H_MODE13H);
+        _planarise_rows(_code2, _code2_size, 0x7D00, VIDEO_PAGE_H_MODE13H);
         /* the setup's 2-_frame loop (A5A1..A5DB): the full _frame — the
          * badges, the character, the name line — drawn on BOTH pages
          * before the fade, so the fade-in holds a complete static _frame

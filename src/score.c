@@ -335,8 +335,8 @@ void score_stamp_draw(uint8_t *page, int32_t on)
                 uint32_t py = STAMP_ROW + r;
                 uint32_t px = STAMP_COL * 4u + j;
 
-                if (py >= 200u || px >= 320u) continue;
-                page[py * 320u + px] = _stamp_under[r * 64u + j];
+                if (py >= VIDEO_PAGE_H_MODE13H || px >= VIDEO_PAGE_W) continue;
+                page[py * VIDEO_PAGE_W + px] = _stamp_under[r * 64u + j];
             }
         return;
     }
@@ -346,8 +346,9 @@ void score_stamp_draw(uint8_t *page, int32_t on)
             uint32_t py = STAMP_ROW + r;
             uint32_t px = STAMP_COL * 4u + j;
 
-            _stamp_under[r * 64u + j] =
-                (py < 200u && px < 320u) ? page[py * 320u + px] : 0u;
+            _stamp_under[r * 64u + j] = (py < VIDEO_PAGE_H_MODE13H && px < VIDEO_PAGE_W)
+                                            ? page[py * VIDEO_PAGE_W + px]
+                                            : 0u;
         }
     /* 1000:46FC: apl\RECORD.SPR is chunky 64x24; the four passes read
      * src[4j+p] into plane p at address j, i.e. pixel 4j+p = src[4j+p].
@@ -358,8 +359,8 @@ void score_stamp_draw(uint8_t *page, int32_t on)
             uint32_t py = STAMP_ROW + r;
             uint32_t px = STAMP_COL * 4u + j;
 
-            if (!v || py >= 200u || px >= 320u) continue;
-            page[py * 320u + px] = (uint8_t)(v + 0xC0u);
+            if (!v || py >= VIDEO_PAGE_H_MODE13H || px >= VIDEO_PAGE_W) continue;
+            page[py * VIDEO_PAGE_W + px] = (uint8_t)(v + 0xC0u);
         }
 }
 
@@ -401,7 +402,7 @@ static void _score_digit_block(uint8_t *page, uint32_t digit, int32_t x,
             int32_t dy = y + (int32_t)r;
 
             if (dx >= 0 && dx < (int32_t)VIDEO_PAGE_W && dy >= 0 &&
-                dy < (int32_t)VIDEO_PAGE_H)
+                dy < (int32_t)VIDEO_PAGE_H_MODE13H)
                 page[(uint32_t)dy * VIDEO_PAGE_W + (uint32_t)dx] = v;
         }
 }
@@ -459,17 +460,17 @@ static void _score_num_block(uint8_t *page, uint32_t digit, uint32_t bp,
     uint32_t row = off / 88u, col = off % 88u;
     uint32_t px = col * 4u; /* one address = 4 px */
 
-    if (!page || !_score_num || digit > 19u || row >= 200u) return;
+    if (!page || !_score_num || digit > 19u || row >= VIDEO_PAGE_H_MODE13H) return;
     /* 1000:450F: 8 rows x 2 addresses.  Pass p takes src[slot + r*8 + p] and
      * src[slot + r*8 + 4 + p], so pixel x of the row is src[r*8 + x]: the
      * slot is a chunky 8x8 image, stored as v | 0xC0. */
     for (uint32_t r = 0; r < 8u; r++) {
         uint32_t y = row + r;
 
-        if (y >= 200u) break;
+        if (y >= VIDEO_PAGE_H_MODE13H) break;
         for (uint32_t x = 0; x < 8u; x++) {
-            if (px + x >= 320u) continue;
-            page[y * 320u + px + x] =
+            if (px + x >= VIDEO_PAGE_W) continue;
+            page[y * VIDEO_PAGE_W + px + x] =
                 (uint8_t)(_score_num[digit * 0x40u + bp + r * 8u + x] | 0xC0u);
         }
     }
@@ -487,11 +488,11 @@ void score_draw_num3(uint8_t *page, uint32_t ax, uint16_t value, uint32_t bx,
 
 void score_draw_card(uint8_t *page)
 {
-    if (!page || !_score_bit || _score_size < 320u * 200u) return;
+    if (!page || !_score_bit || _score_size < VIDEO_PAGE_BYTES) return;
     /* 1000:4403: SI walks the chunky 320-byte row at stride 4 (one byte per
      * plane pass) and DI is the 4-px page group, so pixel 4j+p = src[4j+p]:
      * a plain 1:1 copy.  A zero byte is LEFT ALONE (the level caption). */
-    for (uint32_t i = 0; i < 320u * 200u; i++) {
+    for (uint32_t i = 0; i < VIDEO_PAGE_BYTES; i++) {
         uint32_t v = _score_bit[i];
 
         if (v) page[i] = (uint8_t)(v + 0xC0u);

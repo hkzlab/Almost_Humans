@@ -369,7 +369,7 @@ void alpha_expand(const uint8_t *src, uint8_t *dst)
 static void _splat_four(uint8_t *page, uint32_t px, uint32_t py, uint32_t v)
 {
     for (uint32_t bit = 0; bit < 4u; bit++)
-        if ((v >> bit) & 1u) page[py * 320u + px + bit] |= 0x20u;
+        if ((v >> bit) & 1u) page[py * VIDEO_PAGE_W + px + bit] |= 0x20u;
 }
 
 /** @brief Record one cell destination in the frame's list ([0x1A1A] cursor).
@@ -405,9 +405,9 @@ static void _map_dirty_clear(uint8_t *page)
                 uint32_t a = (dst + r * 80u + c) & 0xFFFFu;
                 uint32_t row = a / 80u, col = a % 80u;
 
-                if (row >= 200u) continue;
+                if (row >= VIDEO_PAGE_H_MODE13H) continue;
                 for (uint32_t p = 0; p < 4u; p++)
-                    page[row * 320u + col * 4u + p] &= (uint8_t)~0x20u;
+                    page[row * VIDEO_PAGE_W + col * 4u + p] &= (uint8_t)~0x20u;
             }
     }
 }
@@ -486,7 +486,7 @@ static void _alpha_blit_cell(uint8_t *page, uint32_t src, uint32_t dst)
             uint32_t px = (at % 80u) * 4u + c * 4u;
             uint32_t py = at / 80u;
 
-            if (!v || py >= 200u || px + 3u >= 320u) continue;
+            if (!v || py >= VIDEO_PAGE_H_MODE13H || px + 3u >= VIDEO_PAGE_W) continue;
             _splat_four(page, px, py, v);
         }
     }
@@ -632,7 +632,7 @@ static void _blit_four(uint8_t *page, uint32_t row, uint32_t col, uint32_t v,
                        uint32_t mask)
 {
     for (uint32_t p = 0; p < 4u; p++) {
-        uint8_t *px = &page[row * 320u + col * 4u + p];
+        uint8_t *px = &page[row * VIDEO_PAGE_W + col * 4u + p];
 
         *px = (uint8_t)((*px & (uint8_t)~mask) | (((v >> p) & 1u) ? mask : 0u));
     }
@@ -652,9 +652,9 @@ static uint32_t _map_off_byte(uint32_t a)
     uint32_t row = a / 80u, col = (a % 80u) * 4u;
     uint32_t v = 0;
 
-    if (row >= 200u) return 0u;
+    if (row >= VIDEO_PAGE_H_MODE13H) return 0u;
     for (uint32_t p = 0; p < 4u; p++)
-        v |= (uint32_t)(_map_off[row * 320u + col + p] & 1u) << p;
+        v |= (uint32_t)(_map_off[row * VIDEO_PAGE_W + col + p] & 1u) << p;
     return v;
 }
 
@@ -676,7 +676,7 @@ static void _blit_runs(uint8_t *page, uint32_t *d, uint32_t *s, uint32_t mask)
             uint32_t v = _map_off_byte(*s);
             uint32_t row = (*d / 80u), col = (*d % 80u);
 
-            if (row < 200u) _blit_four(page, row, col, v, mask);
+            if (row < VIDEO_PAGE_H_MODE13H) _blit_four(page, row, col, v, mask);
             (*d)++;
             (*s)++;
         }
@@ -791,10 +791,10 @@ static void _map_blit_strip(uint16_t phase, uint32_t ch, uint8_t *page)
         for (uint32_t c = 0; c < 8u; c++) {
             uint32_t a = src + r * 8u + c;
             uint32_t da = dst + r * 80u + c; /* the 0x48 gap + 8 bytes */
-            uint32_t px = (da / 80u) * 320u + (da % 80u) * 4u;
+            uint32_t px = (da / 80u) * VIDEO_PAGE_W + (da % 80u) * 4u;
 
             if (a >= MAP_STAGE_ADDRS) continue;
-            if (da / 80u >= 200u) continue;
+            if (da / 80u >= VIDEO_PAGE_H_MODE13H) continue;
             for (uint32_t j = 0; j < 4u; j++)
                 page[px + j] = _map_stage_pixel(a, j);
         }
@@ -1029,12 +1029,16 @@ void map_draw_rect(uint8_t *page, uint32_t x, uint32_t y, uint32_t w,
 {
     if (!page) return;
     for (uint32_t i = 0; i < w; i++) {
-        if (y < 200u && x + i < 320u) page[y * 320u + x + i] |= 0x40u;
-        if (y + h < 200u && x + i < 320u) page[(y + h) * 320u + x + i] |= 0x50u;
+        if (y < VIDEO_PAGE_H_MODE13H && x + i < VIDEO_PAGE_W)
+            page[y * VIDEO_PAGE_W + x + i] |= 0x40u;
+        if (y + h < VIDEO_PAGE_H_MODE13H && x + i < VIDEO_PAGE_W)
+            page[(y + h) * VIDEO_PAGE_W + x + i] |= 0x50u;
     }
     for (uint32_t i = 0; i < h; i++) {
-        if (y + i < 200u && x < 320u) page[(y + i) * 320u + x] |= 0x50u;
-        if (y + i < 200u && x + w < 320u) page[(y + i) * 320u + x + w] |= 0x40u;
+        if (y + i < VIDEO_PAGE_H_MODE13H && x < VIDEO_PAGE_W)
+            page[(y + i) * VIDEO_PAGE_W + x] |= 0x50u;
+        if (y + i < VIDEO_PAGE_H_MODE13H && x + w < VIDEO_PAGE_W)
+            page[(y + i) * VIDEO_PAGE_W + x + w] |= 0x40u;
     }
 }
 

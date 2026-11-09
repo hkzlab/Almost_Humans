@@ -973,10 +973,10 @@ int32_t party_intro_tick(const InputState *in)
         uint8_t *pg = video_page(0);
         if (pg) {
             uint32_t base = _page_disp;
-            for (uint32_t y = 0; y < 200u; y++) {
+            for (uint32_t y = 0; y < VIDEO_PAGE_H_MODE13H; y++) {
                 uint32_t row = ((base + 8u + y * 88u) & 0xFFFFu);
-                uint8_t *d = pg + y * 320u;
-                for (uint32_t x = 0; x < 320u; x++)
+                uint8_t *d = pg + y * VIDEO_PAGE_W;
+                for (uint32_t x = 0; x < VIDEO_PAGE_W; x++)
                     d[x] = _vram[(row + (x >> 2)) & 0xFFFFu][x & 3u];
             }
         }
@@ -989,10 +989,10 @@ int32_t party_intro_tick(const InputState *in)
 void party_intro_compose(uint8_t *pg)
 {
     uint32_t base = (uint32_t)_page_disp + 8u;
-    for (uint32_t y = 0; y < 200u; y++) {
+    for (uint32_t y = 0; y < VIDEO_PAGE_H_MODE13H; y++) {
         uint32_t row = (base + y * 88u) & 0xFFFFu;
-        uint8_t *d = pg + y * 320u;
-        for (uint32_t x = 0; x < 320u; x++)
+        uint8_t *d = pg + y * VIDEO_PAGE_W;
+        for (uint32_t x = 0; x < VIDEO_PAGE_W; x++)
             d[x] = _vram[(row + (x >> 2)) & 0xFFFFu][x & 3u];
     }
 }
