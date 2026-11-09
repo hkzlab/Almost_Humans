@@ -135,58 +135,81 @@ static void _scroll_text_measure(const char *text, uint32_t *tiles,
 }
 
 /**
- * @brief Write the four glyph pixels of one arena byte.
+ * @brief Store the set pixels of one 1-bpp arena byte into the page.
  *
- * @param page the page buffer
- * @param y the y coordinate
- * @param x0 the left x
- * @param b the glyph byte
- * @param colour the colour
- * @param mask the mask
+ * `bits` keeps the arena's packing: bit p is the page pixel at `x0 + p`,
+ * bit 0 the leftmost.  Only set bits are written — under write mode 2 a 0
+ * bit selects the latch, so a blank byte (or a blank glyph row) leaves the
+ * box beneath the line untouched instead of erasing it.
+ *
+ * `or_into` is the two write modes the callers need:
+ *   - non-zero: blit_text_tile (1000:47D5), write mode 2 with the OR ALU
+ *     (GC3 := 0x1003 at 1000:9F76) and the Bit Mask = DL (0x10 at
+ *     1000:9F90): a pixel becomes `page | ink`, so it takes the shade of
+ *     the box fill tile underneath rather than a colour of its own.
+ *   - zero: a solid store of `ink`, a palette index (textpage_draw_line).
+ *
+ * The `x < 320` test is the port's page-edge guard; the original copies a
+ * fixed 80 bytes (320 px) per row, so it has no equivalent.
+ *
+ * @param page    320x200 8bpp page, 320 bytes per scanline
+ * @param y       the page row; the caller keeps it < 200
+ * @param x0      the leftmost of the four pixels (arena column * 4)
+ * @param bits    the arena byte: bit p = pixel p, bit 0 the leftmost
+ * @param ink     the Bit Mask in the box path, a palette index in the solid
+ *                path (see `or_into`)
+ * @param or_into non-zero: OR `ink` into the page; 0: store it over the page
  */
-static void _glyph_px(uint8_t *page, uint32_t y, uint32_t x0, uint8_t b,
-                      uint32_t colour, int32_t mask)
+static void _glyph_px(uint8_t *page, uint32_t y, uint32_t x0, uint8_t bits,
+                      uint8_t ink, int or_into)
 {
-    for (uint32_t p = 0; p < 4u; p++)
-        if (b & (1u << p)) {
-            uint32_t x = x0 + p;
+    for (uint32_t k = 0; k < 4u; k++)
+        if (bits & (1u << k)) {
+            uint32_t x = x0 + k;
 
             if (x < 320u) {
                 uint32_t at = y * 320u + x;
 
-                if (mask) page[at] |= (uint8_t)colour;
-                else page[at] = (uint8_t)colour;
+                if (or_into) page[at] |= ink;
+                else page[at] = ink;
             }
         }
 }
 
-/** @brief blit_text_tile (1000:47D5) writes through write mode 2 with the OR ALU
- * (GC3 := 0x10 at 1000:9F76) and the bit mask = DL, so a glyph pixel is
- * `destination | mask`, never a solid colour: the shading comes from
- * whatever the box tile already put there.  `mask` != 0 selects that path;
- * `mask` == 0 writes the solid `colour` for the pages drawn outside a box.
+/** @brief blit_text_tile (1000:47D5): one line into the page.
  *
- * @param page the page buffer
- * @param line the text line
- * @param centreX the centring x
- * @param cell the map cell
- * @param colour the colour
- * @param mask the mask
+ * The original clears the arena's first 1280 B (CX = 0x280 words, 1000:47e2),
+ * runs draw_text at arena row 0 (centred on `centreX`, 1000:4989), then copies
+ * all 16 rows of 80 B out to the page starting at `cellTop` (MOV CX,0x10 at
+ * 1000:482e, the row loop at 1000:4973).  The port copies the same 16 rows;
+ * only the font's ink lands, because `_glyph_px` writes set bits alone.
+ *
+ * `or_into` picks the write mode: non-zero is blit_text_tile's own (write mode
+ * 2 with the OR ALU, GC3 := 0x1003 at 1000:9F76, the Bit Mask = DL), so a
+ * glyph pixel is `page | ink` and takes the box fill tile's shade; zero stores
+ * the solid `ink` for the pages drawn outside a box.  See `_glyph_px`.
+ *
+ * @param page    320x200 8bpp page, 320 bytes per scanline
+ * @param line    the text; drawing stops at the first CR
+ * @param centreX the centring x (0xA0 = the screen centre)
+ * @param cellTop the page row the 16-row cell starts at
+ * @param ink     the OR value (box path) or palette index (solid path)
+ * @param or_into non-zero: OR `ink` into the page; 0: store it
  */
 static void _draw_line(uint8_t *page, const char *line, uint32_t centreX,
-                       uint32_t cell, uint32_t colour, int32_t mask)
+                       uint32_t cellTop, uint8_t ink, int or_into)
 {
     /* blit_text_tile 1000:47e2: CX = 0x280 words = the 16 rows read below */
     memset(_tp_arena, 0, 0x280u * 2u);
     font_draw_text_bounded(_tp_arena, (uint32_t)sizeof _tp_arena, line, centreX,
                            0);
-    for (uint32_t r = 4u; r < 14u; r++) {
-        uint32_t y = cell + r;
+    for (uint32_t r = 0; r < 16u; r++) {
+        uint32_t y = cellTop + r;
         if (y >= 200u) break;
         for (uint32_t c = 0; c < 80u; c++) {
-            uint8_t b = _tp_arena[r * 80u + c];
+            uint8_t bits = _tp_arena[r * 80u + c];
 
-            if (b) _glyph_px(page, y, c * 4u, b, colour, mask);
+            if (bits) _glyph_px(page, y, c * 4u, bits, ink, or_into);
         }
     }
 }

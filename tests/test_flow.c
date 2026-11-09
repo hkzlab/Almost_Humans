@@ -202,6 +202,41 @@ int main(int argc, char **argv)
         memset(bank, 0xFF, sizeof bank); /* worst-case ink */
         font_publish(bank);
 
+        /* blit_text_tile (1000:47D5) copies all 16 glyph rows (MOV CX,0x10
+         * at 1000:482e): with an all-ink glyph the cell's first and last
+         * rows must be written, not only the shipped font's rows 3..14. */
+        {
+            static uint8_t page[320 * 200];
+            uint32_t all = 1;
+
+            memset(page, 0, sizeof page);
+            textpage_draw_line(page, "M", 40u, 0x10u);
+            for (uint32_t r = 0; r < 16u; r++) {
+                uint32_t n = 0;
+
+                for (uint32_t x = 0; x < 320u; x++)
+                    if (page[(40u + r) * 320u + x]) n++;
+                if (!n) all = 0;
+            }
+            _check(all, "1000:47D5: the line blit covers all 16 glyph rows");
+
+            /* write mode 2's 0 bits select the latch: a blank glyph writes
+             * nothing at all. */
+            {
+                static uint8_t blank[44 * 32];
+                uint32_t kept = 1;
+
+                memset(blank, 0, sizeof blank);
+                font_publish(blank);
+                memset(page, 0xCC, sizeof page);
+                textpage_draw_line(page, "M", 40u, 0x10u);
+                for (uint32_t i = 0; i < sizeof page; i++)
+                    if (page[i] != 0xCCu) kept = 0;
+                _check(kept, "the blank glyph rows leave the page untouched");
+                font_publish(bank);
+            }
+        }
+
         memset(wide, 0, sizeof wide);
         memset(same, 0, sizeof same);
         font_draw_text(wide, "HELLO", 0xA0u, 0u);

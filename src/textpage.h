@@ -53,8 +53,8 @@ void textpage_draw(uint8_t *page, const char *text, int32_t cursorRow,
  *
  * @param page   320x200 8bpp page, 320 bytes per scanline
  * @param line   the text; drawing stops at the first CR
- * @param row    top of the 16-row cell, the blit takes arena rows 4..13, so
- *               the ink starts at row+4
+ * @param row    top of the 16-row cell, copied whole (the blit takes all 16
+ *               arena rows); the shipped font's ink spans glyph rows 3..14
  * @param colour palette index, stored over the page
  */
 void textpage_draw_line(uint8_t *page, const char *line, uint32_t row,
@@ -74,7 +74,7 @@ void textpage_draw_line(uint8_t *page, const char *line, uint32_t row,
  * @param page 320x200 8bpp page, 320 bytes per scanline
  * @param line the text; drawing stops at the first CR (see textpage_draw_line
  *             for the charset caveat)
- * @param row  top of the 16-row cell, the ink starts at row+4
+ * @param row  top of the 16-row cell, copied whole (see textpage_draw_line)
  * @param mask the bits OR'd into the page; 0 leaves the page untouched
  */
 void textpage_draw_line_mask(uint8_t *page, const char *line, uint32_t row,
@@ -89,7 +89,7 @@ void textpage_draw_line_mask(uint8_t *page, const char *line, uint32_t row,
  * @param page    320x200 8bpp page, 320 bytes per scanline
  * @param line    the text; drawing stops at the first CR
  * @param centreX the centring x (0xA0 = the screen centre)
- * @param row     top of the 16-row cell, the ink starts at row+4
+ * @param row     top of the 16-row cell, copied whole (see textpage_draw_line)
  * @param mask    the bits OR'd into the page; 0 leaves the page untouched
  */
 void textpage_draw_line_mask_at(uint8_t *page, const char *line,
