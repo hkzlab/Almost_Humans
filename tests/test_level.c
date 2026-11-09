@@ -911,7 +911,7 @@ int main(int argc, char **argv)
 
     /* --- D-90: the handled-object slots' stripe (1000:5D65) ---------------- */
     {
-        static uint8_t page[320 * 200];
+        static uint8_t page[VIDEO_PAGE_BYTES];
         uint16_t *s = (uint16_t *)object_span_at_for_probe(0);
         uint32_t x = 300u, seed = 100u;
 

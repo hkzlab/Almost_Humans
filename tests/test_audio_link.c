@@ -43,7 +43,7 @@ static uint32_t _loads;
 static void _vset(VideoMode m) { (void)m; }
 static uint8_t *_vpage(int32_t which)
 {
-    static uint8_t page[320 * 200];
+    static uint8_t page[VIDEO_PAGE_BYTES];
     (void)which;
     return page;
 }

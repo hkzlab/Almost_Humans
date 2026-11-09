@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Common Changelog](https://common-changelog.org),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.0.2 - 2026-11-09
+
+### Changed
+
+- Size the tests' page buffers with `VIDEO_PAGE_BYTES` instead of the repeated `320 * 200` literal
+
 ## 1.0.1 - 2026-11-09
 
 ### Changed

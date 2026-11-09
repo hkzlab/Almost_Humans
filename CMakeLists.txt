@@ -10,7 +10,7 @@ if(NOT DEFINED CMAKE_C_COMPILER AND NOT DEFINED ENV{CC})
         set(CMAKE_C_COMPILER "${HUMANSRE_CLANG}")
     endif()
 endif()
-project(HumansRE VERSION 1.0.1 LANGUAGES C)
+project(HumansRE VERSION 1.0.2 LANGUAGES C)
 
 # The port's title and version, printed by each arch's main() at startup.
 set(HUMANSRE_PROJECT_TITLE "Almost Humans")

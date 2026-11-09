@@ -220,7 +220,7 @@ int main(int argc, char **argv)
      * row count and source. */
     {
         static uint8_t bank[0x1000];
-        static uint8_t page[320 * 200];
+        static uint8_t page[VIDEO_PAGE_BYTES];
         uint8_t *e8;
 
         memset(bank, 0, sizeof bank);

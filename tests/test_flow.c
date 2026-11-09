@@ -206,7 +206,7 @@ int main(int argc, char **argv)
          * at 1000:482e): with an all-ink glyph the cell's first and last
          * rows must be written, not only the shipped font's rows 3..14. */
         {
-            static uint8_t page[320 * 200];
+            static uint8_t page[VIDEO_PAGE_BYTES];
             uint32_t all = 1;
 
             memset(page, 0, sizeof page);
@@ -5504,7 +5504,7 @@ int main(int argc, char **argv)
      * (the live stamp cell shows 1..0xBF inside the card where the sprite is
      * transparent).  Draw onto a sentinel page and _check the law directly. */
     {
-        static uint8_t page[320 * 200];
+        static uint8_t page[VIDEO_PAGE_BYTES];
         uint32_t kept = 0, drawn = 0, other = 0;
 
         memset(page, 0x5A, sizeof page);
@@ -5559,8 +5559,8 @@ int main(int argc, char **argv)
      * reads the slot's quarter p and the glyph is a 16x16 chunky image stored
      * plane-major: pixel 4k+p = src[p*64 + r*4 + k], drawn 0xC0 | v. */
         {
-            static uint8_t page[320 * 200];
-            static uint8_t page2[320 * 200];
+            static uint8_t page[VIDEO_PAGE_BYTES];
+            static uint8_t page2[VIDEO_PAGE_BYTES];
 
             memset(page, 0, sizeof page);
             score_column(page, 3u, 0, 0, 1u);
@@ -5587,7 +5587,7 @@ int main(int argc, char **argv)
          * three SCORENUM digits at row 181, px 80..87 and px 240..247, every
          * byte stored as v | 0xC0 (0x450F: 8 rows x 2 page bytes, +0x58/row). */
         {
-            static uint8_t a[320 * 200], b[320 * 200];
+            static uint8_t a[VIDEO_PAGE_BYTES], b[VIDEO_PAGE_BYTES];
             uint32_t ina = 0, outside = 0, low = 0, diff = 0;
 
             memset(a, 0, sizeof a);
@@ -5643,7 +5643,7 @@ int main(int argc, char **argv)
          * so every set pixel must be 0xC2 or 0xC3, and its first four rows are
          * empty. */
         {
-            static uint8_t page[320 * 200];
+            static uint8_t page[VIDEO_PAGE_BYTES];
             uint32_t set = 0, _bad = 0, top = 0, outside = 0;
 
             memset(page, 0, sizeof page);
@@ -6917,7 +6917,7 @@ int main(int argc, char **argv)
      * that (00 x16, ff ff, 00 00 in both slots) - so nothing is drawn until a
      * slot is enabled by hand. */
     {
-        static uint8_t page[320 * 200];
+        static uint8_t page[VIDEO_PAGE_BYTES];
         uint8_t *s0 = object_ter_slot_at(0u);
 
         _check(s0 && (rd_le_u16(s0 + 0x10)) == 0xFFFFu,
@@ -7220,7 +7220,7 @@ int main(int argc, char **argv)
             /* 1000:024B: a qualifying total sees the seven-line page first;
              * the key that dismisses it is not typed into the name. */
             {
-                static uint8_t page[320 * 200];
+                static uint8_t page[VIDEO_PAGE_BYTES];
                 uint32_t lit = 0;
 
                 memset(page, 0, sizeof page);
@@ -7448,8 +7448,9 @@ int main(int argc, char **argv)
              * three angles on a zeroed page; the third draw clears the first
              * one's cells (the 0x0BB0 footprint), so an A-only pixel is gone. */
             {
-                static uint8_t pa[320 * 200], pb[320 * 200], pc[320 * 200];
-                static uint8_t page[320 * 200];
+                static uint8_t pa[VIDEO_PAGE_BYTES], pb[VIDEO_PAGE_BYTES],
+                               pc[VIDEO_PAGE_BYTES];
+                static uint8_t page[VIDEO_PAGE_BYTES];
                 uint32_t a = 0x10Eu, b = a + 6u, c = a + 0x0Cu;
                 uint32_t idx = 0xFFFFFFFFu;
 
@@ -7661,8 +7662,8 @@ int main(int argc, char **argv)
              * **offscreen** page (0x0577 clears it first); the display keeps
              * high.bit + the header (D-219). */
             {
-                static uint8_t page[320 * 200];
-                static uint8_t high[320 * 200];
+                static uint8_t page[VIDEO_PAGE_BYTES];
+                static uint8_t high[VIDEO_PAGE_BYTES];
                 static const uint32_t cx[3] = { 0x20u, 0x82u, 0x102u };
                 char hp[512];
                 size_t hn = 0;
@@ -7788,7 +7789,7 @@ int main(int argc, char **argv)
                    "cell 15 (the far side of the ring) lands at row 136");
         }
         {
-            static uint8_t page[320 * 200];
+            static uint8_t page[VIDEO_PAGE_BYTES];
             uint32_t in = 0, out = 0;
 
             memset(page, 0, sizeof page);
@@ -7854,7 +7855,7 @@ int main(int argc, char **argv)
         /* 1000:1251: the two rectangle outlines (top 0x40, left/bottom 0x50,
          * right 0x40) land at the listing's coordinates. */
         {
-            static uint8_t page[320 * 200];
+            static uint8_t page[VIDEO_PAGE_BYTES];
 
             memset(page, 0, sizeof page);
             map_draw_rect(page, 0x95u, 9u, 0xFu, 0xFu);
@@ -7926,7 +7927,7 @@ int main(int argc, char **argv)
          * source is the offscreen page (1000:0874's DS=[0x8A4]); write mode
          * 2 + the box's Bit Mask sets/clears only the masked colour bits. */
         {
-            static uint8_t page[320 * 200];
+            static uint8_t page[VIDEO_PAGE_BYTES];
             static const uint32_t dstByte[5] = { 0xE66u, 0x14A6u, 0x1AE6u,
                                                  0x2126u, 0x2766u };
             static const uint32_t masks[5] = { 0xA0u, 0xB0u, 0xE0u, 0xF0u,
