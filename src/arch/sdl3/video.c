@@ -27,10 +27,10 @@ static int32_t _present_probe; /* HUMANSRE_RATE_PROBE: report the
  * full 320x200 page, mode X shows only the top 192 rows — the rest of a
  * mode-X page is stale (the level's status bar ends on row 191).
  *
- * @return 192 for mode X, 200 otherwise
+ * @return VIDEO_PAGE_H_MODEX for mode X, VIDEO_PAGE_H otherwise
  */
 static int32_t _mode_rows(void)
-{ return _vid_mode == VIDEO_MODE_X ? 192 : VIDEO_PAGE_H; }
+{ return _vid_mode == VIDEO_MODE_X ? VIDEO_PAGE_H_MODEX : VIDEO_PAGE_H; }
 
 /**
  * @brief 6-bit -> 8-bit: the original's values are the DAC's; the expand is << 2 | >> 4
