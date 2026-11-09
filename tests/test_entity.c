@@ -4,8 +4,8 @@
  *   1. lb#1 (level 10): exactly one spawn (the single 0xB3 tile at
  *      col 20,row 15) with the closed appender fields: +0 = +6 = 320,
  *      +8 = 193 (row*16 - 0x30 + 1), +0xA = 3, +0xE = 1 (the goal word
- *      0x0101's high byte).  These are the values the DOSBox live
- *      session read off the running game (the live-confirmed tables).
+ *      0x0101's high byte).  These are the values a live session read
+ *      off the running game (the live-confirmed tables).
  *   2. the 0xB4 tile at col 25 of the same row joins the walker:
  *      +2 = 400 - the far endpoint, so the dino paces 320 <-> 400.
  *   3. the per-tick machine: the handler re-latches its fixed triple

@@ -1,6 +1,6 @@
 /* arch/audio/adlib/sound_driver_adlib.c - ADLIB.DRV's replacement.
  *
- * The resident driver is 6 KB of position-independent 8086 code (no Ghidra
+ * The resident driver is 6 KB of position-independent 8086 code (no static
  * image: it is a CD resource loaded into a DOS-allocated segment, so every
  * address below is a segment-relative offset of the shipped image).  This
  * file is that image's behaviour, read from the disassembly on 2026-11-06:

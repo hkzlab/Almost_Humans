@@ -9,8 +9,7 @@
  * draw_text (1000:4989) measures the string through the _advance table,
  * centres it (AX -= width/2) and blits each glyph through _blit_glyph
  * (1000:49FC) into the caller's arena at row*80 + x/4.  _blit_glyph's
- * nibble scatter, verified bit-exact against the shipped font
- * (tools/attract_text_sim.py; render analysis/spr_renders/attract_sim_arena.png):
+ * nibble scatter, verified bit-exact against the shipped font:
  * each source byte's high nibble, 4-bit-reversed, ORs into arena byte
  * [DI], its low nibble into [DI+1], the second row byte's nibbles into
  * [DI+2]/[DI+3], and the two nibbles of DH - the bits the x%4 pre-shift

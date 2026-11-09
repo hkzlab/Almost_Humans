@@ -13,8 +13,7 @@
  * checks.
  *
  * The AL expander (blit_background_data, 1000:B2EB) and the LZW machine
- * (decode_bitstream, 1000:91B9, via res.c) are real and byte-verified
- * against the validated python decoder (tools/ani_lzw.py).
+ * (decode_bitstream, 1000:91B9, via res.c) are real and byte-verified.
  */
 #include "scene.h"
 #include "audio.h"
@@ -1706,9 +1705,8 @@ uint8_t scene_play_boot_intro(void)
 uint32_t scene_boot_phase_for_probe(void) { return (uint32_t)_boot_phase; }
 
 #if defined(HUMANSRE_DEBUG_EXTRAS)
-/** @brief probe hook: the AL expander, for the offline byte-comparisons against the
- * validated python decoder (tools/ani_lzw.py).  Built in Debug configurations
- * only (CMakeLists.txt's HUMANSRE_DEBUG_EXTRAS).
+/** @brief probe hook: the AL expander, for the offline byte-comparisons.
+ * Built in Debug configurations only (CMakeLists.txt's HUMANSRE_DEBUG_EXTRAS).
  *
  * @param src the source buffer
  * @param src_size the source size

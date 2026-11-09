@@ -438,7 +438,7 @@ int main(int argc, char **argv)
             /* The terrain page table (draw_terrain2 1000:505C) is built
              * from the atlas and the J block's second opacity mask.  This
              * FNV-1a is the live original's 0x92A0 for level 0's style 3
-             * (read from DOSBox, DS:0x92A0, 2026-11-01) - byte-exact. */
+             * (read live, DS:0x92A0, 2026-11-01) - byte-exact. */
             {
                 uint32_t h = 2166136261u;
 
@@ -457,7 +457,7 @@ int main(int argc, char **argv)
              * all-zero and the pass fills the per-row collision masks from
              * the tile art with the J block's FIRST opacity mask.  This
              * FNV-1a (low byte first, per 16-bit word) is the live
-             * original's [0x1FD6] for level 0's style 3 (read from DOSBox,
+             * original's [0x1FD6] for level 0's style 3 (read live,
              * DS = 0x123A, 2026-11-01, all 169 x 16 words) - exact. */
             {
                 uint32_t h = 2166136261u;

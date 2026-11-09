@@ -1,10 +1,10 @@
-/* test_attract.c - effect 4's credits scroller, byte-exact against the
- * reference dump from tools/attract_scroll_sim.py (the independent python
- * model of the strip fill + the presenter, written from the listings).
+/* test_attract.c - effect 4's credits scroller, byte-exact against a
+ * reference dump (the strip fill + the presenter, written from the
+ * listings).
  *
  * argv[1] = the volume dir (HUMANS.00N), argv[2] = the extracted tree
  * (informational - the port loads through res), argv[3] = the reference
- * dump dir (analysis/attract_scroll: e4_strip.bin + e4_frames.bin).
+ * dump dir (e4_strip.bin + e4_frames.bin).
  * Missing volumes or dumps = skip with a notice, like test_res.
  *
  * The run drives the attract with idle input from a fresh start into
@@ -12,7 +12,7 @@
  *   - the strip: all 192 KB vs e4_strip.bin, and rowsBuilt == 1579 - the
  *     fixture census (101 lines, one screenful);
  *   - the scroll: exactly 1379 ATTRACT_E4_SCROLL ticks (one strip row
- *     per display period), page 0 compared byte-for-byte at the sim's
+ *     per display period), page 0 compared byte-for-byte at the reference's
  *     selected rows - the first draws, the skip regime, band transitions,
  *     the final rows;
  *   - the natural end: the tail fade, then the cycle continues into

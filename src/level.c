@@ -25,7 +25,7 @@
  *
  * The map start is deterministic: the author's NUL + 8 bytes. The next
  * record begins at the first candidate at or after the map's end (the
- * census walk, tools/level_census.py) - some records carry a 0/1-byte
+ * census walk) - some records carry a 0/1-byte
  * alignment trailer after the map.
  */
 #include "audio.h"
@@ -1055,7 +1055,7 @@ const LevelData *level_data(void)
 { return _level_loaded ? &_level_data_cur : NULL; }
 
 /** @brief The level text carries literal CR and tab from the authoring tool - the
- * census's _TEXT set (tools/level_census.py); rejecting them silently
+ * census's _TEXT set; rejecting them silently
  * truncates the walk (level 9 of LA.BIN is the first casualty).
  *
  * @param b the byte

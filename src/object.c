@@ -195,8 +195,8 @@ enum {
  * The six manifests are contiguous chunks of `APL\SPRITES.DAT`, so
  * `off` below is the sprite's file offset in that one file (bankbase =
  * {1:0x0000, 2:0x3080, 3:0xD3F0, 4:0xD3F0, 5:0xD3F0, 6:0xE130}, which tile the
- * file's 81744 bytes exactly).  The table below is generated from the image by
- * `tools/sprite_frames.py`; don't hand-edit it.
+ * file's 81744 bytes exactly).  The table below is generated from the image;
+ * don't hand-edit it.
  *
  * `select_object_tile` (1000:6625) draws at `y + ybias` (`ADD DX,AX` after
  * `SHR AL,1 / AND 0x1F`) and dispatches on the descriptor's mode bits

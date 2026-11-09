@@ -22,7 +22,7 @@
 /* The tick rate the port assumes: the original MEASURES it at boot
  * (init_crtc_timer calibrates the PIT divisor [0x5ABE] against the display
  * and the ISR re-spins to the next vsync edge each tick), so one tick = one
- * display period.  Verified live in DOSBox: the ISR tick counter runs at
+ * display period.  Verified live: the ISR tick counter runs at
  * 70.19-70.5 Hz, and the calibrated divisor 0x3E59 = PIT 74.76 Hz with the
  * bit-3-of-3DA wait making up the remainder to one display period.
  *

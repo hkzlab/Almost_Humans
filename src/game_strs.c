@@ -5,7 +5,7 @@
  * rewrite is GAME_STR_GAMEFLOW_LEVEL_DONE: the original patches three digits
  * in place (1000:33B6..33D1 divides by 0x64/0x0A and always writes three), so
  * the table carries a `%03u` where the shipped template has its `000`.
- * Generated and checked by `tools/extract_game_strs.py`.
+ * Generated and checked against the shipped images.
  */
 #include "game_strs.h"
 
@@ -398,7 +398,7 @@ const char *const game_strs[GAME_LANG_COUNT][GAME_STR_COUNT] = {
  * game_strs: the party templates' digit fields sit at fixed byte offsets in
  * the original's string block, and the other strings have no in-place field.
  * Every row is the index of that language's first digit in its own template
- * (tools/extract_game_strs.py derives it from the text, not from English). */
+ * (derived from the text, not from English). */
 const uint8_t game_strs_num_offset[GAME_LANG_COUNT][GAME_STR_COUNT] = {
     [GAME_LANG_EN] = {
         /* attract */

@@ -71,7 +71,7 @@ typedef void (*TickFn)(void);
  *   VIDEO_MODE_X    320x192 -> reset_display_mode (1000:82C6), the room /
  *                   party / level field: CRTC 0x12 = 0x7F, 0x13 = 0x2C
  *                   (the level's 40-row status bar ends on row 191, and
- *                   the DOSBox raw frames of those screens are 320x192).
+ *                   the original's raw frames of those screens are 320x192).
  */
 typedef enum VideoMode {
     VIDEO_MODE_13H = 0,

@@ -1,7 +1,6 @@
 /* test_game_strs.c - the text table's invariants across every language column.
  *
- * The text itself is verified against the shipped images by
- * `tools/extract_game_strs.py` (which derives each column from its build);
+ * The text itself is verified against the shipped images, column by column;
  * this test guards the structure the port's call sites rely on: the printf
  * markers, the in-place digit fields, the dialog line counts, and the two
  * columns whose seventh map line is their header string.

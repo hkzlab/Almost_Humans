@@ -3,9 +3,8 @@
  * Level 0 -> disc 2 (the ported 0x6287 table) -> ANI00.ANI.  The intro is
  * driven one tick per scene_play_level_intro call: 210-tick dwell, then 35
  * script entries (6 ticks each) AL-expanded onto page 0, then the chain
- * wait.  The final page must match a reference playback produced by the
- * validated python decoder (tools/ani_lzw.py) run over the same order on
- * top of the daily.bit screen + scoops background; the palette is
+ * wait.  The final page must match a reference playback of the same order
+ * on top of the daily.bit screen + scoops background; the palette is
  * daily.bit's trailing 768 bytes.
  *
  * argv[1] = the game data directory holding HUMANS.000/001/002.
@@ -133,7 +132,7 @@ int main(int argc, char **argv)
      * 34, not 35: the display list's last object is a tail-eater (its
      * stream runs to the loaded image's exact end) and the machine's
      * checksum gate rejects it - decode runs, the blit never does
-     * (dosbox-staging debugger session, 2026-10-24: GT obj 29 fails the
+     * (2026-10-24: GT obj 29 fails the
      * b444 gate, EBP=0x613C; every scene file's last object is a
      * tail-eater, slack = 0 in all 12). */
     /* 1000:B146: the panel's first 0x20 DAC entries FADE from the previous

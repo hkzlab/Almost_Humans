@@ -17,8 +17,8 @@
  *                      an LZ bitstream expanding to exactly clen bytes
  *
  * The LZ machine is the game's decode_bitstream (1000:91B9) as transcribed
- * instruction-for-instruction from the VALIDATED reference
- * (tools/ani_lzw.py, --selftest): the bit buffer shifts RIGHT, the bit comes
+ * instruction-for-instruction from the VALIDATED reference: the bit buffer
+ * shifts RIGHT, the bit comes
  * out of bit 0, the refill is (word | 0x10000) >> 1 delivered as its own
  * bit 0, values assemble MSB first, the output fills BACKWARDS, the match
  * distance is signed by the backward cursor, and draining the buffer steals
@@ -300,7 +300,7 @@ int32_t res_decode_lzw_mem(const uint8_t *data, uint32_t data_size,
     LzState st = { _mem_word_reader, &mr, out, 0, 0, 0, 0, 0 };
     uint16_t chk = _lz_block(&st, size);
     if (mr.over || mr.ate_tail) {
-        /* Machine-verified (dosbox-staging debugger session, 2026-10-24):
+        /* Machine-verified (2026-10-24):
          * the GT loop's 33rd object (obj 29, the display list's last word,
          * size 1378) FAILS the b444 gate on the machine - EBP = 0x613C at
          * B446 with ESI = 0x312 (394 words = exactly our consumption); the

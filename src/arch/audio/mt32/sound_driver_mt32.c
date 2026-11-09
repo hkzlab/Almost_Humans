@@ -3,7 +3,7 @@
  * MT32.DRV is 5600 bytes of position-independent 8086 code (a CD resource,
  * loaded into a DOS-allocated segment; every address below is an offset into
  * the shipped image).  This file is that image's behaviour, read from the
- * Ghidra listing on 2026-11-07.
+ * disassembly on 2026-11-07.
  *
  *   INT 60h            MT32.DRV                     here
  *   install AX=0x60    0x00DE                       _mt32_create
@@ -28,8 +28,8 @@
  * alive for the context's lifetime.  A multi-model ROM directory resolves to
  * the newest MT-32 model present (control ROM 2.07 first, then 2.06, 2.04,
  * 2.03, 1.07, 1.06, 1.05, 1.04, and only then CM-32L), and both emulator
- * output gains (dry and reverb) sit at 0.501 - DOSBox Staging's default
- * -6 dB mixer master gain - so the port's level matches DOSBox's.
+ * output gains (dry and reverb) sit at 0.501, the reference -6 dB mixer
+ * master gain, so the port's level matches the intended mix.
  *
  * Tune image:
  *   header    0x000..0x117 (new format), order list +0x18, instruments +0x98
@@ -71,8 +71,8 @@
 #define MT32_OFF_NEW  0x958u
 #define MT32_OFF_OLD  0x918u
 #define MT32_ROMS_MAX 64u
-/* mt32emu's output gain is 1.0 by default; 0.501 is DOSBox Staging's default
- * -6 dB mixer master gain, so the port's absolute level matches DOSBox's. */
+/* mt32emu's output gain is 1.0 by default; 0.501 is the reference -6 dB
+ * mixer master gain, so the port's absolute level matches the intended mix. */
 #define MT32_OUTPUT_GAIN 0.501f
 
 
@@ -1292,7 +1292,7 @@ static SoundDriver *_mt32_create(uint32_t sampleRate)
         return NULL;
     }
     mt32emu_set_stereo_output_samplerate(drv->ctx, (double)sampleRate);
-    /* The same emulator settings DOSBox Staging uses, so the two play the
+    /* The reference emulator settings, so the port plays the
      * same instrument: accurate analog stage, 16-bit renderer, NICE DAC,
      * the three "nice" quality switches, and immediate MIDI. */
     mt32emu_set_analog_output_mode(drv->ctx, MT32EMU_AOM_ACCURATE);

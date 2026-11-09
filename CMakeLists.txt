@@ -80,8 +80,8 @@ if(NOT MSVC)
     target_compile_options(core PRIVATE -Wconversion -Wno-sign-conversion)
 endif()
 
-# Probe hooks that only offline tools call (scene_al_expand_for_probe) are
-# extra, not part of the game: a Debug configure (cmake -DCMAKE_BUILD_TYPE=Debug)
+# Probe hooks used only by the offline checks (scene_al_expand_for_probe)
+# are extra, not part of the game: a Debug configure (cmake -DCMAKE_BUILD_TYPE=Debug)
 # compiles them in, a release/default one leaves them out.
 target_compile_definitions(core PRIVATE $<$<CONFIG:Debug>:HUMANSRE_DEBUG_EXTRAS>)
 
@@ -159,7 +159,7 @@ humansre_warnings(test_party_reset)
 add_test(NAME party_reset COMMAND test_party_reset ${HUMANS_DATA_DIR})
 
 # The fade-ladder harness: the port's own DAC progression per tick against
-# the original's recorded hardware reads (the offline palette instrument).
+# the original's recorded hardware reads.
 add_executable(test_fadeladder tests/test_fadeladder.c
     src/arch/null/OSystem.c)
 target_include_directories(test_fadeladder PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
@@ -290,11 +290,10 @@ target_link_libraries(test_frontend PRIVATE core fs_posix)
 humansre_warnings(test_frontend)
 add_test(NAME frontend COMMAND test_frontend ${HUMANS_DATA_DIR})
 
-# The attract scroller test: effect 4's strip + presenter against the
-# reference dump from tools/attract_scroll_sim.py (regenerate it by
-# running that script; absent dumps = skip).
+# The attract scroller test: effect 4's strip + presenter against a
+# reference dump (absent dumps = skip).
 set(HUMANS_REF_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../analysis/attract_scroll"
-    CACHE PATH "attract_scroll_sim.py reference dumps (strip + frames)")
+    CACHE PATH "reference dumps for the attract scroller (strip + frames)")
 add_executable(test_attract tests/test_attract.c
     src/arch/null/OSystem.c)          # the null backend's test hooks
 target_include_directories(test_attract PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
@@ -318,7 +317,7 @@ target_include_directories(fs_posix PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 # offers and selects one at run time.  adlib/sound_driver_adlib.c is
 # ADLIB.DRV's sequencer over a vendored Nuked-OPL3 (thirdparty/,
 # LGPL-2.1-or-later); beeper/sound_driver_beeper.c is BEEPER.DRV's sequencer
-# over DOSBox Staging's PC-speaker impulse model (thirdparty/,
+# over the vendored PC-speaker impulse model (thirdparty/,
 # GPL-2.0-or-later); null/ prints every command and renders silence.  The
 # audio_null module is intentionally blank and linked into no executable.
 add_library(audio_adlib
@@ -386,7 +385,7 @@ add_test(NAME adlib COMMAND test_adlib ${HUMANS_FIX_DIR})
 
 # The Beeper driver module against a real .BEP: the loader geometry, the row
 # decode (both voices), the note path, the vendored impulse model and a live
-# DOSBox state snapshot.  White-box (the test includes the module) so the slot
+# state snapshot.  White-box (the test includes the module) so the slot
 # state and the rendered pitch are both checked.
 add_executable(test_beeper tests/test_beeper.c
     src/arch/audio/beeper/thirdparty/pcspeaker_impulse.c)

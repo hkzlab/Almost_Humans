@@ -127,7 +127,7 @@ static uint16_t _score_hold;
  * the visible page.  The port keeps it in a private buffer of the same shape
  * instead of the flat page's top-left.
  *
- * The cell is saved and restored PER PIXEL.  A live DOSBox capture
+ * The cell is saved and restored PER PIXEL.  A live capture
  * (2026-11-02, level 1 with a NEW RECORD) shows the off phase putting the
  * card back exactly: the cell before the first stamp draw and after the
  * erase are byte-identical (0 of 1536 pixels differ) and keep the card's

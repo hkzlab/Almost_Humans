@@ -42,8 +42,8 @@
  *
  * The animators' slot seeding is CLOSED (2026-10-30 pass-3): the 8 slot
  * structs at DS:0xFA8, the 7 script pointers at DS:0x1028 and the script
- * bodies DS:0x1036..0x105E are STATIC in the MZ image (Ghidra 202F:0xFA8
- * hexdump == the live DS:0xFA8 read-back, sub-lists byte-identical) - no
+ * bodies DS:0x1036..0x105E are STATIC in the MZ image (the 202F:0xFA8
+ * hexdump equals the live DS:0xFA8 read-back, sub-lists byte-identical) - no
  * seed writer exists.  The tables below are the file's verbatim bytes.
  * The interpreter is 28e9 verbatim: per slot per tick, DEC the countdown;
  * when it hits zero reload 8 and set the advance _step; ALWAYS walk the

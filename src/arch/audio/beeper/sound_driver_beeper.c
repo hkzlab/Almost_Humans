@@ -3,7 +3,7 @@
  * The resident driver is 4272 bytes of position-independent 8086 code loaded
  * into a DOS-allocated segment, so every address below is a segment-relative
  * offset of the shipped image.
- * This file is that image's behaviour, read from the Ghidra listing on
+ * This file is that image's behaviour, read from the disassembly on
  * 2026-11-07:
  *
  *   INT 60h            BEEPER.DRV                   here
@@ -26,7 +26,7 @@
  * The chip is the PC speaker.  A note's period-table word (CS:0x08B2, 84
  * words) is a PIT channel-2 divisor: `frequency = 1193182 / divisor`.  Port
  * 0x61 bits 0-1 gate the output (0x07ED sets them, 0x0809 clears them).
- * `generate()` renders through DOSBox Staging's PC-speaker impulse model
+ * `generate()` renders through the vendored PC-speaker impulse model
  * (thirdparty/pcspeaker_impulse.c, GPL-2.0-or-later; see its README), whose
  * 8254 mode-3 scheduler and sinc impulse produce the band-limited square
  * wave instead of the earlier ideal square.  The original's INT 8 hook
@@ -132,7 +132,7 @@ struct SoundDriver {
     uint8_t mux_half; /* CS:0x0E86: ticks per row / 2 */
     uint8_t speaker_on; /* CS:0x07EC */
     uint16_t divider;
-    PcSpeakerImpulse *speaker; /* DOSBox Staging impulse model */
+    PcSpeakerImpulse *speaker; /* the vendored impulse model */
 };
 
 /**

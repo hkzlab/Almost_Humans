@@ -70,12 +70,11 @@ uint8_t attract_tick(const InputState *in);
  */
 uint32_t attract_phase_for_probe(void);
 
-/** @brief the strip probe: the 192-KB work area and [0xD39] (the rows built) -
- * the byte-exact fixture test compares these against the sim's dump.
+/** @brief the strip probe: the 192-KB work area and [0xD39] (the rows built).
  *
  * Effect 4's strip probe (the 192-KB work area at [0xD76] + the rows built,
- * [0xD39]): the byte-exact fixture test compares the fill against
- * tools/attract_scroll_sim.py's dump.
+ * [0xD39]): the byte-exact fixture test compares the fill against the
+ * reference dump.
  * Valid from the first ATTRACT_E4 load until the next effect begins.
  *
  * @param rowsBuilt the output row count

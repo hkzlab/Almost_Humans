@@ -10,7 +10,7 @@
  *   - the row decoder's stride: the 4-byte cell plus the 0x12 gap is 0x16,
  *     so track 1 reaches slot 1 and both voices sound;
  *   - the renderer's frequency is the PIT's 1193182 / divisor;
- *   - a live DOSBox state snapshot at order 3 / row 0x20 / tick 3;
+ *   - a live state snapshot at order 3 / row 0x20 / tick 3;
  *   - a missing tune stops the record and blocks a later resume;
  *   - releasing the record frees its slots and silences the speaker.
  *
@@ -271,7 +271,7 @@ int main(int argc, char **argv)
     assert(drv->slot[1][BEEP_INSTRUMENT] == image[base + 5u]);
     assert(rd_le_u16(&drv->slot[1][BEEP_DIVIDER]) == _period[image[base + 4u]]);
 
-    /* Live snapshot (DOSBox, BEEPER.DRV, 2026-11-07): the driver's state at
+    /* Live snapshot (BEEPER.DRV, 2026-11-07): the driver's state at
      * record 0, order 3, row 0x20, tick 3 on the second pass.  This pins the
      * decoder's 0x16 stride and the second voice against the real driver. */
     for (i = 0; i < 20000u; i++) {
