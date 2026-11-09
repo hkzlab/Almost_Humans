@@ -114,25 +114,8 @@ static int32_t _wipe_dir;
 
 /* --- the shipped DS tables (re_formats.md §9.4, extracted 2026-10-25) -- */
 
-/** @brief 202F:0x4DE — the top-10 (re_formats.md §11): the shipped defaults live in
- * hiscore.c, which HISCORES.HUM overrides once a game has been played.
- *
- * @return the number of attract high-score rows
- */
 uint32_t attract_hiscore_count(void) { return 10u; }
-/**
- * @brief Accessor: one high-score score.
- *
- * @param i the index
- * @return One high-score score.
- */
 uint32_t attract_hiscore_score(uint32_t i) { return hiscore_score(i); }
-/**
- * @brief Accessor: one high-score name.
- *
- * @param i the index
- * @return One high-score name.
- */
 const char *attract_hiscore_name(uint32_t i) { return hiscore_name(i); }
 
 /* 202F:0x38C — 160 per-level records of [seconds][minutes] (two
@@ -151,33 +134,14 @@ static void _fastest_time(uint32_t levelMinus1, uint8_t rec[2])
     wr_le_u16(rec, v); /* [seconds][minutes] */
 }
 
-/** @brief [0x1E7C] and [0xD3D] are not carried: in the decoded image they are
- * write-only (the cycle/effect tag and the skip flag — the writers are in
- * re_map.md § "The ATTRACT loop decoded"; no reader is traced), so the
- * port records their semantics in comments instead of dead state.
- *
- * @param osys the backend interface
- * @return 0 on success
- */
 int32_t attract_init(const OSystem *osys)
 {
     (void)osys;
     return 0;
 }
 
-/**
- * @brief Accessor: the attract phase.
- *
- * @return The attract phase.
- */
 uint32_t attract_phase_for_probe(void) { return (uint32_t)_phase; }
 
-/** @brief the strip probe: the 192-KB work area and [0xD39] (the rows built) —
- * the byte-exact fixture test compares these against the sim's dump.
- *
- * @param rowsOut the output row count
- * @return the pointer, or NULL when unavailable
- */
 const uint8_t *attract_strip_for_probe(uint32_t *rowsOut)
 {
     if (rowsOut) *rowsOut = _rows_built;
@@ -316,11 +280,6 @@ static void _format_decimal(uint32_t v, char *out)
     out[n] = 0;
 }
 
-/** @brief Test seam: the attract's decimal formatter (1000:0AEC).
- *
- * @param v the value
- * @param out the output buffer (at least 8 bytes)
- */
 void attract_format_decimal_for_probe(uint32_t v, char *out)
 { _format_decimal(v, out); }
 
@@ -801,12 +760,6 @@ static void _latch_escape(void)
     _phase = ATTRACT_ESCAPE;
 }
 
-/**
- * @brief One attract tick; 1 = still playing.
- *
- * @param in the input state
- * @return 1 while the attract cycle is playing
- */
 int32_t attract_tick(const InputState *in)
 {
     if (_phase == ATTRACT_DONE || _phase == ATTRACT_IDLE)

@@ -208,12 +208,6 @@ static uint32_t _swap_next; /* the 2bda's tail's next _phase        */
 static int32_t _game_over_mode; /* level_intro_screen 2739's variant   */
 static uint32_t _sw_phase = SW_FADEWAIT;
 
-/**
- * @brief Restore the intro's cue scripts from a save.
- *
- * @param bytes the byte buffer
- * @param len the length
- */
 void party_intro_seed_scripts(const uint8_t *bytes, uint32_t len)
 {
     /* the [live] pointer table: the DS offsets into the first body 0x1036 */
@@ -229,11 +223,6 @@ void party_intro_seed_scripts(const uint8_t *bytes, uint32_t len)
     }
 }
 
-/**
- * @brief Restore the intro slots from the raw 128-byte save block.
- *
- * @param raw the raw save block
- */
 void party_intro_seed_slots(const uint8_t *raw) /* the 128 B at DS:0xFA8 */
 {
     if (!raw) {
@@ -261,12 +250,6 @@ static void _seed_slots_live(void)
     party_intro_seed_scripts(_scripts_file, sizeof _scripts_file);
 }
 
-/**
- * @brief === 2b1b format_score + 2b70 ================================================
- *
- * @param v the value
- * @param out the output buffer
- */
 void party_intro_format_score(uint32_t v, char *out)
 {
     static const uint32_t divs[8] = { 100000000u, 10000000u, 1000000u, 100000u,
@@ -645,15 +628,6 @@ static void _rescale_rows(const uint8_t *src)
     }
 }
 
-/**
- * @brief === the API =================================================================
- *
- * @param level the level number
- * @param need the required count
- * @param members the member count
- * @param score the score
- * @param tribe the tribe name
- */
 void party_intro_set_values(uint32_t level, uint32_t need, uint32_t members,
                             uint32_t score, const char *tribe)
 {
@@ -682,17 +656,7 @@ void party_intro_set_values(uint32_t level, uint32_t need, uint32_t members,
             sizeof _s_fire - 1u);
 }
 
-/**
- * @brief Set the briefing's GAME OVER variant.
- *
- * @param on the on/off flag
- */
 void party_intro_set_game_over(int32_t on) { _game_over_mode = on ? 1 : 0; }
-/**
- * @brief Accessor: the briefing's score.
- *
- * @return The briefing's score.
- */
 uint32_t party_intro_score(void) { return _g_score; }
 
 /**
@@ -708,25 +672,9 @@ static uint8_t *_load(const char *name)
     return res_load_chunk(name, &sz, &ck);
 }
 
-/** @brief the palette buffers, exposed for the fade-ladder harness: the port's
- * 0x4bbc/0x4d3c(+0x180)/0x1208 stand-ins (read-only diagnostics, see
- * test_fadeladder)
- *
- * @return the pointer, or NULL when unavailable
- */
 const uint8_t *party_intro_workpal(void) { return _workpal; }
-/**
- * @brief Accessor: the upper palette half.
- *
- * @return The upper palette half.
- */
 const uint8_t *party_intro_pal_upper(void) { return _pal_upper; }
 
-/**
- * @brief Load and start the party briefing screen; 1 = playing.
- *
- * @return 1 while the briefing is playing
- */
 int32_t party_intro_start(void)
 {
     char name[24];
@@ -819,12 +767,6 @@ static void _party_begin(void)
 
 /* === the ticker =============================================================== */
 
-/** @brief the game_main hook's per-tick compose into the flat page (the attract's
- * contract: the tick draws, videoPresent(0) shows)
- *
- * @param in the input state
- * @return 1 while the briefing is playing, 0 when it exits
- */
 int32_t party_intro_tick(const InputState *in)
 {
     int32_t fire = (int32_t)(in->joyBits & 0x80u);
@@ -1044,12 +986,6 @@ int32_t party_intro_tick(const InputState *in)
     return 1;
 }
 
-/** @brief the closed layout law, exposed for the byte-exact fixtures: the page's
- * pixel (x,y) = _vram[pagebase + 8 + y*88 + (x>>2)][x&3] of the DISPLAY
- * page (_page_disp — the just-flipped bake target).
- *
- * @param pg the page
- */
 void party_intro_compose(uint8_t *pg)
 {
     uint32_t base = (uint32_t)_page_disp + 8u;

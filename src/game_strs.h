@@ -1,16 +1,12 @@
 /* game_strs.h — the localisable text of the game core.
  *
  * `game_strs[language][id]` is the only source of displayed text: the first
- * index picks the language (English is the one the port starts in), the
- * second the string a routine needs.  Adding a language means filling a row,
- * not touching a call site.
+ * index picks the language, the second the string a routine needs. 
+ * Adding a language means filling a row in `game_strs` `and game_strs_num_offset`
+ * used to overwrite some chars in the drawn strings.
  *
  * Every column is taken byte-for-byte from that language's shipped image
- * (`202F:0x5F..`, `0x7BB..`, `0x105F..`, ... per build) by
- * `tools/extract_game_strs.py`, which documents where each block lives and
- * why the columns cannot share addresses.  `HUMANS_unpacked_spa_alt.exe`
- * carries text byte-identical to `HUMANS_unpacked_spa.exe`, so it has no
- * column of its own.
+ * (`202F:0x5F..`, `0x7BB..`, `0x105F..`, ... per build).
  *
  * Resource and file names (APL\TEXT.SPR, mus\title, ...) are not here: they
  * name bytes on the discs, not text the player reads, and they are the same
@@ -24,11 +20,11 @@
 #include <stdint.h>
 
 enum GameLang {
-    GAME_LANG_EN = 0, /* the shipped English text                      */
-    GAME_LANG_FRE,    /* French  (HUMANS_unpacked_fre.exe)             */
-    GAME_LANG_GER,    /* German  (HUMANS_unpacked_ger.exe)             */
-    GAME_LANG_ITA,    /* Italian (HUMANS_unpacked_ita.exe)             */
-    GAME_LANG_SPA,    /* Spanish (HUMANS_unpacked_spa.exe)             */
+    GAME_LANG_EN = 0, /* English */
+    GAME_LANG_FRE,    /* French  */
+    GAME_LANG_GER,    /* German  */
+    GAME_LANG_ITA,    /* Italian */
+    GAME_LANG_SPA,    /* Spanish */
     GAME_LANG_COUNT
 };
 
@@ -100,7 +96,8 @@ enum GameStr {
      * `save_progress`, not as a request), and no volume ships either file:
      * all five carry `INTRO\GAMEPROT.BIT`.  They are here because they are
      * the only file names that localise, so the table is complete for a
-     * build that ever reaches them. */
+     * build that ever reaches them. Supposedly, they're used in the floppy
+     * versions of the game. */
     GAME_STR_INTRO_LANG_BIT,
     GAME_STR_INTRO_PROT_BIT,
 

@@ -10,22 +10,122 @@
 #include <stdio.h>
 #include <string.h>
 
+/**
+ * @brief The null backend: record the video mode.
+ *
+ * @param mode the mode
+ */
 static void _null_set_mode(VideoMode mode);
+
+/**
+ * @brief Accessor: one of the null video pages.
+ *
+ * @param which the page selector
+ * @return One of the null video pages.
+ */
 static uint8_t *_null_page(int32_t which);
+
+/**
+ * @brief The null backend: run the present hook.
+ *
+ * @param which the page selector
+ */
 static void _null_present(int32_t which);
+
+/**
+ * @brief The null backend: record a palette range.
+ *
+ * @param p6 the 6-bit palette
+ * @param first the first entry
+ * @param n the count
+ */
 static void _null_set_palette(const uint8_t *p6, uint32_t first, uint32_t n);
+
+/**
+ * @brief The null backend: inject the scripted input.
+ *
+ * @param out the output buffer
+ */
 static void _null_poll(InputState *out);
+
+/**
+ * @brief The null backend: record the tick callback.
+ *
+ * @param rate the tick rate
+ * @param tick the tick count
+ */
 static void _null_timer_start(uint32_t rate, TickFn tick);
+
+/**
+ * @brief The null backend: one tick per call.
+ *
+ * @param lastSeen the last seen tick
+ */
 static void _null_tick_sync(uint32_t *lastSeen);
+
+/** @brief The null backend: accept the driver install.
+ *
+ * @return 0, always (accepted)
+ */
 static int32_t _null_audio_install(void);
+
+/**
+ * @brief The null backend: record a tune image's size (cmd 0x0C).
+ *
+ * @param image the tune image
+ * @param size its byte length
+ * @return 0, always (accepted)
+ */
 static int32_t _null_audio_load(const uint8_t *image, uint32_t size);
+
+/**
+ * @brief The null backend: count a music_resume (cmd 5, CX = 0).
+ */
 static void _null_audio_resume(void);
+
+/**
+ * @brief The null backend: count a music_stop (cmd 6).
+ */
 static void _null_audio_stop(void);
+
+/**
+ * @brief The null backend: record a sound effect request (cmd 5).
+ *
+ * @param id the event id
+ */
 static void _null_audio_sfx(uint16_t id);
+
+/**
+ * @brief The null backend: record the master-volume command (cmd 0x0A).
+ *
+ * @param cl the game's byte
+ */
 static void _null_audio_tempo(uint8_t cl);
+
+/**
+ * @brief The null backend: count a music tick (cmd 2).
+ */
 static void _null_audio_tick(void);
+
+/**
+ * @brief The null backend's [0x5AFE]: AdLib, the port's default driver.
+ *
+ * @return 1 (AdLib)
+ */
 static int32_t _null_audio_driver_id(void);
+
+/**
+ * @brief The null backend: a non-fatal diagnostic goes to stderr.
+ *
+ * @param msg the message
+ */
 static void _null_warn(const char *msg);
+
+/**
+ * @brief The null backend: print and exit.
+ *
+ * @param msg the message
+ */
 static void _null_fatal(const char *msg);
 
 static uint8_t _pages[2][320 * 200];
@@ -65,46 +165,18 @@ const OSystem g_osys_null = {
     _null_warn,         _null_fatal
 };
 
-/**
- * @brief The null backend: record the video mode.
- *
- * @param mode the mode
- */
 static void _null_set_mode(VideoMode mode) { _mode_set = mode; }
-/**
- * @brief Accessor: one of the null video pages.
- *
- * @param which the page selector
- * @return One of the null video pages.
- */
 static uint8_t *_null_page(int32_t which) { return _pages[which & 1]; }
-/**
- * @brief The null backend: run the present hook.
- *
- * @param which the page selector
- */
 static void _null_present(int32_t which)
 {
     (void)which;
     if (_present_hook) _present_hook(_script_i);
 }
-/**
- * @brief The null backend: record a palette range.
- *
- * @param p6 the 6-bit palette
- * @param first the first entry
- * @param n the count
- */
 static void _null_set_palette(const uint8_t *p6, uint32_t first, uint32_t n)
 {
     if (first + n > 256) n = 256 - first;
     memcpy(_pal + first * 3, p6, (size_t)n * 3);
 }
-/**
- * @brief The null backend: inject the scripted input.
- *
- * @param out the output buffer
- */
 static void _null_poll(InputState *out)
 {
     if (_script_states && _script_i < _script_n)
@@ -115,22 +187,11 @@ static void _null_poll(InputState *out)
      * (game_main's input.quit check), not from inside the backend */
     if (_tick_limit && _tick_counter >= _tick_limit) out->quit = 1;
 }
-/**
- * @brief The null backend: record the tick callback.
- *
- * @param rate the tick rate
- * @param tick the tick count
- */
 static void _null_timer_start(uint32_t rate, TickFn tick)
 {
     _the_rate = rate;
     _the_tick = tick;
 }
-/**
- * @brief The null backend: one tick per call.
- *
- * @param lastSeen the last seen tick
- */
 static void _null_tick_sync(uint32_t *lastSeen)
 {
     /* one tickSync = one tick: the ISR's INC [0x5AC8] (1000:8AA4) then the
@@ -141,22 +202,11 @@ static void _null_tick_sync(uint32_t *lastSeen)
     if (_the_tick) _the_tick();
     *lastSeen = _tick_counter;
 }
-/** @brief The null backend: accept the driver install.
- *
- * @return 0, always (accepted)
- */
 static int32_t _null_audio_install(void)
 {
     _audio_installs++;
     return 0;
 }
-/**
- * @brief The null backend: record a tune image's size (cmd 0x0C).
- *
- * @param image the tune image
- * @param size its byte length
- * @return 0, always (accepted)
- */
 static int32_t _null_audio_load(const uint8_t *image, uint32_t size)
 {
     (void)image;
@@ -165,62 +215,23 @@ static int32_t _null_audio_load(const uint8_t *image, uint32_t size)
     _audio_tune_size = size;
     return 0;
 }
-/**
- * @brief The null backend: count a music_resume (cmd 5, CX = 0).
- */
 static void _null_audio_resume(void) { _audio_starts++; }
-/**
- * @brief The null backend: count a music_stop (cmd 6).
- */
 static void _null_audio_stop(void) { _audio_stops++; }
-/**
- * @brief The null backend: record a sound effect request (cmd 5).
- *
- * @param id the event id
- */
 static void _null_audio_sfx(uint16_t id)
 {
     _audio_sfx_count++;
     _audio_last_sfx = id;
 }
-/**
- * @brief The null backend: record the master-volume command (cmd 0x0A).
- *
- * @param cl the game's byte
- */
 static void _null_audio_tempo(uint8_t cl) { _audio_tempo = cl; }
-/**
- * @brief The null backend: count a music tick (cmd 2).
- */
 static void _null_audio_tick(void) { _audio_ticks++; }
-/**
- * @brief The null backend's [0x5AFE]: AdLib, the port's default driver.
- *
- * @return 1 (AdLib)
- */
 static int32_t _null_audio_driver_id(void) { return 1; }
-/**
- * @brief The null backend: a non-fatal diagnostic goes to stderr.
- *
- * @param msg the message
- */
 static void _null_warn(const char *msg) { fprintf(stderr, "%s\n", msg); }
-/**
- * @brief The null backend: print and exit.
- *
- * @param msg the message
- */
 static void _null_fatal(const char *msg)
 {
     fprintf(stderr, "fatal: %s\n", msg);
     exit(1);
 }
 
-/**
- * @brief Stop the loop after a tick count (the headless executable's --ticks).
- *
- * @param n the limit in ticks; 0 runs until the input asks to quit
- */
 void osys_null_set_tick_limit(uint32_t n) { _tick_limit = n; }
 
 /** @brief test hooks: drive N ticks by hand, inject input, read back video state

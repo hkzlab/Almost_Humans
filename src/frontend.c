@@ -179,76 +179,31 @@ static const uint8_t _ramp0[768]; /* the 0x48BC ramp: zeroed = black     */
 static uint32_t _split_row = 200; /** [0x5B0A]: the CRTC split (0x88 on the
                                    * name screen — the fixed band below) */
 
-/**
- * @brief Bind the frontend module to the backend.
- *
- * @param osys the backend interface
- * @return 0 on success
- */
 int32_t frontend_init(const OSystem *osys)
 {
     (void)osys;
     return 0;
 }
 
-/**
- * @brief Accessor: the level-code cursor.
- *
- * @return The level-code cursor.
- */
 uint32_t frontend_selected_level(void) { return _code_index; }
 
-/** @brief entry's JMP LAB_002B: the room's setup runs again from the top (the
- * counters persist — frontend_room_setup seeds none of them).  The next
- * frontend_tick re-loads the assets (FE_LOAD).
- */
 void frontend_restart(void)
 {
     _phase = FE_LOAD;
     _fire_latch = 0;
 }
 
-/** @brief The four option counters — the read side's one accessor.  Consumers:
- * level.c (LEVEL: the time-limit pick + the 12/10/8 tribe), audio.c (MUSIC:
- * the _frame web's gate), scene.c (ANIMATIONS: cd_file_op's early RET).  The
- * RESTORE GAME _slot is carried out here and consumed by entry 1000:004C's
- * save load, which the port's save.c does not have yet (M6).
- *
- * @param idx the index
- * @return the option counter
- */
 uint32_t frontend_option(uint32_t idx)
 { return idx < 4u ? _opt_counter[idx] : 0u; }
 
-/**
- * @brief The room's write side, for the audio/sfx gate's tests.
- *
- * @param idx the index
- * @param value the value
- */
 void frontend_option_set_for_probe(uint32_t idx, uint32_t value)
 {
     if (idx < 4u) _opt_counter[idx] = value;
 }
 
-/** @brief [0x4220] — the rail node, exposed for the option read-side test's walk
- * legs (the same role as attract_phase_for_probe).
- *
- * @return the current option cell
- */
 uint32_t frontend_cell_for_probe(void) { return _cell; }
 
-/**
- * @brief the name screen's _phase and typed buffer, for the input-law tests
- *
- * @return 1 when the name screen is up, 0 otherwise
- */
 int32_t frontend_name_screen_for_probe(void) { return _phase == FE_NAME; }
-/**
- * @brief Accessor: the typed high-score name.
- *
- * @return The typed high-score name.
- */
 const char *frontend_name_for_probe(void) { return _name_buf; }
 
 /**
@@ -899,12 +854,6 @@ static void _do_load(void)
     }
 }
 
-/**
- * @brief One frontend tick: the room, the name screen or the load.
- *
- * @param in the input state
- * @return 1 while the frontend keeps running
- */
 int32_t frontend_tick(const InputState *in)
 {
     switch (_phase) {

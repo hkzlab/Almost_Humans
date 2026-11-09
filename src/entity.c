@@ -247,16 +247,6 @@ static void _spawn_tile_pair(uint32_t pair, uint8_t tile, const uint8_t *map,
     }
 }
 
-/** @brief One pass over the whole 32x20 map per table pair, in table order, the
- * handler invoked at each matching cell with CX = col*16, DX = row*16
- * (the SHL 4s at 51bf-51cd).  The scan is column-inner, row-outer
- * ([0x4234] = cols 0x1F..0, [0x4230] = rows 0x13..0).
- *
- * @param map the 640-cell map
- * @param style the level style
- * @param lifeSeed the life seed
- * @return 0 on success, -1 when the map is missing
- */
 int32_t entity_spawn_from_map(const uint8_t *map, uint32_t style,
                               uint32_t lifeSeed)
 {
@@ -467,15 +457,6 @@ static void _entity_carry_anim(Entity *ep)
     ep->handler = _sel_secondary; /* cbe2/cbe5: [0x4238] */
 }
 
-/** @brief The three table reads for one cell index; 0 = the indices are outside the
- * bank (the original would read whatever follows it in memory).
- *
- * @param a the frame index
- * @param src the source buffer
- * @param rows the row count
- * @param yoff the y offset
- * @return 1 when the indices are inside the bank, 0 otherwise
- */
 int32_t entity_frame_info(uint32_t a, uint32_t *src, uint32_t *rows,
                           uint32_t *yoff)
 {
@@ -488,15 +469,6 @@ int32_t entity_frame_info(uint32_t a, uint32_t *src, uint32_t *rows,
     return (*src <= _ent_bank_size) ? 1 : 0;
 }
 
-/** @brief 1000:58D1's sprite-pixel test: the REX bank pixel at the (x,y) offset in
- * the sprite whose descriptor entity_frame_info(a) returned.
- *
- * @param src the source buffer
- * @param rows the row count
- * @param x the x coordinate
- * @param y the y coordinate
- * @return 1 when the pixel is non-zero, 0 otherwise
- */
 int32_t entity_sprite_pixel(uint32_t src, uint32_t rows, uint32_t x, uint32_t y)
 {
     uint32_t idx = src + y * 4u + (x >> 2) + (rows & 0x1Fu) * 8u * (x & 3u);
@@ -505,34 +477,15 @@ int32_t entity_sprite_pixel(uint32_t src, uint32_t rows, uint32_t x, uint32_t y)
     return _ent_bank[idx] != 0u;
 }
 
-/**
- * @brief the mutable entity record (the collision pass writes it).
- *
- * @param i the index
- * @return the pointer, or NULL when unavailable
- */
 Entity *entity_at_mut(uint32_t i)
 { return i < _ent_count ? (Entity *)_ents[i] : NULL; }
 
-/**
- * @brief Publish the REX.DAT frame bank.
- *
- * @param bank the sprite bank
- * @param size the size
- */
 void entity_publish_bank(const uint8_t *bank, uint32_t size)
 {
     _ent_bank = bank;
     _ent_bank_size = size;
 }
 
-/** @brief 1000:5823 / 0x5894: the entity pass.  Runs after the placed records
- * (render_objects 0x5D56 calls 0x6421 then 0x5823), before the bar.
- *
- * @param page the page buffer
- * @param scrollX the scroll x
- * @param scrollY the scroll y
- */
 void entity_render(uint8_t *page, int32_t scrollX, int32_t scrollY)
 {
     if (!page || !_ent_bank) return;
@@ -555,9 +508,6 @@ void entity_render(uint8_t *page, int32_t scrollX, int32_t scrollY)
     }
 }
 
-/**
- * @brief --- the dispatch (1000:C93C) -------------------------------------------
- */
 void entity_tick(void)
 {
     /* 1000:C944: AX = [0x64C2]-1, DEC/JNS - the entity table is walked
@@ -601,42 +551,20 @@ void entity_tick(void)
     }
 }
 
-/**
- * @brief --- the interface ------------------------------------------------------
- *
- * @param osys the backend interface
- * @return 0 on success
- */
 int32_t entity_init(const OSystem *osys)
 {
     (void)osys;
     return 0;
 }
 
-/**
- * @brief Accessor: one entity record, NULL past the count.
- *
- * @param i the index
- * @return the record, or NULL past the count
- */
 const Entity *entity_at(uint32_t i)
 {
     if (i >= _ent_count) return NULL;
     return (const Entity *)_ents[i];
 }
 
-/**
- * @brief Accessor: the live entity count.
- *
- * @return The live entity count.
- */
 uint32_t entity_count(void) { return _ent_count; }
 
-/** @brief Save +0x1656+0x28 = [0x64C2] (u16) + the first seven 0x10-byte records
- * (0x64C4..0x6534).  The original copies 0x70 bytes, i.e. slots 0..6.
- *
- * @param dst the destination buffer
- */
 void entity_save_fixed(uint8_t *dst)
 {
     if (!dst) return;
@@ -644,11 +572,6 @@ void entity_save_fixed(uint8_t *dst)
     for (uint32_t i = 0; i < 7u; i++) memcpy(dst + 2u + i * 16u, _ents[i], 16u);
 }
 
-/**
- * @brief Restore the entity table from a save.
- *
- * @param src the source buffer
- */
 void entity_load_fixed(const uint8_t *src)
 {
     if (!src) return;

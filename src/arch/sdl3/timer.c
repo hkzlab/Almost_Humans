@@ -81,12 +81,6 @@ static int32_t SDLCALL _tick_thread_fn(void *arg)
     return 0;
 }
 
-/**
- * @brief Start the fixed-tick timer.
- *
- * @param ticksPerSec the ticks per second
- * @param tick the tick count
- */
 void sdl3_timer_start(uint32_t ticksPerSec, TickFn tick)
 {
     _the_tick = tick;
@@ -104,11 +98,6 @@ void sdl3_timer_start(uint32_t ticksPerSec, TickFn tick)
     SDL_DetachThread(SDL_CreateThread(_tick_thread_fn, "humansre-tick", NULL));
 }
 
-/**
- * @brief Block until the next fixed tick has fired.
- *
- * @param lastSeen the last seen tick
- */
 void sdl3_tick_sync(uint32_t *lastSeen)
 {
     while (1) {

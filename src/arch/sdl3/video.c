@@ -72,12 +72,6 @@ static void _vid_init_video(void)
     _present_probe = getenv("HUMANSRE_RATE_PROBE") != NULL;
 }
 
-/** @brief The mode set: the 320x200 board fills 4:3 as 3x/3.6x; the 320x192 board
- * fills the same window as 3x/3.75x, so the pixels keep the 4:3 display
- * geometry and the rows past the field are never presented.
- *
- * @param mode the mode
- */
 void sdl3_video_set_mode(VideoMode mode)
 {
     if (!_win) _vid_init_video();
@@ -137,13 +131,6 @@ static void _vid_present(int32_t which)
     }
 }
 
-/**
- * @brief Upload a 6-bit palette range to the display.
- *
- * @param p6 the 6-bit palette
- * @param first the first entry
- * @param n the count
- */
 void sdl3_video_set_palette(const uint8_t *p6, uint32_t first, uint32_t n)
 {
     for (uint32_t i = 0; i < n; i++) {
@@ -154,16 +141,5 @@ void sdl3_video_set_palette(const uint8_t *p6, uint32_t first, uint32_t n)
     }
 }
 
-/**
- * @brief Accessor: one of the two display pages.
- *
- * @param which the page selector
- * @return One of the two display pages.
- */
 uint8_t *sdl3_video_page(int32_t which) { return _vid_page(which); }
-/**
- * @brief Present one page.
- *
- * @param which the page selector
- */
 void sdl3_video_present(int32_t which) { _vid_present(which); }

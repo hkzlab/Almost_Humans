@@ -64,12 +64,6 @@ static const uint16_t _intro_cues[25u * 3u] = {
     385, 5, 0, /* quit                                           */
 };
 
-/**
- * @brief Bind the cue-script module to the backend.
- *
- * @param osys the backend interface
- * @return 0 on success
- */
 int32_t script_init(const OSystem *osys)
 {
     (void)osys;
@@ -91,16 +85,6 @@ void script_start(CueScript *s, const uint16_t *cues, uint32_t cueCount)
     s->groupDwell = 1u;              /* the dwell cue at frame 0 sets it   */
 }
 
-/** @brief Fire every cue whose frame == the current frame (the game's JE dispatch —
- * a passed cue blocks the cursor until a seek rewinds the counter).  The
- * comparison operand is the LIVE counter [0x6466]: the seek handler rewrites
- * it mid-scan (b92d), and the loop continues (`JMP b80d`) against the NEW
- * value — a cue whose frame the seek jumped past does not fire in this
- * pass.
- *
- * @param s the cue script
- * @param frame the frame index
- */
 void script_fire(CueScript *s, uint32_t frame)
 {
     s->frame = frame;
@@ -131,73 +115,15 @@ void script_fire(CueScript *s, uint32_t frame)
         s->done = 1;
 }
 
-/**
- * @brief Accessor: the script requests a quit.
- *
- * @param s the cue script
- * @return The script requests a quit.
- */
 int32_t script_quit(const CueScript *s) { return s->quit; }
-/**
- * @brief Accessor: the cue script finished.
- *
- * @param s the cue script
- * @return The cue script finished.
- */
 int32_t script_done(const CueScript *s) { return s->done; }
-/**
- * @brief Accessor: the group dwell count.
- *
- * @param s the cue script
- * @return The group dwell count.
- */
 uint32_t script_group_dwell(const CueScript *s) { return s->groupDwell; }
-/**
- * @brief Accessor: the scroll gate.
- *
- * @param s the cue script
- * @return The scroll gate.
- */
 int32_t script_scroll_on(const CueScript *s) { return s->scrollOn; }
-/**
- * @brief Accessor: the scroll delta.
- *
- * @param s the cue script
- * @return The scroll delta.
- */
 uint32_t script_scroll_delta(const CueScript *s) { return s->scrollDelta; }
-/**
- * @brief Accessor: the script's transition index.
- *
- * @param s the cue script
- * @return The script's transition index.
- */
 uint32_t script_transition_index(const CueScript *s)
 { return s->transitionIdx; }
-/**
- * @brief Accessor: a seek is pending.
- *
- * @param s the cue script
- * @return A seek is pending.
- */
 int32_t script_seek_pending(const CueScript *s) { return s->seekPending; }
-/**
- * @brief Accessor: the seek frame.
- *
- * @param s the cue script
- * @return The seek frame.
- */
 uint32_t script_seek_frame(const CueScript *s) { return s->seekFrame; }
-/**
- * @brief Clear the script's seek-pending flag.
- *
- * @param s the cue script
- */
 void script_seek_done(CueScript *s) { s->seekPending = 0; }
 
-/**
- * @brief Start the intro cue script (the verbatim 202F:0x843C template).
- *
- * @param s the cue script
- */
 void script_intro_start(CueScript *s) { script_start(s, _intro_cues, 25u); }

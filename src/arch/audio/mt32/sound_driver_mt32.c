@@ -181,11 +181,6 @@ struct SoundDriver {
 
 static char _rom_dir[1024];
 
-/**
- * @brief Select the directory the ROM images are read from before create().
- *
- * @param path a directory holding the MT-32/CM-32L control and PCM ROMs
- */
 void sound_driver_mt32_set_roms(const char *path)
 {
     if (!path) {

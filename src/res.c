@@ -92,19 +92,8 @@ static const uint8_t _res_movie_disc_table[10] = {
  * ONE volume-file name from it. */
 static uint32_t _res_current_disc = 0;
 
-/**
- * @brief Set the current disc.
- *
- * @param disc the disc number
- */
 void res_set_disc(uint32_t disc) { _res_current_disc = disc; }
 
-/**
- * @brief The disc that holds one movie file.
- *
- * @param idx the index
- * @return the disc number, or 0xFF when out of range
- */
 uint32_t res_movie_disc(uint32_t idx)
 {
     if (idx >= sizeof _res_movie_disc_table) return 0xFF;
@@ -292,19 +281,6 @@ static uint16_t _mem_word_reader(void *ctx)
     return w;
 }
 
-/** @brief Decode one LZW object from a memory buffer:
- *   [u16 decompressed_size][u16 checksum][u16 bit buffer][LZW bits]
- * Returns the decompressed size written to `out`, or -1 on failure.
- * *chkOut mirrors the machine's final BP accumulator.
- *
- * @param data the data buffer
- * @param data_size the data size
- * @param off the offset
- * @param out the output buffer
- * @param out_size the output size
- * @param chkOut the output checksum
- * @return the decoded size, or -1 on a bad object
- */
 int32_t res_decode_lzw_mem(const uint8_t *data, uint32_t data_size,
                            uint32_t off, uint8_t *out, uint32_t out_size,
                            uint16_t *chkOut)
@@ -436,14 +412,6 @@ static uint8_t *_res_decode_chunk(VolReader *r, uint32_t off,
     return out;
 }
 
-/**
- * @brief Load and decode one named resource from the current disc.
- *
- * @param name the name
- * @param sizeOut the output size
- * @param chkOut the output checksum
- * @return the decoded buffer, or NULL on failure
- */
 uint8_t *res_load_chunk(const char *name, uint32_t *sizeOut, uint16_t *chkOut)
 {
     uint8_t *result = NULL;
@@ -474,25 +442,12 @@ uint8_t *res_load_chunk(const char *name, uint32_t *sizeOut, uint16_t *chkOut)
     return result;
 }
 
-/**
- * @brief Bind the resource module to the backend.
- *
- * @param osys the backend interface
- * @return 0 on success
- */
 int32_t res_init(const OSystem *osys)
 {
     (void)osys;
     return 0;
 }
 
-/** @brief the disc-presence probe: draw_status_indicator's open test (1000:20CF)
- * opens the volume file for the disc and closes it; 0 = the disc is not
- * available (the "PUT THE DISK INTO DRIVE n" screen).
- *
- * @param disc the disc number
- * @return 1 when the volume opens, 0 otherwise
- */
 int32_t res_volume_present(uint32_t disc)
 {
     FSVolume *v = g_fs.openVolume(disc);

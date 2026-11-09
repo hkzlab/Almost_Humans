@@ -70,12 +70,6 @@ static const struct {
 static uint8_t *_hiscore_entry(uint32_t i)
 { return _hiscore_table + 0x154u + i * HIS_ENTRY; }
 
-/** @brief 1000:06DE crypt_table_38a — the involution, same routine for both
- * directions: [di] ^= bl; bl = rol8(bl,1) + 3.
- *
- * @param p the table
- * @param n the count
- */
 void hiscore_obfuscate(uint8_t *p, uint32_t n)
 {
     uint8_t key = 0x47u;
@@ -110,19 +104,12 @@ static void _hiscore_defaults(void)
     }
 }
 
-/**
- * @brief Restore the shipped state (tests and a fresh install).
- */
 void hiscore_reset(void)
 {
     _hiscore_defaults();
     _hiscore_loaded = 1;
 }
 
-/** @brief the runtime table's first state.  `1000:069F` (the loader) has no
- * caller in the listing, so the shipped game always starts from the image's
- * own defaults at DS:0x38A and never reads HISCORES.HUM back.
- */
 void hiscore_init(void)
 {
     if (_hiscore_loaded) return;
@@ -130,12 +117,6 @@ void hiscore_init(void)
     _hiscore_defaults();
 }
 
-/**
- * @brief 1000:06CC decrypt_region_38a: encrypt the table and flush it.
- *
- * The crypt is not undone: `1000:06CC` is crypt -> create/write/close -> RET,
- * so the runtime block stays encrypted.
- */
 void hiscore_write(void)
 {
     FSSave *f;
@@ -149,12 +130,6 @@ void hiscore_write(void)
     }
 }
 
-/**
- * @brief the per-level best as `1000:42E9` reads it: level N's u16 at 0x38A + 2*N
- *
- * @param level the level number
- * @return the level's best time, or 0x0999 when out of range
- */
 uint16_t hiscore_best(uint32_t level)
 {
     hiscore_init();
@@ -162,12 +137,6 @@ uint16_t hiscore_best(uint32_t level)
     return rd_le_u16(_hiscore_table + 2u * level);
 }
 
-/**
- * @brief Record the best time for one level.
- *
- * @param level the level number
- * @param value the value
- */
 void hiscore_set_best(uint32_t level, uint16_t value)
 {
     hiscore_init();
@@ -175,25 +144,10 @@ void hiscore_set_best(uint32_t level, uint16_t value)
     wr_le_u16(_hiscore_table + 2u * level, value);
 }
 
-/**
- * @brief Accessor: the table's entry count.
- *
- * @return The table's entry count.
- */
 uint32_t hiscore_count(void) { return HIS_TOPN; }
 
-/** @brief The on-disk table length (the original's 0x208 = 520 bytes).
- *
- * @return the table size
- */
 uint32_t hiscore_table_size(void) { return HIS_TABLE; }
 
-/**
- * @brief Accessor: one entry's score.
- *
- * @param i the index
- * @return One entry's score.
- */
 uint32_t hiscore_score(uint32_t i)
 {
     const uint8_t *e;
@@ -204,12 +158,6 @@ uint32_t hiscore_score(uint32_t i)
     return rd_le_u32(e);
 }
 
-/**
- * @brief Accessor: one entry's name.
- *
- * @param i the index
- * @return One entry's name.
- */
 const char *hiscore_name(uint32_t i)
 {
     hiscore_init();
@@ -229,23 +177,9 @@ static char _hiscore_char(char c)
     return c;
 }
 
-/** @brief 1000:01CD: does the score make the table?  The walk only gives up when the
- * candidate is BELOW the last entry, so an equal score still displaces it.
- *
- * @param score the score
- * @return 1 when the score makes the table, 0 otherwise
- */
 int32_t hiscore_qualifies(uint32_t score)
 { return score >= hiscore_score(HIS_TOPN - 1u); }
 
-/** @brief 1000:01CD..0x0230: insert, shifting 18-byte entries down one slot.
- * Memory-only: the original flushes at the MAP exit (`0x06CC`).  Returns the
- * slot taken, or -1 when the score beats none of the ten.
- *
- * @param score the score
- * @param name the name
- * @return the insertion position, or -1 when it did not make the table
- */
 int32_t hiscore_insert(uint32_t score, const char *name)
 {
     uint32_t pos = 0;
@@ -298,14 +232,6 @@ static void _name_put(char *name, uint32_t *len, char c)
     *len = n;
 }
 
-/**
- * @brief Apply one typed character to a name; 0 = done.
- *
- * @param name the name
- * @param column the column
- * @param len the length
- * @return 1 when Enter commits, 0 otherwise
- */
 int32_t hiscore_name_apply(char *name, uint32_t column, uint32_t *len)
 {
     uint32_t n = *len;

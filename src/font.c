@@ -38,23 +38,12 @@ static const uint8_t _advance[45] = { 7, 8, 8, 8,  7, 7, 8, 8, 3,   7, 8,  7,
  * game_loop prologue and the front-end later; _blit_glyph's only source). */
 static const uint8_t *_glyphs;
 
-/**
- * @brief Bind the font module to the backend.
- *
- * @param osys the backend interface
- * @return 0 on success
- */
 int32_t font_init(const OSystem *osys)
 {
     (void)osys;
     return 0;
 }
 
-/**
- * @brief Publish the TEXT.SPR glyph bank.
- *
- * @param textSpr the TEXT.SPR glyph bank
- */
 void font_publish(const uint8_t *textSpr) { _glyphs = textSpr; }
 
 /** @brief The _charset lookup: the match index, or 44 (the terminator slot) when
@@ -129,12 +118,6 @@ static void _blit_glyph(uint8_t *arena, int32_t x, uint32_t row, uint32_t gi)
     }
 }
 
-/** @brief draw_text's own measure: the sum of the _advance table (the same walk
- * draw_text does before centring).  STOPs at CR/NUL, like draw_text.
- *
- * @param s the text
- * @return the text width in pixels
- */
 uint32_t font_text_width(const char *s)
 {
     uint32_t w = 0;
@@ -143,15 +126,6 @@ uint32_t font_text_width(const char *s)
     return w;
 }
 
-/** @brief draw_text (1000:4989): centre `s` on centreX and blit it at arena row
- * `row`.  Unknown characters _advance by the terminator slot but draw
- * nothing (the two search loops' no-match paths).
- *
- * @param arena the text arena
- * @param s the text
- * @param centreX the centring x
- * @param row the row
- */
 void font_draw_text(uint8_t *arena, const char *s, uint32_t centreX,
                     uint32_t row)
 {

@@ -46,21 +46,12 @@ static int32_t _record_live;   /* a cmd-5 record is playing          */
 static int32_t _stop_after_fade; /* present_frames_75 then music_stop */
 static int32_t _tune_missing;  /* the last play_tune found no image  */
 
-/**
- * @brief Bind the audio module to the backend.
- *
- * @param osys the backend interface
- * @return 0 on success
- */
 int32_t audio_init(const OSystem *osys)
 {
     _au_osys = osys;
     return 0;
 }
 
-/**
- * @brief Install the resident driver (driver_reset 1000:84DE).
- */
 void audio_install(void)
 {
     if (!_au_osys) return;
@@ -80,22 +71,6 @@ static int32_t _driver_id(void)
     return _au_osys->audioDriverId();
 }
 
-/**
- * @brief play_tune (1000:8437): load and start a tune image.
- *
- * The original appends the resident driver's extension (.BEP / .ALB / .RLD,
- * 202F:40BC/40C1/40C6, chosen by [0x5AFE] at 1000:8462) to the caller's base
- * name, INT 63h-loads it, then sends cmd 0x0C.  The dedup is by name
- * *pointer*, exactly as `[0x40B8]` compares: the first call for a name loads
- * it, every later call returns.
- *
- * When the file is missing the original exits with an error (D-252); the port
- * stops the current record and stays silent until a later tune loads.  That
- * is the forced-Beeper case: only `LEVA.BEP` of the lettered level tunes
- * ships (bep_format.md §10).
- *
- * @param name the base name, e.g. "mus\\title"
- */
 void audio_play_tune(const char *name)
 {
     char path[24];
@@ -128,11 +103,6 @@ void audio_play_tune(const char *name)
     free(image);
 }
 
-/**
- * @brief The level's lettered tune (1000:326E / 0x139B+/0x13A2).
- *
- * @param level1 the 1-based level number ([0x1F41])
- */
 void audio_play_level_tune(uint32_t level1)
 {
     uint32_t letter = level1 ? (level1 - 1u) % 18u : 0u;
@@ -140,12 +110,6 @@ void audio_play_level_tune(uint32_t level1)
     audio_play_tune(audio_tune_lev);
 }
 
-/**
- * @brief music_resume (1000:83F7): start the loaded image's record 0.
- *
- * Returns when the latch `[0x40BB]` is already set or the MUSIC board is
- * off (`[0x5E5B]` non-zero).  Sends cmd 5 CX=0 then cmd 0x0A CL=0.
- */
 void audio_music_resume(void)
 {
     if (!_au_osys || _music_active) return;
@@ -165,9 +129,6 @@ void audio_music_resume(void)
     _music_active = 1;
 }
 
-/**
- * @brief music_stop (1000:8389): clear the latch and release the record.
- */
 void audio_music_stop(void)
 {
     if (!_au_osys) return;
@@ -177,11 +138,6 @@ void audio_music_stop(void)
     _au_osys->audioStop();
 }
 
-/**
- * @brief The front-end frame web's music gate (1000:A5E8).
- *
- * @param off the MUSIC board's counter [0x5E5B]
- */
 void audio_music_gate(uint32_t off)
 {
     if (!_au_osys) return;
@@ -195,13 +151,6 @@ void audio_music_gate(uint32_t off)
     _au_osys->audioTempo(AUDIO_TEMPO_MAX);
 }
 
-/**
- * @brief timing_loop (1000:84A5): start the master-volume fade-in.
- *
- * The original blocks for 75 x two vsyncs; the steps are spread over the
- * tick here (audio_tick), which is the same audio timeline and does not
- * stall the foreground.
- */
 void audio_fade_in(void)
 {
     if (!_au_osys || _fade_latch) return; /* 1000:84AF */
@@ -211,9 +160,6 @@ void audio_fade_in(void)
     _au_osys->audioTempo(0);
 }
 
-/**
- * @brief present_frames_75 (1000:835A): start the master-volume fade-out.
- */
 void audio_fade_out(void)
 {
     if (!_au_osys) return;
@@ -231,11 +177,6 @@ void audio_fade_out(void)
     _au_osys->audioTempo((uint8_t)_fade_step);
 }
 
-/**
- * @brief True while a fade is still stepping.
- *
- * @return 1 while fading, 0 when idle
- */
 int32_t audio_fade_busy(void) { return _fade_dir != 0; }
 
 /**
@@ -281,40 +222,16 @@ static void _tick_body(void)
     _au_osys->audioTick();
 }
 
-/**
- * @brief The game tick's audio step: one tick, unless the backend owns it.
- *
- * This is the original's per-display-period call (1000:8B1E).  A backend that
- * drives the tick from its audio sample clock (audio_render_tick) turns this
- * into a no-op so the sequencer advances on exactly one clock.
- */
 void audio_tick(void)
 {
     if (_render_clock) return;
     _tick_body();
 }
 
-/**
- * @brief One audio tick, called by the backend inside its render path.
- *
- * The register writes must land on the sample the tick is due at, not on the
- * next render chunk's edge: the original's ISR writes the OPL ports
- * synchronously.  See arch/sdl3/audio.c.
- */
 void audio_render_tick(void) { _tick_body(); }
 
-/**
- * @brief Say whether the backend drives the audio tick from the sample clock.
- *
- * @param on 1 while an audio stream is running and calls audio_render_tick
- */
 void audio_set_render_clock(int32_t on) { _render_clock = on; }
 
-/**
- * @brief driver_call (1000:83B7): start a sound-effect record.
- *
- * @param id the caller's event id
- */
 void audio_sfx(uint32_t id)
 {
     if (!_au_osys) return;

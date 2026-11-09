@@ -47,25 +47,78 @@ typedef enum AttractPhase {
     ATTRACT_DONE
 } AttractPhase;
 
-/* The shipped 202F:0x4DE top-10 (the attract's default table), for the
- * MAP/score screens' list. */
+/** @brief 202F:0x4DE — the top-10 (re_formats.md §11): the shipped defaults live in
+ * hiscore.c, which HISCORES.HUM overrides once a game has been played.
+ *
+ * The shipped 202F:0x4DE top-10 (the attract's default table), for the
+ * MAP/score screens' list.
+ *
+ * @return the number of attract high-score rows
+ */
 uint32_t attract_hiscore_count(void);
+
+/**
+ * @brief Accessor: one high-score score.
+ *
+ * @param i the index
+ * @return One high-score score.
+ */
 uint32_t attract_hiscore_score(uint32_t i);
+
+/**
+ * @brief Accessor: one high-score name.
+ *
+ * @param i the index
+ * @return One high-score name.
+ */
 const char *attract_hiscore_name(uint32_t i);
 
+/** @brief [0x1E7C] and [0xD3D] are not carried: in the decoded image they are
+ * write-only (the cycle/effect tag and the skip flag — the writers are in
+ * re_map.md § "The ATTRACT loop decoded"; no reader is traced), so the
+ * port records their semantics in comments instead of dead state.
+ *
+ * @param osys the backend interface
+ * @return 0 on success
+ */
 int32_t attract_init(const OSystem *osys);
 
-int32_t attract_tick(const InputState *in); /* 1 = the attract is playing */
-uint32_t attract_phase_for_probe(void); /* the tests' phase read      */
+/**
+ * @brief One attract tick; 1 = still playing.
+ *
+ * @param in the input state
+ * @return 1 while the attract cycle is playing
+ */
+int32_t attract_tick(const InputState *in);
 
-/* Effect 4's strip probe (the 192-KB work area at [0xD76] + the rows
- * built, [0xD39]): the byte-exact fixture test compares the fill against
- * tools/attract_scroll_sim.py's dump.  Valid from the first ATTRACT_E4
- * load until the next effect begins. */
+/**
+ * @brief Accessor: the attract phase (the tests' phase read).
+ *
+ * @return The attract phase.
+ */
+uint32_t attract_phase_for_probe(void);
+
+/** @brief the strip probe: the 192-KB work area and [0xD39] (the rows built) —
+ * the byte-exact fixture test compares these against the sim's dump.
+ *
+ * Effect 4's strip probe (the 192-KB work area at [0xD76] + the rows built,
+ * [0xD39]): the byte-exact fixture test compares the fill against
+ * tools/attract_scroll_sim.py's dump.
+ * Valid from the first ATTRACT_E4 load until the next effect begins.
+ *
+ * @param rowsOut the output row count
+ * @return the pointer, or NULL when unavailable
+ */
 const uint8_t *attract_strip_for_probe(uint32_t *rowsBuilt);
 
-/* Test seam: the attract's decimal formatter (1000:0AEC); the digits are
- * built LSB-first and reversed once, so every value prints in order. */
+/** @brief Test seam: the attract's decimal formatter (1000:0AEC).
+ *
+ * Test seam: the attract's decimal formatter (1000:0AEC); the digits are built
+ * LSB-first and reversed once, so every value prints in order.
+ *
+ * @param v the value
+ * @param out the output buffer (at least 8 bytes)
+ */
 void attract_format_decimal_for_probe(uint32_t v, char *out);
 
 #endif /* HUMANSRE_ATTRACT_H */

@@ -117,11 +117,6 @@ static void SDLCALL _audio_callback(void *userdata, SDL_AudioStream *stream,
     }
 }
 
-/**
- * @brief Install the AdLib driver emulation and open the stream.
- *
- * @return 0 on success, -1 when the driver or the stream cannot be created
- */
 int32_t sdl3_audio_install(void)
 {
     SDL_AudioSpec spec;
@@ -174,13 +169,6 @@ int32_t sdl3_audio_install(void)
     return 0;
 }
 
-/**
- * @brief Select the resident driver before the install ([0x5AFE]).
- *
- * @param name "adlib" (the default), "beeper" or "mt32"
- * @param roms the MT-32 ROM directory (required for "mt32")
- * @return 0 on success, -1 on an unknown name, -2 when mt32 has no ROM dir
- */
 int32_t sdl3_audio_select(const char *name, const char *roms)
 {
     if (!name || strcmp(name, "adlib") == 0) {
@@ -210,21 +198,8 @@ int32_t sdl3_audio_select(const char *name, const char *roms)
     return -1;
 }
 
-/**
- * @brief The backend's [0x5AFE] sound_driver_id (osystem.h).
- *
- * @return 0 for the Beeper, 1 for AdLib, 3 for the MT-32; -1 before a
- * selection is made
- */
 int32_t sdl3_audio_driver_id(void) { return _driver_id; }
 
-/**
- * @brief cmd 0x0C: hand the loaded tune image to the driver.
- *
- * @param image the .ALB image
- * @param size its byte length
- * @return 0, always
- */
 int32_t sdl3_audio_load_tune(const uint8_t *image, uint32_t size)
 {
     if (!_driver) return -1;
@@ -234,9 +209,6 @@ int32_t sdl3_audio_load_tune(const uint8_t *image, uint32_t size)
     return 0;
 }
 
-/**
- * @brief cmd 5, CX = 0: start the loaded tune's record 0 (music_resume).
- */
 void sdl3_audio_resume(void)
 {
     if (!_driver) return;
@@ -245,9 +217,6 @@ void sdl3_audio_resume(void)
     SDL_UnlockMutex(_lock);
 }
 
-/**
- * @brief cmd 6: release the current record (music_stop).
- */
 void sdl3_audio_stop(void)
 {
     if (!_driver) return;
@@ -257,14 +226,6 @@ void sdl3_audio_stop(void)
     SDL_UnlockMutex(_lock);
 }
 
-/**
- * @brief cmd 5, CX = id: start a sound-effect record.
- *
- * The original's driver_call stores the new handle in [0x5AF0], overwriting
- * the music handle; that is reproduced here.
- *
- * @param id the event id
- */
 void sdl3_audio_sfx(uint16_t id)
 {
     if (!_driver) return;
@@ -273,11 +234,6 @@ void sdl3_audio_sfx(uint16_t id)
     SDL_UnlockMutex(_lock);
 }
 
-/**
- * @brief cmd 0x0A: the master-volume byte.
- *
- * @param cl the game's byte
- */
 void sdl3_audio_tempo(uint8_t cl)
 {
     if (!_driver) return;
@@ -286,9 +242,6 @@ void sdl3_audio_tempo(uint8_t cl)
     SDL_UnlockMutex(_lock);
 }
 
-/**
- * @brief cmd 2: step the sequencer one tick.
- */
 void sdl3_audio_tick(void)
 {
     if (!_driver) return;

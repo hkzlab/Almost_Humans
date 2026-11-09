@@ -18,13 +18,6 @@
  * value itself (both in the map and in ver_detect_run's warning). */
 #define VER_DETECT_EN_HASH 0xCFDBFBFFu
 
-/**
- * @brief FNV-1a 32-bit digest of a byte buffer.
- *
- * @param buf the buffer (NULL is accepted when n is 0)
- * @param n the byte count
- * @return the digest, the offset basis for an empty buffer
- */
 uint32_t ver_detect_hash(const uint8_t *buf, uint32_t n)
 {
     uint32_t h = 0x811C9DC5u; /* the FNV-1a 32-bit offset basis */
@@ -35,12 +28,6 @@ uint32_t ver_detect_hash(const uint8_t *buf, uint32_t n)
     return h;
 }
 
-/**
- * @brief Map a HUMANS.001 digest to a game_strs column.
- *
- * @param hash a digest from ver_detect_hash over the VER_DETECT_LEN window
- * @return the enum GameLang index, GAME_LANG_EN for an unknown digest
- */
 int32_t ver_detect_lang(uint32_t hash)
 {
     switch (hash) {
@@ -56,13 +43,6 @@ int32_t ver_detect_lang(uint32_t hash)
     }
 }
 
-/**
- * @brief Identify the installed language from HUMANS.001.
- *
- * @param osys the backend interface (the warning's destination)
- * @return the enum GameLang index, GAME_LANG_EN on a missing, short or
- *         unrecognized volume (with a warning)
- */
 int32_t ver_detect_run(const OSystem *osys)
 {
     /* static: a 2 KiB stack frame is a lot on the constrained targets, and

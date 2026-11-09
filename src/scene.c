@@ -383,18 +383,8 @@ static int32_t _ani_decode_object(const Ani *a, uint32_t idx, uint8_t *out,
                               out_size, chkOut);
 }
 
-/**
- * @brief Test seam: skip the intro's per-frame waits.
- *
- * @param on the on/off flag
- */
 void scene_set_fast_mode(int32_t on) { _scene_fast = on ? 1u : 0u; }
 
-/** @brief Start a NEW cutscene on the next scene_play_level_intro call: cd_file_op has
- * no cache of its own, so two consecutive levels with the same intro index
- * must reload it.  The per-tick player otherwise keeps the finished index
- * (a finished intro stays finished).
- */
 void scene_reset_intro(void)
 {
     _scene_level = 0xFFFFu;
@@ -423,12 +413,6 @@ static void _scene_quit_fade(void)
     _scene_phase = SCENE_QUIT_FADE;
 }
 
-/**
- * @brief Bind the scene module to the backend.
- *
- * @param osys the backend interface
- * @return 0 on success
- */
 int32_t scene_init(const OSystem *osys)
 {
     _scene_osys = osys;
@@ -446,11 +430,6 @@ static int32_t _boot_key_state(void)
            (_scene_last_input.joyBits & 0x80u) != 0u;
 }
 
-/**
- * @brief Latch this tick's input for the scene waits.
- *
- * @param in the input state
- */
 void scene_note_input(const InputState *in) { _scene_last_input = *in; }
 
 /** @brief Any key or fire: the original's [0x48A3] / +0x5ACE bit-7 checks.  (The
@@ -582,12 +561,6 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
     return 0;
 }
 
-/**
- * @brief Play one level's .ANI newspaper for a frame; 1 = showing.
- *
- * @param introIndex the intro scene index
- * @return 1 while the newspaper is still showing
- */
 int32_t scene_play_level_intro(uint32_t introIndex)
 {
     /* cd_file_op's head (1000:AFFD): the ANIMATIONS board (cell 5,
@@ -1427,11 +1400,6 @@ static int32_t _boot_frame_step(void)
     return 1;
 }
 
-/**
- * @brief Play the power-on boot intro chain for one frame; 1 = showing.
- *
- * @return 1 while the boot intro is still showing
- */
 int32_t scene_play_boot_intro(void)
 {
     if (_boot_phase == BOOT_DONE) {
@@ -1729,11 +1697,6 @@ int32_t scene_play_boot_intro(void)
     return 0;
 }
 
-/** @brief probe hook: the boot state machine's current phase (read-only, for the
- * tests and the diagnostics)
- *
- * @return the boot phase
- */
 uint32_t scene_boot_phase_for_probe(void) { return (uint32_t)_boot_phase; }
 
 /** @brief probe hook: the AL expander, for the offline byte-comparisons against the

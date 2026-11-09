@@ -77,11 +77,6 @@ static const uint8_t _marker_r[88] = {
     0xE3, 0xE3, 0xE4, 0xE4, 0xE4, 0xE4, 0xE4, 0xE4, 0xE4, 0xE3, 0xE4,
 };
 
-/**
- * @brief Publish the text box's tile bank.
- *
- * @param box the box address
- */
 void textpage_publish_box(const uint8_t *box) { _tp_box = box; }
 
 /**
@@ -187,54 +182,18 @@ static void _draw_line(uint8_t *page, const char *line, uint32_t centreX,
     }
 }
 
-/** @brief One centred line on the page at `row` in a solid `colour` (not the
- * blit_text_tile path — used where there is no box underneath).
- *
- * @param page the page buffer
- * @param line the text line
- * @param row the row
- * @param colour the colour
- */
 void textpage_draw_line(uint8_t *page, const char *line, uint32_t row,
                         uint8_t colour)
 { _draw_line(page, line, 0xA0u, row, colour, 0); }
 
-/**
- * @brief The same line centred on an arbitrary x (draw_text's AX).
- *
- * @param page the page buffer
- * @param line the text line
- * @param centreX the centring x
- * @param row the row
- * @param colour the colour
- */
 void textpage_draw_line_at(uint8_t *page, const char *line, uint32_t centreX,
                            uint32_t row, uint8_t colour)
 { _draw_line(page, line, centreX, row, colour, 0); }
 
-/** @brief One centred line blitted the original way: `mask` OR'd into the page.
- * The box's fill tile is a vertical ramp EB..E4..EB (all the same red in the
- * palette) so the text becomes the grey ramp FB..F4..FB; that is why the
- * level's goal text is shaded and not flat white.
- *
- * @param page the page buffer
- * @param line the text line
- * @param row the row
- * @param mask the mask
- */
 void textpage_draw_line_mask(uint8_t *page, const char *line, uint32_t row,
                              uint8_t mask)
 { _draw_line(page, line, 0xA0u, row, mask, 1); }
 
-/**
- * @brief The same masked line centred on an arbitrary x.
- *
- * @param page the page buffer
- * @param line the text line
- * @param centreX the centring x
- * @param row the row
- * @param mask the mask
- */
 void textpage_draw_line_mask_at(uint8_t *page, const char *line,
                                 uint32_t centreX, uint32_t row, uint8_t mask)
 { _draw_line(page, line, centreX, row, mask, 1); }
@@ -348,15 +307,6 @@ static void _draw_outline(uint8_t *page, uint32_t top, uint32_t left,
         }
 }
 
-/**
- * @brief Draw a page of text into the page buffer.
- *
- * @param page the page buffer
- * @param text the text
- * @param cursorRow the cursor row
- * @param cursorCol the cursor column
- * @param grid the grid
- */
 void textpage_draw(uint8_t *page, const char *text, int32_t cursorRow,
                    uint32_t cursorCol, int32_t grid)
 {

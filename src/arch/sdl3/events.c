@@ -129,11 +129,6 @@ static int32_t _key_sets_held(SDL_Keycode k)
     }
 }
 
-/**
- * @brief Pump SDL events into the input state.
- *
- * @param out the output buffer
- */
 void sdl3_events_poll(InputState *out)
 {
     SDL_Event ev;
@@ -172,7 +167,4 @@ void sdl3_events_poll(InputState *out)
     _cur.keyScan = 0u;
 }
 
-/**
- * @brief Clear the input state.
- */
 void sdl3_events_init(void) { memset(&_cur, 0, sizeof _cur); }

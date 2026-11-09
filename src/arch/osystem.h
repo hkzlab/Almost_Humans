@@ -112,8 +112,15 @@ typedef struct OSystem {
     void (*fatalError)(const char *msg); /* does not return            */
 } OSystem;
 
-/* Implemented by each arch/<port>/; the arch layer's main() picks one and
- * hands it to game_main(). */
+/**
+ * @brief The application entry: boot, then the foreground flow loop.
+ *
+ * Implemented by each arch/<port>/; the arch layer's main() picks one and
+ * hands it to game_main().
+ *
+ * @param osys the backend interface
+ * @return 0 when the quit request ends the loop
+ */
 int32_t game_main(const OSystem *osys);
 
 #endif /* HUMANSRE_OSYSTEM_H */

@@ -6,6 +6,12 @@
 #include <string.h>
 
 extern const OSystem g_osys_null;
+
+/**
+ * @brief Stop the loop after a tick count (the headless executable's --ticks).
+ *
+ * @param n the limit in ticks; 0 runs until the input asks to quit
+ */
 extern void osys_null_set_tick_limit(uint32_t n);
 
 /**

@@ -43,24 +43,12 @@
 static uint8_t _save_buf[SAVE_LEN];   /* the [0x1C92] buffer          */
 static int32_t _save_loaded;          /** [0x34]: a save is present    */
 
-/**
- * @brief Bind the save module to the backend.
- *
- * @param osys the backend interface
- * @return 0 on success
- */
 int32_t save_init(const OSystem *osys)
 {
     (void)osys;
     return 0;
 }
 
-/** @brief entry:004C: slot 1..20 -> the letter 'A'+(n-1); 0 = GAME OFF.  Resets the
- * state first, so a failed/absent slot leaves the fresh-game path.
- *
- * @param slot the slot
- * @return 1 when the slot loaded, 0 otherwise
- */
 int32_t save_load_slot(uint32_t slot)
 {
     _save_loaded = 0;
@@ -76,51 +64,14 @@ int32_t save_load_slot(uint32_t slot)
     return 1;
 }
 
-/** @brief level_run's tail (1000:30B4): [0x34] := 0 after the level has started —
- * a later "restart this level" takes the LEVEL board's time again.
- */
 void save_consume(void) { _save_loaded = 0; }
 
-/**
- * @brief Accessor: a save is loaded.
- *
- * @return A save is loaded.
- */
 int32_t save_present(void) { return _save_loaded; }
-/**
- * @brief Accessor: the saved level word.
- *
- * @return The saved level word.
- */
 uint16_t save_level(void) { return rd_le_u16(_save_buf + 0x00); }
-/**
- * @brief Accessor: the saved time word.
- *
- * @return The saved time word.
- */
 uint16_t save_time(void) { return rd_le_u16(_save_buf + 0x07); }
-/**
- * @brief Accessor: the saved member count.
- *
- * @return The saved member count.
- */
 uint32_t save_members(void) { return rd_le_u16(_save_buf + 0x0B); }
-/**
- * @brief Accessor: the save blob.
- *
- * @return The save blob.
- */
 const uint8_t *save_blob(void) { return _save_buf; }
 
-/** @brief SAVE GAME (save_progress 1FE7:0000, re_formats.md §10.0): the 13-byte
- * header from the port's live state + the five state ranges.
- *
- * @param slot the slot
- * @param level the level number
- * @param timeWord the time word
- * @param members the member count
- * @return 1 when the whole save was written, 0 otherwise
- */
 int32_t save_write_slot(uint32_t slot, uint32_t level, uint16_t timeWord,
                         uint32_t members)
 {
@@ -153,9 +104,6 @@ int32_t save_write_slot(uint32_t slot, uint32_t level, uint16_t timeWord,
     return put == SAVE_LEN;
 }
 
-/** @brief entry:004C / load_level_record_a+_b: put the saved ranges back after the
- * level has been loaded and its map spawns have run.
- */
 void save_restore_state(void)
 {
     if (!_save_loaded) return;

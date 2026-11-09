@@ -153,9 +153,20 @@ static uint32_t _map_dirty[2][MAP_DIRTY_MAX];
 static uint32_t _map_dirty_n[2];
 static uint32_t _map_dirty_cur;
 static uint32_t _map_dirty_prev;
-/* the frame's art is the band sheet: the old text-page source painted the
- * list's own glyph bits as the blue scrolling bands the user rejected. */
+
+/** @brief 1000:0B85: the page is reset to HIGH.BIT.
+ *
+ * the frame's art is the band sheet: the old text-page source painted the
+ * list's own glyph bits as the blue scrolling bands the user rejected.
+ *
+ * @param page the page buffer
+ */
 static void _map_page_copy(uint8_t *page);
+
+/** @brief 1000:040B..0x0D76: the ring cell at an angle, `(0x10E-angle)/0x0C`.
+ *
+ * @return the cell index (0..29)
+ */
 static uint32_t _map_col_from_angle(void);
 
 /* --- the letter wheel: ALPHA.SPR + rotate_spinner_cell -------------------
@@ -324,12 +335,6 @@ static uint8_t _alpha_lo_left(uint8_t ah)
     return (uint8_t)(al & 0x0Fu);
 }
 
-/** @brief 1000:0705 expand_nibbles_4plane: the packed 4bpp sheet into four planes of
- * 0x4000 bytes (a literal port of the bit twiddling).
- *
- * @param src the source buffer
- * @param dst the destination buffer
- */
 void alpha_expand(const uint8_t *src, uint8_t *dst)
 {
     for (uint32_t p = 0; p < 4u; p++) {
@@ -454,15 +459,6 @@ static uint32_t _alpha_rot(uint32_t angle, uint32_t cx, uint32_t dx,
     return r;
 }
 
-/** @brief 1000:0F93: the ring angle -> (destination byte, source offset).  The x is
- * `157 + 132*cos` px, the y `79 + 124*sin` quarter-rows; the page stride is 80
- * and the `+0xF0` adds three rows.
- *
- * @param cell the map cell
- * @param angle the rotation angle
- * @param src the source buffer
- * @param dst the destination buffer
- */
 void alpha_cell(uint32_t cell, uint32_t angle, uint32_t *src, uint32_t *dst)
 {
     uint32_t bp = (_alpha_rot(angle, 0x9Du, 0x42u, 1) - 8u) & 0xFFFFu;
@@ -520,12 +516,6 @@ static void _map_wheel_draw(uint8_t *page, uint32_t base, int32_t record)
     }
 }
 
-/**
- * @brief Draw the letter wheel.
- *
- * @param page the page buffer
- * @param base the base offset
- */
 void alpha_draw_wheel(uint8_t *page, uint32_t base)
 { _map_wheel_draw(page, base, 0); }
 
@@ -565,12 +555,6 @@ static int32_t _map_glyph_draw(uint8_t *page, char c, int32_t x, int32_t y,
     return 1;
 }
 
-/** @brief 1000:0CBE init_display_lists' name pass, stateless: the typed
- * characters at their final row-0x45 slots.
- *
- * @param page the page buffer
- * @param name the name
- */
 void alpha_draw_name(uint8_t *page, const char *name)
 {
     uint32_t len = 0;
@@ -717,17 +701,6 @@ static void _map_blit_row(uint8_t *page, uint32_t dstByte, uint32_t srcByte,
     for (uint32_t iter = 0; iter < 14u; iter++) _blit_runs(page, &d, &s, mask);
 }
 
-/**
- * @brief 1000:07E6: the five frame bands from band row `[0x8AE]`.
- *
- * Each band reads `[0x8AE]*80 + 6` from the offscreen page (`0x0577` cleared
- * it and `0x0595` filled it with the rows; `0x0874` sets `DS = [0x8A4]`) and
- * advances 0x640 per box, writing the masked 4-pixel groups into the display
- * at `A000:[0x5AC4]`.
- *
- * @param page the page buffer
- * @param row the source row ([0x8AE])
- */
 void map_draw_box_edges(uint8_t *page, uint32_t row)
 {
     static const uint32_t dstByte[5] = { 0xE66u, 0x14A6u, 0x1AE6u, 0x2126u,
@@ -954,9 +927,6 @@ static void _map_palette_animate(void)
     }
 }
 
-/** @brief 1000:07B2 palette_reset: seed the shadows and animate twice (the
- * original's two planar page copies are the flat page itself in the port).
- */
 void map_palette_reset(void)
 {
     for (uint32_t i = 0; i < 4u; i++) {
@@ -967,87 +937,30 @@ void map_palette_reset(void)
     _map_palette_animate();
 }
 
-/** @brief Accessor: one animation channel word (the test seam).
- *
- * @param ch the channel (0..3)
- * @return the word, or 0 out of range
- */
 uint16_t map_anim_channel_for_probe(uint32_t ch)
 { return ch < 4u ? _map_ch[ch] : 0u; }
 
-/** @brief Advance the band animation one frame (the test seam for 1000:09DA).
- */
 void map_anim_tick_for_probe(void) { _map_palette_animate(); }
 
-/** @brief Accessor: the name screen's ring cell (the test seam).
- *
- * @return the cell (0..29)
- */
 uint32_t map_name_col_for_probe(void) { return _map_col; }
 
-/** @brief Accessor: the name-entry fire counter (the test seam).
- *
- * @return the [0x5AC8] model
- */
 uint32_t map_name_fire_wait_for_probe(void) { return _map_fire_wait; }
 
-/** @brief Accessor: the typed name buffer (the test seam).
- *
- * @return the name string
- */
 const char *map_name_for_probe(void) { return _map_name; }
 
-/** @brief Accessor: the opening step (the test seam).
- *
- * @return the 1000:021E..0x0285 step
- */
 uint32_t map_intro_step_for_probe(void) { return _map_intro; }
 
-/** @brief Accessor: the Enter sequence's phase (the test seam).
- *
- * @return 0 = fading to white, 1 = fading back, 2 = the header is up
- */
 uint32_t map_enter_step_for_probe(void) { return _map_enter_phase; }
 
-/** @brief Accessor: the Enter spin's BX counter (the test seam).
- *
- * @return the 0x04B9/0x0515 counter
- */
 uint32_t map_enter_bx_for_probe(void) { return _map_enter_bx; }
 
-/** @brief Accessor: one wheel glyph's rotation (the test seam).
- *
- * @param cell the ring cell (0..29)
- * @return the clockwise rotation in degrees (0 at the top)
- */
-/** @brief Accessor: the offscreen list page (the test seam).
- *
- * @return the 1000:8A4-style page buffer
- */
 uint8_t *map_off_page_for_probe(void) { return _map_off; }
 
-/** @brief Accessor: the ring angle [0x48] (the test seam).
- *
- * @return the angle
- */
 uint32_t map_name_angle_for_probe(void) { return _map_angle; }
 
-/** @brief Set the ring angle (the test seam for the erase check).
- *
- * @param angle the new [0x48]
- */
 void map_name_set_angle_for_probe(uint32_t angle)
 { _map_angle = angle % 0x168u; }
 
-/** @brief Accessor: one typed-name display entry (the test seam).
- *
- * @param i the glyph index
- * @param tx the target x
- * @param ty the target y
- * @param cx the current x
- * @param cy the current y
- * @return 1 when the index exists
- */
 int32_t map_glyph_for_probe(uint32_t i, int32_t *tx, int32_t *ty, int32_t *cx,
                             int32_t *cy)
 {
@@ -1059,34 +972,14 @@ int32_t map_glyph_for_probe(uint32_t i, int32_t *tx, int32_t *ty, int32_t *cx,
     return 1;
 }
 
-/** @brief Accessor: the staging page is filled (the test seam).
- *
- * @return 1 when ready
- */
 int32_t map_stage_ready_for_probe(void) { return _map_stage_ready; }
 
-/** @brief Accessor: one staging-page byte (the test seam).
- *
- * @param addr the byte address
- * @param plane the plane (0..3)
- * @return the byte, or 0 out of range
- */
 uint8_t map_stage_at(uint32_t addr, uint32_t plane)
 {
     if (addr >= MAP_STAGE_ADDRS || plane >= 4u) return 0u;
     return _map_stage[addr][plane];
 }
 
-/** @brief draw_score_block (1000:0651): the rank is centred at x=0x20, the name at
- * x=0x82, the 32-bit score at x=0x102, row pitch [0x36]=0x14 from base
- * [0x38]=0.
- *
- * `1000:0577` clears the **offscreen** page and `0x0595` draws the rows into
- * it; the displayed page keeps high.bit + the header.  The frame bands
- * (`0x07E6`) copy from this page into the display.
- *
- * @param page the offscreen page buffer
- */
 void map_draw_list(uint8_t *page)
 {
     uint32_t row = 0u;
@@ -1105,12 +998,6 @@ void map_draw_list(uint8_t *page)
     }
 }
 
-/** @brief 1000:0518's header frames: the five `0x0B5F` calls (15 outlines at
- * y = 0x2D + 0x14*i, x = 0x12/0x32/0xD6) and the title at 0xA0/0x14.  The
- * page is then cleared at 0x0577, so these only live on the transition.
- *
- * @param page the page buffer
- */
 void map_draw_list_header(uint8_t *page)
 {
     if (!page) return;
@@ -1126,11 +1013,6 @@ void map_draw_list_header(uint8_t *page)
         0x20u);
 }
 
-/**
- * @brief 1000:021E..1000:0266: the seven-line congratulation page.
- *
- * @param page the page buffer
- */
 void map_draw_congrats(uint8_t *page)
 {
     for (uint32_t i = 0; i < 7u; i++)
@@ -1140,22 +1022,8 @@ void map_draw_congrats(uint8_t *page)
             0x19u + 0x10u * i, 0x20u);
 }
 
-/**
- * @brief Test/probe seam: 1 after the first draw, 2 after the flip's redraw.
- *
- * @return the draw pass (1 or 2)
- */
 uint32_t map_congrats_draws(void) { return _map_congrats_draws; }
 
-/** @brief 1000:1251: a rectangle outline in the flat page.  The top edge ORs 0x40,
- * the left and bottom 0x50, the right 0x40 (1000:1263..1298).
- *
- * @param page the page buffer
- * @param x the x coordinate
- * @param y the y coordinate
- * @param w the width
- * @param h the height
- */
 void map_draw_rect(uint8_t *page, uint32_t x, uint32_t y, uint32_t w,
                    uint32_t h)
 {
@@ -1170,28 +1038,8 @@ void map_draw_rect(uint8_t *page, uint32_t x, uint32_t y, uint32_t w,
     }
 }
 
-/**
- * @brief Accessor: the MAP transition step.
- *
- * @return The MAP transition step.
- */
 uint32_t map_transition_step(void) { return _map_trans; }
-/**
- * @brief Accessor: the MAP fade's start count.
- *
- * @return The MAP fade's start count.
- */
 uint32_t map_fade_starts(void) { return _map_fade_starts; }
-/**
- * @brief Accessor: one MAP fade entry.
- *
- * @param i the index
- * @param first the first entry
- * @param entries the entry count
- * @param div the divisor
- * @param target the target value
- * @return One MAP fade entry.
- */
 int32_t map_fade_at(uint32_t i, uint32_t *first, uint32_t *entries,
                     uint32_t *div, uint32_t *target)
 {
@@ -1239,12 +1087,6 @@ static void _map_build_fade(uint32_t first, uint32_t entries, uint32_t div,
                        targetOff);
 }
 
-/**
- * @brief 1000:0CBE: clear the previous frame's cells, draw the 30-cell ring at
- * the current angle and the typed name at its display-list positions.
- *
- * @param page the page buffer
- */
 void map_draw_name(uint8_t *page)
 {
     if (!page) return;
@@ -1253,10 +1095,6 @@ void map_draw_name(uint8_t *page)
     _map_name_draw(page, 1);
 }
 
-/** @brief 1000:0B85: the page is reset to HIGH.BIT.
- *
- * @param page the page buffer
- */
 static void _map_page_copy(uint8_t *page)
 {
     if (!page) return;
@@ -1318,11 +1156,6 @@ static int32_t _map_move_tick(void)
     return 0;
 }
 
-/**
- * @brief Open the MAP screen.
- *
- * @return 1 when the MAP screen opened, 0 otherwise
- */
 int32_t map_begin(void)
 {
     if (_map_up) return 1;
@@ -1401,10 +1234,6 @@ int32_t map_begin(void)
     return 1;
 }
 
-/** @brief 1000:040B..0x0D76: the ring cell at an angle, `(0x10E-angle)/0x0C`.
- *
- * @return the cell index (0..29)
- */
 static uint32_t _map_col_from_angle(void)
 { return (((0x10Eu + 0x168u - _map_angle) % 0x168u) / 0x0Cu); }
 
@@ -1505,12 +1334,6 @@ static int32_t _map_apply(uint32_t column)
     return 0;
 }
 
-/**
- * @brief One MAP tick; 1 = still up.
- *
- * @param in the input state
- * @return 1 while the MAP screen is up
- */
 int32_t map_tick(const InputState *in)
 {
     if (!_map_up) return 0;
