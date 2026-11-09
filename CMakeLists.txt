@@ -105,7 +105,19 @@ set(HUMANS_DATA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../binaries/volumes/ENG"
     CACHE PATH "Game data directory with HUMANS.000/001/002")
 set(HUMANS_FIX_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../binaries/resources/ENG"
     CACHE PATH "Extracted-tree fixture for the byte-exact expectations")
-add_executable(test_res tests/test_res.c)
+# The MT-32 ROMs are not part of the repository.  Default to the checkout's
+# set (or a HUMANS_MT32_ROMS already exported); the mt32 test skips when this
+# is empty or does not exist.
+set(HUMANS_MT32_ROM_DIR "$ENV{HUMANS_MT32_ROMS}"
+    CACHE PATH "MT-32 ROM directory (MT32_CONTROL.ROM/MT32_PCM.ROM)")
+if(NOT HUMANS_MT32_ROM_DIR)
+    set(_humans_mt32_guess "${CMAKE_CURRENT_SOURCE_DIR}/../binaries/MT32/MT32_legacy")
+    if(EXISTS "${_humans_mt32_guess}")
+        set(HUMANS_MT32_ROM_DIR "${_humans_mt32_guess}")
+    endif()
+endif()
+add_executable(test_res tests/test_res.c
+    src/arch/null/OSystem.c)
 target_include_directories(test_res PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 target_link_libraries(test_res PRIVATE core fs_posix)
 humansre_warnings(test_res)
@@ -368,15 +380,19 @@ humansre_warnings(test_beeper)
 add_test(NAME beeper COMMAND test_beeper ${HUMANS_FIX_DIR} ${HUMANS_DATA_DIR})
 
 # The MT-32 driver module against a real .RLD and a real ROM set.  The ROMs
-# are not shipped, so the test skips unless HUMANS_MT32_ROMS names a
-# directory holding them (MT32_CONTROL.ROM / MT32_PCM.ROM or any compatible
-# pair, including MAME-style split images).
+# are not shipped: ctest passes HUMANS_MT32_ROM_DIR when it exists, and the
+# test skips when it does not (MT32_CONTROL.ROM / MT32_PCM.ROM or any
+# compatible pair, including MAME-style split images).
 if(HUMANSRE_MT32)
     add_executable(test_mt32 tests/test_mt32.c)
     target_include_directories(test_mt32 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch ${MT32EMU_INCLUDE_DIR})
     target_link_libraries(test_mt32 PRIVATE ${MT32EMU_LIBRARY})
     humansre_warnings(test_mt32)
     add_test(NAME mt32 COMMAND test_mt32 ${HUMANS_FIX_DIR})
+    if(HUMANS_MT32_ROM_DIR AND EXISTS "${HUMANS_MT32_ROM_DIR}")
+        set_tests_properties(mt32 PROPERTIES
+            ENVIRONMENT "HUMANS_MT32_ROMS=${HUMANS_MT32_ROM_DIR}")
+    endif()
 endif()
 
 # The headless reference port: no SDL dependency, always builds.
