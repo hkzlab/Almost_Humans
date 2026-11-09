@@ -107,7 +107,10 @@ void script_fire(CueScript *s, uint32_t frame)
             break;
         case CUE_QUIT: s->quit = 1; break;
         case CUE_SCROLL: s->scrollDelta = arg; break;
-        case CUE_DWELL: s->groupDwell = arg; break;
+        case CUE_DWELL:
+            s->groupDwell = arg;
+            s->dwellPending = 1; /* b94e: [0x6460] = [0x6462] = arg */
+            break;
         }
         if (s->quit) return;
     }
@@ -118,6 +121,8 @@ void script_fire(CueScript *s, uint32_t frame)
 int32_t script_quit(const CueScript *s) { return s->quit; }
 int32_t script_done(const CueScript *s) { return s->done; }
 uint32_t script_group_dwell(const CueScript *s) { return s->groupDwell; }
+int32_t script_dwell_pending(const CueScript *s) { return s->dwellPending; }
+void script_dwell_done(CueScript *s) { s->dwellPending = 0; }
 int32_t script_scroll_on(const CueScript *s) { return s->scrollOn; }
 uint32_t script_scroll_delta(const CueScript *s) { return s->scrollDelta; }
 uint32_t script_transition_index(const CueScript *s)

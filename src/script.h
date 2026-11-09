@@ -10,6 +10,7 @@
 typedef struct {
     uint32_t frame; /* the current frame (the player advances it) */
     uint32_t groupDwell; /* cmd 7: frames per display-list group       */
+    int32_t dwellPending; /* cmd 7 fired: [0x6462] must reload        */
     int32_t scrollOn; /* cmd 3 on / cmd 2 off                       */
     uint32_t scrollDelta; /* cmd 6: the scroll advance per frame        */
     uint32_t transitionIdx; /* cmd 1: run_screen_transition index         */
@@ -70,12 +71,27 @@ int32_t script_quit(const CueScript *s);
 int32_t script_done(const CueScript *s);
 
 /**
- * @brief Accessor: the group dwell count.
+ * @brief Accessor: the group dwell count (1000:B94E set [0x6460]).
  *
  * @param s the cue script
  * @return The group dwell count.
  */
 uint32_t script_group_dwell(const CueScript *s);
+
+/**
+ * @brief Accessor: a dwell cue fired (its handler set [0x6460] and [0x6462]).
+ *
+ * @param s the cue script
+ * @return A dwell cue fired since the last script_dwell_done().
+ */
+int32_t script_dwell_pending(const CueScript *s);
+
+/**
+ * @brief Clear the script's dwell-pending flag.
+ *
+ * @param s the cue script
+ */
+void script_dwell_done(CueScript *s);
 
 /**
  * @brief Accessor: the scroll gate.
