@@ -6,6 +6,7 @@
  */
 #include "fs/fs.h"
 
+#include <stdint.h>
 #include <stdio.h>
 
 /**

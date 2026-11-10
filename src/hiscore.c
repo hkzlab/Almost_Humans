@@ -1,7 +1,9 @@
 #include "hiscore.h"
 #include "byteorder.h"
 #include "fs/fs.h"
+#include "osystem.h"
 
+#include <stdint.h>
 #include <string.h>
 
 #define HIS_LEVELS 160u // the table's 1-based level count

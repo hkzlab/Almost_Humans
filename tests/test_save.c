@@ -32,8 +32,8 @@
 #include "compat.h"
 #include "byteorder.h"
 
+#include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 #define SAVE_LEN  0x1800u

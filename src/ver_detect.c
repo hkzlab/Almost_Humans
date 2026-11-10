@@ -1,7 +1,9 @@
 #include "ver_detect.h"
 #include "game_strs.h"
 #include "fs/fs.h"
+#include "osystem.h"
 
+#include <stdint.h>
 #include <stdio.h>
 
 #define VER_DETECT_EN_HASH 0xCFDBFBFFu // GOG's CD English version volume digest

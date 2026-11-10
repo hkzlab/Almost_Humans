@@ -29,7 +29,9 @@
 #include "byteorder.h"
 #include "fs/fs.h"
 
+#include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 extern const uint8_t *osys_null_page(int32_t which);

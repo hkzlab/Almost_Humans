@@ -6,8 +6,6 @@
  * picks the module, the launcher's [0x5AFE].
  * Deviation: D-251 (the music tick runs on the audio sample clock).
  */
-#include "osystem.h"
-
 #include "audio.h"
 #include "audio/sound_driver.h"
 #include "gameflow.h"

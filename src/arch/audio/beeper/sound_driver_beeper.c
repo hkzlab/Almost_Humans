@@ -15,6 +15,7 @@
 #include "byteorder.h"
 #include "thirdparty/pcspeaker_impulse.h"
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 

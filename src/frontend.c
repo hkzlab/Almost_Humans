@@ -6,6 +6,7 @@
 #include "res.h"
 #include "video.h"
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 

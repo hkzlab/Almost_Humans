@@ -2,6 +2,7 @@
 #include "osystem.h"
 
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 
 #define SCRIPT_FRAME_TARGET 387u   // the live frame counter ran 0..386

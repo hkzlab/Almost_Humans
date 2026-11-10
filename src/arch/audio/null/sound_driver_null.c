@@ -4,6 +4,7 @@
  */
 #include "audio/sound_driver.h"
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

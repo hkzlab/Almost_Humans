@@ -11,7 +11,9 @@
  *   HUMANS_MT32_ROMS=/path/to/roms ctest -R mt32
  */
 #include "audio/mt32/sound_driver_mt32.c"
+#include "audio/sound_driver.h"
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

@@ -35,8 +35,8 @@
 #include "byteorder.h"
 
 #include <inttypes.h>
+#include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 extern const OSystem g_osys_null;

@@ -21,9 +21,9 @@
 #include "res.h"
 #include "score.h"
 #include "video.h"
-#include "compat.h"
 
 #include <inttypes.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

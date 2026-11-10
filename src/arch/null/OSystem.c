@@ -5,7 +5,9 @@
  * backend matches.
  */
 #include "osystem.h"
+#include "fs/fs.h"
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>

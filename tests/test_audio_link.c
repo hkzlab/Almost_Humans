@@ -14,6 +14,7 @@
 #include "compat.h"
 #include "font.h"
 #include "frontend.h"
+#include "fs/fs.h"
 #include "level.h"
 #include "osystem.h"
 #include "palette.h"

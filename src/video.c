@@ -1,6 +1,7 @@
 #include "video.h"
 #include "osystem.h"
 
+#include <stdint.h>
 #include <string.h>
 
 static const OSystem *_video_osys;

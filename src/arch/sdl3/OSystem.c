@@ -5,9 +5,10 @@
  * and --version.
  */
 #include "osystem.h"
+#include "fs/fs.h"
 
 #include <SDL3/SDL.h>
-#include <SDL3/SDL_oldnames.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>

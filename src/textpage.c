@@ -2,6 +2,7 @@
 #include "font.h"
 #include "osystem.h"
 
+#include <stdint.h>
 #include <string.h>
 
 #define TEXT_LIMIT 96u

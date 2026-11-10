@@ -8,6 +8,7 @@
 #include "osystem.h"
 
 #include <SDL3/SDL.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 static TickFn _the_tick;

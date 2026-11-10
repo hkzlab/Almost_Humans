@@ -5,6 +5,7 @@
 #include "statusbar.h"
 #include "textpage.h"
 
+#include <stdint.h>
 #include <string.h>
 
 #define MENU_ROWS 5u

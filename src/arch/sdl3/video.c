@@ -8,6 +8,7 @@
 #include "osystem.h"
 
 #include <SDL3/SDL.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 static VideoMode _vid_mode = (VideoMode)-1;   // the core's last mode set

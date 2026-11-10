@@ -1,5 +1,6 @@
 #include "audio.h"
 #include "frontend.h"
+#include "osystem.h"
 #include "res.h"
 
 #include <stdint.h>

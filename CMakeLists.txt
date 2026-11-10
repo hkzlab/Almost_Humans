@@ -41,6 +41,27 @@ function(humansre_test_asserts tgt)
     endif()
 endfunction()
 
+# The unused-include audit: with this ON, clang-tidy's include-cleaner fails
+# the build on every #include whose declarations the file never uses.  Opt-in,
+# like the narrowing audit below it: it needs clang-tidy and adds a tidy pass
+# to each translation unit.  Only the unused half runs - the missing-include
+# half would demand one header per symbol, which contradicts the umbrella
+# headers the projects ship (SDL3/SDL.h, mt32emu.h); those two are ignored so
+# the convention does not read as an unused include.
+option(HUMANSRE_UNUSED_INCLUDES "Fail the build on unused #includes" OFF)
+if(HUMANSRE_UNUSED_INCLUDES)
+    find_program(HUMANSRE_CLANG_TIDY NAMES clang-tidy REQUIRED)
+    set(CMAKE_C_CLANG_TIDY "${HUMANSRE_CLANG_TIDY}"
+        "--checks=-*,misc-include-cleaner"
+        "--config={CheckOptions: {misc-include-cleaner.MissingIncludes: false, misc-include-cleaner.IgnoreHeaders: '(SDL3/SDL[.]h$|mt32emu[.]h$)'}}"
+        "--warnings-as-errors=misc-include-cleaner")
+    # the vendored emulators keep their upstream #include set (CMake >= 3.27)
+    set_source_files_properties(
+        src/arch/audio/adlib/thirdparty/opl3.c
+        src/arch/audio/beeper/thirdparty/pcspeaker_impulse.c
+        PROPERTIES SKIP_LINTING TRUE)
+endif()
+
 # The narrowing audit: with this ON, every implicit
 # integer truncation or sign change aborts the program at the site, so the test
 # suite proves the narrowed locals never silently wrap.  The third-party OPL3

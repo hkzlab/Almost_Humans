@@ -6,6 +6,7 @@
 #include "width.h"
 
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 
 /* --- the record and the array space ------------------------------------ */

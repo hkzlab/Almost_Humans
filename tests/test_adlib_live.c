@@ -14,9 +14,11 @@
  * Usage: test_adlib_live <path to TITLE.ALB>
  */
 #include "audio/adlib/sound_driver_adlib.c"
+#include "audio/sound_driver.h"
 
 #include <assert.h>
 #include <math.h>
+#include <stdint.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>

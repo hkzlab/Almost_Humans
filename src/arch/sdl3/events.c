@@ -9,6 +9,7 @@
 #include "osystem.h"
 
 #include <SDL3/SDL.h>
+#include <stdint.h>
 #include <string.h>
 
 static InputState _cur;

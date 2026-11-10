@@ -20,11 +20,15 @@
 #include "audio/beeper/sound_driver_beeper.c"
 
 #include "audio.h"
+#include "audio/sound_driver.h"
+#include "byteorder.h"
 #include "compat.h"
+#include "fs/fs.h"
 #include "osystem.h"
 #include "res.h"
 
 #include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

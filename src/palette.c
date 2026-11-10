@@ -2,6 +2,8 @@
 #include "osystem.h"
 #include "width.h"
 
+#include <stdint.h>
+
 static const OSystem *_pal_osys;
 static uint8_t _working[768];   // 202F:0x4BBC - the _working palette
 static uint8_t _dac[768];       // the DAC's 6-bit shadow (8bac's IN 3C9h)

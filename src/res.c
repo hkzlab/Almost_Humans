@@ -3,6 +3,7 @@
 #include "byteorder.h"
 #include "fs/fs.h"
 
+#include <stdint.h>
 #include <stdlib.h>
 
 typedef struct VolReader {

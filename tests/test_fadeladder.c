@@ -31,10 +31,9 @@
 #include "party_intro.h"
 #include "res.h"
 #include "video.h"
-#include "compat.h"
 
+#include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 extern const OSystem g_osys_null;

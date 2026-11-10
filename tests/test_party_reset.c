@@ -14,6 +14,7 @@
 #include "video.h"
 #include "compat.h"
 
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 

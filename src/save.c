@@ -7,6 +7,7 @@
 #include "byteorder.h"
 #include "fs/fs.h"
 
+#include <stdint.h>
 #include <string.h>
 
 #define SAVE_LEN 0x1800u

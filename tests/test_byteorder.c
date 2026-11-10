@@ -5,6 +5,7 @@
  * BE host alike. */
 #include "byteorder.h"
 
+#include <stdint.h>
 #include <stdio.h>
 
 static int32_t _bad;

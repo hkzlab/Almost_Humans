@@ -3,6 +3,7 @@
 #include "byteorder.h"
 #include "width.h"
 
+#include <stdint.h>
 #include <stdio.h>
 
 /* 202F:0x1E28 - the charset (44 glyphs + the terminator). */
