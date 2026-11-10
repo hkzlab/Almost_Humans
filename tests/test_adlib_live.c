@@ -67,6 +67,38 @@ int main(int argc, char **argv)
         fprintf(stderr, "usage: %s <TITLE.ALB>\n", argv[0]);
         return 2;
     }
+
+    /* Regression (2026-11-10): the melodic index is a byte.  ADLIB.DRV 0x0BD0
+     * does SUB AL,0x0C / MOV BX,[BX+0x0E8C] with no range test, so HUMFX's
+     * note 7 wraps to 0xFB and reads word 0x1082 - zero, not the bottom table
+     * entry (the clamp that was D-250, closed 2026-11-10).  A note-12 index
+     * reads the table's first entry.
+     * 0x1088 (index 0xFE) is the OPL init state's reg 0xBD byte 0x20, so the
+     * word there is 0x2000; index 0x60 is the tick command table's first
+     * handler, 0x0814 at 0x0F4C. */
+    assert(_note_entry(12) == 0x0157);
+    assert(_note_entry(13) == 0x016C);
+    assert(_note_entry(7) == 0x0000);
+    assert(_note_entry(10) == 0x2000);
+    assert(_note_entry(11) == 0x0000);
+    assert(_note_raw(0) == 0x0157);
+    assert(_note_raw(12) == 0x1157);
+    assert(_note_raw(96) == 0x0814);
+    {
+        SoundDriver *note = _adlib_create(48000);
+
+        assert(note != NULL);
+        _note_on(note, 0, 12);
+        assert(note->slot[0].note_entry == 0x0157);
+        assert((note->shadow[0xA0] | ((note->shadow[0xB0] & 3u) << 8)) ==
+               0x0157);
+        _note_on(note, 0, 7); /* HUMFX's note: fnum 0, block 0 */
+        assert(note->slot[0].note_entry == 0x0000);
+        assert(note->shadow[0xA0] == 0x00);
+        assert((note->shadow[0xB0] & 0x7Fu) == 0x20); /* key-on, block 0 */
+        _adlib_destroy(note);
+    }
+
     f = fopen(argv[1], "rb");
     if (!f) {
         printf("skip: %s missing\n", argv[1]);
