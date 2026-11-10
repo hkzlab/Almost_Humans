@@ -63,7 +63,7 @@ static struct {
  * the 5 far pointers - is loader-constructed, 0 file bytes; row J advances
  * by the LITERAL si += word[si] (the length word is part of the skip), then
  * 8 bytes; field M (a u16 count + 4-byte entries) is the palette-rotation
- * table, handed back to the caller.  Byte-exact over BD1..BD6 (2026-10-23). */
+ * table, handed back to the caller.  Byte-exact over BD1..BD6. */
 typedef struct BdPage {
     const uint8_t *aTable; // field A: the per-tile slope profiles
     uint32_t aSize;
@@ -102,7 +102,7 @@ typedef struct BdPage {
  */
 enum {
     DISK_OFF,
-    DISK_MUSIC, // 1000:204b's timing_loop holds the page
+    DISK_MUSIC, // 1000:204B's timing_loop holds the page
     DISK_FADE_IN,
     DISK_WAIT,
     DISK_FADE_OUT,
@@ -111,8 +111,7 @@ enum {
 
 static const uint8_t _rec_sig[SIG_LEN] = { 0x00, 0x20, 0x00, 0x14, 0x00, 0x00 };
 
-/* The 202F:0x6287-equivalent: the intro cue state lives in script.c; the
- * level's own state: */
+/* The loaded record and the level's own state. */
 static LevelData _level_data_cur;
 /* The writable map the game plays on: 1000:3138 copies the record's 640 bytes
  * to [0x1FA0], and 1000:51F9 (the 0xA9 handler) marks two cells of it.  Keeping
@@ -295,10 +294,6 @@ static uint8_t *_atlas; // 0x400 + 169*256
 static uint8_t *_bg_image; // 512*320 + 768
 static uint8_t *_world; // the 512x320 composite (BG + terrain)
 
-/* DEFS\BD<style>.BIN field M = the palette-rotation table, one 4-byte entry
- * per range: {timer, reload, first DAC entry, entry count}.  It is the table
- * palette_rotate_table (1000:8C78) walks from 202F:0x1FC6; only BD3 has a
- * range (4 entries at 0x71, every 4th tick). */
 /* DEFS\BD<style>.BIN's page tables (the terrain-page system behind
  * page_offset_to_ptr, 1000:F123): 256 x 16 mask bytes per tile id and the
  * 16-word item records field B offsets into.  Built by the same loader that
@@ -323,12 +318,15 @@ static uint8_t *_page_items; // field B + its record area
 static uint32_t _page_items_size;
 static uint8_t _page_valid;
 static uint8_t _k_bytes[4]; // field K: [0x6F20], [0x6F0B]
+/* Field M, the palette-rotation table: one 4-byte entry per range
+ * {timer, reload, first DAC entry, entry count}; palette_rotate_table
+ * (1000:8C78) walks it from 202F:0x1FC6.  Only BD3 has a range. */
 static uint8_t *_anim_table;
 static uint16_t _anim_count;
 
 /* DS:0x1413 - the shipped 64-entry gradient that draw_level_text copies into
- * palette entries 0x80..0xBF (0x33F2, 0xC0 bytes).  The runtime buffer was
- * read live from the running game (DS 0x123A:0x1413) on 2026-11-01. */
+ * palette entries 0x80..0xBF (0x33F2, 0xC0 bytes); matches the live runtime
+ * buffer (DS 0x123A:0x1413). */
 static const uint8_t _level_end_gradient[0xC0] = {
     0x3Cu, 0x28u, 0x3Cu, 0x3Cu, 0x26u, 0x3Cu, 0x3Cu, 0x24u, 0x3Cu, 0x3Cu, 0x22u,
     0x3Cu, 0x3Cu, 0x20u, 0x3Cu, 0x3Cu, 0x1Eu, 0x3Cu, 0x3Cu, 0x1Cu, 0x3Cu, 0x3Cu,
@@ -350,15 +348,10 @@ static const uint8_t _level_end_gradient[0xC0] = {
     0x00u, 0x00u, 0x02u, 0x00u, 0x00u,
 };
 
-/* The in-level per-tick render (draw_map_digit 1000:4F22 + draw_terrain
- * 1000:4FEF): the BG fills the 512x320 screen buffer, draw_terrain blits the
- * map's tiles over it (tile ids >= 0xA9 are empty and let the BG through;
- * every non-zero tile byte gains the +0x20 bank bias and a zero byte is not
- * stored, so the BG shows through the tile's transparent pixels), and the
- * visible 320x200 window reads the buffer's left edge (the CRTC start at
- * scroll 0,0), the status bar, and the working palette 202F:0x14D3 built at
- * load.  The entity / logic systems land with entity.c.  Returns 1 while
- * the level is running. */
+/* [0x5ACE]: this tick's input word, the level's per-tick render being
+ * draw_map_digit (1000:4F22) + draw_terrain (1000:4FEF) over the 512x320
+ * screen buffer: tile ids >= 0xA9 are empty, and a zero tile byte is not
+ * stored, so the BG shows through the transparent pixels. */
 static uint8_t _level_joy; // [0x5ACE]: this tick's input word
 
 static uint8_t _disk_phase = DISK_OFF;
@@ -1312,7 +1305,7 @@ void level_loading_begin(void)
     free(_load_dic);
     _load_dic = NULL;
     _load_dic_size = 0;
-    /* 1000:1E9C's style table f,s,c,w,d,p indexed by style-1; 0xEA8 is
+    /* 1000:1E9B's style table f,s,c,w,d,p indexed by style-1; 0xEA8 is
      * the 'd' in "backs\dicon.apl" - the level's own preview card */
     {
         static const char letter[6] = { 'f', 's', 'c', 'w', 'd', 'p' };
@@ -1351,12 +1344,12 @@ uint8_t level_loading_screen(void)
     return _load_phase == 1 || _load_phase == 2;
 }
 
-/** @brief The background: a clean black page plus BACKS\DICON.APL's 80x56 card at
- * (0x50,0x60), above the level's 40-row status bar (152..191).  The 3310
- * blit writes 20 bytes per plane from the 80-pixel source with the page
- * row stride 0x58; the image is 4 pixels per byte (80 px, not 160 - the
+/** @brief The background: a clean black page plus the style's DICON.APL card
+ * at (0x78,0x60), above the level's 40-row status bar (152..191).  The
+ * 1000:1F10 blit writes 20 bytes per plane from the 80-pixel source with the
+ * page row stride 0x58; the image is 4 pixels per byte (80 px, not 160 - the
  * party compose's x>>2 law), so it must NOT be doubled.  The card is
- * opaque (index 0 = its black frame) - the level's DESERT preview.
+ * opaque (index 0 = its black frame) - the level's style preview.
  *
  * @param page the page buffer
  */
@@ -1382,7 +1375,7 @@ static void _load_draw_background(uint8_t *page)
  * @brief Blit one 16x24 loading-screen sprite at (x, y).
  *
  * @param page the page buffer
- * @param off the offset
+ * @param off the sprite offset in the loading bank
  * @param x the x coordinate
  * @param y the y coordinate
  */
@@ -1406,8 +1399,8 @@ static void _load_sprite(uint8_t *page, uint32_t off, int32_t x, int32_t y)
  * @param page the page buffer
  * @param list the list
  * @param entries the entry count
- * @param lo the low word
- * @param hi the high word
+ * @param lo the left x bound
+ * @param hi the right x bound
  * @param yoff the y offset
  */
 static void _load_draw_one(uint8_t *page, const uint8_t *list, uint16_t entries,
@@ -1460,9 +1453,9 @@ void level_loading_tick(void)
             y += dy;
             if (y > 0x56) y = 0x56;
         }
-        /* 1000:1EBD..1EC7: on the batch's LAST pass (BP == 1, i.e. this tick
-         * is the 0xA0th/0x56th) every frame below 0x10 is raised to 0x10
-         * before the cycle tests it (D-111, closed 2026-11-05). */
+        /* 1000:1EBD..1EC7: on the batch's last pass (BP == 1, the
+         * 0xA0th/0x56th tick) every frame below 0x10 is raised to 0x10
+         * before the cycle tests it. */
         if (_load_left == 1u && spr < 0x10u) spr = 0x10u;
         if (_load_cx == 0 && spr < 0x10u) {
             spr++;
@@ -1589,7 +1582,7 @@ void level_follow_view(void)
 uint16_t level_view_x(void) { return _view_x; }
 uint16_t level_view_y(void) { return _view_y; }
 
-/** @brief --- menu_flag_tick (1000:3540): the goal pan -------------------------
+/** @brief menu_flag_tick (1000:3540): the goal pan.
  *
  * input_dispatch_loop calls it before scroll_map/update_world.  When the goal
  * scan has raised [0x6530] and the pan has not run, the original finds the
@@ -1623,9 +1616,7 @@ static void _level_goal_pan_tick(void)
 {
     /* 1000:3568 is the track loop's head, so the view is captured every frame
      * the pan tracks - including after [0x6530] has fallen, which the original
-     * cannot see inside its blocking loop.  Returning before the capture left
-     * the pan stuck in TRACK for ever whenever the human stepped off the
-     * activity block (the goal scan clears [0x6530] mid-pan). */
+     * cannot see inside its blocking loop. */
     if (_level_goal_pan_running()) {
         if (_goal_pan_state == GOALPAN_TRACK) {
             _goal_pan_view_x = _view_x; // 1000:3568
@@ -1941,16 +1932,14 @@ static void _world_build(void)
     }
 }
 
-/** @brief The per-frame world pass: `present_and_blit` (`1000:A0E1`) copies the
- * prebuilt `_world` window into the page with `blit_bitmap_planes`
- * (`1000:4C4E`), then runs `render_objects` (`1000:5D56`) and the bar.  The
- * level bitmap itself is drawn once, at load (`_world_build`).
- * The original's `blit_bitmap_call` (`1000:4C28`) draws the level bitmap into
- * BOTH pages before level_fade_in's eight `update_world` frames:
- *   DI = 0x1200 -> CALL 0x4C4E     (page A)
- *   DI = 0x8100 -> CALL 0x4C4E     (page B)
- * The flat port has one page, so a single pass is the whole of that pre-draw,
- * and the same function serves the frames after it.
+/** @brief The per-frame world pass: present_and_blit (1000:A0E1).
+ *
+ * Copies the prebuilt `_world` window into the page with blit_bitmap_planes
+ * (1000:4C4E), then runs render_objects (1000:5D56) and the bar.  The level
+ * bitmap is drawn once, at load (`_world_build`).  The original's
+ * blit_bitmap_call (1000:4C28) draws it into BOTH pages (DI = 0x1200 then
+ * 0x8100) before the eight update_world frames; the flat port has one page,
+ * so one pass is that pre-draw and the same function serves the frames after.
  */
 static void _render_world(void)
 {
@@ -2125,7 +2114,7 @@ uint8_t level_tick(void)
      * The original reads the table from 202F:0x1FC6, i.e. field M.  The
      * hook is installed only after level_fade_in's fade completes (the
      * fade chases this same buffer), so no rotation while one is running.
-     * The claim also freezes it (`[0x410C] = 0xFF` at 1000:3B16). */
+     * The claim also freezes it (`[0x410C] = 0xFF` at 1000:3B1E). */
     for (uint16_t e = 0; e < _anim_count && _start_phase == LVSTART_PLAYING &&
                          !palette_fade_active() && !object_claim_active();
          e++) {
@@ -2184,8 +2173,7 @@ uint8_t level_tick(void)
      * pre-level art there, so those fades recolour IT while the DAC walks to
      * 0x14D3 - the _world's first frames are the eight update_world passes of
      * level_fade_in, drawn while the DAC is at black (the fade-out of 0..0xBF
-     * runs first, 1000:3334).  Drawing here made the level appear at full
-     * brightness for those frames and then fade to black and in again. */
+     * runs first, 1000:3334). */
     /* 0x3FB3 is the play frame's flush, inside 0x3F4A (see `_render_world`);
      * the chain's fades and the loading come before the first play frame. */
     if (_start_phase != LVSTART_WARMUP && _start_phase != LVSTART_FADE_IN &&

@@ -156,12 +156,11 @@ int32_t resources_init(const OSystem *osys)
     return res_init_state;
 }
 
-/** @brief The ISR body: the fixed per-tick work, in the original's order (the flip
- * apply happens inside video/palette's charge; the content modules are
- * real).  The entity update is NOT here: the
- * original runs it from the level's per-frame body (update_world
- * 1000:80E1, called once per display period from level_run), so it lives
- * in level_tick().
+/** @brief The ISR body: the fixed per-tick work, in the original's order.
+ *
+ * The entity update is not here: the original runs it from the level's
+ * per-frame body (update_world 1000:80E1, once per display period from
+ * level_run), so it lives in level_tick().
  */
 static void _game_tick(void)
 {
@@ -179,11 +178,10 @@ uint8_t gameflow_goal_page_up(void) { return _goal_showing; }
 uint8_t gameflow_goal_armed(void) { return _goal_page; }
 uint8_t gameflow_key_wait_active(void) { return _key_wait_stage != 0; }
 
-/** @brief one tick of 1000:3954's three wait loops; returns 1 while the wait owns the
- * input.
+/** @brief One tick of 1000:3954's three wait loops.
  *
  * @param in the input state
- * @return 1 while the wait owns the frame, 0 when it ends
+ * @return 1 on every wait frame, including the release frame that ends it
  */
 static uint8_t _key_wait_step(const InputState *in)
 {
@@ -256,8 +254,7 @@ static void _level_restart_finish(void)
     _level_publish_goal();
     /* 1000:3073: level_start tests [0x34] and plays the party screen when it
      * is zero.  A restart is not the RESTORE GAME path (the only writer of
-     * 0xFF, 1000:008A), so the party runs again - live-confirmed in the
-     * original (2026-11-02). */
+     * 0xFF, 1000:008A), so the party runs again. */
     _party_tried = 0;
     _party_playing = 0;
 }
@@ -467,8 +464,7 @@ GameFlow gameflow_step(GameFlow state, const InputState *input)
          * Enter with a codes.bin match; both fade out and hand the level
          * to the flow (entry's PUSH AX at 004B / POP AX at 00BA move
          * [0x5F09] into [0x22] - the level counter here).  ESC stays in
-         * the room (it clears the typed name; the decode settled the
-         * stub-era ESC-to-attract guess was wrong). */
+         * the room and clears the typed name. */
         if (frontend_tick(input)) return FLOW_MENU;
         _level_current = frontend_selected_level() - 1u;
         /* entry:004C: the room's RESTORE GAME counter ([0x5E6F], carried
@@ -625,21 +621,17 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
     }
     const LevelData *lv = level_data();
     if (lv && !_party_tried) {
-        /* level_run's values: the level letter (the [0x1f41]
-             * 1-based), the need ([0x17fb]), the tribe members
-             * ([0x11fc] = 12/10/8 by the LEVEL board, or the save's
-             * +0x0B), the score ([0x592], fresh load = 0) and the
-             * briefing's code line ([0x1189], load_level's author
-             * string).  A no-data run skips (start returns 0). */
+        /* level_run's values: the level number ([0x1F41], 1-based), the
+             * need ([0x17FB]), the tribe ([0x11FC] = 12/10/8 by the LEVEL
+             * board, or the save's +0x0B), the score ([0x592]) and the
+             * briefing's code line ([0x1189], the level record's author).
+             * A no-data run skips (start returns 0). */
         _party_tried = 1;
         /* level_run 3073: [0x34] != 0 takes the JNZ 307D path and
              * skips the fresh-load party screen entirely. */
         if (!save_present()) {
-            /* level_intro_screen's values: the level number
-                 * ([0x1F41]), the humans needed ([0x17FB] = the map's
-                 * 0xAA count - NOT the record's goal-count byte), the
-                 * tribe ([0x11FC]) and the score ([0x592]; the port has
-                 * no running score yet - 0, documented). */
+            /* [0x17FB] is the map's 0xAA count, NOT the record's
+                 * goal-count byte; the score is [0x592]. */
             party_intro_set_game_over(_level_skipped);
             party_intro_set_values(
                 _level_current + 1u, level_required(), level_tribe_members(),
@@ -762,11 +754,8 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
             if (!level_outcome()) {
                 /* 1000:41B5 -> 1000:438A: a lost level skips the score
                  * card but still runs present_frames_75 + music_stop
-                 * (0x43B6/0x43B9) before entry's post-level step.  The
-                 * port used to jump straight to the step, leaving the
-                 * level record live; a RESTART THIS GAME then loaded
-                 * mus\title over it and the old record played the new
-                 * image (the wrong menu tune). */
+                 * (0x43B6/0x43B9) before entry's post-level step, so the
+                 * level's record is released before the next tune. */
                 _post_pending = 1;
                 audio_fade_out(); // 0x43B6
                 _score_fade = 1;
@@ -939,7 +928,7 @@ static uint8_t _flow_ending_frame(GameFlow *state, const InputState *input)
  * @param osys the backend interface
  * @param state the flow state
  * @param last_tick the last presented tick
- * @param prev the previous value
+ * @param prev the previous flow state
  * @param quit_requested the quit flag (in/out)
  * @return 1 to present the frame, 0 to quit
  */

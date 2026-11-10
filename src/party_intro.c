@@ -99,12 +99,10 @@ static struct Script _scripts[SCRIPT_COUNT];
 
 static uint8_t *_script_store; // the seeded bodies (memcpy'd)
 
-/* === the file-image script seed (2026-10-30: the tables are STATIC bytes
- * of the MZ image - the 202F:0xFA8 / 0x1028 hexdumps == the live DS
- * read-back; the sub-lists are never rewritten by traced code, so no seed
- * writer exists.  The countdowns slug the _slots' _phase: {10,8,6,4,5,0,7,9};
- * a count of 0 (slot 5) counts up to 8 on its first tick per 2909
- * DEC-then-test.) */
+/* The file-image script seed: the tables are static bytes of the MZ image
+ * (202F:0xFA8 / 0x1028) and no traced code rewrites the sub-lists.  The
+ * countdowns {10,8,6,4,5,0,7,9} phase the slots; slot 5's 0 counts up to 8
+ * on its first tick (2909's DEC-then-test). */
 static const uint8_t _slots_file[128] = {
     0xf0, 0x2f, 10, 1, 0, 0, 1, 1, 1, 3, 6, 3, 6, 1, 1, 1,
     0xf8, 0x31, 8,  1, 0, 0, 6, 6, 6, 6, 4, 5, 4, 5, 1, 1,
@@ -197,15 +195,15 @@ void party_intro_format_score(uint32_t v, char *out)
     *out = '\0';
 }
 
-/** @brief the party's in-place number formatter (1000:3F1B): writes `width`
- * characters at `dst` (zero- or space-padded) and returns; the string's
- * tail is untouched, and a number wider than the field spills into it -
- * both exactly as the original does (its "HUMANS TO COMPLETE" and
- * " MEMBERS!" tails survive the patch).
+/** @brief the party's in-place number formatter (1000:3F1B).
+ *
+ * Writes the digits at `dst` and returns past them; the template's tail after
+ * the digits is untouched, so a wider number spills into it exactly as the
+ * original's "HUMANS TO COMPLETE" / " MEMBERS!" tails do.
  *
  * @param dst the destination buffer
  * @param v the value
- * @return the pointer, or NULL when unavailable
+ * @return the new end of the string
  */
 static char *_put_number(char *dst, uint32_t v)
 {
@@ -219,12 +217,12 @@ static char *_put_number(char *dst, uint32_t v)
     return dst + n; // the formatter's SI
 }
 
-/** @brief the string appender at 0x2660: the tail replaces whatever the template
- * had after the digits (" MEMBERS!" for the tribe line)
+/** @brief 0x2660: append `src`, replacing the template's tail after the digits
+ * (" MEMBERS!" for the tribe line).
  *
  * @param dst the destination buffer
  * @param src the source buffer
- * @return the pointer, or NULL when unavailable
+ * @return the new end of the string
  */
 static char *_append_str(char *dst, const char *src)
 {
@@ -233,9 +231,9 @@ static char *_append_str(char *dst, const char *src)
     return dst;
 }
 
-/**
- * @brief === the A000 helpers ==================================================
- */
+/* --- the A000 helpers ------------------------------------------------ */
+
+/** @brief 2AF5: clear arena rows 20..87 (0x640..0x1B80). */
 static void _clear_canvas(void) // 2af5: rows 20..87 = 0x640..0x1B80
 { memset(video_arena() + 0x640u, 0, 68u * 80u); }
 
@@ -305,10 +303,10 @@ static void _blit_slot(uint32_t frame)
 }
 
 /**
- * @brief 2a76..2a95: the marquee's source offset and destination row for a
- * phase/cell pair.  Factored out so the 0x160-phase word can be tested without
- * a full party screen (a byte-sized phase wrapped at 0x100 and stopped the
- * bird half-way across).
+ * @brief 2A76..2A95: the marquee's source offset and destination row for a
+ * phase/cell pair.
+ *
+ * Factored out so the 0x160-phase word can be tested without a full screen.
  *
  * @param phase the [0xf9e] phase (0..0x15F)
  * @param cell the [0xf9c] cell (0..0xB)
@@ -387,11 +385,11 @@ static void _anim_entities(void)
     _flip_page();
 }
 
-/** @brief 2e94 _draw_text_ramped - arena-resident per the original: the glyph
- * stroke lands in the CANVAS only (the = "2c1d never runs here"); the
- * per-call 28e9 animates the _slots/_marquee and flips, but the TEXT does
- * not reach the display until the next 2C1D (inside 2b9c/2bda) - the
- * original's "all text fades in together at the first band redraw".
+/** @brief 2E94 _draw_text_ramped: the glyph stroke lands in the canvas only.
+ *
+ * The per-call 28E9 animates the slots/marquee and flips, but the text does
+ * not reach the display until the next 2C1D (inside 2B9C/2BDA): all text
+ * fades in together at the first band redraw.
  *
  * @param s the text line
  * @param centreX the centring x
@@ -485,9 +483,9 @@ static int32_t _expand_nibbles(const uint8_t *src, uint32_t n, uint8_t *dst)
 }
 
 /**
- * @brief 28c2 shift_right_1
+ * @brief 28c2 shift_right_1: shift a 0xA0-byte row right by one bit.
  *
- * @param d the value
+ * @param d the row
  */
 static void _shift_right1(uint8_t *d)
 {

@@ -16,7 +16,7 @@ static InputState _cur;
 /**
  * @brief Map a key event onto the joystick bit word.
  *
- * @param k the loop counter
+ * @param k the SDL keycode
  * @param down the key-down flag
  */
 static void _joy_bits(SDL_Keycode k, int32_t down)
@@ -28,15 +28,11 @@ static void _joy_bits(SDL_Keycode k, int32_t down)
     case SDLK_LEFT: mask = 0x04u; break;
     case SDLK_RIGHT: mask = 0x08u; break;
     case SDLK_Z:
+        /* The configured action key ([0x5B05] = scancode 0x2C = Z).  Only
+         * this key sets the action bit: an Enter mapping here made the
+         * attract's action-bit escape fire on Enter. */
         mask = 0x80u;
-        break;   /* the configured action key
-                                              * ([0x5B05] = scancode 0x2C
-                                              * = Z) - ONLY this key sets
-                                              * the action bit; Enter and
-                                              * friends must not (the
-                                              * attract's action-bit
-                                              * escape fired on a stub-era
-                                              * Enter mapping) */
+        break;
     default: return;
     }
     if (down) _cur.joyBits |= mask;
@@ -49,7 +45,7 @@ static void _joy_bits(SDL_Keycode k, int32_t down)
  * other key leaves 0, and the port's other screens read the translated code
  * in lastKey.
  *
- * @param k the loop counter
+ * @param k the SDL keycode
  * @return the PC set-1 scancode, or 0 when unmapped
  */
 static uint8_t _scan_code(SDL_Keycode k)
@@ -77,7 +73,7 @@ static uint8_t _scan_code(SDL_Keycode k)
 /**
  * @brief Map an SDL keycode onto the DOS scan code.
  *
- * @param k the loop counter
+ * @param k the SDL keycode
  * @return the DOS key code, or 0 when unhandled
  */
 static uint8_t _key_code(SDL_Keycode k)
@@ -154,14 +150,10 @@ void sdl3_events_poll(InputState *out)
         }
     }
     *out = _cur;
-    /* The ISR's [0x48A3] is rewritten by every make - the BIOS typematic
-     * repeats included - and the front-end consumes it (AA4E/AA50); between
-     * makes it holds.  The SDL queue's KEY_DOWN events (the OS's typematic
-     * repeats included) are those makes: deliver each once in lastKey, then
-     * clear it until the next make lands.  Without this a held key latches
-     * and the name screen fills at tick rate instead of the typematic's
-     * delay-then-repeat.  keyHeld is the other half of the same byte: the
-     * level the boot/attract tests read, cleared only by the release. */
+    /* A make is delivered once, then cleared until the next one: the ISR
+     * rewrites [0x48A3] on every typematic repeat, so a held key must not
+     * refill the name screen at tick rate.  keyHeld carries the level the
+     * boot/attract tests read; every release clears it (1000:942F). */
     _cur.lastKey = 0u;
     _cur.keyScan = 0u;
 }

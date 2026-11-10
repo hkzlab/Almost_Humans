@@ -49,16 +49,20 @@ int32_t level_init(const OSystem *osys);
 int32_t level_load(uint16_t levelId);
 
 /**
- * @brief Accessor: the loaded LevelData record (NULL before a load).
+ * @brief Accessor: the loaded LevelData record.
  *
- * @return The loaded LevelData record.
+ * @return the record, or NULL before a load
  */
 const LevelData *level_data(void);
 
 /**
- * @brief Accessor: the 640-cell map buffer (== level_data()->map).
+ * @brief Accessor: the live 640-cell map buffer.
  *
- * @return The 640-cell map buffer.
+ * The loader's writable copy of LevelData.map (1000:3138).  In play
+ * object_load_terrain_objects and the 0xA9 handler rewrite it; the record's
+ * own map (level_data()->map) stays the pristine parsed copy.
+ *
+ * @return the map buffer, or NULL before a load
  */
 const uint8_t *level_map(void);
 
@@ -70,10 +74,9 @@ const uint8_t *level_map(void);
 uint32_t level_style(void);
 
 /**
- * @brief the level's working palette 202F:0x14D3 (_level_pal above)
+ * @brief the level's working palette 202F:0x14D3.
  *
- * the working palette 202F:0x14D3 (the fade target of the claim, the level's
- * own fades and the rotate hook)
+ * The fade target of the claim, the level's own fades and the rotate hook.
  *
  * @return the pointer, or NULL when unavailable
  */
@@ -114,20 +117,20 @@ void level_end_redraw_page(void);
  */
 void level_claim_recolour(void);
 
-/** @brief the claim's frozen page (1000:3D04 -> 1000:3CB5): the original draws
- * the world once, recolours it black on the pan, and then only presents the
- * spark strip plus the selected/claimed records.  This is that frame in the
- * flat model: the spark step, the plane->page present, 1000:40CA's two records
- * during the animation, and the bar (which lives outside the recoloured page).
+/** @brief the claim's frozen page (1000:3D04 -> 1000:3CB5).
  *
- * the claim's frozen page: 1000:40CA (the two records) + 1000:3F4A (the spark)
- * over the recoloured page, never a world re-compose.
+ * The original draws the world once, recolours it black on the pan, then only
+ * presents the spark strip plus the selected/claimed records.  In the flat
+ * model that is 1000:40CA's two records + 1000:3F4A's spark over the recoloured
+ * page, never a world re-compose, plus the bar (outside the recoloured page).
  */
 void level_claim_frame(void);
 
-/** @brief page_offset_to_ptr (1000:F123): 0 when the tile id's 16-byte page mask is
- * all-negative (every sub-cell empty) AND its 16-word item record sums to 0
- * (16-bit wrap, as DX).  The caller (op 3) bails on a non-zero return.
+/** @brief page_offset_to_ptr (1000:F123): 1 when the tile's page bytes are free.
+ *
+ * That is: the 16-byte page mask is all-negative (every sub-cell empty) AND the
+ * 16-word item record sums to 0 (16-bit wrap, as DX).  The caller (op 3) bails
+ * on a non-zero return.
  *
  * @param id the identifier
  * @return 1 when the tile's page bytes are free, 0 otherwise
@@ -138,13 +141,11 @@ uint8_t level_page_free(uint32_t id);
  * low 7 bits the step, 1000:E389) and `[0x1FD6]`'s 16-word item records
  * (1000:F25F's occupancy bit). */
 
-/** @brief Field K, the level's four special tile ids: `[0x6F20]`/`[0x6F21]` (the walk
- * states compare the cell under the feet with them) and the second word
- * `[0x6F0B]`/`[0x6F0C]` (`1000:4E99`, which the fall machine's `1000:F7CD`
- * type compare indexes with `type - 0x19`, and `1000:E30E` reads directly).
+/** @brief Field K, the level's four special tile ids.
  *
- * Field K, both words: i = 0/1 are the first word's two tile ids
- * ([0x6F20]/[0x6F21]), i = 2/3 the second word's ([0x6F0B]/[0x6F0C]).
+ * i = 0/1 are the first word's two tile ids ([0x6F20]/[0x6F21], compared with
+ * the cell under the feet), i = 2/3 the second word's ([0x6F0B]/[0x6F0C];
+ * 1000:4E99, the fall machine's type compare at 1000:F7CD and 1000:E30E).
  *
  * @param i the index
  * @return the special tile id, or 0xFFFF when out of range
@@ -221,11 +222,8 @@ void level_set_view(uint16_t x, uint16_t y);
  */
 void level_follow_view(void);
 
-/** @brief [0xC]: the claim clears it at its start (1000:3B19) and restores it before
- * the closing page frames (1000:3CAB).
- *
- * [0xC]: update_world's gate (set by level_fade_in 1000:336C, cleared by the
- * claim at 1000:3B19 and restored at 1000:3CAB).
+/** @brief [0xC], update_world's gate: set by level_fade_in (1000:336C), cleared
+ * by the claim at 1000:3B19 and restored at 1000:3CAB.
  *
  * @param on the on/off flag
  */
@@ -242,35 +240,34 @@ void level_set_offset_word(uint16_t v);
 /**
  * @brief Accessor: the record's offset word.
  *
- * @return The record's offset word.
+ * @return the word
  */
 uint16_t level_offset_word(void);
 
 /**
- * @brief test seam: the walk's pointer back to the table's first pair
- *
- * 1000:5D37's walk pointer ([0x2D90]) back to the table's first pair.
+ * @brief Test seam: 1000:5D37's walk pointer ([0x2D90]) back to the table's
+ * first pair.
  */
 void level_reset_offset_walk(void);
 
 /**
  * @brief Accessor: the world-update gate ([0xC]).
  *
- * @return The world-update gate.
+ * @return 1 while update_world runs, 0 otherwise
  */
 uint8_t level_updates(void);
 
 /**
  * @brief Accessor: the camera's x.
  *
- * @return The camera's x.
+ * @return the x
  */
 uint16_t level_view_x(void);
 
 /**
  * @brief Accessor: the camera's y.
  *
- * @return The camera's y.
+ * @return the y
  */
 uint16_t level_view_y(void);
 
@@ -294,7 +291,7 @@ void level_spark_begin(uint16_t ox, uint16_t oy, const uint8_t *shade);
 /**
  * @brief Accessor: the spark effect is running.
  *
- * @return The spark effect is running.
+ * @return 1 while running, 0 otherwise
  */
 uint8_t level_spark_active(void);
 
@@ -309,7 +306,7 @@ uint8_t level_spark_active(void);
 uint8_t level_spark_strip_at(uint32_t col, uint32_t row, uint32_t plane);
 
 /**
- * @brief the first live slot, for the tests: writes its _world position and value.
+ * @brief The first live spark slot's world position and value (the test seam).
  *
  * @param x the x coordinate
  * @param y the y coordinate
@@ -319,10 +316,8 @@ uint8_t level_spark_strip_at(uint32_t col, uint32_t row, uint32_t plane);
 int32_t level_spark_peek(uint32_t *x, uint32_t *y, uint32_t *value);
 
 /**
- * @brief the same queue bytes the original keeps at 0x48BC, for object.c's DS window
- *
- * the 0x48BC queue as the original's 0x2C0-byte window, for object.c's DS
- * record model (offset 0 = 0x48BC).
+ * @brief The 0x48BC queue as the original's 0x2C0-byte window (offset 0 =
+ * 0x48BC), for object.c's DS record model.
  *
  * @param off the offset
  * @return the spark byte
@@ -337,24 +332,22 @@ uint8_t level_spark_byte(uint32_t off);
  */
 void level_spark_set_byte(uint32_t off, uint8_t value);
 
-/** @brief The play loop's input (1000:8526's output; the backend already produces the
- * same shape in InputState.joyBits).  Kept out of level_tick's signature so the
- * front-end screens call it the same way as the original's shared sampler.
+/** @brief Latch the play loop's [0x5ACE] for the command dispatch (1000:E3F6).
  *
- * 1000:8526's [0x5ACE] for the play loop's command dispatch (1000:E3F6).
+ * 1000:8526's output; the backend already produces the same shape in
+ * InputState.joyBits.  Kept out of level_tick's signature so the front-end
+ * screens share it.
  *
  * @param in the input state
  */
 void level_note_input(const InputState *in);
 
 /**
- * @brief level_fade_in: start the level's fade and first play frame.
+ * @brief level_fade_in (1000:3334): arm the start chain.
  *
- * level_fade_in (1000:3334): the start chain - fade out of the pre-level
- * screen, the eight update_world frames, the fade in to the working palette,
- * then the bar's ticking gate.
- * level_begin arms it once; the phases advance in level_tick, so
- * level_starting() is true until the level is playable.
+ * Fade out of the pre-level screen, eight update_world frames, the fade in to
+ * the working palette, then the bar's ticking gate.  Armed once; the phases
+ * advance in level_tick, so level_starting() is true until playable.
  */
 void level_begin(void);
 
@@ -385,10 +378,9 @@ uint8_t level_loading_screen(void);
 void level_loading_tick(void);
 
 /**
- * @brief --- level_run's end and the entry state machine's spine --------------
+ * @brief level_run 3060/3062: the level's required humans.
  *
- * level_run 3060/3062: the level's required humans ([0x17FB], the map's 0xAA
- * count) against the tribe ([0x11FC]).
+ * [0x17FB] is the map's 0xAA count, compared against the tribe ([0x11FC]).
  * A tribe that is too small plays the briefing's GAME OVER variant and the
  * level is SKIPPED; [0x1809] then takes entry 1000:00DC -> 002B (the
  * restart-game path), not the next level.
@@ -407,7 +399,7 @@ uint32_t level_goal_count(void);
 /**
  * @brief Accessor: the tribe's current member count.
  *
- * @return The tribe's current member count.
+ * @return the count
  */
 uint16_t level_members(void);
 
@@ -417,11 +409,10 @@ uint16_t level_members(void);
 void level_add_member(void);
 
 /**
- * @brief 1000:41E6 (check_highscore): store the tribe counter + live-record recount
- * into [0x11FC].
+ * @brief 1000:41E6 (check_highscore): store the tribe counter + live-record
+ * recount into [0x11FC].
  *
- * The only per-level write besides the difficulty pick/restore/join; the
- * port's earlier per-death decrement is not in the image.
+ * The only per-level write besides the difficulty pick/restore/join.
  *
  * @param n the recounted member count
  */
@@ -476,16 +467,7 @@ uint8_t level_disk_status_tick(const InputState *in);
  */
 void level_disk_status_reset(void);
 
-/** @brief the level-end test: object_test_dispatch (1000:35D6) returning negative
- * ends the play loop; [0x138E] stays 0xFF for a win and is cleared for the
- * extinct/time-out paths.  The six handlers all exist now: object_test_dispatch
- * maps the level's own mode word onto them (the array predicates, the entity
- * table and the two data conditions this file owns - the goal hook and the
- * tribe count).  level_end_test runs from level_tick's play phase, like the
- * original's call in input_dispatch_loop.
- *
- * level_goal_reached is the win hook the discovery/claim path sets; a lost
- * tribe member decrements the live count and ends the level at zero.
+/** @brief The win hook the discovery/claim path sets.
  */
 void level_goal_reached(void);
 
@@ -497,6 +479,10 @@ void level_member_lost(void);
 /**
  * @brief The level-end test (object_test_dispatch's negative return).
  *
+ * Runs from level_tick's play phase, like the original's call in
+ * input_dispatch_loop.  [0x138E] stays 0xFF for a win and is cleared for the
+ * extinct/time-out paths.
+ *
  * @return 1 when the level-end test fires, 0 otherwise
  */
 uint8_t level_end_test(void);
@@ -504,7 +490,7 @@ uint8_t level_end_test(void);
 /**
  * @brief Accessor: the play loop's end reached and its hold finished.
  *
- * @return The play loop's end reached and its hold finished.
+ * @return 1 when the level is over, 0 otherwise
  */
 uint8_t level_ended(void);
 
@@ -527,15 +513,14 @@ void level_set_end(uint8_t won);
 /**
  * @brief Accessor: 1 when the level was won ([0x138E]: 1 won, 0 extinct).
  *
- * @return 1 when the level was won.
+ * @return 1 won, 0 extinct
  */
 uint8_t level_outcome(void);
 
-/** @brief [0x5D31] and [0x11FC] after the LEVEL board's pick (the bar's seed; the
- * party screen reads the members too).
+/** @brief [0x5D31] after level_load's LEVEL-board pick: the record's timeA/B/C
+ * word (the bar's seed).
  *
- * [0x5D31] / [0x11FC] after level_load's LEVEL-board pick: the record's
- * timeA/B/C word and the 12/10/8 starting tribe (entry 1000:009F,
+ * The same pick sets the 12/10/8 starting tribe in [0x11FC] (entry 1000:009F,
  * render_level_frame 1000:9589).
  *
  * @return the time limit word
@@ -545,12 +530,12 @@ uint16_t level_time_limit(void);
 /**
  * @brief Accessor: the tribe's member count.
  *
- * @return The tribe's member count.
+ * @return the count
  */
 uint16_t level_tribe_members(void);
 
 /**
- * @brief the stamped background and the P block, for the exit/igloo test
+ * @brief The stamped background, for the exit/igloo test.
  *
  * @return the pointer, or NULL when unavailable
  */
@@ -568,21 +553,21 @@ int32_t level_exit_stamp_y(uint32_t col, uint32_t row);
 /**
  * @brief Accessor: the record's P block (exit art).
  *
- * @return The record's P block (exit art).
+ * @return the pointer, or NULL when unavailable
  */
 const uint8_t *level_p_block_for_probe(void);
 
 /**
  * @brief Accessor: the loaded background index.
  *
- * @return The loaded background index.
+ * @return the index
  */
 uint16_t level_bg_index_for_probe(void);
 
 /**
  * @brief Accessor: the record's C block (0xA9 background art).
  *
- * @return The record's C block (0xA9 background art).
+ * @return the pointer, or NULL when unavailable
  */
 const uint8_t *level_c_block_for_probe(void);
 
@@ -602,18 +587,15 @@ const uint8_t *level_c_block_for_probe(void);
 void level_draw_bg_sprites(uint8_t *page, int32_t scrollX, int32_t scrollY);
 
 /**
- * @brief Accessor: the loaded record's animation frame count.
+ * @brief Accessor: the level's [0x6532] (BD field F, 0 when absent).
  *
- * the level's [0x6532] (BD field F, 0 when absent).
- *
- * @return The loaded record's animation frame count.
+ * @return the animation frame count
  */
 uint32_t level_anim_frames(void);
 
 /**
- * @brief 1000:1FD4's per-tile slope profile at `sub` (signed -4..+4).
- *
- * 1000:1FD4 field A: the per-tile signed slope profile (behaviour 4).
+ * @brief 1000:1FD3 field A: the per-tile signed slope profile at `sub`
+ * (behaviour 4, signed -4..+4).
  *
  * @param id the identifier
  * @param sub the sub-column

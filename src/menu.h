@@ -24,23 +24,26 @@ void menu_init(const OSystem *osys);
  */
 void menu_open_pause(void);
 
-/** @brief input_dispatch_loop 34F9: [0x5E44] != 0 shows the 3-option time-up block
- * (A167's loop; the _result is dispatched inline, 0-based: 0 restart this
- * level -> level_restore, 1 restart this game -> the room, 2 quit).
+/**
+ * @brief input_dispatch_loop 34F9: open the 3-option time-up block when
+ * [0x5E44] != 0.
+ *
+ * A167's loop; its result is dispatched inline, 0-based: 0 restart this level
+ * (level_restore), 1 restart this game (the room), 2 quit.
  */
 void menu_open_time_up(void);
 
 /**
- * @brief Accessor: the menu is the time-up variant (the dialog currently open).
+ * @brief Accessor: the dialog currently open is the time-up variant.
  *
- * @return The menu is the time-up variant.
+ * @return 1 for the time-up block, 0 for the pause menu
  */
 uint8_t menu_time_up(void);
 
 /**
  * @brief Accessor: the pause/time-up menu is up.
  *
- * @return The pause/time-up menu is up.
+ * @return 1 while a dialog is open, 0 otherwise
  */
 uint8_t menu_active(void);
 
@@ -58,23 +61,22 @@ uint8_t menu_tick(const InputState *in);
 void menu_draw(void);
 
 /**
- * @brief Accessor: the selected entry (the 0-based pause choice, -1).
+ * @brief Accessor: the selected entry, the 0-based pause choice.
  *
- * The original's result is A167's AX, read from the word `[0x5E3B]`
- * (`MOV AX, word ptr [0x5e3b]`, 1000:A1FD), so an `int16_t`.
+ * The original's result is A167's AX, read from `[0x5E3B]` (1000:A1FD), so an
+ * `int16_t`; -1 while nothing is chosen.
  *
- * @return The selected entry.
+ * @return the selected entry, or -1
  */
 int16_t menu_result(void);
 
 /**
- * @brief Accessor: the selected slot (the grid's game number 1..20).
+ * @brief Accessor: the grid's game number 1..20.
  *
- * The original computes the number in AX (`save_progress`, 1FE7:0008:
- * `[0x5E3D]*4 + [0x5E3B]`) and turns it into the drive letter; 1..20 fits a
- * `uint8_t`.
+ * The original computes it in AX (`save_progress`, 1FE7:0008:
+ * `[0x5E3D]*4 + [0x5E3B]`) and turns it into the drive letter.
  *
- * @return The selected slot.
+ * @return the selected slot
  */
 uint8_t menu_slot(void);
 

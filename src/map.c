@@ -35,9 +35,9 @@ struct MapFade {
     uint16_t first, entries, div, target;
 };
 
-/* 1000:024B..1000:0266: the qualifying page`s seven lines at DS:0x7BB..0x85C
- * (verbatim, from the image), drawn at x=0xA0, y=0x19 + 0x10*line with
- * blit_text_tile`s 0x20 mask.  The lines are game_strs' MAP_CONGRATS block. */
+/* 1000:024B..1000:0266: the qualifying page's seven lines at DS:0x7BB..0x85C
+ * (verbatim from the image), drawn at x=0xA0, y=0x19 + 0x10*line with
+ * blit_text_tile's 0x20 mask.  The lines are game_strs' MAP_CONGRATS block. */
 
 static uint8_t *_map_high;
 static uint32_t _map_high_size;
@@ -122,9 +122,6 @@ static uint8_t _map_dirty_prev;
 
 /** @brief 1000:0B85: the page is reset to HIGH.BIT.
  *
- * the frame's art is the band sheet: the old text-page source painted the
- * list's own glyph bits as the blue scrolling bands the user rejected.
- *
  * @param page the page buffer
  */
 static void _map_page_copy(uint8_t *page);
@@ -147,8 +144,8 @@ static uint8_t _map_col_from_angle(void);
  * `rotate_spinner_cell` (`1000:0F93`) then places one of **30 letter cells**
  * on a ring.  With the angle `a` (0..359):
  *
- *   BP = 157 + (sin[a+90] * 66  >> 13) - 8      ; the x, in pixels
- *   C2 =  79 + (sin[a]    * 62  >> 13) - 8      ; the y, in quarter-rows
+ *   BP = 157 + (sin[a+90] * 66  >> 14) - 8      ; the x, in pixels
+ *   C2 =  79 + (sin[a]    * 62  >> 14) - 8      ; the y, in quarter-rows
  *   dest = (C2 * 80) + 240 + (BP >> 2) + [0x5AC4]
  *   src  = cell*0x40 + 0x0C + (BP & 3)*0x4000
  *
@@ -249,7 +246,7 @@ uint16_t g_map_panel; // [0x8A2]: 1..6
 /**
  * @brief Accessor: the running score as one 32-bit value.
  *
- * @return The running score as one 32-bit value.
+ * @return the score
  */
 static uint32_t _map_score(void)
 { return ((uint32_t)score_total_hi() << 16) | score_total_lo(); }
@@ -257,7 +254,7 @@ static uint32_t _map_score(void)
 /**
  * @brief Rotate a word right by p positions (XCHG/SHR/XCHG).
  *
- * @param bx the x value
+ * @param bx the word to rotate
  * @param p the rotation count
  * @return the rotated word
  */
@@ -409,9 +406,9 @@ static void _map_dirty_reset(void)
  * at 0x11B7..0x11ED and 0x11FC..0x1232.
  *
  * @param angle the rotation angle
- * @param cx the x value
- * @param dx the x delta
- * @param plus90 the angle plus 90 degrees
+ * @param cx the centre coordinate
+ * @param dx the radius
+ * @param plus90 non-zero to add 90 degrees to the angle
  * @return the scaled coordinate
  */
 static uint32_t _alpha_rot(uint32_t angle, uint32_t cx, uint32_t dx,
@@ -730,13 +727,10 @@ static void _map_stage_fill(void)
 
 /** @brief the colour of pixel j of the staging page's byte address a.
  *
- * Measured on the running game (2026-11-05): the four plane bytes at one
- * address are the four pixels' FULL 8-bit colours, pixel j = plane j - the
- * page is a plain 320-px row-major image whose 4-pixel groups are split
- * across the planes.  Dumping plane p while the attract screen was up and
- * pairing it with the displayed pixel (the DAC read back through 0x3C7/0x3C9)
- * gave 4546 distinct plane-byte keys with zero inconsistencies; the live band
- * staging page then decodes to BAND.SPR row-major byte for byte (24320/24320).
+ * Measured on the running game: the four plane bytes at one address are the
+ * four pixels' full 8-bit colours, pixel j = plane j; the page is a plain
+ * 320-px row-major image whose 4-pixel groups are split across the planes.
+ * The band staging page decodes to BAND.SPR row-major byte for byte.
  *
  * @param a the staging byte address
  * @param j the pixel within the 4-pixel group

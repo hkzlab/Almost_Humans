@@ -18,10 +18,10 @@
 static void _null_set_mode(VideoMode mode);
 
 /**
- * @brief Accessor: one of the null video pages.
+ * @brief The null backend: one of the two video pages.
  *
  * @param which the page selector
- * @return One of the null video pages.
+ * @return the page, masked to 0 or 1
  */
 static uint8_t *_null_page(int32_t which);
 
@@ -52,20 +52,20 @@ static void _null_poll(InputState *out);
  * @brief The null backend: record the tick callback.
  *
  * @param rate the tick rate
- * @param tick the tick count
+ * @param tick the tick callback
  */
 static void _null_timer_start(uint32_t rate, TickFn tick);
 
 /**
- * @brief The null backend: one tick per call.
+ * @brief The null backend: one tick per call, in and out.
  *
- * @param lastSeen the last seen tick
+ * @param lastSeen updated with the counter just run
  */
 static void _null_tick_sync(uint32_t *lastSeen);
 
 /** @brief The null backend: accept the driver install.
  *
- * @return 0, always (accepted)
+ * @return 0
  */
 static int32_t _null_audio_install(void);
 
@@ -74,7 +74,7 @@ static int32_t _null_audio_install(void);
  *
  * @param image the tune image
  * @param size its byte length
- * @return 0, always (accepted)
+ * @return 0
  */
 static int32_t _null_audio_load(const uint8_t *image, uint32_t size);
 
@@ -108,7 +108,7 @@ static void _null_audio_tempo(uint8_t cl);
 static void _null_audio_tick(void);
 
 /**
- * @brief The null backend's [0x5AFE]: AdLib, the port's default driver.
+ * @brief [0x5AFE] for the null backend: AdLib.
  *
  * @return 1 (AdLib)
  */
@@ -137,8 +137,8 @@ static const InputState *_script_states; // scripted input for smoke tests
 static uint32_t _script_n, _script_i;
 static VideoMode _mode_set; // the core's last videoSetMode
 
-/* a test hook: the frame-evidence dumps key on the poll count, which only
- * the backend knows (the smoke script is indexed by eventsPoll calls) */
+/* The frame-evidence dumps key on the poll count, which only the backend
+ * knows (the smoke script is indexed by eventsPoll calls). */
 static void (*_present_hook)(uint32_t poll);
 /* The null backend has no clock: the foreground loop itself is the tick
  * source (one tickSync call = one tick), so the scripted tests keep their
@@ -146,8 +146,8 @@ static void (*_present_hook)(uint32_t poll);
  * for the content tests and advances the same counter. */
 static uint32_t _tick_counter; // [0x5AC8]
 static uint32_t _tick_limit; // 0 = forever: the tests' default
-/* the audio calls are counted: the MUSIC board's gate is the only
- * observable the M5 stub has, and test_frontend asserts it */
+/* The audio calls are counted: the MUSIC board's gate is the only
+ * observable, and test_frontend asserts it. */
 static uint32_t _audio_starts, _audio_stops;
 static uint32_t _audio_installs, _audio_loads, _audio_sfx_count, _audio_ticks;
 static uint32_t _audio_tune_size;
@@ -167,19 +167,16 @@ const OSystem g_osys_null = {
 
 static void _null_set_mode(VideoMode mode) { _mode_set = mode; }
 static uint8_t *_null_page(int32_t which) { return _pages[which & 1]; }
-/* Present a page: run the test's hook. */
 static void _null_present(int32_t which)
 {
     (void)which;
     if (_present_hook) _present_hook(_script_i);
 }
-/* Store the palette window, clamped to 256 entries. */
 static void _null_set_palette(const uint8_t *p6, uint32_t first, uint32_t n)
 {
     if (first + n > 256) n = 256 - first;
     memcpy(_pal + first * 3, p6, (size_t)n * 3);
 }
-/* Deliver the scripted input state and the tick-limit quit. */
 static void _null_poll(InputState *out)
 {
     if (_script_states && _script_i < _script_n)
@@ -190,7 +187,6 @@ static void _null_poll(InputState *out)
      * (game_main's input.quit check), not from inside the backend */
     if (_tick_limit && _tick_counter >= _tick_limit) out->quit = 1;
 }
-/* Record the tick callback the tests drive. */
 static void _null_timer_start(uint32_t rate, TickFn tick)
 {
     _the_rate = rate;
@@ -207,13 +203,11 @@ static void _null_tick_sync(uint32_t *lastSeen)
     if (_the_tick) _the_tick();
     *lastSeen = _tick_counter;
 }
-/* Count audio installs. */
 static int32_t _null_audio_install(void)
 {
     _audio_installs++;
     return 0;
 }
-/* Count audio loads and keep the last tune size. */
 static int32_t _null_audio_load(const uint8_t *image, uint32_t size)
 {
     (void)image;
@@ -224,7 +218,6 @@ static int32_t _null_audio_load(const uint8_t *image, uint32_t size)
 }
 static void _null_audio_resume(void) { _audio_starts++; }
 static void _null_audio_stop(void) { _audio_stops++; }
-/* Count sfx and keep the last id. */
 static void _null_audio_sfx(uint16_t id)
 {
     _audio_sfx_count++;
@@ -234,7 +227,6 @@ static void _null_audio_tempo(uint8_t cl) { _audio_tempo = cl; }
 static void _null_audio_tick(void) { _audio_ticks++; }
 static int32_t _null_audio_driver_id(void) { return 1; }
 static void _null_warn(const char *msg) { fprintf(stderr, "%s\n", msg); }
-/* Print a fatal message and exit. */
 static void _null_fatal(const char *msg)
 {
     fprintf(stderr, "fatal: %s\n", msg);
@@ -243,8 +235,7 @@ static void _null_fatal(const char *msg)
 
 void osys_null_set_tick_limit(uint32_t n) { _tick_limit = n; }
 
-/** @brief test hooks: drive N ticks by hand, inject input, read back video state
- * (the headless tests use these)
+/** @brief Drive N ticks by hand (the headless content tests).
  *
  * @param n the count
  */
@@ -265,13 +256,13 @@ void osys_null_run_ticks(uint32_t n)
 void osys_null_inject(const InputState *in) { _the_input = *in; }
 
 /**
- * @brief Accessor: the audio-start count.
+ * @brief Accessor: the music-resume (cmd 5, CX = 0) count.
  *
  * @return The audio-start count.
  */
 uint32_t osys_null_audio_starts(void) { return _audio_starts; }
 /**
- * @brief Accessor: the audio-stop count.
+ * @brief Accessor: the music-stop (cmd 6) count.
  *
  * @return The audio-stop count.
  */
@@ -283,7 +274,7 @@ uint32_t osys_null_audio_stops(void) { return _audio_stops; }
  */
 uint32_t osys_null_audio_installs(void) { return _audio_installs; }
 /**
- * @brief Accessor: the tune-load count and the last image's size.
+ * @brief Accessor: the tune-load count.
  *
  * @return The tune-load count.
  */
@@ -334,8 +325,7 @@ uint32_t osys_null_audio_ticks(void) { return _audio_ticks; }
  */
 VideoMode osys_null_video_mode(void) { return _mode_set; }
 
-/** @brief the script cursor = the eventsPoll count: the smoke test's frame dumps
- * key on it ("dump at tick N" = "dump when the N-th poll has happened")
+/** @brief The eventsPoll count: the smoke test's frame-dump clock.
  *
  * @return the script cursor
  */
@@ -360,11 +350,10 @@ void osys_null_input_script(const InputState *states, uint32_t n)
     _script_i = 0;
 }
 
-/** @brief Scripted input for headless smoke tests: eventsPoll hands out the next
- * state per call; the last one repeats.
+/** @brief Accessor: the i-th null video page.
  *
  * @param which the page selector
- * @return the pointer, or NULL when unavailable
+ * @return the page, masked to 0 or 1
  */
 const uint8_t *osys_null_page(int32_t which) { return _pages[which & 1]; }
 

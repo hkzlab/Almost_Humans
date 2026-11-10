@@ -15,18 +15,13 @@
 
 #include "osystem.h"
 
-/* The tick rate the port assumes: the original MEASURES it at boot
- * (init_crtc_timer calibrates the PIT divisor [0x5ABE] against the display
- * and the ISR re-spins to the next vsync edge each tick), so one tick = one
- * display period.  Verified live: the ISR tick counter runs at
- * 70.19-70.5 Hz, and the calibrated divisor 0x3E59 = PIT 74.76 Hz with the
- * bit-3-of-3DA wait making up the remainder to one display period.
+/* The tick rate: one tick = one display period.  The original measures it at
+ * boot (init_crtc_timer calibrates [0x5ABE] against the display; live, the
+ * counter runs at 70.19-70.5 Hz), so the port fixes 70 Hz.
  *
- * This rate is the SOLE pacer: game_main's loop gates on osys->tickSync
- * (the [0x5AC8] counter gate),
- * so the host display's refresh rate must never enter the pacing.
- * The foreground runs exactly one flow step per tick boundary and drops 
- * missed boundaries (the original's delta-spin semantics), it never catches up.
+ * This is the sole pacer: game_main gates on osys->tickSync (the [0x5AC8]
+ * counter), so the host refresh never enters it.  One flow step per tick
+ * boundary; missed boundaries are dropped, never caught up.
  */
 #define GAME_TICK_HZ 70
 
@@ -40,10 +35,6 @@ typedef enum GameFlow {
 
 /**
  * @brief One flow step: run the current state and return the next.
- *
- * Advance the flow one step with the polled input; the loop calls it
- * once per tick boundary.
- * Returns the new state.
  *
  * @param state the flow state
  * @param input the input state
@@ -68,8 +59,7 @@ GameFlow gameflow_step(GameFlow state, const InputState *input);
 uint16_t gameflow_level_current(void);
 
 /** @brief dispatch_by_result_a167 (1000:38EA): the pause menu's five 0-based
- * results.  Returns the flow the action leaves (FLOW_MENU for RESTART THIS
- * GAME) and sets *quit for QUIT THIS GAME.
+ * results.
  *
  * @param choice the selected entry: the A167 result in AX (1000:A1FD,
  *               `MOV AX, word ptr [0x5e3b]`), so an `int16_t`
@@ -93,11 +83,9 @@ uint16_t gameflow_party_score(void);
  */
 uint8_t gameflow_party_pending(void);
 
-/** @brief 1000:35CA `wait_palette_fade_done`: 1 while the restart's fade
- * runs, 0 when it is over (the level has then been reloaded).
- *
- * 1000:35AF/35CA: 1 while a RESTART THIS LEVEL's fade to black runs; the level
- * reloads and the party screen starts when it returns 0.
+/** @brief 1000:35CA `wait_palette_fade_done`: 1 while the restart's fade to
+ * black runs (1000:35AF/35CA); the level reloads and the party screen starts
+ * when it returns 0.
  *
  * @return 1 while the fade is still stepping, 0 otherwise
  */
@@ -112,13 +100,12 @@ const char *gameflow_party_tribe(void);
 
 /* scan_id_list 1000:386E event 4: ESC opens the 0x5BBC pause block. */
 
-/** @brief 1000:386E.  Returns 1 when an entry ran (a non-bit7 entry whose gate [0xC]
- * is closed returns 0 before the dispatch, 1000:38AD).
+/** @brief scan_id_list (1000:386E): the DS:0x1989 key list.
  *
- * scan_id_list 1000:386E: the DS:0x1989 key list.
- * Handles ESC (the 0x5BBC pause block), F1..F8 (select the record by
- * scancode), ','/'.' (previous / next record), SPACE (the action-icon step /
- * home state) and F10 (the key wait).
+ * ESC (the 0x5BBC pause block), F1..F8 (select the record by scancode),
+ * ','/'.' (previous / next record), SPACE (the action-icon step / home state)
+ * and F10 (the key wait).  A non-bit7 entry whose gate [0xC] is closed returns
+ * 0 before the dispatch (1000:38AD).
  *
  * @param in the input state
  * @return 1 when an entry ran, 0 otherwise
@@ -126,11 +113,9 @@ const char *gameflow_party_tribe(void);
 uint8_t gameflow_key_list(const InputState *in);
 
 /**
- * @brief Accessor: the goal page is showing.
+ * @brief Accessor: the goal page is up ([0x5BBA], scroll_map 1000:9E51).
  *
- * [0x5BBA]: the goal page (scroll_map 1000:9E51) is up.
- *
- * @return The goal page is showing.
+ * @return 1 while the goal page is up, 0 otherwise
  */
 uint8_t gameflow_goal_page_up(void);
 
@@ -142,11 +127,11 @@ uint8_t gameflow_goal_page_up(void);
 uint8_t gameflow_goal_armed(void);
 
 /**
- * @brief Accessor: a scripted key wait is active.
+ * @brief Accessor: a scripted key wait is active (1000:3954, F10).
  *
- * 1000:3954's key wait (F10) owns the input and blocks the world.
+ * The wait owns the input and blocks the world.
  *
- * @return A scripted key wait is active.
+ * @return 1 while the wait is active, 0 otherwise
  */
 uint8_t gameflow_key_wait_active(void);
 
@@ -180,13 +165,11 @@ uint8_t gameflow_restart_pending(void);
  */
 GameFlow gameflow_after_level(uint16_t *levelCurrent);
 
-/** @brief entry 14E6/14FF: the post-level newspaper.  A lost level goes to the
- * ending ([0x138E]==0 at 14E6); a won one plays its header +1 index unless
- * that byte is negative (0xFF = none; cd_file_op's own CMP AL,0x80 path).
+/** @brief entry 14E6/14FF: the post-level newspaper index.
  *
- * entry 14E6/14FF and 150C/1512: the post-level newspaper index (0xFFFF =
- * none: lost, or the header byte 0xFF) and the ending scene (6 lost, 7
- * COMPLETE).
+ * A lost level goes to the ending ([0x138E]==0 at 14E6); a won one plays its
+ * header +1 index unless that byte is negative (0xFF = none, cd_file_op's own
+ * CMP AL,0x80 path).  The ending scene is 6 lost, 7 COMPLETE (150C/1512).
  *
  * @param won the won flag
  * @param introIndex the intro scene index

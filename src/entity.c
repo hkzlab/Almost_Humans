@@ -16,7 +16,7 @@
 #define TILE_HANDLER_FIND   11u   // 0xB4 -> entity_find_by_id 5399
 
 /* The DS globals 0x64C4.. (the exe image at file 0x106F0 + 0x64C4,
- * byte-verified 2026-10-23).  Slots 2 and 3 are not just array slots:
+ * byte-verified).  Slots 2 and 3 are not just array slots:
  * handlers 0 and 1 read them as their fixed word tables, and
  * level_init (1000:4CAB) zeroes ONLY the count [0x64C2], so the image's
  * values survive to runtime - this is how a level with up to two 0xB3
@@ -126,8 +126,8 @@ static int32_t _style6_y_bonus(const uint8_t *map, uint32_t mapLen,
  * @param map the 640-cell map
  * @param mapLen the map length
  * @param matchIdx the matched map index
- * @param cx the x value
- * @param dx the x delta
+ * @param cx the x coordinate
+ * @param dx the y coordinate
  * @param lifeSeed the life seed
  */
 static void _entity_append(const uint8_t *map, uint32_t mapLen,
@@ -161,8 +161,8 @@ static void _entity_append(const uint8_t *map, uint32_t mapLen,
  * @param map the 640-cell map
  * @param mapLen the map length
  * @param matchIdx the matched map index
- * @param cx the x value
- * @param dx the x delta
+ * @param cx the x coordinate
+ * @param dx the y coordinate
  */
 static void _entity_find(const uint8_t *map, uint32_t mapLen, uint32_t matchIdx,
                          uint32_t cx, uint32_t dx)
@@ -241,7 +241,7 @@ int32_t entity_spawn_from_map(const uint8_t *map, uint8_t style,
  *
  * @param slot the slot
  * @param off the offset
- * @param k the loop counter
+ * @param k the extra word offset
  * @return the table word, or 0 past the table
  */
 static uint16_t _ent_word(uint32_t slot, uint32_t off, uint32_t k)
@@ -261,27 +261,20 @@ static uint16_t _ent_word(uint32_t slot, uint32_t off, uint32_t k)
 static uint32_t _ent_index(const Entity *ep)
 { return (uint32_t)(ep - (const Entity *)_ents[0]); }
 
-/** @brief 1000:CA43..CB77 - the tail's interaction pass, run on every walk-branch tick
- * that does not reach the endpoint.  It walks the eight static placed records
- * and takes the first one that
- *   - is active ([+6] bit 7 clear),
- *   - sits at `x - entity.x + wp[3]` in 0..2 and `y - entity.y - 0x14` in
- *     0..0x2C (wp[3] is the x tolerance: 0xFFDD = -35 for handler 0, +0x10
- *     for handler 1),
- *   - is not the type wp[4] names, not type 4/5, and not marked in 0x6EC3,
- * dissolves it (1000:F453 with DX = 5) and posts the carry: the record becomes
- * type 0x22, its +0xA the entity link, +0xE = wp[5], +0x10 = wp[7] + the
- * entity word wp[6] names; the entity's handler becomes wp[8], its waypoint
- * wp[9] and its hold 0xA032 (the "stuck while carrying" sentinel), effect 9.
+/**
+ * @brief 1000:CA43..CB77: the tail's interaction pass.
  *
- * The type compare is an equality branch, not a skip (1000:CABC -> 1000:CB78):
- * a record whose +8 is exactly wp[4] (0x20 handler 0 / 0x1F handler 1) is the
- * guard stance op 5 (`entity_promote_to_type_1f` 1000:39B5) writes on a human
- * holding a spear or torch, and the original turns the entity around there.
+ * Walks the eight static records and takes the first that is active, at
+ * x - entity.x + wp[3] in 0..2 and y - entity.y - 0x14 in 0..0x2C (wp[3] is
+ * the x tolerance: 0xFFDD for handler 0, +0x10 for handler 1), not of type
+ * wp[4], not type 4/5 and not marked in 0x6EC3.  It dissolves that record
+ * (0xF453, DX = 5) and posts the carry: the record gets type 0x22, +0xA the
+ * entity link, +0xE = wp[5], +0x10 = wp[7] + the wp[6] word; the entity's
+ * handler becomes wp[8], its waypoint wp[9] and its hold 0xA032, effect 9.
  *
- * `+0xA` holds a DS pointer to the entity record in the original; the port has
- * no DS image, so it stores `entity index + 1` (0 = none) - the same internal
- * encoding policy the object links use.
+ * The type compare is an equality branch (1000:CABC -> CB78), so a record of
+ * type wp[4] turns the entity around.  +0xA holds an entity pointer in the
+ * original; the port stores index + 1 (0 = none).
  *
  * @param ep the entity record
  * @param slot the slot

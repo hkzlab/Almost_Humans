@@ -20,9 +20,7 @@
 #    include <unistd.h>
 #endif
 
-/** @brief The mode set: the 320x200 board fills 4:3 as 3x/3.6x; the 320x192 board
- * fills the same window as 3x/3.75x, so the pixels keep the 4:3 display
- * geometry and the rows past the field are never presented.
+/** @brief Set the mode, scaling the 320x200 and 320x192 fields to fill 4:3.
  *
  * @param mode the mode
  */
@@ -68,14 +66,14 @@ void sdl3_events_poll(InputState *out);
  * @brief Start the fixed-tick timer.
  *
  * @param ticksPerSec the ticks per second
- * @param tick the tick count
+ * @param tick the tick callback
  */
 void sdl3_timer_start(uint32_t ticksPerSec, TickFn tick);
 
 /**
  * @brief Block until the next fixed tick has fired.
  *
- * @param lastSeen the last seen tick
+ * @param lastSeen updated with the counter just run
  */
 void sdl3_tick_sync(uint32_t *lastSeen);
 
@@ -177,20 +175,16 @@ const OSystem g_osys_sdl3 = { sdl3_video_set_mode,
                               _fatal,
                               &g_fs_posix };
 
-/* Log a warning through SDL. */
 static void _warn(const char *msg)
 { SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "%s", msg); }
 
-/* Log a fatal error and exit. */
 static void _fatal(const char *msg)
 {
     SDL_LogCritical(SDL_LOG_CATEGORY_APPLICATION, "%s", msg);
     exit(1);
 }
 
-/* The arch layer owns main(). */
-
-/* The parsed command line (see main()'s usage block). */
+/* The parsed command line (see main()'s usage). */
 typedef struct CliOptions {
     const char *path; // the game-volume directory (mandatory)
     const char *audio; // --audio driver name, NULL = AdLib
@@ -306,7 +300,8 @@ static int _select_audio(const CliOptions *opts)
     }
 }
 
-/* The arch layer owns main().
+/**
+ * @brief The SDL3 executable: run the core with the SDL backend.
  *
  * Usage: humans-sdl3 [--audio adlib|beeper|mt32] [--mt32-roms <dir>]
  *                    [--version] <path-to-game-resources>
@@ -314,10 +309,7 @@ static int _select_audio(const CliOptions *opts)
  * (HUMANS.000/001/002).  --audio selects the resident driver (the launcher's
  * [0x5AFE]); AdLib is the default, `--audio beeper` is the PC speaker,
  * `--audio mt32` is the Roland MT-32 emulation and then --mt32-roms names the
- * directory holding its ROM images (mandatory for mt32).  --version prints
- * the port version and exits. */
-/**
- * @brief The SDL3 executable: run the core with the SDL backend.
+ * directory holding its ROM images (mandatory for mt32).
  *
  * @param argc the argument count
  * @param argv the argument vector
@@ -340,19 +332,15 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    // Initialize video mode
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_AUDIO)) {
         fprintf(stderr, "SDL_Init: %s\n", SDL_GetError());
         return 1;
     }
 
-    // Initialize event structures
     sdl3_events_init();
 
-    // Hand over to game code
     int32_t r = game_main(&g_osys_sdl3);
 
-    // Time to go
     SDL_Quit();
     return r;
 }

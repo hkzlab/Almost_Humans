@@ -5,12 +5,8 @@
 
 static const OSystem *_video_osys;
 
-/* TODO: Evaluate a future additional refactor of the Mode-X code.
- * We could move it in an optional module a backend can optionally include
- * or not, in case the backend has native support for planar graphics.
- * 
- * For now, we'll leave the software recomposition into flat pages.
- */
+/* shortcut: the A000 plane model is always recomposed in software; a backend
+ * with native planar output would move it behind an optional module (D-04). */
 
 /* the A000 planar space: one address byte = four pixels, one per plane */
 static uint8_t _vram[65536][4];
@@ -24,7 +20,7 @@ int32_t video_init(const OSystem *osys)
     return 0;
 }
 
-void video_tick(void) { /* Nothing to do here... */ }
+void video_tick(void) { /* the flip is the backend's videoPresent */ }
 
 uint8_t *video_page(int32_t which) { return _video_osys->videoPage(which); }
 

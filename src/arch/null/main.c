@@ -20,8 +20,6 @@ extern void osys_null_set_tick_limit(uint32_t n);
 /**
  * @brief The headless executable: run the core with the null backend.
  *
- * There is no input source, so the loop only ends at --ticks.
- *
  * @param argc the argument count
  * @param argv the argument vector; --ticks N stops after N flow ticks
  * @return 0 on success, 2 on a bad command line

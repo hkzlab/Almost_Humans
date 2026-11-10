@@ -132,9 +132,9 @@ int32_t sdl3_audio_install(void)
         _driver = NULL;
         return -1;
     }
-    /* No stream = no sample clock: leave the render clock off so the game
-     * tick keeps driving the audio state (silently) instead of hanging the
-     * flow on a fade that never steps. */
+    /* A stream that will not start is no sample clock: leave the render
+     * clock off so the game tick keeps driving the audio state (silently)
+     * instead of hanging the flow on a fade that never steps. */
     if (!SDL_ResumeAudioStreamDevice(_stream)) {
         SDL_Log("audio: cannot start the stream: %s", SDL_GetError());
         SDL_DestroyAudioStream(_stream);

@@ -13,16 +13,12 @@
 
 #include "osystem.h"
 
-/* check_highscore (1000:41AE), the score/record screen between the level's
- * end page and the post-level newspaper.  START: SCORE.BIT + the score line
- * + the key/ACTION exit and the 0x100-entry fade to 0x48BC (div 0x23). */
-
 /** @brief check_highscore's score terms (1000:41AE): level x members x 10 +
  * the remaining seconds x 10; a lost level is 0.
  *
  * [0x1F41] = the level number (1-based, the same value draw_level_text
- * prints), [0x11FC] = the members.  The placed-object bonuses are the one term
- * the object array (0x3E75) still owes.
+ * prints), [0x11FC] = the members.  The eight static records' goal cells add
+ * their bonus (1000:55FA..5635).
  *
  * @return the level's score
  */
@@ -66,7 +62,7 @@ uint8_t score_counters_run(void);
 /**
  * @brief Accessor: the score set a record ([0x1DD6]).
  *
- * @return The score set a record.
+ * @return 1 when a new record was set, 0 otherwise
  */
 uint8_t score_is_record(void);
 
@@ -126,9 +122,9 @@ void score_draw_card(uint8_t *page);
  * @brief Draw a three-digit number (1000:44BB / 0x450F).
  *
  * @param page the page buffer
- * @param ax the x accumulator
+ * @param ax the x origin
  * @param value the value
- * @param bx the x value
+ * @param bx the y origin
  * @param bp the page base
  */
 void score_draw_num3(uint8_t *page, uint32_t ax, uint16_t value, uint32_t bx,
@@ -138,28 +134,28 @@ void score_draw_num3(uint8_t *page, uint32_t ax, uint16_t value, uint32_t bx,
  * @brief Accessor: the best score for one level (DS:0x38A + level*2).
  *
  * @param level the level number
- * @return The best score for one level.
+ * @return the best time, or 0x0999 when unset
  */
 uint16_t score_best_for(uint32_t level);
 
 /**
  * @brief Accessor: the best time ([0x1E88]).
  *
- * @return The best time.
+ * @return the best time word
  */
 uint16_t score_best_time(void);
 
 /**
  * @brief Accessor: the total score's low word ([0x592]).
  *
- * @return The total score's low word.
+ * @return the low word
  */
 uint16_t score_total_lo(void);
 
 /**
  * @brief Accessor: the total score's high word ([0x594]).
  *
- * @return The total score's high word.
+ * @return the high word
  */
 uint16_t score_total_hi(void);
 
@@ -174,14 +170,14 @@ void score_set_total(uint32_t lo, uint32_t hi);
 /**
  * @brief Accessor: the shown score's low word ([0x1DD2]).
  *
- * @return The shown score's low word.
+ * @return the low word
  */
 uint32_t score_shown_lo(void);
 
 /**
  * @brief Accessor: the shown score's high word ([0x1DD4]).
  *
- * @return The shown score's high word.
+ * @return the high word
  */
 uint32_t score_shown_hi(void);
 

@@ -63,7 +63,7 @@ static uint32_t _line_advance(const char *p, const char **end)
  *
  * @param text the text
  * @param tiles the tile count
- * @param lines the line buffer
+ * @param lines the line count
  */
 static void _scroll_text_measure(const char *text, uint32_t *tiles,
                                  uint32_t *lines)
@@ -89,27 +89,20 @@ static void _scroll_text_measure(const char *text, uint32_t *tiles,
 /**
  * @brief Store the set pixels of one 1-bpp arena byte into the page.
  *
- * `bits` keeps the arena's packing: bit p is the page pixel at `x0 + p`,
- * bit 0 the leftmost.  Only set bits are written - under write mode 2 a 0
- * bit selects the latch, so a blank byte (or a blank glyph row) leaves the
- * box beneath the line untouched instead of erasing it.
+ * `bits` bit p is the page pixel `x0 + p`, bit 0 leftmost.  Only set bits are
+ * written: under write mode 2 a 0 bit selects the latch, so a blank row
+ * leaves the box beneath untouched.
  *
- * `or_into` is the two write modes the callers need:
- *   - non-zero: blit_text_tile (1000:47D5), write mode 2 with the OR ALU
- *     (GC3 := 0x1003 at 1000:9F76) and the Bit Mask = DL (0x10 at
- *     1000:9F90): a pixel becomes `page | ink`, so it takes the shade of
- *     the box fill tile underneath rather than a colour of its own.
- *   - zero: a solid store of `ink`, a palette index (textpage_draw_line).
- *
- * The `x < 320` test is the port's page-edge guard; the original copies a
- * fixed 80 bytes (320 px) per row, so it has no equivalent.
+ * `or_into` picks the mode: non-zero is blit_text_tile's write mode 2 with
+ * the OR ALU (GC3 = 0x1003) and Bit Mask = ink, so a pixel becomes
+ * `page | ink` and takes the box tile's shade; zero stores the solid ink.
+ * The x < 320 test is the port's edge guard.
  *
  * @param page    320x200 8bpp page, 320 bytes per scanline
  * @param y       the page row; the caller keeps it < 200
  * @param x0      the leftmost of the four pixels (arena column * 4)
  * @param bits    the arena byte: bit p = pixel p, bit 0 the leftmost
- * @param ink     the Bit Mask in the box path, a palette index in the solid
- *                path (see `or_into`)
+ * @param ink     the OR value (box path) or palette index (solid path)
  * @param or_into non-zero: OR `ink` into the page; 0: store it over the page
  */
 static void _glyph_px(uint8_t *page, uint32_t y, uint32_t x0, uint8_t bits,
@@ -184,7 +177,7 @@ void textpage_draw_line_mask_at(uint8_t *page, const char *line,
  * @param page the page buffer
  * @param y the y coordinate
  * @param x0 the left x
- * @param row the row
+ * @param row the 16 source bytes
  */
 static void _blit_16px(uint8_t *page, uint32_t y, uint32_t x0,
                        const uint8_t *row)
@@ -203,7 +196,7 @@ static void _blit_16px(uint8_t *page, uint32_t y, uint32_t x0,
  * @param page the page buffer
  * @param x0 the left x
  * @param y0 the top y
- * @param tile the tile byte
+ * @param tile the 16x16 tile bytes
  */
 static void _blit_box_tile(uint8_t *page, uint32_t x0, uint32_t y0,
                            const uint8_t *tile)
@@ -259,10 +252,10 @@ static void _blit_marker(uint8_t *page, uint32_t x0, uint32_t y0,
  * lines*16 rows, from the box's left edge for (tiles+1)*16 px (1000:9FBB).
  *
  * @param page the page buffer
- * @param top the top value
- * @param left the left value
+ * @param top the box top row
+ * @param left the box left column
  * @param tiles the tile count
- * @param lines the line buffer
+ * @param lines the line count
  */
 static void _draw_outline(uint8_t *page, uint32_t top, uint32_t left,
                           uint32_t tiles, uint32_t lines)

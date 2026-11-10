@@ -24,37 +24,30 @@
 int32_t scene_init(const OSystem *osys);
 
 /**
- * @brief Play one level's .ANI newspaper for a frame; 1 = showing (the cd_file_op
- * body).
+ * @brief Play one level's .ANI newspaper for a frame (the cd_file_op body).
  *
- * introIndex = the level header's +0x01 byte: the intro-movie index (0..9;
- * 0xFF = the level has no cutscene).
- *
- * @param introIndex the intro scene index
+ * @param introIndex the level header's +0x01 byte: the intro-movie index (0..9;
+ *                  0xFF = the level has no cutscene)
  * @return 1 while the newspaper is still showing
  */
 uint8_t scene_play_level_intro(uint16_t introIndex);
 
 /**
- * @brief Test seam: skip the intro's per-frame waits.
+ * @brief Test seam: skip the intro's per-frame waits ([0x627C]).
  *
- * [0x627C]: boot_intro_sequence's fast mode (its only writer).
- * The shared scene player then fades 4 palette entries div 2 instead of 0x100
- * div 0x19 and waits 1 tick per object instead of 6.
- * The level's .ANI runs clear.
+ * boot_intro_sequence's fast mode: the scene player fades 4 palette entries
+ * div 2 instead of 0x100 div 0x19 and waits 1 tick per object instead of 6.
  *
  * @param on the on/off flag
  */
 void scene_set_fast_mode(uint8_t on);
 
-/** @brief Start a NEW cutscene on the next scene_play_level_intro call: cd_file_op has
- * no cache of its own, so two consecutive levels with the same intro index
- * must reload it.  The per-tick player otherwise keeps the finished index
- * (a finished intro stays finished).
+/**
+ * @brief Force the next scene_play_level_intro call to reload its .ANI.
  *
- * Force the next scene_play_level_intro call to load its .ANI even when the
- * index equals the last one (cd_file_op always reloads; the per-tick player
- * keeps a finished intro finished otherwise).
+ * cd_file_op always reloads, so two consecutive levels with the same intro
+ * index still get a new scene; the per-tick player would otherwise keep the
+ * finished one finished.
  */
 void scene_reset_intro(void);
 

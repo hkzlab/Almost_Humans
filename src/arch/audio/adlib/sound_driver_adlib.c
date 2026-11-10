@@ -113,8 +113,8 @@ static const uint8_t _opl_init[256] = {
     0x00, 0x00, 0x00, 0x00,
 };
 
-/* Every byte of the driver's 22-byte voice record (CS:0x1268 + voice*0x16)
- * that the sequencer reads or writes; the offsets are the driver's. */
+/* The driver's voice-record fields (CS:0x1268 + voice*0x16, 22 bytes); the
+ * offsets are the driver's. */
 typedef struct AdlibSlot {
     uint8_t note;            // +0x0
     uint8_t instrument;      // +0x1  1-based; 0 = no voice change
@@ -738,7 +738,8 @@ static void _play_cell(SoundDriver *drv, AdlibRecord *rec, unsigned voice)
     if (v->instrument != 0 && v->note != 0) {
         unsigned index = (unsigned)v->instrument - 1u;
         uint8_t volume;
-        /* The header holds 64 two-byte entries; the driver trusts the cell. */
+        /* The header holds 64 two-byte entries; the driver trusts the cell,
+         * the port bounds it (D-261). */
         if (index >= 64u) index = 63u;
         volume = drv->header[0x99u + 2u * index];
         if (v->command == 0x0Cu) {
@@ -764,9 +765,8 @@ static void _play_cell(SoundDriver *drv, AdlibRecord *rec, unsigned voice)
 }
 
 /**
- * @brief The record's live slot list, or NULL when a slot index is invalid.
+ * @brief The voice index a track slot names (its low three bits).
  *
- * @param drv the driver
  * @param rec the record
  * @param i the track index
  * @return the voice index
@@ -1223,8 +1223,8 @@ static void _adlib_generate(SoundDriver *drv, int16_t *dst, uint32_t frames)
     }
     for (i = 0; i < frames; i++) {
         int16_t sample[2];
-        /* The chip runs at its native 49716 Hz; OPL3_Generate would clock it
-         * once per output sample and play everything 48000/49716 flat. */
+        /* Resampled from the chip's 49716 Hz: OPL3_Generate at 48 kHz would
+         * play about 3.5% flat. */
         OPL3_GenerateResampled(&drv->opl, sample);
         dst[2u * i] = sample[0];
         dst[2u * i + 1u] = sample[1];

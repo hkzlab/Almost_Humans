@@ -65,34 +65,22 @@ static const uint16_t _mark_bias[5] = { 0, 0xC0, 0, 0, 0 };
 
 /* --- the action row (the bar's centre) ---------------------------------
  *
- * blit_sprite_loop (1000:990A) draws a *group* of icon slots selected by
- * [0x5B56] from the six word pointers at 202F:0x5B2B.  Each group is
- * `count, selected-cell, icon...` (the second byte is the 1-based selected
- * cell, stepped by SPACE 1000:3933) with 1-based ICONS3 cells; the shipped
- * groups are
+ * blit_sprite_loop (1000:990A) draws the group [0x5B56] selects through the
+ * six word pointers at 202F:0x5B2B: count, selected cell, then ICONS3 cells.
  *
  *   1: 2 icons  02 01        2: 4 icons  03 04 05 06
  *   3: 4 icons  03 07 08 06  4: 4 icons  03 05 09 06
  *   5: 4 icons  09 0a 0b 0c  6: 1 icon   06
  *
- * so the level's start (group 1, [0x5B56] = 1) shows ICONS3 cells 1 and 0.
- * The row starts at x = (0x140 - (count*23 + (count-1)*12)) / 2, the slot
- * pitch is 0x1F and every slot sits at bar row 5 (1000:993B..9947).  Each
- * slot gets an embossed 23x31 bevel (1000:997D, its mask 0x48BC zeroed = a
- * pure shade: top/right -4, bottom/left +4, clamped to the bar bank's
- * 0xC0..0xCF greys) and the selected cell also the gold 21x29 inner frame at
- * +1,+1 (1000:996E from the 0x5B57 ramp d0..e3..d0, one ramp byte per pixel
- * or row; 1000:990A counts the header's second byte down to pick it).  The
- * icon (1000:9993) is the 16x24 cell at +4,+4: byte != 0 stored
- * +0xC0, 0 transparent.
+ * The row starts at x = (0x140 - (count*23 + (count-1)*12)) / 2, pitch 0x1F,
+ * every slot at bar row 5.  A slot gets a 23x31 bevel (1000:997C, mask 0x48BC
+ * zeroed: top/right -4, bottom/left +4, clamped to 0xC0..0xCF) and the
+ * selected one the gold 21x29 frame at +1,+1 (1000:996D).  The icon (1000:9993)
+ * is the 16x24 cell at +4,+4 (0 = transparent).
  *
- * The group itself is the ACTION program at `0x5B37` (`[0x5B56]` selects it
- * through `202F:0x5B2B`): its first two bytes are `count, cursor`, and the
- * cursor is the byte SPACE steps and the script dispatcher reads.  The port
- * reads those bytes back through the same header for every draw, step and
- * dispatch (`object_action_byte`), so the highlighted cell and the executed op
- * cannot drift apart.  An id outside 1..6 has no header and draws no action
- * row (D-186). */
+ * The group is the ACTION program at 0x5B37 (`count, cursor`); the port reads
+ * it back through object_action_byte, so highlight and op cannot drift.  An id
+ * outside 1..6 draws nothing (D-186). */
 static const uint8_t _action_gold[40] = {
     /* 202F:0x5B57 */
     0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 0xD8, 0xD9,
@@ -117,8 +105,7 @@ void statusbar_save_params(uint8_t *out)
     out[0] = _tc_state;
     /* [0x5B23] is the always-armed counter (it animates the ones digit,
      * [0x5B29]); [0x5B24] is the carry counter (the tens, [0x5B27]).  The
-     * port's `_tc_slide[1]` is the always one, so the save slots swap -
-     * D-108, closed 2026-11-05. */
+     * port's `_tc_slide[1]` is the always one, so the save slots swap. */
     out[1] = _tc_slide[1];
     out[2] = _tc_slide[0];
     out[3] = _td[0];
@@ -150,9 +137,9 @@ int32_t statusbar_init(const OSystem *osys)
  * @brief Write one 8-pixel mark row into the status band.
  *
  * @param page the page buffer
- * @param at the byte offset
+ * @param at the page row
  * @param x the x coordinate
- * @param src the source buffer
+ * @param src the 8 source bytes
  */
 static void _mark_row(uint8_t *page, uint32_t at, uint32_t x,
                       const uint8_t *src)
@@ -286,8 +273,8 @@ uint8_t statusbar_action_cell(uint32_t group)
  * @param page the page buffer
  * @param x the x coordinate
  * @param y the y coordinate
- * @param d the offset
- * @param mask the mask
+ * @param d the shade delta
+ * @param mask the explicit pixel, 0 to shade
  */
 static void _frame_px(uint8_t *page, uint32_t x, uint32_t y, int32_t d,
                       uint8_t mask)
@@ -317,8 +304,8 @@ static void _frame_px(uint8_t *page, uint32_t x, uint32_t y, int32_t d,
  * @param y the y coordinate
  * @param w the width
  * @param h the height
- * @param mask the mask
- * @param base the base offset
+ * @param mask the edge-byte table, or NULL
+ * @param base the table offset
  */
 static void _frame_box(uint8_t *page, uint32_t x, uint32_t y, uint32_t w,
                        uint32_t h, const uint8_t *mask, uint32_t base)
@@ -341,7 +328,7 @@ static void _frame_box(uint8_t *page, uint32_t x, uint32_t y, uint32_t w,
  * @param page the page buffer
  * @param x the x coordinate
  * @param y the y coordinate
- * @param cell the map cell
+ * @param cell the 0-based ICONS3 cell
  */
 static void _draw_action_icon(uint8_t *page, uint32_t x, uint32_t y,
                               uint32_t cell)
@@ -370,7 +357,7 @@ static void _draw_actions(uint8_t *page)
     if (!object_action_header()) return;
     /* Every step is a 16-bit word operation: the span/x below reproduce
      * `MUL BH` x2, `ADD`, `SUB 0x140`, `NEG`, `SHR 1`, and BP is the
-     * original's do-while counter (count 0 draws 0xFFFF times). */
+     * original's do-while counter (count 0 wraps and draws 65536 times). */
     uint8_t count = object_action_byte(0u);
     uint8_t cursor = object_action_byte(1u);
     uint16_t span = (uint16_t)((uint16_t)(count * 0x17u) +
@@ -509,13 +496,7 @@ static void _tribe_count_tick(void)
     }
 }
 
-/* The per-second block of the 1000:96AD ticker: the packed-decimal
- * countdown.  Every second the ones digit decrements and its glyph slides
- * down one cell ([0x5B16] := 8 unconditionally); the carry rolls 0->9
- * (phase 0xB0, one cell above the target) and 0->5 (0x70, in PANELN2);
- * a minutes underflow is the time-up. */
-/**
- * @brief 1000:96C6: the _elapsed clock's per-second step (ones 0..9, tens 0..5).
+/** @brief 1000:96C6: the _elapsed clock's per-second step (ones 0..9, tens 0..5).
  */
 static void _elapsed_tick(void)
 {
@@ -530,6 +511,11 @@ static void _elapsed_tick(void)
 
 /**
  * @brief Tick the status bar's clock and its time-up flag.
+ *
+ * The per-second block of the 1000:96AD ticker: the ones digit decrements and
+ * its glyph slides down one cell ([0x5B16] := 8 unconditionally); the carry
+ * rolls 0->9 (phase 0xB0) and 0->5 (0x70, in PANELN2); a minutes underflow is
+ * the time-up.
  */
 static void _clock_tick(void)
 {

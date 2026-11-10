@@ -59,21 +59,14 @@ uint8_t res_movie_disc(uint32_t idx);
 /**
  * @brief Load and decode one named resource from the current disc.
  *
- * Load a named chunk case-insensitively out of the CURRENT disc's volume (the
- * name is the relative path inside the volume, e.g.
- * "ANM\ANI03.ANI"); NULL when absent - the original's CF to the INT 63 caller
- * (the "PLEASE INSERT HUMANS DISK A/B/C" prompt territory).
- * `chkOut` (nullable) receives the BP analog, the resource-level checksum
- * exactly as resource_load leaves it in BP (1000:9183 OR BP,BP / RET): stored
- * blocks XOR their flag + payload words in; LZ blocks RESET the accumulator to
- * the stream's checksum field and then XOR the bit-buffer word and every
- * refill word (1000:91b9..91ce, the 91c7 XOR is dead - 91c9 MOV BP,AX
- * overwrites it, so the size word never contributes).
- * The resource-level value is NOT a 0-gate in the original: every shipped
- * block decodes to a nonzero accumulator (corpus sweep 2026-10-23) yet
- * levels\CODES.BIN loads live through the same machine.
- * The gate verified against 0 is the scene-object one (1000:B444) and belongs
- * to the scene player.
+ * The name is the relative path inside the volume, e.g. "ANM\ANI03.ANI";
+ * NULL when absent - the original's CF to the INT 63 caller.
+ *
+ * `chkOut` (nullable) receives the BP analog, the checksum resource_load leaves
+ * in BP (1000:9183): stored blocks XOR their flag and payload words in; LZ
+ * blocks RESET it to the stream's checksum field, then XOR the bit-buffer and
+ * every refill word (1000:91B9..91CE).  It is not a gate; the gate tested
+ * against 0 is the scene object's (1000:B444).
  *
  * @param name the name
  * @param sizeOut the output size

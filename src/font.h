@@ -30,15 +30,12 @@ int32_t font_init(const OSystem *osys);
  */
 void font_publish(const uint8_t *textSpr);
 
-/** @brief draw_text (1000:4989): centre `s` on centreX and blit it at arena row
- * `row`.  Unknown characters _advance by the terminator slot but draw
+/** @brief draw_text (1000:4989): centre `s` on `centreX` and blit it at arena
+ * row `row`.  Unknown characters advance by the terminator slot but draw
  * nothing (the two search loops' no-match paths).
  *
- * draw_text (1000:4989): centre `s` on `centreX` (the advance table) and
- * blit its glyphs into `arena` - the caller's
- * [0x1E20] text arena (200 rows x 80 B, 1 bpp, 4 px per byte, bit 0 =
- * leftmost; each 2-bpp glyph pixel becomes two 1-bpp pixels, so the glyph
- * doubles horizontally) - at `row`.
+ * The arena is 200 rows x 80 bytes, 1 bpp, 4 px per byte, bit 0 leftmost;
+ * each 2-bpp glyph pixel doubles horizontally into two 1-bpp pixels.
  *
  * @param arena the text arena
  * @param s the text
@@ -62,8 +59,9 @@ void font_draw_text(uint8_t *arena, const char *s, uint32_t centreX,
 void font_draw_text_bounded(uint8_t *arena, uint32_t capacity, const char *s,
                             uint32_t centreX, uint32_t row);
 
-/** @brief draw_text's own measure: the sum of the _advance table (the same walk
- * draw_text does before centring).  STOPs at CR/NUL, like draw_text.
+/** @brief draw_text's own measure: the sum of the _advance table.
+ *
+ * The same walk draw_text does before centring; stops at CR/NUL.
  *
  * @param s the text
  * @return the text width in pixels

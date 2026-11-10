@@ -41,9 +41,11 @@ typedef enum AttractPhase {
     ATTRACT_DONE
 } AttractPhase;
 
-/** @brief [0x1E7C] and [0xD3D] are not carried: in the decoded image they are
- * write-only (the cycle/effect tag and the skip flag; no reader is traced),
- * so the port records their semantics in comments instead of dead state.
+/* [0x1E7C] and [0xD3D] are not carried: in the decoded image they are
+ * write-only (the cycle/effect tag and the skip flag; no reader is traced). */
+
+/**
+ * @brief Bind the attract module to the backend.
  *
  * @param osys the backend interface
  * @return 0 on success
@@ -61,15 +63,14 @@ uint8_t attract_tick(const InputState *in);
 /**
  * @brief Accessor: the attract phase (the tests' phase read).
  *
- * @return The attract phase.
+ * @return the phase enum
  */
 uint32_t attract_phase_for_probe(void);
 
-/** @brief the strip probe: the 192-KB work area and [0xD39] (the rows built).
+/** @brief Effect 4's strip probe: the 192-KB work area ([0xD76]) and the rows
+ * built ([0xD39]).
  *
- * Effect 4's strip probe (the 192-KB work area at [0xD76] + the rows built,
- * [0xD39]): the byte-exact fixture test compares the fill against the
- * reference dump.
+ * The byte-exact fixture test compares the fill against the reference dump.
  * Valid from the first ATTRACT_E4 load until the next effect begins.
  *
  * @param rowsBuilt the output row count

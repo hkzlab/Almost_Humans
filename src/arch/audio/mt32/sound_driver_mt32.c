@@ -72,7 +72,8 @@ static const uint16_t _period[108] = {
     26,   25,   23,   22,   21,   20,   18,   17,   16,   15,   15,   14
 };
 
-/* Every byte of the driver's 32-byte MIDI slot (CS:0x1401 + slot*0x20). */
+/* The driver's MIDI-slot fields (CS:0x1401 + slot*0x20, 32 bytes); the
+ * offsets are the driver's. */
 typedef struct Mt32Slot {
     uint8_t note[4];      // +0x00 four chord notes, 0 = none
     uint8_t instrument;   // +0x04 1-based, 0 = no change
@@ -89,7 +90,8 @@ typedef struct Mt32Slot {
     uint8_t slide_note;   // +0x12  the note the slide lands on
 } Mt32Slot;
 
-/* The driver's 22-byte record (CS:0x1501 + id*0x16). */
+/* The driver's record fields (CS:0x1501 + id*0x16, 22 bytes); the offsets
+ * are the driver's. */
 typedef struct Mt32Record {
     uint8_t active;              // +0x00 0xFF while playing
     uint8_t tracks;              // +0x01
@@ -181,7 +183,7 @@ static uint16_t _u16(const SoundDriver *drv, uint32_t off)
  * @brief Emit a complete short MIDI message (mt32_send_byte's payload).
  *
  * @param drv the driver
- * @param status the status byte (0x90/0xB0/0xC0/0xE0 + channel)
+ * @param status the status byte (0x90/0xB0/0xE0 + channel)
  * @param d1 the first data byte
  * @param d2 the second data byte
  */
@@ -406,7 +408,7 @@ static void _slide_tick(SoundDriver *drv, unsigned slot_no)
 }
 
 /**
- * @brief The record a note command acts on (the original's CS:0x13FF).
+ * @brief The play state a note command acts on (the original's CS:0x13FF).
  *
  * @param drv the driver
  * @param rec the record being played
@@ -676,7 +678,7 @@ static unsigned _class_size(unsigned cls)
  *
  * @param drv the driver
  * @param slot_no the slot
- * @param cursor the pattern-relative cursor, advanced by the payload
+ * @param cursor the tune cursor, advanced by the payload
  * @param cls the class
  */
 static void _store_cell(SoundDriver *drv, unsigned slot_no, uint32_t *cursor,
@@ -1265,7 +1267,7 @@ static SoundDriver *_mt32_create(uint32_t sampleRate)
     mt32emu_set_nice_partial_mixing_enabled(drv->ctx, MT32EMU_BOOL_TRUE);
     mt32emu_set_midi_delay_mode(drv->ctx, MT32EMU_MDM_IMMEDIATE);
     /* The dry and reverb channels have separate gain factors; scaling both
-     * is what makes the whole output 20 % quieter. */
+     * makes the whole output about 6 dB quieter. */
     mt32emu_set_output_gain(drv->ctx, MT32_OUTPUT_GAIN);
     mt32emu_set_reverb_output_gain(drv->ctx, MT32_OUTPUT_GAIN);
     _load_rom_dir(drv, _rom_dir);

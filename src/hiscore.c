@@ -33,7 +33,7 @@ static const struct {
  * @brief Accessor: one high-score entry.
  *
  * @param i the index
- * @return One high-score entry.
+ * @return the entry's 18 bytes
  */
 static uint8_t *_hiscore_entry(uint32_t i)
 { return _hiscore_table + 0x154u + i * HIS_ENTRY; }
@@ -178,12 +178,10 @@ int32_t hiscore_insert(uint32_t score, const char *name)
     return (int32_t)pos;
 }
 
-/** @brief --- 1000:0486: the name-entry grid -------------------------------------
+/** @brief Append one character, or overwrite the last when the buffer is full.
  *
- * The insert screen is a cursor over 0x1C columns: 0x00..0x19 are 'A'..'Z',
- * 0x1A is space, 0x1B is '.', 0x1C deletes the last character and 0x1D
- * confirms.  The buffer holds at most 13 characters (DS:0x757, the copy at
- * commit time is 14 bytes).  A keystroke outside the grid is ignored.
+ * The buffer holds at most 13 characters (DS:0x757, the copy at commit time
+ * is 14 bytes).
  *
  * @param name the name
  * @param len the length

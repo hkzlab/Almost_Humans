@@ -21,19 +21,18 @@
  */
 int32_t statusbar_init(const OSystem *osys);
 
-/** @brief build_statusbar_layout (1000:961B) + level_start's time pick (1000:9589):
- * `packedTimeBcd` = the level's chosen limit, AH = minutes, AL = BCD
- * seconds.  The caller picks the header's timeA/B/C by the LEVEL board's
- * counter (`[0x5E65]`, `frontend_option(FRONTEND_OPT_LEVEL)`), and the
- * members 12/10/8 by the same byte (entry `1000:00B1`); a loaded save
- * replaces both with its `+0x07` word and `+0x0B` members (`level.c`).
- * The tribe counter = [0x11FC] - [0x17FB] (members - required), DIV/MOD 10 -
- * the caller owns both counts: the required = the map's 0xAA-tile count
- * (load_level 1000:315F).
+/** @brief build_statusbar_layout (1000:961B) + level_start's time pick
+ * (1000:9589).
  *
- * Loads its own assets from the CURRENT disc - the level flow's HUMANS.001
- * (level_load's res_set_disc); a failed load leaves the bar inactive (the
- * headless no-data case).
+ * The caller picks the header's timeA/B/C by the LEVEL board's counter
+ * (`[0x5E65]`, frontend_option(FRONTEND_OPT_LEVEL)) and the members 12/10/8 by
+ * the same byte (entry 1000:00B1); a loaded save replaces both with its +0x07
+ * word and +0x0B members (level.c).  The tribe counter is members - required,
+ * through DIV/MOD 10; required is the map's 0xAA-tile count (load_level
+ * 1000:315F).
+ *
+ * Loads its own assets from the CURRENT disc; a failed load leaves the bar
+ * inactive (the headless no-data case).
  *
  * @param packedTimeBcd the packed BCD time
  * @param tribeMembers the tribe member count
@@ -61,11 +60,10 @@ const uint8_t *statusbar_palette(void);
 void statusbar_arm_tribe_count(void);
 
 /**
- * @brief Accessor: the countdown reached zero.
+ * @brief Accessor: the countdown reached zero ([0x5E44], the time-up dialog's
+ * flag).
  *
- * [0x5E44]: the countdown reached zero (the time-up dialog's flag).
- *
- * @return The countdown reached zero.
+ * @return 1 when the countdown is up, 0 otherwise
  */
 uint8_t statusbar_time_up(void);
 
@@ -79,13 +77,11 @@ uint8_t statusbar_time_up(void);
  */
 uint8_t statusbar_tribe_count_nonzero(void);
 
-/** @brief The tribe counter's digits are [0x5B25]/[0x5B26]; the game only writes them through
- * statusbar_start (members - required) and the roll animation.  This setter is
- * a test seam for the object machine's level-end probe, whose two branches key
- * on that word.
+/**
+ * @brief Test seam: set the tribe counter digits ([0x5B25]/[0x5B26]).
  *
- * test seam: sets the tribe counter digits ([0x5B25]/[0x5B26]) that 1000:F5BC gates
- * on.
+ * The game writes them only through statusbar_start (members - required) and
+ * the roll animation; 1000:F5BC gates on the word.
  *
  * @param tens the tens digit
  * @param ones the ones digit
@@ -96,7 +92,7 @@ void statusbar_set_tribe_digits(uint32_t tens, uint32_t ones);
  * @brief Accessor: one tribe-count digit ([0x5B25]/[0x5B26] by index).
  *
  * @param i the index
- * @return One tribe-count digit.
+ * @return the digit
  */
 uint8_t statusbar_tribe_digit(uint32_t i);
 
@@ -110,7 +106,7 @@ void statusbar_save_params(uint8_t *out);
 /**
  * @brief Load the bar's per-level parameters.
  *
- * @param in the input state
+ * @param in the save's 0x5B22 block
  */
 void statusbar_load_params(const uint8_t *in);
 
@@ -144,7 +140,7 @@ void statusbar_hide(void);
 /**
  * @brief Accessor: the bar's split row.
  *
- * @return The bar's split row.
+ * @return the row
  */
 uint16_t statusbar_split(void);
 
@@ -152,12 +148,10 @@ uint16_t statusbar_split(void);
  * and the action row's group.  An id outside 1..6 has no header (D-186).
  * object.c owns it; the bar follows. */
 
-/** @brief 1000:3933's tail: step the selected cell - the program's cursor byte - with
- * the wrap to 1 past the count.  The bar is redrawn every tick, so the store is
- * the whole effect.
+/** @brief 1000:3933's tail: advance the action row's selected cell.
  *
- * 1000:3933's tail: advance the current action row's selected cell (the 0x5B2B
- * header's second byte) with the wrap to 1 past the count.
+ * The 0x5B2B header's second byte, wrapped to 1 past the count.  The bar is
+ * redrawn every tick, so the store is the whole effect.
  */
 void statusbar_cycle_action(void);
 
@@ -182,15 +176,13 @@ void statusbar_cycle_action(void);
  */
 void statusbar_charge_bar(uint32_t v);
 
-/** @brief 1000:99D8 + 0x9B7D + 0x9A18 at the charge entry (0x36DB):
- * `shift_screen_up` prepares the clean band, the `0x9B7D` call with
- * `AX=0x5F/BX=0x0C/CX=0x82/DX=0x0F` draws the sunken 130x15 trough (the four
- * +/-4 edge passes from the zeroed `0x48BC` ramp), and `blit_area_if_dirty`
- * carries the x 48..271 slice to the visible band.  The port's page is
- * recomposed each tick, so this runs before every charging frame's strokes.
+/** @brief 1000:36DB's charge entry: 0x99D8 + 0x9B7D + 0x9A18.
  *
- * 1000:36DB's entry: 0x99D8 + 0x9B7D + 0x9A18 - restore the band's x 48..271
- * slice over the action row and draw the sunken trough.
+ * `shift_screen_up` prepares the clean band, the `0x9B7D` call with
+ * AX=0x5F/BX=0x0C/CX=0x82/DX=0x0F draws the sunken 130x15 trough (four +/-4
+ * edge passes from the zeroed 0x48BC ramp), and `blit_area_if_dirty` carries
+ * the x 48..271 slice to the visible band.  The page is recomposed each tick,
+ * so this runs before every charging frame's strokes.
  */
 void statusbar_charge_begin(void);
 
@@ -229,10 +221,10 @@ uint8_t statusbar_action_cell(uint32_t group);
  */
 uint16_t statusbar_time_word(void);
 
-/** @brief [0x1E84] after check_highscore's repack (1000:42CE): the *_elapsed* clock as
- * minutes<<8 | tens<<4 | ones - the value the per-level best compares.
+/** @brief [0x1E84] after check_highscore's repack (1000:42CE).
  *
- * the elapsed clock [0x5B0C..0E] repacked as check_highscore does (1000:42CE)
+ * The elapsed clock [0x5B0C..0E] as minutes<<8 | tens<<4 | ones - the value the
+ * per-level best compares.
  *
  * @return the elapsed time word
  */

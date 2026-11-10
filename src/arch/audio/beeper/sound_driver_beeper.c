@@ -34,7 +34,7 @@ enum {
     BEEP_INSTRUMENT = 0x01,
     BEEP_COMMAND = 0x02,
     BEEP_PARAM = 0x03,
-    BEEP_VOLUME = 0x04, // cmd 0x0A / 0x0C bookkeeping, never read
+    BEEP_VOLUME = 0x04, // cmd 0x0A / 0x0C bookkeeping, never applied
     BEEP_LAST_INSTRUMENT = 0x08, // 0xFF after cmd 5
     BEEP_DIVIDER = 0x12 // word: the PIT channel-2 divisor
 };
@@ -269,8 +269,8 @@ static void _tick_command(SoundDriver *drv, unsigned slot)
 /**
  * @brief Play one decoded cell (1E95:06C3).
  *
- * The instrument's default volume and command 0x0C's override are computed
- * and then discarded (0x07CA is a RET); only the note/command path is live.
+ * The instrument's volume is not applied (0x07CA is a RET); only the
+ * note/command path is live.
  *
  * @param drv the driver
  * @param rec the record being stepped
@@ -516,7 +516,7 @@ static void _beeper_destroy(SoundDriver *drv)
 }
 
 /**
- * @brief cmd 0x0A: the master-volume byte (1E95:01DB).
+ * @brief cmd 0x0A: the master-volume byte (1E95:01DB, no effect).
  *
  * @param drv the driver
  * @param tempo CL, the game's byte; clamped to 0x64

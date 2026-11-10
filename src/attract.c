@@ -59,11 +59,11 @@ static uint16_t _scroll_row; // [0xD78]: the scroll window's start row
 static uint8_t _wipe_pos, _wipe_speed;
 static uint8_t _wipe_dir;
 
-/* 202F:0x38C - 160 per-level records of [seconds][minutes] (two
- * pseudo-decimal nibbles / one digit), shipped as 99 09 ("9:99") for every
- * level. */
-/** @brief 202F:0x38C - the per-level bests: `hiscore_best(level)` (the same 160 u16
- * the score screen compares against).
+/** @brief 202F:0x38C: the per-level best times, as the attract shows them.
+ *
+ * 160 records of [seconds][minutes] (two pseudo-decimal nibbles / one digit),
+ * shipped as 99 09 ("9:99") for every level; hiscore_best(level) is the same
+ * 160 u16 the score screen compares against.
  *
  * @param levelMinus1 the zero-based level
  * @param rec the record
@@ -316,7 +316,7 @@ static void _blit_strip8(uint32_t x, uint32_t row)
  * alternating between the right-sweeping column (the arg_swap variant,
  * x = 319-4k) and the left-sweeping one (x = 4k) - the criss-cross.
  *
- * @param k the loop counter
+ * @param k the chunk index, 0..10
  */
 static void _wipe_row(uint32_t k)
 {
@@ -328,9 +328,9 @@ static void _wipe_row(uint32_t k)
         _blit_strip8((i & 1u) ? xs : xd, rows[i]);
 }
 
-/**
- * @brief --- the per-effect loads ------------------------------------------------
- */
+/* --- the per-effect loads ------------------------------------------- */
+
+/** @brief Drop the current effect image. */
 static void _unload_img(void)
 {
     free(_img_buf);
@@ -454,7 +454,7 @@ static int32_t _e2_load(void)
 /** @brief _fill_pattern (1000:1AFC) - draw_char_advance's blank path: the tile's 16
  * rows of [sig 0xFF, mask 0x20]; the data bytes keep the zeroed strip.
  *
- * @param tile the tile byte
+ * @param tile the tile's base row in the strip
  */
 static void _fill_pattern(uint8_t *tile)
 {
@@ -471,7 +471,7 @@ static void _fill_pattern(uint8_t *tile)
  * are always redrawn).  The original's dead MOV BX,0xD2E (1b1a - BX pushed
  * and never read) is dropped.
  *
- * @param tile the tile byte
+ * @param tile the tile's base row in the strip
  */
 static void _fill_pattern_clip(uint8_t *tile)
 {
@@ -484,7 +484,7 @@ static void _fill_pattern_clip(uint8_t *tile)
 /** @brief the screenful of 1A07: clear_bitmaps_6 (the 192-KB zero), [0xD39]:=0,
  * the fill loop - strcpy_cae (1AA4) + draw_char_advance (1AB9) per line
  * until the next _credtext byte is 0xFF or _rows_built >= 0x989 (the max
- * build 2456 rows * 80 B fits the strip exactly) - and the INC SI at
+ * build 2456 rows * 80 B fits the 0x30000-byte strip) - and the INC SI at
  * 1a37 that walks the cursor onto the terminator (the shipped file's
  * four-byte 0xFF run absorbs it).
  */

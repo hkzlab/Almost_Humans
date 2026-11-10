@@ -179,15 +179,10 @@ static void _lz_match(LzState *s, uint32_t n, uint32_t distbits)
             s->under = 1;
             return;
         } // CMP DI,-1 -> END
-        s->p -= 1; /* source is read after the cursor step
-                                         * (the reference's `p -= 1;
-                                         *  out[p] = out[p + d]`).  The
-                                         * original's ES:[BX+DI] is per-chunk:
-                                         * resource_load re-bases ES every 16K
-                                         * chunk (1000:9156), so the source
-                                         * never wraps at 64K of the flat
-                                         * buffer - the mask that put it there
-                                         * corrupted BG4's chunk 4. */
+        /* The source is read after the cursor step (`p -= 1;
+         * out[p] = out[p + d]`).  The original re-bases ES every 16K chunk
+         * (1000:9156), so the source never wraps at 64K of the flat buffer. */
+        s->p -= 1;
         byte = s->out[s->p + d];
         s->out[s->p] = byte;
     }
@@ -266,19 +261,9 @@ int32_t res_decode_lzw_mem(const uint8_t *data, uint32_t data_size,
     LzState st = { _mem_word_reader, &mr, out, 0, 0, 0, 0, 0 };
     uint16_t chk = _lz_block(&st, size);
     if (mr.over || mr.ate_tail) {
-        /* Machine-verified (2026-10-24):
-         * the GT loop's 33rd object (obj 29, the display list's last word,
-         * size 1378) FAILS the b444 gate on the machine - EBP = 0x613C at
-         * B446 with ESI = 0x312 (394 words = exactly our consumption); the
-         * piece buffer's last word read 0x237E where the shipped file has
-         * 0x4242, and 0x4242 ^ 0x237E = 0x613C = the whole failure.  Every
-         * scene file's last object is such a tail-eater (slack = 0 in all
-         * 12 files), and the machine never blits them (the al_capture:
-         * 35 decodes, 32 blits).  The static code path producing the
-         * machine's nonzero accumulator is not identifiable from the
-         * image; the observable contract is: a stream consumed to the
-         * loaded image's exact end fails the gate, so the object is never
-         * blitted and the previous frame holds. */
+        /* A stream consumed to the image's exact end fails the gate: the
+         * object is never blitted and the previous frame holds.  Every
+         * scene file's last object is such a tail-eater. */
         chk = 0xFFFFu;
     }
     if (chkOut) *chkOut = chk;
@@ -295,7 +280,7 @@ int32_t res_decode_lzw_mem(const uint8_t *data, uint32_t data_size,
  * @param rec the record's 18 name bytes
  * @return 1 on a match, 0 otherwise
  */
-static int32_t _name_equal(const char *req, const uint8_t *rec /* 18 bytes */)
+static int32_t _name_equal(const char *req, const uint8_t *rec)
 {
     const char *a = req;
     for (uint16_t i = 0; i < 18; i++) {
@@ -309,12 +294,12 @@ static int32_t _name_equal(const char *req, const uint8_t *rec /* 18 bytes */)
     return *a == 0;
 }
 
-/** @brief Decode the chunk whose record lives at `off` in volume `r->v` into a
- * malloc'd buffer of `length` bytes (caller frees).  NULL = failure.
- * `chkOut` receives the resource-level BP: the accumulator runs the way
- * resource_decode_chunk drives it - the flag word XORs in for both paths
- * (1000:9193), stored blocks XOR their payload words (1000:919f..91a7)
- * and each LZ block RESETS the accumulator (the MOV BP,AX at 91c9).
+/** @brief Decode the chunk whose record lives at `off` into a malloc'd buffer
+ * of `length` bytes (caller frees).
+ *
+ * `chkOut` receives the resource-level BP as resource_decode_chunk drives it:
+ * the flag word XORs in for both paths (1000:9193), stored blocks XOR their
+ * payload words (1000:919F..91A7) and each LZ block RESETS it (1000:91C9).
  *
  * @param r the volume reader
  * @param off the offset
@@ -324,8 +309,8 @@ static int32_t _name_equal(const char *req, const uint8_t *rec /* 18 bytes */)
  * @return the decoded buffer, or NULL on failure
  */
 static uint8_t *_res_decode_chunk(VolReader *r, uint32_t off,
-                                  const uint8_t *rec /* 0x40 bytes */,
-                                  uint32_t length, uint16_t *chkOut)
+                                  const uint8_t *rec, uint32_t length,
+                                  uint16_t *chkOut)
 {
     uint16_t block = rd_le_u16(rec + 0x36);
     uint8_t *out = malloc(length ? length : 1);

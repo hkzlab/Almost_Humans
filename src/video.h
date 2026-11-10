@@ -26,7 +26,7 @@
 int32_t video_init(const OSystem *osys);
 
 /**
- * @brief The video module's per-tick hook.
+ * @brief The video per-tick hook: empty, the flip is video_vram_present.
  */
 void video_tick(void);
 
@@ -120,8 +120,7 @@ uint8_t *video_flat(void);
  */
 uint8_t *video_arena(void);
 
-/** @brief The game will switch video modes (see the VideoMode enum) while
- *  switching between different screens. This will notify the backend.
+/** @brief Set the mode: the backend scans out the new field.
  *
  * The page layout never changes, only which field the display scans out.
  *

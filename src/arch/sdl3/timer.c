@@ -45,7 +45,7 @@ static void _fire_tick(void)
 /**
  * @brief The backend's tick thread: fire the callback at the fixed rate.
  *
- * @param arg the argument
+ * @param arg unused
  * @return 0 when the thread exits
  */
 static int32_t SDLCALL _tick_thread_fn(void *arg)
@@ -72,9 +72,9 @@ void sdl3_timer_start(uint32_t ticksPerSec, TickFn tick)
 {
     _the_tick = tick;
     _the_rate = ticksPerSec;
-    _tick_interval_ns = 1000000000ull / ticksPerSec; /* 14285714.29 at 70: the
-                                                    * constant errs 0.3 ns/tick,
-                                                    * no accumulation */
+    /* 14285714.29 at 70 Hz: truncation errs 0.3 ns per tick, no
+     * accumulation. */
+    _tick_interval_ns = 1000000000ull / ticksPerSec;
     SDL_SetAtomicInt(&_tick_count, 0);
     _probe = getenv("HUMANSRE_RATE_PROBE") != NULL;
     _probe_ticks = 0;

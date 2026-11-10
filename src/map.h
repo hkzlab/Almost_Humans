@@ -14,11 +14,9 @@
 #include "osystem.h"
 
 /**
- * @brief Open the MAP screen.
+ * @brief Open the MAP screen (menu_loop 1000:012A, after the ending).
  *
- * menu_loop (1000:012A), the MAP/high-score screen after the ending.
- * START: the HIGH.BIT card + the title, key/ACTION exit; the full
- * map/cursor/score tables are the next pass.
+ * START: the HIGH.BIT card + the title and the key/ACTION exit.
  *
  * @return 1 when the MAP screen opened, 0 otherwise
  */
@@ -42,14 +40,15 @@ uint8_t map_tick(const InputState *in);
  */
 void alpha_expand(const uint8_t *src, uint8_t *dst);
 
-/** @brief 1000:0F93: the ring angle -> (destination byte, source offset).  The x is
- * `157 + 132*cos` px, the y `79 + 124*sin` quarter-rows; the page stride is 80
- * and the `+0xF0` adds three rows.
+/** @brief 1000:0F93: the ring angle -> (destination byte, source offset).
+ *
+ * The x is `157 + 132*cos` px, the y `79 + 124*sin` quarter-rows; the page
+ * stride is 80 and the `+0xF0` adds three rows.
  *
  * @param cell the map cell
  * @param angle the rotation angle
- * @param src the source buffer
- * @param dst the destination buffer
+ * @param src the source offset (out)
+ * @param dst the destination byte offset (out)
  */
 void alpha_cell(uint32_t cell, uint32_t angle, uint16_t *src, uint16_t *dst);
 
@@ -132,14 +131,14 @@ void map_draw_rect(uint8_t *page, uint32_t x, uint32_t y, uint32_t w,
 /**
  * @brief Accessor: the MAP transition step (0..6, 1000:028C..030A).
  *
- * @return The MAP transition step.
+ * @return the step
  */
 uint8_t map_transition_step(void);
 
 /**
  * @brief Accessor: the MAP fade's start count (palette_build_fade calls).
  *
- * @return The MAP fade's start count.
+ * @return the count
  */
 uint8_t map_fade_starts(void);
 
@@ -147,11 +146,11 @@ uint8_t map_fade_starts(void);
  * @brief Accessor: one MAP fade entry.
  *
  * @param i the index
- * @param first the first entry
- * @param entries the entry count
- * @param div the divisor
- * @param target the target value
- * @return One MAP fade entry.
+ * @param first receives the first entry
+ * @param entries receives the entry count
+ * @param div receives the divisor
+ * @param target receives the target value
+ * @return 1 when the entry exists, 0 otherwise
  */
 int32_t map_fade_at(uint32_t i, uint32_t *first, uint32_t *entries,
                     uint32_t *div, uint32_t *target);
@@ -226,7 +225,7 @@ uint16_t map_enter_bx_for_probe(void);
 
 /** @brief Accessor: the offscreen list page (the test seam).
  *
- * @return the 1000:8A4-style page buffer
+ * @return the 0x8A4-byte page buffer
  */
 uint8_t *map_off_page_for_probe(void);
 
@@ -245,7 +244,7 @@ int32_t map_glyph_for_probe(uint32_t i, int32_t *tx, int32_t *ty, int32_t *cx,
 
 /** @brief Accessor: the name-entry fire counter (the test seam).
  *
- * @return the [0x5AC8] model
+ * @return the [0x5AC8] counter model
  */
 uint16_t map_name_fire_wait_for_probe(void);
 

@@ -19,12 +19,12 @@ static int32_t _tex_rows =
     VIDEO_PAGE_H_MODE13H; // the texture's height = the field
 static uint8_t _pages[2][VIDEO_PAGE_BYTES];
 static uint32_t _lut[256]; // the palette LUT, 6-bit expanded
-static int32_t _present_probe; /* HUMANSRE_RATE_PROBE: report the
-                                         * loop/present rate every 5 s    */
+static int32_t _present_probe; // HUMANSRE_RATE_PROBE: present-rate report
 
-/** @brief The field each mode scans out (osystem.h's VideoMode): mode 13h is the
- * full 320x200 page, mode X shows only the top 192 rows - the rest of a
- * mode-X page is stale (the level's status bar ends on row 191).
+/** @brief The field's row count: 192 in mode X, 200 in mode 13h.
+ *
+ * The rows past a mode-X field are stale (the level's status bar ends on
+ * row 191), so nothing below them may be presented.
  *
  * @return VIDEO_PAGE_H_MODEX for mode X, VIDEO_PAGE_H_MODE13H otherwise
  */
@@ -35,7 +35,7 @@ static int32_t _mode_rows(void)
 }
 
 /**
- * @brief 6-bit -> 8-bit: the original's values are the DAC's; the expand is << 2 | >> 4
+ * @brief Expand a 6-bit DAC value to 8 bits (v * 4 + v / 16).
  *
  * @param v the 6-bit colour
  * @return the expanded 8-bit colour
@@ -57,7 +57,7 @@ static void _vid_make_texture(int32_t rows)
 }
 
 /**
- * @brief window + texture, created on the boot's first videoSetMode call
+ * @brief Create the window, renderer and texture on the first mode set.
  */
 static void _vid_init_video(void)
 {
@@ -88,15 +88,15 @@ void sdl3_video_set_mode(VideoMode mode)
 }
 
 /**
- * @brief Accessor: one of the two display pages.
+ * @brief The i-th of the two display pages.
  *
  * @param which the page selector
- * @return One of the two display pages.
+ * @return the page, masked to 0 or 1
  */
 static uint8_t *_vid_page(int32_t which) { return _pages[which & 1]; }
 
 /**
- * @brief Present one page and apply its 6-bit palette.
+ * @brief Present one page through the palette LUT.
  *
  * @param which the page selector
  */
@@ -125,8 +125,8 @@ static void _vid_present(int32_t which)
         double s =
             (double)(now - windowStart) / (double)SDL_GetPerformanceFrequency();
         if (s >= 5.0) {
-            /* note: scene playback presents from inside its own loops too,
-             * so this can exceed the tick rate; it is not the loop rate */
+            /* Scene playback presents from its own loops too, so this can
+             * exceed the tick rate: it is not the loop rate. */
             SDL_Log("present rate: %.2f Hz (videoPresent calls)",
                     (double)frames / s);
             frames = 0;

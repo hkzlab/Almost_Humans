@@ -88,7 +88,7 @@ void object_step_action_cell(void);
  *
  * @param data the data buffer
  * @param blocks the block count
- * @param n the count
+ * @param n the sprites per layer
  */
 void object_publish_g_sprites(const uint8_t *data, uint16_t blocks, uint8_t n);
 
@@ -122,7 +122,7 @@ void object_goal_scan(void);
 /**
  * @brief Accessor: the goal flag ([0x6530]).
  *
- * @return The goal flag.
+ * @return 1 when the goal fired, 0 otherwise
  */
 uint8_t object_goal_flag(void);
 
@@ -144,9 +144,9 @@ void object_row_pass(void);
 void object_set_marker_mode(uint8_t on);
 
 /**
- * @brief Accessor: the marker mode flag.
+ * @brief Accessor: the marker mode flag ([0x6531]).
  *
- * @return The marker mode flag.
+ * @return 1 while the marker mode holds, 0 otherwise
  */
 uint8_t object_marker_mode(void);
 
@@ -179,10 +179,10 @@ void object_blit_sprite(uint8_t *page, const uint8_t *src, uint32_t rows,
 void object_ter_slot_init(void);
 
 /**
- * @brief Accessor: one terrain slot (NULL past the two slots).
+ * @brief Accessor: one terrain slot.
  *
  * @param i the index
- * @return One terrain slot.
+ * @return the slot, or NULL past the two
  */
 uint8_t *object_ter_slot_at(uint32_t i);
 
@@ -203,62 +203,46 @@ void object_publish_ter(const uint8_t *bank, uint32_t size);
  */
 void object_render_ter(uint8_t *page, int32_t scrollX, int32_t scrollY);
 
-/** @brief 1000:C7A0/0xC7A9 (iterate_camera_records / set_camera_from): run
- * both 0x649A / 0x64AE TER slots for one world frame.
+/**
+ * @brief 1000:C7A0/0xC7A9: the two TER slots' patrol, once per world frame.
  *
- * 0xC7A0 calls 0xC7A9 for the first slot, `ADD SI,0x14`, and falls into the
- * second (so the second RET returns to 0xC7A0's caller).  Per slot:
- *
- *  - `+0x10` bit 15 (0xFFFF from 0x4CAB) is the disabled state: no motion.
- *  - Otherwise the move target is `+4/+6`, or `+8/+0xA` while `+0x10` is 0.
- *  - Current `+0/+2` steps one unit toward the target on each axis (the
- *    x/y pair is swapped between the two steps by the original, 0xC82E and
- *    0xC868).  On arrival `+0x10` toggles its low byte 0x00 <-> 0xFF, so the
- *    next frame's target is the other corner: the slot patrols the two cells
- *    the 0xAF+0xB0 (or 0xB1+0xB2) tiles name.
- *  - The `+0xE` counter reloads every 6 frames and then bumps `+0xC`; the
- *    `+0xC` word is both that counter and the TER sprite index (0x5823/0x5C2F
- *    pass it straight to the 0x2D7E index table), which is why the sprite
- *    animates while it patrols.
- *  - The slot's own `(new - old)` delta is added to the eight static 0x3E75
- *    records and the 0x6F22 groups under the byte-swapped `+0x12` mask
- *    (`0x80>>i` / `1<<(7-index)`).  The mask's high byte IS the stack mask
- *    0x64AD/0x64C1 (`_obj_ter_slot[s][0x13]`), so a human riding the platform
- *    is moved by exactly this shift.
- *
- * 1000:C7A0: the two 0x649A TER slots' patrol/interpolation (update_world's
- * second call).
- * The handlers of the 0xAF+0xB0 / 0xB1+0xB2 tile pairs fill them; a disabled
- * slot (bit 15 of +0x10) does nothing.
+ * A slot with +0x10 bit 15 set is disabled.  Otherwise +0/+2 steps one unit
+ * toward +4/+6 (or +8/+0xA while +0x10 is 0); on arrival +0x10 toggles its
+ * low byte, so the slot patrols the two cells the 0xAF+0xB0 (or 0xB1+0xB2)
+ * tiles name.  +0xE reloads every 6 frames and bumps +0xC, which is both that
+ * counter and the TER sprite index (0x2D7E).  The (new - old) delta is added
+ * to the eight static 0x3E75 records and the 0x6F22 groups under the
+ * byte-swapped +0x12 mask (0x80>>i / 1<<(7-index)); that byte is also the
+ * stack mask 0x64AD/0x64C1, so a riding human moves with the platform.
  */
 void object_camera_slots_tick(void);
 
 /**
- * @brief Accessor: one record slot (NULL past object_slots()).
+ * @brief Accessor: one record slot.
  *
  * @param i the index
- * @return One record slot.
+ * @return the slot, or NULL past object_slots()
  */
 uint8_t *object_slot(uint32_t i);
 
 /**
  * @brief Accessor: the record slot count.
  *
- * @return The record slot count.
+ * @return the count
  */
 uint32_t object_slots(void);
 
 /**
  * @brief Accessor: the frame slot count (the 0x11E sprite-table bound).
  *
- * @return The frame slot count.
+ * @return the count
  */
 uint32_t object_frame_slots(void);
 
 /**
  * @brief Accessor: the frame counter ([0x4103]).
  *
- * @return The frame counter.
+ * @return the counter
  */
 uint16_t object_frame_counter_probe(void);
 
@@ -272,9 +256,8 @@ uint16_t object_frame_counter_probe(void);
 void object_frame_for_probe(uint32_t frame, uint32_t *off, uint32_t *rows);
 
 /**
- * @brief 0x32B9's queue for the drawer at 1000:5F54 (level.c's level_draw_bg_sprites).
- *
- * the 0x32B9 background-sprite queue (1000:5F54's input)
+ * @brief Accessor: the 0x32B9 background-sprite queue's count (1000:5F54's
+ * input, read by level_draw_bg_sprites).
  *
  * @return the background record count
  */
@@ -289,13 +272,11 @@ uint8_t object_bg_count(void);
  */
 void object_bg_at(uint32_t i, uint32_t *x, uint32_t *y);
 
-/** @brief 0x3E20..0x407E: [0x3E20] placed humans, [0x3E22] entity index, the 29
- * fixed pointers, the 20 class bytes, [0x3E73] live count and the 29 0x12
- * records at 0x3E75.  The pointer table is the image's constant run.
+/** @brief Save 0x3E20..0x407E: [0x3E20] placed humans, [0x3E22] entity index,
+ * the 29 fixed pointers, the 20 class bytes, [0x3E73] live count and the 29
+ * 0x12 records at 0x3E75.
  *
- * the SAVE GAME state ranges: object table (0x3E20,
- * 0x25F), pools (0x6F20, 0x13CA), programs (0x5B37, 0x20), TER slots (0x649A,
- * 0x28) and the 0x6F92 copy (0x54).
+ * The pointer table is the image's constant run.
  *
  * @param dst the destination buffer
  */
@@ -367,12 +348,12 @@ void object_load_spans(const uint8_t *src);
 /**
  * @brief Accessor: the current record index ([0x1AF2], -1 = none).
  *
- * @return The current record index.
+ * @return the index
  */
 int16_t object_current(void);
 
 /**
- * @brief Accessor: set the current record.
+ * @brief Set the current record.
  *
  * @param slot the slot
  */
@@ -381,12 +362,12 @@ void object_set_current(int16_t slot);
 /**
  * @brief Accessor: the player record index ([0x180A], -1 = none).
  *
- * @return The player record index.
+ * @return the index
  */
 int16_t object_player(void);
 
 /**
- * @brief Accessor: set the player record.
+ * @brief Set the player record.
  *
  * @param slot the slot
  */
@@ -435,14 +416,14 @@ int16_t object_map_cell_equals(uint32_t cell);
 /**
  * @brief Accessor: the static record count (the 8 the predicates scan).
  *
- * @return The static record count.
+ * @return the count
  */
 uint8_t object_static_slots(void);
 
 /**
  * @brief Accessor: the live record count ([0x3E73]; 9 at the level start).
  *
- * @return The live record count.
+ * @return the count
  */
 uint16_t object_live_count(void);
 
@@ -450,7 +431,7 @@ uint16_t object_live_count(void);
  * @brief Accessor: one slot's class byte ([0x3E5E + slot]).
  *
  * @param slot the slot
- * @return One slot's class byte.
+ * @return the class byte
  */
 uint8_t object_slot_class(uint32_t slot);
 
@@ -466,7 +447,7 @@ uint8_t *object_link_for_probe(uint32_t off);
  * @brief Accessor: one span entry (the 0x6F92 span entry).
  *
  * @param i the index
- * @return One span entry.
+ * @return the entry
  */
 uint8_t *object_span_at_for_probe(uint32_t i);
 
@@ -498,7 +479,7 @@ int32_t object_land_y_for_probe(int32_t x, int32_t y, uint32_t *cellOut);
 uint16_t object_span_flag_for_probe(int32_t d, uint32_t frame);
 
 /**
- * @brief the throw's 0x5BA4 word and a recipe's parameter, for the tests
+ * @brief The throw's 0x5BA4 word for one type (the test seam).
  *
  * @param type the type
  * @return the per-type dx value, or 0 when out of range
@@ -509,8 +490,8 @@ int32_t object_throw_dx_for_probe(uint32_t type);
  * @brief Accessor: one recipe parameter.
  *
  * @param recipe the recipe index
- * @param k the loop counter
- * @return One recipe parameter.
+ * @param k the parameter index
+ * @return the parameter
  */
 uint16_t object_recipe_param_for_probe(uint32_t recipe, uint32_t k);
 
@@ -518,7 +499,7 @@ uint16_t object_recipe_param_for_probe(uint32_t recipe, uint32_t k);
  * @brief Accessor: one pending event's offset (the 0x67FF step table).
  *
  * @param i the index
- * @return One pending event's offset.
+ * @return the offset
  */
 uint16_t object_pend_off_for_probe(uint32_t i);
 
@@ -526,21 +507,21 @@ uint16_t object_pend_off_for_probe(uint32_t i);
  * @brief Accessor: one pending event's wait.
  *
  * @param i the index
- * @return One pending event's wait.
+ * @return the wait
  */
 uint16_t object_pend_wait_for_probe(uint32_t i);
 
 /**
- * @brief Accessor: one byte of the out-of-range DS tail record (0x5105..0x5114
- * (objCmdEnter)).
+ * @brief Accessor: one byte of the out-of-range DS tail record
+ * (0x5105..0x5114, objCmdEnter).
  *
  * @param off the offset
- * @return One byte of the out-of-range DS tail record.
+ * @return the byte
  */
 uint8_t object_ds_tail5105(uint32_t off);
 
 /**
- * @brief the tests' setter for [0x3E5E + slot] (the behaviour bytes).
+ * @brief Test seam: set [0x3E5E + slot] (the behaviour bytes).
  *
  * @param slot the slot
  * @param cls the class byte
@@ -578,7 +559,7 @@ uint32_t object_style_y_nudge(uint32_t col, uint32_t row);
  */
 uint8_t object_beh_state_for_probe(uint32_t beh);
 
-/** @brief --- object_test_dispatch (1000:35D6) ---------------------------------
+/** @brief object_test_dispatch (1000:35D6): the level record's goal test.
  *
  * The level record's `+0x04` word (the 13-byte header copied to `202F:0x17F2`)
  * is the whole goal test: the low byte is the mode, the high byte its
@@ -622,9 +603,9 @@ uint32_t object_load_terrain_objects(uint8_t *map);
 /**
  * @brief 1000:3138/0x3149: seed the buffer tail from a freshly loaded map.
  *
- * 1000:3138/0x3149: seed the [0x1FA0] buffer's 32-byte gap (zero) and second
- * map copy (this map) for the D-235 tail write/read.
- * Call after the map is copied and before object_load_terrain_objects.
+ * The [0x1FA0] buffer's 32-byte gap (zero) and second map copy, for the D-235
+ * tail write/read.  Call after the map is copied and before
+ * object_load_terrain_objects.
  *
  * @param map the 640-byte map (NULL clears the second copy too)
  */
@@ -633,16 +614,14 @@ void object_map_tail_reset(const uint8_t *map);
 /**
  * @brief Accessor: the placed human count ([0x3E20]).
  *
- * @return The placed human count.
+ * @return the count
  */
 uint16_t object_placed_humans(void);
 
-/** @brief The map cell under a record, for the score (55FA calls 0xF761 with AX = 8,
- * BX = 0xC on each of the eight static records): 0xFFFF for a non-static slot or
- * when no level is loaded.
+/** @brief The map cell under a static record (0xF761 with AX = 8, BX = 0xC).
  *
- * the map cell under a static record (0xF761 with AX = 8, BX = 0xC); the
- * score's object bonus reads it: 0xA8 -> +1000, 0xA7 -> +2000 (1000:55FA).
+ * The score's object bonus reads it: 0xA8 -> +1000, 0xA7 -> +2000
+ * (1000:55FA).  0xFFFF for a non-static slot or when no level is loaded.
  *
  * @param slot the slot
  * @return the map cell, or 0xFFFF when there is no record
@@ -659,11 +638,10 @@ uint32_t object_record_map_cell(uint32_t slot);
  */
 void object_render(uint8_t *page, int32_t scrollX, int32_t scrollY);
 
-/** @brief 1000:E3F6 dispatch_actor_command: the acting record's command for one input
- * word.  The original calls the returned handler, or the row's tail handler when
- * it is 0 and the handler did not change the record's type; the handlers are the
- * next objective, so only the selection (and the one-shot counter's two writes)
- * is ported.  One global counter, not one per command: [0x6DEA].
+/** @brief 1000:E3F6 dispatch_actor_command: select the acting record's command
+ * for one input word.
+ *
+ * One global counter, not one per command: [0x6DEA].
  *
  * @param rec the record
  * @param input the input state
@@ -677,11 +655,8 @@ ObjCommand object_command_select(uint8_t *rec, uint8_t input);
  * and then the tail handler run.
  *
  * This is the ACTING record's path.  Every other static record runs its row
- * from `object_row_pass` (`collision_scan` `1000:D860`, the last call of
- * `update_world`), which the port runs after `object_world_tick`.
- *
- * Only the ported handlers are dispatched (the two movement states, the
- * leaves, the snap, the selector wrappers and the bare-RET tail).
+ * from object_row_pass (collision_scan 1000:D860, the last call of
+ * update_world), which the port runs after object_world_tick.
  *
  * @param actor the object record
  * @param input the input state
@@ -721,7 +696,7 @@ void object_animator_tick(void);
  * @brief Accessor: one group record (0x6F22 entry).
  *
  * @param i the index
- * @return One group record.
+ * @return the record
  */
 uint8_t *object_group_at(uint32_t i);
 
@@ -730,25 +705,15 @@ uint8_t *object_group_at(uint32_t i);
  */
 void object_animator_reset(void);
 
-/** @brief 1000:E697 (a fall-through inside 1000:E609, the walk-up state): push the
- * acting record onto the `0x6F22` group it stands under.  The original reaches
- * this with AX = actor.x and BX = actor.y + 0x18, after the `0x6F92` span scan
- * has failed; the port takes the record and derives the same two values.
- * Returns 1 when a group took it (frame 0x25, type 7, `+0xE` = its slot).
+/**
+ * @brief 1000:E697 (inside 1000:E609, the walk-up state): push the acting
+ * record onto the 0x6F22 group it stands under.
  *
- * The human stack (`0x6F22`, 8 entries x 0x0E: +0/+2 x/y, bit 15 = free, +4
- * the animator state, +5 the owner index, +6ff the bit-7-terminated member
- * list).
- * `object_stack_push` is the push block of 1000:E609 (1000:E697) and
- * `object_stack_grab` the one of 1000:E4F8 (1000:E58B), `object_stack_pop` is
- * 1000:FDED, the leaves are 1000:E860 / 1000:E8DD, the snap 1000:E963, the
- * selector 1000:F17C, and `object_stack_scan_dissolve` is 1000:F453 (the scan
- * that finds the group holding a record and dissolves it).
- * The `0x64AD`/`0x64C1` in-a-stack masks (1000:F38F/F3CA) are written by the
- * two pushes, read by the selector, and are ALSO the high bytes of the two TER
- * slots' +0x12 carry masks (1000:C8A4): a marked record rides the patrolling
- * platform.
- * `object_ter_slot_at(i)[0x13]` is that byte.
+ * The original reaches this with AX = actor.x and BX = actor.y + 0x18 after
+ * the 0x6F92 span scan failed.  A 0x6F22 entry has +0/+2 x/y, bit 15 = free,
+ * +4 the animator state, +5 the owner index and the bit-7-terminated member
+ * list from +6.  The 0x64AD/0x64C1 stack masks (1000:F38F/F3CA) are the TER
+ * slots' +0x12 high bytes (1000:C8A4), so a marked record rides the platform.
  *
  * @param actor the object record
  * @return 1 when the record was pushed, 0 otherwise
@@ -846,50 +811,45 @@ int32_t object_selector(uint8_t *actor, uint16_t xoff, uint16_t frame,
  */
 int32_t object_stack_scan_dissolve(uint32_t recIndex);
 
-/** @brief 0x6EC3 + type != 0, with the image's full DS window: the static run,
- * then the live register pool, then the spans.
- *
- * 0x6EC3 + type != 0 (the overlap/carry gate, with its full DS window).
+/** @brief 0x6EC3 + type != 0: the overlap/carry gate over the image's full DS
+ * window - the static run, then the live register pool, then the spans.
  *
  * @param type the record type
  * @return 1 when the gate blocks the type, 0 otherwise
  */
 uint8_t object_type_blocked(uint32_t type);
 
-/** @brief Test seam: 1000:F2E0's overlap conversion.
- *
- * Test seam: 1000:F2E0's per-candidate dissolve + conversion.
+/** @brief Test seam: 1000:F2E0's per-candidate dissolve + conversion.
  *
  * @param actor the object record
  */
 void object_find_overlap_for_probe(uint8_t *actor);
 
-/** @brief Test seam: dissolve the group in register slot `slot`.
+/** @brief Test seam: 1000:FA13 object_group_dissolve by group slot.
  *
- * 1000:FA13 object_group_dissolve, by group slot (the 0x6F22 entry the tail
- * holds in BP when it calls it).
+ * The slot is the 0x6F22 entry the tail holds in BP when it calls it.
  *
  * @param slot the slot
  */
 void object_group_dissolve_at(uint32_t slot);
 
-/** @brief 1000:E4F8 (handler 1): the **step-down** state.  The cell at the feet
- * (`x + 8`, `y + 0x16`) decides: a special tile (field K -> `[0x6F20]`/`[0x6F21]`)
- * snaps the actor to the tile grid, a `0x6F92` span at that column takes it
- * onto the span, else the grab (1000:E58B) runs.  Returns 1 tile rule,
- * 2 span, 3 grabbed, 4 registered, -1 nothing.
+/** @brief 1000:E4F8 (handler 1): the step-down state.
  *
- * 1000:E4F8 / 1000:E609: the two movement states that feed the stack - the
- * feet cell's special tile (field K), a 0x6F92 span, else the grab / the push.
+ * The cell at the feet (`x + 8`, `y + 0x16`) decides: a special tile (field K,
+ * [0x6F20]/[0x6F21]) snaps the actor to the tile grid, a 0x6F92 span at that
+ * column takes it onto the span, else the grab (1000:E58B) runs.  Returns
+ * 1 tile rule, 2 span, 3 grabbed, 4 registered, -1 nothing.
  *
  * @param actor the object record
  * @return 1-4 for the state reached, or -1 on failure
  */
 int32_t object_step_down(uint8_t *actor);
 
-/** @brief 1000:E609 (handler 2): the **walk-up** state.  Same three-way split, with
- * `x + 8, y + 0x19` as the feet cell; the span test uses `y + 0x18` as the line
- * and a 0x10-px column window, and the fall-through is the push (1000:E697).
+/** @brief 1000:E609 (handler 2): the walk-up state.
+ *
+ * Same three-way split, with `x + 8, y + 0x19` as the feet cell; the span test
+ * uses `y + 0x18` as the line and a 0x10-px column window, and the fall-through
+ * is the push (1000:E697).
  * Returns 1 tile rule, 2 span, 3 pushed, 4 nothing.
  *
  * @param actor the object record
@@ -918,14 +878,14 @@ int32_t object_claim_begin(uint32_t recipe, int32_t actor);
 /**
  * @brief Accessor: the claim is running.
  *
- * @return The claim is running.
+ * @return 1 while the claim runs, 0 otherwise
  */
 uint8_t object_claim_active(void);
 
 /**
  * @brief Accessor: the claim's pan phase (the 1000:3D04 recolour frames).
  *
- * @return The claim's pan phase.
+ * @return 1 during the pan, 0 otherwise
  */
 uint8_t object_claim_pan_active(void);
 
@@ -985,10 +945,10 @@ void object_claim_draw_records(uint8_t *page, int32_t scrollX, int32_t scrollY);
 void object_claim_tick(const uint8_t *levelPal);
 
 /**
- * @brief The scan at 1000:3A91..1000:3AD9, for the acting record `actor`.
+ * @brief The scan at 1000:3A91..1000:3AD9 / 4E91, for the acting record.
  *
- * the scan at 4E91: the first record beside `actor` (|dx| <= 0x20, |dy| <= 8,
- * type <= 2, active) or -1.
+ * The first record beside `actor` (|dx| <= 0x20, |dy| <= 8, type <= 2, active),
+ * or -1.
  *
  * @param actor the object record
  * @return the record index, or -1 when none
@@ -996,9 +956,8 @@ void object_claim_tick(const uint8_t *levelPal);
 int32_t object_find_neighbour(int32_t actor);
 
 /**
- * @brief --- object_tick: one level frame for the object machine --------------
- *
- * one level frame of the object machine (the frame counter + the claim)
+ * @brief object_tick: one level frame for the object machine (the frame
+ * counter + the claim).
  *
  * @param levelPal the level palette
  */
@@ -1015,7 +974,7 @@ void object_world_tick(void);
 /**
  * @brief Accessor: the world tick counter.
  *
- * @return The world tick counter.
+ * @return the counter
  */
 uint32_t object_world_ticks_probe(void);
 
@@ -1026,7 +985,7 @@ uint32_t object_world_ticks_probe(void);
  */
 void object_claim_frame(const uint8_t *levelPal);
 
-/** @brief --- pred_type_low_phase_match (1000:3600) ----------------------------
+/** @brief pred_type_low_phase_match (1000:3600): the type <= 2 goal probe.
  *
  * The acting record's type must be <= 2 and the test runs once per frame
  * (`[0x4103]`, the frame counter, against its stored copy `[0x1972]`).  It
@@ -1074,21 +1033,17 @@ void object_action_run(void);
 void object_pending_run(void);
 
 /**
- * @brief The charge loop's per-tick step (the [0x1979] dispatch, per frame).
+ * @brief One frame of the event-4 charge loop (1000:3702).
  *
- * one frame of the event-4 charge loop (1000:3702); call after the frame
+ * Call after the world frame.
  *
  * @return 1 while the charge loop continues, 0 when it ends
  */
 uint8_t object_charge_tick(void);
 
-/** @brief One frame of the charge loop (0x3702): the world frame has already run, so
- * this redraws the bar at the record's new +0xE, or leaves when the turn did
- * not advance (0x370C).  The loop's other exit, a pending code, is consumed by
- * `object_pending_run` (0x3705 -> 0x3735/0x373B), which swallows it.
+/** @brief Accessor: the charge loop is running (1000:3702).
  *
- * the charge loop is running (1000:3702): the status bar must not repaint the
- * band/action row while it is (D-81).
+ * The status bar must not repaint the band/action row while it is (D-81).
  *
  * @return 1 while the charge loop is active, 0 otherwise
  */
@@ -1112,26 +1067,24 @@ int32_t object_cycle_entity(int32_t step);
  */
 uint8_t object_select_by_index(uint32_t index);
 
-/** @brief 1000:3933 (the key list's id 8, SPACE).  1000:392D runs the home-state
- * conversion on the acting record (get_object_ptr + 0xEDB7) and the handler
- * returns when it converted; otherwise it plays driver effect 0 and steps the
- * action row's selected cell (1000:3941 -> 0x98F8 + the 0x5B2B header's second
- * byte, wrapping to 1 past the cell count) before the bar redraw.
+/** @brief 1000:3933 (the key list's id 8, SPACE): convert or step the cell.
  *
- * Returns 1 (the make is consumed).
+ * 1000:392D runs the home-state conversion on the acting record
+ * (get_object_ptr + 0xEDB7) and returns when it converted; otherwise it plays
+ * driver effect 0 and steps the action row's selected cell (1000:3941).
  *
- * @return 1 when the ACTION program ran, 0 otherwise
+ * @return 1 (the make is consumed)
  */
 uint8_t object_space_action(void);
 
 /**
  * @brief Accessor: the acting record's index.
  *
- * @return The acting record's index.
+ * @return the index
  */
 uint16_t object_action_entity(void);
 
-/** @brief 1000:3344..336C (level_fade_in): slot 8 (`0x3F05`) takes frame 0x17, type 0x1A,
+/** @brief 1000:3343..336C (level_fade_in): slot 8 (`0x3F05`) takes frame 0x17, type 0x1A,
  * +0xA = 0x1006 and +0xC = 0xFF.  `scan_object_rows` starts its walk there and
  * counts `[0x3E73]-8+1` records, so this slot is drawn.
  * Slot 8 is the active-human ARROW: 1000:D64F (object_marker_tick, called from
@@ -1141,35 +1094,34 @@ uint16_t object_action_entity(void);
  */
 void object_level_start_record(void);
 
-/** @brief 1000:D64F (update_world's 1000:80C9): record 8 follows the acting record;
- * its type word is subtracted from y and steps 0x1A,0x18,0x16,0x14,0x12 (two
- * every third frame - the bob); a 32-px acting sprite shifts x by +8; and the
- * word at +0xA is the lifetime - when its high byte underflows the marker is
- * disabled (+6 = 0x80) and scan_object_rows stops drawing it.
+/** @brief 1000:D64F (update_world's 1000:80C9): the active-human marker.
  *
- * 1000:D64F: the active-human marker (record 8) follows the acting record,
- * bobs through its type word and expires; update_world calls it every frame.
+ * Record 8 follows the acting record: its type word is subtracted from y and
+ * steps 0x1A,0x18,0x16,0x14,0x12 (two every third frame - the bob); a 32-px
+ * acting sprite shifts x by +8; the word at +0xA is the lifetime, and when its
+ * high byte underflows the marker is disabled (+6 = 0x80) and scan_object_rows
+ * stops drawing it.
  */
 void object_marker_tick(void);
 
 /**
- * @brief Accessor: set the acting record.
+ * @brief Set the acting record.
  *
  * @param index the acting record's index
  */
 void object_set_action_entity(uint16_t index);
 
 /**
- * @brief Accessor: the action program index.
+ * @brief Accessor: the action program index ([0x5B56]).
  *
- * @return The action program index.
+ * @return the program id
  */
 uint8_t object_action_program(void);
 
 /**
- * @brief Accessor: the pending event.
+ * @brief Accessor: the pending event ([0x1979]).
  *
- * @return The pending event.
+ * @return the event code
  */
 uint8_t object_action_pending(void);
 
@@ -1189,19 +1141,16 @@ void object_action_set_cursor(uint8_t cursor);
 void object_action_set_program(uint32_t index);
 
 /**
- * @brief Accessor: the last sound effect.
+ * @brief Accessor: the last sound effect a handler asked for (1000:83B7).
  *
- * 1000:83B7 driver_call: the last sfx number a handler asked for (the audio
- * surface has no sfx entry until M6, so the request is only recorded).
- *
- * @return The last sound effect.
+ * @return the sfx number
  */
 uint8_t object_last_sfx(void);
 
 /**
- * @brief the flag's reader is unported, so expose the store for the test
+ * @brief Accessor: [0x6FE6], written by the marker (1000:EAE6/0xF1B2).
  *
- * [0x6FE6]: the marker 1000:EAE6/0xF1B2 write (no ported reader yet).
+ * No ported reader yet.
  *
  * @return 1 when the flag is set, 0 otherwise
  */
@@ -1215,18 +1164,16 @@ uint8_t object_flag6f_e6(void);
 void object_driver_call(uint32_t n);
 
 /**
- * @brief Accessor: the ACTION latch.
+ * @brief Accessor: the ACTION press's latch ([0x13A4]) as the handlers see it.
  *
- * [0x13A4]: the ACTION press's latch as the command handlers see it.
- *
- * @return The ACTION latch.
+ * @return the latch byte
  */
 uint8_t object_action_latched(void);
 
 /**
- * @brief Accessor: set the ACTION latch (7 = op 7 was dispatched).
+ * @brief Set the ACTION latch (7 = op 7 was dispatched).
  *
- * @param on the on/off flag
+ * @param on the latch byte
  */
 void object_set_action_latched(uint8_t on);
 

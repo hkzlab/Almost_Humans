@@ -55,53 +55,24 @@ typedef enum {
 
 /* --- the boot intro: boot_intro_sequence (1000:B590) --------------------
  *
- * The original's boot chain, four stages in this order:
- *   1. the Gametek logo (init_level_scene 1000:BEE9 + play_scene_sequence
- *      1000:B211): fade to black, then GAMETEK.RSC's display list - one
- *      group per tick, the DAC faded to the list's embedded palette in
- *      steps (entries 0-3 fast before the first group, then the 4-bank
- *      cycles and the 0x20-0x2F bank) - abortable by key, then the 0x1a4
- *      hold and the fade to the working palette
- *   2. the IDI card (present_scene2 1000:BD73): IDI.BIT through its own
- *      palette (fade BP=0x32), 0x1a4 hold, fade out
- *   3. the FIRST card (present_scene 1000:BD13): FIRST.BIT fades in bank
- *      by bank (7 x 16 entries at BP=0x23, 0x118 hold each), then fades out
- *   4. the ITB card + the scene (load_intro_scene 1000:B63B), below
- * The music init (8437/83f7/84a5, mus\title.ALB) sits between 1's fade and
- * the logo - deferred in the port.
+ * Four stages in order:
+ *   1. the Gametek logo (1000:BEE9/B211): GAMETEK.RSC's display list, one
+ *      group per tick, the DAC faded to its palette, abortable by key
+ *   2. the IDI card (1000:BD73): IDI.BIT, its own palette, 0x1a4 hold
+ *   3. the FIRST card (1000:BD13): FIRST.BIT, bank by bank, 0x118 each
+ *   4. the ITB card + the scene (1000:B63B)
  *
- * Stage 4 _plays INTRO\INTRO.RSC's display list over a horizontally
- * scrolling INTRO\BAC.BIT background, with the treetop/treebot/apple
- * sprites riding the scroll.  Per tick:
- *   1. script_fire(frame) - the cues (the verbatim 202F:0x843C list)
- *   2. the scroll render (copy_rows_0x140, 1000:B9F8): the bac screen
- *      wrapped horizontally by the scroll position, 184 rows in 92 pairs
- *   3. the sprites (blit_intro_trees/apple, 1000:BA6E/BA4B via
- *      blit_sprite_transparent 1000:BAA5): their screen X = world X -
- *      the scroll, so they ride the background
- *   4. the display-list group (blit_display_list, 1000:B955): transparent
- *      overlays at the records' destinations; at the group terminator the
- *      dwell counts down and the next group + frame follow
- *   5. present, then the frame wait (2 ticks at 1000:b780; 4 in the port -
- *      deviation D-248)
- * The quit cue (frame 385) ends it; the frame counter ran 0..386 live.
- * A held key/fire also aborts the boot: c0c6 is polled after every frame's
- * wait (1000:b787) and in the transition's fade wait (1000:c0af).
+ * Stage 4 plays INTRO\INTRO.RSC over a scrolling INTRO\BAC.BIT, with the
+ * tree/apple sprites riding the scroll.  Per tick: script_fire (202F:0x843C),
+ * the scroll render (1000:B9F8, 184 rows in 92 pairs), the sprites
+ * (1000:BAA5), the display-list group (1000:B955), then present and the frame
+ * wait (D-248).  The quit cue (frame 385) ends it; a held key aborts after
+ * every wait (1000:B787) and in the transition fade (1000:C0AF).
  *
- * The present (deplanarise_bitmap, 1000:BB05) shows the pool's rows 4-183
- * in the visible rows 0-179 - the port composes both stages into its flat
- * page.  The bar (the transition handler's words expansion, visible rows
- * 182-197, colours 0xE0-0xEF = bac's grey gradient) persists below every
- * present.
- *
- * The palette fades are ported through palette.c's build/step machine (the
- * ISR body's palette_fade_step 1000:8bfd): the card's own-palette fade-in
- * (b68f build + c0af wait), the post-dwell fade-out to the zeroed ramp and
- * the 0x8C-tick black hold (b6f2-b707), the transition's white flash with
- * the black 0xE0-0xEF bank + fade-back to the working palette
- * (run_screen_transition 1000:B82E) and the caption bank fade 0x28 ticks
- * after it (fade_countdown 1000:b7c0).  The ITB title card (present_frame
- * 1000:BDBC, shown through the initial 280-tick dwell) is ported. */
+ * The present (1000:BB05) shows pool rows 4-183 as visible rows 0-179 and
+ * keeps the bar (rows 182-197, colours 0xE0-0xEF) below it.  The fades run
+ * through palette.c's build/step machine (1000:8BFD).
+ */
 typedef enum {
     BOOT_START,
     BOOT_GT_PRE, // the boot fade-to-black wait; the list decode
@@ -235,7 +206,7 @@ static uint8_t _boot_gt_bank; // the 4-bank palette-cycle counter
 static uint8_t *_boot_itb; // intro\itb.bit held until its stage
 static uint16_t _boot_hold; // the stages' hold counters (c0b8's CX)
 
-/** @brief --- AL expander: blit_background_data (1000:B2EB) --------------------
+/** @brief AL expander: blit_background_data (1000:B2EB).
  *
  * Source = AL stream, destination = page.  Grammar (from the listing):
  *
@@ -343,17 +314,17 @@ static int32_t _ani_load(Ani *a, uint32_t ani_idx)
     return 0;
 }
 
-/** @brief Decode the LZW object at table entry `idx` into `out` (capacity
- * `out_size`).  Returns the decompressed size, or -1 on failure.
+/** @brief Decode the LZW object at table entry `idx` into `out`.
+ *
  * *chkOut receives the object's checksum accumulator (0 = the game's
  * scene-object test passes, 1000:B444).
  *
  * @param a the ANI object
  * @param idx the table entry index
  * @param out the output buffer
- * @param out_size the output size
+ * @param out_size the output capacity
  * @param chkOut the output checksum
- * @return 0 on success, -1 on a bad table entry
+ * @return the decompressed size, or -1 on a bad table entry
  */
 static int32_t _ani_decode_object(const Ani *a, uint32_t idx, uint8_t *out,
                                   uint32_t out_size, uint16_t *chkOut)
@@ -412,9 +383,8 @@ static int32_t _boot_key_state(void)
 
 void scene_note_input(const InputState *in) { _scene_last_input = *in; }
 
-/** @brief Any key or fire: the original's [0x48A3] / +0x5ACE bit-7 checks.  (The
- * level intro's skip polls - its contract predates the boot's flag-cache
- * model; the boot's waits use _boot_key_state instead.)
+/** @brief Any key or fire from the live poll: the original's [0x48A3] / +0x5ACE
+ * bit-7 checks.  The boot's waits use the cached _boot_key_state instead.
  *
  * @return 1 when a key or fire is held, 0 otherwise
  */
@@ -448,10 +418,10 @@ static void _scene_unload(void)
 }
 
 /** @brief Load ANI<index>.ANI + the background assets, draw the background and
- * the palette onto page 0.  Returns 0 on success.
+ * the palette onto page 0.
  *
- * @param index the index
- * @param initial the initial value
+ * @param index the intro scene index
+ * @param initial non-zero on the chain's first scene (shows the panel)
  * @return 0 on success, -1 when the scene assets are missing
  */
 static int32_t _scene_start(uint32_t index, int32_t initial)
@@ -491,7 +461,7 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
         free(daily);
     }
 
-    /* apl\text.spr (the original's second load, 1000:C491): the panel's
+    /* apl\text.spr (the original's second load, 1000:C490): the panel's
      * headline is drawn with these glyphs (blit_text_tile), so the scene
      * publishes them for its own frame */
     free(_text_spr);
@@ -621,7 +591,7 @@ uint8_t scene_play_level_intro(uint16_t introIndex)
                 _scene_quit_fade();
                 return 1;
             }
-            /* 1000:B13F: the panel's first 0x20 entries fade back to
+            /* 1000:B13D: the panel's first 0x20 entries fade back to
              * [0x48BC] (black) over div 0x19; play_scene_sequence's own
              * head (B248) waits for that fade before the prologue frame. */
             palette_build_fade(0u, 0x20u, 0x19u, _scene_black_pal);
@@ -767,7 +737,7 @@ uint8_t scene_play_level_intro(uint16_t introIndex)
  * (blit_background_data 1000:B2EB - _scene_al_expand is that machine,
  * validated through the level-intro scenes).
  *
- * @param idx the index
+ * @param idx the group index
  * @return 1 while the group shows, 0 when it finishes
  */
 static int32_t _boot_gt_show(uint32_t idx)
@@ -934,8 +904,8 @@ static void _boot_scroll_render(uint8_t *page, const uint8_t *bac,
  *
  * @param rsc the resource
  * @param rscSize the resource size
- * @param entries the entry count
- * @param entryCount the entry count
+ * @param entries the object offset table
+ * @param entryCount the table's entry count
  * @param _obj_buf the object buffer
  * @param storedIdx the stored index
  * @param dest the destination
@@ -992,8 +962,8 @@ static void _boot_blit_record(const uint8_t *rsc, uint32_t rscSize,
  * @param listSize the list size
  * @param rsc the resource
  * @param rscSize the resource size
- * @param entries the entry count
- * @param entryCount the entry count
+ * @param entries the object offset table
+ * @param entryCount the table's entry count
  * @param _obj_buf the object buffer
  * @param listPos the list position
  * @param page the page buffer
@@ -1023,11 +993,11 @@ static uint32_t _boot_blit_group(const uint8_t *listBuf, uint32_t listSize,
 }
 
 /** @brief The seek (cmd 4): walk `frame` 0xFFFF group terminators from the list
- * start - the group for `frame`.  The terminators live in the decoded
- * object 0's tail: the list is consumed straight out of the decoded
- * object, [0x6468] runs in the scratch segment), so the walk bounds
- * against the DECODED size, not the raw RSC file.  Returns the group's
- * offset in the decoded buffer.
+ * start to the group for `frame`.
+ *
+ * The terminators live in decoded object 0's tail ([0x6468] runs in the
+ * scratch segment), so the walk bounds against the DECODED size, not the raw
+ * RSC file.
  *
  * @param listBuf the list buffer
  * @param listSize the list size
@@ -1224,14 +1194,12 @@ static int32_t _boot_gt_pre(void)
  */
 static int32_t _boot_gt_frame(void)
 {
-    /* b293-b2c2: CX = count+1 iterations over the idx array (the array
-     * holds count+1 words - the object tail is consumed exactly); the
-     * key test lives in BOOT_GT_FLIP (the asm's b2ba, between the flip
-     * and the next frame).  LIVE-VERIFIED (2026-10-24): the machine's
-     * relocated count word reads 32 (-> CX = 33) - the loop _plays all
-     * count+1 frames including the last (obj 29), whose expansion
-     * wipes the assembled logo down to a small entry-8 blob; that
-     * vanish-and-blob is authentic machine behavior. */
+    /* b293-b2c2: CX = count+1 iterations over the idx array (it holds
+     * count+1 words, so the object tail is consumed exactly); the key test
+     * lives in BOOT_GT_FLIP (b2ba, between the flip and the next frame).
+     * The machine's count word reads 32, so the loop plays all count+1
+     * frames including obj 29, whose expansion wipes the logo to a small
+     * entry-8 blob. */
     uint16_t count = rd_le_u16(_boot_gt_list);
     if (_boot_gt_group > count) {
         _boot_hold = 30u; // bf19: the 30-tick pre-bank hold
@@ -1301,7 +1269,7 @@ static int32_t _boot_black(void)
 
 /** @brief BOOT_FRAME: one cue-driven scene frame - the cues, the seek, the
  * transition trigger, the caption bank countdown, the scroll render, the
- * group blit and the present (1000:B750-B780).
+ * group blit and the present (1000:B74E-B780).
  *
  * @return 1 while the boot intro shows
  */

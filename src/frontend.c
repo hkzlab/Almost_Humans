@@ -56,12 +56,8 @@ static const uint8_t _floor_tab[0x3B] = {
     0xB6, 0xB6, 0xB6, 0xB6, 0xB6, 0xB7, 0xB7, 0xB7, 0xB7, 0xB7, 0xB7,
 };
 
-/* 202F:0x61A3 - the anim _slot table: 60 data bytes, then the 0x00 wrap
- * terminator at [60] (verbatim from the image; an earlier embed had a
- * duplicated 0x99 there, which made the +3 _slot walk run past the table
- * and never wrap - the humans' cut column and the name screen's pan both
- * went garbage-derived: the humans vanished behind the range guard and
- * the window scrolled wildly). */
+/* 202F:0x61A3 - the anim slot table: 60 data bytes, then the 0x00 wrap
+ * terminator at [60] (verbatim from the image). */
 static const uint8_t _slot_tab[61] = {
     0x88, 0x88, 0x88, 0x77, 0x77, 0x77, 0x66, 0x66, 0x66, 0x55, 0x55,
     0x66, 0x44, 0x55, 0x66, 0x44, 0x55, 0x66, 0x44, 0x55, 0x66, 0x55,
@@ -122,8 +118,9 @@ uint16_t frontend_cell_for_probe(void) { return _cell; }
 uint8_t frontend_name_screen_for_probe(void) { return _phase == FE_NAME; }
 const char *frontend_name_for_probe(void) { return _name_buf; }
 
-/**
- * @brief --- the VRAM primitives ----------------------------------------------
+/* --- the VRAM primitives -------------------------------------------- */
+
+/** @brief Store one pixel in the planar VRAM.
  *
  * @param rowBase the row base
  * @param px the x position
@@ -193,19 +190,15 @@ static void _patch_code2(uint32_t pOff, const uint8_t *src, uint32_t w,
         }
 }
 
-/** @brief place_4_sprites_to_vga (1000:A684) - the option-value badges at the
- * MUSIC / LEVEL / RESTORE GAME / ANIMATIONS signs.  The entry table at
- * 202F:0x5E54
- * (10 bytes apart, verbatim): {u16 dest, u16 srcOff, u8 w, u8 h,
- * u8 _cell, u16 &srcSeg} - and the +7 `_cell` field IS the option counter
- * (the "option structs" and this table are the same bytes: 0x5E5B /
- * 0x5E65 / 0x5E6F / 0x5E79).  The sprite = w*h chunky bytes at
- * srcOff + _cell*w*h, nonzero-transparent, at the page byte `dest`
- * (+[0x5AC4], 160-pitch).  The shipped files close the _cell counts:
- * _codeb1 6144 = 4x(48x32) (MUSIC's ON/OFF + ANIMATIONS' ON/OFF), _codeb2
- * 7680 = 3x(80x32) (LEVEL's EASY/NORMAL/HARD), _restore 32256 =
- * 21x(48x32) (RESTORE GAME's OFF/1..20); the 4th entry is _codeb1's cells
- * 2..3 at srcOff 0xC00.
+/** @brief place_4_sprites_to_vga (1000:A684): the option-value badges at the
+ * MUSIC / LEVEL / RESTORE GAME / ANIMATIONS signs.
+ *
+ * The entry table at 202F:0x5E54 (10 bytes each): {u16 dest, u16 srcOff, u8 w,
+ * u8 h, u8 cell, u16 &srcSeg}; its +7 cell field IS the option counter
+ * (0x5E5B/0x5E65/0x5E6F/0x5E79).  The sprite is w*h chunky bytes at
+ * srcOff + cell*w*h, nonzero-transparent, at page byte dest (+[0x5AC4],
+ * 160 pitch).  The shipped files close the cell counts: _codeb1 6144 =
+ * 4x(48x32), _codeb2 7680 = 3x(80x32), _restore 32256 = 21x(48x32).
  */
 static void _draw_option_sprites(void)
 {
@@ -246,15 +239,13 @@ static void _draw_option_sprites(void)
     }
 }
 
-/** @brief name_screen_anim_frame's two human draws (via name_entry_render's ADB6
- * entry): a 20x20 cut of _code2's human strip bank - rows 0..19 at column
- * (0x9E - nibble), the nibble from the NEXT TWO _slot bytes - copied to
- * the SAME x; on the name screen to the fixed band (rows 0..19/16..35),
- * on the room screen to [0x5AC4]+0x5500 + those (page rows 136..155/
- * 152..171 - the middle pair of the four-human stack holding the board).
- * The stager's OVERLAY pass (AE6E..AE9E) then composites _codehum _frame 2
- * (CS:[0xadb4]=0, 16 rows of 16 bytes, nonzero-only) at scratch rows 1..16,
- * cols 2..17 - ported here as the same overlay.
+/** @brief name_screen_anim_frame's two human draws (via ADB6).
+ *
+ * A 20x20 cut of _code2's human strip bank - rows 0..19 at column
+ * (0x9E - nibble), the nibble from the next two slot bytes - to the same x:
+ * the fixed band on the name screen, page rows 136..155/152..171 on the room
+ * screen.  The stager's overlay (AE6E..AE9E) then composites _codehum frame 2
+ * (16x16, nonzero-only) at scratch rows 1..16, cols 2..17.
  */
 static void _draw_humans(void)
 {
@@ -289,17 +280,10 @@ static void _draw_humans(void)
 
 /* --- the name ----------------------------------------------------------- */
 
-/** @brief name_entry_blit (1000:AB8D) - the typed name IS displayed: the last
- * claim ("never displayed, live-verified") misidentified this routine's
- * purpose; its callers were verified across the room path (addchar,
- * backspace, ESC-clear, the match's miss path, the room backdrop build)
- * and the loop's raw bytes settle the shape: 10 rows x 40 copy-pairs -
- * the ARENA (draw_text already wrote the glyphs at rows 4..13, bytes
- * 18..57) read at 0x152+80/row, written to the page at [0x5AC4]+0x38F5
- * +160/row under vga_set_write_mode2's bit-mask 0x80 (299b: OUT DX,AX
- * with AH=0x80).  Each write sets the color-index TOP bit of the 4 dest
- * pixels from the arena byte's bits 3..0 - the bright-variant palette
- * (0x80+n) the dark bar's pixels sit in.  Ported verbatim.
+/** @brief name_entry_blit (1000:AB8D): display the typed name.
+ *
+ * WM2 bit mask 0x80 writes the arena's pixels into the bright palette
+ * (0x80+n).
  */
 static void _draw_name_line(void)
 {
@@ -396,17 +380,14 @@ static int32_t _code_match(void)
 
 /* --- the character draw (room_draw_character 1000:AD40) ---------------- */
 
-/** @brief The floor adjust (the tail A85A..A885) + the record publish + the draw.
- * The _frame is the record's unless x < 0x10B (the idle pose), the draw x
- * clamped >= 0x108.  The box (sprite_stage_rows 1000:AE39 +
- * sprite_blit_4plane 1000:ADC8) is the BACKDROP RESTORED FROM _code2.raw
- * ITSELF - the stager copies _code2's own 20-byte strips at the character's
- * position (DS := code2seg + (y-1)*0x28 paragraphs, SI := x, +0x26C after
- * 20 bytes = one 640-byte row per strip) into the scratch, then overlays
- * only the sprite's NONZERO bytes (box rows 1..24, cols 2..17); the blit
- * writes all 27 rows x 20 cols unconditionally.  The 2-col backdrop
- * margins are what make the page alternation seam-free: the 2-px-per-
- * 2-frames trail lands on pure backdrop.
+/** @brief The floor adjust (A85A..A885), the record publish and the draw.
+ *
+ * The frame is the record's unless x < 0x10B (the idle pose); the draw x
+ * clamps >= 0x108.  The box (sprite_stage_rows 1000:AE39 + sprite_blit_4plane
+ * 1000:ADC8) is _code2's own 20-byte strips at the character's position,
+ * with only the sprite's nonzero bytes overlaid (rows 1..24, cols 2..17);
+ * the blit writes all 27 rows x 20 cols.  The 2-col margins keep the page
+ * alternation seam-free.
  */
 static void _draw_character(void)
 {
@@ -574,14 +555,9 @@ static void _cycle_option(void)
 
 /* --- the name screen ----------------------------------------------------- */
 
-/** @brief name_screen_anim_frame (1000:ACB9): the _slot advances +3 every 5 ticks
- * (a 0 table byte wraps to _slot 0); the pan := (byte & 0xF) - 4.  Its two
- * draws are the two humans (1000:ADB6 -> sprite_stage_rows), which the port
- * makes in _draw_humans: the 20x20 strips at _code2 + 0x15400 / + 0x17C00,
- * source column 0x9E - nibble, into the name page's 0x000 / 0xA00 windows or
- * (room) page rows 136.. through ADB6's [0x6267]-clear offset.  (An earlier
- * note here called them "decor sprites ... not ported": that was stale - the
- * routine below is their port.)
+/** @brief name_screen_anim_frame (1000:ACB9): every 5 ticks the _slot
+ * advances +3 on the name screen only (a 0 table byte wraps to _slot 0), and
+ * the pan is (byte & 0xF) - 4.  Its two draws are the humans in _draw_humans.
  */
 static void _anim_frame(void)
 {
@@ -615,8 +591,7 @@ static void _name_screen_enter(void)
     if (_code2 && _code2_size >= 0x1E000u) {
         /* AF92's order is load-bearing: the stage strip first (rows 0..55),
          * then the character (band rows 13..39), then the main art (rows
-         * 40..175, starting just below him).  Drawing the strip after the
-         * character - as an earlier revision did - paints over him. */
+         * 40..175, starting just below him). */
         video_vram_planarise(_code2 + 0x15400u, _code2_size - 0x15400u, 0u,
                              160u, 160u, 56u);
         /* afcf: the character draw runs here, with [0x5AC4] held 0 - the
@@ -630,9 +605,9 @@ static void _name_screen_enter(void)
     _phase = FE_NAME;
 }
 
-/**
- * @brief --- the phases ----------------------------------------------------------
- */
+/* --- the phases ------------------------------------------------------ */
+
+/** @brief Begin the room's exit fade. */
 static void _start_exit(void)
 {
     /* the event loop's exit tail (AA86..): the fade to the 0x48BC ramp
@@ -796,14 +771,8 @@ uint8_t frontend_tick(const InputState *in)
         }
         return 1;
     case FE_EXITFADE:
-        /* The fade holds the _frame the screen last presented.  This used to
-         * pass 1, which swapped _page_draw to 0x7D00 - the ROOM's second page,
-         * where the setup's 2-_frame loop (1000:A5A1) had drawn the seeded
-         * "DARWIN".  The name screen is single-buffered (its cursor+present
-         * double-swap cancels, so it composes with 0), so swapping here put
-         * the stale room page on screen after the first fade tick: a correct
-         * code started the right level, but the old DARWIN showed through the
-         * fade-out.  Keep the name screen's page (0x2800). */
+        /* Keep the name screen's page (0x2800): it is single-buffered, so
+         * the fade composes with no swap. */
         _compose(0);
         if (!palette_fade_active()) return 0; // the room has exited
         return 1;

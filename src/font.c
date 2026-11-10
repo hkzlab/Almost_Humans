@@ -5,7 +5,7 @@
 
 #include <stdio.h>
 
-/* 202F:0x1E28 - the _charset (44 _glyphs + the terminator). */
+/* 202F:0x1E28 - the charset (44 glyphs + the terminator). */
 static const char _charset[45] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!., '?ae";
 
 /* 202F:0x1E55 - the advances, then the terminator slot's 0x50. */

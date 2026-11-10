@@ -37,36 +37,24 @@ extern char audio_tune_lev[]; // "mus\levA"; the letter is rewritten
 int32_t audio_init(const OSystem *osys);
 
 /**
- * @brief Install the resident driver (driver_reset 1000:84DE).
- *
- * driver_reset's install (1000:84DE) - once, at boot.
+ * @brief Install the resident driver (driver_reset 1000:84DE), once at boot.
  */
 void audio_install(void);
 
 /**
- * @brief The game tick's audio step: one tick, unless the backend owns it.
+ * @brief The game tick's audio step (1000:8B1E + the fade pair).
  *
- * This is the original's per-display-period call (1000:8B1E).  A backend that
- * drives the tick from its audio sample clock (audio_render_tick) turns this
- * into a no-op so the sequencer advances on exactly one clock.
- *
- * The INT 8 body's share (1000:8B1E + the fade pair): cmd 2 on 2 of every 3
- * ticks and one master-volume step every 2 ticks.
- * Called from _game_tick; a backend that owns the audio clock (SDL3's render
- * path) turns this into a no-op and calls audio_render_tick instead.
+ * cmd 2 on 2 of every 3 ticks and one master-volume step every 2 ticks.
+ * A backend that owns the audio clock (SDL3's render path) makes this a no-op
+ * and calls audio_render_tick instead.
  */
 void audio_tick(void);
 
 /**
- * @brief One audio tick, called by the backend inside its render path.
+ * @brief One audio tick at the sample where it is due (arch/sdl3/audio.c).
  *
- * The register writes must land on the sample the tick is due at, not on the
- * next render chunk's edge: the original's ISR writes the OPL ports
- * synchronously.  See arch/sdl3/audio.c.
- *
- * One audio tick at the point in the sample stream where it is due, called by
- * the backend from inside its render path (arch/sdl3/audio.c).
- * Keeps the sequencer's register writes sample-exact.
+ * The register writes must land on that sample, not on the next render chunk's
+ * edge: the original's ISR writes the OPL ports synchronously.
  */
 void audio_render_tick(void);
 
@@ -115,9 +103,7 @@ void audio_play_level_tune(uint16_t level1);
 void audio_music_resume(void);
 
 /**
- * @brief music_stop (1000:8389): clear the latch and release the record.
- *
- * music_stop (1000:8389): clear [0x40BB], cmd 6.
+ * @brief music_stop (1000:8389): clear [0x40BB], cmd 6.
  */
 void audio_music_stop(void);
 
@@ -150,8 +136,6 @@ void audio_fade_out(void);
 /**
  * @brief True while a fade is still stepping.
  *
- * true while a fade is stepping (the sites that blocked on it can wait).
- *
  * @return 1 while fading, 0 when idle
  */
 uint8_t audio_fade_busy(void);
@@ -159,9 +143,8 @@ uint8_t audio_fade_busy(void);
 /**
  * @brief driver_call (1000:83B7): start a sound-effect record.
  *
- * driver_call (1000:83B7): cmd 5 CX=id, gated by [0x5E5B] (music off), the
- * driver id (the port links AdLib, id 1, so event 0x0E is dropped) and the
- * 0xFF sentinel.
+ * cmd 5 CX=id, gated by [0x5E5B] (music off), the driver id (the port links
+ * AdLib, id 1, so event 0x0E is dropped) and the 0xFF sentinel.
  *
  * @param id the caller's event id
  */

@@ -20,25 +20,17 @@
 
 /* --- 1000:46FC / 0x4697 / 0x46A3: the NEW RECORD stamp -------------------
  *
- * `blink_tick` toggles `[0x1DC4]` and jumps on the new phase: 0 -> `0x46A3`,
- * 1 -> `0x46FC`.  `0x46FC` draws `apl\record.spr` ([0x1DDE]) into the page at
- * byte `0x3CA0 + [0x4106]`: 0x18 rows x 64 bytes, `LODSB` + `ADD SI,3` (the
- * `p::4` pass de-interleave), a non-zero byte drawn as `0xC0 + v`, four
- * Map-Mask passes.  A page address is a 4-pixel group (plane p = pixel 4j+p),
- * so the four passes read `src[4j+p]` into pixel `4j+p`: a 1:1 copy of the
- * chunky 64 x 24 sprite.  `0x3CA0` is not a multiple of the 88-address row:
- * 0x3CA0 = 176*88 + 32, so the stamp sits at row 176, address column 32 -
- * a 64 x 24 cell at px 128..191 on rows 176..199.
+ * blink_tick toggles [0x1DC4]: 0 draws the off phase (0x46A3), 1 the on phase
+ * (0x46FC).  0x46FC draws apl\record.spr ([0x1DDE]) at page byte 0x3CA0 +
+ * [0x4106]: 0x18 rows x 64 bytes, a non-zero byte as 0xC0 + v, four Map-Mask
+ * passes reading src[4j+p] into pixel 4j+p.  0x3CA0 = 176*88 + 32, so the
+ * 64 x 24 stamp sits at row 176, px 128..191.
  *
- * 0x4697/0x46A3 are one body at 0x46AF with source and destination swapped.
- * Its segment setup is `B8 00 A0 / 8E C0 / 8E D8`: ES and DS are both A000,
- * so the scratch is **A000:0000**, not DS:0.  The on phase (`0x46FC`) copies
- * the 16 x 24 cell to page 0 and then draws the sprite; the off phase
- * (`0x46A3`) copies page 0 back.  The copy runs with Seq Map Mask 0x0F and GC
- * Bit Mask 0x00; in write mode 0 a zero mask bit selects the **latch** instead
- * of the CPU byte, and the latches hold all four planes of the address just
- * read - so the copy carries the whole 4-plane cell, not one plane's byte.
- * That is why the port saves and restores every pixel (`_stamp_under`).
+ * 0x4697/0x46A3 are one body at 0x46AF with source and destination swapped:
+ * ES and DS are both A000 (B8 00 A0 / 8E C0 / 8E D8), so the scratch is
+ * A000:0000.  With GC Bit Mask 0x00 the zero mask bits select the latch, which
+ * holds all four planes of the address just read: the copy carries the whole
+ * 4-plane cell.  That is why the port saves and restores every pixel.
  */
 #define STAMP_ROW 176u
 #define STAMP_COL 32u
@@ -105,13 +97,8 @@ static uint16_t _score_hold;
  * the visible page.  The port keeps it in a private buffer of the same shape
  * instead of the flat page's top-left.
  *
- * The cell is saved and restored PER PIXEL.  A live capture
- * (2026-11-02, level 1 with a NEW RECORD) shows the off phase putting the
- * card back exactly: the cell before the first stamp draw and after the
- * erase are byte-identical (0 of 1536 pixels differ) and keep the card's
- * 1-px detail (142 of its 384 4-px groups still vary).  The earlier model -
- * one byte per 4-px page address, i.e. the address's plane-0 pixel written
- * back to all four - left the card behind the stamp as 4-px blocks. */
+ * The cell is saved and restored PER PIXEL: a live capture (level 1 with a
+ * NEW RECORD) shows the off phase restoring the card byte-identically. */
 static uint8_t _stamp_under[24u * 64u];
 
 uint16_t score_members(void)
@@ -205,7 +192,7 @@ void score_prepare(void)
         _score_total_hi = (uint16_t)(total >> 16);
     }
     _score_delay = 0x50u; // 1000:4327
-    _score_screen_timer = 0x15Eu; // 1000:432C [0x1DC8]
+    _score_screen_timer = 0x15Eu; // 1000:432D [0x1DC8]
 }
 
 /* 1000:467A blink_tick: while [0x1DD6] (NEW RECORD) is set, a 0x19-frame
@@ -345,7 +332,7 @@ void score_stamp_draw(uint8_t *page, uint8_t on)
         }
 }
 
-/** @brief --- 1000:462D / 1000:4578: the score screen's digit columns ------------
+/** @brief 1000:462D / 1000:4578: the score screen's digit columns.
  *
  * `blit_score_block` (0x462D): `SI = digit*256` into SCORE.SPR (ten 0x100-byte
  * slots).  The page address is a 4-pixel group (plane p = pixel 4j+p).  Each
@@ -353,10 +340,6 @@ void score_stamp_draw(uint8_t *page, uint8_t on)
  * so pass p starts 64 bytes on and reads the slot's quarter p: the glyph is a
  * 16 x 16 chunky image stored plane-major, pixel 4k+p = src[p*64 + r*4 + k],
  * drawn as 0xC0 | v (`or_region_c0` 0x4278 biases the sheet).
- * `statusbar_segment` (0x4578): a 32-bit
- * value from [0x4228]/[0x422A] drawn as DX digits at (AX, BX), right to left
- * in 4-address (16 px) steps; the value is divided by 10000 first, then by 10,
- * and an exhausted value keeps drawing block 0 (zero-padded).
  *
  * @param page the page buffer
  * @param digit the digit
@@ -409,7 +392,7 @@ void score_draw_columns(uint8_t *page)
                  0xA0, 0x74, 9u); // (0xA0, 0x74)
 }
 
-/** @brief --- 1000:44BB / 1000:450F: the elapsed and best times -------------------
+/** @brief 1000:44BB / 1000:450F: the elapsed and best times.
  *
  * `draw_scorenum_three_passes` (`0x44BB`) draws one word as **three digits** at
  * `(AX, BX)` on the 88-address page, `DI` addresses into the SCORENUM slot:
@@ -432,8 +415,8 @@ void score_draw_columns(uint8_t *page)
  *
  * @param page the page buffer
  * @param digit the digit
- * @param bp the page base
- * @param off the column offset
+ * @param bp the SCORENUM slot base
+ * @param off the page byte offset
  */
 static void _score_num_block(uint8_t *page, uint32_t digit, uint32_t bp,
                              uint32_t off)
@@ -471,9 +454,9 @@ void score_draw_num3(uint8_t *page, uint32_t ax, uint16_t value, uint32_t bx,
 void score_draw_card(uint8_t *page)
 {
     if (!page || !_score_bit || _score_size < VIDEO_PAGE_BYTES) return;
-    /* 1000:4403: SI walks the chunky 320-byte row at stride 4 (one byte per
-     * plane pass) and DI is the 4-px page group, so pixel 4j+p = src[4j+p]:
-     * a plain 1:1 copy.  A zero byte is LEFT ALONE (the level caption). */
+    /* 1000:4403: SI walks the chunky 320-byte row at stride 4 and DI is the
+     * 4-px page group, so pixel 4j+p = src[4j+p] | 0xC0.  A zero byte is LEFT
+     * ALONE (the level caption). */
     for (uint16_t i = 0; i < VIDEO_PAGE_BYTES; i++) {
         uint8_t v = _score_bit[i];
 
@@ -499,13 +482,10 @@ uint8_t score_begin(uint32_t value)
     _score_size = 0;
     _score_bit = res_load_chunk("LBM\\SCORE.BIT", &_score_size, NULL);
     uint8_t *page = video_page(0);
-    /* The page is NOT cleared: `check_highscore` draws the card straight over
-     * whatever the level's caption left on it (`draw_level_text` 0x33A3 ends
+    /* The page is NOT cleared: check_highscore draws the card straight over
+     * whatever the level's caption left on it (draw_level_text 0x33A3 ends
      * with the page drawn and the DAC faded to black), and
-     * `reblit_framebuffer_88` skips a zero source byte.  The live stamp cell
-     * shows exactly that: bytes 1..0xBF (level-palette indices) inside the card
-     * where the sprite is transparent.  An earlier revision memset the page,
-     * which made those spots black instead - corrected. */
+     * reblit_framebuffer_88 skips a zero source byte. */
     /* 1000:4278..4284 or_region_c0 runs with ES = [0x1DDA] = APL\SCORE.SPR,
      * BP = 0, BX = 0x100 and CX = 0xA, i.e. it ORs 0xC0 over BX*CX = 0xA00
      * bytes = the sheet's ten 0x100-byte digit slots, not into the page.
@@ -541,7 +521,7 @@ uint8_t score_begin(uint32_t value)
     free(_score_num);
     _score_num = res_load_chunk("APL\\SCORENUM.SPR", NULL, NULL); // 1000:4269
 
-    /* 1000:4310/0x4320 draw_scorenum_three_passes: the elapsed time at
+    /* 1000:430E/431A draw_scorenum_three_passes: the elapsed time at
      * (0x50, 0xB5) and the best time at (0xF0, 0xB5), both row 181. */
     score_draw_num3(page, 0x50u, statusbar_elapsed_word(), 0xB5u, 0u);
     score_draw_num3(page, 0xF0u, _score_best_time, 0xB5u, 0x280u);
@@ -550,9 +530,7 @@ uint8_t score_begin(uint32_t value)
      * the running total) in SCORE.SPR's digits. */
     score_draw_columns(page);
     /* The NEW RECORD stamp is apl\record.spr at row 176, px 128..191
-     * (0x3CA0 = 176*88 + 32) - blink_tick redraws it.  An earlier revision
-     * also drew the words with textpage_draw_line at row 0x90; the live screen
-     * (2026-11-01) shows only the sprite, so that stand-in is gone. */
+     * (0x3CA0 = 176*88 + 32); blink_tick redraws it. */
 
     _score_phase = SCORE_WAIT;
     _score_armed = 0;

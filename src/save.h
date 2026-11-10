@@ -21,11 +21,11 @@
  */
 int32_t save_init(const OSystem *osys);
 
-/** @brief entry:004C: slot 1..20 -> the letter 'A'+(n-1); 0 = GAME OFF.  Resets the
- * state first, so a failed/absent slot leaves the fresh-game path.
+/** @brief entry:004C: load slot 1..20 (letter 'A'+(n-1)); 0 = GAME OFF.
  *
- * Resets the state first; returns 1 when the file's header was read (the
- * original's "save present" [0x34]).
+ * Resets the state first, so a failed or absent slot leaves the fresh-game
+ * path.  Returns 1 when the file's 13-byte header was read (the original's
+ * "save present" [0x34]).
  *
  * @param slot the slot
  * @return 1 when the slot loaded, 0 otherwise
@@ -35,40 +35,41 @@ uint8_t save_load_slot(uint8_t slot);
 /**
  * @brief Accessor: a save is loaded ([0x34]).
  *
- * @return A save is loaded.
+ * @return 1 while a save is loaded, 0 otherwise
  */
 uint8_t save_present(void);
 
 /**
  * @brief Accessor: the saved level word (+0x00, 1..160 -> [0x22]).
  *
- * @return The saved level word.
+ * @return the level number
  */
 uint16_t save_level(void);
 
 /**
  * @brief Accessor: the saved time word (+0x07 word -> [0x5D31]).
  *
- * @return The saved time word.
+ * @return the BCD time word
  */
 uint16_t save_time(void);
 
 /**
  * @brief Accessor: the saved member count (+0x0B -> [0x1970]).
  *
- * @return The saved member count.
+ * @return the member count
  */
 uint16_t save_members(void);
 
 /**
  * @brief Accessor: the save blob.
  *
- * The whole 0x1800 buffer ([0x1C92]): the header and the six state ranges,
+ * The whole 0x1800 buffer ([0x1C92]): the 13-byte header and the seven state
+ * ranges,
  * carried verbatim.  The core does not use it - save_restore_state reads the
  * buffer directly - so this accessor serves the tests only, which check that
  * the ranges were carried unmodified.
  *
- * @return The save blob.
+ * @return the 0x1800 buffer
  */
 const uint8_t *save_blob(void);
 
@@ -84,7 +85,7 @@ void save_restore_state(void);
 void save_consume(void);
 
 /** @brief SAVE GAME (save_progress 1FE7:0000): the live 13-byte header and the
- * five state ranges, 0x1800 bytes.
+ * seven state ranges, 0x1800 bytes.
  *
  * save_restore_state puts them back after level_load.  The +0x17F0 parameter
  * block is the image's [0x5B22] defaults.

@@ -27,12 +27,12 @@ void party_intro_set_game_over(uint8_t on);
 /**
  * @brief Accessor: the briefing's score (g_score [0x592]).
  *
- * @return The briefing's score.
+ * @return the score
  */
 uint16_t party_intro_score(void);
 
 /**
- * @brief === the API =================================================================
+ * @brief Seed the briefing's level, counts, score and tribe name.
  *
  * @param level the level number
  * @param need the required count
@@ -75,7 +75,7 @@ uint8_t party_intro_start(void);
 uint8_t party_intro_tick(const InputState *in);
 
 /**
- * @brief === 2b1b format_score + 2b70 ================================================
+ * @brief 2B1B format_score + 2B70: format the score as a decimal string.
  *
  * @param v the value
  * @param out the output buffer
@@ -99,10 +99,9 @@ void party_intro_compose(uint8_t *page320x200);
 const uint8_t *party_intro_workpal(void);
 
 /**
- * @brief Accessor: the upper palette half (0x4D3C = 0x4BBC + 0x180;
- * diagnostics).
+ * @brief Accessor: the upper palette half (0x4D3C = 0x4BBC + 0x180).
  *
- * @return The upper palette half.
+ * @return the 0x180-byte upper half
  */
 const uint8_t *party_intro_pal_upper(void);
 

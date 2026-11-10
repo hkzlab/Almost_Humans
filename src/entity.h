@@ -28,7 +28,7 @@ typedef struct {
 } Entity;
 
 /**
- * @brief --- the interface ------------------------------------------------------
+ * @brief Bind the entity module to the backend.
  *
  * @param osys the backend interface
  * @return 0 on success
@@ -36,7 +36,7 @@ typedef struct {
 int32_t entity_init(const OSystem *osys);
 
 /**
- * @brief --- the dispatch (1000:C93C) -------------------------------------------
+ * @brief entity_dispatch (1000:C93C): step every live entity.
  */
 void entity_tick(void);
 
@@ -46,7 +46,6 @@ void entity_tick(void);
  * 1000:5823 / 0x5894: the entity sprite pass over apl\rex.dat (mode 2, two
  * 0x20-px cells per entity), and the three big-endian frame-table reads it
  * uses (1000:58A5).
- * Returns 1 when the index is inside the bank.
  *
  * @param bank the sprite bank
  * @param size the size
@@ -62,8 +61,10 @@ void entity_publish_bank(const uint8_t *bank, uint32_t size);
  */
 void entity_render(uint8_t *page, int32_t scrollX, int32_t scrollY);
 
-/** @brief The three table reads for one cell index; 0 = the indices are outside the
- * bank (the original would read whatever follows it in memory).
+/** @brief The three table reads for one cell index.
+ *
+ * 0 = the indices are outside the bank (the original would read whatever
+ * follows it in memory).
  *
  * @param a the frame index
  * @param src the source buffer
@@ -74,19 +75,16 @@ void entity_render(uint8_t *page, int32_t scrollX, int32_t scrollY);
 uint8_t entity_frame_info(uint32_t a, uint32_t *src, uint32_t *rows,
                           uint32_t *yoff);
 
-/** @brief One pass over the whole 32x20 map per table pair, in table order, the
- * handler invoked at each matching cell with CX = col*16, DX = row*16
- * (the SHL 4s at 51bf-51cd).  The scan is column-inner, row-outer
- * ([0x4234] = cols 0x1F..0, [0x4230] = rows 0x13..0).
+/** @brief load_terrain_b (1000:5168): the 25-pair map walk in table order.
  *
- * load_terrain_b (1000:5168): the 25-pair map walk in table order, one handler
- * call per matching cell (CX = col*16, DX = row*16; the spawn's y is row*16 -
- * 0x30 + 1, +3 under the style-6 prologue).
- * Resets the count first (the level_init analog: the count only - the
- * fixed-table slots keep the exe image's values).
+ * One handler call per matching cell, CX = col*16, DX = row*16 (the SHL 4s at
+ * 51BF-51CD); the scan is column-inner, row-outer ([0x4234] = cols 0x1F..0,
+ * [0x4230] = rows 0x13..0).  The spawn's y is row*16 - 0x30 + 1, +3 under the
+ * style-6 prologue.  Resets the count first (the level_init analog: the count
+ * only, the fixed-table slots keep the exe image's values).
+ *
  * `style` = the record's +0x00 byte (the prologue's [0x17EE]); `lifeSeed` =
  * the goal word's high byte ([0x17F1] -> the +0xE seed).
- * 0 = ok, -1 = no map.
  *
  * @param map the 640-cell map
  * @param style the level style
@@ -127,12 +125,12 @@ uint8_t entity_sprite_pixel(uint32_t src, uint32_t rows, uint32_t x,
 /**
  * @brief Accessor: the live entity count.
  *
- * @return The live entity count.
+ * @return the count
  */
 uint16_t entity_count(void);
 
-/** @brief Save +0x1656+0x28 = [0x64C2] (u16) + the first seven 0x10-byte records
- * (0x64C4..0x6534).  The original copies 0x70 bytes, i.e. slots 0..6.
+/** @brief Save the entity count (u16) and the first seven 0x10-byte records
+ * (DS:0x64C2..0x6534, 0x72 bytes) into dst.
  *
  * @param dst the destination buffer
  */

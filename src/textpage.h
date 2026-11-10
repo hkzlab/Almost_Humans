@@ -24,7 +24,7 @@
  * NULL (which `level.c` publishes unless the load returned >= 0x900 bytes)
  * means the dialog's lines are drawn on a bare page, with no box.
  *
- * The bank is borrowed, not copied so it must outlive the publish.
+ * The bank is borrowed, not copied, so it must outlive the publish.
  *
  * @param bank the loaded APL\BOX.SPR bank (9 x 256 B)
  */

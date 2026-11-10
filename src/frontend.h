@@ -44,32 +44,30 @@ int32_t frontend_init(const OSystem *osys);
 uint8_t frontend_tick(const InputState *in);
 
 /**
- * @brief Accessor: the level-code cursor.
+ * @brief Accessor: the level-code cursor ([0x5F09]).
  *
- * [0x5F09]: the code match's 1-based index = the level the room starts (string
- * i of levels\codes.bin = level i; #1 "DARWIN"; a full miss leaves 161 - the
- * original's own edge).
- * entry's PUSH AX/POP AX move it to [0x22]; game_main does the same into its
- * level counter.
+ * The code match's 1-based index = the level the room starts (string i of
+ * levels\codes.bin = level i; #1 "DARWIN"; a full miss leaves 161).  entry's
+ * PUSH AX/POP AX move it to [0x22]; game_main does the same into its level
+ * counter.
  *
- * @return The level-code cursor.
+ * @return the 1-based level index
  */
 uint16_t frontend_selected_level(void);
 
-/** @brief entry's JMP LAB_002B: the room's setup runs again from the top (the
- * counters persist - frontend_room_setup seeds none of them).  The next
- * frontend_tick re-loads the assets (FE_LOAD).
+/** @brief entry's JMP LAB_002B (the pause's RESTART THIS GAME).
  *
- * entry's JMP LAB_002B (the pause's RESTART THIS GAME): the room's setup runs
- * again; the option counters persist.
+ * The room's setup runs again from the top and the option counters persist
+ * (frontend_room_setup seeds none of them); the next frontend_tick re-loads
+ * the assets (FE_LOAD).
  */
 void frontend_restart(void);
 
-/** @brief The four option counters - the read side's one accessor.  Consumers:
- * level.c (LEVEL: the time-limit pick + the 12/10/8 tribe), audio.c (MUSIC:
- * the _frame web's gate), scene.c (ANIMATIONS: cd_file_op's early RET).  The
- * RESTORE GAME _slot is carried out here and consumed by entry 1000:004C's
- * save load, which the port's save.c does not have yet (M6).
+/** @brief The four option counters - the read side's one accessor.
+ *
+ * Consumers: level.c (LEVEL: the time-limit pick + the 12/10/8 tribe), audio.c
+ * (MUSIC: the frame web's gate), scene.c (ANIMATIONS: cd_file_op's early RET)
+ * and save_load_slot (GAME: entry 1000:004C's load).
  *
  * @param idx the index
  * @return the option counter
@@ -94,7 +92,7 @@ void frontend_option_set_for_probe(uint32_t idx, uint32_t value);
 uint16_t frontend_cell_for_probe(void);
 
 /**
- * @brief the name screen's _phase and typed buffer, for the input-law tests.
+ * @brief Test seam: the name screen is up.
  *
  * @return 1 when the name screen is up, 0 otherwise
  */
@@ -103,7 +101,7 @@ uint8_t frontend_name_screen_for_probe(void);
 /**
  * @brief Accessor: the typed high-score name (0x61E0).
  *
- * @return The typed high-score name.
+ * @return the name buffer
  */
 const char *frontend_name_for_probe(void);
 

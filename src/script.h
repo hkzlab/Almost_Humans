@@ -38,9 +38,8 @@ typedef struct {
 int32_t script_init(const OSystem *osys);
 
 /**
- * @brief Start the intro cue script (the verbatim 202F:0x843C template).
- *
- * The boot intro's verbatim cue list (25 cues, frame target 387).
+ * @brief Start the intro cue script: the verbatim 202F:0x843C list (25 cues,
+ * frame target 387).
  *
  * @param s the cue script
  */
@@ -62,7 +61,7 @@ void script_fire(CueScript *s, uint16_t frame);
  * @brief Accessor: the script requests a quit.
  *
  * @param s the cue script
- * @return The script requests a quit.
+ * @return 1 when a quit is requested, 0 otherwise
  */
 uint8_t script_quit(const CueScript *s);
 
@@ -70,7 +69,7 @@ uint8_t script_quit(const CueScript *s);
  * @brief Accessor: the cue script finished.
  *
  * @param s the cue script
- * @return The cue script finished.
+ * @return 1 when the frame target is reached, 0 otherwise
  */
 uint8_t script_done(const CueScript *s);
 
@@ -78,15 +77,17 @@ uint8_t script_done(const CueScript *s);
  * @brief Accessor: the group dwell count (1000:B94E set [0x6460]).
  *
  * @param s the cue script
- * @return The group dwell count.
+ * @return the dwell in frames
  */
 uint16_t script_group_dwell(const CueScript *s);
 
 /**
- * @brief Accessor: a dwell cue fired (its handler set [0x6460] and [0x6462]).
+ * @brief Accessor: a dwell cue fired since the last script_dwell_done().
+ *
+ * Its handler set [0x6460] and [0x6462].
  *
  * @param s the cue script
- * @return A dwell cue fired since the last script_dwell_done().
+ * @return 1 when the reload is pending, 0 otherwise
  */
 uint8_t script_dwell_pending(const CueScript *s);
 
@@ -98,10 +99,10 @@ uint8_t script_dwell_pending(const CueScript *s);
 void script_dwell_done(CueScript *s);
 
 /**
- * @brief Accessor: the scroll gate.
+ * @brief Accessor: the scroll gate (cmd 3 on, cmd 2 off).
  *
  * @param s the cue script
- * @return The scroll gate.
+ * @return 1 while scrolling, 0 otherwise
  */
 uint8_t script_scroll_on(const CueScript *s);
 
@@ -109,31 +110,31 @@ uint8_t script_scroll_on(const CueScript *s);
  * @brief Accessor: the scroll delta.
  *
  * @param s the cue script
- * @return The scroll delta.
+ * @return the scroll advance per frame
  */
 uint16_t script_scroll_delta(const CueScript *s);
 
 /**
- * @brief Accessor: the script's transition index.
+ * @brief Accessor: the run_screen_transition index (cmd 1).
  *
  * @param s the cue script
- * @return The script's transition index.
+ * @return the transition index
  */
 uint16_t script_transition_index(const CueScript *s);
 
 /**
- * @brief Accessor: a seek is pending.
+ * @brief Accessor: a seek is pending (cmd 4 fired).
  *
  * @param s the cue script
- * @return A seek is pending.
+ * @return 1 when the player must seek, 0 otherwise
  */
 uint8_t script_seek_pending(const CueScript *s);
 
 /**
- * @brief Accessor: the seek frame.
+ * @brief Accessor: the frame to seek to.
  *
  * @param s the cue script
- * @return The seek frame.
+ * @return the frame index
  */
 uint16_t script_seek_frame(const CueScript *s);
 
