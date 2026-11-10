@@ -1,4 +1,4 @@
-/* save.c - the save-game format, load side.
+/* save.c - the save-game format
  *
  * The file is 0x1800 bytes, named by the slot letter: the original keeps
  * `"\humans\cdrom\save"` at 202F:0x1C7E whose NUL at 0x1C90 is overwritten

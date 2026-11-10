@@ -1,4 +1,4 @@
-/* save.h - the interface of src/save.c: the save-game format (load side)
+/* save.h - the interface of src/save.c: the save-game format
  *
  * The 0x1800 file `SAVE<'A'+n-1>` (the fs module's
  * name for the original's `\humans\cdrom\saveX`).  The load is entry:004C's
@@ -61,8 +61,10 @@ uint16_t save_members(void);
 /**
  * @brief Accessor: the save blob.
  *
- * The whole 0x1800 buffer ([0x1C92]): the header and the state ranges are
- * carried verbatim (the ranges have no port consumer yet).
+ * The whole 0x1800 buffer ([0x1C92]): the header and the six state ranges,
+ * carried verbatim.  The core does not use it - save_restore_state reads the
+ * buffer directly - so this accessor serves the tests only, which check that
+ * the ranges were carried unmodified.
  *
  * @return The save blob.
  */
