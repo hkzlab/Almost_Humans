@@ -1,6 +1,7 @@
 /* res.h - the interface of src/res.c: resource I/O
- * The volume file (named chunks), the LZW decode, the offset-based pool
- * arena standing in for the original's segment pool. */
+ * The volume file (named chunks) and the LZW decoder: the chunk directory,
+ * the block loop and the bitstream machine, plus the memory-buffer variant
+ * the .ANI player decodes its objects with. */
 
 #ifndef HUMANSRE_RES_H
 #define HUMANSRE_RES_H

@@ -112,7 +112,7 @@ uint8_t res_movie_disc(uint32_t idx)
  * @param n the count
  * @return 0 on success, -1 on a short read
  */
-static int32_t _vol_sixteen(VolReader *r, uint32_t at, uint8_t *dst, uint32_t n)
+static int32_t _vol_read_at(VolReader *r, uint32_t at, uint8_t *dst, uint32_t n)
 {
     uint32_t got = _res_osys->fs->read(r->v, at, dst, n);
     if (got != n) return -1;
@@ -128,7 +128,7 @@ static int32_t _vol_sixteen(VolReader *r, uint32_t at, uint8_t *dst, uint32_t n)
 static uint16_t _vol_word(VolReader *r)
 {
     uint8_t tmp[2];
-    if (_vol_sixteen(r, r->pos, tmp, 2)) return 0;
+    if (_vol_read_at(r, r->pos, tmp, 2)) return 0;
     r->pos += 2;
     return rd_le_u16(tmp);
 }
@@ -387,7 +387,7 @@ static uint8_t *_res_decode_chunk(VolReader *r, uint32_t off,
              * stream still advances by the full take (1000:9135/0x915F),
              * which is where the next flag word is read. */
             uint32_t copy = take & ~1u;
-            if (_vol_sixteen(r, r->pos, out + done, copy)) {
+            if (_vol_read_at(r, r->pos, out + done, copy)) {
                 failed = 1;
                 break;
             }
@@ -426,7 +426,7 @@ uint8_t *res_load_chunk(const char *name, uint32_t *sizeOut, uint16_t *chkOut)
     VolReader r = { v, 0 };
 
     uint8_t head[2];
-    if (_vol_sixteen(&r, 0, head, 2)) {
+    if (_vol_read_at(&r, 0, head, 2)) {
         _res_osys->fs->closeVolume(v);
         return NULL;
     }
@@ -434,7 +434,7 @@ uint8_t *res_load_chunk(const char *name, uint32_t *sizeOut, uint16_t *chkOut)
 
     for (uint16_t i = 0; i < count && !result; i++) {
         uint8_t rec[0x40];
-        if (_vol_sixteen(&r, 2u + i * 0x40u, rec, sizeof rec)) break;
+        if (_vol_read_at(&r, 2u + i * 0x40u, rec, sizeof rec)) break;
         if (!_name_equal(name, rec)) continue;
 
         uint32_t length = rd_le_u32(rec + 0x38);
