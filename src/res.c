@@ -154,7 +154,7 @@ static uint32_t _lz_bit(LzState *s)
     s->buf >>= 1;
     if (s->buf == 0) {
         uint16_t w = s->rd(s->rd_ctx); /* the refill delivers its bit 0 */
-        s->chk ^= (uint16_t)w; /* every word read XORs into BP  */
+        s->chk ^= w; /* every word read XORs into BP  */
         bit = w & 1u;
         s->buf = (w | 0x10000u) >> 1;
     }
@@ -193,7 +193,7 @@ static void _lz_literals(LzState *s, uint32_t n)
                         * the store is skipped but the read's XOR stays in
                         * BP - the aborted decode fails the checksum (the
                         * game's b446 unwind) */
-        s->out[--s->p] = (uint8_t)byte;
+        s->out[--s->p] = byte;
     }
 }
 

@@ -237,7 +237,7 @@ int main(int argc, char **argv)
                 uint32_t si = 2;
                 uint32_t g = 0;
                 while (g < 384u && si + 2 <= (uint32_t)sz) {
-                    uint16_t w = (uint16_t)(rd_le_u16(list + si));
+                    uint16_t w = (rd_le_u16(list + si));
                     if (w == 0xFFFFu) {
                         si += 2;
                         g++;
@@ -247,7 +247,7 @@ int main(int argc, char **argv)
                     fprintf(stderr, "FAIL group 384 not reached in the list\n");
                     bad = 1;
                 } else {
-                    uint16_t dest = (uint16_t)(rd_le_u16(list + si));
+                    uint16_t dest = (rd_le_u16(list + si));
                     uint16_t stored =
                         (uint16_t)(list[si + 2] | (list[si + 3] << 8));
                     uint32_t idx = (stored + 1u) & 0xFFFFu; /* INC AX at b95d */
@@ -262,7 +262,7 @@ int main(int argc, char **argv)
                         uint32_t w = rd_le_u16(obj + 0);
                         uint32_t h = rd_le_u16(obj + 2);
                         if (dest != 25877u || w == 0u || h == 0u ||
-                            4u + (uint32_t)w * h > (uint32_t)osz) {
+                            4u + w * h > (uint32_t)osz) {
                             fprintf(
                                 stderr,
                                 "FAIL group 384 record mismatch: dest %u, %ux%u\n",

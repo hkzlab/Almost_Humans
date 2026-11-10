@@ -132,6 +132,6 @@ int main(int argc, char **argv)
         return 0;
     }
     printf("ok ver_detect: the FNV-1a vectors and %d language digest(s)\n",
-           (int)checked);
+           checked);
     return 0;
 }

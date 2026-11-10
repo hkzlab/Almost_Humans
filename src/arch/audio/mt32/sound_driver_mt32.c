@@ -1351,7 +1351,7 @@ static SoundDriver *_mt32_create(uint32_t sampleRate)
             stderr, "audio(mt32): mt32emu %s, %s + %s, gain %.2f, %u Hz\n",
             mt32emu_get_library_version_string(), info.control_rom_id,
             info.pcm_rom_id, (double)MT32_OUTPUT_GAIN,
-            (unsigned)mt32emu_get_actual_stereo_output_samplerate(drv->ctx));
+            mt32emu_get_actual_stereo_output_samplerate(drv->ctx));
     }
     return drv;
 }
@@ -1564,7 +1564,7 @@ static void _mt32_generate(SoundDriver *drv, int16_t *dst, uint32_t frames)
         memset(dst, 0, (size_t)frames * 2u * sizeof(*dst));
         return;
     }
-    mt32emu_render_bit16s(drv->ctx, (mt32emu_bit16s *)dst, frames);
+    mt32emu_render_bit16s(drv->ctx, dst, frames);
 }
 
 const SoundDriverModule g_sound_driver_mt32 = {

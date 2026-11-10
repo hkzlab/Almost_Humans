@@ -174,7 +174,7 @@ void audio_fade_out(void)
     /* 1000:835A is always followed by music_stop (1000:8389): defer the
      * stop to the end of the ramp, exactly as the blocking loop does. */
     _stop_after_fade = 1;
-    _au_osys->audioTempo((uint8_t)_fade_step);
+    _au_osys->audioTempo(_fade_step);
 }
 
 uint8_t audio_fade_busy(void) { return _fade_dir != 0; }
@@ -194,7 +194,7 @@ static void _tick_body(void)
         if (_fade_dir > 0) {
             if (_fade_step < AUDIO_FADE_IN_LAST) {
                 _fade_step++;
-                _au_osys->audioTempo((uint8_t)_fade_step);
+                _au_osys->audioTempo(_fade_step);
             } else {
                 /* 1000:84CE: the latch is set after the last hold. */
                 _fade_dir = 0;
@@ -203,7 +203,7 @@ static void _tick_body(void)
         } else {
             if (_fade_step > 0) {
                 _fade_step--;
-                _au_osys->audioTempo((uint8_t)_fade_step);
+                _au_osys->audioTempo(_fade_step);
             } else {
                 /* 1000:8379/1000:8389: the stop that always follows the
                  * fade-out runs when the ramp ends. */

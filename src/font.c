@@ -175,7 +175,7 @@ void font_draw_text_bounded(uint8_t *arena, uint32_t capacity, const char *s,
     for (const uint8_t *p = (const uint8_t *)s; *p && *p != 0x0Du; p++)
         width += _advance[_charset_index(*p)];
 
-    int32_t x = (int32_t)centreX - (int32_t)(width >> 1);
+    int32_t x = (int32_t)centreX - (width >> 1);
 
     for (const uint8_t *p = (const uint8_t *)s; *p && *p != 0x0Du; p++) {
         uint8_t gi = (uint8_t)_charset_index(*p);

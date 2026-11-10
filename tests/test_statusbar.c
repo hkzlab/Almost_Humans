@@ -722,7 +722,7 @@ int main(int argc, char **argv)
             (void)object_command_run(a, 0x80u);
             object_pending_run();
             (void)object_charge_tick();
-            v = (uint32_t)(a[0xE] | ((uint32_t)a[0xF] << 8)) & 0x1FFu;
+            v = (a[0xE] | ((uint32_t)a[0xF] << 8)) & 0x1FFu;
             if (v >= 0x104u) break;
         }
         if (v < 0x104u) {

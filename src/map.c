@@ -452,12 +452,12 @@ static void _map_dirty_reset(void)
 static uint32_t _alpha_rot(uint32_t angle, uint32_t cx, uint32_t dx,
                            int32_t plus90)
 {
-    uint32_t a = ((uint32_t)((int32_t)angle + (plus90 ? 0x5Au : 0)) % 0x168u);
+    uint32_t a = (((int32_t)angle + (plus90 ? 0x5Au : 0)) % 0x168u);
     int16_t v = _alpha_sin[a];
     uint32_t p = (uint32_t)(uint16_t)v * (uint16_t)dx;
-    uint32_t r = (uint32_t)((cx + (uint16_t)(p >> 14)) & 0xFFFFu);
+    uint32_t r = ((cx + (uint16_t)(p >> 14)) & 0xFFFFu);
 
-    if (v < 0) r = (uint32_t)((r - dx * 4u) & 0xFFFFu);
+    if (v < 0) r = ((r - dx * 4u) & 0xFFFFu);
     return r;
 }
 
@@ -515,7 +515,7 @@ static void _map_wheel_draw(uint8_t *page, uint32_t base, int32_t record)
 
         alpha_cell(i, (base + i * 0x0Cu) % 0x168u, &src, &dst);
         _alpha_blit_cell(page, src, dst);
-        if (record) _map_dirty_add((uint16_t)dst);
+        if (record) _map_dirty_add(dst);
     }
 }
 
@@ -529,7 +529,7 @@ void alpha_draw_wheel(uint8_t *page, uint32_t base)
  * @return the first target x
  */
 static int32_t _map_name_target_x(uint32_t len)
-{ return (int32_t)(-8 - (int32_t)(((int32_t)(len * 9u) - 1) / 2 - 0xA0)); }
+{ return (-8 - (((int32_t)(len * 9u) - 1) / 2 - 0xA0)); }
 
 /**
  * @brief One name glyph through queue_dirty_job: dest = y*80 + 0xF0 + x/4,
@@ -555,7 +555,7 @@ static int32_t _map_glyph_draw(uint8_t *page, char c, int32_t x, int32_t y,
     src = u16(col * 0x40u + 0x0Cu + ((uint32_t)x & 3u) * 0x4000u);
     dst = u16((uint32_t)(y + 3) * 80u + ((uint32_t)x >> 2));
     _alpha_blit_cell(page, src, dst);
-    if (record) _map_dirty_add((uint16_t)dst);
+    if (record) _map_dirty_add(dst);
     return 1;
 }
 
@@ -658,7 +658,7 @@ static uint32_t _map_off_byte(uint32_t a)
 
     if (row >= VIDEO_PAGE_H_MODE13H) return 0u;
     for (uint16_t p = 0; p < 4u; p++)
-        v |= (uint32_t)(_map_off[row * VIDEO_PAGE_W + col + p] & 1u) << p;
+        v |= (_map_off[row * VIDEO_PAGE_W + col + p] & 1u) << p;
     return v;
 }
 
@@ -789,7 +789,7 @@ static uint8_t _map_stage_pixel(uint32_t a, uint32_t j)
  */
 static void _map_blit_strip(uint16_t phase, uint32_t ch, uint8_t *page)
 {
-    uint32_t src = (uint32_t)(phase & 0xFFu) * 0x140u;
+    uint32_t src = (phase & 0xFFu) * 0x140u;
     uint16_t dst = (uint16_t)(0x2DB8u + ch * 8u);
 
     if (!page || !_map_stage_ready) return;

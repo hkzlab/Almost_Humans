@@ -211,7 +211,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "FAIL: TITLE.RLD rendered silence\n");
         return 1;
     }
-    printf("ok: geometry and TITLE.RLD render (peak %d, %u ticks)\n", (int)peak,
+    printf("ok: geometry and TITLE.RLD render (peak %d, %u ticks)\n", peak,
            i);
     return 0;
 }

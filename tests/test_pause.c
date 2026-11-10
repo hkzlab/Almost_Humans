@@ -595,7 +595,7 @@ int main(int argc, char **argv)
         _put16(fx + 0x0D + 0u, 5u);
         _put16(fx + 0x0D + 2u, 0u);
         for (uint32_t i = 0; i < 29u; i++)
-            _put16(fx + 0x0D + 4u + 2u * i, (uint32_t)(0x3E75u + 0x12u * i));
+            _put16(fx + 0x0D + 4u + 2u * i, (0x3E75u + 0x12u * i));
         fx[0x0D + 0x3E + 1u] = 6u; /* class slot 1 */
         fx[0x0D + 0x53u] = 9u; /* [0x3E73] */
         _put16(fx + 0x0D + 0x55u, 0x1234u); /* record 0 x */

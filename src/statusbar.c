@@ -419,13 +419,13 @@ static void _draw_actions(uint8_t *page)
      * original's do-while counter (count 0 draws 0xFFFF times). */
     uint8_t count = object_action_byte(0u);
     uint8_t cursor = object_action_byte(1u);
-    uint16_t span = (uint16_t)((uint16_t)((uint8_t)count * 0x17u) +
+    uint16_t span = (uint16_t)((uint16_t)(count * 0x17u) +
                                (uint16_t)((uint8_t)(count - 1u) * 0x0Cu));
     uint16_t ax = (uint16_t)(VIDEO_PAGE_W - span); /* SUB 0x140 / NEG */
     uint16_t x = (uint16_t)(ax >> 1); /* AX is 16-bit and wraps below */
     uint16_t y = _bar_split + 5u;
     uint16_t i = 0;
-    uint16_t bp = (uint16_t)count;
+    uint16_t bp = count;
 
     do {
         _frame_box(page, x, y, 23u, 31u, NULL, 0u);
@@ -434,7 +434,7 @@ static void _draw_actions(uint8_t *page)
         if (cursor != 0u && i == cursor - 1u)
             _frame_box(page, x + 1u, y + 1u, 21u, 29u, _action_gold, 6u);
         _draw_action_icon(page, x + 4u, y + 4u,
-                          (uint32_t)(object_action_byte(2u + i) - 1u));
+                          (object_action_byte(2u + i) - 1u));
         x = (uint16_t)(x + 4u + 0x1Fu); /* +4 then +0x1F, 16-bit */
         i++;
         bp--;

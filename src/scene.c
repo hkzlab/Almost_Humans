@@ -886,7 +886,7 @@ static void _boot_blit_sprite(const uint8_t *spr, uint32_t width,
                               uint32_t height, uint32_t worldX,
                               uint32_t pageYOff, uint8_t *page)
 {
-    uint32_t x = ((uint32_t)worldX - _boot_scroll_pos) & 0xFFFFu;
+    uint32_t x = (worldX - _boot_scroll_pos) & 0xFFFFu;
     if (x >= VIDEO_PAGE_W) return; /* CMP AX,0x140 / JC */
     uint32_t visible = VIDEO_PAGE_W - x;
     if (visible > width) visible = width;

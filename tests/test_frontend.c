@@ -440,7 +440,7 @@ int main(int argc, char **argv)
                     fprintf(
                         stderr,
                         "FAIL the typed name left its strip (rows %u..%u)\n",
-                        (unsigned)top, (unsigned)bottom);
+                        top, bottom);
                     bad = 1;
                 }
             }

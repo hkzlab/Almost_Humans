@@ -92,7 +92,7 @@ int32_t ver_detect_run(const OSystem *osys)
         snprintf(msg, sizeof msg,
                  "ver_detect: unrecognized volume set (digest "
                  "0x%08X); using the English text",
-                 (unsigned)hash);
+                 hash);
         osys->warn(msg);
     }
 

@@ -592,7 +592,7 @@ static void _slide_tick(SoundDriver *drv, unsigned voice)
     }
     if (v->slide_target == 0) return;
 
-    step = (uint16_t)(2u * (uint16_t)v->slide_step);
+    step = (uint16_t)(2u * v->slide_step);
     if (v->slide_dir == 0) {
         uint16_t fnum = (uint16_t)(v->fnum - step);
         while (fnum <= ADLIB_FNUM_LOW) {
@@ -608,7 +608,7 @@ static void _slide_tick(SoundDriver *drv, unsigned voice)
         }
         v->fnum = fnum;
     }
-    entry = (uint16_t)(v->fnum | ((uint16_t)v->octave << 12));
+    entry = (uint16_t)(v->fnum | (v->octave << 12));
     v->note_entry = entry;
     if (v->slide_dir == 0 ? entry > v->slide_target : entry < v->slide_target) {
         _set_frequency(drv, voice, entry);
@@ -644,19 +644,19 @@ static void _tick_command(SoundDriver *drv, unsigned voice)
 
     switch (v->command & 0x1Fu) {
     case 0x01: /* 1E95:08AA: slide up by 2 * parameter, octave wrap at 0x2AE */
-        step = (uint16_t)(2u * (uint16_t)v->param);
+        step = (uint16_t)(2u * v->param);
         fnum = (uint16_t)(v->fnum + step);
         while (fnum >= ADLIB_FNUM_WRAP) {
             fnum = (uint16_t)((fnum - ADLIB_FNUM_WRAP) + ADLIB_FNUM_FIRST);
             v->octave++; /* 8-bit, as the driver's INC DL */
         }
         v->fnum = fnum;
-        entry = (uint16_t)(fnum | ((uint16_t)v->octave << 12));
+        entry = (uint16_t)(fnum | (v->octave << 12));
         v->note_entry = entry;
         _set_frequency(drv, voice, entry);
         break;
     case 0x02: /* 1E95:08D4: slide down by 2 * parameter, wrap at 0x142 */
-        step = (uint16_t)(2u * (uint16_t)v->param);
+        step = (uint16_t)(2u * v->param);
         fnum = (uint16_t)(v->fnum - step);
         while (fnum <= ADLIB_FNUM_LOW) {
             /* 1E95:08E9 SUB 0x142 / NEG / ADD 0x28A: 0x28A + (0x142 - fnum) */
@@ -664,7 +664,7 @@ static void _tick_command(SoundDriver *drv, unsigned voice)
             v->octave--; /* 8-bit, as the driver's DEC DL */
         }
         v->fnum = fnum;
-        entry = (uint16_t)(fnum | ((uint16_t)v->octave << 12));
+        entry = (uint16_t)(fnum | (v->octave << 12));
         v->note_entry = entry;
         _set_frequency(drv, voice, entry);
         break;
@@ -673,13 +673,13 @@ static void _tick_command(SoundDriver *drv, unsigned voice)
         break;
     case 0x0A: { /* 1E95:0874: volume delta; the high nibble adds, 0
                   * subtracts the low nibble */
-        uint8_t delta = (uint8_t)v->param;
+        uint8_t delta = v->param;
         uint16_t next;
         if ((delta >> 4) != 0u) {
-            next = (uint16_t)v->volume + (delta >> 4);
+            next = v->volume + (delta >> 4);
             if (next > 0x40u) next = 0x40u;
         } else {
-            next = (uint16_t)v->volume - (delta & 0x0Fu);
+            next = v->volume - (delta & 0x0Fu);
             if ((delta & 0x0Fu) > v->volume) next = 0u;
         }
         v->volume = (uint8_t)next;
@@ -804,7 +804,7 @@ static void _play_cell(SoundDriver *drv, AdlibRecord *rec, unsigned voice)
  * @return the voice index
  */
 static unsigned _record_voice(const AdlibRecord *rec, unsigned i)
-{ return (unsigned)(rec->track_slot[i] & 0x07u); }
+{ return (rec->track_slot[i] & 0x07u); }
 
 /**
  * @brief Run every voice's per-tick command for an active record.

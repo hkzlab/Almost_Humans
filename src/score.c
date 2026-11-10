@@ -307,7 +307,7 @@ uint32_t score_level_score(void)
 
     t = statusbar_time_word(); /* [0x5B19/1A/1B] */
     mins = (uint32_t)(t >> 8);
-    secs = (uint32_t)(((t >> 4) & 0xFu) * 10u + (t & 0xFu));
+    secs = (((t >> 4) & 0xFu) * 10u + (t & 0xFu));
     remaining = mins * 60u + secs;
 
     levelNo = gameflow_level_current() + 1u; /* [0x1F41] */
@@ -418,7 +418,7 @@ void score_column(uint8_t *page, uint32_t value, int32_t x, int32_t y,
 
     if (!d) return;
     for (uint16_t i = 0; i < d; i++) {
-        _score_digit_block(page, (uint32_t)(value % 10u),
+        _score_digit_block(page, (value % 10u),
                            x + (int32_t)(4u * (d - 1u - i)) * 4, y);
         value /= 10u;
     }
@@ -486,9 +486,9 @@ void score_draw_num3(uint8_t *page, uint32_t ax, uint16_t value, uint32_t bx,
 {
     uint16_t off = (uint16_t)(bx * 88u + (ax >> 2));
 
-    _score_num_block(page, (uint32_t)((value >> 8) & 0x0Fu), bp, off + 6u);
-    _score_num_block(page, (uint32_t)((value >> 4) & 0x0Fu), bp, off + 8u);
-    _score_num_block(page, (uint32_t)(value & 0x0Fu), bp, off + 10u);
+    _score_num_block(page, ((value >> 8) & 0x0Fu), bp, off + 6u);
+    _score_num_block(page, ((value >> 4) & 0x0Fu), bp, off + 8u);
+    _score_num_block(page, (value & 0x0Fu), bp, off + 10u);
 }
 
 void score_draw_card(uint8_t *page)

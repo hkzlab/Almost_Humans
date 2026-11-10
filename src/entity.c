@@ -180,7 +180,7 @@ static void _entity_append(const uint8_t *map, uint32_t mapLen,
     e[1] = 0;                     /* +2 = 0 (a 0xB4 writes the far end)  */
     e[2] = 0;                     /* +4 = the dispatch index: seeded 0   */
     e[3] = (uint16_t)cx;          /* +6 = current x = the same word      */
-    e[4] = (uint16_t)dxAdj;       /* +8 = the spawn row                  */
+    e[4] = dxAdj;       /* +8 = the spawn row                  */
     e[5] = 3;                     /* +A = the beat countdown seed        */
     e[6] = 0;                     /* +C = the waypoint                   */
     e[7] = (uint16_t)lifeSeed;    /* +E = [0x17F1] = the goal high byte  */
@@ -202,7 +202,7 @@ static void _entity_find(const uint8_t *map, uint32_t mapLen, uint32_t matchIdx,
     uint16_t match = (uint16_t)(dx + 1u - 0x30u);         /* 53a5/53a8 */
 
     for (uint16_t i = 0; i < _ent_count; i++) {
-        if (_ents[i][4] != (uint16_t)match) continue;      /* 53a9 */
+        if (_ents[i][4] != match) continue;      /* 53a9 */
         _ents[i][1] = (uint16_t)cx;                        /* 53ae */
         return;                                           /* 53b1 */
     }
@@ -354,7 +354,7 @@ static void _entity_tail_interact(Entity *ep, uint32_t slot, uint32_t off)
          * port tags the index so it cannot collide with the object links
          * (4 + idx*0x12) the same +0xA field serves elsewhere. */
         wr_le_u16(rec + 0xAu, (uint16_t)(0x8000u | _ent_index(ep)));
-        wr_le_u16(rec + 0xEu, (uint16_t)w5); /* 1000:CB23 */
+        wr_le_u16(rec + 0xEu, w5); /* 1000:CB23 */
         { /* 1000:CB35..CB4C */
             uint16_t idx = w6 / 2u; /* the entity's word offset */
             uint16_t base = 0;
@@ -362,8 +362,8 @@ static void _entity_tail_interact(Entity *ep, uint32_t slot, uint32_t off)
             if (w6 <= 0xEu && !(w6 & 1u)) base = ((const uint16_t *)ep)[idx];
             wr_le_u16(rec + 0x10u, (uint16_t)(w7 + base));
         }
-        ep->handler = (uint16_t)w8; /* 1000:CB56 */
-        ep->waypoint = (uint16_t)w9; /* 1000:CB65 */
+        ep->handler = w8; /* 1000:CB56 */
+        ep->waypoint = w9; /* 1000:CB65 */
         ep->hold = 0xA032u; /* 1000:CB6A */
         object_driver_call(9); /* 1000:CB73 */
         return;
@@ -438,14 +438,14 @@ static void _entity_carry_anim(Entity *ep)
     {
         uint8_t sub = b[0xBu]; /* cbaa */
 
-        frame = (uint16_t)((uint32_t)(rd_le_u16(b + 0xCu) +
+        frame = (uint16_t)((rd_le_u16(b + 0xCu) +
                                       1u)); /* cbb3: INC word [BP] */
-        wr_le_u16(b + 0xCu, (uint16_t)frame);
+        wr_le_u16(b + 0xCu, frame);
         if (frame != _sel_primary) return; /* cbba */
         wr_le_u16(b + 0xCu, (uint16_t)(frame - 2u)); /* cbc0 */
         if (sub & 0xF0u) { /* cbc8 */
             sub -= 0x10u; /* cbe8 */
-            b[0xBu] = (uint8_t)sub;
+            b[0xBu] = sub;
             if (sub & 0x10u) object_driver_call(0xBu); /* cbf0..cbf9 */
             return;
         }
@@ -500,7 +500,7 @@ void entity_render(uint8_t *page, int32_t scrollX, int32_t scrollY)
             uint32_t src, rows, yoff;
 
             if (!entity_frame_info(a, &src, &rows, &yoff)) break;
-            if ((uint32_t)src + rows * 8u > _ent_bank_size) break;
+            if (src + rows * 8u > _ent_bank_size) break;
             object_blit_sprite(page, _ent_bank + src, rows, 32u, x - scrollX,
                                y + (int32_t)yoff - scrollY);
             x += 0x20; /* 1000:58A1 ADD AX,0x20 */
@@ -570,7 +570,7 @@ uint16_t entity_count(void) { return _ent_count; }
 void entity_save_fixed(uint8_t *dst)
 {
     if (!dst) return;
-    wr_le_u16(dst, (uint16_t)_ent_count);
+    wr_le_u16(dst, _ent_count);
     for (uint16_t i = 0; i < 7u; i++) memcpy(dst + 2u + i * 16u, _ents[i], 16u);
 }
 

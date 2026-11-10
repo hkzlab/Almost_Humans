@@ -86,10 +86,10 @@ int32_t save_write_slot(uint8_t slot, uint16_t level, uint16_t timeWord,
     wr_le_u16(out + 0x00u, level);
     wr_le_u16(out + 0x02u, score_total_lo());
     wr_le_u16(out + 0x04u, score_total_hi());
-    out[0x06] = (uint8_t)object_action_program();   /* [0x5B56] */
+    out[0x06] = object_action_program();   /* [0x5B56] */
     wr_le_u16(out + 0x07u, timeWord);               /* BCD sec  | min    */
-    out[0x09] = (uint8_t)statusbar_tribe_digit(0u);  /* [0x5B25] */
-    out[0x0A] = (uint8_t)statusbar_tribe_digit(1u);  /* [0x5B26] */
+    out[0x09] = statusbar_tribe_digit(0u);  /* [0x5B25] */
+    out[0x0A] = statusbar_tribe_digit(1u);  /* [0x5B26] */
     wr_le_u16(out + 0x0Bu, members);
 
     object_save_table(out + 0x000Du);          /* 0x3E20, 0x25F          */

@@ -2264,11 +2264,11 @@ int main(int argc, char **argv)
                      * over to the walk step (1000:E6FB -> 1000:F25F, the level's
                      * two maps).  It either steps or refuses whole. */
                     {
-                        uint16_t x0 = (uint16_t)(rd_le_u16(top + 0));
+                        uint16_t x0 = (rd_le_u16(top + 0));
 
                         _check(object_selector(top, 1u, 8u, 1u) == 0 &&
                                    (rd_le_u16(top + 4)) == 0x0009u &&
-                                   (uint16_t)(rd_le_u16(top + 0)) ==
+                                   (rd_le_u16(top + 0)) ==
                                        (uint16_t)(x0 - 1u),
                                "a far target resets the frame, then walks "
                                "(1000:F20C -> F212)");
@@ -2346,11 +2346,11 @@ int main(int argc, char **argv)
                              * distance test (0 <= frame - 8 < 8) */
                             if (object_selector(top2, 1u, 8u, 1u) != 0)
                                 continue;
-                            x0 = (uint16_t)(rd_le_u16(top2 + 0));
-                            f0 = (uint16_t)(rd_le_u16(top2 + 4));
+                            x0 = (rd_le_u16(top2 + 0));
+                            f0 = (rd_le_u16(top2 + 4));
                             if (object_selector(top2, 1u, 8u, 1u) != 0)
                                 continue;
-                            x1 = (uint16_t)(rd_le_u16(top2 + 0));
+                            x1 = (rd_le_u16(top2 + 0));
                             if (x1 == x0) {
                                 _check(
                                     (rd_le_u16(top2 + 4)) == f0,
@@ -2369,7 +2369,7 @@ int main(int argc, char **argv)
                              * [0x4238] = 0 puts the frame in the 0..7 cycle */
                             (void)object_selector(top2, 1u, 0u, 0u);
                             if (object_selector(top2, 1u, 0u, 0u) == 0 &&
-                                (uint16_t)(rd_le_u16(top2 + 0)) ==
+                                (rd_le_u16(top2 + 0)) ==
                                     (uint16_t)(x1 + 1u) &&
                                 (uint32_t)(rd_le_u16(top2 + 4)) <= 7u)
                                 right++;
@@ -3389,7 +3389,7 @@ int main(int argc, char **argv)
                 cand[3] = 0u;
                 cand[6] &= 0x7Fu;
                 cand[7] = 0u;
-                lifeBefore = (uint16_t)(rd_le_u16(spear + 0xE));
+                lifeBefore = (rd_le_u16(spear + 0xE));
                 object_update_list();
                 _check(cand[7] == 1u,
                        "the candidate links to the acting ordinal");
@@ -3397,7 +3397,7 @@ int main(int argc, char **argv)
                        "the acting record's class byte takes 0x80");
                 _check((rd_le_u16(spear + 6)) == 0u,
                        "the acting record's +6 word is cleared");
-                _check((uint16_t)(rd_le_u16(spear + 0xE)) == lifeBefore,
+                _check((rd_le_u16(spear + 0xE)) == lifeBefore,
                        "the acting record's +0xE is not cleared");
             }
             /* D-229: the hit branch of 0x5A2F clears the MOVER's behaviour
@@ -4621,13 +4621,13 @@ int main(int argc, char **argv)
         if (torch && deco) {
             uint32_t idx = (uint32_t)((torch - object_slot(0)) / 0x12u);
 
-            _check((uint32_t)(object_slot_class(idx - 8u) & 0x3Fu) == 6u,
+            _check((object_slot_class(idx - 8u) & 0x3Fu) == 6u,
                    "level 16's torch is behaviour 6");
             f0 = rd_le_u16(torch + 4);
             for (i = 0; i < 9u; i++) {
                 object_update_list();
                 object_tick(NULL);
-                seen |= 1u << (uint32_t)((rd_le_u16(torch + 4)) - f0);
+                seen |= 1u << ((rd_le_u16(torch + 4)) - f0);
             }
             _check(seen == 0x7u, "the torch walks 0x9C..0x9E (behaviour 6)");
             /* D-88: 1000:E039's settle landed the torch on its two-pixel step:
@@ -4644,7 +4644,7 @@ int main(int argc, char **argv)
                 for (j = 8u; j <= object_live_count(); j++) {
                     uint8_t *q = object_slot(j);
 
-                    if ((uint32_t)(object_slot_class(j - 8u) & 0x3Fu) == 1u) {
+                    if ((object_slot_class(j - 8u) & 0x3Fu) == 1u) {
                         b1 = q;
                         break;
                     }
@@ -6269,7 +6269,7 @@ int main(int argc, char **argv)
                 wr_le_u16((a) + (4u), (uint16_t)(0x8Du + k));
                 (void)object_command_run(a, 0x01u);
                 _check((int16_t)rd_le_u16((placed) + (0xEu)) == doorY[k] &&
-                           rd_le_u16((placed) + (0xCu)) == (uint32_t)(2u - k),
+                           rd_le_u16((placed) + (0xCu)) == (2u - k),
                        "the door table's row matches 0x6E76");
                 _check(object_slot_class(1u) == 0x3Fu && placed[8] == 0xFFu,
                        "the door masks the class byte and marks slot 8+cls");

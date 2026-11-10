@@ -409,14 +409,14 @@ static void _marquee(void)
     }
 
     uint16_t src, dhi;
-    party_intro_marquee_for_probe(_marq_phase, (uint16_t)_marq_cell, &src,
+    party_intro_marquee_for_probe(_marq_phase, _marq_cell, &src,
                                   &dhi);
 
     enum {
         MASK = 0x40u
     }; /* 28e9's 299b(AH=0x40) covers 2a3a  */
     for (uint16_t r = 0; r < 32u; r++) {
-        uint16_t di = (uint16_t)_page_draw + dhi + r * 88u;
+        uint16_t di = _page_draw + dhi + r * 88u;
         for (uint16_t k = 0; k < 10u; k++) {
             uint8_t c = _strip[src + r * 10u + k]; /* 5 LODSW = 10 B/row    */
             video_vram_wm2((uint16_t)(di + k), c, MASK);
@@ -450,7 +450,7 @@ static void _anim_entities(void)
                 break; /* 295f: next slot */
             }
             uint8_t cl = ((uint32_t)s->loopc + 1u) % 10u; /* 292f..293b */
-            s->loopc = (uint8_t)cl;
+            s->loopc = cl;
             s->script = s->sub[cl]; /* the sub-list ids */
             s->fpos = 0u; /* 294a, redo 2914 */
             if (s->script == 0u || s->script > SCRIPT_COUNT) break;

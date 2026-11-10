@@ -607,7 +607,7 @@ static void _obj_class_byte_set(uint32_t b, uint8_t value)
     }
     if (b == 0x16u) {
         _obj_live_count =
-            (uint16_t)((_obj_live_count & 0x00FFu) | ((uint16_t)value << 8));
+            (uint16_t)((_obj_live_count & 0x00FFu) | (value << 8));
         return;
     }
     _obj_array[b - 0x17u] = value;
@@ -2043,8 +2043,8 @@ static void _obj_map_put(uint8_t *map, uint32_t idx, uint8_t value)
 static uint32_t _obj_map_cell_index(const uint8_t *rec)
 {
     /* 1000:E361: ADD AX,[SI] / ADD BX,[SI+2] are 16-bit, ADD DI,BX is 16-bit. */
-    uint16_t x = (uint16_t)(uint16_t)(rd_le_u16(rec + 0u) + 8u);
-    uint16_t y = (uint16_t)(uint16_t)(rd_le_u16(rec + 2u) + 0xCu);
+    uint16_t x = (uint16_t)(rd_le_u16(rec + 0u) + 8u);
+    uint16_t y = (uint16_t)(rd_le_u16(rec + 2u) + 0xCu);
 
     if (!level_map()) return 0xFFFFu;
     /* 1000:E369: MOV DI,BX / ADD DI,BX is 16-bit, so 2*y wraps. */
@@ -2301,13 +2301,13 @@ void object_claim_tick(const uint8_t *levelPal)
             uint8_t *nr = _obj_array + (_obj_live_count + 1u) * OBJ_STRIDE;
             wr_le_u16(nr + 0u, rd_le_u16(nrec + 0u));
             wr_le_u16(nr + 2u, (uint16_t)(rd_le_u16(nrec + 2u) + 9u));
-            wr_le_u16(nr + 4u, (uint16_t)_claim_sprite);
+            wr_le_u16(nr + 4u, _claim_sprite);
             wr_le_u16(nr + 6u, 0u);
-            wr_le_u16(nr + 8u, (uint16_t)_claim_params[0]);
-            wr_le_u16(nr + 0xAu, (uint16_t)_claim_params[1]);
-            wr_le_u16(nr + 0xCu, (uint16_t)_claim_params[2]);
-            wr_le_u16(nr + 0xEu, (uint16_t)_claim_params[3]);
-            _obj_slot_class[_obj_live_count - 7u] = (uint8_t)_claim_behav;
+            wr_le_u16(nr + 8u, _claim_params[0]);
+            wr_le_u16(nr + 0xAu, _claim_params[1]);
+            wr_le_u16(nr + 0xCu, _claim_params[2]);
+            wr_le_u16(nr + 0xEu, _claim_params[3]);
+            _obj_slot_class[_obj_live_count - 7u] = _claim_behav;
             _obj_live_count++;
             /* 1000:3C70 calls init_dirty_cell_list (1000:3E73), whose tail
              * hands (x - 0x20, y - 0x20) of the appended record to 1000:3DC0:
@@ -2384,7 +2384,7 @@ static int32_t _obj_place_human(uint32_t col, uint32_t row)
         uint8_t *r = _obj_array + i * OBJ_STRIDE;
         if (!(r[6] & 0x80u)) continue;
         wr_le_u16(r + 0u, (uint16_t)(col * 16u));
-        wr_le_u16(r + 2u, (uint16_t)y); /* 0x524B: nudge, then y = row*16 - 7 */
+        wr_le_u16(r + 2u, y); /* 0x524B: nudge, then y = row*16 - 7 */
         wr_le_u16(r + 4u, 0x0010u);
         wr_le_u16(r + 6u, 0u);
         wr_le_u16(r + 8u, 0x0002u);
@@ -3018,7 +3018,7 @@ static void _obj_blit_frame(uint8_t *page, uint32_t frame, int32_t x, int32_t y)
     sp = &_obj_sprites[frame];
     if (!sp->rows || sp->mode > 2u) return; /* blank / mode 0 or 3 */
     cols = sp->mode == 2u ? 32u : 16u; /* 1000:6C74 vs 1000:66EC */
-    if ((uint32_t)sp->off + sp->rows * cols > _obj_bank_size) return;
+    if (sp->off + sp->rows * cols > _obj_bank_size) return;
     _blit_sprite(page, _obj_bank + sp->off, sp->rows, cols, x,
                  y + (int32_t)sp->ybias);
 }
@@ -3279,7 +3279,7 @@ static void _obj_span_draw(uint8_t *page, int32_t scrollX, int32_t scrollY)
                     }
                 }
             }
-            wr_le_u16(e + 0xEu, (uint16_t)e13);
+            wr_le_u16(e + 0xEu, e13);
             wr_le_u16(e + 0xCu, (uint16_t)cur);
             wr_le_u16(e + 0x6u, (uint16_t)len);
             wr_le_u16(e + 0x12u, (uint16_t)state);
@@ -3372,9 +3372,9 @@ void object_render_ter(uint8_t *page, int32_t scrollX, int32_t scrollY)
         if (src + rows * 8u > _obj_ter_size) continue;
         object_blit_sprite(page, _obj_ter_bank + src, rows, 32u,
                            (int32_t)(int16_t)rd_le_u16(e + 0u) - 0xC -
-                               (int32_t)scrollX,
+                               scrollX,
                            (int32_t)(int16_t)rd_le_u16(e + 2u) + (int32_t)yoff -
-                               (int32_t)scrollY);
+                               scrollY);
     }
 }
 
@@ -3500,8 +3500,8 @@ static const uint8_t _obj_goal_mask[5] = { 0x1F, 0x99, 0x02, 0x1C, 0x20 };
  */
 static uint32_t _obj_goal_cell_index(uint32_t x, uint32_t y)
 {
-    uint16_t yy = (uint16_t)(uint16_t)(y + 0x0Cu);
-    uint16_t xx = (uint16_t)(uint16_t)(x + 8u);
+    uint16_t yy = (uint16_t)(y + 0x0Cu);
+    uint16_t xx = (uint16_t)(x + 8u);
 
     return 32u * ((yy & 0xFFF0u) >> 4) + (xx >> 4);
 }
@@ -3618,7 +3618,7 @@ static void _obj_bg_tick(void)
 
                 if (rd_le_u16(r + 8u) == 0u) continue; /* 1000:D614: no OR  */
                 y = (uint16_t)((uint32_t)rd_le_u16(r + 2u) + 2u);
-                wr_le_u16(r + 2u, (uint16_t)y);
+                wr_le_u16(r + 2u, y);
                 if (y > 0x138u) r[6] = 0xFFu; /* 1000:D61F         */
             }
             cx |= tbl[t];
@@ -3650,7 +3650,7 @@ static void _obj_walk_step1(uint8_t *r)
         uint16_t f = (uint16_t)(rd_le_u16(r + 4u) + 1u);
 
         if (f >= base + level_anim_frames()) f = base;
-        wr_le_u16(r + 4u, (uint16_t)f);
+        wr_le_u16(r + 4u, f);
     }
 }
 
@@ -3778,7 +3778,7 @@ static void _obj_walk_torch(uint8_t *r)
         uint16_t f = (uint16_t)(rd_le_u16(r + 4u) + 1u);
 
         if (f >= 0x9Fu) f = 0x9Cu;
-        wr_le_u16(r + 4u, (uint16_t)f);
+        wr_le_u16(r + 4u, f);
     }
     _obj_walk_rope(r); /* 1000:CD2C -> 1000:CD2E */
 }
@@ -3978,7 +3978,7 @@ static void _obj_move_pair_b(uint8_t *r, const uint8_t *tab, int16_t selB,
 {
     int16_t ax, bx, cx, d;
 
-    if (((uint16_t)tab[2] | ((uint16_t)tab[3] << 8)) & 0x8000u) {
+    if ((tab[2] | (tab[3] << 8)) & 0x8000u) {
         _obj_move_impact(r, tab, idx);
         return;
     }
@@ -4176,7 +4176,7 @@ static void _obj_mover_pass_records(uint8_t *r, int32_t ax, int32_t bx)
             wr_le_u16(r + 0xAu, 0u);
             wr_le_u16(r + 0xCu, 0u);
             _obj_slot_class[ord] |= 0x80u;
-            t[7] = (uint8_t)ord;
+            t[7] = ord;
         }
     }
 }
@@ -4479,9 +4479,9 @@ static void _obj_stack8_move(uint8_t *r, int32_t vx, int32_t vy,
             uint16_t f;
 
             wr_le_u16(r + 8u, 3u);
-            f = (uint16_t)((uint32_t)(rd_le_u16(r + 4u) + 1u));
+            f = (uint16_t)((rd_le_u16(r + 4u) + 1u));
             if (f == endFrame) f -= 8u;
-            wr_le_u16(r + 4u, (uint16_t)f);
+            wr_le_u16(r + 4u, f);
         } else {
             wr_le_u16(r + 8u, (uint16_t)(s - 1u));
         }
@@ -4506,7 +4506,7 @@ static void _obj_stack8_anim(uint8_t *r, uint32_t endFrame)
     {
         uint16_t f = (uint16_t)(rd_le_u16(r + 4u) + 1u);
 
-        wr_le_u16(r + 4u, (uint16_t)f);
+        wr_le_u16(r + 4u, f);
         if (f == endFrame) wr_le_u16(r + 4u, (uint16_t)(f - 4u));
     }
 }
@@ -4526,7 +4526,7 @@ static void _obj_stack8_land(uint8_t *r, uint32_t bx, int32_t ax, int32_t bx2,
     uint16_t s = rd_le_u16(r + 8u);
 
     s = (uint16_t)(s - 1u);
-    wr_le_u16(r + 8u, (uint16_t)s);
+    wr_le_u16(r + 8u, s);
     if ((int16_t)s >= 0) return;
     wr_le_u16(r + 8u, 2u);
     wr_le_u16(r + 4u, (uint16_t)(rd_le_u16(r + 4u) + 1u));
@@ -4583,13 +4583,13 @@ static void _obj_walk_stack(uint8_t *r, uint32_t idx)
         uint16_t s = rd_le_u16(r + 8u);
 
         s = (uint16_t)(s - 1u);
-        wr_le_u16(r + 8u, (uint16_t)s);
+        wr_le_u16(r + 8u, s);
         if ((int16_t)s >= 0) break;
         wr_le_u16(r + 8u, 3u);
         {
             uint16_t f = (uint16_t)(rd_le_u16(r + 4u) + 1u);
 
-            wr_le_u16(r + 4u, (uint16_t)f);
+            wr_le_u16(r + 4u, f);
             if (f == 0x2Eu) {
                 _obj_slot_class[idx - 8u] = 0u;
                 r[6] = 0xFFu;
@@ -5202,10 +5202,10 @@ static void _obj_walk_marker(uint8_t *r)
             uint8_t *slot = _obj_array + i * OBJ_STRIDE;
             uint32_t sx, sy, type;
 
-            sx = (uint32_t)(rd_le_u16(slot + 0u) + 8u) & ~0xFu;
+            sx = (rd_le_u16(slot + 0u) + 8u) & ~0xFu;
             if (rd_le_u16(slot + 8u) == 0x0Fu)
-                sx = (uint32_t)(rd_le_u16(slot + 0u) + 0x10u) & ~0xFu;
-            sy = (uint32_t)(rd_le_u16(slot + 2u) + 0x0Cu) & ~0xFu;
+                sx = (rd_le_u16(slot + 0u) + 0x10u) & ~0xFu;
+            sy = (rd_le_u16(slot + 2u) + 0x0Cu) & ~0xFu;
             if (sx != mx || sy != my) continue;
             if (slot[6] & 0x80u) continue;
             type = rd_le_u16(slot + 8u);
@@ -5387,7 +5387,7 @@ void object_action_set_cursor(uint8_t cursor)
     uint8_t *p = _obj_program_slot(_obj_program_id());
 
     _obj_cursor = cursor;
-    if (p) p[1] = (uint8_t)cursor; /* D-186 */
+    if (p) p[1] = cursor; /* D-186 */
 }
 uint8_t object_action_pending(void) { return _obj_pending; }
 
@@ -5440,7 +5440,7 @@ static int32_t _obj_take_found(uint8_t *actor, uint8_t *found, uint8_t *slot,
     if (rd_le_u16(found + 0xAu) != 0u) return 0;
     actor[7] = (uint8_t)ordinal; /* [SI+3] = DL */
     *slot |= 0x80u; /* ORB $0x80, [BP] */
-    wr_le_u16(found + 8u, (uint16_t)_obj_entity); /* [DI+4] = [0x3E22] */
+    wr_le_u16(found + 8u, _obj_entity); /* [DI+4] = [0x3E22] */
     return 1;
 }
 
@@ -5458,7 +5458,7 @@ static int32_t _obj_give_found(uint8_t *actor, uint8_t *found, uint8_t *slot,
 {
     if (found[6] & 0x40u) return 0;
     if (!(rd_le_u16(found + 0xEu) & 0x8000u)) return 0;
-    wr_le_u16(found + 0xEu, (uint16_t)_obj_entity);
+    wr_le_u16(found + 0xEu, _obj_entity);
     found[7] = 0u;
     *slot |= 0x80u;
     wr_le_u16(actor + 4u, 0u); /* the actor's own record:  */
@@ -5491,9 +5491,9 @@ static void _obj_class_drop(uint8_t *actor, uint8_t *found, uint8_t *slot)
     }
     wr_le_u16(actor + 0u, rd_le_u16(found + 0u)); /* 1000:9DB7 */
     wr_le_u16(actor + 2u, (uint16_t)(rd_le_u16(found + 2u) - 8u));
-    wr_le_u16(actor + 4u, (uint16_t)bx);
+    wr_le_u16(actor + 4u, bx);
     wr_le_u16(actor + 6u, 0u);
-    wr_le_u16(actor + 8u, (uint16_t)ax);
+    wr_le_u16(actor + 8u, ax);
 }
 
 /** @brief 1000:9DD7 (behaviours 5..7): the carried record is thrown / placed at the
@@ -5555,7 +5555,7 @@ static void _obj_op_class_path(uint8_t *actor)
     if (cls < 1u || cls > live) return;
     found = _obj_array + (OBJ_LIVE0 + cls) * OBJ_STRIDE; /* 1000:9D5D */
     slot = _obj_slot_class + cls; /* 1000:9D60 */
-    beh = (uint32_t)(*slot & 0x3Fu);
+    beh = (*slot & 0x3Fu);
     idx = beh < 8u ? _obj_beh_class_idx[beh] : 0xFFu; /* 1000:9D76 */
     if (idx & 0x80u) return; /* 1000:9D7C */
     if (idx == 0u) _obj_class_drop(actor, found, slot);
@@ -5619,7 +5619,7 @@ static void _obj_op_collide(uint8_t *actor)
 
         if (*slot & 0x80u) continue;
         if (found[6] & 0x80u) continue;
-        beh = (uint32_t)(*slot & 0x3Fu);
+        beh = (*slot & 0x3Fu);
         /* 1000:9C89: the tail's program id (0x5B8A[behaviour]) is stamped on
          * every candidate the slot/flag tests let through, before the
          * direction test, so a later empty-map press can read it.
@@ -5988,7 +5988,7 @@ static void _obj_frame_step(uint8_t *actor, uint32_t lo, uint32_t hi)
     } else {
         if (++f == hi) actor[0xCu] = 0xFFu;
     }
-    wr_le_u16(actor + 4u, (uint16_t)f);
+    wr_le_u16(actor + 4u, f);
 }
 
 int32_t object_stack_push(uint8_t *actor)
@@ -6136,7 +6136,7 @@ int32_t object_stack_step_off(uint8_t *actor)
         if (rd_le_u16(e + 0u) != ax) continue;
         ey = rd_le_u16(e + 2u);
         di = e + 6; /* the first member */
-        while (!(di[0] & 0x80u) && di[0] != (uint8_t)idx) {
+        while (!(di[0] & 0x80u) && di[0] != idx) {
             ey -= 0x10u; /* 1000:E896: one level up */
             di++;
         }
@@ -6174,7 +6174,7 @@ int32_t object_stack_leave(uint8_t *actor)
 
         if (rd_le_u16(e + 0u) != ax) continue;
         di = e + 6;
-        while (!(di[0] & 0x80u) && di[0] != (uint8_t)idx) di++;
+        while (!(di[0] & 0x80u) && di[0] != idx) di++;
         if (di[0] & 0x80u) continue;
         if (rd_le_u16(e + 2u) != rd_le_u16(actor + 2u)) {
             /* 1000:E934: the *down* stepper (y += 1, frames 0x23..0x25) - the
@@ -6207,7 +6207,7 @@ int32_t object_stack_stand(uint8_t *actor)
 
         if (rd_le_u16(e + 0u) & 0x8000u) continue;
         di = e + 5;
-        while (!(di[0] & 0x80u) && di[0] != (uint8_t)idx) di++;
+        while (!(di[0] & 0x80u) && di[0] != idx) di++;
         if (di[0] & 0x80u) continue;
         di++;
         if (!(di[0] & 0x80u)) return 0; /* a member above it */
@@ -6246,7 +6246,7 @@ int32_t object_stack_snap(uint8_t *actor)
 
         if (rd_le_u16(e + 0u) & 0x8000u) continue;
         di = e + 5;
-        while (!(di[0] & 0x80u) && di[0] != (uint8_t)idx) di++;
+        while (!(di[0] & 0x80u) && di[0] != idx) di++;
         if (di[0] & 0x80u) continue;
         di++;
         if (!(di[0] & 0x80u)) return 0; /* a member above it */
@@ -6363,7 +6363,7 @@ static uint32_t _obj_walk_test(const uint8_t *actor)
     y = (int32_t)(int16_t)rd_le_u16(actor + 2u) + 0x10;
     id = _obj_map_at_abs(x, y, &sub);
     bit = 1u << (0xFu - ((uint32_t)x & 0xFu));
-    return (level_item_word(id, (uint32_t)((uint32_t)y & 0xFu)) & bit) ? 0xFFFFu
+    return (level_item_word(id, ((uint32_t)y & 0xFu)) & bit) ? 0xFFFFu
                                                                        : 0u;
 }
 
@@ -6386,9 +6386,9 @@ static void _obj_walk(uint8_t *actor, int32_t left)
     wr_le_u16(actor + 0xAu, (uint16_t)(rd_le_u16(actor + 0xAu) - 1u));
     if ((int16_t)rd_le_u16(actor + 0xAu) >= 0) return;
     wr_le_u16(actor + 0xAu, 0x0004u);
-    f = (uint8_t)((uint32_t)((rd_le_u16(actor + 4u) + 1u) & 0xFFFFu));
+    f = (uint8_t)(((rd_le_u16(actor + 4u) + 1u) & 0xFFFFu));
     if (f >= hi) f = lo;
-    wr_le_u16(actor + 4u, (uint16_t)f);
+    wr_le_u16(actor + 4u, f);
 }
 
 /** @brief 1000:F423: is (BX, CX) inside a TER slot's attach box?  A match ORs
@@ -6480,7 +6480,7 @@ static int32_t _obj_bg_mark(const uint8_t *actor)
             /* 1000:E007/E009: type 1 -> 0x68BE, everything <= 1 -> 0x689E */
             tbl = rd_le_u16(actor + 8u) == 1u ? _obj_foot_b : _obj_foot_a;
         } else {
-            int32_t side = (int16_t)_obj_side;
+            int32_t side = _obj_side;
             if (side == 0) return -1; /* 1000:DFF8 */
             tbl = side < 0 ? _obj_foot_b : _obj_foot_a;
         }
@@ -6579,7 +6579,7 @@ static void _shade_row(const ObjSprite *sp, uint32_t pass, uint32_t row,
                        uint8_t *out, uint16_t *s)
 {
     for (uint16_t j = 0; j < 4u; j++) {
-        if ((uint32_t)(sp->off + *s) < _obj_bank_size)
+        if ((sp->off + *s) < _obj_bank_size)
             out[row * 16u + pass + 4u * j] = _obj_bank[sp->off + *s];
         (*s)++;
     }
@@ -6716,7 +6716,7 @@ static void _obj_place_at(uint8_t *actor)
 {
     uint32_t cell;
     int32_t bx =
-        _obj_step_probe_at(actor, (int32_t)(int16_t)_obj_side, 0x18, &cell);
+        _obj_step_probe_at(actor, (int32_t)_obj_side, 0x18, &cell);
     int32_t d;
 
     if (bx < 0) return; /* 1000:F243 */
@@ -6785,7 +6785,7 @@ static void _obj_scan_point(uint8_t *actor, uint32_t xoff)
         uint8_t *e = (uint8_t *)_obj_span[i];
 
         if (rd_le_u16(e + 0u) & 0x8000u) fallback = (int8_t)((int32_t)i);
-        if (rd_le_u16(e + 0u) == (uint16_t)_obj_entity) {
+        if (rd_le_u16(e + 0u) == _obj_entity) {
             _obj_sel_frame = rd_le_u16(e + 6u);
             span = e;
             break;
@@ -6796,7 +6796,7 @@ static void _obj_scan_point(uint8_t *actor, uint32_t xoff)
         if (fallback < 0) return;
         span = (uint8_t *)_obj_span[fallback];
     }
-    wr_le_u16(span + 0u, (uint16_t)_obj_entity); /* 1000:FD4D */
+    wr_le_u16(span + 0u, _obj_entity); /* 1000:FD4D */
     wr_le_u16(span + 2u, (uint16_t)x);
     wr_le_u16(actor + 8u, _obj_sel_type); /* 1000:FD52 */
     wr_le_u16(span + 4u, (uint16_t)top);
@@ -6896,7 +6896,7 @@ static void _obj_cmd_enter(uint8_t *actor)
     ax = rd_le_u16(actor + 0xEu);
     if (ax >= 0x100u) ax = 0x1FFu - ax; /* 1000:EE55 */
     ax >>= 6;
-    dx = (uint32_t)((rd_le_u16(actor + 4u) - 0x8Cu) & 0xFFFFu);
+    dx = ((rd_le_u16(actor + 4u) - 0x8Cu) & 0xFFFFu);
     if (dx >= 8u) return; /* past 0x6E76's eight entries */
     _obj_pt_x = (uint16_t)(doors[dx][0] >= 0 ? doors[dx][0] + (int32_t)ax
                                              : doors[dx][0] - (int32_t)ax);
@@ -6990,7 +6990,7 @@ static void _obj_level_end_goal(uint8_t *t, uint32_t idx)
     statusbar_arm_tribe_count(); /* [0x5B22] = 0xFF */
     wr_le_u16(t + 2u, _obj_sel_xoff); /* [0x4222] */
     wr_le_u16(t + 0u, _obj_side); /* [0x4220] */
-    if ((int16_t)_obj_side < 0) { /* 1000:F692 */
+    if (_obj_side < 0) { /* 1000:F692 */
         wr_le_u16(t + 0u, (uint16_t)((_obj_settled[idx][0] + 8u) & 0xFFF0u));
         wr_le_u16(t + 2u, _obj_settled[idx][1]);
     }
@@ -7320,8 +7320,8 @@ static void _obj_tail_type3(uint8_t *actor)
         _obj_tail_frame_to_type(actor);
         return;
     }
-    ax = (uint32_t)(rd_le_u16(actor + 0u) + 8u);
-    bx = (uint32_t)(rd_le_u16(actor + 2u) + 0x18u);
+    ax = (rd_le_u16(actor + 0u) + 8u);
+    bx = (rd_le_u16(actor + 2u) + 0x18u);
     dx = rd_le_u16(actor + 0xAu);
     if (bx >= 0x158u) {
         _obj_tail_crash(actor);
@@ -7397,7 +7397,7 @@ static void _obj_tail_type3(uint8_t *actor)
         _obj_side = (uint16_t)(int16_t)(int8_t)(uint8_t)b; /* [0x4230] */
         if (!(b & 0x80u)) {
             bx -= 0x10u;
-            sc = (int32_t)(int16_t)_obj_side;
+            sc = (int32_t)_obj_side;
             bx = (uint32_t)((int32_t)bx + sc);
             cx = (uint32_t)((int32_t)cx - (int32_t)bx);
             if ((int32_t)cx < 0) {
@@ -7895,7 +7895,7 @@ static void _obj_path_advance(uint8_t *actor)
 
     if (!node) return;
     if (node[7] != 0u) return; /* 1000:EBD3 */
-    x = (uint32_t)(rd_le_u16(node + 0u) + 8u);
+    x = (rd_le_u16(node + 0u) + 8u);
     y = rd_le_u16(node + 2u);
     fine = x & 0xFu;
     tile = _obj_map_at_abs((int32_t)x, (int32_t)y + 0x10,
@@ -8288,7 +8288,7 @@ static void _obj_fall_item_word(uint8_t *actor, int32_t ax, int32_t bx)
     int32_t py = bx + 0x18;
     uint16_t tile = (uint16_t)(_obj_map_at_abs(px, py, NULL));
     uint16_t item =
-        (uint16_t)(level_item_word(tile, (uint32_t)((uint32_t)py & 0xFu)));
+        (uint16_t)(level_item_word(tile, ((uint32_t)py & 0xFu)));
     uint32_t lo, hi, mask;
 
     _obj_sel_type = item;
@@ -8353,7 +8353,7 @@ static void _obj_fall_machine(uint8_t *actor)
         vy = _obj_fall_step[anim];
         anim++;
     }
-    wr_le_u16(actor + 0xCu, (uint16_t)anim); /* 1000:F728 */
+    wr_le_u16(actor + 0xCu, anim); /* 1000:F728 */
     wr_le_u16(actor + 0xEu,
               (uint16_t)(rd_le_u16(actor + 0xEu) + (uint16_t)(int16_t)vy));
 
@@ -8375,7 +8375,7 @@ static void _obj_fall_machine(uint8_t *actor)
         if (above != 0xF1u) {
             gx -= 4u; /* 1000:F778 */
             if (above != 0xF2u) gx += 8u;
-            wr_le_u16(actor + 0u, (uint16_t)gx); /* 1000:F784 */
+            wr_le_u16(actor + 0u, gx); /* 1000:F784 */
         }
         wr_le_u16(actor + 2u, (uint16_t)(row - 0x1Cu)); /* 1000:F786 */
         wr_le_u16(actor + 4u, 0x00CDu);
@@ -8924,7 +8924,7 @@ static void _obj_class_transfer(uint32_t recIndex)
         _obj_array + (OBJ_LIVE0 + cls) * OBJ_STRIDE; /* 0x3F17+0x12*(cls-1) */
     slot = _obj_slot_class + cls; /* 0x3E5F + cls - 1 */
     *slot &= 0x7Fu; /* 1000:F504 */
-    beh = (uint8_t)((uint32_t)(*slot & 0x3Fu));
+    beh = (uint8_t)((*slot & 0x3Fu));
     if (beh == 4u) { /* 1000:F50B: the live record is the wheel */
         uint32_t ax, bx;
 
@@ -9034,7 +9034,7 @@ static void _obj_charge_draw(void)
      * -> 0x3747, +0xE stepping by 4); its page is never rebuilt, so the
      * strokes stay.  The port recomposes the page every tick, so it redraws
      * the whole run - the same pixels the original accumulated (D-81). */
-    v = (uint16_t)((uint32_t)(rd_le_u16(actor + 0xEu) & 0x1FFu));
+    v = (uint16_t)((rd_le_u16(actor + 0xEu) & 0x1FFu));
     statusbar_charge_bar(0u); /* 1000:36F7 */
     statusbar_charge_bar(2u); /* 1000:36FF */
     for (uint16_t x = 4u; x <= v; x += 4u) statusbar_charge_bar(x);
@@ -9058,7 +9058,7 @@ void object_pending_run(void)
     }
     /* 1000:34D1: the code the previous dispatch ran is not run again. */
     if (code == (uint32_t)_obj_debounce) return;
-    _obj_debounce = (uint8_t)code; /* 1000:34D5 */
+    _obj_debounce = code; /* 1000:34D5 */
     switch (code) {
     case 1u: /* 1000:36C7: the lock arm clears the dispatch word (0x36CD) */
         _obj_debounce = 0u;
@@ -9067,7 +9067,7 @@ void object_pending_run(void)
     case 5u: { /* 1000:382D */
         uint8_t *p = _obj_program_slot(_obj_program_id());
 
-        if (p) p[1] = (uint8_t)_obj_cursor; /* D-186 */
+        if (p) p[1] = _obj_cursor; /* D-186 */
         _obj_debounce = 0u; /* 1000:3839: MOV word [0x1979],0 */
         break;
     }
@@ -9160,7 +9160,7 @@ void object_action_run(void)
             if (!level_page_free(_obj_map_buffer_byte(cell))) break;
             if (!level_page_free(_obj_map_buffer_byte(next))) break;
             wr_le_u16(actor + 8u, (uint16_t)((t == 0u) ? 0x12u : 0x14u));
-            wr_le_u16(actor + 4u, (uint16_t)frame);
+            wr_le_u16(actor + 4u, frame);
         }
         break;
     case OP_TYPE_B: /* 0x39CF -> 0xEA0F / 0xEA4D          */
@@ -9193,7 +9193,7 @@ void object_save_table(uint8_t *dst)
     for (uint16_t i = 0; i < OBJ_SLOTS; i++)
         wr_le_u16(dst + 4u + 2u * i, (uint16_t)(0x3E75u + 0x12u * i));
     for (uint16_t i = 0; i < 21u; i++) dst[0x3Eu + i] = _obj_slot_class[i];
-    wr_le_u16(dst + 0x53u, (uint16_t)_obj_live_count); /* [0x3E73] word */
+    wr_le_u16(dst + 0x53u, _obj_live_count); /* [0x3E73] word */
     memcpy(dst + 0x55u, _obj_array, OBJ_SLOTS * OBJ_STRIDE);
 }
 
@@ -9302,7 +9302,7 @@ static void _obj_pending_moves_tick(void)
 
             while (idx >= placed) idx -= placed;
             _pend_div = (uint8_t)(_pend_wait[_pend_cursor / 4u]);
-            _pend_index = (uint16_t)idx;
+            _pend_index = idx;
             _pend_cursor = (uint16_t)(_pend_cursor + 4u);
             if (_pend_off[_pend_cursor / 4u] == 0xFFFFu) _pend_cursor = 0u;
             {
@@ -9312,7 +9312,7 @@ static void _obj_pending_moves_tick(void)
                     wr_le_u16(r + 4u, 0x22u);
                     _pend_tag = 1u;
                     _pend_count = 0x28u;
-                    _pend_slot = (uint16_t)idx;
+                    _pend_slot = idx;
                 }
             }
         }

@@ -826,7 +826,7 @@ static void _item_masks_build(const BdPage *page)
             uint16_t o = off + 2u * row;
 
             if (rd_le_u16(_page_items + o) != 0u) continue; /* 1000:55CC */
-            wr_le_u16(_page_items + o, (uint16_t)_item_row_word(&si));
+            wr_le_u16(_page_items + o, _item_row_word(&si));
         }
     }
 }

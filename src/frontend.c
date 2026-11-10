@@ -622,14 +622,14 @@ static void _room_walk(const InputState *in)
             if (rail) { /* A818..A854 */
                 _pub_x = _char_x;
                 _pub_y = _char_y;
-                _walk_state = (uint16_t)dir;
+                _walk_state = dir;
                 _frame = _dir_frame_low[dir];
                 _frame_cnt = 3;
             }
         } else if ((uint16_t)(((_walk_state & 1u) ? -1 : 1) +
                               (int16_t)_walk_state) == dir) {
             /* A7DB..A816: the reverse gate re-aims the walk */
-            _walk_state = (uint16_t)dir;
+            _walk_state = dir;
             if (dir < 2u) {
                 _frame = 0x13;
                 _frame_cnt = 3;
