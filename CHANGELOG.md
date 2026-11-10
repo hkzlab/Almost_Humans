@@ -21,9 +21,3 @@ _First release: a C99 port of the 1992 DOS game Humans, reimplemented from the o
   ported subsystems against the shipped game data
 - Add AdLib, Beeper and MT-32 sound drivers behind the INT 60h-shaped ABI, selectable at run time
 - Detect the installed language from the first 2048 bytes of `HUMANS.001` (FNV-1a 32)
-
-### Changed
-
-- Use `//` for single-line comments that follow code, keeping `/* ... */` for the
-  multi-line block comments and for `#endif /* GUARD */`
-
