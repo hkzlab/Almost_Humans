@@ -17,33 +17,19 @@
  *                      an LZ bitstream expanding to exactly clen bytes
  *
  * The LZ machine is the game's decode_bitstream (1000:91B9) as transcribed
- * instruction-for-instruction from the VALIDATED reference: the bit buffer
- * shifts RIGHT, the bit comes
- * out of bit 0, the refill is (word | 0x10000) >> 1 delivered as its own
- * bit 0, values assemble MSB first, the output fills BACKWARDS, the match
- * distance is signed by the backward cursor, and draining the buffer steals
- * the refill's first bit for the current consumption.  Every word read
- * XORs into the running checksum (BP), which decode_bitstream re-seeds
- * from the stream's checksum field per block (91c9 MOV BP,AX - the 91bc
- * size-word XOR never survives it) and resource_load returns to its
- * caller through the flags (1000:9183 OR BP,BP / RET).
+ * instruction-for-instruction
  *
  * The chunk lookup uses the ported disc table (202F:0x6287) through
  * res_movie_disc + the current-disc state res_set_disc - the original
  * opens ONE volume ([0xF7E]-named) and never scans across discs.
- *
- * Shortcut: the resource-level checksum is carried and exposed (chkOut)
- * but not gated - the original does not gate it either (levels\CODES.BIN
- * loads live with a nonzero block accumulator); the verified gate is the
- * scene-object test (1000:B444) which lands with the scene player.
  */
+
 #include "res.h"
 #include "osystem.h"
 #include "byteorder.h"
 #include "fs/fs.h"
 
 #include <stdlib.h>
-#include <string.h>
 
 typedef struct VolReader {
     FSVolume *v;
@@ -121,6 +107,12 @@ static int32_t _vol_read_at(VolReader *r, uint32_t at, uint8_t *dst, uint32_t n)
 
 /**
  * @brief Read one little-endian word from the volume cursor.
+ *
+ * A short read is swallowed as 0 and the cursor stays put: the WordReader
+ * ABI has no failure channel.  The original is no better off - its
+ * resource_getword (1000:92aa) ignores the INT 21h result at 1000:92f1 and
+ * decodes from its stale 8 KB buffer - so only the corrupt-stream output
+ * differs (deviation D-263).
  *
  * @param r the volume reader
  * @return the word
