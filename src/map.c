@@ -1,38 +1,3 @@
-/* map.c - menu_loop (1000:012A), the MAP screen after the ending, and the
- * high-score insert that runs at its top.
- *
- * BEHAVIOUR (from the listing):
- *  - the screen opens on the running total `[0x592]/[0x594]`; `1000:01CD`
- *    walks the ten 18-byte entries at DS:0x4DE from the bottom up and drops the
- *    candidate in below the first it beats, shifting the rest down one slot.
- *    A total that beats none is discarded;
- *  - when it qualifies, the insert screen runs: a 30-cell grid (0x00..0x19 =
- *    'A'..'Z', 0x1A space, 0x1B '.', 0x1C delete, 0x1D enter) over a
- *    13-character buffer at DS:0x757 (the cursor is a 1-D strip: one press is
- *    0x0C units, 30 cells, `1000:040B`).  Letters also type directly - the
- *    `0x19 < (byte)(key + 0xBF)` branch maps 'A'..'Z' onto the same columns;
- *  - Enter commits 14 bytes into the inserted entry with 0x1A -> space and
- *    0x1B -> '.', then the screen shows "THE TOP TEN TRIBES" (DS:0x87B,
- *    `1000:0518`) and `draw_score_block` (`1000:0651`) lists the ten;
- *  - the table is saved on the way out (`1000:062B` `decrypt_region_38a`).
- *
- * RENDERING: the frame/band and the name wheel are the listing's art.  The
- * list is `draw_score_block`'s layout (rank/name/score centred at
- * 0x20/0x82/0x102, pitch 0x14 from base 0), the qualifying total sees the
- * seven-line congratulation page before the ring, and the name screen has no
- * `NAME:` line.  The visible page is `lbm\high.bit`; the four animated band
- * strips live on the display (`1000:0A72`) and `_map_draw_strips` restores
- * them after the `0x024B` offscreen copy.  The top-ten list keeps high.bit
- * behind the rows: `map_draw_list` fills the offscreen page (`0x0577`/
- * `0x0595`) and the five frame bands (`0x07E6`) copy its masked 4-pixel
- * groups into the display (D-219).  The name-entry transition follows
- * 1000:028C..030A: five palette fades, the HIGH.BIT re-copy and the two
- * 1000:1251 outlines.  The six `[0x8A2]` positions are not content panels:
- * they are 0x14-frame scroll steps of the same band.
- *
- * Entry state: entry 0x151A sets [0xF7E]=0 and calls draw_status_indicator
- * (the disc-0 probe) before menu_loop, so the asset loads from disc 0.
- */
 #include "audio.h"
 #include "map.h"
 #include "font.h"

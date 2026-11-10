@@ -1,22 +1,15 @@
-/* byteorder.h - the one place the game's data bytes become integers.
+/* Port-only: the one reader/writer of multi-byte integers.
  *
- * Every on-disk format is little-endian, but a few
- * asset tables are big-endian (REX.DAT's frame words, the terrain bank), so
- * both orders live here and nothing else in `src/` composes a multi-byte
- * integer out of individual bytes.
+ * All on-disk data is little-endian except a few asset tables (REX.DAT's frame
+ * words, the terrain bank), which are big-endian; both orders live here and
+ * nothing else composes an integer out of bytes.
  *
- * The host order is decided at compile time.  On a little-endian host the
- * little-endian functions are a plain unaligned load (memcpy, which every
- * compiler folds into one mov); the big-endian ones become the same load plus
- * a byte swap (`bswap`/`movbe`).  On a big-endian host the roles are mirrored.
- * That is the whole point of reading through this module instead of shifting
- * bytes by hand.
+ * The host order is chosen at compile time.  `bo_*` is named for its input's
+ * order and the swap is its own inverse, so one helper serves reading and
+ * writing; 8-bit values carry no order.
  *
- * The conversion helpers `bo_*` are named for the order of their input; the
- * swap is its own inverse, so the same helper serves reading and writing.
- * 8-bit values have no byte order, so they carry no le/be in their names.
- *
- * Copyright: same as the rest of the port.
+ * No original counterpart: the game loads words little-endian and swaps by hand
+ * where a table needs it.
  */
 #ifndef HUMANSRE_BYTEORDER_H
 #define HUMANSRE_BYTEORDER_H

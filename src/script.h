@@ -1,6 +1,10 @@
-/* script.h - the interface of src/script.c: the frame-keyed cue interpreter
- * The boot intro's event script: 25 verbatim cues from 202F:0x843C,
- * dispatched on the exact frame (JE) through a 7-command dispatch. */
+/* The frame-keyed cue interpreter (the boot intro's event script).
+ *
+ *   the interpreter   1000:B809   one cursor and a 7-command dispatch
+ *   the cue list      202F:0x843C 25 verbatim [frame][cmd][arg] records
+ *
+ * A cue fires on an exact frame match; a seek rewrites the counter mid-scan.
+ */
 
 #ifndef HUMANSRE_SCRIPT_H
 #define HUMANSRE_SCRIPT_H

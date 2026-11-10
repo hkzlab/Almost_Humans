@@ -1,31 +1,3 @@
-/* menu.c - the in-level dialogs: the pause menu and the SAVE GAME number
- * grid.
- *
- * BEHAVIOUR (ported from the listing):
- *  - pause_toggle (1000:3523) opens the menu on the ACTION bit (0x80) with
- *    no direction held; the frame web's `A167` loop (1000:A167) then owns
- *    the input: bit 0x01 = _row-1 (wrap to the last), bit 0x02 = _row+1 (wrap
- *    to 0), ACTION or Enter (0x0D) = select; one move per press (the
- *    original waits for the key release).  The countdown is suspended
- *    ([0x5B12] = 0) while a dialog is up; the world keeps animating behind
- *    it (A167 re-runs the frame calls each iteration).
- *  - the 5 options are the 0-based results of `dispatch_by_result_a167`
- *    (1000:38EA): 0 continue, 1 restart this level, 2 restart this game,
- *    3 save (the number grid below), 4 quit.
- *  - SAVE GAME's grid is the 4-_row x 5-column column-major block at
- *    202F:0x5CD8 (games 1..20, cell _row r / column c = game 4c+r+1); its
- *    cursor is `render_frame_loop`'s [0x5E3B] (_row) / [0x5E3D] (column),
- *    with up/down wrapping inside the 4 rows and left/right wrapping across
- *    the 5 columns (1000:A312..A3AD).
- *
- * The dialog is drawn by the original renderer: `menu_draw` hands the block to
- * `textpage_draw`, which is `draw_map_object` (1000:9EA3, the 9-slice
- * `blit_sprite_planar` box from APL\BOX.SPR) plus `blit_text_tile`'s glyph
- * pass with its `GC3 = 0x1003` OR and mask 0x10 shading.  (An earlier revision
- * drew it with the TEXT.SPR font on the flat page and carried a DEVIATION note
- * here; that renderer landed in pass 10/12 and the note was stale.)  The
- * pause block is opened by `gameflow_key_list` (ESC, 1000:386E event 4).
- */
 #include "level.h"
 #include "menu.h"
 #include "game_strs.h"

@@ -1,7 +1,13 @@
-/* res.h - the interface of src/res.c: resource I/O
- * The volume file (named chunks) and the LZW decoder: the chunk directory,
- * the block loop and the bitstream machine, plus the memory-buffer variant
- * the .ANI player decodes its objects with. */
+/* Resource I/O: the volume directory, the block loop and the LZW decoder.
+ *
+ *   int63_load_resource    1000:8D63   the INT 63h entry
+ *   resource_load          1000:9017   named-chunk load
+ *   resource_decode_chunk  1000:9186   the block loop
+ *   decode_bitstream       1000:91B9   the LZ machine
+ *
+ * Deviations: D-23 (corrupt decode may overrun), D-198 (zero block size
+ * fails), D-263 (a truncated volume reads zeros).
+ */
 
 #ifndef HUMANSRE_RES_H
 #define HUMANSRE_RES_H

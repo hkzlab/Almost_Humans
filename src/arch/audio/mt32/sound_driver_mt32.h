@@ -1,8 +1,5 @@
-/* arch/audio/mt32/sound_driver_mt32.h - the MT-32 module's one port-side hook.
- *
- * SoundDriverModule::create() has no room for the ROM directory, and it is
- * not part of the INT 60h conversation, so the port hands the path over
- * before the driver install (audio(mt32)/sound_driver_mt32.c).
+/* The MT-32 module's one port-side hook: the ROM directory, handed over
+ * before create().  The path is not retained; not part of INT 60h.
  */
 #ifndef HUMANSRE_SOUND_DRIVER_MT32_H
 #define HUMANSRE_SOUND_DRIVER_MT32_H

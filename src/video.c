@@ -1,15 +1,3 @@
-/* video.c - pages, the A000 planar model, scroll, dirty cells
- *
- * The core owns two abstract 320x200x8 pages; mode-X plane quirks stay in the
- * core's blitters, the backend sees flat pages.
- *
- * The page MEMORY is the backend's (OSystem::videoPage): the core only
- * blits into it.  The A000 model is the core's: one 64-KB unchained byte-mode
- * window, four planes deep, shared by every mode-X screen (the attract, the
- * front-end room, the party briefing, the level and the MAP).  The original
- * has a single window; the port's screens are mutually exclusive in time, so
- * one buffer is both smaller and closer to it.
- */
 #include "video.h"
 #include "osystem.h"
 

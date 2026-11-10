@@ -1,12 +1,3 @@
-/* game_strs.c - the text table; see game_strs.h.
- *
- * Every column is verbatim from the shipped image of that language; a
- * pointer here is behaviour-identical to the literal it replaced.  The only
- * rewrite is GAME_STR_GAMEFLOW_LEVEL_DONE: the original patches three digits
- * in place (1000:33B6..33D1 divides by 0x64/0x0A and always writes three), so
- * the table carries a `%03u` where the shipped template has its `000`.
- * Generated and checked against the shipped images.
- */
 #include "game_strs.h"
 
 uint32_t g_game_lang = GAME_LANG_EN;

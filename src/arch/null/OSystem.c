@@ -1,9 +1,9 @@
-/* arch/null/OSystem.c - the headless reference backend.
+/* The headless reference backend: plain page buffers, idle input and a
+ * manually driven tick.
  *
- * Builds with no dependencies at all; used by CI and the headless tests.
- * The _pages are plain buffers, the input is always idle, the timer stores
- * the callback for the test to drive manually.  It is also the shape every
- * other backend must match. */
+ * Port-only; used by CI and the headless tests, and the shape every other
+ * backend matches.
+ */
 #include "osystem.h"
 
 #include <stdlib.h>

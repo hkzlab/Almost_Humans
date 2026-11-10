@@ -1,9 +1,11 @@
-/* save.h - the interface of src/save.c: the save-game format
+/* The save-game format: the 0x1800-byte SAVE<letter> file.
  *
- * The 0x1800 file `SAVE<'A'+n-1>` (the fs module's
- * name for the original's `\humans\cdrom\saveX`).  The load is entry:004C's
- * path: the slot is the front-end room's RESTORE GAME counter (GAME 1..20),
- * and a hit overrides the room's level, the time limit and the tribe.
+ *   entry:004C (1000:004C)   the load; slot = RESTORE GAME 1..20
+ *   save_progress 1FE7:0000  the writer (the pause menu's SAVE GAME)
+ *
+ * Byte-compatible with the original; a missing or short file is the original's
+ * no-save path.
+ * Deviation: D-05 (the file lives in the game directory, no DOS path).
  */
 
 #ifndef HUMANSRE_SAVE_H

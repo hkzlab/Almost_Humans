@@ -1,14 +1,14 @@
-/* frontend.h - the interface of src/frontend.c: the front-end room
+/* The front-end room: the walkable level-select / game-start menu.
  *
- * The walkable level-select / game-start menu (frontend_room_setup
- * 1000:A48E + the frame web + level_select_event_loop 1000:AA2C): the room
- * the attract escape hands
- * into (entry LAB_002B).  One tick per call, exactly the original's
- * per-display-period frame.  1 = the room runs; 0 = the room exited
- * (the confirm: the walk off the right edge at x=0x280, or Enter on the
- * name screen with a codes.bin match) - both run the exit fade first.
- * ESC stays in the room (0x5F11's act0 clears the typed name); there is
- * no key path back to the attract. */
+ *   frontend_room_setup       1000:A48E   the room and its frame web
+ *   level_select_event_loop   1000:AA2C   one display period
+ *   set_scroll_x              1000:AA05   the 320-px window
+ *   walk_step_horizontal      1000:A8D3
+ *   walk_step_vertical        1000:A963
+ *   name_screen_show          1000:AF92
+ *
+ * Deviations: D-19 (no-data skip, DARWIN default), D-20 (composed split).
+ */
 
 #ifndef HUMANSRE_FRONTEND_H
 #define HUMANSRE_FRONTEND_H

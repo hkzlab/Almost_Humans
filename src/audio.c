@@ -1,10 +1,3 @@
-/* audio.c - the tune/sfx state machine: play_tune, music_resume/music_stop,
- * driver_call, the master-volume fade pair and the 2-of-3 music tick.
- *
- * The driver itself is the linked
- * sound-driver module behind the OSystem's INT 60h calls.  Nothing here
- * knows a chip: this is the game side of the conversation.
- */
 #include "audio.h"
 #include "frontend.h"
 #include "res.h"

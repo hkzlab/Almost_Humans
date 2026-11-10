@@ -1,13 +1,3 @@
-/* palette.c - fades and DAC.
- *
- * The original's machine, ported 1:1: a 256-entry 6-bit _working palette
- * (202F:0x4BBC) refilled by palette_load_6bit (1000:8d24) from each loaded
- * image - the RAM copy only, it never touches the DAC - and the DAC fade
- * state (_ramp 202F:0x4EBC, control 0x48B0..0x48B4) stepped once per tick by
- * palette_fade_step (1000:8bfd) from the ISR body.  palette_build_fade
- * (1000:8bac) reads the CURRENT DAC into the _ramp and stores per-component
- * deltas (target-current)<<8/div; each tick adds one delta, clamps at the
- * target and clears the active flag once every component reached it. */
 #include "palette.h"
 #include "osystem.h"
 #include "width.h"

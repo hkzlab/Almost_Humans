@@ -1,31 +1,3 @@
-/* save.c - the save-game format
- *
- * The file is 0x1800 bytes, named by the slot letter: the original keeps
- * `"\humans\cdrom\save"` at 202F:0x1C7E whose NUL at 0x1C90 is overwritten
- * with `'A'+([0x5E6F]-1)` (entry:004C) or with the save-number prompt's
- * `'A'+(n-1)` (save_progress) - one file per game 1..20.  The filesystem
- * module owns the actual filename (fs.h).
- *
- * Layout:
- *   +0x00 u16 level id 1..160        -> [0x1F41], and via the entry push to
- *                                       [0x22] it OVERRIDES the room's code match
- *   +0x02 u16 / +0x04 u16            -> [0x592]/[0x594], the 32-bit score
- *   +0x06 u8  state/screen id        -> [0x5B56]
- *   +0x07 u16 the remaining-time word (minutes << 8 | BCD seconds) -> [0x5D31]
- *   +0x09 u8/u8 the 2-digit counter  -> [0x5B25]/[0x5B26]
- *   +0x0B u16 tribe members          -> [0x1970]
- *   +0x0D..  the state ranges        -> the [0x3E20]/[0x6F20]/[0x5B37]/[0x649A]/
- *            [0x6F92] copies (load_level_record_a/_b) and the [0x5B22]
- *            parameter block at +0x17F0.
- *
- * The header and all five state ranges are now written from the live port
- * state (score/counter, the object table, the group/span pools, the six
- * programs, the TER slots and the entity array), and `save_restore_state` puts
- * them back after `level_load`.  The 8 bytes at +0x17F0 are the live
- * [0x5B22] tribe counter block (statusbar_save_params/loadParams).
- *
- * The load mirrors entry:004C: a missing/short file is the original's JC
- * path (no save, the fresh game), never an abort. */
 #include "save.h"
 #include "entity.h"
 #include "object.h"

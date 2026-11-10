@@ -1,25 +1,3 @@
-/* score.c - check_highscore (1000:41AE), the score/record screen between the
- * level's end page and the post-level newspaper.
- *
- * The screen, in the original's order:
- *   - the score arithmetic (41B8..4235): the member recount, the level term and
- *     the placed-object bonus, the time term;
- *   - the four resource loads (4257..4276): LBM\SCORE.BIT, APL\SCORE.SPR,
- *     APL\SCORENUM.SPR and APL\RECORD.SPR;
- *   - or_region_c0, build_highscore_table, reblit_framebuffer_88 (the card),
- *     crtc_write(0x8F) - the 320x200 field;
- *   - the NEW RECORD test (the best-time table at DS:0x38A + level*2, all
- *     0x0999 sentinels shipped), the running total and its displayed copy;
- *   - draw_scorenum_three_passes twice (the elapsed and best times), then
- *     draw_score_columns (the three counters);
- *   - the fade to 0x14D3 and the loop: tick_score_counters + wait_vsync +
- *     poll_input, ending on the fire bit, [0x48A3] or [0x1DC8]'s 0x15E
- *     countdown; then the fade to 0x48BC and vga_set_mode_13h.
- *
- * The high-score file, the top-10 insert and the name entry live in hiscore.c
- * (HISCORES.HUM) and map.c (the insert screen).  The stamp's underlay is saved
- * and restored by score_stamp_draw (0x4697/0x46A3).
- */
 #include "score.h"
 #include "font.h"
 #include "gameflow.h"

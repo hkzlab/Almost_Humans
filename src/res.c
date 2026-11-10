@@ -1,29 +1,3 @@
-/* res.c - resource I/O.
- *
- * The volume file (one per disc) is
- *
- *     u16 count, then count x 0x40-byte records:
- *         name[18] NUL-padded, secondary[10], pad,
- *         u16 block @0x36 (0x4000 on this disc),
- *         u32 length @0x38, u32 offset @0x3c (bytes into the volume file)
- *     then the chunk data.
- *
- * A chunk at its offset is a run of blocks producing `length` bytes:
- *     flag 0        -> the next min(block, remaining) bytes are stored raw,
- *                      and EVERY block again starts with a flag word (so the
- *                      in-memory image is not the payload sliced after the
- *                      first flag)
- *     flag non-zero -> u16 clen, then [u16 unused][u16 init bit buffer] and
- *                      an LZ bitstream expanding to exactly clen bytes
- *
- * The LZ machine is the game's decode_bitstream (1000:91B9) as transcribed
- * instruction-for-instruction
- *
- * The chunk lookup uses the ported disc table (202F:0x6287) through
- * res_movie_disc + the current-disc state res_set_disc - the original
- * opens ONE volume ([0xF7E]-named) and never scans across discs.
- */
-
 #include "res.h"
 #include "osystem.h"
 #include "byteorder.h"

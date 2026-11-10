@@ -1,10 +1,14 @@
-/* osystem.h - the architecture abstraction for the HumansRE port.
+/* The arch ABI: everything the game core takes from the host.
  *
- * The game core never touches SDL, the GPU, the OS or a file path: 
- * It calls OSystem.
- * If the core cannot express a behaviour through this interface,
- * the interface is wrong, not the core.
+ *   video    vga_set_mode_13h 1000:8300, reset_display_mode 1000:82C6
+ *   events   poll_input 1000:8526, int9_keyboard_isr 1000:93A1
+ *   timer    int8_timer_isr 1000:8A70
+ *   audio    INT 60h, driver_reset 1000:84DE (sound_driver.h)
+ *   files    DOS INT 21h; int63_load_resource 1000:8D63 (fs.h)
  *
+ * The core never touches SDL, the GPU, the OS or a path: if a behaviour cannot
+ * be expressed here, this interface is wrong, not the core.
+ * Deviations: D-02, D-03, D-05 (details in port_deviations.md).
  */
 #ifndef HUMANSRE_OSYSTEM_H
 #define HUMANSRE_OSYSTEM_H

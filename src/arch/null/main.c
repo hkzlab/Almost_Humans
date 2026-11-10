@@ -1,4 +1,7 @@
-/* arch/null/main.c - the arch layer owns main(). */
+/* The headless entry: run the core with the null backend, --ticks N to stop.
+ *
+ * Port-only: there is no input source, so only --ticks ends the loop.
+ */
 #include "osystem.h"
 
 #include <stdio.h>

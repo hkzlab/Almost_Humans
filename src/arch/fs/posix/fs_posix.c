@@ -1,8 +1,9 @@
-/* fs/posix/fs_posix.c - the POSIX filesystem module: the byte reader over
- * the volume files (HUMANS  .00N) and the save files (SAVEA..SAVET in the
- * game directory).  The volume's internal format (the chunk directory, the
- * LZW payloads) and the save format are the core's business; the module
- * only opens, sizes and reads bytes through stdio. */
+/* The POSIX filesystem module: stdio over the extracted volume and save files.
+ *
+ * HUMANS.00N and SAVEA..SAVET in the game directory.  Format knowledge stays
+ * in the core; this module only opens, sizes, reads and writes bytes.
+ * Deviation: D-05 (POSIX files, no DOS drive or disc swap).
+ */
 #include "fs/fs.h"
 
 #include <stdio.h>

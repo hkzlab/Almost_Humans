@@ -1,9 +1,10 @@
-/* menu.h - the interface of src/menu.c: the in-level dialogs (pause menu + SAVE GAME)
+/* The in-level dialogs: the pause menu and the SAVE GAME number grid.
  *
- * The 5-option pause menu (202F:0x5BBC, A167) and the SAVE GAME number grid
- * (202F:0x5CD8, render_frame_loop's cursor): the behaviour is the original's
- * (0-based rows, wrap, ACTION/Enter selects; the countdown is suspended).
- * The dialog draws through draw_map_object (1000:9EA3).
+ *   pause_toggle   1000:3523      ACTION bit, no direction held
+ *   the A167 loop  1000:A167      input, wrap, ACTION/Enter select
+ *   the save grid  1000:A312..A3AD (202F:0x5CD8, game 4c+r+1)
+ *
+ * The countdown is suspended and the world keeps animating behind the dialog.
  */
 
 #ifndef HUMANSRE_MENU_H

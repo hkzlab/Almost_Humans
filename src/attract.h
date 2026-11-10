@@ -1,15 +1,10 @@
-/* attract.h - the interface of src/attract.c: the ATTRACT loop (game_loop 1000:131E)
+/* The ATTRACT loop: game_loop and its four intro effects, cycled 1-3-2-4.
  *
- * The four intro effects in the original's order (1 -> 3 -> 2 -> 4),
- * cycled forever; the only exit is attract_exit (1000:13E9): the
- * configured action key ([0x5ACE] bit 7) or any held key ([0x48A3]),
- * which runs the 13B2 escape - the page pair restored, one fade to black
- * whose completion hands control to the front-end.  Per tick, exactly like
- * the original's wait_vsync cadence: attract_tick() advances the machine
- * by one display period, composes the visible planar window into page 0
- * (game_main's videoPresent shows it) and returns 1 while the attract
- * plays, 0 once the escape's fade completed.  The details and the one
- * documented latency deviation are in attract.c's header.
+ *   game_loop      1000:131E   the machine (attract_tick)
+ *   attract_exit   1000:13E9   the escape and the 13B2 fade
+ *   effects        1000:1406 / 1514 / 18CA / 19AF
+ *
+ * Deviations: D-19 (no-data load skip), D-262 (row 199 spill dropped).
  */
 
 #ifndef HUMANSRE_ATTRACT_H

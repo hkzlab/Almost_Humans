@@ -1,16 +1,11 @@
-/* party_intro.h - the interface of src/party_intro.c: the level-intro party screen
+/* The level-intro party/briefing screen.
  *
- * level_intro_screen (1000:2508): the fresh-load briefing.  The screen is
- * reached from FLOW_LEVEL's fresh-load path (level_run's 307a call; the
- * .ANI cutscene is not part of this screen).
- * party_intro_start seeds and runs the setup (the 5 asset loads, the
- * double .BIT bake with the flip, the master-palette copy, the 35-step
- * fade-in); party_intro_tick is one display period of the machine, and
- * returns 1 while the screen plays, 0 after its exit's music_stop.
- * A headless run without the disc data skips the screen (start returns 0).
+ *   level_intro_screen   1000:2508   the machine
+ *   draw_intro_frame     1000:2C1D   the masked band bake
+ *   the animator         1000:28E9   the 8-slot cell scripts
+ *   fade_and_animate     1000:2BDA   the text/background fade cycle
  *
- * Facts (decoded 2026-10-29, all render gates closed): the memory model and
- * the machine notes are in party_intro.c's header.
+ * Deviation: D-19 (a failed load skips the screen).
  */
 
 #ifndef HUMANSRE_PARTY_INTRO_H

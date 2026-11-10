@@ -1,56 +1,14 @@
-/* arch/audio/beeper/sound_driver_beeper.c - BEEPER.DRV's replacement.
+/* BEEPER.DRV's replacement: the sequencer over the PC speaker.
  *
- * The resident driver is 4272 bytes of position-independent 8086 code loaded
- * into a DOS-allocated segment, so every address below is a segment-relative
- * offset of the shipped image.
- * This file is that image's behaviour, read from the disassembly on
- * 2026-11-07:
+ * Image-relative offsets (the driver is a CD resource):
+ *   install   1E95:00DE   cmd 0     1E95:019E   cmd 2     1E95:050C
+ *   cmd 5     1E95:02B0   cmd 6     1E95:03F9   cmd 0x0A  1E95:01DB
+ *   cmd 0x0C  1E95:022E   cmd 0x0E  1E95:01BE
  *
- *   INT 60h            BEEPER.DRV                   here
- *   install AX=0x60    1E95:00DE                    _beeper_create
- *   cmd 0              1E95:019E (uninstall)        _beeper_destroy
- *   cmd 2              1E95:050C -> 1E95:051A       _beeper_tick
- *   cmd 5              1E95:02B0                    _beeper_start_event
- *   cmd 6              1E95:03F9 -> 1E95:03D1       _beeper_release_event
- *   cmd 0x0A           1E95:01DB (master volume)    _beeper_set_tempo
- *   cmd 0x0C           1E95:022E (load & start)     _beeper_load_tune
- *   cmd 0x0E           1E95:01BE (identity block)   _beeper_command_block
- *
- * The "tempo" command is a master *volume*: `(0xA3 * CL) >> 8` goes to
- * CS:0x0E64, and the apply routine it calls (0x01FF) is a bare RET - no
- * routine ever reads the byte.  BEEPER is a fixed-level square wave: the
- * per-instrument volume and voice command 0x0C are computed and discarded
- * the same way.  Reproduced here as state only, so a future reader of the
- * driver's internals sees it.
- *
- * The chip is the PC speaker.  A note's period-table word (CS:0x08B2, 84
- * words) is a PIT channel-2 divisor: `frequency = 1193182 / divisor`.  Port
- * 0x61 bits 0-1 gate the output (0x07ED sets them, 0x0809 clears them).
- * `generate()` renders through the vendored PC-speaker impulse model
- * (thirdparty/pcspeaker_impulse.c, GPL-2.0-or-later; see its README), whose
- * 8254 mode-3 scheduler and sinc impulse produce the band-limited square
- * wave instead of the earlier ideal square.  The original's INT 8 hook
- * reprograms PIT 0 to 0x5D37 (about 50 Hz) but the game never sends cmd 3,
- * so the sequencer is stepped by the game's own tick (2 of every 3 game
- * ticks) exactly as the AdLib module is.
- *
- * Image layout:
- *   header   0x000..0x157, copied to the driver's CS:0x0B0B by cmd 0x0C
- *   records  0x158 + id*16, K of them (header[0x11B])
- *   offsets  0x158 + K*16, N = ((P*2) & 0xFFF0) + 0x10 bytes, paragraphs
- *   songs    0x158 + K*16 + N, pattern b at +(T[b]-T[0])*16
- * A row has no mask: two 4-byte cells, `note, instrument, command, param`,
- * and the cursor advances a fixed 8 bytes.
- *
- * The row decoder (1E95:0660/06BB) copies cell i to speaker slot i: each
- * `MOVSW` pair writes the 4-byte cell and `ADD DI,0x12` skips the rest of the
- * 0x16-byte slot, so the effective stride is 0x12 + 4 = 0x16.  The record's
- * slot list is not consulted by the decoder; the play loop uses it.
- *
- * cmd 5 sets both slots' last-instrument byte to 0xFF, not 0.
- *
- * The tune image is copied: the original keeps the game's far pointer, but a
- * copy keeps the caller's buffer lifetime out of the driver's contract.
+ * The period table is CS:0x08B2 (84 PIT divisors); the row decoder is
+ * 1E95:0660/06BB.  cmd 0x0A is a dead master volume (the apply is a bare RET).
+ * The tune image is copied, not aliased.
+ * Deviations: D-254 (bounded table and image reads).
  */
 #include "audio/sound_driver.h"
 

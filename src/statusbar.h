@@ -1,11 +1,11 @@
-/* statusbar.h - the interface of src/statusbar.c: the in-level status bar
+/* The in-level status bar: the band and its five digit marks.
  *
- * The level's bottom 40 rows (y 152..191): panel4.bit's top 40 rows
- * +0xC0-tagged, plus five digit marks (y 172..179) cut from the
- * PANELN1+PANELN2 glyph strip: the countdown's minutes / sec-tens /
- * sec-ones and the tribe counter's tens / ones.  statusbar_tick is the INT 8
- * hook at 1000:96AD: the 70-frame second, the packed-decimal countdown with
- * its slides, the tribe counter, and the per-frame stamp.
+ *   build_statusbar_layout  1000:961B
+ *   statusbar_tick          1000:96AD   the INT 8 hook
+ *   the tribe counter       1000:9767
+ *   the per-frame stamp     1000:9846
+ *   level_start's time pick 1000:9589
+ *   the band copy           1000:99D8 / 9A18
  */
 
 #ifndef HUMANSRE_STATUSBAR_H

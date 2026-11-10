@@ -1,17 +1,13 @@
-/* gameflow.h - the flow helpers of src/game_main.c: the top-level flow
- * (the original's main loop).  game_main() itself, the core's entry the arch
- * layer calls, is declared in osystem.h - that header is the whole
- * arch<->core handshake.
+/* Boot and top-level flow: the original's entry and main loop.
  *
- * The original's foreground loop is one flow-step per display period: the
- * ISR does the fixed work (flip apply, palette step, music tick) and the
- * foreground advances the flow once per tick boundary.  The states mirror
- * the original's top-level control:
+ *   entry                     1000:0000   init, mode, intro, walk, menu
+ *   game_loop                 1000:131E   the attract state
+ *   scan_id_list              1000:386E   the key list
+ *   dispatch_by_result_a167   1000:38EA   the pause results
+ *   check_highscore           1000:41AE   the post-level screen
+ *   level_run                 1000:3054   the level spine
  *
- *     ATTRACT --(the escape: the action key or any held key, after the
- *                13B2 fade completes -- attract_tick)--> MENU
- *     MENU    --(the room's confirm: the walk off the right edge, or
- *                Enter with a codes.bin match -- frontend_tick)--> LEVEL
+ * Deviation: D-03 (host-thread 70 Hz tick, no PIT/vsync chain).
  */
 
 #ifndef HUMANSRE_GAMEFLOW_H

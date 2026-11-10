@@ -1,25 +1,10 @@
-/* arch/sdl3/audio.c - the SDL3 port's audio backend.
+/* The SDL3 audio backend: the sample stream around sound_driver.h.
  *
- * The backend owns the sample stream; the sound-driver module
- * (audio/sound_driver.h) owns the synth.  Every OSystem audio member is one
- * INT 60h command the game sends, so this file is a
- * thin, thread-safe wrapper around the module - the game-side schedules (the
- * 2-of-3 music tick, the master-volume fades, the tune transitions) live in
- * the core (src/audio.c), where the original runs them.
- *
- * Threading: the SDL audio thread runs the sample callback, and it is the
- * audio clock - the core's audio tick (audio_render_tick) is stepped from
- * inside the render at the exact sample where the next game tick is due, so
- * a note's key-on/key-off lands on the sample the original's ISR wrote it at,
- * not on a render-chunk boundary.  The game-tick thread (arch/sdl3/timer.c)
- * still runs the ISR body, but its audio_tick call is a no-op while this
- * clock is active (audio_set_render_clock).  Both threads touch the driver's
- * synth state, so every call is serialised by _lock; the critical sections
- * are tiny.
- *
- * The driver module is chosen before the install (sdl3_audio_select), the
- * launcher's [0x5AFE] selection: AdLib by default, the PC speaker with
- * `--audio beeper`, the MT-32 with `--audio mt32 --mt32-roms <dir>`.
+ * The core's audio tick runs on the audio thread at the sample where each
+ * game tick is due; the game-tick thread's audioTick is then a no-op.  All
+ * driver calls are serialised by one lock.  `--audio adlib|beeper|mt32`
+ * picks the module, the launcher's [0x5AFE].
+ * Deviation: D-251 (the music tick runs on the audio sample clock).
  */
 #include "osystem.h"
 

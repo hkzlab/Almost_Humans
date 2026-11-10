@@ -1,12 +1,10 @@
-/* arch/sdl3/video.c - window/renderer + the two 8bpp _pages.
+/* The SDL3 video backend: window, renderer, texture and the two 8bpp pages.
  *
- * The original's video: two VGA modes, 320x200 (mode 13h) and 320x192
- * (reset_display_mode's mode X), 8bpp with a 6-bit DAC palette, displayed
- * 4:3 on a CRT.  The SDL3 equivalent here: an ARGB8888 texture carrying the
- * indexed page through the palette LUT per present, rendered into the
- * current mode's logical size (320x200 or 320x192) stretched over the same
- * 960x720 window, so both fields keep the 4:3 display geometry.
- * The loop is paced by the tick gate (timer.c's tickSync), not by vsync. */
+ * Indexed 320x200 (mode 13h) or 320x192 (mode X) through a palette LUT into
+ * one 960x720 4:3 window; the loop is paced by the tick gate, not vsync.
+ * Port-only: it replaces the VGA/CRTC services the original programs directly.
+ * Deviation: D-04 (flat pages; the mode-X model is core-side).
+ */
 #include "osystem.h"
 
 #include <SDL3/SDL.h>

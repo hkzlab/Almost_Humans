@@ -1,44 +1,14 @@
-/* arch/audio/adlib/sound_driver_adlib.c - ADLIB.DRV's replacement.
+/* ADLIB.DRV's replacement: the sequencer over a vendored Nuked-OPL3.
  *
- * The resident driver is 6 KB of position-independent 8086 code (no static
- * image: it is a CD resource loaded into a DOS-allocated segment, so every
- * address below is a segment-relative offset of the shipped image).  This
- * file is that image's behaviour, read from the disassembly on 2026-11-06:
+ * Image-relative offsets (the driver is a CD resource):
+ *   install   1E95:00DD   cmd 0     1E95:0140   cmd 2     1E95:05CA
+ *   cmd 5     1E95:032C   cmd 6     1E95:048F   cmd 0x0A  1E95:01DD
+ *   cmd 0x0C  1E95:02AA   cmd 0x0E  1E95:01C0
  *
- *   INT 60h            ADLIB.DRV                    here
- *   install AX=0x60    1E95:00DD                    _adlib_create
- *   cmd 0              1E95:0140 (uninstall)        _adlib_destroy
- *   cmd 2              1E95:05CA -> 1E95:05D8       _adlib_tick
- *   cmd 5              1E95:032C                    _adlib_start_event
- *   cmd 6              1E95:048F                    _adlib_release_event
- *   cmd 0x0A           1E95:01DD (master volume)    _adlib_set_tempo
- *   cmd 0x0C           1E95:02AA (load & start)     _adlib_load_tune
- *   cmd 0x0E           1E95:01C0 (identity block)   _adlib_command_block
- *
- * The "tempo" command is a master *volume*: the driver stores
- * (0xA3 * CL) >> 8 in CS:[0x1556] and every note's level is
- * min(volume, [0x1556]) before it reaches the OPL volume register.  The game
- * fades in (1000:84A5, CL 0 -> 0x4A) and out (1000:835A, CL 0x4B -> 0) with it.
- *
- * The chip is Nuked-OPL3 (thirdparty/, LGPL-2.1-or-later) in OPL2 mode: the
- * driver never sets the OPL3 "NEW" bit, and its register stream is the one
- * adlib_write_opl_reg (1E95:0E23) pushed to ports 0x388/0x389.  Every write
- * goes through _write_reg, which keeps the driver's own 256-byte shadow
- * (CS:0x1456) because the sequencer reads it back for read-modify-writes.
- *
- * Image layout:
- *   header   0x000..0x157, copied to the driver's CS:0x10FD by cmd 0x0C
- *   records  0x158 + id*16, K of them (header[0x11B]); cmd 5 takes one
- *   offsets  0x158 + K*16, N = ((P*2) & 0xFFF0) + 0x10 bytes, paragraphs
- *   songs    0x158 + K*16 + N, pattern b at +(T[b]-T[0])*16
- *   patches  +(T[P]-T[0])*16 + 0x0A + id*0x40, 64-byte blocks
- * A row is a little-endian mask (MSB first) followed by a 4-byte voice cell
- * per set bit; a cell is note, instrument, command, parameter.
- *
- * The tune image is copied: the original keeps the game's far pointer, but a
- * copy keeps the caller's buffer lifetime out of the driver's contract.
- * cmd 5's handle is the record index (the original returns its record
- * pointer; the game only round-trips it).
+ * cmd 0x0A is master volume ((0xA3*CL)>>8 at CS:0x1556); the register stream
+ * goes to 0x388/0x389 through adlib_write_opl_reg (1E95:0E23).  The tune
+ * image is copied; cmd 5 returns the record index.
+ * Deviations: D-249 (Nuked-OPL3, not the YM3812), D-261 (bounded reads).
  */
 #include "audio/sound_driver.h"
 

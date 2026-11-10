@@ -1,38 +1,3 @@
-/* hiscore.c - HISCORES.HUM: the table at DS:0x38A, its obfuscation, the
- * top-10 insert and the name entry.
- *
- * The file is a runtime file in the game directory (not on the disc), 520
- * bytes (0x208), written whole from DS:0x38A and obfuscated in place.  The
- * original's name is corrupted: the CD probe (`1FE7:027B`) stamps the MSCDEX
- * drive letter over the 'H' of the image's "HISCORES.HUM" at `[0x3B]`, so the
- * name DOS opens is "<letter>ISCORES.HUM".  The port keeps the intended name;
- * that is the accepted deviation D-225 (an original bug, not reproduced).
- *
- *   +0x000  2    the reserved word (0x0999); level 0's slot, never used
- *   +0x002  320  160 x u16 per-level best, level N at +2*N
- *                (`1000:42E9`: BX = 0x38A + [0x1F41]*2)
- *   +0x142  18   unused
- *   +0x154  180  10 x 18: u32 score (LE) at +0, ASCIIZ name at +4
- *
- * Obfuscation `crypt_table_38a` (`1000:06DE`), an involution used by both the
- * load and the save:
- *
- *   bl = 0x47
- *   for each byte:  [di] ^= bl;  bl = rol8(bl,1);  bl += 3
- *
- * `load_file_to_buffer` (`1000:069F`) reads the 520 bytes from DOS handle 0x3B
- * and decrypts only when the read succeeded, but **nothing calls it**: the
- * table's only initial state is the image's own defaults at DS:0x38A and the
- * file is write-only.  `decrypt_region_38a` (`1000:06CC`) encrypts and
- * flushes (the saver), and leaves the runtime block encrypted.
- *
- * The insert (`1000:01CD`, inside `menu_loop`) walks the ten entries from the
- * bottom up and drops the candidate in below the first entry it beats; a
- * candidate that beats none is discarded.  It is memory-only: the flush is the
- * MAP exit's single `0x06CC`.  The name entry (`1000:0486`) edits
- * a 13-character buffer at DS:0x757 and, on Enter, copies it into the inserted
- * entry as 14 bytes with 0x1A -> space and 0x1B -> '.'.
- */
 #include "hiscore.h"
 #include "byteorder.h"
 #include "fs/fs.h"

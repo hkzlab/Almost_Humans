@@ -1,24 +1,3 @@
-/* font.c - TEXT.SPR _glyphs + draw_text.
- *
- * The shipped tables, extracted from the EXE image (file 0x106F0 + off):
- *   the _charset at 202F:0x1E28 - 44 _glyphs, then the NUL terminator;
- *   the per-glyph advances at 202F:0x1E55 - 44 entries, and the byte at
- *   0x1E81 (= 0x50) is the terminator's "_advance" (draw_text's no-match
- *   path stops at the terminator and reads its slot - 1000:49ad).
- *
- * draw_text (1000:4989) measures the string through the _advance table,
- * centres it (AX -= width/2) and blits each glyph through _blit_glyph
- * (1000:49FC) into the caller's arena at row*80 + x/4.  _blit_glyph's
- * nibble scatter, verified bit-exact against the shipped font:
- * each source byte's high nibble, 4-bit-reversed, ORs into arena byte
- * [DI], its low nibble into [DI+1], the second row byte's nibbles into
- * [DI+2]/[DI+3], and the two nibbles of DH - the bits the x%4 pre-shift
- * (XCHG / SHR AX,1 / RCR DH,1) rotated out of the row word - into
- * [DI+4]/[DI+5].  With the arena's 1-bpp packing (4 px per byte, bit 0 =
- * the leftmost), the net effect is that every 2-bpp glyph pixel becomes
- * two consecutive 1-bpp pixels: the glyph doubles horizontally, which is
- * what the _advance table's "_advance ~= 2*ink + 1" encodes.
- */
 #include "font.h"
 #include "osystem.h"
 #include "byteorder.h"

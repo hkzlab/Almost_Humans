@@ -1,10 +1,15 @@
-/* video.h - the interface of src/video.c: pages, the A000 planar model,
- * scroll, dirty cells
+/* Video: the two flat pages and the shared A000 planar model.
  *
- * The backend owns the flat pages; the core owns the mode-X A000 model.
- * Every mode-X screen (attract, front-end, party briefing, level, MAP) uses
- * the ONE address space the original has; game_main runs one flow state per
- * tick, so no two of them are live at once.
+ *   vga_set_mode_13h        1000:8300
+ *   reset_display_mode      1000:82C6
+ *   clear_vram              1000:833A
+ *   begin_page_flip         1000:8821
+ *   set_display_ptr         1000:882D
+ *   blit_planar_to_vga      1000:888E
+ *   deplanarise_intro_page  1000:2ED7
+ *   blit_planar_strip       1000:AEAD
+ *
+ * Deviation: D-04 (flat 320x200 pages, no mode-X planes).
  */
 
 #ifndef HUMANSRE_VIDEO_H

@@ -1,8 +1,13 @@
-/* level.h - the interface of src/level.c: the level definitions
+/* The level loader and runtime: LEVELS\L*.BIN, the BD*.BIN sets, the view.
  *
- * LEVELS\LA.BIN..LP.BIN: 16 files x 10 records = 160 levels.  The record:
- * the 13-byte header, the goal/author ASCIIZ text, the 8-byte editor
- * metadata, the 640-byte tile map (32x20).
+ *   load_level          1000:30BC   the record and the 640-byte map
+ *   level_video_init    1000:32CD   the level's mode and palette
+ *   level_fade_in       1000:3334   the start chain
+ *   load_level_assets   1000:3468   the per-style visual set
+ *   level_run           1000:3054   the spine (game_main's FLOW_LEVEL)
+ *
+ * Deviations: D-25 (out-of-table follower pair), D-126 (>= 0x40 bytes kept),
+ * D-128 (missing-volume animation not drawn).
  */
 
 #ifndef HUMANSRE_LEVEL_H

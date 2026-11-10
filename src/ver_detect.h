@@ -1,16 +1,11 @@
-/* ver_detect.h - Try to identify the game language by the provided volume data
+/* The shipped language, identified from the first 2048 bytes of HUMANS.001
+ * (FNV-1a 32).
  *
- * The original ships one executable per language, with loads of text hardcoded
- * into it. The port ships one binary and picks at runtime.
- *
- * The first 2048 bytes of HUMANS.001 are not the same for any two shipped
- * languages (at least for GOG's CD version), so an FNV-1a 32-bit digest
- * over that window identifies the build.
- * The window is read as raw bytes through the filesystem module, so the 
- * digest is identical on every architecture; nothing host-sized or host-ordered enters it.
- *
- * One byte-order note: compare the digest as an integer (or print it), never
- * by memcmp-ing the digest's in-memory bytes - that would be endian-tagged.
+ * The original ships one executable per language; the port ships one binary
+ * and picks the text column at boot.  An unknown digest keeps English; a
+ * missing or short volume aborts the boot.  Compare the digest as an integer
+ * (or print it): memcmp-ing its bytes is endian-tagged.
+ * Deviation: D-257 (detection instead of a fixed build).
  */
 #ifndef HUMANSRE_VER_DETECT_H
 #define HUMANSRE_VER_DETECT_H

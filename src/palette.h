@@ -1,4 +1,11 @@
-/* palette.h - the interface of src/palette.c: fades/DAC */
+/* The palette: the 6-bit working copy, the DAC writes and the fade state.
+ *
+ *   palette_fade_step    1000:8BFD   one step per tick (the ISR body)
+ *   palette_load_6bit    1000:8D24   the 202F:0x4BBC working copy
+ *   palette_build_fade   1000:8BAC
+ *   set_palette_dac      1000:8CEE
+ *   seal_triples         1000:43C2 / 43D5
+ */
 
 #ifndef HUMANSRE_PALETTE_H
 #define HUMANSRE_PALETTE_H

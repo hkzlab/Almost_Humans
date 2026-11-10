@@ -1,4 +1,14 @@
-/* entity.h - the interface of src/entity.c: entity table/bytecode */
+/* The entity table and its per-tick dispatch.
+ *
+ *   entity_dispatch         1000:C93C   the handler-indexed call
+ *   entity_waypoint_tail    1000:C9C1   one walk tick and the endpoint flip
+ *   entity_append_to_array  1000:5360   the 0xB3 spawn
+ *   entity_find_by_id       1000:5399   the 0xB4 join
+ *   load_terrain_b          1000:5168   the per-level map walk
+ *   entity_render           1000:5823   the REX.DAT sprite pass
+ *
+ * Deviations: D-101 (bounded tables), D-107 (entity_find loop shape).
+ */
 
 #ifndef HUMANSRE_ENTITY_H
 #define HUMANSRE_ENTITY_H

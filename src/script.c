@@ -1,22 +1,3 @@
-/* script.c - frame-keyed cue interpreter:
- * one cursor + a 7-command dispatch + per-frame fire, shared by the boot
- * intro's display-list player, the entity bytecode, and the music-event
- * scripts.
- *
- * The intro cue list is ported VERBATIM from the static template at
- * 202F:0x843C (file 0x18B2C in the unpacked exe): 25 records
- * [u16 frame][u16 cmd][u16 arg], the cmd stored DIRECTLY, 1-based (the
- * "cmd-1" encoding was wrong - the DEC BX at b816 is the dispatch table's
- * own 0-basing).
- *
- * Dispatch semantics (the game's interpreter, 1000:B809): a cue fires when
- * its frame EQUALS the current frame (JE) - a cue whose frame was passed
- * never fires and blocks the cursor until a seek rewinds the counter.  The
- * seek handler rewrites the counter MID-SCAN (b92d) and the loop continues
- * against the new value, so after a seek the remaining cues compare against
- * the seek's target, not the frame the call started with.  The player owns
- * the counter and passes it to script_fire().
- */
 #include "script.h"
 #include "osystem.h"
 

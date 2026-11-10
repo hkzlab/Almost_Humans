@@ -1,51 +1,13 @@
-/* arch/audio/mt32/sound_driver_mt32.c - MT32.DRV's replacement over mt32emu.
+/* MT32.DRV's replacement: the sequencer over the system mt32emu.
  *
- * MT32.DRV is 5600 bytes of position-independent 8086 code (a CD resource,
- * loaded into a DOS-allocated segment; every address below is an offset into
- * the shipped image).  This file is that image's behaviour, read from the
- * disassembly on 2026-11-07.
+ * Image-relative offsets (the driver is a CD resource):
+ *   install   0x00DE   cmd 0     0x0178   cmd 2     0x0792   cmd 5  0x02A7
+ *   cmd 6     0x03FA   cmd 0x0A  0x01CD   cmd 0x0C  0x0236   cmd 0x0E 0x01BB
  *
- *   INT 60h            MT32.DRV                     here
- *   install AX=0x60    0x00DE                       _mt32_create
- *   cmd 0              0x0178 (uninstall/reset)     _mt32_destroy
- *   cmd 2              0x0792 -> 0x07A0             _mt32_tick
- *   cmd 5              0x02A7                       _mt32_start_event
- *   cmd 6              0x03FA                       _mt32_release_event
- *   cmd 0x0A           0x01CD (master volume)       _mt32_set_tempo
- *   cmd 0x0C           0x0236 (load tune)           _mt32_load_tune
- *   cmd 0x0E           0x01BB (identity block)      _mt32_command_block
- *
- * cmd 0x0A is a master *volume*, not a tempo: CL is clamped to 100 and sent
- * as the system-area DT1 10 00 16 (<volume>); the game fades with it.  The
- * driver never installs its own INT 8 through the game (cmd 3 is unused), so
- * cmd 2 is the only clock, exactly as in the OSystem ABI.
- *
- * MIDI goes to mt32emu through the byte-stream parser (mt32emu_parse_stream),
- * so every byte the driver would put on the MPU-401 data port is the byte the
- * emulator sees - running status included.  The emulator library is a system
- * dependency; the ROM images are read here and handed over with
- * mt32emu_add_rom_data() (never mt32emu_add_rom_file), and the buffers stay
- * alive for the context's lifetime.  A multi-model ROM directory resolves to
- * the newest MT-32 model present (control ROM 2.07 first, then 2.06, 2.04,
- * 2.03, 1.07, 1.06, 1.05, 1.04, and only then CM-32L), and both emulator
- * output gains (dry and reverb) sit at 0.501, the reference -6 dB mixer
- * master gain, so the port's level matches the intended mix.
- *
- * Tune image:
- *   header    0x000..0x117 (new format), order list +0x18, instruments +0x98
- *   records   rec_base + id*16, 128 slots, 8 runtime records
- *   offsets   off_base .. +0x200, 256 le16 paragraphs
- *   patterns  off_base + T[order]*16, 64 rows each
- *   timbres   off_base + T[P]*16 + 0x100 per flagged instrument
- *   rec_base = off_base - 0x800 (0x158 new / 0x118 old)
- *
- * Deliberately not emulated: cmd 7's master-volume envelope (the game never
- * sends cmd 7, so the envelope stays disarmed; cmd 8 only reads its flag),
- * cmd 1/3/4/9/0x0B/0x0D and the MPU-401 handshake bytes, which have no
- * meaning without a physical interface.  The install's *synth* side is sent
- * (`_install_reset`: the MT-32 all-parameters reset, the channel CC/bend
- * reset and the reverb-off system block), so the emulated unit starts in the
- * state MT32.DRV's install leaves it in.
+ * cmd 0x0A is master volume (DT1 10 00 16); cmd 2 is the only clock.  MIDI
+ * goes through mt32emu's byte-stream parser; the ROM images are read here.
+ * The tune image is copied, not aliased.
+ * Deviations: D-255 (bounded reads), D-256 (no MPU-401/INT 8/envelope).
  */
 #include "audio/sound_driver.h"
 

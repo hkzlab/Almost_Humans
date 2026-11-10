@@ -1,32 +1,3 @@
-/* attract.c 0 the ATTRACT loop: game_loop (1000:131E) + the four intro
- * effects
- *
- * The machine model: the original's 64-KB mode-X address space (the CRTC
- * byte mode bios_set_mode_13h installed - one address byte = 4 pixels, one
- * per plane; 80 bytes per scanline; the start address a byte offset) is
- * video.c's shared A000 model (video_vram_group); the CRTC start becomes
- * _display_start; every present composes the 200-row window at _display_start
- * into the flat page 0 (game_main's per-tick videoPresent shows it - the same
- * contract scene_play_boot_intro uses).  The chunky frame under construction
- * is video_flat() (the backend's page 1, never presented) and the text arena
- * is video_arena(); both are shared scratch, the mode-X screens being
- * mutually exclusive in time.
- *
- * attract_tick() advances the machine by exactly ONE display period (the
- * original's wait_vsync cadence).  The exit (attract_exit 1000:13E9: the
- * configured action key [0x5ACE bit 7] or any held key [0x48A3]) is polled
- * EXACTLY where the original polls it at the fade waits (fade_wait
- * 1000:13E0) and the holds (fade_step_frames 1000:13FB), once per tick of
- * those phases; the no-poll windows (the two wipes, the _frame draws, the
- * slide's tail) see no key until their next poll, as in the listing.  The
- * local polls (effect 3's slide skip, effect 4's scroller skip) stay local
- * exactly as in the listing - they skip the current hold, they do NOT exit
- * the attract.
- *
- * In a deviation from the original we do an ASSET-LOAD-FAILURE skip: 
- * In the originl a failed INT 63h prompts for the disc
- *
- */
 #include "attract.h"
 #include "font.h"
 #include "game_strs.h"

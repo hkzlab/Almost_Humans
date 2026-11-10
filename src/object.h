@@ -1,8 +1,14 @@
-/* object.h - the interface of src/object.c: the placed-object array (0x3E75)
+/* The placed-object array (0x3E75) and its machines.
  *
- * 8 records of 0x12 bytes (check_highscore 1000:41D7 walks all eight); the
- * fields and the remaining machine are in object.c's header.  The predicates
- * are object_test_dispatch's (1000:35D6): -1 = true, 0 = false.
+ *   object_test_dispatch   1000:35D6   the goal predicates
+ *   object_claim_begin     1000:3A6A   the adjacent-object op
+ *   script_op_dispatch     1000:3979   the ACTION program
+ *   object_command_run     1000:E3F6   the acting record's command
+ *   object_update_list     1000:C295   the behaviour walk
+ *   collision_scan         1000:D860   the movers' last pass
+ *
+ * Deviations: D-101/D-137/D-177..D-182 (bounded reads, malformed-save edge
+ * only), D-227 (TER attach: original bug fixed), D-233/D-236 (bounded writes).
  */
 
 #ifndef HUMANSRE_OBJECT_H

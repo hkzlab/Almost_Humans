@@ -1,10 +1,3 @@
-/* party_intro.c - the level-intro party screen: level_intro_screen
- * (1000:2508-27EA) with every helper its body reaches, ported
- * listing-for-listing
- *
- * Port-only caveats: with no disc the loads
- * fail and the screen is skipped
- */
 #include "party_intro.h"
 #include "audio.h"
 #include "font.h"

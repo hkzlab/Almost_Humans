@@ -1,5 +1,12 @@
-/* score.h - the interface of src/score.c: check_highscore (1000:41AE)
- * and its score/record screen. */
+/* check_highscore: the score/record screen between the end page and the
+ * post-level newspaper.
+ *
+ *   check_highscore         1000:41AE
+ *   the score arithmetic    1000:41B8
+ *   the record test         1000:42CE
+ *   draw_score_columns      1000:4471
+ *   tick_score_counters     1000:475D
+ */
 
 #ifndef HUMANSRE_SCORE_H
 #define HUMANSRE_SCORE_H

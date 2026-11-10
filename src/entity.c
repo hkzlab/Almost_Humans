@@ -1,34 +1,3 @@
-/* entity.c - the entity table and its per-tick dispatch
- *
- * Ported routines:
- *
- *   entity_dispatch         1000:C93C  the count walk + the indexed call
- *   entity_advance_fixed_e4 1000:C96C  handler 0: latches the 0x64E4 words
- *   entity_advance_fixed_f8 1000:C973  handler 1: latches the 0x64F8 words
- *   entity_waypoint_tail    1000:C9C1  one walk tick + the endpoint flip
- *   entity_append_to_array  1000:5360  the spawn (tile 0xB3, table #10)
- *   entity_find_by_id       1000:5399  the join (tile 0xB4, table #11)
- *   load_terrain_b          1000:5168  the 25-pair map walk (per level load)
- *   style_handler_prologue  1000:5662  the style-6 y+3 spawn test
- *
- * The waypoint machine, one tick of which the tail runs (all per the
- * listing; the state a fresh handler call latches is marked):
- *   compare/primary/step triple at the handler's fixed base, re-latched
- *   EVERY tick; primary -> [0x423C], step -> [0x4238]; the walk branch adds
- *   the step to x and flips the dispatch index at an exact endpoint hit;
- *   the non-arrival path counts the +0xA hold down and walks the +0xC
- *   waypoint, which snaps back to the primary when it reaches primary+8 -
- *   an 8-frequency animation clock.  Nothing here reads the map or the
- *   video.  The sprite draw is the REX.DAT consumer, ported below:
- *   `entity_render` (1000:5823 -> 0x5894 -> 0x58A5 -> 0x5C5F), two mode-2
- *   32-px cells per entity from the bank's three big-endian frame tables.
- *
- * The tail's interaction pass (0xCA43..CB77) is ported as
- * `_entity_tail_interact`: it walks the placed-object array (0x3E75), tests the
- * +/-x/+/-y overlap windows and posts the type-0x22 carry record with a call to
- * the sound driver (9).  It writes the entity's handler/waypoint/hold, which
- * is what makes handlers 2 and 3 (the carry animation) reachable.
- */
 #include "entity.h"
 #include "object.h"
 #include "osystem.h"

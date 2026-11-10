@@ -1,7 +1,7 @@
-/* arch/audio/null/sound_driver_null.c - the silent driver that logs the INT 60h
- * conversation (audio/sound_driver.h).  A driver run can then be read as a
- * command trace without a synth underneath.  The deliberately blank backend:
- * built as `audio_null` but linked into no executable. */
+/* The silent driver: logs every INT 60h command, no synth underneath.
+ *
+ * Port-only; built as `audio_null`, linked into no executable.
+ */
 #include "audio/sound_driver.h"
 
 #include <stdio.h>

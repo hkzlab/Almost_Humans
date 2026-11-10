@@ -1,12 +1,9 @@
-/* width.h - checked narrowing for the explicit casts in the width work.
+/* Port-only: checked narrowing for the explicit casts.
  *
- * The build rejects implicit narrowing (-Wconversion) and the sanitizer gate
- * (HUMANSRE_SANITIZE_IMPLICIT) aborts on implicit conversions at run time.
- * These helpers cover the remaining explicit casts: in a test/debug build an
- * out-of-range value aborts at the cast instead of silently wrapping, while a
- * release build (NDEBUG) compiles them to the plain cast.  Intentional 8/16-bit
- * wraps (the DEC-then-test counters) keep a plain cast and are documented as
- * such; only value-range casts use these.
+ * -Wconversion rejects implicit narrowing and HUMANSRE_SANITIZE_IMPLICIT aborts
+ * on implicit conversions; these helpers abort at the cast in a debug build and
+ * compile to the plain cast under NDEBUG.  Intentional 8/16-bit wraps keep a
+ * plain cast and are documented at the call site.
  */
 #ifndef HUMANSRE_WIDTH_H
 #define HUMANSRE_WIDTH_H

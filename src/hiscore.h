@@ -1,5 +1,14 @@
-/* hiscore.h - the interface of src/hiscore.c: HISCORES.HUM, its
- * obfuscation and the top-10 insert. */
+/* HISCORES.HUM: the table at DS:0x38A, its obfuscation and the top-10 insert.
+ *
+ *   load_file_to_buffer   1000:069F   the loader (never called)
+ *   crypt_table_38a       1000:06DE   the involution
+ *   decrypt_region_38a    1000:06CC   encrypt and flush
+ *   the insert            1000:01CD
+ *   the name entry        1000:0486
+ *   the per-level bests   1000:42E9
+ *
+ * Deviation: D-225 (writes HISCORES.HUM, not the probe-corrupted name).
+ */
 
 #ifndef HUMANSRE_HISCORE_H
 #define HUMANSRE_HISCORE_H

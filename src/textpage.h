@@ -1,9 +1,13 @@
-/* textpage.h - the interface of src/textpage.c: the in-level text page (draw_map_object 9EA3)
+/* The in-level text page: the box, its lines and the option markers.
  *
- * The dialog box + its lines + the option markers, ported from
- * draw_scroll_text / draw_map_object / blit_sprite_planar / blit_text_tile
- * ("in-level menu").
- * The box tiles are APL\BOX.SPR (9 x 16x16, loaded with the level's assets).
+ *   draw_scroll_text     1000:A08E   the measure
+ *   draw_map_object      1000:9EA3   the box placement
+ *   blit_sprite_planar   1000:A10E   the 9-slice BOX.SPR tiles
+ *   blit_text_tile       1000:47D5   the lines
+ *   text_page_outline    1000:9FB1
+ *   the markers          1000:A203 / A266
+ *
+ * Deviation: D-258 (the arena is 1,600 B, an oversize glyph is dropped).
  */
 
 #ifndef HUMANSRE_TEXTPAGE_H

@@ -1,20 +1,3 @@
-/* scene.c - the .ANI/.RSC interpreter: the playlist script, the display
- * list, the frame-keyed event cues.
- *
- * scene_play_level_intro(introIndex) ports cd_file_op (1000:AFF8) as a
- * per-tick state machine: the first call for an introIndex loads
- * ANM\ANI<idx>.ANI from the table-selected disc, draws the scoops.apl
- * background over the daily.bit screen, sets the palette, and dwells 210
- * ticks; each further call _plays the next scene object (6 ticks each) and
- * runs the chain table (202F:0x6293).  Returns 1 while the intro is
- * playing, 0 when it is finished (or introIndex == 0xFF: no cutscene, or
- * the ANIMATIONS board is off - [0x5E79] non-zero RETs at cd_file_op's
- * head).  Any key/fire skips or quits, per the original's three [0x48A3]
- * checks.
- *
- * The AL expander (blit_background_data, 1000:B2EB) and the LZW machine
- * (decode_bitstream, 1000:91B9, via res.c) are real and byte-verified.
- */
 #include "scene.h"
 #include "audio.h"
 #include "font.h"

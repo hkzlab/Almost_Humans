@@ -1,4 +1,9 @@
-/* arch/sdl3/OSystem.c - the SDL3 vtable + main. */
+/* The SDL3 backend's vtable and main: binds video/events/timer/audio/fs.
+ *
+ * Port-only: it implements the OSystem the arch layer owns and runs the
+ * core's game_main.  Arguments: the resource directory, --audio, --mt32-roms
+ * and --version.
+ */
 #include "osystem.h"
 
 #include <SDL3/SDL.h>

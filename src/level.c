@@ -1,33 +1,3 @@
-/* level.c - the level definitions: LEVELS\LA.BIN ... LP.BIN, 16 files x
- * 10 records = 160
- * levels.
- *
- * Record layout (census-verified over all 160):
- *
- *   +0x00  13-byte header:
- *            u16 style       low byte = the tile style 1..6 -> DEFS\BD<n>.BIN
- *                            high byte (+0x01) = the intro-movie index /
- *                            disc selector (0xFF = no cutscene)
- *            u16 goal count  low byte = the solved-flag threshold;
- *                            high byte (+0x03) = the entity lifetime seed
- *            u16 object-test mode (+0x04)
- *            u8  unused (+0x06; 0 in all 160 records)
- *            u16 time limit A (+0x07, BCD MMSS)
- *            u16 time limit B (+0x09), C (+0x0B)
- *   goal   ASCIIZ ("\r" = a line break)
- *   author ASCIIZ
- *   6      constant signature 00 20 00 14 00 00
- *   2      varying (the editor metadata tail)
- *   640    tile map, 32 columns x 20 rows, row-major
- *
- * The level id is NOT stored in the file: load_level takes it and builds
- * the name LEVELS\L<'A'+id/10>.BIN, record id%10 (1000:30BC).
- *
- * The map start is deterministic: the author's NUL + 8 bytes. The next
- * record begins at the first candidate at or after the map's end (the
- * census walk) - some records carry a 0/1-byte
- * alignment trailer after the map.
- */
 #include "audio.h"
 #include "level.h"
 #include "entity.h"

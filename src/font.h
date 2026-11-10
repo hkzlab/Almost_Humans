@@ -1,4 +1,11 @@
-/* font.h - the interface of src/font.c: glyphs/packed ASCII */
+/* Text: TEXT.SPR's 44 glyphs, draw_text and blit_glyph.
+ *
+ *   draw_text     1000:4989   measure, centre, blit
+ *   blit_glyph    1000:49FC   the nibble scatter into the arena
+ *
+ * The shipped charset and advance tables are at 202F:0x1E28/0x1E55.
+ * Deviations: D-122 (negative x clamped), D-258 (bounded arena write).
+ */
 
 #ifndef HUMANSRE_FONT_H
 #define HUMANSRE_FONT_H

@@ -1,22 +1,10 @@
-/* ver_detect.c - identify the resource language
- *
- * The digests are the FNV-1a 32-bit values of the first 2048 bytes of each
- * GOG's shipped language's HUMANS.001 .
- *
- * HUMANS.000 cannot tell ENG, GER and ITA apart (those three are byte-
- * identical) and HUMANS.002 is identical in every language, so .001 is the
- * only volume that carries the distinction.
- */
 #include "ver_detect.h"
 #include "game_strs.h"
 #include "fs/fs.h"
 
 #include <stdio.h>
 
-/* The English set's digest.  ver_detect_lang's default arm returns the same
- * column, so telling "the real English set" from "an unknown set" needs the
- * value itself (both in the map and in ver_detect_run's warning). */
-#define VER_DETECT_EN_HASH 0xCFDBFBFFu
+#define VER_DETECT_EN_HASH 0xCFDBFBFFu // GOG's CD English version volume digest
 
 #define FNV32_OFFSET 0x811C9DC5u // the FNV-1a 32-bit offset basis
 #define FNV32_PRIME  0x01000193u // the FNV-1a 32-bit prime

@@ -1,17 +1,13 @@
-/* game_strs.h - the localisable text of the game core.
+/* Text: the localisable strings, one column per shipped build.
  *
- * `game_strs[language][id]` is the only source of displayed text: the first
- * index picks the language, the second the string a routine needs. 
- * Adding a language means filling a row in `game_strs` `and game_strs_num_offset`
- * used to overwrite some chars in the drawn strings.
+ * `game_strs[language][id]` is the only source of displayed text; adding a
+ * language means filling a row in `game_strs` and `game_strs_num_offset`.
+ * Every column is byte-for-byte from that build's image (202F:0x5F..,
+ * 0x7BB.., 0x105F.., ...).
  *
- * Every column is taken byte-for-byte from that language's shipped image
- * (`202F:0x5F..`, `0x7BB..`, `0x105F..`, ... per build).
- *
- * Resource and file names (APL\TEXT.SPR, mus\title, ...) are not here: they
- * name bytes on the discs, not text the player reads, and they are the same
- * in every build.  The exception is the pair of intro asset names that do
- * change per build; they sit at the end of the enum, marked unused.
+ * Resource and file names stay out: they name bytes on the disc, not text the
+ * player reads, and are identical in every build.  The two per-build intro
+ * asset names sit at the end of the enum, marked unused.
  */
 
 #ifndef HUMANSRE_GAME_STRS_H

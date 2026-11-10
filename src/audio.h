@@ -1,5 +1,16 @@
-/* audio.h - the interface of src/audio.c: the tune/sfx state machine
- * over the OSystem's INT 60h calls. */
+/* The tune/sfx state machine over the INT 60h calls.
+ *
+ *   play_tune             1000:8437
+ *   music_resume/stop     1000:83F7 / 8389
+ *   driver_call           1000:83B7
+ *   driver_reset          1000:84DE
+ *   timing_loop           1000:84A5   the master-volume fade in/out
+ *   present_frames_75     1000:835A
+ *   the frame web's gate  1000:A5E8
+ *
+ * Deviations: D-251 (music tick on the sample clock), D-252 (a missing tune
+ * is skipped, not fatal).
+ */
 
 #ifndef HUMANSRE_AUDIO_H
 #define HUMANSRE_AUDIO_H

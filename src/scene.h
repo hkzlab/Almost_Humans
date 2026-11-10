@@ -1,4 +1,14 @@
-/* scene.h - the interface of src/scene.c: the .ANI/.RSC interpreter */
+/* The .ANI/.RSC interpreter: the display list, the frame-keyed cues and the
+ * scene chain.
+ *
+ *   cd_file_op              1000:AFF8   one level intro, per tick
+ *   blit_background_data    1000:B2EB   the AL expander
+ *   blit_display_list       1000:B955
+ *   run_screen_transition   1000:B82E
+ *   boot_intro_sequence     1000:B590   the boot intro
+ *
+ * Deviation: D-248 (the evolution scene waits 4 ticks, not 2).
+ */
 
 #ifndef HUMANSRE_SCENE_H
 #define HUMANSRE_SCENE_H

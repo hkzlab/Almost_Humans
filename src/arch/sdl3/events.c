@@ -1,14 +1,11 @@
-/* arch/sdl3/events.c - host events -> the game's two input paths
- * (+0x5ACE fire/joystick bits, +0x48A3 last key).
+/* Host events -> the game's two input paths ([0x5ACE] bits, [0x48A3] key).
  *
- * The arrows + the ACTION key map to the joystick bits; the printable keys
- * pass through as their ASCII codes (the room's name/code screen).  The
- * action bit is set ONLY by the configured action key (the shipped
- * [0x5B05] default = scancode 0x2C = Z).  The control keys map to the INT 9
- * translate table's codes: ESC =
- * 0x1B (the 0x5F11 table's ESC - the room's act0 clears the name), Enter =
- * 0x0D (the name screen's confirm), Backspace = 0x0E (the erase).  Every
- * key-UP clears the code (the ISR's 942F) - a tap must not linger. */
+ * Arrows + the configured action key (default Z, [0x5B05]) set the joystick
+ * bits; printable keys pass as ASCII; ESC/Enter/Backspace use the INT 9 codes
+ * (poll_input 1000:8526, int9_keyboard_isr 1000:93A1).  A key-up clears the
+ * code.
+ * Deviation: D-02 (keyboard only, no analogue joystick).
+ */
 #include "osystem.h"
 
 #include <SDL3/SDL.h>

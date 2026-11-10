@@ -1,20 +1,3 @@
-/* game_main.c - the game core's entry: the original `entry` (1000:0000)
- * re-read.
- *
- * The arch layer owns main() and hands us the filled OSystem vtable.
- * The boot order below mirrors the original's:
- *
- *   entry -> apply_relocations (skipped: the port ships plain code)
- *         -> init_video/init_crtc_timer   (one unchained mode-X set)
- *         -> boot_intro_sequence          (the intro .BIT cards + the scene)
- *         -> the level walk               (the cutscenes, once per level)
- *         -> menu_loop                    (the map / level-select room)
- *
- * The loop structure copies the original's split:
- * the tick callback is the ISR body - flip apply, palette step, then the
- * music/keyed events - and the foreground advances the flow exactly once per
- * tick boundary.  The modules are real.
- */
 #include "gameflow.h"
 #include "attract.h"
 #include "audio.h"
