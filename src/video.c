@@ -47,13 +47,13 @@ void video_vram_clear(void) { memset(_vram, 0, sizeof _vram); }
 void video_vram_planarise(const uint8_t *src, uint32_t size, uint16_t base,
                           uint16_t pitch, uint16_t cols, uint16_t rows)
 {
-    for (uint16_t r = 0; r < rows; r++) {
-        uint16_t a = (uint16_t)(base + r * pitch);
-        const uint8_t *s = src + (uint32_t)r * cols * 4u;
+    for (uint32_t r = 0; r < rows; r++) {
+        uint32_t a = base + r * pitch;
+        const uint8_t *s = src + r * cols * 4u;
 
-        for (uint16_t c = 0; c < cols; c++) {
-            uint32_t off = (uint32_t)r * cols * 4u + (uint32_t)c * 4u;
-            uint8_t *p = _vram[(uint16_t)(a + c)];
+        for (uint32_t c = 0; c < cols; c++) {
+            uint32_t off = r * cols * 4u + c * 4u;
+            uint8_t *p = _vram[(a + c) & 0xFFFFu]; // Model a potential wrap
 
             if (off + 3u < size) {
                 p[0] = s[c * 4u];
