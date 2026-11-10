@@ -1,74 +1,9 @@
 /* party_intro.c - the level-intro party screen: level_intro_screen
  * (1000:2508-27EA) with every helper its body reaches, ported
- * listing-for-listing (decoded 2026-10-29).  Both render gates have been
- * measurement-closed this session:
+ * listing-for-listing
  *
- *   - the 2C1D funnel: hardware VGA write-mode-2 semantics - per plane p,
- *     post_p = (pre_p & ~mask) | ((src>>p)&1 replicated over the masked
- *     positions) - fitted 21760/21760 against parked-state dumps.
- *   - the A000<->.BIT<->screen layout law: the GC-4=p view byte at offset n is
- *     the .BIT pixel (y = 20+q, x = 4n+p); an A000 byte = 4 pixels; the
- *     band = screen/.BIT rows 20..87 (83.5% .BIT-exact, 0 mismatches off
- *     the stamp bands); the composed page = the .BIT verbatim 1:1 per row
- *     (the PNG law peaks at sy = 20 with the same x-law).
- *
- * Memory model (attract.c's, with the party's CRTC numbers):
- *   video.c's shared A000 model (video_vram_group): one A000 byte = a 4-pixel
- *   group; plane p = x&3; the row pitch = 88 bytes (CRTC[13] = 0x2C words:
- *   80 written + 8 hidden); the page pair 0x1200/0x8100 (A000 byte
- *   addresses); the screen row y's byte base = pagebase + 8 + y*88; the band
- *   base = pagebase + 0x6E8.
- * The heap arena ([0x1e20] = the [0x11fe] segment) is the 200-row x 80-B
- * draw arena: video_arena() in the port, the draw anchors are absolute arena
- * rows (y = 0x14 -> the byte 0x640), 2af5 clears exactly rows 20..87
- * (0x640..0x1B80 as words) before each stamp set, and 2c1d reads those rows
- * to stamp the band.  The identity 20*80 = 0x640 marshals the three layers.
- *
- * Machine (one op = one tick where the original iterates):
- *   the 5 loads + consumers (2570..25b6); 0x1208 <- 0x4D3C (25bc);
- *   the bake x2 with the 28e9 flip between (25ca..25d8); 28d0 (25da);
- *   palette_build_fade(0, 0x100, 0x23, 0x4bbc) (25dd); the 25ec wait; the
- *   2600 loop:
- *     2600: 2af5; 4x stanza (number-slot fmt + 2e94 draw + anim);
- *           _intro_anim 2b9c; wait_frames_or_key 0xC8; JNS->exit;
- *           2bda fade_and_animate;
- *     269e: 2af5; the second set; _intro_anim; wait 0xC8; JNS->exit;
- *           2bda; JMP 2600;
- *   and the 270b exit: 2bda; 2af5; whole-256 fade 35 steps toward the
- *   zeroed ramp 0x48BC; wait; present_frames_75 (0x4B frames), music_stop,
- *   RET.
- * The GAME OVER variant (2739..27e9) is level-A-unreachable (the need >
- * members branch); the port keeps the normal branch's shape and documents
- * the variant's absence at P_DONE exactly like the scene player's.
- *
- * The animators' slot seeding is CLOSED (2026-10-30 pass-3): the 8 slot
- * structs at DS:0xFA8, the 7 script pointers at DS:0x1028 and the script
- * bodies DS:0x1036..0x105E are STATIC in the MZ image (the 202F:0xFA8
- * hexdump equals the live DS:0xFA8 read-back, sub-lists byte-identical) - no
- * seed writer exists.  The tables below are the file's verbatim bytes.
- * The interpreter is 28e9 verbatim: per slot per tick, DEC the countdown;
- * when it hits zero reload 8 and set the advance _step; ALWAYS walk the
- * script at [SI+4] (BX = the pre-increment position), stamp the frame it
- * holds every tick (the 2a3a _marquee passes over the dancers and the next
- * stamp restores them); on 0xFF switch to sub-list entry (loopc+1) mod 10,
- * fpos = 0, and re-walk from the new script's byte 0 in the same tick.
- * The bird _marquee's source group is (cell*4 + (_phase&3)) at a 320-byte
- * stride [0x1206] - exactly the rescale group grid (47*320+319 = 15359 =
- * the _strip's last byte; the numbers close).
- *
- * The palette buffers (2026-10-30): 0x4bbc is the .PAL working palette, and
- * 0x4d3c is NOT a separate buffer - it is 0x4bbc + 0x180, the file's own
- * upper half (entries 128..255). 28d0 replicates .PAL[0..31] four times
- * over it, 25bc snapshots it to 0x1208, 2b9c fades the text window from the
- * 28d0 blues into that grey snapshot (the fade-in), and 2bda re-runs 28d0
- * and fades back (the text then equals the background and vanishes).
- *
- * Port-only caveats (deviations D-01/D-19): with no disc the loads
- * fail and the screen is
- * skipped - the _load-failure path the scene player established; the
- * music/marker calls (play_tune 8437, music_resume 83f7, timing_loop 84a5,
- * music_stop 8389, INT 60 service 0xA inside present_frames_75) ride the
- * OSystem audio contract, which the null build stubs.
+ * Port-only caveats: with no disc the loads
+ * fail and the screen is skipped
  */
 #include "party_intro.h"
 #include "audio.h"
