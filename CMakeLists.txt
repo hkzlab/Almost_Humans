@@ -347,8 +347,10 @@ target_include_directories(fs_posix PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 
 # The sound-driver modules (audio/sound_driver.h): a port links the ones it
 # offers and selects one at run time.  adlib/sound_driver_adlib.c is
-# ADLIB.DRV's sequencer over a vendored Nuked-OPL3 (thirdparty/,
-# LGPL-2.1-or-later); beeper/sound_driver_beeper.c is BEEPER.DRV's sequencer
+# ADLIB.DRV's sequencer over a vendored Nuked-OPL3-fast 1.8-fast.3
+# (thirdparty/, LGPL-2.1-or-later; a bit-exact performance fork of Nuked-OPL3
+# 1.8 cfedb09, plus the port's key-off latch - see port_deviations.md D-249);
+# beeper/sound_driver_beeper.c is BEEPER.DRV's sequencer
 # over the vendored PC-speaker impulse model (thirdparty/,
 # GPL-2.0-or-later); null/ prints every command and renders silence.  The
 # audio_null module is intentionally blank and linked into no executable.
