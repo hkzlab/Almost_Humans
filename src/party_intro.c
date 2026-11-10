@@ -13,15 +13,16 @@
  *     (the PNG law peaks at sy = 20 with the same x-law).
  *
  * Memory model (attract.c's, with the party's CRTC numbers):
- *   _vram[65536][4]: one A000 byte = a 4-pixel group; plane p = x&3; the
- *   row pitch = 88 bytes (CRTC[13] = 0x2C words: 80 written + 8 hidden);
- *   the page pair 0x1200/0x8100 (A000 byte addresses); the screen row y's
- *   byte base = pagebase + 8 + y*88; the band base = pagebase + 0x6E8.
- * The heap _canvas ([0x1e20] = the [0x11fe] segment) is the 200-row x 80-B
- * draw arena: the draw anchors are absolute arena rows (y = 0x14 -> the
- * byte 0x640), 2af5 clears exactly rows 20..87 (0x640..0x1B80 as words)
- * before each stamp set, and 2c1d reads those rows to stamp the band.
- * The identity 20*80 = 0x640 marshals the three layers.
+ *   video.c's shared A000 model (video_vram_group): one A000 byte = a 4-pixel
+ *   group; plane p = x&3; the row pitch = 88 bytes (CRTC[13] = 0x2C words:
+ *   80 written + 8 hidden); the page pair 0x1200/0x8100 (A000 byte
+ *   addresses); the screen row y's byte base = pagebase + 8 + y*88; the band
+ *   base = pagebase + 0x6E8.
+ * The heap arena ([0x1e20] = the [0x11fe] segment) is the 200-row x 80-B
+ * draw arena: video_arena() in the port, the draw anchors are absolute arena
+ * rows (y = 0x14 -> the byte 0x640), 2af5 clears exactly rows 20..87
+ * (0x640..0x1B80 as words) before each stamp set, and 2c1d reads those rows
+ * to stamp the band.  The identity 20*80 = 0x640 marshals the three layers.
  *
  * Machine (one op = one tick where the original iterates):
  *   the 5 loads + consumers (2570..25b6); 0x1208 <- 0x4D3C (25bc);
@@ -117,14 +118,13 @@ enum {
 
 /* 2bda's internal split: its own fade-wait (2bec..2bf2), THEN the 0xE0
  * mask reset (2bf4) + clear + band redraws (2c01..2c1c) - the tail is
- * what wipes the previous text and re-bakes the _canvas-empty band. */
+ * what wipes the previous text and re-bakes the arena-empty band. */
 enum {
     SW_FADEWAIT = 0,
     SW_TAIL
 };
 
-/* === the A000 _vram + the CRTC pair ========================================== */
-static uint8_t _vram[65536][4]; /* [address][plane]                   */
+/* === the shared A000 model + the CRTC pair ================================== */
 static uint16_t _page_draw = 0x1200; /* [0x5ac4]: the stamp target         */
 static uint16_t _page_disp = 0x8100; /* [0x5ac6]: the displayed page       */
 static uint16_t _stamp_dest; /* [0x1204]                           */
@@ -133,7 +133,6 @@ static uint16_t _marq_cell; /* [0xf9c], 0..0xB                    */
 static uint16_t _marq_hold; /* [0xfa6]                            */
 
 /* === the [0x11fe] heap-segment buffers ====================================== */
-static uint8_t _canvas[16000]; /* [0x1e20]: the 200x80 draw arena    */
 static uint8_t _sheet[2784]; /* [0x1202]: the 29x96 party sprites  */
 static uint8_t _strip[15360]; /* [0x1206]: the rescaled birdy       */
 static uint8_t _workpal[768]; /* 202F:0x4bbc                        */
@@ -307,10 +306,10 @@ static char *_append_str(char *dst, const char *src)
 }
 
 /**
- * @brief === the _vram-layer helpers ==================================================
+ * @brief === the A000 helpers ==================================================
  */
 static void _clear_canvas(void) /* 2af5: rows 20..87 = 0x640..0x1B80 */
-{ memset(_canvas + 0x640u, 0, 68u * 80u); }
+{ memset(video_arena() + 0x640u, 0, 68u * 80u); }
 
 /**
  * @brief The intro's page flip.
@@ -330,33 +329,8 @@ static void _flip_page(void) /* 87f8                                */
  */
 static void _bake_page(const uint8_t *bit, uint32_t pagebase)
 {
-    for (uint16_t r = 0; r < 200u; r++) {
-        uint16_t a = (uint16_t)(pagebase + 8u + r * 88u);
-        const uint8_t *s = bit + r * 320u;
-        for (uint16_t c = 0; c < 80u; c++) {
-            _vram[a + c][0] = s[c * 4u + 0u];
-            _vram[a + c][1] = s[c * 4u + 1u];
-            _vram[a + c][2] = s[c * 4u + 2u];
-            _vram[a + c][3] = s[c * 4u + 3u];
-        }
-    }
-}
-
-/**
- * @brief Write mode 2: read the planes, mask them, OR the new colour.
- *
- * @param px the four plane bytes
- * @param c the 4-bit colour
- * @param m the write-mode mask
- */
-static void _write_mode2(uint8_t *px, uint8_t c, uint32_t m)
-{
-    for (uint16_t p = 0; p < 4u; p++) {
-        uint8_t spread = (((c >> p) & 1u) != 0u) ? (uint8_t)(m) : 0u;
-        uint8_t pre = px[p];
-
-        px[p] = (uint8_t)(((pre & (uint32_t)(~m & 0xFFu)) | spread) & 0xFFu);
-    }
+    video_vram_planarise(bit, UINT32_MAX, (uint16_t)(pagebase + 8u), 88u, 80u,
+                         VIDEO_PAGE_H_MODE13H);
 }
 
 /**
@@ -369,10 +343,10 @@ static void _band_stamp(uint32_t pagebase)
     for (uint16_t row = 0; row < 68u; row++) {
         uint8_t m = _ramp_tbl[row + 16u]; /* 2c1d's OUT 3CF = CS:0x2E0E+row */
         uint16_t a = (uint16_t)(pagebase + 0x6E8u + row * 88u);
-        const uint8_t *src = _canvas + 0x640u + row * 80u;
+        const uint8_t *src = video_arena() + 0x640u + row * 80u;
         for (uint16_t k = 0; k < 80u; k++) {
             /* LODSB [BX+0x640+80+k] */
-            _write_mode2(_vram[a + k], src[k], m);
+            video_vram_wm2((uint16_t)(a + k), src[k], m);
         }
     }
 }
@@ -396,7 +370,7 @@ static void _blit_slot(uint32_t frame)
             /* write mode 2 reads AL's bits 0..3 only - the _sheet's nibble
              * is the plane value itself; no palette bias applies to the
              * byte (the +0xC0 story lives in the palette table, not here). */
-            _write_mode2(_vram[di + w], c, MASK);
+            video_vram_wm2((uint16_t)(di + w), c, MASK);
         }
         di += 88u; /* 4 written + ADD DI,0x54 = 88      */
     }
@@ -445,7 +419,7 @@ static void _marquee(void)
         uint16_t di = (uint16_t)_page_draw + dhi + r * 88u;
         for (uint16_t k = 0; k < 10u; k++) {
             uint8_t c = _strip[src + r * 10u + k]; /* 5 LODSW = 10 B/row    */
-            _write_mode2(_vram[di + k], c, MASK);
+            video_vram_wm2((uint16_t)(di + k), c, MASK);
         }
     }
 }
@@ -486,7 +460,7 @@ static void _anim_entities(void)
     _flip_page();
 }
 
-/** @brief 2e94 _draw_text_ramped - _canvas-resident per the original: the glyph
+/** @brief 2e94 _draw_text_ramped - arena-resident per the original: the glyph
  * stroke lands in the CANVAS only (the = "2c1d never runs here"); the
  * per-call 28e9 animates the _slots/_marquee and flips, but the TEXT does
  * not reach the display until the next 2C1D (inside 2b9c/2bda) - the
@@ -500,9 +474,9 @@ static void _draw_text_ramped(const char *s, uint32_t centreX, uint32_t row)
 {
     memcpy(_ramp_tbl + row, _ramp10, 10u); /* 2e94: the ramp slides with the
                                             * row param - CS:0x2DFE + row */
-    if (_font_bytes) font_draw_text(_canvas, s, centreX, row);
+    if (_font_bytes) font_draw_text(video_arena(), s, centreX, row);
     _anim_entities(); /* 28e9: _slots + _marquee + flip -
-                                            * the _canvas glyph is NOT rendered */
+                                            * the arena glyph is NOT rendered */
 }
 
 /** @brief 28d0 palette_copy_low_to_upper: 4 x 0x60 bytes .PAL[0..31] ->
@@ -536,7 +510,7 @@ static void _intro_anim(void)
  * and the two 2c1d band redraws (2c04..2c1c).  The clear/redraw tail is
  * therefore separated from the next set's stamps by the fade's own
  * completion - the original's "text fades in at the next set" rhythm:
- * every 2c1d renders the _canvas under the fade state CURRENT AT THAT
+ * every 2c1d renders the arena under the fade state CURRENT AT THAT
  * MOMENT, and the holds are the built fades' converged end-states.
  *
  * @param next the next index
@@ -717,7 +691,7 @@ uint8_t party_intro_start(void)
     _marq_phase = 0u;
     _marq_cell = 0u;
     _marq_hold = 1u;
-    memset(_vram, 0, sizeof _vram);
+    video_vram_clear();
     memset(_ramp_tbl, 0xE0u, sizeof _ramp_tbl); /* the table's clean state */
     _clear_canvas();
     _seed_slots_live(); /* the DS:0xFA8's [live]   */
@@ -952,7 +926,7 @@ uint8_t party_intro_tick(const InputState *in)
             _draw_text_ramped(game_strs[g_game_lang][GAME_STR_PARTY_TRY_AGAIN],
                               0xA0u, 0x48u);
             _intro_anim(); /* 2b9c: the band redraws carry
-                                            * the _canvas text to the display */
+                                            * the arena text to the display */
             _step = 1u;
         }
         _anim_entities();
@@ -984,18 +958,7 @@ uint8_t party_intro_tick(const InputState *in)
 
     /* the compose (the attract's contract): the display page into the
      * flat 320x200 page 0 for videoPresent */
-    {
-        uint8_t *pg = video_page(0);
-        if (pg) {
-            uint16_t base = _page_disp;
-            for (uint16_t y = 0; y < VIDEO_PAGE_H_MODE13H; y++) {
-                uint16_t row = ((base + 8u + y * 88u) & 0xFFFFu);
-                uint8_t *d = pg + y * VIDEO_PAGE_W;
-                for (uint16_t x = 0; x < VIDEO_PAGE_W; x++)
-                    d[x] = _vram[(row + (x >> 2)) & 0xFFFFu][x & 3u];
-            }
-        }
-    }
+    party_intro_compose(video_page(0));
 
     if (_phase == PH_DONE) return 0; /* the screen exited       */
     return 1;
@@ -1003,11 +966,6 @@ uint8_t party_intro_tick(const InputState *in)
 
 void party_intro_compose(uint8_t *pg)
 {
-    uint16_t base = (uint16_t)_page_disp + 8u;
-    for (uint16_t y = 0; y < VIDEO_PAGE_H_MODE13H; y++) {
-        uint16_t row = (base + y * 88u) & 0xFFFFu;
-        uint8_t *d = pg + y * VIDEO_PAGE_W;
-        for (uint16_t x = 0; x < VIDEO_PAGE_W; x++)
-            d[x] = _vram[(row + (x >> 2)) & 0xFFFFu][x & 3u];
-    }
+    video_vram_present(pg, (uint16_t)(_page_disp + 8u), 88u, 0u,
+                       VIDEO_PAGE_H_MODE13H);
 }

@@ -3,16 +3,19 @@
  *
  * The machine model: the original's 64-KB mode-X address space (the CRTC
  * byte mode bios_set_mode_13h installed - one address byte = 4 pixels, one
- * per plane; 80 bytes per scanline; the start address a byte offset) becomes
- * _vram[addr][plane]; the CRTC start becomes _display_start; every present
- * composes the 200-row window at _display_start into the flat page 0
- * (game_main's per-tick videoPresent shows it - the same contract
- * scene_play_boot_intro uses).
+ * per plane; 80 bytes per scanline; the start address a byte offset) is
+ * video.c's shared A000 model (video_vram_group); the CRTC start becomes
+ * _display_start; every present composes the 200-row window at _display_start
+ * into the flat page 0 (game_main's per-tick videoPresent shows it - the same
+ * contract scene_play_boot_intro uses).  The chunky frame under construction
+ * is video_flat() (the backend's page 1, never presented) and the text arena
+ * is video_arena(); both are shared scratch, the mode-X screens being
+ * mutually exclusive in time.
  *
  * attract_tick() advances the machine by exactly ONE display period (the
  * original's wait_vsync cadence).  The exit (attract_exit 1000:13E9: the
  * configured action key [0x5ACE bit 7] or any held key [0x48A3]) is polled
- * EXACTLY where the original polls it - at the fade waits (fade_wait
+ * EXACTLY where the original polls it at the fade waits (fade_wait
  * 1000:13E0) and the holds (fade_step_frames 1000:13FB), once per tick of
  * those phases; the no-poll windows (the two wipes, the _frame draws, the
  * slide's tail) see no key until their next poll, as in the listing.  The
@@ -20,32 +23,9 @@
  * exactly as in the listing - they skip the current hold, they do NOT exit
  * the attract.
  *
- * The one port-only escape point is the ASSET-LOAD-FAILURE skip
- * (deviation D-19): the original has no such path (a failed INT 63h prompts
- * for the disc), and the port's headless tests run without data - so the
- * skip consumes the escape to stay drivable.  With data present that path
- * never runs and the polling is the original's.  (Load failures otherwise
- * skip the effect - the scene player's established pattern.)
+ * In a deviation from the original we do an ASSET-LOAD-FAILURE skip: 
+ * In the originl a failed INT 63h prompts for the disc
  *
- * The escape itself (the longjmp 1000:13B2): the saved page pair is
- * restored, [0x1E7C]:=0x0A, one fade of all 256 DAC entries to the zeroed
- * 0x48BC ramp (black) div 0x23, waited WITHOUT further polling
- * (wait_palette_fade_done 1000:8B8B); its completion is the hand-off to
- * the front-end (FLOW_MENU - the original's RET into entry LAB_002B).
- *
- * Effect 4's credits scroller is the real machine (decoded 2026-10-25,
- * items 3-6): the fill builds the 192-KB strip at
- * [0xD76] (clear_bitmaps_6) as a vertical bitmap of 80-byte rows - [0]
- * the signature, [1] the write-mode-2 mask, [20..79] the presented 60
- * bytes - one 15-row tile per text line (BP += 75 paras) or 16-row blank
- * tile (BP += 80 paras), [0xD39] counting rows; _blit_scroll (1000:1B58)
- * then presents ONE strip row per tick into the draw page's scanline
- * bytes 20..79 (screen x 80..319) in write mode 2 with the row's own bit
- * mask (0x20: the ink sets palette bit 5 over the background; 0xE0: the
- * background clamped to index & 0x1F), skipping rows whose signature
- * matches the 200-byte cache at CS:0x1CF7 (shipped 0x80), until
- * [0xD78] == [0xD39] - 0xC8; more _credtext re-fills the next screenful,
- * else the tail ([0x1E7C]:=0x0A, fade to black div 0x1E).
  */
 #include "attract.h"
 #include "font.h"
@@ -63,8 +43,7 @@
 
 /* --- the machine --------------------------------------------------------- */
 
-/* --- the planar address space (A000, unchained, byte mode) ------------- */
-static uint8_t _vram[65536][4];   /* [address][plane]: 1 byte = 4 pixels   */
+/* --- the page pair and the CRTC start (the planar space is video.c's) ---- */
 static uint16_t _page_draw, _page_disp; /* [0x5AC4]/[0x5AC6]                */
 static uint16_t _display_start; /* [0x4106]: the CRTC start (bytes) */
 static uint16_t _saved_draw, _saved_disp; /* game_loop's PUSH pair (1387)     */
@@ -83,9 +62,6 @@ static uint16_t _counter; /* the multi-tick _phase countdown        */
 static uint8_t _frame; /* effect 2's _frame: 0 = scores, 1..16   */
 static uint8_t _wipe_iter; /* effect 2's 79-step wipe iteration     */
 static uint16_t _d3b; /* [0xD3B]: the slide's display row      */
-static uint8_t _arena[16000]; /* [0xC9D]: the text _arena (200 x 80)    */
-static uint8_t
-    _page_b[VIDEO_PAGE_BYTES]; /* [0xC9B]: the composed display page */
 static uint8_t *_img_buf; /* [0xC32]: the loaded image             */
 static uint8_t *_text_spr; /* [0x1E1C] analog: the loaded font      */
 static uint8_t _colour1881 = 0x43; /* CS:0x1881: _blit_80x200's colour base  */
@@ -94,7 +70,7 @@ static uint8_t _colour1881 = 0x43; /* CS:0x1881: _blit_80x200's colour base  */
  * The 192-KB work area [0xD76] (clear_bitmaps_6 1000:1B3B, re-zeroed per
  * screenful): a vertical bitmap of 80-byte rows - [0] the row signature,
  * [1] the write-mode-2 bit mask, [2..19] pad, [20..79] the presented 60
- * bytes = _arena pixels 80..319. */
+ * bytes = the text arena's pixels 80..319. */
 static uint8_t _e4strip[196608];
 static uint8_t
     _row_sig[VIDEO_PAGE_H_MODE13H]; /* CS:0x1CF7: the row-signature cache */
@@ -142,34 +118,7 @@ const uint8_t *attract_strip_for_probe(uint32_t *rowsOut)
     return _e4strip;
 }
 
-/* --- the VRAM primitives ------------------------------------------------ */
-
-/**
- * @brief _clear_vram (1000:833A): map mask 0xF, 64 KB zeroed.
- */
-static void _clear_vram(void) { memset(_vram, 0, sizeof _vram); }
-
-/** @brief blit_planar_to_vga (1000:888E): one 320x200 chunky image planarised into
- * the 16000-byte block at `dest` - dest[base + r*80 + c] plane p
- * = src[r*320 + c*4 + p].
- *
- * @param src the source buffer
- * @param dest the destination
- */
-static void _blit_planar(const uint8_t *src, uint32_t dest)
-{
-    for (uint16_t r = 0; r < VIDEO_PAGE_H_MODE13H; r++) {
-        uint32_t a = dest + r * 80u;
-        if (a + 79u >= 65536u) break; /* never taken: dest is safe */
-        const uint8_t *s = src + r * VIDEO_PAGE_W;
-        for (uint16_t c = 0; c < 80u; c++) {
-            _vram[a + c][0] = s[c * 4u];
-            _vram[a + c][1] = s[c * 4u + 1u];
-            _vram[a + c][2] = s[c * 4u + 2u];
-            _vram[a + c][3] = s[c * 4u + 3u];
-        }
-    }
-}
+/* --- the VRAM primitives are video.c's (shared A000 model) -------------- */
 
 /** @brief begin_page_flip (1000:8821) + the swap (1000:87C7): the display target is
  * the drawing page, then the pair swaps.  The original's spin until the ISR
@@ -196,14 +145,8 @@ static void _wait_page(uint16_t row) { _display_start = u16(row * 80u); }
  */
 static void _compose_window(void)
 {
-    uint8_t *page = video_page(0);
-    if (!page) return;
-    for (uint16_t y = 0; y < VIDEO_PAGE_H_MODE13H; y++) {
-        uint16_t row = (_display_start + y * 80u) & 0xFFFFu;
-        uint8_t *d = page + y * VIDEO_PAGE_W;
-        for (uint16_t x = 0; x < VIDEO_PAGE_W; x++)
-            d[x] = _vram[(row + (x >> 2)) & 0xFFFFu][x & 3u];
-    }
+    video_vram_present(video_page(0), _display_start, 80u, 0u,
+                       VIDEO_PAGE_H_MODE13H);
 }
 
 /**
@@ -344,18 +287,24 @@ static void _splat_bits(uint8_t *d, uint8_t b, uint32_t dl)
     }
 }
 
-/** @brief _blit_80x200 (1000:17FB): the _arena's bits 0..3 (4 px per byte, bit 0 the
- * leftmost) splat colour over _page_b, 320 B per row from dest offset 4.
+/** @brief _blit_80x200 (1000:17FB): the arena's bits 0..3 (4 px per byte, bit 0 the
+ * leftmost) splat colour over video_flat(), 320 B per row from dest offset 4.
  *
  * @param ar the 80x200 source arena
  */
 static void _blit_80x200(const uint8_t *ar)
 {
+    uint8_t *flat = video_flat();
     uint8_t dl = 0xFDu;
     for (uint16_t row = 0; row < VIDEO_PAGE_H_MODE13H; row++) {
-        uint8_t *d = _page_b + 4u + row * VIDEO_PAGE_W;
+        uint8_t *d = flat + 4u + row * VIDEO_PAGE_W;
         const uint8_t *s = ar + row * 80u;
-        for (uint16_t k = 0; k < 80u; k++) _splat_bits(d + k * 4u, s[k], dl);
+        /* The +4 offset is the original's +1 address byte: the last group
+         * spills into the next row, and row 199's would go past the window
+         * (the original lands it at A000 base+16000, never displayed). */
+        uint16_t groups = (row + 1u < VIDEO_PAGE_H_MODE13H) ? 80u : 79u;
+
+        for (uint16_t k = 0; k < groups; k++) _splat_bits(d + k * 4u, s[k], dl);
         uint16_t cx = VIDEO_PAGE_H_MODE13H - row; /* the pushed row countdown */
         if (cx > 0xB0u) dl = 0xF0u | ((dl + 1u) & 0xFu);
         else if (cx == 0xB0u) dl = _colour1881;
@@ -369,8 +318,8 @@ static void _blit_80x200(const uint8_t *ar)
     if (_colour1881 < 0x40u) _colour1881 = (uint8_t)(_colour1881 + 0x40u);
 }
 
-/** @brief blit_sprite_planes (1000:1795): an 8x16 chunk of _page_b planarised into
- * _vram at _page_draw + row*80 + x/4, plane (x+j)&3.  The source/dest read
+/** @brief blit_sprite_planes (1000:1795): an 8x16 chunk of video_flat() planarised
+ * into A000 at _page_draw + row*80 + x/4, plane (x+j)&3.  The source/dest read
  * past a row's edge into the next row exactly as the original's flat
  * offsets do (the right-sweeping columns start at 319).
  *
@@ -379,12 +328,15 @@ static void _blit_80x200(const uint8_t *ar)
  */
 static void _blit_strip8(uint32_t x, uint32_t row)
 {
+    const uint8_t *flat = video_flat();
+
     for (uint16_t j = 0; j < 8u; j++) {
         uint32_t px = x + j;
         for (uint16_t r = 0; r < 16u; r++) {
             uint16_t sy = (uint16_t)(row + r);
-            uint8_t v = _page_b[sy * VIDEO_PAGE_W + px];
-            _vram[(_page_draw + sy * 80u + (px >> 2)) & 0xFFFFu][px & 3u] = v;
+            uint8_t v = flat[sy * VIDEO_PAGE_W + px];
+            video_vram_group(
+                (uint16_t)(_page_draw + sy * 80u + (px >> 2)))[px & 3u] = v;
         }
     }
 }
@@ -421,7 +373,7 @@ static void _unload_img(void)
  */
 static int32_t _e1_load(void)
 {
-    _clear_vram();
+    video_vram_clear();
     uint32_t sz = 0;
     _unload_img();
     _img_buf = res_load_chunk("LBM\\GAMEINT.BIT", &sz, NULL);
@@ -431,9 +383,11 @@ static int32_t _e1_load(void)
     }
 
     palette_load_working(_img_buf + VIDEO_PAGE_BYTES);
-    _blit_planar(_img_buf, _page_draw);
+    video_vram_planarise(_img_buf, UINT32_MAX, _page_draw, 80u, 80u,
+                         VIDEO_PAGE_H_MODE13H);
     _flip_page(); /* the image at 0 and   */
-    _blit_planar(_img_buf, _page_draw);
+    video_vram_planarise(_img_buf, UINT32_MAX, _page_draw, 80u, 80u,
+                         VIDEO_PAGE_H_MODE13H);
     _flip_page(); /* at 0x8000           */
 
     _page_draw = 0x3E80u; /* 142F/1435: the blank */
@@ -454,7 +408,7 @@ static int32_t _e1_load(void)
  */
 static int32_t _e3_load(void)
 {
-    _clear_vram();
+    video_vram_clear();
     uint32_t sz = 0;
     _unload_img();
     _img_buf = res_load_chunk("LBM\\PCTITLE.RAW", &sz, NULL);
@@ -463,8 +417,10 @@ static int32_t _e3_load(void)
         return 0;
     }
 
-    _blit_planar(_img_buf, 0x3E80u); /* the title: rows 200-400 */
-    _blit_planar(_img_buf + 48000u, 0x6D60u); /* the promo: rows 350-550 */
+    video_vram_planarise(_img_buf, UINT32_MAX, 0x3E80u, 80u, 80u,
+                         VIDEO_PAGE_H_MODE13H); /* the title: rows 200-400 */
+    video_vram_planarise(_img_buf + 48000u, UINT32_MAX, 0x6D60u, 80u, 80u,
+                         VIDEO_PAGE_H_MODE13H); /* the promo: rows 350-550 */
     palette_load_working(_img_buf + 112000u);
     _wait_page(_d3b); /* the stale [0xD3B]       */
     palette_build_fade(0u, 256u, 0x23u, palette_working());
@@ -508,9 +464,11 @@ static int32_t _e2_load(void)
                 (uint8_t)((77u * p[0] + 151u * p[1] + 28u * p[2]) >> 9);
         }
     }
-    _blit_planar(_img_buf, _page_draw);
+    video_vram_planarise(_img_buf, UINT32_MAX, _page_draw, 80u, 80u,
+                         VIDEO_PAGE_H_MODE13H);
     _flip_page();
-    _blit_planar(_img_buf, _page_draw);
+    video_vram_planarise(_img_buf, UINT32_MAX, _page_draw, 80u, 80u,
+                         VIDEO_PAGE_H_MODE13H);
     _flip_page();
 
     uint8_t *palBuf = res_load_chunk("LBM\\SCOREPAL.PAL", &sz, NULL);
@@ -581,7 +539,7 @@ static void _e4_fill(void)
             _rows_built = (uint16_t)(_rows_built + 0xFu);
             _fill_pattern_clip(_e4strip + tile * 80u);
             /* 1ae9..1af4: [0x1E20] := BP, draw_text(scratch, 0xC8, row 0)
-             * - the tile is the _arena at row `tile`, so blit_glyph's 16th
+             * - the tile is video_arena() at row `tile`, so blit_glyph's 16th
              * row lands on the NEXT tile's row 0 exactly as the spill does */
             font_draw_text(_e4strip, scratch, 0xC8u, tile);
         }
@@ -592,20 +550,7 @@ static void _e4_fill(void)
 }
 
 /**
- * @brief Mask four planes of one strip byte with one colour.
- *
- * @param px the x position
- * @param v the sheet byte
- * @param mask the mask
- */
-static void _mask_four(uint8_t *px, uint8_t v, uint8_t mask)
-{
-    for (uint16_t j = 0; j < 4u; j++)
-        px[j] =
-            (uint8_t)((px[j] & (uint8_t)~mask) | (((v >> j) & 1u) ? mask : 0u));
-}
-
-/** @brief _blit_scroll (1000:1B58): present strip row `row` - the 200-row window
+ * @brief _blit_scroll (1000:1B58): present strip row `row` - the 200-row window
  * written into the draw page's scanline bytes 20..79 (screen x 80..319),
  * VGA write mode 2 with the row's own bit mask: each 1-bpp source byte
  * sets 4 pixels, plane j := (latch & ~M) | (bit j of the byte ? M : 0).
@@ -629,8 +574,9 @@ static void _blit_scroll(uint32_t row)
             _row_sig[i] = sig;
             uint8_t mask = _e4strip[src + 1u];
             for (uint16_t k = 0; k < 60u; k++) {
-                _mask_four(_vram[di + k],
-                           _e4strip[(src + 0x14u + k) % sizeof _e4strip], mask);
+                video_vram_wm2((uint16_t)(di + k),
+                               _e4strip[(src + 0x14u + k) % sizeof _e4strip],
+                               mask);
             }
         }
         src = (src + 80u) % sizeof _e4strip;
@@ -662,9 +608,11 @@ static int32_t _e4_load(void)
     }
 
     palette_load_working(_img_buf + VIDEO_PAGE_BYTES);
-    _blit_planar(_img_buf, _page_draw);
+    video_vram_planarise(_img_buf, UINT32_MAX, _page_draw, 80u, 80u,
+                         VIDEO_PAGE_H_MODE13H);
     _flip_page();
-    _blit_planar(_img_buf, _page_draw);
+    video_vram_planarise(_img_buf, UINT32_MAX, _page_draw, 80u, 80u,
+                         VIDEO_PAGE_H_MODE13H);
     _flip_page();
     palette_build_fade(0u, 256u, 0x1Eu, palette_working());
 
@@ -896,26 +844,28 @@ uint8_t attract_tick(const InputState *in)
         _phase = ATTRACT_E2_FRAME;
         break;
     case ATTRACT_E2_FRAME: { /* one intro_frame body   */
-        memcpy(_page_b, _img_buf, VIDEO_PAGE_BYTES); /* copy_page 18a4 */
-        memset(_arena, 0, sizeof _arena); /* clear_screen_buf 1882 */
+        uint8_t *ar = video_arena();
+
+        memcpy(video_flat(), _img_buf, VIDEO_PAGE_BYTES); /* copy_page 18a4 */
+        memset(ar, 0, 16000u); /* clear_screen_buf 1882 */
         if (_frame == 0u) { /* intro_frame_1 1625 */
             font_draw_text(
-                _arena, game_strs[g_game_lang][GAME_STR_ATTRACT_SCORE_HEADER],
+                ar, game_strs[g_game_lang][GAME_STR_ATTRACT_SCORE_HEADER],
                 0xA0u, 4u);
-            _draw_score_block(_arena);
+            _draw_score_block(ar);
         } else { /* intro_frame_2 1652 */
             uint16_t base = (_frame - 1u) * 10u;
             font_draw_text(
-                _arena, game_strs[g_game_lang][GAME_STR_ATTRACT_TIMES_HEADER],
+                ar, game_strs[g_game_lang][GAME_STR_ATTRACT_TIMES_HEADER],
                 0xA0u, 4u);
             for (uint16_t r = 0; r < 10u; r++) {
                 uint8_t rec[2];
 
                 _fastest_time(base + r, rec);
-                _draw_times_row(_arena, base + r, rec, 0x18u + r * 0x10u);
+                _draw_times_row(ar, base + r, rec, 0x18u + r * 0x10u);
             }
         }
-        _blit_80x200(_arena);
+        _blit_80x200(ar);
         _wipe_iter = 0u;
         _phase = ATTRACT_E2_WIPE;
         break;
@@ -924,7 +874,8 @@ uint8_t attract_tick(const InputState *in)
         _wipe_row(_wipe_iter);
         _flip_page();
         if (++_wipe_iter < 79u) break;
-        _blit_planar(_page_b, _page_draw); /* 171c: the full present */
+        video_vram_planarise(video_flat(), UINT32_MAX, _page_draw, 80u, 80u,
+                             VIDEO_PAGE_H_MODE13H); /* 171c: the full present */
         _flip_page();
         _counter = 490u; /* 164c/168a: the hold    */
         _phase = ATTRACT_E2_HOLD;

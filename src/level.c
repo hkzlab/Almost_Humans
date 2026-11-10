@@ -256,10 +256,11 @@ enum {
 static uint8_t _goal_pan_state;
 static uint8_t _goal_pan_left;
 static uint16_t _goal_pan_view_x, _goal_pan_view_y;
-/* The chained screen the original draws into: one byte = 4 pixels, 88 bytes per
- * row (352 px, of which the visible window is 320 - that slack is what lets the
- * CRTC start sit on a 4-px column boundary, 1000:3DC0's `y*88 + x/4`). */
-static uint8_t _lvl_plane[VIDEO_PAGE_H_MODE13H * 88u][4];
+/* The chained screen the original draws into is video.c's shared A000 model
+ * (video_vram_group): one byte = 4 pixels, 88 bytes per row (352 px, of which
+ * the visible window is 320 - that slack is what lets the CRTC start sit on a
+ * 4-px column boundary, 1000:3DC0's `y*88 + x/4`).  Its extent is 0..0x44BF
+ * (200 rows of 88 addresses); _render_world rewrites it every frame. */
 
 /* --- the claim's particles (1000:3E73 init, 0x3FB3 step, 0x3F4A flush) ------
  * The list at 0x48BC is 0x58 slots of 8 bytes {live, value, x, y, age}.  The
@@ -419,8 +420,8 @@ static void _spark_strip_save(int16_t ox, int16_t oy)
 
             if (sx >= 0 && sx < (int32_t)VIDEO_PAGE_W && sy >= 0 &&
                 sy < (int32_t)VIDEO_PAGE_H_MODE13H) {
-                const uint8_t *px =
-                    _lvl_plane[(uint32_t)sy * 88u + ((uint32_t)sx >> 2)];
+                const uint8_t *px = video_vram_group(
+                    (uint16_t)((uint32_t)sy * 88u + ((uint32_t)sx >> 2)));
 
                 for (uint16_t p = 0; p < 4u; p++)
                     _spark_strip[row][col][p] = px[p];
@@ -446,8 +447,8 @@ static void _spark_strip_restore(void)
                 sy >= (int32_t)VIDEO_PAGE_H_MODE13H)
                 continue;
             {
-                uint8_t *px =
-                    _lvl_plane[(uint32_t)sy * 88u + ((uint32_t)sx >> 2)];
+                uint8_t *px = video_vram_group(
+                    (uint16_t)((uint32_t)sy * 88u + ((uint32_t)sx >> 2)));
 
                 for (uint16_t p = 0; p < 4u; p++)
                     px[p] = _spark_strip[row][col][p];
@@ -585,7 +586,7 @@ static void _spark_draw(void)
         addr = (uint32_t)sy * 88u + ((uint32_t)sx >> 2);
         /* 1000:3F9C MOV AL,[SI+1] / STOSB: the whole shade byte into the
          * plane selected by Map Mask 1 << (x & 3). */
-        _lvl_plane[addr][plane] = _spark[i].value;
+        video_vram_group((uint16_t)addr)[plane] = _spark[i].value;
     }
 }
 
@@ -1922,8 +1923,8 @@ static void _stamp_tile(uint8_t *dst, const uint8_t *src)
     }
 }
 
-/** @brief the flat model's four plane passes: `_lvl_plane` -> the page.  One
- * byte per pixel, `4*address + plane = pixel`. */
+/** @brief the flat model's four plane passes: the shared A000 model -> the page.
+ * One byte per pixel, `4*address + plane = pixel`. */
 static void _present_plane(void)
 {
     uint8_t *page = _level_osys->videoPage(0);
@@ -1931,7 +1932,8 @@ static void _present_plane(void)
     if (!page) return;
     for (uint16_t y = 0; y < VIDEO_PAGE_H_MODE13H; y++)
         for (uint16_t x = 0; x < VIDEO_PAGE_W; x++)
-            page[y * VIDEO_PAGE_W + x] = _lvl_plane[y * 88u + (x >> 2)][x & 3u];
+            page[y * VIDEO_PAGE_W + x] =
+                video_vram_group((uint16_t)(y * 88u + (x >> 2)))[x & 3u];
 }
 
 /* Bake the visible page back into the planar work buffer. */
@@ -1942,7 +1944,8 @@ static void _bake_page_to_plane(void)
     if (!page) return;
     for (uint16_t y = 0; y < VIDEO_PAGE_H_MODE13H; y++)
         for (uint16_t x = 0; x < VIDEO_PAGE_W; x++)
-            _lvl_plane[y * 88u + (x >> 2)][x & 3u] = page[y * VIDEO_PAGE_W + x];
+            video_vram_group((uint16_t)(y * 88u + (x >> 2)))[x & 3u] =
+                page[y * VIDEO_PAGE_W + x];
 }
 
 /**
@@ -1992,7 +1995,7 @@ static void _render_world(void)
         for (uint16_t x = 0; x < VIDEO_PAGE_W; x++) {
             uint16_t wx = _view_x + x, wy = _view_y + y;
 
-            _lvl_plane[y * 88u + (x >> 2)][x & 3u] =
+            video_vram_group((uint16_t)(y * 88u + (x >> 2)))[x & 3u] =
                 (wx < WORLD_W && wy < WORLD_H) ? _world[wy * WORLD_W + wx] : 0u;
         }
     if (_spark_on) {
@@ -2045,7 +2048,7 @@ void level_claim_recolour(void)
         if (page[i] < 0x80u) page[i] = 0x1Eu;
     for (uint16_t i = 0; i < VIDEO_PAGE_H_MODE13H * 88u; i++)
         for (uint16_t p = 0; p < 4u; p++)
-            if (_lvl_plane[i][p] < 0x80u) _lvl_plane[i][p] = 0x1Eu;
+            if (video_vram_group(i)[p] < 0x80u) video_vram_group(i)[p] = 0x1Eu;
 }
 
 void level_claim_frame(void)

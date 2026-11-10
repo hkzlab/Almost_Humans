@@ -60,11 +60,11 @@
  *    not made: the audio backend is an M5 stub.  audio_music_gate ports the
  *    gate and the [0x40BB] latch; only the tune handle is missing (M6).
  *  - the CRTC split ([0x5B0A]) is modelled in the _compose: rows >= the
- *    split display the FIXED band from absolute _vram 0, unpanned (the
- *    level's status bar and the name screen's human stage both live
+ *    split display the FIXED band from absolute A000 address 0, unpanned
+ *    (the level's status bar and the name screen's human stage both live
  *    there); the original latches the same at vsync.
  *  - the name line is the AB8D render proper (2026-10-27): the typed
- *    name goes to the _arena via draw_text and the WM2 bit-7 copy loop
+ *    name goes to the arena via draw_text and the WM2 bit-7 copy loop
  *    carries it to the page - DARWIN shows in the entry box; the prior
  *    "never displayed" reading has been withdrawn.
  *  - the backdrop copy is the original's 200-row one (`room_backdrop_build`
@@ -101,8 +101,7 @@ typedef enum FePhase {
     FE_EXITFADE
 } FePhase;
 
-/* --- the planar space (A000, unchained, byte mode) -------------------- */
-static uint8_t _vram[65536][4];   /* [address][plane]: 1 byte = 4 pixels   */
+/* --- the shared A000 model + the page pair ---------------------------- */
 static uint16_t _page_draw, _page_disp; /* [0x5AC4]/[0x5AC6] - page bases   */
 static uint16_t _scroll; /* [0x0]: the front-end _scroll      */
 
@@ -172,7 +171,6 @@ static uint8_t *_code2, *_codehum, *_codes;
 static uint8_t *_codeb1, *_codeb2, *_restore;
 static uint32_t _code2_size, _codehum_size, _codes_size;
 static uint32_t _codeb1_size, _codeb2_size, _restore_size;
-static uint8_t _arena[16000]; /* the font _arena (the [0x1E20] analog) */
 static const uint8_t _ramp0[768]; /* the 0x48BC ramp: zeroed = black     */
 static uint16_t _split_row =
     VIDEO_PAGE_H_MODE13H; /** [0x5B0A]: the CRTC split (0x88 on the
@@ -213,45 +211,14 @@ const char *frontend_name_for_probe(void) { return _name_buf; }
  * @param v the value
  */
 static void _put_pixel(uint32_t rowBase, uint32_t px, uint8_t v)
-{ _vram[(rowBase + (px >> 2)) & 0xFFFFu][px & 3u] = v; }
-
-/** @brief blit_planar_strip (1000:AEAD): planarise chunky 640-px rows into the
- * page at `base` - dest[base + r*160 + c] plane p = src[r*640 + c*4 + p].
- * `size` is the whole loaded chunk, so the 200-row backdrop copy reads the 8
- * rows past the 192-row image out of its palette tail, as `1000:AEDB`'s row
- * loop does; only the bytes past the chunk (the original's uninitialised
- * pool) are written as zeros.  The room's 320x192 field never shows them.
- *
- * @param src the source buffer
- * @param size the size
- * @param base the base offset
- * @param rows the row count
- */
-static void _planarise_rows(const uint8_t *src, uint32_t size, uint32_t base,
-                            uint32_t rows)
-{
-    for (uint16_t r = 0; r < rows; r++)
-        for (uint16_t c = 0; c < 160u; c++) {
-            uint16_t a = (base + r * 160u + c) & 0xFFFFu;
-            uint32_t off = (uint32_t)r * 640u + (uint32_t)c * 4u;
-            if (off + 3u < size) {
-                _vram[a][0] = src[off];
-                _vram[a][1] = src[off + 1u];
-                _vram[a][2] = src[off + 2u];
-                _vram[a][3] = src[off + 3u];
-            } else {
-                _vram[a][0] = _vram[a][1] = 0u;
-                _vram[a][2] = _vram[a][3] = 0u;
-            }
-        }
-}
+{ video_vram_group((uint16_t)(rowBase + (px >> 2)))[px & 3u] = v; }
 
 /** @brief The present: the 200-row window, flat - pixel x of the window = the
  * world pixel (_scroll + x), i.e. set_display_ptr's byte start (882D:
  * [0x5AC4] + [0x2]*88 + [0x0]/4) plus the pel-pan _phase ([0x0] & 3 -
  * 8848/884a).  Rows >= _split_row ([0x5B0A]) are the CRTC split's FIXED
- * band: they display from ABSOLUTE _vram 0 (the level's status bar and the
- * name screen's human stage both live there), unpanned.  The room is
+ * band: they display from ABSOLUTE A000 address 0 (the level's status bar
+ * and the name screen's human stage both live there), unpanned.  The room is
  * double-buffered (present_page 1000:8809 swaps after showing); the name
  * screen's cursor+present double-swap cancels, so it passes 0.
  *
@@ -259,23 +226,7 @@ static void _planarise_rows(const uint8_t *src, uint32_t size, uint32_t base,
  */
 static void _compose(int32_t swapPages)
 {
-    uint8_t *page = video_page(0);
-    if (page) {
-        for (uint16_t y = 0; y < VIDEO_PAGE_H_MODE13H; y++) {
-            uint8_t *d = page + y * VIDEO_PAGE_W;
-            if (y < _split_row) {
-                uint16_t rowBase = _page_draw + y * 160u;
-                for (uint16_t x = 0; x < VIDEO_PAGE_W; x++) {
-                    uint16_t w = _scroll + x; /* the world pixel */
-                    d[x] = _vram[(rowBase + (w >> 2)) & 0xFFFFu][w & 3u];
-                }
-            } else { /* the fixed band: from _vram 0 */
-                uint16_t rowBase = (y - _split_row) * 160u;
-                for (uint16_t x = 0; x < VIDEO_PAGE_W; x++)
-                    d[x] = _vram[(rowBase + (x >> 2)) & 0xFFFFu][x & 3u];
-            }
-        }
-    }
+    video_vram_present(video_page(0), _page_draw, 160u, _scroll, _split_row);
     if (swapPages) {
         uint16_t t = _page_draw;
         _page_draw = _page_disp;
@@ -423,19 +374,6 @@ static void _draw_humans(void)
 
 /* --- the name ----------------------------------------------------------- */
 
-/**
- * @brief Write mode 2 on one chained-page byte, bits 0..3.
- *
- * @param addr the record address
- * @param v the byte value
- */
-static void _wm2_set(uint32_t addr, uint8_t v)
-{
-    for (uint16_t p = 0; p < 4u; p++)
-        _vram[addr][p] =
-            (uint8_t)((_vram[addr][p] & 0x7F) | ((v >> p) & 1u) << 7);
-}
-
 /** @brief name_entry_blit (1000:AB8D) - the typed name IS displayed: the last
  * claim ("never displayed, live-verified") misidentified this routine's
  * purpose; its callers were verified across the room path (addchar,
@@ -445,23 +383,26 @@ static void _wm2_set(uint32_t addr, uint8_t v)
  * 18..57) read at 0x152+80/row, written to the page at [0x5AC4]+0x38F5
  * +160/row under vga_set_write_mode2's bit-mask 0x80 (299b: OUT DX,AX
  * with AH=0x80).  Each write sets the color-index TOP bit of the 4 dest
- * pixels from the _arena byte's bits 3..0 - the bright-variant palette
+ * pixels from the arena byte's bits 3..0 - the bright-variant palette
  * (0x80+n) the dark bar's pixels sit in.  Ported verbatim.
  */
 static void _draw_name_line(void)
 {
-    /* AB8D's exact sequence: clear the _arena's first 1600 bytes, draw the
+    /* AB8D's exact sequence: clear the arena's first 1600 bytes, draw the
      * name into it (draw_text centres at x 0x98, rows 0..15 - the glyphs
-     * land at _arena rows 4..13), then the WM2 copy: 10 rows x 40 bytes,
-     * source _arena 0x152+80/row, dest [0x5AC4]+0x38F5+0xA0/row - AB8D
+     * land at arena rows 4..13), then the WM2 copy: 10 rows x 40 bytes,
+     * source arena 0x152+80/row, dest [0x5AC4]+0x38F5+0xA0/row - AB8D
      * writes 40 bytes (DI +40) then skips 0x78 (120): 40+0x78 = 0xA0. */
-    memset(_arena, 0, 1600u);
-    font_draw_text(_arena, _name_buf, 0x98u, 0);
+    uint8_t *ar = video_arena();
+
+    memset(ar, 0, 1600u);
+    font_draw_text(ar, _name_buf, 0x98u, 0);
     for (uint16_t r = 0; r < 10u; r++)
         for (uint16_t c = 0; c < 40u; c++) {
-            uint8_t v = _arena[0x152u + r * 80u + c];
+            uint8_t v = ar[0x152u + r * 80u + c];
             uint16_t addr = (_page_draw + 0x38F5u + r * 0xA0u + c) & 0xFFFFu;
-            _wm2_set(addr, v);
+
+            video_vram_wm2(addr, v, 0x80u);
         }
 }
 
@@ -761,12 +702,13 @@ static void _name_screen_enter(void)
          * then the character (band rows 13..39), then the main art (rows
          * 40..175, starting just below him).  Drawing the strip after the
          * character - as an earlier revision did - paints over him. */
-        _planarise_rows(_code2 + 0x15400u, _code2_size - 0x15400u, 0, 56u);
+        video_vram_planarise(_code2 + 0x15400u, _code2_size - 0x15400u, 0u,
+                             160u, 160u, 56u);
         /* afcf: the character draw runs here, with [0x5AC4] held 0 - the
          * 0x820-band branch in _draw_character fires and the walked-in
          * human lands on the fixed band's hill (screen rows 149..175). */
         _draw_character();
-        _planarise_rows(_code2, _code2_size, 0x2800, 136u);
+        video_vram_planarise(_code2, _code2_size, 0x2800u, 160u, 160u, 136u);
     }
     _draw_humans();
     _draw_name_line();
@@ -833,8 +775,15 @@ static void _do_load(void)
          * `_code2_size` here.  reset_display_mode's 320x192 field (1000:82C6,
          * called at 1000:A544) ends on row 191, so the original never shows
          * them either. */
-        _planarise_rows(_code2, _code2_size, 0, VIDEO_PAGE_H_MODE13H);
-        _planarise_rows(_code2, _code2_size, 0x7D00, VIDEO_PAGE_H_MODE13H);
+        /* `size` is the whole loaded chunk, so the 200-row backdrop copy reads
+         * the 8 rows past the 192-row image out of its palette tail, as
+         * `1000:AEDB`'s row loop does; bytes past the chunk (the original's
+         * uninitialised pool) are zeros.  The room's 320x192 field never
+         * shows them. */
+        video_vram_planarise(_code2, _code2_size, 0u, 160u, 160u,
+                             VIDEO_PAGE_H_MODE13H);
+        video_vram_planarise(_code2, _code2_size, 0x7D00u, 160u, 160u,
+                             VIDEO_PAGE_H_MODE13H);
         /* the setup's 2-_frame loop (A5A1..A5DB): the full _frame - the
          * badges, the character, the name line - drawn on BOTH pages
          * before the fade, so the fade-in holds a complete static _frame
@@ -881,7 +830,7 @@ uint8_t frontend_tick(const InputState *in)
         _draw_character();
         _draw_name_line();
         _anim_frame(); /* the walk loop's acb9: keeps the
-                                         * board-stack's middle pair in _vram
+                                         * board-stack's middle pair in A000
                                          * (the event loop's idle) */
         _draw_humans();
         _room_walk(in);

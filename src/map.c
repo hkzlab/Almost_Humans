@@ -723,7 +723,8 @@ void map_draw_box_edges(uint8_t *page, uint32_t row)
  * 07B2/0E77/0EBE/0EEC/0F3E) ----------------------------------------------
  *
  * `1000:12D3` parks BAND.SPR's four planes at A000:0xC000 (76 rows of 80 byte
- * addresses).  The page is only read by `blit_palette_fade_row` (`1000:0A72`):
+ * addresses) - video.c's shared A000 model in the port, at its absolute
+ * address.  The page is only read by `blit_palette_fade_row` (`1000:0A72`):
  * for a channel's 8-bit phase it copies 320 contiguous byte addresses from
  * `0xC000 + phase*0x140` into the page at `0x2DB8/ch*8 + [0x5AC4]`, laid out
  * as 40 rows of 8 byte addresses at the page's 80-byte row stride (the 0x48
@@ -736,8 +737,8 @@ void map_draw_box_edges(uint8_t *page, uint32_t row)
  * image's `[0x75]..[0x8B]` (the tables at 0x80/0x8A are `{1,0,1,0,0xFF}`), and
  * the driver events (not ported) set the 0x75/0x79/0x7E/0x88 triggers.
  */
+#define MAP_STAGE_BASE  0xC000u
 #define MAP_STAGE_ADDRS 6080u
-static uint8_t _map_stage[MAP_STAGE_ADDRS][4];
 static uint8_t _map_stage_ready;
 
 /* the channel words [0x90]/[0x92]/[0x94]/[0x96], their previous-value shadows
@@ -757,7 +758,8 @@ static void _map_stage_fill(void)
     if (!_band_sheet) return;
     for (uint16_t i = 0; i < MAP_STAGE_ADDRS; i++)
         for (uint16_t p = 0; p < 4u; p++)
-            _map_stage[i][p] = _band_sheet[(i * 4u + p) & 0xFFFFu];
+            video_vram_group((uint16_t)(MAP_STAGE_BASE + i))[p] =
+                _band_sheet[(i * 4u + p) & 0xFFFFu];
     _map_stage_ready = 1;
 }
 
@@ -776,7 +778,7 @@ static void _map_stage_fill(void)
  * @return the colour
  */
 static uint8_t _map_stage_pixel(uint32_t a, uint32_t j)
-{ return _map_stage[a][j & 3u]; }
+{ return video_vram_group((uint16_t)(MAP_STAGE_BASE + a))[j & 3u]; }
 
 /** @brief 1000:0A72: one channel's 8-byte x 40-row strip from the staging page
  * at `phase*0x140` byte addresses into the page at `0x2DB8 + ch*8`.
@@ -984,7 +986,7 @@ uint8_t map_stage_ready_for_probe(void) { return _map_stage_ready; }
 uint8_t map_stage_at(uint32_t addr, uint32_t plane)
 {
     if (addr >= MAP_STAGE_ADDRS || plane >= 4u) return 0u;
-    return _map_stage[addr][plane];
+    return video_vram_group((uint16_t)(MAP_STAGE_BASE + addr))[plane];
 }
 
 void map_draw_list(uint8_t *page)

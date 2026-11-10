@@ -88,8 +88,8 @@ uint8_t party_intro_tick(const InputState *in);
 void party_intro_format_score(uint32_t v, char *out);
 
 /** @brief the closed layout law, exposed for the byte-exact fixtures: the page's
- * pixel (x,y) = _vram[pagebase + 8 + y*88 + (x>>2)][x&3] of the DISPLAY page
- * (_page_disp - the just-flipped bake target).
+ * pixel (x,y) = video_vram_group(pagebase + 8 + y*88 + (x>>2))[x&3] of the
+ * DISPLAY page (_page_disp - the just-flipped bake target).
  *
  * @param page320x200 the composed page
  */
