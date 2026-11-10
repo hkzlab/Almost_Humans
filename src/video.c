@@ -17,6 +17,13 @@
 
 static const OSystem *_video_osys;
 
+/* TODO: Evaluate a future additional refactor of the Mode-X code.
+ * We could move it in an optional module a backend can optionally include
+ * or not, in case the backend has native support for planar graphics.
+ * 
+ * For now, we'll leave the software recomposition into flat pages.
+ */
+
 /* the A000 planar space: one address byte = four pixels, one per plane */
 static uint8_t _vram[65536][4];
 
