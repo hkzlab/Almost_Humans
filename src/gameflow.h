@@ -35,9 +35,9 @@
 #define GAME_TICK_HZ 70
 
 typedef enum GameFlow {
-    FLOW_ATTRACT = 0, /* game_loop 1000:131E: intro/attract mode    */
-    FLOW_MENU,        /* the map/level-select room                  */
-    FLOW_LEVEL,       /* a level is installed and running           */
+    FLOW_ATTRACT = 0, // game_loop 1000:131E: intro/attract mode
+    FLOW_MENU,        // the map/level-select room
+    FLOW_LEVEL,       // a level is installed and running
     FLOW_ENDING       /* entry 1512: cd_file_op(6 lost / 7 won),
                        * draw_status_indicator, menu_loop (the MAP) */
 } GameFlow;

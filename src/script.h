@@ -8,19 +8,19 @@
 #include "osystem.h"
 
 typedef struct {
-    uint16_t frame; /* the current frame (the player advances it) */
-    uint16_t groupDwell; /* cmd 7: frames per display-list group       */
-    uint8_t dwellPending; /* cmd 7 fired: [0x6462] must reload        */
-    uint8_t scrollOn; /* cmd 3 on / cmd 2 off                       */
-    uint16_t scrollDelta; /* cmd 6: the scroll advance per frame        */
-    uint16_t transitionIdx; /* cmd 1: run_screen_transition index         */
-    uint8_t quit; /* cmd 5: the quit flag                       */
-    uint8_t done; /* the frame target reached                   */
-    uint8_t seekPending; /* cmd 4 fired: the player must seek          */
-    uint16_t seekFrame; /*    ...to this frame                        */
-    const uint16_t *cues; /* [frame][cmd][arg] triples, verbatim        */
+    uint16_t frame; // the current frame (the player advances it)
+    uint16_t groupDwell; // cmd 7: frames per display-list group
+    uint8_t dwellPending; // cmd 7 fired: [0x6462] must reload
+    uint8_t scrollOn; // cmd 3 on / cmd 2 off
+    uint16_t scrollDelta; // cmd 6: the scroll advance per frame
+    uint16_t transitionIdx; // cmd 1: run_screen_transition index
+    uint8_t quit; // cmd 5: the quit flag
+    uint8_t done; // the frame target reached
+    uint8_t seekPending; // cmd 4 fired: the player must seek
+    uint16_t seekFrame; // ...to this frame
+    const uint16_t *cues; // [frame][cmd][arg] triples, verbatim
     uint16_t cueCount;
-    uint16_t cursor; /* the next cue to fire                       */
+    uint16_t cursor; // the next cue to fire
 } CueScript;
 
 /* --- src/script.c - interpreter skeleton -------------------------------- */

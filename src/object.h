@@ -11,10 +11,10 @@
 #include "osystem.h"
 
 /* 1000:E4B0's outcome for one command. */
-#define OBJ_CMD_NONE     0 /* neither a handler nor a tail ran          */
-#define OBJ_CMD_HANDLER  1 /* the type row's handler ran                */
-#define OBJ_CMD_TAIL     2 /* the row's tail handler ran                */
-#define OBJ_CMD_UNPORTED (-1) /* no port */
+#define OBJ_CMD_NONE     0 // neither a handler nor a tail ran
+#define OBJ_CMD_HANDLER  1 // the type row's handler ran
+#define OBJ_CMD_TAIL     2 // the row's tail handler ran
+#define OBJ_CMD_UNPORTED (-1) // no port
 
 /* The adjacent-object op of the entity bytecode (1000:3A6A): the gate and the
  * scan around the *acting* record (`actor`, the entity's own slot), then the
@@ -30,7 +30,7 @@
 typedef struct {
     uint16_t handler;
     uint16_t tail;
-    uint16_t hook; /* the row's +0xA: run 1000:D8BD before the tail */
+    uint16_t hook; // the row's +0xA: run 1000:D8BD before the tail
     uint8_t command;
 } ObjCommand;
 

@@ -88,13 +88,13 @@
 #define SCRIPT_COUNT 7
 
 /* === the 8-slot script machine ============================================== */
-struct Slot { /* 16 B at [0x11fe]:0xFA8 + 0x10*i    */
-    uint16_t dst; /* +0: the stamp's dest word          */
-    uint8_t count; /* +2: the 8-tick countdown           */
-    uint8_t script; /* +3: the running id (1-indexed)     */
-    uint8_t fpos; /* +4: the frame position             */
-    uint8_t loopc; /* +5: the sub-list counter           */
-    uint8_t sub[10]; /* +6..15: the sub-list               */
+struct Slot { // 16 B at [0x11fe]:0xFA8 + 0x10*i
+    uint16_t dst; // +0: the stamp's dest word
+    uint8_t count; // +2: the 8-tick countdown
+    uint8_t script; // +3: the running id (1-indexed)
+    uint8_t fpos; // +4: the frame position
+    uint8_t loopc; // +5: the sub-list counter
+    uint8_t sub[10]; // +6..15: the sub-list
 };
 struct Script {
     uint16_t len;
@@ -103,17 +103,17 @@ struct Script {
 
 /* the machine state (the ticker's + 2bda's _phase-split) */
 enum {
-    PH_MUSIC = 0, /* the timing_loop at 2564 blocks the bake */
-    PH_FADEWAIT, /* 25ec                   */
-    PH_SWAPWAIT, /* 2bda's {28e9; 8b9a; JC} */
+    PH_MUSIC = 0, // the timing_loop at 2564 blocks the bake
+    PH_FADEWAIT, // 25ec
+    PH_SWAPWAIT, // 2bda's {28e9; 8b9a; JC}
     PH_SET1,
-    PH_SET1_WAIT, /* 2600..2699             */
+    PH_SET1_WAIT, // 2600..2699
     PH_SET2,
-    PH_SET2_WAIT, /* 269b..2703             */
-    PH_GAMEOVER, /* 2739: the need>members page */
+    PH_SET2_WAIT, // 269b..2703
+    PH_GAMEOVER, // 2739: the need>members page
     PH_EXITWAIT,
     PH_PRESENT,
-    PH_DONE /* 2711..272b             */
+    PH_DONE // 2711..272b
 };
 
 /* 2bda's internal split: its own fade-wait (2bec..2bf2), THEN the 0xE0
@@ -125,51 +125,51 @@ enum {
 };
 
 /* === the shared A000 model + the CRTC pair ================================== */
-static uint16_t _page_draw = 0x1200; /* [0x5ac4]: the stamp target         */
-static uint16_t _page_disp = 0x8100; /* [0x5ac6]: the displayed page       */
-static uint16_t _stamp_dest; /* [0x1204]                           */
-static uint16_t _marq_phase; /* [0xf9e], 0..0x15F                  */
-static uint16_t _marq_cell; /* [0xf9c], 0..0xB                    */
-static uint16_t _marq_hold; /* [0xfa6]                            */
+static uint16_t _page_draw = 0x1200; // [0x5ac4]: the stamp target
+static uint16_t _page_disp = 0x8100; // [0x5ac6]: the displayed page
+static uint16_t _stamp_dest; // [0x1204]
+static uint16_t _marq_phase; // [0xf9e], 0..0x15F
+static uint16_t _marq_cell; // [0xf9c], 0..0xB
+static uint16_t _marq_hold; // [0xfa6]
 
 /* === the [0x11fe] heap-segment buffers ====================================== */
-static uint8_t _sheet[2784]; /* [0x1202]: the 29x96 party sprites  */
-static uint8_t _strip[15360]; /* [0x1206]: the rescaled birdy       */
-static uint8_t _workpal[768]; /* 202F:0x4bbc                        */
+static uint8_t _sheet[2784]; // [0x1202]: the 29x96 party sprites
+static uint8_t _strip[15360]; // [0x1206]: the rescaled birdy
+static uint8_t _workpal[768]; // 202F:0x4bbc
 /* 0x4d3c is not a buffer of its own: it is 0x4bbc + 0x180, the .PAL working
  * palette's own upper half (28d0 = 4 x 0x60 B from .PAL[0..31]). */
-static uint8_t *const _pal_upper = _workpal + 0x180; /* 202F:0x4d3c       */
-static uint8_t _prevpal[0x180]; /* 202F:0x1208: the party-write DAC snapshot */
-static uint8_t _ramp_tbl[150]; /* CS:0x2DFE..0x2E93 (0x96 bytes)      */
-static uint8_t *_bit_img; /* the loaded lbm\party1.bit          */
-static uint8_t *_font_bytes; /* [0x1e1c]: the published text.spr   */
+static uint8_t *const _pal_upper = _workpal + 0x180; // 202F:0x4d3c
+static uint8_t _prevpal[0x180]; // 202F:0x1208: the party-write DAC snapshot
+static uint8_t _ramp_tbl[150]; // CS:0x2DFE..0x2E93 (0x96 bytes)
+static uint8_t *_bit_img; // the loaded lbm\party1.bit
+static uint8_t *_font_bytes; // [0x1e1c]: the published text.spr
 
 /* === the DS values the screen reads ========================================= */
-static uint16_t _g_level; /* [0x1f41]                           */
-static uint16_t _g_need; /* [0x17fb]                           */
-static uint16_t _g_members; /* [0x11fc]                           */
-static uint16_t _g_score; /* [0x592]                            */
-static char _g_tribe[16]; /* 0x1189                             */
+static uint16_t _g_level; // [0x1f41]
+static uint16_t _g_need; // [0x17fb]
+static uint16_t _g_members; // [0x11fc]
+static uint16_t _g_score; // [0x592]
+static char _g_tribe[16]; // 0x1189
 
 /* === the string table (verbatim templates; the digit _slots rewritten) =======
  * Sizes cover the widest of the five language columns (game_strs.h): the
  * largest template is 38 bytes (GER "ES WERDEN 0 HUMANS BENOETIGT, UM DIESE"),
  * and a wider number spills into the tail exactly as the original's does, so
  * each buffer keeps room for the digits the field can grow into. */
-static char _s_all[32]; /* 0x105F: "COMING UP.... LEVEL 000"  (3 _slots)    */
-static char _s_need[48]; /* 0x1077: "YOU WILL NEED 0 HUMANS TO COMPLETE"    */
-static char _s_this[24]; /* 0x109A: "THIS LEVEL"                            */
-static char _s_has[40]; /* 0x10A5: "YOUR TRIBE NOW HAS 00 MEMBERS!" (2)    */
-static char _s_code[40]; /* 0x10CE: "THE CODE FOR THIS LEVEL IS....."        */
-static char _s_score[36]; /* 0x10EE: "YOUR SCORE IS 00000000000"             */
-static char _s_fire[48]; /* 0x1108: "PRESS FIRE TO START LEVEL..."          */
+static char _s_all[32]; // 0x105F: "COMING UP.... LEVEL 000"  (3 _slots)
+static char _s_need[48]; // 0x1077: "YOU WILL NEED 0 HUMANS TO COMPLETE"
+static char _s_this[24]; // 0x109A: "THIS LEVEL"
+static char _s_has[40]; // 0x10A5: "YOUR TRIBE NOW HAS 00 MEMBERS!" (2)
+static char _s_code[40]; // 0x10CE: "THE CODE FOR THIS LEVEL IS....."
+static char _s_score[36]; // 0x10EE: "YOUR SCORE IS 00000000000"
+static char _s_fire[48]; // 0x1108: "PRESS FIRE TO START LEVEL..."
 
-static const uint8_t _ramp10[10] = /* 2e94's ramp -> CS:[0x2DFE+i]  */
+static const uint8_t _ramp10[10] = // 2e94's ramp -> CS:[0x2DFE+i]
     { 0x80, 0xA0, 0xC0, 0xE0, 0xE0, 0xE0, 0xE0, 0xC0, 0xA0, 0x80 };
 static struct Slot _slots[8];
 static struct Script _scripts[SCRIPT_COUNT];
 
-static uint8_t *_script_store; /* the seeded bodies (memcpy'd)       */
+static uint8_t *_script_store; // the seeded bodies (memcpy'd)
 
 /* === the file-image script seed (2026-10-30: the tables are STATIC bytes
  * of the MZ image - the 202F:0xFA8 / 0x1028 hexdumps == the live DS
@@ -189,22 +189,22 @@ static const uint8_t _slots_file[128] = {
 };
 static const uint8_t _scripts_file[41] = {
     /* DS:0x1036..0x105E */
-    0x01, 0x02, 0x03, 0x02, 0xFF, /* 0x1036 s1 */
-    0x05, 0x06, 0x07, 0x08, 0x09, 0x06, 0x05, 0x04, 0xFF, /* 0x103b s2 */
-    0x0a, 0x0b, 0xFF, /* 0x1044 s3 */
-    0x0a, 0x0d, 0x0e, 0x0f, 0x0e, 0x0d, 0xFF, /* 0x1047 s4 */
-    0x11, 0x12, 0x11, 0x0d, 0xFF, /* 0x104e s5 */
-    0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1b, 0x1c, 0xFF, /* 0x1053 s6 */
-    0x0a, 0x0c, 0xFF /* 0x105c s7 */
+    0x01, 0x02, 0x03, 0x02, 0xFF, // 0x1036 s1
+    0x05, 0x06, 0x07, 0x08, 0x09, 0x06, 0x05, 0x04, 0xFF, // 0x103b s2
+    0x0a, 0x0b, 0xFF, // 0x1044 s3
+    0x0a, 0x0d, 0x0e, 0x0f, 0x0e, 0x0d, 0xFF, // 0x1047 s4
+    0x11, 0x12, 0x11, 0x0d, 0xFF, // 0x104e s5
+    0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1b, 0x1c, 0xFF, // 0x1053 s6
+    0x0a, 0x0c, 0xFF // 0x105c s7
 };
 
-static uint8_t _phase = PH_FADEWAIT; /* the machine _phase                   */
-static uint8_t _step; /* the in-_phase op counter             */
-static uint8_t _wait_left; /* 297f's AX                           */
-static uint8_t _key_caught; /* the JNS's source                    */
-static uint8_t _present_left; /* 835a's 0x4B cycles                  */
-static uint8_t _swap_next; /* the 2bda's tail's next _phase        */
-static uint8_t _game_over_mode; /* level_intro_screen 2739's variant   */
+static uint8_t _phase = PH_FADEWAIT; // the machine _phase
+static uint8_t _step; // the in-_phase op counter
+static uint8_t _wait_left; // 297f's AX
+static uint8_t _key_caught; // the JNS's source
+static uint8_t _present_left; // 835a's 0x4B cycles
+static uint8_t _swap_next; // the 2bda's tail's next _phase
+static uint8_t _game_over_mode; // level_intro_screen 2739's variant
 static uint8_t _sw_phase = SW_FADEWAIT;
 
 void party_intro_seed_scripts(const uint8_t *bytes, uint32_t len)
@@ -223,7 +223,7 @@ void party_intro_seed_scripts(const uint8_t *bytes, uint32_t len)
     }
 }
 
-void party_intro_seed_slots(const uint8_t *raw) /* the 128 B at DS:0xFA8 */
+void party_intro_seed_slots(const uint8_t *raw) // the 128 B at DS:0xFA8
 {
     if (!raw) {
         memset(_slots, 0, sizeof _slots);
@@ -254,9 +254,9 @@ void party_intro_format_score(uint32_t v, char *out)
 {
     static const uint32_t divs[8] = { 100000000u, 10000000u, 1000000u, 100000u,
                                       10000u,     1000u,     100u,     10u };
-    uint8_t sig = 0; /* 2b70's DI           */
+    uint8_t sig = 0; // 2b70's DI
     for (uint16_t i = 0; i < 8u; i++) {
-        uint32_t q = v / divs[i]; /* the 2b72 subcount   */
+        uint32_t q = v / divs[i]; // the 2b72 subcount
         if (q != 0) {
             *out++ = (char)('0' + q);
             sig = 0x30u;
@@ -265,7 +265,7 @@ void party_intro_format_score(uint32_t v, char *out)
         }
         v %= divs[i];
     }
-    *out++ = (char)('0' + (v % 10u)); /* 2b68                */
+    *out++ = (char)('0' + (v % 10u)); // 2b68
     *out = '\0';
 }
 
@@ -288,7 +288,7 @@ static char *_put_number(char *dst, uint32_t v)
         v /= 10u;
     } while (v && n < 10u);
     for (uint16_t i = 0; i < n; i++) dst[i] = buf[n - 1u - i];
-    return dst + n; /* the formatter's SI          */
+    return dst + n; // the formatter's SI
 }
 
 /** @brief the string appender at 0x2660: the tail replaces whatever the template
@@ -308,13 +308,13 @@ static char *_append_str(char *dst, const char *src)
 /**
  * @brief === the A000 helpers ==================================================
  */
-static void _clear_canvas(void) /* 2af5: rows 20..87 = 0x640..0x1B80 */
+static void _clear_canvas(void) // 2af5: rows 20..87 = 0x640..0x1B80
 { memset(video_arena() + 0x640u, 0, 68u * 80u); }
 
 /**
  * @brief The intro's page flip.
  */
-static void _flip_page(void) /* 87f8                                */
+static void _flip_page(void) // 87f8
 {
     uint16_t t = _page_draw;
     _page_draw = _page_disp;
@@ -341,7 +341,7 @@ static void _bake_page(const uint8_t *bit, uint32_t pagebase)
 static void _band_stamp(uint32_t pagebase)
 {
     for (uint16_t row = 0; row < 68u; row++) {
-        uint8_t m = _ramp_tbl[row + 16u]; /* 2c1d's OUT 3CF = CS:0x2E0E+row */
+        uint8_t m = _ramp_tbl[row + 16u]; // 2c1d's OUT 3CF = CS:0x2E0E+row
         uint16_t a = (uint16_t)(pagebase + 0x6E8u + row * 88u);
         const uint8_t *src = video_arena() + 0x640u + row * 80u;
         for (uint16_t k = 0; k < 80u; k++) {
@@ -363,7 +363,7 @@ static void _blit_slot(uint32_t frame)
     uint32_t di = (uint32_t)_stamp_dest + (uint32_t)_page_draw + 8u;
     enum {
         MASK = 0x40u
-    }; /* 28e9's 299b(AH=0x40) live pin */
+    }; // 28e9's 299b(AH=0x40) live pin
     for (uint16_t r = 0; r < 24u; r++) {
         for (uint16_t w = 0; w < 4u; w++) {
             uint8_t c = s[r * 4u + w];
@@ -372,7 +372,7 @@ static void _blit_slot(uint32_t frame)
              * byte (the +0xC0 story lives in the palette table, not here). */
             video_vram_wm2((uint16_t)(di + w), c, MASK);
         }
-        di += 88u; /* 4 written + ADD DI,0x54 = 88      */
+        di += 88u; // 4 written + ADD DI,0x54 = 88
     }
 }
 
@@ -390,9 +390,9 @@ static void _blit_slot(uint32_t frame)
 void party_intro_marquee_for_probe(uint16_t phase, uint16_t cell, uint16_t *src,
                                    uint16_t *dhi)
 {
-    uint16_t v = (uint16_t)(cell * 4u + (phase & 3u)); /* 2a76..2a83 */
-    if (src) *src = u16(v * 320u); /* 2a85..2a8d: v*256 + v*64 */
-    if (dhi) *dhi = (uint16_t)(0x2260u + phase / 4u); /* 2a8f..2a95 */
+    uint16_t v = (uint16_t)(cell * 4u + (phase & 3u)); // 2a76..2a83
+    if (src) *src = u16(v * 320u); // 2a85..2a8d: v*256 + v*64
+    if (dhi) *dhi = (uint16_t)(0x2260u + phase / 4u); // 2a8f..2a95
 }
 
 /**
@@ -401,24 +401,23 @@ void party_intro_marquee_for_probe(uint16_t phase, uint16_t cell, uint16_t *src,
 static void _marquee(void)
 {
     _marq_phase++;
-    if (_marq_phase == 0x160u) _marq_phase = 0u; /* INC; CMP 0x160          */
-    _marq_hold--; /* 2a4c: DEC first, then test */
+    if (_marq_phase == 0x160u) _marq_phase = 0u; // INC; CMP 0x160
+    _marq_hold--; // 2a4c: DEC first, then test
     if (_marq_hold == 0u) {
         _marq_hold = 5u;
         _marq_cell = (_marq_cell + 1u) % 0xCu;
     }
 
     uint16_t src, dhi;
-    party_intro_marquee_for_probe(_marq_phase, _marq_cell, &src,
-                                  &dhi);
+    party_intro_marquee_for_probe(_marq_phase, _marq_cell, &src, &dhi);
 
     enum {
         MASK = 0x40u
-    }; /* 28e9's 299b(AH=0x40) covers 2a3a  */
+    }; // 28e9's 299b(AH=0x40) covers 2a3a
     for (uint16_t r = 0; r < 32u; r++) {
         uint16_t di = _page_draw + dhi + r * 88u;
         for (uint16_t k = 0; k < 10u; k++) {
-            uint8_t c = _strip[src + r * 10u + k]; /* 5 LODSW = 10 B/row    */
+            uint8_t c = _strip[src + r * 10u + k]; // 5 LODSW = 10 B/row
             video_vram_wm2((uint16_t)(di + k), c, MASK);
         }
     }
@@ -436,23 +435,23 @@ static void _anim_entities(void)
         if (s->count == 0u) {
             s->count = 8u;
             dl = 1u;
-        } /* 2909..2912 */
-        for (uint16_t pass = 0; pass < 40u; pass++) { /* the 2914 walk */
+        } // 2909..2912
+        for (uint16_t pass = 0; pass < 40u; pass++) { // the 2914 walk
             if (s->script == 0u || s->script > SCRIPT_COUNT) break;
             const struct Script *sc = &_scripts[s->script - 1u];
             if (sc->b == NULL || sc->len == 0u) break;
-            uint8_t bx = s->fpos; /* 2920: BX = [SI+4] */
-            s->fpos = (uint8_t)(bx + dl); /* 2925: ADD before the read */
-            uint8_t dh = sc->b[bx]; /* 2928 */
-            if (dh != 0xFFu) { /* 292a: the stamp */
+            uint8_t bx = s->fpos; // 2920: BX = [SI+4]
+            s->fpos = (uint8_t)(bx + dl); // 2925: ADD before the read
+            uint8_t dh = sc->b[bx]; // 2928
+            if (dh != 0xFFu) { // 292a: the stamp
                 _stamp_dest = s->dst;
                 _blit_slot(dh);
-                break; /* 295f: next slot */
+                break; // 295f: next slot
             }
-            uint8_t cl = ((uint32_t)s->loopc + 1u) % 10u; /* 292f..293b */
+            uint8_t cl = ((uint32_t)s->loopc + 1u) % 10u; // 292f..293b
             s->loopc = cl;
-            s->script = s->sub[cl]; /* the sub-list ids */
-            s->fpos = 0u; /* 294a, redo 2914 */
+            s->script = s->sub[cl]; // the sub-list ids
+            s->fpos = 0u; // 294a, redo 2914
             if (s->script == 0u || s->script > SCRIPT_COUNT) break;
         }
     }
@@ -500,8 +499,8 @@ static void _intro_anim(void)
     _anim_entities();
     _band_stamp(_page_draw);
     _anim_entities();
-    memcpy(_pal_upper, _prevpal, 0x180u); /* 2bbf..2bc8: 0x1208 -> 0x4d3c */
-    palette_build_fade(0x80u, 0x80u, 0x28u, _pal_upper); /* 2bca: BX=0x80 */
+    memcpy(_pal_upper, _prevpal, 0x180u); // 2bbf..2bc8: 0x1208 -> 0x4d3c
+    palette_build_fade(0x80u, 0x80u, 0x28u, _pal_upper); // 2bca: BX=0x80
 }
 
 /** @brief 2bda fade_and_animate - verbatim _phase-split: 2bda runs [28d0]; builds
@@ -517,10 +516,10 @@ static void _intro_anim(void)
  */
 static void _swap_begin(uint32_t next)
 {
-    _copy_palette(); /* 2bda (28d0)          */
+    _copy_palette(); // 2bda (28d0)
     palette_build_fade(0x80u, 0x80u, 0x28u, _pal_upper);
-    _swap_next = (uint8_t)next; /* 0xFF = no next phase */
-    _sw_phase = SW_FADEWAIT; /* 2bec: the fade runs  */
+    _swap_next = (uint8_t)next; // 0xFF = no next phase
+    _sw_phase = SW_FADEWAIT; // 2bec: the fade runs
     _phase = PH_SWAPWAIT;
 }
 
@@ -685,18 +684,18 @@ uint8_t party_intro_start(void)
     _present_left = 0u;
     _sw_phase = SW_FADEWAIT;
     _page_draw = 0x1200u;
-    _page_disp = 0x8100u; /* 2519/2523               */
+    _page_disp = 0x8100u; // 2519/2523
     /* 2a3a's counters are static DS data: [0xf9c]=0, [0xf9e]=0, [0xfa6]=1
      * (the MZ image; a 0 hold DEC-wraps and freezes the flap on run 1) */
     _marq_phase = 0u;
     _marq_cell = 0u;
     _marq_hold = 1u;
     video_vram_clear();
-    memset(_ramp_tbl, 0xE0u, sizeof _ramp_tbl); /* the table's clean state */
+    memset(_ramp_tbl, 0xE0u, sizeof _ramp_tbl); // the table's clean state
     _clear_canvas();
-    _seed_slots_live(); /* the DS:0xFA8's [live]   */
+    _seed_slots_live(); // the DS:0xFA8's [live]
 
-    b = _load("APL\\PARTY.SPR"); /* 2570                    */
+    b = _load("APL\\PARTY.SPR"); // 2570
     if (!b) return 0;
     {
         uint8_t ok = (uint8_t)(_expand_nibbles(b, 0x570u, _sheet));
@@ -704,26 +703,26 @@ uint8_t party_intro_start(void)
         if (!ok) return 0;
     }
 
-    b = _load("APL\\BIRDY.SPR"); /* 257c                    */
+    b = _load("APL\\BIRDY.SPR"); // 257c
     if (!b) return 0;
     _rescale_rows(b);
     free(b);
 
     {
-        uint8_t d = (uint8_t)(_g_level & 7u) + 1u; /* 2519: '1'+(lvl&7) */
+        uint8_t d = (uint8_t)(_g_level & 7u) + 1u; // 2519: '1'+(lvl&7)
         sprintf(name, "LBM\\PARTY%u.PAL", d);
     }
-    b = _load(name); /* 2588                    */
+    b = _load(name); // 2588
     if (!b) return 0;
-    palette_load_working(b); /* 2591 (8d24): -> 0x4bbc  */
+    palette_load_working(b); // 2591 (8d24): -> 0x4bbc
     memcpy(_workpal, palette_working(), 768u);
     free(b);
 
-    b = _load("LBM\\PARTY1.BIT"); /* 259a                    */
+    b = _load("LBM\\PARTY1.BIT"); // 259a
     if (!b) return 0;
     _bit_img = b;
 
-    b = _load("APL\\TEXT.SPR"); /* 25af                    */
+    b = _load("APL\\TEXT.SPR"); // 25af
     if (b) {
         _font_bytes = b;
         font_publish(b);
@@ -748,12 +747,12 @@ uint8_t party_intro_start(void)
 /** @brief the bake + palette the fade held back (1000:25ca..25dd). */
 static void _party_begin(void)
 {
-    _bake_page(_bit_img, _page_draw); /* 25ca..25d8: the bake x2 */
+    _bake_page(_bit_img, _page_draw); // 25ca..25d8: the bake x2
     _anim_entities();
     _bake_page(_bit_img, _page_draw);
 
-    _copy_palette(); /* 25da (28d0)             */
-    palette_build_fade(0u, 0x100u, 0x23u, _workpal); /* 25dd */
+    _copy_palette(); // 25da (28d0)
+    palette_build_fade(0u, 0x100u, 0x23u, _workpal); // 25dd
 }
 
 /* === the ticker =============================================================== */
@@ -764,7 +763,7 @@ uint8_t party_intro_tick(const InputState *in)
     uint8_t anyk = (in->lastKey != 0u);
 
     switch (_phase) {
-    case PH_MUSIC: /* 2564-256d's timing_loop: the bake waits for it */
+    case PH_MUSIC: // 2564-256d's timing_loop: the bake waits for it
         if (audio_fade_busy()) return 1;
         _party_begin();
         _phase = PH_FADEWAIT;
@@ -781,16 +780,15 @@ uint8_t party_intro_tick(const InputState *in)
     case PH_SWAPWAIT: /* 2bec..2c1c: the fade wait,
                                                 * THEN the tail (verbatim the
                                                 * order inside 2bda)         */
-        _anim_entities(); /* 2bec's 28e9                */
+        _anim_entities(); // 2bec's 28e9
         if (_sw_phase == SW_FADEWAIT) {
-            if (!palette_fade_active())
-                _sw_phase = SW_TAIL; /* 2bf2's JC out  */
-            break; /* no tail before the fade ends */
+            if (!palette_fade_active()) _sw_phase = SW_TAIL; // 2bf2's JC out
+            break; // no tail before the fade ends
         }
         /* the 2bf4 tail: the mask reset + clear + band redraws, once */
         memset(_ramp_tbl, 0xE0u,
-               sizeof _ramp_tbl); /* 2bf4: the 0x96 fill     */
-        _clear_canvas(); /* 2c01 (2af5)         */
+               sizeof _ramp_tbl); // 2bf4: the 0x96 fill
+        _clear_canvas(); // 2c01 (2af5)
         _band_stamp(_page_draw);
         _anim_entities();
         _band_stamp(_page_draw);
@@ -801,25 +799,25 @@ uint8_t party_intro_tick(const InputState *in)
         } else if (_swap_next == PH_SET2) {
             _phase = PH_SET2;
             _step = 0u;
-        } else { /* the exit: 270e's tail   */
-            _clear_canvas(); /* 270e (2af5)            */
+        } else { // the exit: 270e's tail
+            _clear_canvas(); // 270e (2af5)
             {
                 static uint8_t black[768];
-                palette_build_fade(0u, 0x100u, 0x23u, black); /* 2711 */
+                palette_build_fade(0u, 0x100u, 0x23u, black); // 2711
             }
             _phase = PH_EXITWAIT;
         }
-        _sw_phase = SW_FADEWAIT; /* the tail ran once          */
+        _sw_phase = SW_FADEWAIT; // the tail ran once
         break;
 
-    case PH_SET1: /* 2600..268d             */
+    case PH_SET1: // 2600..268d
         switch (_step) {
-        case 0u: /* 2600..2611              */
+        case 0u: // 2600..2611
             _clear_canvas();
             *_put_number(
                 _s_all +
                     game_strs_num_offset[g_game_lang][GAME_STR_PARTY_COMING_UP],
-                _g_level) = '\0'; /* 260e    */
+                _g_level) = '\0'; // 260e
             _draw_text_ramped(_s_all, 0xA0u, 0x14u);
             break;
         case 1u: /* 2623..263a: no NUL - the
@@ -832,17 +830,17 @@ uint8_t party_intro_tick(const InputState *in)
             _draw_text_ramped(_s_need, 0xA0u, 0x28u);
             break;
         case 2u:
-            _draw_text_ramped(_s_this, 0xA0u, 0x34u); /* 2640    */
+            _draw_text_ramped(_s_this, 0xA0u, 0x34u); // 2640
             break;
-        case 3u: /* 2652..268a              */
+        case 3u: // 2652..268a
         {
             char *q = _append_str(
                 _put_number(
                     _s_has +
                         game_strs_num_offset[g_game_lang][GAME_STR_PARTY_HAS],
                     _g_members),
-                game_strs[g_game_lang][GAME_STR_PARTY_MEMBERS_TAIL]); /* 2660 */
-            if (_g_members == 1u) { /* 266d..267a              */
+                game_strs[g_game_lang][GAME_STR_PARTY_MEMBERS_TAIL]); // 2660
+            if (_g_members == 1u) { // 266d..267a
                 q -= 3;
                 *q = '!';
                 *(q + 1u) = '\0';
@@ -860,36 +858,36 @@ uint8_t party_intro_tick(const InputState *in)
         }
         break;
 
-    case PH_SET1_WAIT: /* 2693..2699              */
+    case PH_SET1_WAIT: // 2693..2699
         _anim_entities();
         if (fire || anyk) {
             _key_caught = 1;
             _wait_left = 0u;
         } else if (_wait_left) _wait_left--;
         if (!_wait_left) {
-            if (_key_caught) _swap_begin((uint32_t)-1); /* 270b          */
+            if (_key_caught) _swap_begin((uint32_t)-1); // 270b
             else _swap_begin(PH_SET2);
         }
         break;
 
-    case PH_SET2: /* 269e..26f7              */
+    case PH_SET2: // 269e..26f7
         switch (_step) {
         case 0u:
-            _clear_canvas(); /* 269e (2af5)             */
-            _draw_text_ramped(_s_code, 0xA0u, 0x14u); /* 26a1    */
+            _clear_canvas(); // 269e (2af5)
+            _draw_text_ramped(_s_code, 0xA0u, 0x14u); // 26a1
             break;
         case 1u:
-            _draw_text_ramped(_g_tribe, 0xA0u, 0x20u); /* 26b3    */
+            _draw_text_ramped(_g_tribe, 0xA0u, 0x20u); // 26b3
             break;
         case 2u:
             *_put_number(
                 _s_score +
                     game_strs_num_offset[g_game_lang][GAME_STR_PARTY_SCORE],
-                _g_score) = '\0'; /* 26d3    */
+                _g_score) = '\0'; // 26d3
             _draw_text_ramped(_s_score, 0xA0u, 0x34u);
             break;
         case 3u:
-            _draw_text_ramped(_s_fire, 0xA0u, 0x48u); /* 26e8    */
+            _draw_text_ramped(_s_fire, 0xA0u, 0x48u); // 26e8
             break;
         }
         if (_step < 3u) _step++;
@@ -908,7 +906,7 @@ uint8_t party_intro_tick(const InputState *in)
             _wait_left = 0u;
         } else if (_wait_left) _wait_left--;
         if (!_wait_left) {
-            if (_key_caught) _swap_begin((uint32_t)-1); /* 270b          */
+            if (_key_caught) _swap_begin((uint32_t)-1); // 270b
             else _swap_begin(PH_SET1);
         }
         break;
@@ -933,18 +931,18 @@ uint8_t party_intro_tick(const InputState *in)
         if (fire || anyk) _swap_begin((uint32_t)-1);
         break;
 
-    case PH_EXITWAIT: /* 2720: {28e9; 8b9a; JC}  */
+    case PH_EXITWAIT: // 2720: {28e9; 8b9a; JC}
         _anim_entities();
         if (!palette_fade_active()) {
             _phase = PH_PRESENT;
             _present_left = 0x4Bu;
-            audio_fade_out(); /* 1000:2728 present_frames_75 */
+            audio_fade_out(); // 1000:2728 present_frames_75
         }
         break;
 
-    case PH_PRESENT: /* 2728 (835a), 272b       */
+    case PH_PRESENT: // 2728 (835a), 272b
         if (_present_left) _present_left--;
-        else if (audio_fade_busy()) return 1; /* the original's 2x wait */
+        else if (audio_fade_busy()) return 1; // the original's 2x wait
         else {
             /* 1000:272B: the music_stop that ends present_frames_75. */
             audio_music_stop();
@@ -960,7 +958,7 @@ uint8_t party_intro_tick(const InputState *in)
      * flat 320x200 page 0 for videoPresent */
     party_intro_compose(video_page(0));
 
-    if (_phase == PH_DONE) return 0; /* the screen exited       */
+    if (_phase == PH_DONE) return 0; // the screen exited
     return 1;
 }
 

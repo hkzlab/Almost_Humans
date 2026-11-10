@@ -92,10 +92,10 @@ int main(int argc, char **argv)
         assert(note->slot[0].note_entry == 0x0157);
         assert((note->shadow[0xA0] | ((note->shadow[0xB0] & 3u) << 8)) ==
                0x0157);
-        _note_on(note, 0, 7); /* HUMFX's note: fnum 0, block 0 */
+        _note_on(note, 0, 7); // HUMFX's note: fnum 0, block 0
         assert(note->slot[0].note_entry == 0x0000);
         assert(note->shadow[0xA0] == 0x00);
-        assert((note->shadow[0xB0] & 0x7Fu) == 0x20); /* key-on, block 0 */
+        assert((note->shadow[0xB0] & 0x7Fu) == 0x20); // key-on, block 0
         _adlib_destroy(note);
     }
 
@@ -126,8 +126,8 @@ int main(int argc, char **argv)
         assert(fade != NULL);
         _adlib_load_tune(fade, img, (uint32_t)n);
         assert(_adlib_start_event(fade, 0) == 0);
-        _adlib_set_tempo(fade, 0); /* music_resume's CL=0 */
-        for (i = 0; i < 150; i++) { /* timing_loop: 0..0x4A, two ticks each */
+        _adlib_set_tempo(fade, 0); // music_resume's CL=0
+        for (i = 0; i < 150; i++) { // timing_loop: 0..0x4A, two ticks each
             if (step < 0x4Au && --wait == 0) {
                 wait = 2;
                 step++;
@@ -136,7 +136,7 @@ int main(int argc, char **argv)
             phase++;
             if (phase != 3u) _adlib_tick(fade);
             g_sound_driver_adlib.generate(fade, pcm,
-                                          686); /* one 70 Hz period */
+                                          686); // one 70 Hz period
             for (k = 0; k < 686u * 2u; k++) {
                 int32_t v = pcm[k] < 0 ? -pcm[k] : pcm[k];
                 if ((uint32_t)v > peak) peak = (uint32_t)v;
@@ -148,7 +148,7 @@ int main(int argc, char **argv)
 
     drv = _adlib_create(48000);
     assert(drv != NULL);
-    _adlib_set_tempo(drv, 0x4A); /* the boot fade's last step -> 0x2F */
+    _adlib_set_tempo(drv, 0x4A); // the boot fade's last step -> 0x2F
     _adlib_load_tune(drv, img, (uint32_t)n);
     assert(_adlib_start_event(drv, 0) == 0);
 
@@ -164,7 +164,7 @@ int main(int argc, char **argv)
         for (i = 0; i < 198; i++) _adlib_tick(drv);
         for (k = 0; k < 4800; k++)
             g_sound_driver_adlib.generate(drv, pcm + 2 * k, 1);
-        assert(drv->shadow[0xB0] & 0x20u); /* voice 0 keyed */
+        assert(drv->shadow[0xB0] & 0x20u); // voice 0 keyed
         v0 = _tone_share(pcm, 4800, _voice_hz(drv, 0));
         v1 = _tone_share(pcm, 4800, _voice_hz(drv, 1));
         assert(v0 > 0.03);
@@ -177,7 +177,7 @@ int main(int argc, char **argv)
      * order 3 row 59.  The former bits-3..0 decode left voice 6 at zero here
      * and dropped every percussion cell in the tune. */
     assert(drv->slot[6].note == 57u && drv->slot[6].instrument == 17u);
-    assert(drv->shadow[0xBD] == 0x30u); /* rhythm mode + BD keyed */
+    assert(drv->shadow[0xBD] == 0x30u); // rhythm mode + BD keyed
     assert(drv->shadow[0xA6] == 0x43u && drv->shadow[0xB6] == 0x0Eu);
 
     for (; i < 2314; i++) _adlib_tick(drv);
@@ -244,7 +244,7 @@ int main(int argc, char **argv)
         v->command = 2u;
         v->param = 1u;
         _tick_command(drv, 0);
-        assert(v->fnum == 0x28Eu); /* 0x28A + (0x142 - 0x13E), octave 4 -> 3 */
+        assert(v->fnum == 0x28Eu); // 0x28A + (0x142 - 0x13E), octave 4 -> 3
         assert(v->octave == 3u);
 
         v->fnum = 0x2ACu;
@@ -252,16 +252,16 @@ int main(int argc, char **argv)
         v->command = 1u;
         v->param = 1u;
         _tick_command(drv, 0);
-        assert(v->fnum == 0x157u); /* (0x2AE - 0x2AE) + 0x157 */
+        assert(v->fnum == 0x157u); // (0x2AE - 0x2AE) + 0x157
         assert(v->octave == 4u);
 
         v->fnum = 0x140u;
         v->octave = 4u;
         v->command = 3u;
-        v->param = 0u; /* the portamento's speed is latched by note cmd 3 */
+        v->param = 0u; // the portamento's speed is latched by note cmd 3
         v->slide_step = 1u;
         v->slide_dir = 0u;
-        v->slide_target = 0x1000u; /* below the entry: the slide continues */
+        v->slide_target = 0x1000u; // below the entry: the slide continues
         _tick_command(drv, 0);
         assert(v->fnum == 0x28Eu && v->octave == 3u);
 
@@ -269,12 +269,12 @@ int main(int argc, char **argv)
         v->command = 0x0Au;
         v->param = 0x18u;
         _tick_command(drv, 0);
-        assert(v->volume == 0x31u); /* high nibble adds */
+        assert(v->volume == 0x31u); // high nibble adds
         v->param = 0x02u;
         _tick_command(drv, 0);
-        assert(v->volume == 0x2Fu); /* low nibble subtracts */
+        assert(v->volume == 0x2Fu); // low nibble subtracts
 
-        v->fnum = 0x1ABu; /* every RET entry leaves the slot alone */
+        v->fnum = 0x1ABu; // every RET entry leaves the slot alone
         v->octave = 5u;
         v->volume = 0x20u;
         v->command = 4u;

@@ -13,15 +13,15 @@
 #include "width.h"
 
 static const OSystem *_pal_osys;
-static uint8_t _working[768];   /* 202F:0x4BBC - the _working palette       */
-static uint8_t _dac[768];       /* the DAC's 6-bit shadow (8bac's IN 3C9h) */
+static uint8_t _working[768];   // 202F:0x4BBC - the _working palette
+static uint8_t _dac[768];       // the DAC's 6-bit shadow (8bac's IN 3C9h)
 
 /* the fade state: 202F:0x48B0/48B2/48B6/48B8 + the 0x4EBC _ramp          */
-static uint16_t _fade_first;    /* [0x48B8]: the DAC's first entry    */
-static uint16_t _fade_comps;    /* [0x48B0]: components (entries * 3) */
-static const uint8_t *_fade_target;   /* [0x48B6]: the target palette bytes */
-static uint8_t _fade_active;   /* [0x48B4]                           */
-static uint16_t _ramp[768][2]; /** [0x4EBC]: {cur<<8, delta<<8}       */
+static uint16_t _fade_first;    // [0x48B8]: the DAC's first entry
+static uint16_t _fade_comps;    // [0x48B0]: components (entries * 3)
+static const uint8_t *_fade_target;   // [0x48B6]: the target palette bytes
+static uint8_t _fade_active;   // [0x48B4]
+static uint16_t _ramp[768][2]; // [0x4EBC]: {cur<<8, delta<<8}
 
 int32_t palette_init(const OSystem *osys)
 {
@@ -88,7 +88,7 @@ void palette_tick(void)
             cur = (uint16_t)(cur + _ramp[c][1]);
             _ramp[c][0] = cur;
             v = (uint8_t)(cur >> 8);
-            if (_ramp[c][1] & 0x8000u) {           /* negative delta        */
+            if (_ramp[c][1] & 0x8000u) {           // negative delta
                 if (v < t) {
                     v = t;
                     _ramp[c][0] =

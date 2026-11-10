@@ -107,7 +107,7 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    res_set_disc(1);                          /* the level disc HUMANS.001 */
+    res_set_disc(1);                          // the level disc HUMANS.001
 
     /* level A's [live] values */
     party_intro_set_values(1u, 4u, 12u, 0u, "DARWIN");

@@ -55,7 +55,7 @@
 
 #define TEXT_LIMIT 96u
 
-static const uint8_t *_tp_box;          /* APL\BOX.SPR: 9 x 16x16 tiles */
+static const uint8_t *_tp_box;          // APL\BOX.SPR: 9 x 16x16 tiles
 
 /* [0x1E20]: the text arena.  The original carves 0x640 paragraphs = 25600 B =
  * 320 rows x 80 (init_buffer_ptrs 1000:31e9); the port keeps the 20 rows a
@@ -125,7 +125,7 @@ static void _scroll_text_measure(const char *text, uint32_t *tiles,
         if (w > maxAdv) maxAdv = w;
         nlines++;
         if (*end == 0) break;
-        p = end + 1;                    /* past the CR */
+        p = end + 1;                    // past the CR
         if (*p == 0) {
             nlines++;
             break;
@@ -402,7 +402,7 @@ void textpage_draw(uint8_t *page, const char *text, int32_t cursorRow,
                 n++;
             }
             line[n] = 0;
-            uint8_t pre = (uint8_t)(1u + 3u * cursorCol); /* " 01 05 ..." */
+            uint8_t pre = (uint8_t)(1u + 3u * cursorCol); // " 01 05 ..."
             char prebuf[24];
             uint8_t k = pre < n ? pre : n;
             memcpy(prebuf, line, k);

@@ -44,11 +44,11 @@
 
 static const SoundDriverModule *_module = &g_sound_driver_adlib;
 static const char *_module_name = "AdLib";
-static int32_t _driver_id = 1; /* [0x5AFE]: 0 Beeper, 1 AdLib, 3 MT-32 */
+static int32_t _driver_id = 1; // [0x5AFE]: 0 Beeper, 1 AdLib, 3 MT-32
 static SoundDriver *_driver;
 static SDL_AudioStream *_stream;
 static SDL_Mutex *_lock;
-static uint16_t _voice = 0xFFFFu; /* the current cmd-5 handle ([0x5AF0]) */
+static uint16_t _voice = 0xFFFFu; // the current cmd-5 handle ([0x5AF0])
 /* The game-tick grid in samples: SDL3_AUDIO_RATE / GAME_TICK_HZ.  _tick_acc
  * counts in frames * GAME_TICK_HZ, so a tick is due when it reaches
  * SDL3_AUDIO_RATE - exact integer arithmetic, no drift. */

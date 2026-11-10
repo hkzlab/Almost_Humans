@@ -82,16 +82,16 @@
  * of letting the directory order decide.  The ids are mt32emu's own
  * `control_rom_id`/`pcm_rom_id` (mt32emu_get_rom_ids). */
 static const char *_rom_preference[][2] = {
-    { "ctrl_mt32_2_07", "pcm_mt32" }, /* MT-32 "new", latest revision */
+    { "ctrl_mt32_2_07", "pcm_mt32" }, // MT-32 "new", latest revision
     { "ctrl_mt32_2_06", "pcm_mt32" },
     { "ctrl_mt32_2_04", "pcm_mt32" },
     { "ctrl_mt32_2_03", "pcm_mt32" },
-    { "ctrl_mt32_1_07", "pcm_mt32" }, /* MT-32 "old", latest revision */
+    { "ctrl_mt32_1_07", "pcm_mt32" }, // MT-32 "old", latest revision
     { "ctrl_mt32_1_06", "pcm_mt32" },
     { "ctrl_mt32_1_05", "pcm_mt32" },
     { "ctrl_mt32_1_04", "pcm_mt32" },
     { "ctrl_mt32_bluer", "pcm_mt32" },
-    { "ctrl_cm32l_1_02", "pcm_cm32l" }, /* only when no MT-32 ROM is here */
+    { "ctrl_cm32l_1_02", "pcm_cm32l" }, // only when no MT-32 ROM is here
     { "ctrl_cm32l_1_00", "pcm_cm32l" },
     { "ctrl_cm32ln_1_00", "pcm_cm32l" }
 };
@@ -112,61 +112,61 @@ static const uint16_t _period[108] = {
 
 /* Every byte of the driver's 32-byte MIDI slot (CS:0x1401 + slot*0x20). */
 typedef struct Mt32Slot {
-    uint8_t note[4];      /* +0x00 four chord notes, 0 = none      */
-    uint8_t instrument;   /* +0x04 1-based, 0 = no change          */
-    uint8_t command;      /* +0x05 table index (cmd & 0x1F)        */
-    uint8_t param;        /* +0x06                                 */
-    uint8_t volume;       /* +0x07  0..0x40                        */
-    uint16_t bend;        /* +0x08  centre 0x2000                  */
-    uint8_t last_note;    /* +0x0A                                 */
-    uint8_t last_program; /* +0x0B  0xFF = nothing sent yet        */
-    uint16_t slide_target;/* +0x0C  period, 0 = no slide           */
-    uint8_t slide_dir;    /* +0x0E  0 down, 1 up                    */
-    uint8_t slide_step;   /* +0x0F                                */
-    uint16_t slide_acc;   /* +0x10                                */
-    uint8_t slide_note;   /* +0x12  the note the slide lands on    */
+    uint8_t note[4];      // +0x00 four chord notes, 0 = none
+    uint8_t instrument;   // +0x04 1-based, 0 = no change
+    uint8_t command;      // +0x05 table index (cmd & 0x1F)
+    uint8_t param;        // +0x06
+    uint8_t volume;       // +0x07  0..0x40
+    uint16_t bend;        // +0x08  centre 0x2000
+    uint8_t last_note;    // +0x0A
+    uint8_t last_program; // +0x0B  0xFF = nothing sent yet
+    uint16_t slide_target;// +0x0C  period, 0 = no slide
+    uint8_t slide_dir;    // +0x0E  0 down, 1 up
+    uint8_t slide_step;   // +0x0F
+    uint16_t slide_acc;   // +0x10
+    uint8_t slide_note;   // +0x12  the note the slide lands on
 } Mt32Slot;
 
 /* The driver's 22-byte record (CS:0x1501 + id*0x16). */
 typedef struct Mt32Record {
-    uint8_t active;              /* +0x00 0xFF while playing           */
-    uint8_t tracks;              /* +0x01                              */
-    uint8_t ticks_per_row;       /* +0x02 default 6                    */
-    uint8_t order;               /* +0x03 index into the order list    */
-    uint16_t cursor;             /* +0x04 pattern-relative byte offset */
-    uint8_t tick;                /* +0x06                              */
-    uint8_t advance;             /* +0x07 NOT toggled by cmds 0x0B/0x0D */
-    uint8_t row;                 /* +0x08 rows decoded, 0x40 = end     */
-    uint8_t loop;                /* +0x09 file +0x0C                   */
-    uint8_t first_order;         /* +0x0A                              */
-    uint8_t last_order;          /* +0x0B file +0x0B + 1               */
-    uint8_t finished;            /* +0x0C                              */
-    uint8_t track_slot[MT32_SLOTS]; /* +0x0D free-list slot numbers    */
+    uint8_t active;              // +0x00 0xFF while playing
+    uint8_t tracks;              // +0x01
+    uint8_t ticks_per_row;       // +0x02 default 6
+    uint8_t order;               // +0x03 index into the order list
+    uint16_t cursor;             // +0x04 pattern-relative byte offset
+    uint8_t tick;                // +0x06
+    uint8_t advance;             // +0x07 NOT toggled by cmds 0x0B/0x0D
+    uint8_t row;                 // +0x08 rows decoded, 0x40 = end
+    uint8_t loop;                // +0x09 file +0x0C
+    uint8_t first_order;         // +0x0A
+    uint8_t last_order;          // +0x0B file +0x0B + 1
+    uint8_t finished;            // +0x0C
+    uint8_t track_slot[MT32_SLOTS]; // +0x0D free-list slot numbers
 } Mt32Record;
 
 struct SoundDriver {
     uint32_t sampleRate;
     mt32emu_context ctx;
     uint8_t ready;
-    uint8_t volume;                   /* CS:0x108E, initial 0x4B        */
-    uint8_t track_volume[16];         /* CS:0x1070, indexed slot+1      */
-    uint8_t command_block[8];         /* CS:0x15D1, cmd 0x0E's buffer   */
+    uint8_t volume;                   // CS:0x108E, initial 0x4B
+    uint8_t track_volume[16];         // CS:0x1070, indexed slot+1
+    uint8_t command_block[8];         // CS:0x15D1, cmd 0x0E's buffer
     /* CS:0x0EAA..0x0EAC: the DT1 data command 7/8 writes and sends.  It
      * persists between messages, so command 8 keeps the mode command 7
      * left in byte 0 (the image starts 00 04 04). */
     uint8_t system_block[3];
     Mt32Slot slot[MT32_SLOTS];
     Mt32Record record[MT32_RECORDS];
-    uint8_t slot_free[MT32_SLOTS];    /* CS:0x15C1                      */
+    uint8_t slot_free[MT32_SLOTS];    // CS:0x15C1
     uint8_t *tune;
     uint32_t tune_size;
-    uint32_t off_base;                /* CS:0x13FD: 0x958 / 0x918       */
-    uint32_t record_base;             /* off_base - 0x800               */
-    uint32_t bank_base;               /* off_base + T[P]*16             */
-    uint8_t order_list[0x7F];         /* file +0x18                     */
-    uint8_t instruments[0x80];        /* file +0x98                     */
-    uint8_t trailing;                 /* file +0x118                    */
-    uint16_t offset[256];             /* CS:0x1098                      */
+    uint32_t off_base;                // CS:0x13FD: 0x958 / 0x918
+    uint32_t record_base;             // off_base - 0x800
+    uint32_t bank_base;               // off_base + T[P]*16
+    uint8_t order_list[0x7F];         // file +0x18
+    uint8_t instruments[0x80];        // file +0x98
+    uint8_t trailing;                 // file +0x118
+    uint16_t offset[256];             // CS:0x1098
     uint16_t offset_count;
     /* The mt32emu ROM buffers: mt32emu_add_rom_data does not copy, so they
      * must outlive the context.  `rom_control`/`rom_pcm` are the ids
@@ -267,10 +267,10 @@ static void _sysex(SoundDriver *drv, uint8_t a0, uint8_t a1, uint8_t a2,
     uint8_t sum = 0;
 
     buf[0] = 0xF0u;
-    buf[1] = 0x41u; /* Roland */
-    buf[2] = 0x10u; /* unit 0x10 */
-    buf[3] = 0x16u; /* MT-32 model */
-    buf[4] = 0x12u; /* DT1 */
+    buf[1] = 0x41u; // Roland
+    buf[2] = 0x10u; // unit 0x10
+    buf[3] = 0x16u; // MT-32 model
+    buf[4] = 0x12u; // DT1
     buf[5] = a0;
     buf[6] = a1;
     buf[7] = a2;
@@ -428,7 +428,7 @@ static void _slide_tick(SoundDriver *drv, unsigned slot_no)
     } else {
         uint16_t before = s->slide_acc;
         s->slide_acc = (uint16_t)(s->slide_acc - step);
-        if (s->slide_acc > before) { /* borrow: the accumulator hit zero */
+        if (s->slide_acc > before) { // borrow: the accumulator hit zero
             s->slide_target = 0;
             _note_on(drv, slot_no, s->slide_note);
             return;
@@ -484,16 +484,16 @@ static void _tick_command(Mt32Play *p, unsigned slot_no)
 
     if ((uint8_t)(s->command | s->param) == 0) return;
     switch (s->command & 0x1Fu) {
-    case 0x01: /* 0x0A82: bend += param * 0x20, then send */
+    case 0x01: // 0x0A82: bend += param * 0x20, then send
         s->bend = (uint16_t)(s->bend + (uint16_t)(s->param << 5));
         _send_bend(drv, _channel(slot_no), s);
         break;
-    case 0x02: /* 0x0AAE: bend -= param * 0x20, then send */
+    case 0x02: // 0x0AAE: bend -= param * 0x20, then send
         s->bend = (uint16_t)(s->bend - (uint16_t)(s->param << 5));
         _send_bend(drv, _channel(slot_no), s);
         break;
     case 0x03: /* 0x0C05: slide */ _slide_tick(drv, slot_no); break;
-    case 0x09: { /* 0x0A29: volume delta, then CC 7 = volume * 2 */
+    case 0x09: { // 0x0A29: volume delta, then CC 7 = volume * 2
         uint8_t high = (uint8_t)(s->param >> 4);
         uint8_t low = (uint8_t)(s->param & 0x0Fu);
         unsigned ch = _channel(slot_no);
@@ -610,11 +610,11 @@ static void _note_command(Mt32Play *p, unsigned slot_no)
     case 6: /* 0x0AC2 all notes off */ _cmd_all_notes_off(drv, slot_no); break;
     case 7: /* 0x0AD7 sysex A */ _cmd_sysex_system(drv, slot_no, 0); break;
     case 8: /* 0x0AE3 sysex B */ _cmd_sysex_system(drv, slot_no, 1); break;
-    case 0x0B: /* 0x0B44 jump: order = param-1, advance <- NOT advance */
+    case 0x0B: // 0x0B44 jump: order = param-1, advance <- NOT advance
         rec->order = (uint8_t)(s->param - 1u);
         rec->advance = (uint8_t)~rec->advance;
         break;
-    case 0x0C: /* 0x0B54 volume = min(param, 0x40), then CC 7 */
+    case 0x0C: // 0x0B54 volume = min(param, 0x40), then CC 7
         if (s->param >= 0x40u) s->param = 0x40u;
         s->volume = s->param;
         if (drv->track_volume[_channel(slot_no)] != s->volume) {
@@ -623,13 +623,13 @@ static void _note_command(Mt32Play *p, unsigned slot_no)
                   _cc_volume(s->volume));
         }
         break;
-    case 0x0D: /* 0x0B3C advance <- NOT advance */
+    case 0x0D: // 0x0B3C advance <- NOT advance
         rec->advance = (uint8_t)~rec->advance;
         break;
-    case 0x0E: /* 0x0891 mark the record finished */
+    case 0x0E: // 0x0891 mark the record finished
         rec->finished = 0xFFu;
         break;
-    case 0x0F: /* 0x0B67 ticks per row, param & 0x1F, 0 ignored */
+    case 0x0F: // 0x0B67 ticks per row, param & 0x1F, 0 ignored
         if ((s->param & 0x1Fu) != 0) {
             rec->tick = 0;
             rec->ticks_per_row = (uint8_t)(s->param & 0x1Fu);
@@ -662,7 +662,7 @@ static void _play_cell(SoundDriver *drv, Mt32Record *rec, unsigned slot_no)
             unsigned index = (unsigned)s->instrument - 1u;
             uint8_t volume;
             if (index >= 64u) index = 63u;
-            volume = drv->instruments[2u * index + 1u]; /* header high byte */
+            volume = drv->instruments[2u * index + 1u]; // header high byte
             volume = (uint8_t)(volume << 1);
             if (volume >= 0x80u) volume = 0x7Fu;
             if (s->command == 0x0Cu) {
@@ -1335,23 +1335,22 @@ static SoundDriver *_mt32_create(uint32_t sampleRate)
     }
 
     drv->volume = 0x4Bu;
-    drv->system_block[0] = 0x00u; /* CS:0x0EAA..0x0EAC's image bytes */
+    drv->system_block[0] = 0x00u; // CS:0x0EAA..0x0EAC's image bytes
     drv->system_block[1] = 0x04u;
     drv->system_block[2] = 0x04u;
     for (i = 0; i < MT32_SLOTS; i++) {
         drv->slot_free[i] = (uint8_t)i;
         drv->slot[i].last_program = 0xFFu;
     }
-    _install_reset(drv); /* 0x00DE's mt32_probe -> mt32_mpu_reset */
+    _install_reset(drv); // 0x00DE's mt32_probe -> mt32_mpu_reset
     drv->ready = 1;
     {
         mt32emu_rom_info info;
         mt32emu_get_rom_info(drv->ctx, &info);
-        fprintf(
-            stderr, "audio(mt32): mt32emu %s, %s + %s, gain %.2f, %u Hz\n",
-            mt32emu_get_library_version_string(), info.control_rom_id,
-            info.pcm_rom_id, (double)MT32_OUTPUT_GAIN,
-            mt32emu_get_actual_stereo_output_samplerate(drv->ctx));
+        fprintf(stderr, "audio(mt32): mt32emu %s, %s + %s, gain %.2f, %u Hz\n",
+                mt32emu_get_library_version_string(), info.control_rom_id,
+                info.pcm_rom_id, (double)MT32_OUTPUT_GAIN,
+                mt32emu_get_actual_stereo_output_samplerate(drv->ctx));
     }
     return drv;
 }
@@ -1444,8 +1443,8 @@ static void _mt32_load_tune(SoundDriver *drv, const uint8_t *image,
     if (patterns >= drv->offset_count) patterns = drv->offset_count - 1u;
     drv->bank_base = drv->off_base + (uint32_t)drv->offset[patterns] * 16u;
 
-    _init_timbres(drv);  /* 0x0299 */
-    _reset_voices(drv);  /* 0x029C */
+    _init_timbres(drv);  // 0x0299
+    _reset_voices(drv);  // 0x029C
 }
 
 /**

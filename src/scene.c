@@ -32,10 +32,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define ANI_NAME  "ANM\\ANI%02u.ANI"
-#define PAGE_SIZE VIDEO_PAGE_BYTES
-#define OBJ_SEG_SIZE                                                           \
-    65536u   /* the original decodes objects into a 64K segment */
+#define ANI_NAME     "ANM\\ANI%02u.ANI"
+#define PAGE_SIZE    VIDEO_PAGE_BYTES
+#define OBJ_SEG_SIZE 65536u // the original decodes objects into a 64K segment
 
 /* --- ANI image handling ------------------------------------------------
 
@@ -52,22 +51,22 @@ typedef struct {
     uint32_t image_size;
     uint32_t table_size;
     uint32_t n_entries;
-    uint32_t *entries; /* copy of the u32 offset table           */
+    uint32_t *entries; // copy of the u32 offset table
 } Ani;
 
 typedef enum {
-    SCENE_IDLE, /* not started                                */
-    SCENE_MUSIC, /* 1000:B07B's timing_loop: the first frame waits */
-    SCENE_PANEL_FADE, /* the panel's first 0x20 entries fade in     */
-    SCENE_DWELL, /* the 210-tick pre-scene dwell               */
-    SCENE_PANEL_OUT, /* the 0x20-entry fade to black before frames */
-    SCENE_PALFADE, /* the fade to the script object's palette    */
-    SCENE_QUIT_FADE, /* key-skip: the 0x100-entry fade to black    */
-    SCENE_PLAY, /* decode + draw the next object (instant)    */
-    SCENE_WAIT, /* per-object 6-tick wait                     */
-    SCENE_CHAIN, /* decide the next scene (instant)            */
-    SCENE_CHAIN_WAIT, /* wait up to 210 ticks for a key (replay)    */
-    SCENE_RESTART, /* chain advance: reload ANI (instant)        */
+    SCENE_IDLE, // not started
+    SCENE_MUSIC, // 1000:B07B's timing_loop: the first frame waits
+    SCENE_PANEL_FADE, // the panel's first 0x20 entries fade in
+    SCENE_DWELL, // the 210-tick pre-scene dwell
+    SCENE_PANEL_OUT, // the 0x20-entry fade to black before frames
+    SCENE_PALFADE, // the fade to the script object's palette
+    SCENE_QUIT_FADE, // key-skip: the 0x100-entry fade to black
+    SCENE_PLAY, // decode + draw the next object (instant)
+    SCENE_WAIT, // per-object 6-tick wait
+    SCENE_CHAIN, // decide the next scene (instant)
+    SCENE_CHAIN_WAIT, // wait up to 210 ticks for a key (replay)
+    SCENE_RESTART, // chain advance: reload ANI (instant)
     SCENE_DONE
 } ScenePhase;
 
@@ -122,38 +121,38 @@ typedef enum {
  * 1000:BDBC, shown through the initial 280-tick dwell) is ported. */
 typedef enum {
     BOOT_START,
-    BOOT_GT_PRE, /* the boot fade-to-black wait; the list decode  */
-    BOOT_GT_FADE0, /* group 0 shown; the 4-entry fast fade + wait   */
-    BOOT_GT_FRAME, /* one group shown (b29b's LOOP)                 */
-    BOOT_GT_FLIP, /* the flip-apply tick (87c7's ISR sync)         */
-    BOOT_GT_BANK_HOLD, /* the 30-tick hold before each bank cycle       */
-    BOOT_GT_BANK_A, /* bank fade -> gtpal+0x48 (BP=3) + wait         */
-    BOOT_GT_BANK_B, /* bank fade -> gtpal+0x3C (BP=0x1e) + wait      */
-    BOOT_GT_LAST_F, /* entries 0x20-0x2F -> gtpal+0x60 (BP=0x32)     */
-    BOOT_GT_HOLD, /* the 0x1a4-tick hold                           */
+    BOOT_GT_PRE, // the boot fade-to-black wait; the list decode
+    BOOT_GT_FADE0, // group 0 shown; the 4-entry fast fade + wait
+    BOOT_GT_FRAME, // one group shown (b29b's LOOP)
+    BOOT_GT_FLIP, // the flip-apply tick (87c7's ISR sync)
+    BOOT_GT_BANK_HOLD, // the 30-tick hold before each bank cycle
+    BOOT_GT_BANK_A, // bank fade -> gtpal+0x48 (BP=3) + wait
+    BOOT_GT_BANK_B, // bank fade -> gtpal+0x3C (BP=0x1e) + wait
+    BOOT_GT_LAST_F, // entries 0x20-0x2F -> gtpal+0x60 (BP=0x32)
+    BOOT_GT_HOLD, // the 0x1a4-tick hold
     BOOT_GT_OUT, /* fade all -> 0x4BBC (zeroed: nothing loaded yet
                          * - to black), BP=0x32 (bf60)                   */
     BOOT_ABORT, /* c0c6 -> JMP b60a: a held key/fire unwinds the
                          * whole boot; the final fade (div 0x23) starts   */
-    BOOT_ABORT_FADE, /* its wait (8b8b - the non-aborting spin)       */
-    BOOT_IDI_FADE, /* idi.bit shown; fade to its own palette        */
-    BOOT_IDI_HOLD, /* the 0x1a4-tick hold                           */
-    BOOT_IDI_OUT, /* fade to the zeroed ramp + wait                */
-    BOOT_FIRST_BANK, /* bank fade (16 entries at BP=0x23) + wait      */
-    BOOT_FIRST_HOLD, /* the 0x118-tick hold per bank                  */
-    BOOT_FIRST_LASTHOLD, /* bd50: the extra 0x118-tick hold after bank 7  */
-    BOOT_FIRST_OUT, /* fade to the zeroed ramp (BP=0x23) + wait      */
-    BOOT_ITB_SHOW, /* the ITB card present + its fade-in start      */
-    BOOT_CARD_FADE, /* its wait                                      */
-    BOOT_DWELL, /* the 280-tick initial dwell                    */
-    BOOT_FADEOUT, /* the post-dwell fade to the zeroed ramp (b6f2) */
-    BOOT_BLACK, /* the 0x8C-tick black hold (c0b8)               */
-    BOOT_FRAME, /* cues + scroll + sprites + display-list blit   */
-    BOOT_WAIT, /* the frame wait (4 ticks in the port; D-248)  */
-    BOOT_SCENE_HOLD, /* the scene's final 0x8C-tick hold (b7a3)       */
-    BOOT_TRANS, /* the transition's white-flash fade (b854)      */
-    BOOT_TRANS_HOLD, /* the words redraw + 0xa-tick hold (b866-b871)  */
-    BOOT_OUTRO, /* the scene-tail fade to black (b7a9, BP=0x1e)  */
+    BOOT_ABORT_FADE, // its wait (8b8b - the non-aborting spin)
+    BOOT_IDI_FADE, // idi.bit shown; fade to its own palette
+    BOOT_IDI_HOLD, // the 0x1a4-tick hold
+    BOOT_IDI_OUT, // fade to the zeroed ramp + wait
+    BOOT_FIRST_BANK, // bank fade (16 entries at BP=0x23) + wait
+    BOOT_FIRST_HOLD, // the 0x118-tick hold per bank
+    BOOT_FIRST_LASTHOLD, // bd50: the extra 0x118-tick hold after bank 7
+    BOOT_FIRST_OUT, // fade to the zeroed ramp (BP=0x23) + wait
+    BOOT_ITB_SHOW, // the ITB card present + its fade-in start
+    BOOT_CARD_FADE, // its wait
+    BOOT_DWELL, // the 280-tick initial dwell
+    BOOT_FADEOUT, // the post-dwell fade to the zeroed ramp (b6f2)
+    BOOT_BLACK, // the 0x8C-tick black hold (c0b8)
+    BOOT_FRAME, // cues + scroll + sprites + display-list blit
+    BOOT_WAIT, // the frame wait (4 ticks in the port; D-248)
+    BOOT_SCENE_HOLD, // the scene's final 0x8C-tick hold (b7a3)
+    BOOT_TRANS, // the transition's white-flash fade (b854)
+    BOOT_TRANS_HOLD, // the words redraw + 0xa-tick hold (b866-b871)
+    BOOT_OUTRO, // the scene-tail fade to black (b7a9, BP=0x1e)
     BOOT_DONE
 } BootPhase;
 
@@ -176,22 +175,22 @@ static const uint8_t _scene_bg_table[10] = { 1, 2, 3, 4, 5, 6, 8, 0, 5, 7 };
 
 static const OSystem *_scene_osys;
 static ScenePhase _scene_phase = SCENE_IDLE;
-static uint16_t _scene_level = 0xFFFFu; /* the level the intro is for */
+static uint16_t _scene_level = 0xFFFFu; // the level the intro is for
 
 static uint8_t *_ani_data;
 static Ani _ani;
-static uint8_t *_script_buf; /* decoded script object                */
+static uint8_t *_script_buf; // decoded script object
 static uint16_t _plays;
-static const uint16_t *_indices; /* into _script_buf + 2 + 768             */
-static uint8_t *_obj_buf; /* 64K segment model                    */
+static const uint16_t *_indices; // into _script_buf + 2 + 768
+static uint8_t *_obj_buf; // 64K segment model
 static uint8_t *_scoops_buf;
 static uint32_t _scoops_size;
-static uint8_t *_text_spr; /* apl\text.spr - the panel's font */
+static uint8_t *_text_spr; // apl\text.spr - the panel's font
 
 static uint8_t _cur_scene;
-static uint8_t _chain_replay; /* 210-tick wait ends in a self-replay */
+static uint8_t _chain_replay; // 210-tick wait ends in a self-replay
 static uint16_t _dwell_ticks;
-static uint8_t _panel_pal[768]; /* daily.bit's palette (masked 6-bit) */
+static uint8_t _panel_pal[768]; // daily.bit's palette (masked 6-bit)
 static uint8_t _panel_pal_valid;
 /* c537/c563's target: [0x48BC] is the 256x3 scratch ramp, and every writer
  * restores it to zero - clear_fade_ramp (1000:B90F) at boot, the level's
@@ -218,40 +217,40 @@ static InputState _scene_last_input;
 
 static BootPhase _boot_phase = BOOT_START;
 static CueScript _boot_script;
-static uint8_t *_boot_bac; /* intro\bac.bit - scroll source + palette */
-static uint8_t *_boot_treetop; /* intro\treetop.bit 140x113               */
-static uint8_t *_boot_treebot; /* intro\treebot.bit 21x59                 */
-static uint8_t *_boot_apple; /* intro\apple.spr 16x16                   */
-static uint8_t *_boot_words; /* intro\words.bit - the bar's 1-bit text  */
-static uint8_t _boot_bar[16u * VIDEO_PAGE_W]; /* the bar, rows 182-197 */
-static int8_t _boot_bar_arg = -1; /* the transition the bar holds      */
-static uint8_t *_boot_rsc; /* intro\intro.rsc - the display list      */
+static uint8_t *_boot_bac; // intro\bac.bit - scroll source + palette
+static uint8_t *_boot_treetop; // intro\treetop.bit 140x113
+static uint8_t *_boot_treebot; // intro\treebot.bit 21x59
+static uint8_t *_boot_apple; // intro\apple.spr 16x16
+static uint8_t *_boot_words; // intro\words.bit - the bar's 1-bit text
+static uint8_t _boot_bar[16u * VIDEO_PAGE_W]; // the bar, rows 182-197
+static int8_t _boot_bar_arg = -1; // the transition the bar holds
+static uint8_t *_boot_rsc; // intro\intro.rsc - the display list
 static uint32_t _boot_rsc_size;
 static uint32_t *_boot_entries;
 static uint32_t _boot_entry_count;
-static uint8_t *_boot_list_buf; /* the decoded display-list object         */
-static uint32_t _boot_list_size; /* its decoded size                        */
-static uint8_t *_boot_obj; /* the records' decoded overlay objects    */
-static uint32_t _boot_list_start; /* 0x6FEA: the records' start              */
-static uint32_t _boot_list_pos; /* [0x6468]: the current group             */
-static uint16_t _boot_frame; /* [0x6466]: the display-list group index  */
-static uint16_t _boot_group_dwell; /* [0x6460]: frames per group              */
-static uint16_t _boot_dwell_count; /* [0x6462]: the group dwell countdown     */
-static uint16_t _boot_scroll_pos; /* [0x6473]: the horizontal scroll         */
+static uint8_t *_boot_list_buf; // the decoded display-list object
+static uint32_t _boot_list_size; // its decoded size
+static uint8_t *_boot_obj; // the records' decoded overlay objects
+static uint32_t _boot_list_start; // 0x6FEA: the records' start
+static uint32_t _boot_list_pos; // [0x6468]: the current group
+static uint16_t _boot_frame; // [0x6466]: the display-list group index
+static uint16_t _boot_group_dwell; // [0x6460]: frames per group
+static uint16_t _boot_dwell_count; // [0x6462]: the group dwell countdown
+static uint16_t _boot_scroll_pos; // [0x6473]: the horizontal scroll
 static uint16_t _boot_wait_ticks;
-static uint8_t _boot_ramp[768]; /* the fade-target scratch (202F:0x48BC)   */
-static uint8_t _boot_trans_ticks; /* the 0xa-tick words hold (b869)          */
-static uint16_t _boot_bank_countdown; /* [0x644E]: the b7c0 bank-fade timer   */
-static uint8_t *_boot_gt; /* intro\gametek.rsc - the logo display list */
+static uint8_t _boot_ramp[768]; // the fade-target scratch (202F:0x48BC)
+static uint8_t _boot_trans_ticks; // the 0xa-tick words hold (b869)
+static uint16_t _boot_bank_countdown; // [0x644E]: the b7c0 bank-fade timer
+static uint8_t *_boot_gt; // intro\gametek.rsc - the logo display list
 static uint32_t _boot_gt_size;
-static uint32_t *_boot_gt_entries; /* its u32 object table                    */
+static uint32_t *_boot_gt_entries; // its u32 object table
 static uint32_t _boot_gt_entry_count;
 static uint8_t *_boot_gt_list; /* decoded object 0: [u16 count][768-byte  *
                                    * palette][u16 object index x count]      */
-static uint16_t _boot_gt_group; /* the group loop counter (b29b's CX)      */
-static uint8_t _boot_gt_bank; /* the 4-bank palette-cycle counter        */
-static uint8_t *_boot_itb; /* intro\itb.bit held until its stage      */
-static uint16_t _boot_hold; /* the stages' hold counters (c0b8's CX)   */
+static uint16_t _boot_gt_group; // the group loop counter (b29b's CX)
+static uint8_t _boot_gt_bank; // the 4-bank palette-cycle counter
+static uint8_t *_boot_itb; // intro\itb.bit held until its stage
+static uint16_t _boot_hold; // the stages' hold counters (c0b8's CX)
 
 /** @brief --- AL expander: blit_background_data (1000:B2EB) --------------------
  *
@@ -281,7 +280,7 @@ static void _scene_al_expand(const uint8_t *src, uint32_t src_size,
     while (si < src_size) {
         uint8_t cl = src[si++];
 
-        if (cl == 0) { /* [count][byte] run */
+        if (cl == 0) { // [count][byte] run
             if (si + 1 >= src_size) break;
             uint8_t count = src[si++];
             uint8_t fill = src[si++];
@@ -290,18 +289,18 @@ static void _scene_al_expand(const uint8_t *src, uint32_t src_size,
             continue;
         }
 
-        if (cl < 0x80) { /* literal copy */
+        if (cl < 0x80) { // literal copy
             for (uint16_t i = 0; i < cl && si < src_size && di < dst_size; i++)
                 dst[di++] = src[si++];
             continue;
         }
 
-        if (cl == 0x80) { /* 16-bit control word */
+        if (cl == 0x80) { // 16-bit control word
             if (si + 1 >= src_size) break;
             uint16_t cw = rd_le_u16(src + si);
             si += 2;
-            if (cw == 0) break; /* END */
-            if (!(cw & 0x8000u)) { /* skip CW bytes */
+            if (cw == 0) break; // END
+            if (!(cw & 0x8000u)) { // skip CW bytes
                 di += cw;
                 if (di > dst_size) di = dst_size;
                 continue;
@@ -309,16 +308,16 @@ static void _scene_al_expand(const uint8_t *src, uint32_t src_size,
             /* CW < 0: bit 15 set */
             uint16_t cx = (uint16_t)(cw & 0x7fff);
             uint8_t ch =
-                (uint8_t)((cw >> 8) & 0x7f); /* high byte, bit 15 cleared */
-            if (ch < 0x40) { /* copy CX bytes from stream */
+                (uint8_t)((cw >> 8) & 0x7f); // high byte, bit 15 cleared
+            if (ch < 0x40) { // copy CX bytes from stream
                 for (uint16_t i = 0; i < cx && si < src_size && di < dst_size;
                      i++)
                     dst[di++] = src[si++];
-            } else { /* fill (CX - 0x4000) bytes */
+            } else { // fill (CX - 0x4000) bytes
                 if (si >= src_size) break;
                 uint8_t fill = src[si++];
-                uint32_t run = (uint32_t)cx -
-                               0x4000u; /* the listing's SUB CH,0x40 (b365) */
+                uint32_t run =
+                    (uint32_t)cx - 0x4000u; // the listing's SUB CH,0x40 (b365)
                 for (uint16_t i = 0; i < run && di < dst_size; i++)
                     dst[di++] = fill;
             }
@@ -407,7 +406,7 @@ static void _scene_palette_fade(const uint8_t *target)
 static void _scene_quit_fade(void)
 {
     palette_build_fade(0u, 0x100u, 0x19u, _scene_black_pal);
-    audio_fade_out(); /* 1000:B166: present_frames_75 -> 1000:B169 stop */
+    audio_fade_out(); // 1000:B166: present_frames_75 -> 1000:B169 stop
     _scene_phase = SCENE_QUIT_FADE;
 }
 
@@ -459,7 +458,7 @@ static void _scene_unload(void)
     free(_scoops_buf);
     _scoops_buf = NULL;
     _scoops_size = 0;
-    if (_text_spr) font_publish(NULL); /* the glyph table dies with it */
+    if (_text_spr) font_publish(NULL); // the glyph table dies with it
     free(_text_spr);
     _text_spr = NULL;
     memset(&_ani, 0, sizeof _ani);
@@ -504,7 +503,7 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
          * panel's first 0x20 entries FADE in (1000:B0DA) */
         _panel_pal_valid = dailySize >= PAGE_SIZE + 768u;
         if (_panel_pal_valid)
-            for (uint16_t i = 0; i < 768u; i++) /* 1000:8D24's AND 0x3F */
+            for (uint16_t i = 0; i < 768u; i++) // 1000:8D24's AND 0x3F
                 _panel_pal[i] = daily[PAGE_SIZE + i] & 0x3Fu;
         free(daily);
     }
@@ -564,9 +563,9 @@ uint8_t scene_play_level_intro(uint16_t introIndex)
     /* cd_file_op's head (1000:AFFD): the ANIMATIONS board (cell 5,
      * [0x5E79]) non-zero RETs before any file op - cutscenes are off. */
     if (frontend_option(FRONTEND_OPT_ANIM) != 0u) return 0;
-    if (introIndex == 0xFFu) return 0; /* no cutscene for this level */
+    if (introIndex == 0xFFu) return 0; // no cutscene for this level
 
-    if (introIndex != _scene_level) { /* (re)start on level change   */
+    if (introIndex != _scene_level) { // (re)start on level change
         _scene_level = introIndex;
         if (_scene_start(introIndex, 1)) {
             _scene_phase = SCENE_DONE;
@@ -609,7 +608,7 @@ uint8_t scene_play_level_intro(uint16_t introIndex)
 
     int32_t keyHeld = _scene_key_held();
 
-    while (1) { /* instant phases resolve within one tick */
+    while (1) { // instant phases resolve within one tick
         switch (_scene_phase) {
         case SCENE_MUSIC:
             if (audio_fade_busy()) return 1;
@@ -630,7 +629,7 @@ uint8_t scene_play_level_intro(uint16_t introIndex)
             return 1;
 
         case SCENE_DWELL:
-            if (keyHeld) _dwell_ticks = 0; /* any key skips the remainder */
+            if (keyHeld) _dwell_ticks = 0; // any key skips the remainder
             if (_dwell_ticks > 0) {
                 --_dwell_ticks;
                 return 1;
@@ -688,7 +687,7 @@ uint8_t scene_play_level_intro(uint16_t introIndex)
             if (palette_fade_active()) return 1;
             _scene_phase = SCENE_PLAY;
             _obj_index = 0;
-            break; /* play the first object now */
+            break; // play the first object now
 
         case SCENE_PLAY:
             if (_obj_index >= _plays) {
@@ -699,7 +698,7 @@ uint8_t scene_play_level_intro(uint16_t introIndex)
                 uint16_t chk = 0;
                 int32_t sz = _ani_decode_object(&_ani, _indices[_obj_index],
                                                 _obj_buf, OBJ_SEG_SIZE, &chk);
-                if (sz < 0 || chk != 0) { /* place_scene_obj: JZ / abort */
+                if (sz < 0 || chk != 0) { // place_scene_obj: JZ / abort
                     _scene_phase = SCENE_CHAIN;
                     break;
                 }
@@ -707,7 +706,7 @@ uint8_t scene_play_level_intro(uint16_t introIndex)
                                  PAGE_SIZE);
                 _scene_osys->videoPresent(0);
                 _obj_wait =
-                    _scene_fast ? 1u : 6u; /* wait_flag_timeout 1000:B2D3 */
+                    _scene_fast ? 1u : 6u; // wait_flag_timeout 1000:B2D3
                 _obj_index++;
                 _scene_phase = SCENE_WAIT;
                 return 1;
@@ -739,8 +738,8 @@ uint8_t scene_play_level_intro(uint16_t introIndex)
                 _chain_wait = 210u;
                 return 1;
             }
-            _cur_scene = nxt; /* chain advance */
-            if (nxt == 4u) { /* 1000:B194: wait first */
+            _cur_scene = nxt; // chain advance
+            if (nxt == 4u) { // 1000:B194: wait first
                 _scene_phase = SCENE_CHAIN_WAIT;
                 _chain_wait = 210u;
                 return 1;
@@ -756,15 +755,15 @@ uint8_t scene_play_level_intro(uint16_t introIndex)
             }
             if (--_chain_wait == 0) {
                 if (_chain_replay) {
-                    _obj_index = 0; /* replay this scene */
+                    _obj_index = 0; // replay this scene
                     _scene_phase = SCENE_PLAY;
                 } else {
-                    _scene_phase = SCENE_RESTART; /* play the chained scene */
+                    _scene_phase = SCENE_RESTART; // play the chained scene
                 }
             }
             return 1;
 
-        case SCENE_RESTART: /* chain advance: no dwell */
+        case SCENE_RESTART: // chain advance: no dwell
             if (_scene_start(_cur_scene, 0)) {
                 _scene_phase = SCENE_DONE;
                 return 0;
@@ -795,7 +794,7 @@ static int32_t _boot_gt_show(uint32_t idx)
     int32_t sz =
         res_decode_lzw_mem(_boot_gt, _boot_gt_size, _boot_gt_entries[idx],
                            _boot_obj, OBJ_SEG_SIZE, &chk);
-    if (sz < 0 || chk != 0) return 0; /* 1000:B444: skip */
+    if (sz < 0 || chk != 0) return 0; // 1000:B444: skip
     _scene_al_expand(_boot_obj, (uint32_t)sz, video_page(0), VIDEO_PAGE_BYTES);
     return 1;
 }
@@ -887,7 +886,7 @@ static void _boot_blit_sprite(const uint8_t *spr, uint32_t width,
                               uint32_t pageYOff, uint8_t *page)
 {
     uint32_t x = (worldX - _boot_scroll_pos) & 0xFFFFu;
-    if (x >= VIDEO_PAGE_W) return; /* CMP AX,0x140 / JC */
+    if (x >= VIDEO_PAGE_W) return; // CMP AX,0x140 / JC
     uint32_t visible = VIDEO_PAGE_W - x;
     if (visible > width) visible = width;
     uint8_t *dst = page + pageYOff + x;
@@ -895,10 +894,10 @@ static void _boot_blit_sprite(const uint8_t *spr, uint32_t width,
     for (uint16_t row = 0; row < height; row++) {
         for (uint16_t i = 0; i < visible; i++) {
             uint8_t b = src[i];
-            if (b) dst[i] = b; /* 0 = transparent */
+            if (b) dst[i] = b; // 0 = transparent
         }
-        dst += VIDEO_PAGE_W; /* the 320-byte row stride */
-        src += width; /* the clipped part skipped */
+        dst += VIDEO_PAGE_W; // the 320-byte row stride
+        src += width; // the clipped part skipped
         if (dst + visible > page + PAGE_SIZE) return;
     }
 }
@@ -929,7 +928,7 @@ static void _boot_scroll_render(uint8_t *page, const uint8_t *bac,
         bp = ax;
         si = ax;
     }
-    for (uint16_t i = 0; i < 0x5cu; i++) { /* 92 two-row pairs */
+    for (uint16_t i = 0; i < 0x5cu; i++) { // 92 two-row pairs
         for (uint16_t j = 0; j < dx; j++) {
             if (si >= bacSize || di >= PAGE_SIZE) return;
             page[di++] = bac[si++];
@@ -967,19 +966,19 @@ static void _boot_blit_record(const uint8_t *rsc, uint32_t rscSize,
                               uint16_t dest, const uint8_t *listObj,
                               uint32_t listObjSize, uint8_t *page)
 {
-    uint32_t idx = (storedIdx + 1u) & 0xFFFFu; /* INC AX: 16-bit wrap */
+    uint32_t idx = (storedIdx + 1u) & 0xFFFFu; // INC AX: 16-bit wrap
     const uint8_t *src;
     uint32_t srcSize;
     uint16_t chk = 0;
     int32_t sz;
-    if (idx == 0) { /* object 0: the list itself */
+    if (idx == 0) { // object 0: the list itself
         src = listObj;
         srcSize = listObjSize;
     } else {
         if (idx >= entryCount) return;
         sz = res_decode_lzw_mem(rsc, rscSize, entries[idx], _obj_buf,
                                 OBJ_SEG_SIZE, &chk);
-        if (sz < 0 || chk != 0) return; /* 1000:B444: skip */
+        if (sz < 0 || chk != 0) return; // 1000:B444: skip
         src = _obj_buf;
         srcSize = (uint32_t)sz;
     }
@@ -991,8 +990,8 @@ static void _boot_blit_record(const uint8_t *rsc, uint32_t rscSize,
     for (uint16_t r = 0; r < height; r++) {
         for (uint16_t i = 0; i < width && di + i < PAGE_SIZE; i++) {
             uint32_t so = (uint32_t)r * width + i;
-            uint8_t b = so < bodySize ? body[so] : 0u; /* past the object: 0 */
-            if (b) page[di + i] = b; /* 0 = transparent */
+            uint8_t b = so < bodySize ? body[so] : 0u; // past the object: 0
+            if (b) page[di + i] = b; // 0 = transparent
         }
         di += VIDEO_PAGE_W;
         if (di >= PAGE_SIZE) return;
@@ -1024,7 +1023,7 @@ static uint32_t _boot_blit_group(const uint8_t *listBuf, uint32_t listSize,
                                  uint8_t *page)
 {
     uint32_t si = listPos;
-    while (1) { /* the group's records */
+    while (1) { // the group's records
         if (si + 4 > listSize) break;
         uint16_t dest = rd_le_u16(listBuf + si);
         uint16_t idx = rd_le_u16(listBuf + si + 2);
@@ -1035,7 +1034,7 @@ static uint32_t _boot_blit_group(const uint8_t *listBuf, uint32_t listSize,
         if (rd_le_u16(listBuf + si) == 0xFFFFu) {
             si += 2;
             break;
-        } /* the group end */
+        } // the group end
     }
     return si;
 }
@@ -1061,7 +1060,7 @@ static uint32_t _boot_seek(const uint8_t *listBuf, uint32_t listSize,
         if (rd_le_u16(listBuf + si) == 0xFFFFu) {
             si += 2;
             g++;
-        } else si += 4; /* a [dest][idx] record */
+        } else si += 4; // a [dest][idx] record
     }
     return si;
 }
@@ -1100,10 +1099,10 @@ static void _boot_bar_draw(uint32_t arg)
  */
 static void _boot_compose_present(uint8_t *page)
 {
-    memmove(page, page + 0x500u, 180u * VIDEO_PAGE_W); /* pool rows 4-183 */
-    memset(page + 180u * VIDEO_PAGE_W, 0, 2u * VIDEO_PAGE_W); /* rows 180-181 */
+    memmove(page, page + 0x500u, 180u * VIDEO_PAGE_W); // pool rows 4-183
+    memset(page + 180u * VIDEO_PAGE_W, 0, 2u * VIDEO_PAGE_W); // rows 180-181
     memcpy(page + 182u * VIDEO_PAGE_W, _boot_bar, 16u * VIDEO_PAGE_W);
-    memset(page + 198u * VIDEO_PAGE_W, 0, 2u * VIDEO_PAGE_W); /* rows 198-199 */
+    memset(page + 198u * VIDEO_PAGE_W, 0, 2u * VIDEO_PAGE_W); // rows 198-199
 }
 
 /** @brief update_scene (1000:B9B5): the scrolled bac over the pool rows 0-183
@@ -1118,7 +1117,7 @@ static void _boot_scene_render(void)
                         VIDEO_PAGE_W - (_boot_scroll_pos % VIDEO_PAGE_W));
     _boot_blit_sprite(_boot_treetop, 140u, 113u, 0x5A2u, 0x140u, page);
     _boot_blit_sprite(_boot_treebot, 21u, 59u, 0x608u, 0x8E80u, page);
-    if (_boot_frame < 331u) /* the apple leaves at frame 331 */
+    if (_boot_frame < 331u) // the apple leaves at frame 331
         _boot_blit_sprite(_boot_apple, 16u, 16u, 0x5B5u, 0x3700u, page);
 }
 
@@ -1129,9 +1128,9 @@ static void _boot_scene_render(void)
  */
 static int32_t _boot_start(void)
 {
-    _scene_fast = 1; /* 1000:B59F */
+    _scene_fast = 1; // 1000:B59F
     _boot_unload();
-    res_set_disc(0u); /* the boot assets ship on disc 0 */
+    res_set_disc(0u); // the boot assets ship on disc 0
     _boot_gt = res_load_chunk("INTRO\\GAMETEK.RSC", &_boot_gt_size, NULL);
     _boot_bac = res_load_chunk("INTRO\\BAC.BIT", NULL, NULL);
     _boot_treetop = res_load_chunk("INTRO\\TREETOP.BIT", NULL, NULL);
@@ -1175,9 +1174,9 @@ static int32_t _boot_start(void)
     _boot_gt_group = 0u;
     _boot_gt_bank = 0u;
     palette_build_fade(0u, 256u, 2u, _boot_ramp);
-    audio_play_tune(audio_tune_title); /* 1000:b5f2 */
-    audio_music_resume(); /* 1000:b5f8 */
-    audio_fade_in(); /* 1000:b5fb */
+    audio_play_tune(audio_tune_title); // 1000:b5f2
+    audio_music_resume(); // 1000:b5f8
+    audio_fade_in(); // 1000:b5fb
     _boot_phase = BOOT_GT_PRE;
     return 1;
 }
@@ -1252,7 +1251,7 @@ static int32_t _boot_gt_frame(void)
      * vanish-and-blob is authentic machine behavior. */
     uint16_t count = rd_le_u16(_boot_gt_list);
     if (_boot_gt_group > count) {
-        _boot_hold = 30u; /* bf19: the 30-tick pre-bank hold */
+        _boot_hold = 30u; // bf19: the 30-tick pre-bank hold
         _boot_phase = BOOT_GT_BANK_HOLD;
         return 1;
     }
@@ -1262,7 +1261,7 @@ static int32_t _boot_gt_frame(void)
             /* the game's b446->b2c4: a failed decode (the checksum!)
              * unwinds play_scene_sequence - the remaining groups are
              * skipped, straight to the bank cycles */
-            _boot_hold = 30u; /* bf19: the 30-tick pre-bank hold */
+            _boot_hold = 30u; // bf19: the 30-tick pre-bank hold
             _boot_phase = BOOT_GT_BANK_HOLD;
             return 1;
         }
@@ -1311,7 +1310,7 @@ static int32_t _boot_black(void)
                            _boot_obj, _boot_list_pos, video_page(0));
     _boot_compose_present(video_page(0));
     _scene_osys->videoPresent(0);
-    _boot_list_pos = _boot_list_start; /* b748 */
+    _boot_list_pos = _boot_list_start; // b748
     script_intro_start(&_boot_script);
     _boot_phase = BOOT_FRAME;
     return 1;
@@ -1410,7 +1409,7 @@ uint8_t scene_play_boot_intro(void)
     if (_boot_phase == BOOT_DONE) {
         _scene_fast = 0;
         return 0;
-    } /* 1000:B623 */
+    } // 1000:B623
 
     switch (_boot_phase) {
     case BOOT_START: return (uint8_t)(_boot_start());
@@ -1438,7 +1437,7 @@ uint8_t scene_play_boot_intro(void)
          * TAPPED key skips only the remaining frames; a HELD key aborts
          * the whole boot in the bank hold's first c0c6 poll. */
         if (_boot_key_state()) {
-            _boot_hold = 30u; /* bf19: the 30-tick pre-bank hold */
+            _boot_hold = 30u; // bf19: the 30-tick pre-bank hold
             _boot_phase = BOOT_GT_BANK_HOLD;
             return 1;
         }
@@ -1446,7 +1445,7 @@ uint8_t scene_play_boot_intro(void)
         return 1;
 
     case BOOT_GT_BANK_HOLD:
-        if (_boot_abort_poll()) return 1; /* c0b8's c0c6 poll (bf1c) */
+        if (_boot_abort_poll()) return 1; // c0b8's c0c6 poll (bf1c)
         if (--_boot_hold != 0u) return 1;
         /* bf21: this bank's 4 entries fade into gtpal+0x48 (entry 24),
          * BP=3 - the banks start at DAC entry 4, +4 per cycle */
@@ -1456,7 +1455,7 @@ uint8_t scene_play_boot_intro(void)
         return 1;
 
     case BOOT_GT_BANK_A:
-        if (_boot_abort_poll()) return 1; /* c0af (bf2e) */
+        if (_boot_abort_poll()) return 1; // c0af (bf2e)
         if (palette_fade_active()) return 1;
         /* bf32: the same bank into gtpal+0x3C (entry 20), BP=0x1e */
         palette_build_fade(4u + _boot_gt_bank * 4u, 4u, 0x1Eu,
@@ -1465,7 +1464,7 @@ uint8_t scene_play_boot_intro(void)
         return 1;
 
     case BOOT_GT_BANK_B:
-        if (_boot_abort_poll()) return 1; /* c0af (bf3e) */
+        if (_boot_abort_poll()) return 1; // c0af (bf3e)
         if (palette_fade_active()) return 1;
         if (++_boot_gt_bank < 4u) {
             _boot_hold = 30u;
@@ -1478,14 +1477,14 @@ uint8_t scene_play_boot_intro(void)
         return 1;
 
     case BOOT_GT_LAST_F:
-        if (_boot_abort_poll()) return 1; /* c0af (bf57) */
+        if (_boot_abort_poll()) return 1; // c0af (bf57)
         if (palette_fade_active()) return 1;
-        _boot_hold = 0x1A4u; /* bf5a: the 420-tick hold */
+        _boot_hold = 0x1A4u; // bf5a: the 420-tick hold
         _boot_phase = BOOT_GT_HOLD;
         return 1;
 
     case BOOT_GT_HOLD:
-        if (_boot_abort_poll()) return 1; /* c0b8's c0c6 poll (bf5d) */
+        if (_boot_abort_poll()) return 1; // c0b8's c0c6 poll (bf5d)
         if (--_boot_hold != 0u) return 1;
         /* bf60: fade everything to 0x4BBC - the GT stage never calls
          * palette_load_6bit, so that buffer is still zeroed here: to
@@ -1496,7 +1495,7 @@ uint8_t scene_play_boot_intro(void)
         return 1;
 
     case BOOT_GT_OUT:
-        if (_boot_abort_poll()) return 1; /* c0af (bf6f) */
+        if (_boot_abort_poll()) return 1; // c0af (bf6f)
         if (palette_fade_active()) return 1;
         free(_boot_gt);
         _boot_gt = NULL;
@@ -1517,14 +1516,14 @@ uint8_t scene_play_boot_intro(void)
         return 1;
 
     case BOOT_IDI_FADE:
-        if (_boot_abort_poll()) return 1; /* c0af (bd96) */
+        if (_boot_abort_poll()) return 1; // c0af (bd96)
         if (palette_fade_active()) return 1;
-        _boot_hold = 0x1A4u; /* bd99: the 420-tick hold */
+        _boot_hold = 0x1A4u; // bd99: the 420-tick hold
         _boot_phase = BOOT_IDI_HOLD;
         return 1;
 
     case BOOT_IDI_HOLD:
-        if (_boot_abort_poll()) return 1; /* c0b8's c0c6 poll (bd9c) */
+        if (_boot_abort_poll()) return 1; // c0b8's c0c6 poll (bd9c)
         if (--_boot_hold != 0u) return 1;
         /* bd9f: fade everything to the zeroed ramp, BP=0x32 */
         palette_build_fade(0u, 256u, 0x32u, _boot_ramp);
@@ -1532,7 +1531,7 @@ uint8_t scene_play_boot_intro(void)
         return 1;
 
     case BOOT_IDI_OUT:
-        if (_boot_abort_poll()) return 1; /* c0af (bdae) */
+        if (_boot_abort_poll()) return 1; // c0af (bdae)
         if (palette_fade_active()) return 1;
         if (!_boot_card_show("INTRO\\FIRST.BIT")) {
             _boot_unload();
@@ -1547,14 +1546,14 @@ uint8_t scene_play_boot_intro(void)
         return 1;
 
     case BOOT_FIRST_BANK:
-        if (_boot_abort_poll()) return 1; /* c0af (bd3c) */
+        if (_boot_abort_poll()) return 1; // c0af (bd3c)
         if (palette_fade_active()) return 1;
-        _boot_hold = 0x118u; /* bd3f: the 280-tick hold per bank */
+        _boot_hold = 0x118u; // bd3f: the 280-tick hold per bank
         _boot_phase = BOOT_FIRST_HOLD;
         return 1;
 
     case BOOT_FIRST_HOLD:
-        if (_boot_abort_poll()) return 1; /* c0b8's c0c6 poll (bd42) */
+        if (_boot_abort_poll()) return 1; // c0b8's c0c6 poll (bd42)
         if (--_boot_hold != 0u) return 1;
         if (++_boot_gt_bank < 7u) {
             /* bd48: the next bank - target = working+0x30+bank*0x30 */
@@ -1564,12 +1563,12 @@ uint8_t scene_play_boot_intro(void)
             _boot_phase = BOOT_FIRST_BANK;
             return 1;
         }
-        _boot_hold = 0x118u; /* bd50: one more 0x118-tick hold */
+        _boot_hold = 0x118u; // bd50: one more 0x118-tick hold
         _boot_phase = BOOT_FIRST_LASTHOLD;
         return 1;
 
     case BOOT_FIRST_LASTHOLD:
-        if (_boot_abort_poll()) return 1; /* c0b8's c0c6 poll (bd53) */
+        if (_boot_abort_poll()) return 1; // c0b8's c0c6 poll (bd53)
         if (--_boot_hold != 0u) return 1;
         /* bd56-bd62: fade everything to the zeroed ramp, BP=0x23 */
         palette_build_fade(0u, 256u, 0x23u, _boot_ramp);
@@ -1577,7 +1576,7 @@ uint8_t scene_play_boot_intro(void)
         return 1;
 
     case BOOT_FIRST_OUT:
-        if (_boot_abort_poll()) return 1; /* c0af (bd65) */
+        if (_boot_abort_poll()) return 1; // c0af (bd65)
         if (palette_fade_active()) return 1;
         _boot_phase = BOOT_ITB_SHOW;
         return 1;
@@ -1604,18 +1603,18 @@ uint8_t scene_play_boot_intro(void)
         return 1;
 
     case BOOT_CARD_FADE:
-        if (_boot_abort_poll()) return 1; /* c0af (b69e) */
+        if (_boot_abort_poll()) return 1; // c0af (b69e)
         if (palette_fade_active()) return 1;
         /* b6c3: bac's palette_load_6bit - the working palette only; the
          * DAC keeps the card's colours through the dwell (bac.bit =
          * [58880-byte screen][768-byte palette at +0xE600]) */
         palette_load_working(_boot_bac + 0xE600u);
-        _dwell_ticks = 280u; /* 0x118: the initial dwell */
+        _dwell_ticks = 280u; // 0x118: the initial dwell
         _boot_phase = BOOT_DWELL;
         return 1;
 
     case BOOT_DWELL:
-        if (--_dwell_ticks > 0) return 1; /* no key skip in the original */
+        if (--_dwell_ticks > 0) return 1; // no key skip in the original
         /* b6f2-b701: fade the DAC to the zeroed 0x48BC ramp (to black) and
          * wait - the card fades out */
         palette_build_fade(0u, 256u, 0x23u, _boot_ramp);
@@ -1623,14 +1622,14 @@ uint8_t scene_play_boot_intro(void)
         return 1;
 
     case BOOT_FADEOUT:
-        if (_boot_abort_poll()) return 1; /* c0af (b7b8) */
+        if (_boot_abort_poll()) return 1; // c0af (b7b8)
         if (palette_fade_active()) return 1;
-        _dwell_ticks = 0x8Cu; /* b704/c0b8: the 140-tick hold */
+        _dwell_ticks = 0x8Cu; // b704/c0b8: the 140-tick hold
         _boot_phase = BOOT_BLACK;
         return 1;
 
     case BOOT_BLACK:
-        if (_boot_abort_poll()) return 1; /* c0b8's c0c6 poll (b707) */
+        if (_boot_abort_poll()) return 1; // c0b8's c0c6 poll (b707)
         if (--_dwell_ticks > 0) return 1;
         return (uint8_t)(_boot_black());
 
@@ -1638,7 +1637,7 @@ uint8_t scene_play_boot_intro(void)
 
     case BOOT_WAIT:
         if (--_boot_wait_ticks == 0) {
-            if (_boot_abort_poll()) return 1; /* b787: c0c6            */
+            if (_boot_abort_poll()) return 1; // b787: c0c6
             _boot_phase = BOOT_FRAME;
         }
         return 1;
@@ -1646,20 +1645,20 @@ uint8_t scene_play_boot_intro(void)
     case BOOT_SCENE_HOLD:
         /* b7a3-b7b8: the scene's final hold, then the BP=0x1e fade to the
          * zeroed ramp; BOOT_OUTRO waits for it and unloads */
-        if (_boot_abort_poll()) return 1; /* c0b8's c0c6 poll (b7a6) */
+        if (_boot_abort_poll()) return 1; // c0b8's c0c6 poll (b7a6)
         if (--_boot_hold != 0u) return 1;
         palette_build_fade(0u, 256u, 0x1Eu, _boot_ramp);
         _boot_phase = BOOT_OUTRO;
         return 1;
 
     case BOOT_TRANS:
-        if (_boot_abort_poll()) return 1; /* c0af (b863) */
+        if (_boot_abort_poll()) return 1; // c0af (b863)
         if (palette_fade_active()) return 1;
         /* b866: the words' block expands into BOTH visible pages - the
          * port folds it into its one page via the compose */
         _boot_bar_draw(_boot_bar_arg);
         _boot_compose_present(video_page(0));
-        _boot_trans_ticks = 0xAu; /* b869: the 10-tick hold */
+        _boot_trans_ticks = 0xAu; // b869: the 10-tick hold
         _boot_phase = BOOT_TRANS_HOLD;
         return 1;
 
@@ -1668,13 +1667,13 @@ uint8_t scene_play_boot_intro(void)
         /* b873-b896: fade back to the working palette, clear the ramp,
          * start the caption bank fade countdown */
         palette_build_fade(0u, 256u, 0xAu, palette_working());
-        memset(_boot_ramp, 0, sizeof(_boot_ramp)); /* clear_fade_ramp b90f */
-        _boot_bank_countdown = 0x28u; /* [0x644E]             */
+        memset(_boot_ramp, 0, sizeof(_boot_ramp)); // clear_fade_ramp b90f
+        _boot_bank_countdown = 0x28u; // [0x644E]
         _boot_phase = BOOT_FRAME;
         return 1;
 
     case BOOT_OUTRO:
-        if (_boot_abort_poll()) return 1; /* c0af (b7b8) */
+        if (_boot_abort_poll()) return 1; // c0af (b7b8)
         if (palette_fade_active()) return 1;
         _boot_unload();
         _boot_phase = BOOT_DONE;

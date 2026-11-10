@@ -24,7 +24,7 @@
 static TickFn _the_tick;
 static uint32_t _the_rate;
 static Uint64 _tick_interval_ns;
-static SDL_AtomicInt _tick_count;        /* [0x5AC8] */
+static SDL_AtomicInt _tick_count;        // [0x5AC8]
 static SDL_AtomicInt _running;
 
 /* The rate _probe (HUMANSRE_RATE_PROBE set): reports the measured tick rate
@@ -38,7 +38,7 @@ static Uint64 _probe_window_start_ns;
  */
 static void _fire_tick(void)
 {
-    SDL_AddAtomicInt(&_tick_count, 1); /* the ISR's INC [0x5AC8] (1000:8AA4) */
+    SDL_AddAtomicInt(&_tick_count, 1); // the ISR's INC [0x5AC8] (1000:8AA4)
     _the_tick();
     if (_probe) {
         _probe_ticks++;
@@ -104,6 +104,6 @@ void sdl3_tick_sync(uint32_t *lastSeen)
             *lastSeen = (uint32_t)now;
             return;
         }
-        SDL_Delay(1); /* the wait_vsync-and-abort spin, sleeping */
+        SDL_Delay(1); // the wait_vsync-and-abort spin, sleeping
     }
 }

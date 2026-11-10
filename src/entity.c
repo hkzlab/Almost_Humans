@@ -43,8 +43,8 @@
 #define ENT_MAX             12u
 #define MAP_COLS            32u
 #define MAP_ROWS            20u
-#define TILE_HANDLER_APPEND 10u   /* 0xB3 -> entity_append_to_array 5360 */
-#define TILE_HANDLER_FIND   11u   /* 0xB4 -> entity_find_by_id 5399      */
+#define TILE_HANDLER_APPEND 10u   // 0xB3 -> entity_append_to_array 5360
+#define TILE_HANDLER_FIND   11u   // 0xB4 -> entity_find_by_id 5399
 
 /* The DS globals 0x64C4.. (the exe image at file 0x106F0 + 0x64C4,
  * byte-verified 2026-10-23).  Slots 2 and 3 are not just array slots:
@@ -71,14 +71,14 @@ static uint16_t _ents[ENT_MAX][8] = {
     { 0, 0, 0, 0, 0, 0, 0, 0 },
     { 0, 0, 0, 0, 0, 0, 0, 0 },
 };
-static uint16_t _ent_count;    /* [0x64C2]                                */
+static uint16_t _ent_count;    // [0x64C2]
 
 /* The dispatcher's shared DS words: [0x4238] = the secondary selector
  * (the movement step this tick), [0x423C] = the primary selector. */
-static uint16_t _sel_secondary;  /* [0x4238]                              */
-static uint16_t _sel_primary;    /* [0x423C]                              */
+static uint16_t _sel_secondary;  // [0x4238]
+static uint16_t _sel_primary;    // [0x423C]
 
-static uint8_t _cur_style;      /* [0x17EE]: the level header's style    */
+static uint8_t _cur_style;      // [0x17EE]: the level header's style
 
 /* --- load_terrain_b's data (the exe image, byte-verified) --------------- */
 
@@ -165,7 +165,7 @@ static void _entity_append(const uint8_t *map, uint32_t mapLen,
                            uint32_t matchIdx, uint32_t cx, uint32_t dx,
                            uint32_t lifeSeed)
 {
-    if (_style6_y_bonus(map, mapLen, matchIdx)) dx += 3;   /* 1000:5698 */
+    if (_style6_y_bonus(map, mapLen, matchIdx)) dx += 3;   // 1000:5698
 
     if (_ent_count >= ENT_MAX) {
         /* The original would write past the DS reservation (corrupting
@@ -175,15 +175,15 @@ static void _entity_append(const uint8_t *map, uint32_t mapLen,
         return;
     }
     uint16_t *e = _ents[_ent_count++];
-    uint16_t dxAdj = (uint16_t)(dx + 1u - 0x30u);         /* 5373/5376 */
-    e[0] = (uint16_t)cx;          /* +0 = the spawn column * 16          */
-    e[1] = 0;                     /* +2 = 0 (a 0xB4 writes the far end)  */
-    e[2] = 0;                     /* +4 = the dispatch index: seeded 0   */
-    e[3] = (uint16_t)cx;          /* +6 = current x = the same word      */
-    e[4] = dxAdj;       /* +8 = the spawn row                  */
-    e[5] = 3;                     /* +A = the beat countdown seed        */
-    e[6] = 0;                     /* +C = the waypoint                   */
-    e[7] = (uint16_t)lifeSeed;    /* +E = [0x17F1] = the goal high byte  */
+    uint16_t dxAdj = (uint16_t)(dx + 1u - 0x30u);         // 5373/5376
+    e[0] = (uint16_t)cx;          // +0 = the spawn column * 16
+    e[1] = 0;                     // +2 = 0 (a 0xB4 writes the far end)
+    e[2] = 0;                     // +4 = the dispatch index: seeded 0
+    e[3] = (uint16_t)cx;          // +6 = current x = the same word
+    e[4] = dxAdj;       // +8 = the spawn row
+    e[5] = 3;                     // +A = the beat countdown seed
+    e[6] = 0;                     // +C = the waypoint
+    e[7] = (uint16_t)lifeSeed;    // +E = [0x17F1] = the goal high byte
 }
 
 /** @brief entity_find_by_id (1000:5399..53b8).  Summoned per 0xB4 cell: rewrites
@@ -198,13 +198,13 @@ static void _entity_append(const uint8_t *map, uint32_t mapLen,
 static void _entity_find(const uint8_t *map, uint32_t mapLen, uint32_t matchIdx,
                          uint32_t cx, uint32_t dx)
 {
-    if (_style6_y_bonus(map, mapLen, matchIdx)) dx += 3;   /* 1000:5698 */
-    uint16_t match = (uint16_t)(dx + 1u - 0x30u);         /* 53a5/53a8 */
+    if (_style6_y_bonus(map, mapLen, matchIdx)) dx += 3;   // 1000:5698
+    uint16_t match = (uint16_t)(dx + 1u - 0x30u);         // 53a5/53a8
 
     for (uint16_t i = 0; i < _ent_count; i++) {
-        if (_ents[i][4] != match) continue;      /* 53a9 */
-        _ents[i][1] = (uint16_t)cx;                        /* 53ae */
-        return;                                           /* 53b1 */
+        if (_ents[i][4] != match) continue;      // 53a9
+        _ents[i][1] = (uint16_t)cx;                        // 53ae
+        return;                                           // 53b1
     }
 }
 
@@ -325,20 +325,20 @@ static void _entity_tail_interact(Entity *ep, uint32_t slot, uint32_t off)
     uint16_t w7 = _ent_word(slot, off, 7), w8 = _ent_word(slot, off, 8);
     uint16_t w9 = _ent_word(slot, off, 9);
 
-    for (uint16_t i = 0; i < 8u; i++) { /* DX = 7: the static eight */
+    for (uint16_t i = 0; i < 8u; i++) { // DX = 7: the static eight
         uint8_t *rec = object_slot(i);
         int32_t dx, dy;
         uint16_t type;
 
         if (!rec) return;
-        if (rec[6] & 0x80u) continue; /* 1000:CA6B */
+        if (rec[6] & 0x80u) continue; // 1000:CA6B
         dx = (int32_t)(int16_t)(uint16_t)(rd_le_u16(rec + 0u) - ep->x) +
              (int32_t)(int16_t)w3;
-        if (dx < 0 || dx > 2) continue; /* 1000:CA8A */
+        if (dx < 0 || dx > 2) continue; // 1000:CA8A
         dy = (int32_t)(int16_t)(uint16_t)(rd_le_u16(rec + 2u) - ep->y) - 0x14;
-        if (dy < 0 || dy > 0x2C) continue; /* 1000:CAA4 */
+        if (dy < 0 || dy > 0x2C) continue; // 1000:CAA4
         type = rd_le_u16(rec + 8u);
-        if (type == w4) { /* 1000:CABC -> 1000:CB78 */
+        if (type == w4) { // 1000:CABC -> 1000:CB78
             /* the guard reversal: the entity turns around instead of carrying
              * the guarding record */
             _sel_primary ^= 0x000Eu;
@@ -346,26 +346,26 @@ static void _entity_tail_interact(Entity *ep, uint32_t slot, uint32_t off)
             ep->handler ^= 1u;
             return;
         }
-        if (type == 4u || type == 5u) continue; /* 1000:CAC5 */
-        if (object_type_blocked(type)) continue; /* 1000:CAE1 (DS:0x6EC3) */
-        (void)object_stack_scan_dissolve(i); /* 1000:CAFE: 0xF453, DX = 5 */
-        wr_le_u16(rec + 8u, 0x0022u); /* 1000:CB15 */
+        if (type == 4u || type == 5u) continue; // 1000:CAC5
+        if (object_type_blocked(type)) continue; // 1000:CAE1 (DS:0x6EC3)
+        (void)object_stack_scan_dissolve(i); // 1000:CAFE: 0xF453, DX = 5
+        wr_le_u16(rec + 8u, 0x0022u); // 1000:CB15
         /* 1000:CB19 stores the entity record pointer (0x64C4 + 0x10*n); the
          * port tags the index so it cannot collide with the object links
          * (4 + idx*0x12) the same +0xA field serves elsewhere. */
         wr_le_u16(rec + 0xAu, (uint16_t)(0x8000u | _ent_index(ep)));
-        wr_le_u16(rec + 0xEu, w5); /* 1000:CB23 */
-        { /* 1000:CB35..CB4C */
-            uint16_t idx = w6 / 2u; /* the entity's word offset */
+        wr_le_u16(rec + 0xEu, w5); // 1000:CB23
+        { // 1000:CB35..CB4C
+            uint16_t idx = w6 / 2u; // the entity's word offset
             uint16_t base = 0;
 
             if (w6 <= 0xEu && !(w6 & 1u)) base = ((const uint16_t *)ep)[idx];
             wr_le_u16(rec + 0x10u, (uint16_t)(w7 + base));
         }
-        ep->handler = w8; /* 1000:CB56 */
-        ep->waypoint = w9; /* 1000:CB65 */
-        ep->hold = 0xA032u; /* 1000:CB6A */
-        object_driver_call(9); /* 1000:CB73 */
+        ep->handler = w8; // 1000:CB56
+        ep->waypoint = w9; // 1000:CB65
+        ep->hold = 0xA032u; // 1000:CB6A
+        object_driver_call(9); // 1000:CB73
         return;
     }
 }
@@ -381,31 +381,31 @@ static void _entity_tail_interact(Entity *ep, uint32_t slot, uint32_t off)
 static void _entity_tail(Entity *ep, uint32_t slot, uint32_t off, uint16_t endX)
 {
     uint16_t w0 = _ent_word(slot, off, 0);
-    _sel_primary = w0; /* c9c1/c9c5 */
+    _sel_primary = w0; // c9c1/c9c5
     /* c9c8: ADD BP,2 - the walk branch reads the NEXT words          */
 
-    if (w0 != ep->waypoint) { /* c9cb/c9ce: the walk branch */
-        _sel_primary = _ent_word(slot, off, 1); /* c9dd */
-        _sel_secondary = _ent_word(slot, off, 2); /* c9e4/c9e8 */
-        ep->x = (uint16_t)(ep->x + _sel_secondary); /* c9ee/c9f1: ADD [DI],AX */
-        if (endX == ep->x) { /* c9f3: the endpoint hit   */
-            _sel_primary ^= 0x000Eu; /* c9f7 */
-            ep->waypoint = _sel_primary; /* c9fc/c9ff */
-            ep->handler ^= 1u; /* ca02/ca05: the ping-pong */
+    if (w0 != ep->waypoint) { // c9cb/c9ce: the walk branch
+        _sel_primary = _ent_word(slot, off, 1); // c9dd
+        _sel_secondary = _ent_word(slot, off, 2); // c9e4/c9e8
+        ep->x = (uint16_t)(ep->x + _sel_secondary); // c9ee/c9f1: ADD [DI],AX
+        if (endX == ep->x) { // c9f3: the endpoint hit
+            _sel_primary ^= 0x000Eu; // c9f7
+            ep->waypoint = _sel_primary; // c9fc/c9ff
+            ep->handler ^= 1u; // ca02/ca05: the ping-pong
             return;
         }
         /* ca09..ca3b: the beat (the hold countdown, then the waypoint step and
          * its 8-snap), and then CA43's interaction pass, which runs on BOTH
          * beat exits - ca18's JNS and the ca1a path both land on ca3f. */
         ep->hold = (uint16_t)(ep->hold - 1u);
-        if ((int16_t)ep->hold < 0) { /* ca0f/ca13/ca17/ca18 */
-            ep->hold = 4; /* ca1a */
-            ep->waypoint += 1u; /* ca20 */
-            _sel_secondary = (uint16_t)(_sel_primary + 8u); /* ca24/ca27/ca2a */
-            if (_sel_secondary == ep->waypoint) /* ca2f/ca32/ca36 */
-                ep->waypoint = _sel_primary; /* ca38/ca3b: the 8-snap */
+        if ((int16_t)ep->hold < 0) { // ca0f/ca13/ca17/ca18
+            ep->hold = 4; // ca1a
+            ep->waypoint += 1u; // ca20
+            _sel_secondary = (uint16_t)(_sel_primary + 8u); // ca24/ca27/ca2a
+            if (_sel_secondary == ep->waypoint) // ca2f/ca32/ca36
+                ep->waypoint = _sel_primary; // ca38/ca3b: the 8-snap
         }
-        _entity_tail_interact(ep, slot, off); /* ca3f -> ca43..cb77 */
+        _entity_tail_interact(ep, slot, off); // ca3f -> ca43..cb77
         return;
     }
 
@@ -414,7 +414,7 @@ static void _entity_tail(Entity *ep, uint32_t slot, uint32_t off, uint16_t endX)
      * the +2 position = wp[1]). */
     ep->hold = (uint16_t)(ep->hold - 1u);
     if ((int16_t)ep->hold < 0)
-        ep->waypoint = _ent_word(slot, off, 1); /* c9d5/c9d9 */
+        ep->waypoint = _ent_word(slot, off, 1); // c9d5/c9d9
 }
 
 /** @brief 1000:CB99: the carry animation stepper handlers 2 and 3 jump into.  The
@@ -433,28 +433,27 @@ static void _entity_carry_anim(Entity *ep)
     uint16_t frame;
 
     b[0xAu] = (uint8_t)(b[0xAu] - 1u);
-    if ((int8_t)b[0xAu] >= 0) return; /* cb9e/cba2 */
-    b[0xAu] = 4; /* cba4 */
+    if ((int8_t)b[0xAu] >= 0) return; // cb9e/cba2
+    b[0xAu] = 4; // cba4
     {
-        uint8_t sub = b[0xBu]; /* cbaa */
+        uint8_t sub = b[0xBu]; // cbaa
 
-        frame = (uint16_t)((rd_le_u16(b + 0xCu) +
-                                      1u)); /* cbb3: INC word [BP] */
+        frame = (uint16_t)((rd_le_u16(b + 0xCu) + 1u)); // cbb3: INC word [BP]
         wr_le_u16(b + 0xCu, frame);
-        if (frame != _sel_primary) return; /* cbba */
-        wr_le_u16(b + 0xCu, (uint16_t)(frame - 2u)); /* cbc0 */
-        if (sub & 0xF0u) { /* cbc8 */
-            sub -= 0x10u; /* cbe8 */
+        if (frame != _sel_primary) return; // cbba
+        wr_le_u16(b + 0xCu, (uint16_t)(frame - 2u)); // cbc0
+        if (sub & 0xF0u) { // cbc8
+            sub -= 0x10u; // cbe8
             b[0xBu] = sub;
-            if (sub & 0x10u) object_driver_call(0xBu); /* cbf0..cbf9 */
+            if (sub & 0x10u) object_driver_call(0xBu); // cbf0..cbf9
             return;
         }
     }
-    _sel_primary = (uint16_t)(_sel_primary - 0xCu); /* cbca */
-    wr_le_u16(b + 0xCu, _sel_primary); /* cbd2 */
-    b[0xAu] = 0; /* cbd9 */
-    b[0xBu] = 0; /* the word store at BP-2 clears both bytes */
-    ep->handler = _sel_secondary; /* cbe2/cbe5: [0x4238] */
+    _sel_primary = (uint16_t)(_sel_primary - 0xCu); // cbca
+    wr_le_u16(b + 0xCu, _sel_primary); // cbd2
+    b[0xAu] = 0; // cbd9
+    b[0xBu] = 0; // the word store at BP-2 clears both bytes
+    ep->handler = _sel_secondary; // cbe2/cbe5: [0x4238]
 }
 
 uint8_t entity_frame_info(uint32_t a, uint32_t *src, uint32_t *rows,
@@ -494,8 +493,8 @@ void entity_render(uint8_t *page, int32_t scrollX, int32_t scrollY)
         int32_t x = (int32_t)(int16_t)e->x - 0xC;
         int32_t y = (int32_t)(int16_t)e->y;
 
-        if ((int16_t)e->waypoint < 0) continue; /* 1000:583D OR CX,CX */
-        for (uint16_t k = 0; k < 2u; k++) { /* 1000:589A + 0x58A4 */
+        if ((int16_t)e->waypoint < 0) continue; // 1000:583D OR CX,CX
+        for (uint16_t k = 0; k < 2u; k++) { // 1000:589A + 0x58A4
             uint16_t a = u16(2u * e->waypoint) + k;
             uint32_t src, rows, yoff;
 
@@ -503,7 +502,7 @@ void entity_render(uint8_t *page, int32_t scrollX, int32_t scrollY)
             if (src + rows * 8u > _ent_bank_size) break;
             object_blit_sprite(page, _ent_bank + src, rows, 32u, x - scrollX,
                                y + (int32_t)yoff - scrollY);
-            x += 0x20; /* 1000:58A1 ADD AX,0x20 */
+            x += 0x20; // 1000:58A1 ADD AX,0x20
         }
     }
 }
@@ -521,29 +520,29 @@ void entity_tick(void)
          * compare/primary/step triple: handler 0 steps +1 px toward x1,
          * handler 1 steps -1 px toward x0. */
         switch (ep->handler) {
-        case 0u: /* 1000:C96C: DX = CX     */
+        case 0u: // 1000:C96C: DX = CX
             _entity_tail(ep, 2u, 0u, ep->x1);
             break;
-        case 1u: /* 1000:C973: DX = BX     */
+        case 1u: // 1000:C973: DX = BX
             _entity_tail(ep, 3u, 2u, ep->x0);
             break;
-        case 2u: /* 1000:C97A: base 1, target 0x1A */
+        case 2u: // 1000:C97A: base 1, target 0x1A
             _sel_secondary = 1u;
             _sel_primary = 0x1Au;
             _entity_carry_anim(ep);
             break;
-        case 3u: /* 1000:C989: base 0, target 0xC */
+        case 3u: // 1000:C989: base 0, target 0xC
             _sel_secondary = 0u;
             _sel_primary = 0x0Cu;
             _entity_carry_anim(ep);
             break;
-        case 4u: /* 1000:C998: the hold ran out */
+        case 4u: // 1000:C998: the hold ran out
             ep->hold = (uint16_t)(ep->hold - 1u);
-            if ((int16_t)ep->hold < 0) { /* C99D/C9A1 */
-                ep->waypoint++; /* C9A6: INC word [record+0xC] */
-                ep->handler = 5u; /* C9AD */
-                object_driver_call(0x0Cu); /* C9B2 */
-                score_add_level_term(0x7D0u); /* C9B9 */
+            if ((int16_t)ep->hold < 0) { // C99D/C9A1
+                ep->waypoint++; // C9A6: INC word [record+0xC]
+                ep->handler = 5u; // C9AD
+                object_driver_call(0x0Cu); // C9B2
+                score_add_level_term(0x7D0u); // C9B9
             }
             break;
         default:

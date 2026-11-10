@@ -131,7 +131,7 @@ int main(int argc, char **argv)
     level_init(&g_osys_null);
 
     /* 1. all 160 levels load and the census distributions hold. */
-    uint32_t intro_hist[8] = { 0 };   /* 00,01,02,03,04,05,09,FF */
+    uint32_t intro_hist[8] = { 0 };   // 00,01,02,03,04,05,09,FF
     uint32_t style_hist[6] = { 0 };
     for (uint32_t id = 0; id < 160u; id++) {
         if (level_load(id) != 0) {
@@ -475,7 +475,7 @@ int main(int argc, char **argv)
                 }
             }
             for (uint32_t i = 0; i < 200u && palette_fade_active(); i++)
-                palette_tick();                 /* level_fade_in */
+                palette_tick();                 // level_fade_in
             const uint8_t *pal = osys_null_palette();
             uint32_t n = 0;
             uint8_t *sp =
@@ -528,7 +528,7 @@ int main(int argc, char **argv)
                 int32_t x0 = (int32_t)(int16_t)(rd_le_u16(m + 0));
 
                 memset(&in, 0, sizeof in);
-                in.joyBits = 0x08u;                 /* right */
+                in.joyBits = 0x08u;                 // right
                 for (uint32_t t = 0; t < 6u; t++) {
                     level_note_input(&in);
                     level_tick();
@@ -619,7 +619,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "FAIL level 3 reload for the empty table\n");
         bad = 1;
     } else {
-        level_begin();                             /* its own start chain */
+        level_begin();                             // its own start chain
         for (uint32_t i = 0; i < 400u && level_starting(); i++) {
             level_tick();
             palette_tick();
@@ -664,7 +664,7 @@ int main(int argc, char **argv)
             fprintf(stderr, "FAIL the D-163 claim did not start\n");
             bad = 1;
         } else {
-            level_set_updates(1); /* 1000:3CAB's [0xC] = 0xFF */
+            level_set_updates(1); // 1000:3CAB's [0xC] = 0xFF
             ticks = object_world_ticks_probe();
             for (uint32_t t = 0; t < 4u; t++) level_tick();
             if (object_world_ticks_probe() != ticks) {
@@ -770,15 +770,15 @@ int main(int argc, char **argv)
         {
             uint8_t *r = object_slot(4);
 
-            r[0] = 0xC0u; /* x = 448 -> (448+8)/16 = 28 */
+            r[0] = 0xC0u; // x = 448 -> (448+8)/16 = 28
             r[1] = 0x01u;
-            r[2] = 0x08u; /* y = 264 -> (264+12)/16 = 17 */
+            r[2] = 0x08u; // y = 264 -> (264+12)/16 = 17
             r[3] = 0x01u;
-            r[4] = 0x10u; /* frame */
+            r[4] = 0x10u; // frame
             r[5] = 0x00u;
-            r[6] = 0x00u; /* active */
+            r[6] = 0x00u; // active
             r[7] = 0x00u;
-            r[8] = 0x18u; /* type 0x18: no row hook, a bare-RET tail */
+            r[8] = 0x18u; // type 0x18: no row hook, a bare-RET tail
             r[9] = 0x00u;
         }
         object_goal_scan();
@@ -800,8 +800,8 @@ int main(int argc, char **argv)
          * first class-9 record.  Records 14/15 carry a row tail that would
          * move them, so the pan is pointed at 16 (type 0x59, no row) at
          * (400, 32): the window clamps to (0xC0, 0). */
-        object_set_slot_class_for_probe(5u, 0u); /* record 14 */
-        object_set_slot_class_for_probe(6u, 0u); /* record 15 */
+        object_set_slot_class_for_probe(5u, 0u); // record 14
+        object_set_slot_class_for_probe(6u, 0u); // record 15
         {
             uint32_t t, markerAt = 0xFFFFFFFFu, doneAt = 0xFFFFFFFFu;
             uint32_t holdX = 0xFFFFFFFFu, holdY = 0xFFFFFFFFu;
@@ -880,7 +880,7 @@ int main(int argc, char **argv)
         r[5] = 0x00u;
         r[6] = 0x00u;
         r[7] = 0x00u;
-        r[8] = 0x18u; /* no row hook */
+        r[8] = 0x18u; // no row hook
         r[9] = 0x00u;
         for (t = 0; t < 40u; t++) {
             level_tick();
@@ -920,15 +920,15 @@ int main(int argc, char **argv)
 
         memset(page, 0, sizeof page);
         memset(s, 0, 28u);
-        s[0] = 0u; /* a live record index: not free */
-        s[3] = 0u; /* +6: the length */
-        s[4] = 8u; /* +8: the target */
-        s[5] = (uint16_t)x; /* +0xA: the stripe's x */
-        s[6] = (uint16_t)seed; /* +0xC: one past the drawn rows */
-        s[9] = 1u; /* +0x12: growing */
+        s[0] = 0u; // a live record index: not free
+        s[3] = 0u; // +6: the length
+        s[4] = 8u; // +8: the target
+        s[5] = (uint16_t)x; // +0xA: the stripe's x
+        s[6] = (uint16_t)seed; // +0xC: one past the drawn rows
+        s[9] = 1u; // +0x12: growing
         object_span_seed_for_probe(0u, seed);
         while ((object_frame_counter_probe() & 1u) != 0u)
-            object_tick(level_palette()); /* an even frame: no animation */
+            object_tick(level_palette()); // an even frame: no animation
         object_render(page, 0, 0);
         if (page[seed * 320u + x] == 0x18u) {
             fprintf(stderr, "FAIL D-90: a zero-length stripe drew\n");
@@ -959,8 +959,8 @@ int main(int argc, char **argv)
         s[4] = 0u;
         s[9] = 0u;
         for (uint32_t i = 0; i < 3u; i++) {
-            object_tick(level_palette()); /* even: no animation */
-            object_tick(level_palette()); /* odd */
+            object_tick(level_palette()); // even: no animation
+            object_tick(level_palette()); // odd
             memset(page, 0, sizeof page);
             object_render(page, 0, 0);
         }
@@ -968,7 +968,7 @@ int main(int argc, char **argv)
             fprintf(stderr, "FAIL D-90: the released stripe did not retract\n");
             bad = 1;
         }
-        memset(s, 0xFF, 28u); /* free it again */
+        memset(s, 0xFF, 28u); // free it again
         object_span_seed_for_probe(0u, 0u);
     }
 

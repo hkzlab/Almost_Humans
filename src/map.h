@@ -158,8 +158,8 @@ int32_t map_fade_at(uint32_t i, uint32_t *first, uint32_t *entries,
 void map_draw_name(uint8_t *page);
 
 /* --- the MAP screen's frame (the offscreen row page, 1000:0577/0595/0874/07E6) */
-extern uint16_t g_map_box_bottom; /* [0x8AE]                    */
-extern uint16_t g_map_panel; /* [0x8A2]: 1..6              */
+extern uint16_t g_map_box_bottom; // [0x8AE]
+extern uint16_t g_map_panel; // [0x8A2]: 1..6
 
 /* --- the band's staging page and four-strip animation (1000:12D3/09DA/
  * 0A72/07B2/0E77/0EBE/0EEC/0F3E) --------------------------------------- */

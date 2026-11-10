@@ -108,9 +108,9 @@ typedef void (*TickSyncFn)(uint32_t *lastSeen);
 
 typedef struct OSystem {
     /* --- video ------------------------------------------------------- */
-    void (*videoSetMode)(VideoMode mode); /* every mode set (13h/X)    */
-    uint8_t *(*videoPage)(int32_t which); /* which: 0 or 1; 320x200x8   */
-    void (*videoPresent)(int32_t which); /* the CRTC-flip equivalent   */
+    void (*videoSetMode)(VideoMode mode); // every mode set (13h/X)
+    uint8_t *(*videoPage)(int32_t which); // which: 0 or 1; 320x200x8
+    void (*videoPresent)(int32_t which); // the CRTC-flip equivalent
     void (*videoSetPalette)(const uint8_t *p6, uint32_t first, uint32_t n);
 
     /* --- input ------------------------------------------------------- */
@@ -118,19 +118,19 @@ typedef struct OSystem {
 
     /* --- timing ------------------------------------------------------ */
     void (*timerStart)(uint32_t ticksPerSec, TickFn tick);
-    TickSyncFn tickSync; /* the [0x5AC8] counter gate, not [0x48BA] */
+    TickSyncFn tickSync; // the [0x5AC8] counter gate, not [0x48BA]
 
     /* --- audio ------------------------------------------------------- *
      * One member per INT 60h command the game sends.  The module behind them
      * is the resident driver's replacement; the backend owns the sample
      * stream and pulls the module's generate().                           */
-    int32_t (*audioInstall)(void); /* the install entry (1E95:00DD)      */
-    int32_t (*audioLoadTune)(const uint8_t *image, uint32_t size); /* 0x0C */
-    void (*audioResume)(void); /* cmd 5, CX = 0 (music_resume)       */
-    void (*audioStop)(void); /* cmd 6 (music_stop)                 */
-    void (*audioSfx)(uint16_t id); /* cmd 5, CX = the event id           */
-    void (*audioTempo)(uint8_t cl); /* cmd 0x0A (master volume)          */
-    void (*audioTick)(void); /* cmd 2 (the music tick)             */
+    int32_t (*audioInstall)(void); // the install entry (1E95:00DD)
+    int32_t (*audioLoadTune)(const uint8_t *image, uint32_t size); // 0x0C
+    void (*audioResume)(void); // cmd 5, CX = 0 (music_resume)
+    void (*audioStop)(void); // cmd 6 (music_stop)
+    void (*audioSfx)(uint16_t id); // cmd 5, CX = the event id
+    void (*audioTempo)(uint8_t cl); // cmd 0x0A (master volume)
+    void (*audioTick)(void); // cmd 2 (the music tick)
     /* [0x5AFE] sound_driver_id: -1 none, 0 Beeper, 1 AdLib, other MT-32.
      * play_tune chooses the tune extension and driver_call its gate from it
      * (1000:83CC, 1000:8462), exactly as the original's launcher global. */
@@ -141,7 +141,7 @@ typedef struct OSystem {
      * the destination (SDL log, stderr, nothing).  Not a DOS behaviour - the
      * original had no logging - but the core must not know a stream either. */
     void (*warn)(const char *msg);
-    void (*fatalError)(const char *msg); /* does not return            */
+    void (*fatalError)(const char *msg); // does not return
 
     /* The filesystem module the core reads the volumes and saves through
      * It is defined by the arch layer. */

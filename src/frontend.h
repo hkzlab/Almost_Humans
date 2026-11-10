@@ -21,10 +21,10 @@
  * hands MUSIC to audio_music_gate, scene.c takes ANIMATIONS, and game_main
  * hands the RESTORE GAME slot to save_load_slot (entry 1000:004C's load). */
 enum {
-    FRONTEND_OPT_MUSIC = 0, /* ON/OFF: the frame web's music gate      */
-    FRONTEND_OPT_LEVEL = 1, /* EASY/NORMAL/HARD: time A/B/C, 12/10/8    */
-    FRONTEND_OPT_GAME = 2, /* OFF/1..20: the save slot                */
-    FRONTEND_OPT_ANIM = 3 /* ON/OFF: cd_file_op off (no cutscenes)   */
+    FRONTEND_OPT_MUSIC = 0, // ON/OFF: the frame web's music gate
+    FRONTEND_OPT_LEVEL = 1, // EASY/NORMAL/HARD: time A/B/C, 12/10/8
+    FRONTEND_OPT_GAME = 2, // OFF/1..20: the save slot
+    FRONTEND_OPT_ANIM = 3 // ON/OFF: cd_file_op off (no cutscenes)
 };
 
 /**

@@ -91,7 +91,7 @@ static void _tick(void)
     _ticks++;
     g_sound_driver_adlib.tick(_drv);
 }
-static int32_t _driver_id(void) { return 1; } /* AdLib */
+static int32_t _driver_id(void) { return 1; } // AdLib
 static void _warn(const char *msg) { fprintf(stderr, "warn: %s\n", msg); }
 static void _fatal(const char *msg)
 {
@@ -179,8 +179,8 @@ int main(int argc, char **argv)
     audio_music_resume();
     audio_fade_in();
     peak = _run(600);
-    assert(peak > 256u); /* audible, not the silent init state */
-    assert(_tempo_byte == 0x4Au); /* 1000:84CE: the fade's last step */
+    assert(peak > 256u); // audible, not the silent init state
+    assert(_tempo_byte == 0x4Au); // 1000:84CE: the fade's last step
     assert(_ticks > 0u);
 
     /* The 2-of-3 tick: 600 audio_tick calls -> 400 driver ticks.  The
@@ -192,7 +192,7 @@ int main(int argc, char **argv)
     {
         uint32_t t0 = _ticks;
         (void)_run(30);
-        assert(_ticks >= t0 + 19u && _ticks <= t0 + 21u); /* 2 of 3 */
+        assert(_ticks >= t0 + 19u && _ticks <= t0 + 21u); // 2 of 3
         assert(_tempo_byte == 0x4Au);
     }
 
@@ -206,26 +206,26 @@ int main(int argc, char **argv)
     }
 
     /* --- the MUSIC board's gate (1000:A5E8) --------------------------- */
-    audio_music_gate(0); /* on: resume + cmd 0x0A 0x4B */
+    audio_music_gate(0); // on: resume + cmd 0x0A 0x4B
     assert(_voice != 0xFFFFu);
     assert(_tempo_byte == 0x4Bu);
-    audio_music_gate(1); /* off: stop */
+    audio_music_gate(1); // off: stop
     assert(_voice == 0xFFFFu);
 
     /* --- driver_call: the effects bank when the board is off ---------- */
-    frontend_option_set_for_probe(FRONTEND_OPT_MUSIC, 1u); /* music off */
+    frontend_option_set_for_probe(FRONTEND_OPT_MUSIC, 1u); // music off
     res_set_disc(1u);
     audio_play_tune(audio_tune_humfx);
     audio_fade_in();
-    audio_sfx(0u); /* 1000:83B7, AX = 0 (PICKUP) */
+    audio_sfx(0u); // 1000:83B7, AX = 0 (PICKUP)
     assert(_voice != 0xFFFFu);
     peak = _run(120);
-    assert(peak > 128u); /* the effect sounded */
-    audio_sfx(0x0Eu); /* the AdLib id (1) drops event 0x0E */
-    audio_sfx(0xFFu); /* the "none" sentinel */
+    assert(peak > 128u); // the effect sounded
+    audio_sfx(0x0Eu); // the AdLib id (1) drops event 0x0E
+    audio_sfx(0xFFu); // the "none" sentinel
 
     /* --- the level's lettered tune (1000:327F) ------------------------ */
-    frontend_option_set_for_probe(FRONTEND_OPT_MUSIC, 0u); /* music on */
+    frontend_option_set_for_probe(FRONTEND_OPT_MUSIC, 0u); // music on
     audio_play_level_tune(1u);
     assert(strcmp(audio_tune_lev, "mus\\levA") == 0);
     audio_play_level_tune(2u);
@@ -239,8 +239,8 @@ int main(int argc, char **argv)
     audio_music_stop();
     {
         uint32_t loads0 = _loads;
-        assert(level_disk_status_begin(3u) == 1); /* no volume 3: the prompt */
-        assert(_loads == loads0 + 1u); /* "mus\disk" loaded */
+        assert(level_disk_status_begin(3u) == 1); // no volume 3: the prompt
+        assert(_loads == loads0 + 1u); // "mus\disk" loaded
     }
     level_disk_status_reset();
 
@@ -250,7 +250,7 @@ int main(int argc, char **argv)
     res_set_disc(0u);
     {
         uint32_t loads0 = _loads;
-        (void)scene_play_level_intro(1u); /* the level-1 cutscene */
+        (void)scene_play_level_intro(1u); // the level-1 cutscene
         assert(_loads == loads0 + 1u);
     }
 

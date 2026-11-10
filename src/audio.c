@@ -32,19 +32,19 @@ char audio_tune_lev[] = "mus\\levA";
 #define AUDIO_FADE_TICKS 2
 
 static const OSystem *_au_osys;
-static uint8_t _music_active;  /* [0x40BB]: the music_resume latch   */
-static uint8_t _fade_latch;    /* [0x40BA]: the fade-in latch        */
-static uint16_t _tick_phase;   /* [0x5AF2]: 1,2 tick; 3 resets       */
+static uint8_t _music_active;  // [0x40BB]: the music_resume latch
+static uint8_t _fade_latch;    // [0x40BA]: the fade-in latch
+static uint16_t _tick_phase;   // [0x5AF2]: 1,2 tick; 3 resets
 /* 1 when the backend steps the tick from its audio sample clock (the SDL3
  * render path).  The game tick then skips audio_tick: one clock only. */
 static int32_t _render_clock;
-static const char *_tune_name; /* [0x40B8]: the dedup key            */
-static int8_t _fade_dir;      /* +1 in, -1 out, 0 idle              */
-static uint8_t _fade_step;     /* the CL currently applied           */
-static uint8_t _fade_wait;     /* ticks until the next step          */
-static uint8_t _record_live;   /* a cmd-5 record is playing          */
-static uint8_t _stop_after_fade; /* present_frames_75 then music_stop */
-static uint8_t _tune_missing;  /* the last play_tune found no image  */
+static const char *_tune_name; // [0x40B8]: the dedup key
+static int8_t _fade_dir;      // +1 in, -1 out, 0 idle
+static uint8_t _fade_step;     // the CL currently applied
+static uint8_t _fade_wait;     // ticks until the next step
+static uint8_t _record_live;   // a cmd-5 record is playing
+static uint8_t _stop_after_fade; // present_frames_75 then music_stop
+static uint8_t _tune_missing;  // the last play_tune found no image
 
 int32_t audio_init(const OSystem *osys)
 {
@@ -81,11 +81,11 @@ void audio_play_tune(const char *name)
     const char *ext;
 
     if (!_au_osys || !name) return;
-    if (name == _tune_name) return; /* 1000:843E */
+    if (name == _tune_name) return; // 1000:843E
     _tune_name = name;
 
     id = _driver_id();
-    if (id == -1) return; /* 1000:8449: no driver loaded */
+    if (id == -1) return; // 1000:8449: no driver loaded
     ext = id == 0 ? ".BEP" : (id == 1 ? ".ALB" : ".RLD");
 
     snprintf(path, sizeof(path), "%s%s", name, ext);
@@ -95,7 +95,7 @@ void audio_play_tune(const char *name)
                  "audio: cannot load %s; the record is silenced", path);
         _au_osys->warn(msg);
         _tune_missing = 1;
-        audio_music_stop(); /* D-252: silence instead of the original's exit */
+        audio_music_stop(); // D-252: silence instead of the original's exit
         return;
     }
     _tune_missing = 0;
@@ -116,7 +116,7 @@ void audio_music_resume(void)
     /* D-252: a tune that could not be loaded must not restart the previous
      * driver image; the game stays silent until a later play_tune succeeds. */
     if (_tune_missing) return;
-    if (frontend_option(FRONTEND_OPT_MUSIC) != 0) return; /* [0x5E5B] */
+    if (frontend_option(FRONTEND_OPT_MUSIC) != 0) return; // [0x5E5B]
     /* Every site in the original reaches music_resume *after* a completed
      * (blocking) music_stop.  The port's fades do not block, so a previous
      * record can still be live here: release it first (the same one-record
@@ -153,7 +153,7 @@ void audio_music_gate(uint32_t off)
 
 void audio_fade_in(void)
 {
-    if (!_au_osys || _fade_latch) return; /* 1000:84AF */
+    if (!_au_osys || _fade_latch) return; // 1000:84AF
     _fade_dir = 1;
     _fade_step = 0;
     _fade_wait = AUDIO_FADE_TICKS;
@@ -235,12 +235,12 @@ void audio_set_render_clock(uint8_t on) { _render_clock = on; }
 void audio_sfx(uint32_t id)
 {
     if (!_au_osys) return;
-    if ((uint8_t)id == 0xFFu) return; /* 1000:83C1 */
-    if (frontend_option(FRONTEND_OPT_MUSIC) == 0) return; /* 1000:83C5 */
+    if ((uint8_t)id == 0xFFu) return; // 1000:83C1
+    if (frontend_option(FRONTEND_OPT_MUSIC) == 0) return; // 1000:83C5
     /* 1000:83CC: the Beeper driver (id 0) never gets cmd 5. */
     if (_driver_id() == 0) return;
     /* 1000:83D3: event 0x0E is the one MT-32 configuration's. */
     if (id == 0x0Eu && _driver_id() != 3) return;
-    _record_live = 1; /* the driver_call stores the sfx handle in [0x5AF0] */
+    _record_live = 1; // the driver_call stores the sfx handle in [0x5AF0]
     _au_osys->audioSfx((uint16_t)id);
 }

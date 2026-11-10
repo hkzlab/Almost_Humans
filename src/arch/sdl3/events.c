@@ -86,16 +86,16 @@ static uint8_t _scan_code(SDL_Keycode k)
 static uint8_t _key_code(SDL_Keycode k)
 {
     switch (k) {
-    case SDLK_ESCAPE: return 0x1Bu;   /* ESC - the 0x5F11 table's key   */
-    case SDLK_BACKSPACE: return 0x0Eu;   /* the erase action's key         */
+    case SDLK_ESCAPE: return 0x1Bu;   // ESC - the 0x5F11 table's key
+    case SDLK_BACKSPACE: return 0x0Eu;   // the erase action's key
     case SDLK_RETURN:
-    case SDLK_KP_ENTER: return 0x0Du;   /* the confirm action's key       */
+    case SDLK_KP_ENTER: return 0x0Du;   // the confirm action's key
     default: break;
     }
     /* the ISR's XLAT table (0x4260) delivers letters UPPERCASE ('a' -> 0x41,
      * input row) - the name screen's dispatch expects those */
     if (k >= 'a' && k <= 'z') return (uint8_t)(k - 0x20u);
-    if (k >= 0x20 && k < 0x80) return (uint8_t)k;   /* the printables     */
+    if (k >= 0x20 && k < 0x80) return (uint8_t)k;   // the printables
     return 0u;
 }
 

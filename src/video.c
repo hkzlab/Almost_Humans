@@ -87,10 +87,10 @@ void video_vram_present(uint8_t *page, uint16_t base, uint16_t pitch,
         uint8_t *d = page + y * VIDEO_PAGE_W;
         uint16_t row, pan;
 
-        if (y < split) { /* the panned page */
+        if (y < split) { // the panned page
             row = (uint16_t)(base + y * pitch);
             pan = scroll;
-        } else { /* the fixed band from absolute address 0 */
+        } else { // the fixed band from absolute address 0
             row = (uint16_t)((y - split) * pitch);
             pan = 0u;
         }

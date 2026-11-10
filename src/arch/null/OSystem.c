@@ -132,10 +132,10 @@ static uint8_t _pages[2][VIDEO_PAGE_BYTES];
 static uint8_t _pal[256 * 3];
 static TickFn _the_tick;
 static uint32_t _the_rate;
-static InputState _the_input;    /* injected input (idle by default) */
-static const InputState *_script_states; /* scripted input for smoke tests */
+static InputState _the_input;    // injected input (idle by default)
+static const InputState *_script_states; // scripted input for smoke tests
 static uint32_t _script_n, _script_i;
-static VideoMode _mode_set; /* the core's last videoSetMode */
+static VideoMode _mode_set; // the core's last videoSetMode
 
 /* a test hook: the frame-evidence dumps key on the poll count, which only
  * the backend knows (the smoke script is indexed by eventsPoll calls) */
@@ -144,8 +144,8 @@ static void (*_present_hook)(uint32_t poll);
  * source (one tickSync call = one tick), so the scripted tests keep their
  * one-poll-per-tick timing.  osys_null_run_ticks drives the ISR body by hand
  * for the content tests and advances the same counter. */
-static uint32_t _tick_counter; /* [0x5AC8] */
-static uint32_t _tick_limit; /* 0 = forever: the tests' default */
+static uint32_t _tick_counter; // [0x5AC8]
+static uint32_t _tick_limit; // 0 = forever: the tests' default
 /* the audio calls are counted: the MUSIC board's gate is the only
  * observable the M5 stub has, and test_frontend asserts it */
 static uint32_t _audio_starts, _audio_stops;
@@ -251,7 +251,7 @@ void osys_null_set_tick_limit(uint32_t n) { _tick_limit = n; }
 void osys_null_run_ticks(uint32_t n)
 {
     for (uint32_t i = 0; i < n && _the_tick; i++) {
-        _tick_counter++; /* the ISR's INC [0x5AC8] (1000:8AA4) */
+        _tick_counter++; // the ISR's INC [0x5AC8] (1000:8AA4)
         _the_tick();
     }
     (void)_the_rate;

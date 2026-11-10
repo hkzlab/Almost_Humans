@@ -50,7 +50,7 @@ extern const OSystem g_osys_null;
 static void _tick(const InputState *in)
 {
     frontend_tick(in);
-    palette_tick();                 /* game_tick's ISR body */
+    palette_tick();                 // game_tick's ISR body
 }
 
 /**
@@ -145,10 +145,10 @@ static int32_t _check_badge(const char *what, uint32_t dest, const uint8_t *spr,
         for (uint32_t c = 0; c < w; c++) {
             uint8_t v = spr[off + r * w + c];
             uint32_t wx = col * 4u + c, wy = row + r;
-            if (!v) continue;              /* nonzero-transparent */
+            if (!v) continue;              // nonzero-transparent
             if (wx >= charX + 2u && wx <= charX + 17u && wy >= charY &&
                 wy <= charY + 23u)
-                continue;   /* the walker */
+                continue;   // the walker
             checked++;
             if (page[wy * 320u + wx - 0x140u] != v) {
                 fprintf(stderr,
@@ -222,7 +222,7 @@ int main(int argc, char **argv)
                         "ANIMATIONS on\n");
         bad = 1;
     }
-    res_set_disc(0u);           /* the room's assets ship on disc 0 */
+    res_set_disc(0u);           // the room's assets ship on disc 0
 
     /* enter the room: load + the fade-in (~24 ticks), then _idle */
     {
@@ -278,16 +278,16 @@ int main(int argc, char **argv)
     bad |= _check_badge("LEVEL", 0x1C80u, cb2, cb2Size, 0u, 80u, 32u, 1u, 400u,
                         55u);
     _press_action();
-    _press_action();                     /* 2 then the wrap to 0 */
+    _press_action();                     // 2 then the wrap to 0
     if (frontend_option(FRONTEND_OPT_LEVEL) != 0u) {
         fprintf(stderr, "FAIL LEVEL did not wrap at 3\n");
         bad = 1;
     }
-    _press_action(); /* leave it on NORMAL for the level */
+    _press_action(); // leave it on NORMAL for the level
 
     /* --- MUSIC: cell 3 (ON/OFF = 2 states) ----------------------------- */
     bad |= _walk_to(0x04u, 3u, "left to MUSIC");
-    _press_action(); /* 0 -> 1: OFF */
+    _press_action(); // 0 -> 1: OFF
     if (frontend_option(FRONTEND_OPT_MUSIC) != 1u) {
         fprintf(stderr, "FAIL MUSIC did not advance to 1\n");
         bad = 1;
@@ -302,7 +302,7 @@ int main(int argc, char **argv)
     /* the MUSIC badge: codeb1 cell 1 (OFF), dest 0x1D14, 48x32 */
     bad |= _check_badge("MUSIC", 0x1D14u, cb1, cb1Size, 0u, 48u, 32u, 1u, 362u,
                         55u);
-    _press_action(); /* 1 -> 0: the wrap; resume */
+    _press_action(); // 1 -> 0: the wrap; resume
     if (frontend_option(FRONTEND_OPT_MUSIC) != 0u ||
         osys_null_audio_starts() != 2u) {
         fprintf(stderr,
@@ -313,7 +313,7 @@ int main(int argc, char **argv)
     }
     {
         InputState in = _idle();
-        for (uint32_t i = 0; i < 5u; i++) _tick(&in); /* the latch holds */
+        for (uint32_t i = 0; i < 5u; i++) _tick(&in); // the latch holds
     }
     if (osys_null_audio_starts() != 2u || osys_null_audio_stops() != 1u) {
         fprintf(stderr, "FAIL the music latch re-called the backend\n");
@@ -325,7 +325,7 @@ int main(int argc, char **argv)
     bad |= _walk_to(0x08u, 1u, "right to the floor rail");
     bad |= _walk_to(0x02u, 0u, "down to the floor");
     bad |= _walk_to(0x08u, 6u, "right to RESTORE GAME");
-    _press_action(); /* 0 -> 1 */
+    _press_action(); // 0 -> 1
     if (frontend_option(FRONTEND_OPT_GAME) != 1u) {
         fprintf(stderr, "FAIL RESTORE GAME did not advance to 1\n");
         bad = 1;
@@ -333,19 +333,19 @@ int main(int argc, char **argv)
     /* the RESTORE GAME badge: restore.spr cell 1 (GAME 1), dest 0x5BBC */
     bad |= _check_badge("RESTORE GAME", 0x5BBCu, rst, rstSize, 0u, 48u, 32u, 1u,
                         520u, 160u);
-    for (uint32_t i = 0; i < 20u; i++) _press_action(); /* 2..20, then wrap */
+    for (uint32_t i = 0; i < 20u; i++) _press_action(); // 2..20, then wrap
     if (frontend_option(FRONTEND_OPT_GAME) != 0u) {
         fprintf(stderr, "FAIL RESTORE GAME did not wrap at 21\n");
         bad = 1;
     }
-    _press_action(); /* leave GAME 1 for the exit */
+    _press_action(); // leave GAME 1 for the exit
 
     /* --- ANIMATIONS: cell 5 (ON/OFF = 2 states) ----------------------- */
     bad |= _walk_to(0x04u, 0u, "left to the floor start");
     bad |= _walk_to(0x01u, 1u, "up to the walkway");
     bad |= _walk_to(0x01u, 4u, "up to the top rail");
     bad |= _walk_to(0x08u, 5u, "right to ANIMATIONS");
-    _press_action(); /* 0 -> 1: OFF */
+    _press_action(); // 0 -> 1: OFF
     if (frontend_option(FRONTEND_OPT_ANIM) != 1u) {
         fprintf(stderr, "FAIL ANIMATIONS did not advance to 1\n");
         bad = 1;
@@ -353,12 +353,12 @@ int main(int argc, char **argv)
     /* the ANIMATIONS badge: codeb1 cells 2..3 at srcOff 0xC00, cell 1 = OFF */
     bad |= _check_badge("ANIMATIONS", 0x0F88u, cb1, cb1Size, 0x0C00u, 48u, 32u,
                         1u, 539u, 32u);
-    _press_action(); /* 1 -> 0: the wrap */
+    _press_action(); // 1 -> 0: the wrap
     if (frontend_option(FRONTEND_OPT_ANIM) != 0u) {
         fprintf(stderr, "FAIL ANIMATIONS did not wrap at 2\n");
         bad = 1;
     }
-    _press_action(); /* leave it OFF for the cutscene gate */
+    _press_action(); // leave it OFF for the cutscene gate
 
     /* --- exit: walk off the right edge, carrying the settings out ----- */
     bad |= _walk_to(0x04u, 4u, "left off the top rail");
@@ -410,7 +410,7 @@ int main(int argc, char **argv)
         for (t = 0; t < 800u && !frontend_name_screen_for_probe(); t++)
             _tick(&in);
         in = _idle();
-        _tick(&in); /* release the walk */
+        _tick(&in); // release the walk
         if (!frontend_name_screen_for_probe()) {
             fprintf(stderr, "FAIL the name screen did not open\n");
             bad = 1;
@@ -428,7 +428,7 @@ int main(int argc, char **argv)
                 in = _idle();
                 in.lastKey = 'X';
                 _tick(&in);
-                _tick(&in); /* the next compose presents the redrawn line */
+                _tick(&in); // the next compose presents the redrawn line
                 p0 = osys_null_page(0);
                 for (uint32_t y = 0; y < 200u; y++)
                     for (uint32_t x = 0; x < 320u; x++)
@@ -467,7 +467,7 @@ int main(int argc, char **argv)
             }
             in = _idle();
             in.lastKey = 0x1Bu;
-            _tick(&in); /* clear the Z run again */
+            _tick(&in); // clear the Z run again
             /* type a wrong code and Enter: the miss resets DARWIN */
             for (uint32_t i = 0; wrong[i]; i++) {
                 in = _idle();
@@ -494,7 +494,7 @@ int main(int argc, char **argv)
             /* D-56: typing after a miss must not expose a stale tail */
             in = _idle();
             in.lastKey = 0x0Du;
-            _tick(&in); /* DARWI -> miss */
+            _tick(&in); // DARWI -> miss
             in = _idle();
             in.lastKey = 'X';
             _tick(&in);

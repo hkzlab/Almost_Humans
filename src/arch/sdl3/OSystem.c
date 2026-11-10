@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN32
-#    include <direct.h> /* chdir = _chdir on the Windows CRT */
+#    include <direct.h> // chdir = _chdir on the Windows CRT
 /* the macro keeps the CRT's spelling on purpose: it maps the POSIX name */
 #    define chdir  _chdir
 #    define getcwd _getcwd
@@ -187,16 +187,16 @@ static void _fatal(const char *msg)
 
 /* The parsed command line (see main()'s usage block). */
 typedef struct CliOptions {
-    const char *path; /* the game-volume directory (mandatory) */
-    const char *audio; /* --audio driver name, NULL = AdLib */
-    const char *roms; /* --mt32-roms directory, NULL = unset */
+    const char *path; // the game-volume directory (mandatory)
+    const char *audio; // --audio driver name, NULL = AdLib
+    const char *roms; // --mt32-roms directory, NULL = unset
 } CliOptions;
 
 /* _parse_args's outcome. */
 typedef enum CliParseResult {
-    CLI_PARSE_CONTINUE = 0, /* a full command line: run the game */
-    CLI_PARSE_ERROR, /* a bad command line, already reported */
-    CLI_PARSE_VERSION /* --version was printed: exit successfully */
+    CLI_PARSE_CONTINUE = 0, // a full command line: run the game
+    CLI_PARSE_ERROR, // a bad command line, already reported
+    CLI_PARSE_VERSION // --version was printed: exit successfully
 } CliParseResult;
 
 /**

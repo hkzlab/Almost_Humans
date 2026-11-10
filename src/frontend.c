@@ -102,8 +102,8 @@ typedef enum FePhase {
 } FePhase;
 
 /* --- the shared A000 model + the page pair ---------------------------- */
-static uint16_t _page_draw, _page_disp; /* [0x5AC4]/[0x5AC6] - page bases   */
-static uint16_t _scroll; /* [0x0]: the front-end _scroll      */
+static uint16_t _page_draw, _page_disp; // [0x5AC4]/[0x5AC6] - page bases
+static uint16_t _scroll; // [0x0]: the front-end _scroll
 
 /* --- the shipped tables, verbatim -------------------------------------- */
 
@@ -149,29 +149,29 @@ static const uint8_t _slot_tab[61] = {
     0x55, 0x66, 0x66, 0x66, 0x66, 0x77, 0x77, 0x77, 0x88, 0x88, 0x88,
     0x99, 0x99, 0x99, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, 0xAA, 0xCC, 0xBB,
     0xAA, 0xCC, 0xBB, 0xAA, 0xCC, 0xBB, 0xAA, 0xBB, 0xBB, 0xAA, 0xAA,
-    0xAA, 0xAA, 0x99, 0x99, 0x99, 0x00, /* [60] = the wrap terminator, verbatim from the image      */
+    0xAA, 0xAA, 0x99, 0x99, 0x99, 0x00, // [60] = the wrap terminator, verbatim from the image
 };
 
 static FePhase _phase = FE_IDLE;
-static uint16_t _cell; /* [0x4220]: the rail node              */
-static uint16_t _walk_state; /* [0x4222]: bit15 = at rest, 0..3 walk */
-static uint16_t _char_x, _char_y; /* [0x4224]/[0x4226]: the world x/y     */
-static uint16_t _frame, _frame_cnt; /* [0x4228]/[0x422A]                    */
-static uint16_t _pub_x, _pub_y; /* [0x5F05]/[0x5F07]: the walk origin   */
-static char _name_buf[15]; /* 0x61E0: 14 chars + the 0x61EE NUL   */
-static uint16_t _code_index; /* [0x5F09]: the matched code's index   */
+static uint16_t _cell; // [0x4220]: the rail node
+static uint16_t _walk_state; // [0x4222]: bit15 = at rest, 0..3 walk
+static uint16_t _char_x, _char_y; // [0x4224]/[0x4226]: the world x/y
+static uint16_t _frame, _frame_cnt; // [0x4228]/[0x422A]
+static uint16_t _pub_x, _pub_y; // [0x5F05]/[0x5F07]: the walk origin
+static char _name_buf[15]; // 0x61E0: 14 chars + the 0x61EE NUL
+static uint16_t _code_index; // [0x5F09]: the matched code's index
 static uint8_t _opt_counter[4]; /* the structs' +7 byte (0x5E5B..0x5E79)
                                   * = FRONTEND_OPT_*; persists for the run */
-static uint8_t _fire_latch; /* the action key's held-spin           */
-static uint16_t _slot_cnt; /* [0x619F]: the anim countdown (5)     */
-static uint16_t _slot; /* [0x61A1]: the anim _slot (parked 0x12)*/
-static uint8_t _name_screen; /* [0x6267]: the name-screen flag       */
+static uint8_t _fire_latch; // the action key's held-spin
+static uint16_t _slot_cnt; // [0x619F]: the anim countdown (5)
+static uint16_t _slot; // [0x61A1]: the anim _slot (parked 0x12)
+static uint8_t _name_screen; // [0x6267]: the name-screen flag
 
 static uint8_t *_code2, *_codehum, *_codes;
 static uint8_t *_codeb1, *_codeb2, *_restore;
 static uint32_t _code2_size, _codehum_size, _codes_size;
 static uint32_t _codeb1_size, _codeb2_size, _restore_size;
-static const uint8_t _ramp0[768]; /* the 0x48BC ramp: zeroed = black     */
+static const uint8_t _ramp0[768]; // the 0x48BC ramp: zeroed = black
 static uint16_t _split_row =
     VIDEO_PAGE_H_MODE13H; /** [0x5B0A]: the CRTC split (0x88 on the
                                    * name screen - the fixed band below) */
@@ -294,14 +294,10 @@ static void _draw_option_sprites(void)
         uint16_t dest, srcOff;
         uint8_t w, h, cellIdx;
     } e[4] = {
-        { 0x1D14, 0x0000, 48, 32,
-          0 }, /* MUSIC        (2, _codeb1 cells 0..1) */
-        { 0x1C80, 0x0000, 80, 32,
-          1 }, /* LEVEL        (3, _codeb2)            */
-        { 0x5BBC, 0x0000, 48, 32,
-          2 }, /* RESTORE GAME (21, _restore.spr)      */
-        { 0x0F88, 0x0C00, 48, 32,
-          3 }, /* ANIMATIONS   (2, _codeb1 cells 2..3) */
+        { 0x1D14, 0x0000, 48, 32, 0 }, // MUSIC        (2, _codeb1 cells 0..1)
+        { 0x1C80, 0x0000, 80, 32, 1 }, // LEVEL        (3, _codeb2)
+        { 0x5BBC, 0x0000, 48, 32, 2 }, // RESTORE GAME (21, _restore.spr)
+        { 0x0F88, 0x0C00, 48, 32, 3 }, // ANIMATIONS   (2, _codeb1 cells 2..3)
     };
     const uint8_t *file[4] = { _codeb1, _codeb2, _restore, _codeb1 };
     const uint32_t size[4] = { _codeb1_size, _codeb2_size, _restore_size,
@@ -348,7 +344,7 @@ static void _draw_humans(void)
     static const uint32_t destRow[2] = { 0u, 16u };
     for (uint16_t h = 0; h < 2u; h++) {
         uint8_t nibble = _slot_tab[(_slot + 1u + h) % 61u] & 0x0Fu;
-        uint8_t cx = 0x9Eu - nibble; /* 0x9E - nibble */
+        uint8_t cx = 0x9Eu - nibble; // 0x9E - nibble
         /* ADB6's flag pick: [0x6267] set -> DI used directly (the fixed
          * band's rows 0..19/16..35); clear -> DI += 0x5500 (page row 136)
          * + [0x5AC4] - the room screen: page rows 136..155/152..171 at the
@@ -459,11 +455,11 @@ static int32_t _code_match(void)
 {
     _code_index = 1;
     if (!_codes || _codes_size < 2u) {
-        return 1; /* the no-data path: DARWIN at index 1 */
+        return 1; // the no-data path: DARWIN at index 1
     }
     const char *p = (const char *)_codes;
     const char *end = (const char *)_codes + _codes_size;
-    uint16_t remaining = 160u; /* [0x6193] = 0xA0 */
+    uint16_t remaining = 160u; // [0x6193] = 0xA0
     while (remaining > 0u && p < end) {
         remaining = (uint16_t)(remaining - 1u);
         const char *c = p, *n = _name_buf;
@@ -554,7 +550,7 @@ static void _walk_step(uint32_t dir)
     uint16_t rail = _rails[_cell][dir];
     uint16_t target = rail & 0x0FFFu;
 
-    if (dir < 2u) { /* A8D3 */
+    if (dir < 2u) { // A8D3
         if (_frame != 0x13u) _char_x = (uint16_t)(_char_x + step);
         _frame_cnt = (uint16_t)(_frame_cnt - 1u);
         if (_frame_cnt & 0x8000u) {
@@ -572,7 +568,7 @@ static void _walk_step(uint32_t dir)
             _frame = 0x13;
             _frame_cnt = 3;
         }
-    } else { /* A963 */
+    } else { // A963
         if (_frame != 0x13u) _char_y = (uint16_t)(_char_y + step);
         step = (int16_t)-step;
         _frame_cnt = (uint16_t)(_frame_cnt - 1u);
@@ -611,15 +607,15 @@ static void _walk_step(uint32_t dir)
 static void _room_walk(const InputState *in)
 {
     uint8_t dir = 4;
-    if (in->joyBits & 0x04u) dir = 0; /* left  - the cascade's order */
-    else if (in->joyBits & 0x08u) dir = 1; /* right                        */
-    else if (in->joyBits & 0x01u) dir = 2; /* up                           */
-    else if (in->joyBits & 0x02u) dir = 3; /* down                         */
+    if (in->joyBits & 0x04u) dir = 0; // left  - the cascade's order
+    else if (in->joyBits & 0x08u) dir = 1; // right
+    else if (in->joyBits & 0x01u) dir = 2; // up
+    else if (in->joyBits & 0x02u) dir = 3; // down
 
     if (dir != 4u) {
-        if (_walk_state & 0x8000u) { /* at rest: the rail */
+        if (_walk_state & 0x8000u) { // at rest: the rail
             uint16_t rail = _rails[_cell][dir];
-            if (rail) { /* A818..A854 */
+            if (rail) { // A818..A854
                 _pub_x = _char_x;
                 _pub_y = _char_y;
                 _walk_state = dir;
@@ -635,10 +631,10 @@ static void _room_walk(const InputState *in)
                 _frame_cnt = 3;
             }
         } else {
-            _walk_step(_walk_state & 3u); /* A7C6 */
+            _walk_step(_walk_state & 3u); // A7C6
         }
     } else if (!(_walk_state & 0x8000u)) {
-        _walk_step(_walk_state & 3u); /* the stepper runs on */
+        _walk_step(_walk_state & 3u); // the stepper runs on
     }
     /* at rest + no key: nothing (A7C3) */
 }
@@ -678,7 +674,7 @@ static void _anim_frame(void)
          * way the 0 terminator wraps to _slot 0. */
         uint16_t s = _slot;
         if (_name_screen) s += 3u;
-        if (s >= 61u || _slot_tab[s] == 0u) s = 0u; /* the terminator */
+        if (s >= 61u || _slot_tab[s] == 0u) s = 0u; // the terminator
         _slot = s;
     }
     if (_name_screen) _scroll = (uint16_t)((_slot_tab[_slot] & 0x0Fu) - 4u);
@@ -690,9 +686,9 @@ static void _anim_frame(void)
 static void _name_screen_enter(void)
 {
     _name_screen = 1;
-    _page_draw = 0x2800; /* [0x5AC4] := 0x2800 (AF92)  */
+    _page_draw = 0x2800; // [0x5AC4] := 0x2800 (AF92)
     _page_disp = 0x7D00;
-    _split_row = 0x88; /* [0x5B0A] := 0x88: the split */
+    _split_row = 0x88; // [0x5B0A] := 0x88: the split
     /* the transition's two strip blits (AFBD..AFDF): the room's LEFT view
      * (_code2 rows 0..135) onto the window base, and the humans' stage
      * (_code2+0x15400, 56 rows - the strip bank 0x1540 PARAGRAPHS in) onto
@@ -747,7 +743,7 @@ static void _do_load(void)
     /* the room's opening state (frontend_room_setup's seeds) */
     _page_draw = 0;
     _page_disp = 0x7D00;
-    _split_row = VIDEO_PAGE_H_MODE13H; /* [0x5B0A] := 0xC8 (no split)  */
+    _split_row = VIDEO_PAGE_H_MODE13H; // [0x5B0A] := 0xC8 (no split)
     _cell = 0;
     _walk_state = 0xFFFF;
     _char_x = 0x1D2;
@@ -799,7 +795,7 @@ static void _do_load(void)
         palette_build_fade(0, 256, 0x23, palette_working());
         _phase = FE_FADEIN;
     } else {
-        _phase = FE_ROOM; /* the no-data path: no palette, no backdrop */
+        _phase = FE_ROOM; // the no-data path: no palette, no backdrop
     }
 }
 
@@ -826,7 +822,7 @@ uint8_t frontend_tick(const InputState *in)
         if (!(in->joyBits & 0x80u)) _fire_latch = 0;
 
         _set_scroll();
-        _draw_option_sprites(); /* place_4_sprites_to_vga (A684) */
+        _draw_option_sprites(); // place_4_sprites_to_vga (A684)
         _draw_character();
         _draw_name_line();
         _anim_frame(); /* the walk loop's acb9: keeps the
@@ -838,10 +834,10 @@ uint8_t frontend_tick(const InputState *in)
 
         /* the tail's x-dispatch (A890..) */
         if (_char_x == 0x280u) {
-            (void)_code_match(); /* the right-edge exit ignores it */
+            (void)_code_match(); // the right-edge exit ignores it
             _start_exit();
         } else if (_char_x == 0x108u) {
-            if (_scroll != 0u) _phase = FE_PAN; /* the pan-out first */
+            if (_scroll != 0u) _phase = FE_PAN; // the pan-out first
             else _name_screen_enter();
         }
         return 1;
@@ -858,9 +854,9 @@ uint8_t frontend_tick(const InputState *in)
         return 1;
     case FE_NAME:
         _anim_frame();
-        _draw_humans(); /* the fixed band's two walkers */
+        _draw_humans(); // the fixed band's two walkers
         _draw_name_line();
-        _compose(0); /* the name screen is single-buffered */
+        _compose(0); // the name screen is single-buffered
         if (in->lastKey) {
             uint8_t k = in->lastKey;
             /* AA4E/AA50: the event loop reads AND clears [0x48A3] - one
@@ -870,10 +866,10 @@ uint8_t frontend_tick(const InputState *in)
             ((InputState *)in)->lastKey = 0u;
             if ((k >= 'A' && k <= 'Z') || (k >= '0' && k <= '9') || k == ' ') {
                 _name_addchar(k);
-            } else if (k == 0x1Bu) { /* ESC: clear the name, no exit */
+            } else if (k == 0x1Bu) { // ESC: clear the name, no exit
                 memset(_name_buf, 0, sizeof _name_buf);
                 _draw_name_line();
-            } else if (k == 0x0Du) { /* Enter: the match gates the exit */
+            } else if (k == 0x0Du) { // Enter: the match gates the exit
                 if (_code_match()) _start_exit();
             } else if (k == 0x0Eu) {
                 _name_erase();
@@ -890,7 +886,7 @@ uint8_t frontend_tick(const InputState *in)
          * code started the right level, but the old DARWIN showed through the
          * fade-out.  Keep the name screen's page (0x2800). */
         _compose(0);
-        if (!palette_fade_active()) return 0; /* the room has exited */
+        if (!palette_fade_active()) return 0; // the room has exited
         return 1;
     }
     return 1;

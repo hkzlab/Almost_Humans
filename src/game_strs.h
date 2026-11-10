@@ -20,11 +20,11 @@
 #include <stdint.h>
 
 enum GameLang {
-    GAME_LANG_EN = 0, /* English */
-    GAME_LANG_FRE,    /* French  */
-    GAME_LANG_GER,    /* German  */
-    GAME_LANG_ITA,    /* Italian */
-    GAME_LANG_SPA,    /* Spanish */
+    GAME_LANG_EN = 0, // English
+    GAME_LANG_FRE,    // French
+    GAME_LANG_GER,    // German
+    GAME_LANG_ITA,    // Italian
+    GAME_LANG_SPA,    // Spanish
     GAME_LANG_COUNT
 };
 
@@ -35,12 +35,12 @@ enum GameStr {
     GAME_STR_ATTRACT_SCORE_HEADER,
 
     /* gameflow */
-    GAME_STR_GAMEFLOW_LEVEL_DONE, /* snprintf format, one %03u          */
+    GAME_STR_GAMEFLOW_LEVEL_DONE, // snprintf format, one %03u
     GAME_STR_GAMEFLOW_EXTINCT,
 
     /* level: the insert-disc page (not localised in any build) */
     GAME_STR_LEVEL_PUT_DISK,
-    GAME_STR_LEVEL_INTO_DRIVE, /* snprintf format, one %c            */
+    GAME_STR_LEVEL_INTO_DRIVE, // snprintf format, one %c
     GAME_STR_LEVEL_PRESS_FIRE,
     GAME_STR_LEVEL_WHEN_READY,
 
@@ -69,7 +69,7 @@ enum GameStr {
     GAME_STR_PARTY_CODE,
     GAME_STR_PARTY_SCORE,
     GAME_STR_PARTY_FIRE,
-    GAME_STR_PARTY_MEMBERS_TAIL, /* appended after the member count     */
+    GAME_STR_PARTY_MEMBERS_TAIL, // appended after the member count
     GAME_STR_PARTY_GAME_OVER,
     GAME_STR_PARTY_TOO_SMALL,
     GAME_STR_PARTY_IN_RACE,
@@ -84,7 +84,7 @@ enum GameStr {
     GAME_STR_SCENE_HEADLINE_5,
     GAME_STR_SCENE_HEADLINE_6,
     GAME_STR_SCENE_HEADLINE_7,
-    GAME_STR_SCENE_HEADLINE_8, /* the empty one: scene 8 draws nothing */
+    GAME_STR_SCENE_HEADLINE_8, // the empty one: scene 8 draws nothing
     GAME_STR_SCENE_HEADLINE_9,
 
     /* The two intro asset names that change per build.  NOTHING LOADS THEM

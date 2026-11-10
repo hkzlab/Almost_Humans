@@ -52,10 +52,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define STRIP_LEN     1280u /* PANELN1 (768) + PANELN2 (512), level strip */
-#define BAR_FIRST_ROW 152u /* the line-compare split, [0x5B0A] = 0x98  */
-#define BAR_ROWS      40u /* _panel4's top 40 rows                      */
-#define MARK_Y        172u /* bar row 20 (the destinations 0x6E2..)     */
+#define STRIP_LEN     1280u // PANELN1 (768) + PANELN2 (512), level strip
+#define BAR_FIRST_ROW 152u // the line-compare split, [0x5B0A] = 0x98
+#define BAR_ROWS      40u // _panel4's top 40 rows
+#define MARK_Y        172u // bar row 20 (the destinations 0x6E2..)
 
 /* [0x5B0A]: the bar's first screen row.  The original's line-compare reveal
  * starts at 201 (hidden) and the INT 8 hook 1000:331E decrements it to 0x98
@@ -63,29 +63,29 @@
 static uint16_t _bar_split = 152u;
 
 static const OSystem *_sb_osys;
-static uint8_t *_strip; /* the four-plane panel _strip                */
-static uint8_t *_panel4; /* LBM\PANEL4.BIT (the art + the palette)   */
-static uint32_t _p4_size; /* its length: the charge bar reads 0x3EE0+  */
+static uint8_t *_strip; // the four-plane panel _strip
+static uint8_t *_panel4; // LBM\PANEL4.BIT (the art + the palette)
+static uint32_t _p4_size; // its length: the charge bar reads 0x3EE0+
 /* shift_screen_up's +0x3200 staging (1000:99D8): panel4's first 0xC800
  * bytes, +0xC0 tagged, with the charge trough drawn in by statusbar_charge_begin. */
 static uint8_t _stage[0xC800];
-static uint8_t *_icons3; /* APL\ICONS3.SPR: 12 x 16x24 (0x180 each)  */
+static uint8_t *_icons3; // APL\ICONS3.SPR: 12 x 16x24 (0x180 each)
 
-static uint8_t _active; /* [0x5B12]: the bar's ticking gate         */
+static uint8_t _active; // [0x5B12]: the bar's ticking gate
 /* The bar is a display overlay in the original (CRTC line compare); the
  * port composes it into the page, so [0x5B0A] beyond the screen has to mean
  * "do not compose".  draw_level_text (0x342B) parks it at 0xC9 for the level
  * end, and blit_bitmap_planes re-renders the world over those rows. */
 static uint8_t _bar_hidden;
-static uint8_t _time_up; /* [0x5E44]: the countdown reached zero     */
+static uint8_t _time_up; // [0x5E44]: the countdown reached zero
 
 /* the countdown: values [0x5B19..1B], phases [0x5B1C/1E/20], slides
  * [0x5B16..18] - indices 0 = minutes, 1 = seconds-tens, 2 = seconds-ones */
 static uint8_t _cd[3];
 static uint16_t _cd_phase[3];
 static uint8_t _cd_slide[3];
-static uint8_t _sec_div; /* [0x5B14], seeded 0x46 = 70 frames       */
-static uint8_t _slide_div; /* [0x5B10], seeded 2                      */
+static uint8_t _sec_div; // [0x5B14], seeded 0x46 = 70 frames
+static uint8_t _slide_div; // [0x5B10], seeded 2
 
 /* the _elapsed clock [0x5B0C..0E] = seconds ones (0..9), tens (0..5), minutes
  * (1000:96C6, one step per second; reset by level_start at 1000:95B5).  The
@@ -176,8 +176,8 @@ void statusbar_load_params(const uint8_t *in)
 {
     if (!in) return;
     _tc_state = in[0];
-    _tc_slide[1] = in[1]; /* [0x5B23] = the always-armed counter (D-108) */
-    _tc_slide[0] = in[2]; /* [0x5B24] = the carry counter               */
+    _tc_slide[1] = in[1]; // [0x5B23] = the always-armed counter (D-108)
+    _tc_slide[0] = in[2]; // [0x5B24] = the carry counter
     _td[0] = (uint8_t)(in[3] % 10u);
     _td[1] = (uint8_t)(in[4] % 10u);
     _td_phase[0] = in[5];
@@ -256,13 +256,12 @@ void statusbar_charge_bar(uint32_t v)
     uint8_t *page = _sb_osys ? _sb_osys->videoPage(0) : NULL;
     uint32_t i, r;
 
-    if (!page || !_panel4) return; /* no bar art: nothing to draw */
+    if (!page || !_panel4) return; // no bar art: nothing to draw
     if (v < 0x100u) {
-        uint16_t ax =
-            (uint16_t)(0x60u + (v >> 1)); /* 0x372E's `SHR AX,1`        */
+        uint16_t ax = (uint16_t)(0x60u + (v >> 1)); // 0x372E's `SHR AX,1`
         uint8_t col = (uint8_t)(ax >> 2), p = ax & 3u;
 
-        for (i = 0; i < 2u; i++) { /* 0x376D: CX = 2 passes      */
+        for (i = 0; i < 2u; i++) { // 0x376D: CX = 2 passes
             uint16_t x = 4u * col + p;
 
             for (r = 0; r < 10u; r++) {
@@ -279,14 +278,13 @@ void statusbar_charge_bar(uint32_t v)
         return;
     }
     {
-        uint16_t len =
-            (uint16_t)((0x1FFu - v) >> 1); /* 0x3726-0x372E              */
+        uint16_t len = (uint16_t)((0x1FFu - v) >> 1); // 0x3726-0x372E
         uint8_t col = (uint8_t)(24u + (len >> 2)), p = len & 3u;
         /* 0x3EE0 in the +0x3200 staging = staged panel4 0xCE0 (the trough
          * is already in it, so the inset slices carry the trough edges). */
         uint16_t src = 0x0CE0u + len;
 
-        if (src + 0x140u * 15u + 4u > sizeof _stage) return; /* past the art */
+        if (src + 0x140u * 15u + 4u > sizeof _stage) return; // past the art
         for (i = 0; i < 2u; i++) {
             uint16_t x = 4u * col + p;
 
@@ -421,8 +419,8 @@ static void _draw_actions(uint8_t *page)
     uint8_t cursor = object_action_byte(1u);
     uint16_t span = (uint16_t)((uint16_t)(count * 0x17u) +
                                (uint16_t)((uint8_t)(count - 1u) * 0x0Cu));
-    uint16_t ax = (uint16_t)(VIDEO_PAGE_W - span); /* SUB 0x140 / NEG */
-    uint16_t x = (uint16_t)(ax >> 1); /* AX is 16-bit and wraps below */
+    uint16_t ax = (uint16_t)(VIDEO_PAGE_W - span); // SUB 0x140 / NEG
+    uint16_t x = (uint16_t)(ax >> 1); // AX is 16-bit and wraps below
     uint16_t y = _bar_split + 5u;
     uint16_t i = 0;
     uint16_t bp = count;
@@ -435,7 +433,7 @@ static void _draw_actions(uint8_t *page)
             _frame_box(page, x + 1u, y + 1u, 21u, 29u, _action_gold, 6u);
         _draw_action_icon(page, x + 4u, y + 4u,
                           (object_action_byte(2u + i) - 1u));
-        x = (uint16_t)(x + 4u + 0x1Fu); /* +4 then +0x1F, 16-bit */
+        x = (uint16_t)(x + 4u + 0x1Fu); // +4 then +0x1F, 16-bit
         i++;
         bp--;
     } while (bp != 0u);
@@ -522,12 +520,12 @@ static void _tribe_count_tick(void)
         if (both == 0x0909u) {
             _tc_state = 0;
             return;
-        } /* 99: capped    */
+        } // 99: capped
         _tc_state = 3;
         _tc_slide[1] = 8;
         if (_td[1]++ == 9) {
             _td[1] = 0;
-            _td_phase[1] = 0; /* roll up from the blank    */
+            _td_phase[1] = 0; // roll up from the blank
             _tc_slide[0] = 8;
             if (_td[0]++ == 9) {
                 _tc_state = 0;
@@ -535,7 +533,7 @@ static void _tribe_count_tick(void)
             }
         }
         return;
-    default: /* 0xFF: the roll down      */
+    default: // 0xFF: the roll down
         if (both == 0) {
             _tc_state = 0;
             return;
@@ -544,10 +542,10 @@ static void _tribe_count_tick(void)
         _tc_slide[1] = 8;
         if (_td[1]-- == 0) {
             _td[1] = 9;
-            _td_phase[1] = 0xB0; /* slide down from cell 11  */
+            _td_phase[1] = 0xB0; // slide down from cell 11
             _tc_slide[0] = 8;
             if (_td[0]-- == 0) {
-                _tc_state = 0; /* 00: stop                 */
+                _tc_state = 0; // 00: stop
                 _tc_slide[0] = 0;
             }
         }
@@ -611,8 +609,8 @@ void statusbar_tick(void)
     uint8_t *page;
 
     if (!_sb_osys) return;
-    if (_bar_hidden) return; /* 1000:342B: [0x5B0A] = 0xC9, no split */
-    if (_bar_split > 152u) _bar_split--; /* 1000:331E, one per display period */
+    if (_bar_hidden) return; // 1000:342B: [0x5B0A] = 0xC9, no split
+    if (_bar_split > 152u) _bar_split--; // 1000:331E, one per display period
     page = _sb_osys->videoPage(0);
     if (!_strip || !_panel4 || !page) return;
 
@@ -628,8 +626,8 @@ void statusbar_tick(void)
         _tribe_count_tick();
 
         if (--_sec_div == 0) {
-            _sec_div = 70; /* one second at 70 Hz      */
-            _elapsed_tick(); /* 1000:96C6                */
+            _sec_div = 70; // one second at 70 Hz
+            _elapsed_tick(); // 1000:96C6
             _clock_tick();
             died = _time_up; /* the original skips the
                                                   slide block on time-up  */
@@ -705,7 +703,7 @@ void statusbar_start(uint16_t packedTimeBcd, uint16_t tribeMembers,
         _icons3 = NULL;
     }
 
-    _bar_split = 0xC9u; /* 1000:3040: hidden at level start */
+    _bar_split = 0xC9u; // 1000:3040: hidden at level start
     _bar_hidden = 0;
     _cd[0] = m;
     _cd[1] = (uint8_t)(s >> 4);
@@ -723,9 +721,9 @@ void statusbar_start(uint16_t packedTimeBcd, uint16_t tribeMembers,
     _tc_state = 0;
     _tc_slide[0] = _tc_slide[1] = 0;
 
-    _elapsed[0] = _elapsed[1] = _elapsed[2] = 0u; /* level_start 1000:95B5  */
-    _sec_div = 70; /* [0x5B14] = 0x46          */
-    _slide_div = 2; /* [0x5B10] = 2             */
+    _elapsed[0] = _elapsed[1] = _elapsed[2] = 0u; // level_start 1000:95B5
+    _sec_div = 70; // [0x5B14] = 0x46
+    _slide_div = 2; // [0x5B10] = 2
     /* _active stays 0: [0x5B12] is level_fade_in's, set when the start chain
      * completes - the countdown must not run during the fade (see level.c) */
     _time_up = 0;
@@ -742,7 +740,7 @@ void statusbar_set_active(uint8_t on) { _active = on ? 1 : 0; }
 void statusbar_set_split(uint16_t row)
 {
     _bar_split = row > VIDEO_PAGE_H_MODE13H ? VIDEO_PAGE_H_MODE13H : row;
-    _bar_hidden = 0; /* an explicit split re-composes it */
+    _bar_hidden = 0; // an explicit split re-composes it
 }
 void statusbar_hide(void)
 {

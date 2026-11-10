@@ -36,7 +36,7 @@ static InputState _make_input(void)
 {
     InputState in;
     memset(&in, 0, sizeof in);
-    return in;              /* joyBits 0 = fire released, lastKey 0 = none */
+    return in;              // joyBits 0 = fire released, lastKey 0 = none
 }
 
 /**
@@ -88,7 +88,7 @@ int main(void)
      * with HUMANS.00N links would otherwise satisfy the loads, so take the
      * test into an empty scratch cwd. */
     static const char nodata[] = "humans_flow_nodata";
-    (void)compat_mkdir(nodata);            /* already present is fine */
+    (void)compat_mkdir(nodata);            // already present is fine
     if (compat_chdir(nodata)) {
         perror(nodata);
         return 1;
@@ -121,7 +121,7 @@ int main(void)
         GameFlow s = FLOW_ATTRACT;
         for (tick = 1; tick <= 2000u; tick++) {
             s = gameflow_step(s, &in);
-            palette_tick();               /* the ISR body's fade step */
+            palette_tick();               // the ISR body's fade step
             if (s != FLOW_ATTRACT) {
                 fprintf(stderr,
                         "FAIL at tick %u: idle attract left the "
@@ -178,7 +178,7 @@ int main(void)
      *    ticks (div 0x23) end the attract -> MENU. */
     {
         InputState in = _make_input();
-        in.joyBits = 0x80u;               /* the configured action key */
+        in.joyBits = 0x80u;               // the configured action key
         GameFlow s = FLOW_ATTRACT;
         s = gameflow_step(s, &in);
         palette_tick();
@@ -223,7 +223,7 @@ int main(void)
     {
         InputState idle = _make_input();
         GameFlow s = FLOW_ATTRACT;
-        s = gameflow_step(s, &idle);      /* the restart + the first effect */
+        s = gameflow_step(s, &idle);      // the restart + the first effect
         palette_tick();
         bad |= _expect_state(s, FLOW_ATTRACT, 0, "re-entry plays");
         uint32_t ph = attract_phase_for_probe();
@@ -234,7 +234,7 @@ int main(void)
         }
         InputState fire = _make_input();
         fire.joyBits = 0x80u;
-        s = gameflow_step(s, &fire);      /* escape again */
+        s = gameflow_step(s, &fire);      // escape again
         palette_tick();
         uint32_t guard = 0;
         while (s == FLOW_ATTRACT && guard++ < 200u) {
@@ -264,7 +264,7 @@ int main(void)
                     (int32_t)s, guard);
             bad = 1;
         }
-        s = gameflow_step(s, &right);        /* level holds */
+        s = gameflow_step(s, &right);        // level holds
         bad |= _expect_state(s, FLOW_LEVEL, 0, "level holds");
     }
 

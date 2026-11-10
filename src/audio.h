@@ -15,7 +15,7 @@ extern const char audio_tune_hiscore[];
 extern const char audio_tune_disk[];
 extern const char audio_tune_party[];
 extern const char audio_tune_humfx[];
-extern char audio_tune_lev[]; /* "mus\levA"; the letter is rewritten */
+extern char audio_tune_lev[]; // "mus\levA"; the letter is rewritten
 
 /**
  * @brief Bind the audio module to the backend.

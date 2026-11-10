@@ -18,8 +18,8 @@
  * value itself (both in the map and in ver_detect_run's warning). */
 #define VER_DETECT_EN_HASH 0xCFDBFBFFu
 
-#define FNV32_OFFSET 0x811C9DC5u /* the FNV-1a 32-bit offset basis */
-#define FNV32_PRIME  0x01000193u /* the FNV-1a 32-bit prime       */
+#define FNV32_OFFSET 0x811C9DC5u // the FNV-1a 32-bit offset basis
+#define FNV32_PRIME  0x01000193u // the FNV-1a 32-bit prime
 
 /**
  * @brief Extend one FNV-1a 32-bit digest with n bytes.

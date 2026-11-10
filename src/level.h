@@ -11,20 +11,20 @@
 #include "osystem.h"
 
 typedef struct {
-    uint16_t levelId; /* 0..159                                    */
-    uint8_t style; /* +0x00 low: the tile style 1..6            */
-    uint8_t introIndex; /* +0x01 high: the intro-movie index (0xFF=none) */
-    uint8_t goalCount; /* +0x02 low: the solved-flag threshold      */
-    uint8_t entityLife; /* +0x02 high: the entity lifetime seed      */
-    uint16_t objectTest; /* +0x04: the object-test mode word          */
-    uint8_t unused06; /* +0x06: 0 in all 160 shipped records       */
-    uint16_t timeA; /* +0x07: the BCD MMSS limit (difficulty A)  */
-    uint16_t timeB; /* +0x09: difficulty B                       */
-    uint16_t timeC; /* +0x0B: difficulty C                       */
-    uint8_t map[640]; /* 32 columns x 20 rows, row-major           */
-    uint32_t mapFileOff; /* the map's offset inside the L*.BIN image  */
-    char goal[128]; /* the goal text (CR = a line break)         */
-    char author[128]; /* the author text                           */
+    uint16_t levelId; // 0..159
+    uint8_t style; // +0x00 low: the tile style 1..6
+    uint8_t introIndex; // +0x01 high: the intro-movie index (0xFF=none)
+    uint8_t goalCount; // +0x02 low: the solved-flag threshold
+    uint8_t entityLife; // +0x02 high: the entity lifetime seed
+    uint16_t objectTest; // +0x04: the object-test mode word
+    uint8_t unused06; // +0x06: 0 in all 160 shipped records
+    uint16_t timeA; // +0x07: the BCD MMSS limit (difficulty A)
+    uint16_t timeB; // +0x09: difficulty B
+    uint16_t timeC; // +0x0B: difficulty C
+    uint8_t map[640]; // 32 columns x 20 rows, row-major
+    uint32_t mapFileOff; // the map's offset inside the L*.BIN image
+    char goal[128]; // the goal text (CR = a line break)
+    char author[128]; // the author text
 } LevelData;
 
 /**

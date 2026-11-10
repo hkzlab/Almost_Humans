@@ -48,13 +48,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define ADLIB_VOICES        11u   /* 6 FM channels + 5 rhythm voices */
-#define ADLIB_MELODIC       6u   /* voices 0..6 use the two-operator path */
-#define ADLIB_RECORDS       6u   /* CS:0x135E, stride 0x15 */
-#define ADLIB_TRACKS        6u    /* CS:0x1406, the melodic slot free list */
+#define ADLIB_VOICES        11u   // 6 FM channels + 5 rhythm voices
+#define ADLIB_MELODIC       6u   // voices 0..6 use the two-operator path
+#define ADLIB_RECORDS       6u   // CS:0x135E, stride 0x15
+#define ADLIB_TRACKS        6u    // CS:0x1406, the melodic slot free list
 #define ADLIB_HEADER        0x158u
 #define ADLIB_ROWS          0x40u
-#define ADLIB_OFFSETS       160u /* the copied offset table, in words */
+#define ADLIB_OFFSETS       160u // the copied offset table, in words
 #define ADLIB_TEMPO_DEFAULT 0x30u
 
 /* OPL F-number window of the driver's note table (CS:0x0E8C). */
@@ -91,25 +91,25 @@ static const uint16_t _note_table[256] = {
     0x5198, 0x51B1, 0x51CB, 0x51E6, 0x5203, 0x5222, 0x5243, 0x5266, 0x528A,
     0x6157, 0x616C, 0x6181, 0x6198, 0x61B1, 0x61CB, 0x61E6, 0x6203, 0x6222,
     0x6243, 0x6266, 0x628A, 0x7157, 0x716C, 0x7181, 0x7198, 0x71B1, 0x71CB,
-    0x71E6, 0x7203, 0x7222, 0x7243, 0x7266, 0x728A,
-    0x0814, 0x08AA, 0x08D4, 0x0972, 0x0813, 0x0813, 0x0813, 0x0813, 0x0813,
-    0x0813, 0x0874, 0x0813, 0x0813, 0x0813, 0x0813, 0x0813, 0x0813, 0x0813,
+    0x71E6, 0x7203, 0x7222, 0x7243, 0x7266, 0x728A, 0x0814, 0x08AA, 0x08D4,
+    0x0972, 0x0813, 0x0813, 0x0813, 0x0813, 0x0813, 0x0813, 0x0874, 0x0813,
     0x0813, 0x0813, 0x0813, 0x0813, 0x0813, 0x0813, 0x0813, 0x0813, 0x0813,
     0x0813, 0x0813, 0x0813, 0x0813, 0x0813, 0x0813, 0x0813, 0x0813, 0x0813,
-    0x0A04, 0x0813, 0x0900, 0x0813, 0x0813, 0x0813, 0x0813, 0x090F, 0x091F,
-    0x0907, 0x0813, 0x0932, 0x0813, 0x0813, 0x0813, 0x0813, 0x0813, 0x0813,
+    0x0813, 0x0813, 0x0813, 0x0813, 0x0813, 0x0813, 0x0A04, 0x0813, 0x0900,
+    0x0813, 0x0813, 0x0813, 0x0813, 0x090F, 0x091F, 0x0907, 0x0813, 0x0932,
     0x0813, 0x0813, 0x0813, 0x0813, 0x0813, 0x0813, 0x0813, 0x0813, 0x0813,
-    0x0813, 0x2000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
-    0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0101,
-    0x0101, 0x0101, 0x0000, 0x0101, 0x0101, 0x0101, 0x0000, 0x0101, 0x0101,
-    0x0101, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x3F3F, 0x3F3F, 0x3F3F,
-    0x0000, 0x3F3F, 0x3F3F, 0x3F3F, 0x0000, 0x3F3F, 0x3F3F, 0x3F3F, 0x0000,
-    0x0000, 0x0000, 0x0000, 0x0000, 0xF0F0, 0xF0F0, 0xF0F0, 0x0000, 0xF0F0,
-    0xF0F0, 0xF0F0, 0x0000, 0xF0F0, 0xF0F0, 0xF0F0, 0x0000, 0x0000, 0x0000,
-    0x0000, 0x0000, 0xF0F0, 0xF0F0, 0xF0F0, 0x0000, 0xF0F0, 0xF0F0, 0xF0F0,
-    0x0000, 0xF0F0, 0xF0F0, 0xF0F0, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+    0x0813, 0x0813, 0x0813, 0x0813, 0x0813, 0x0813, 0x0813, 0x2000, 0x0000,
     0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
-    0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x2000, 0x0000
+    0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0101, 0x0101, 0x0101, 0x0000,
+    0x0101, 0x0101, 0x0101, 0x0000, 0x0101, 0x0101, 0x0101, 0x0000, 0x0000,
+    0x0000, 0x0000, 0x0000, 0x3F3F, 0x3F3F, 0x3F3F, 0x0000, 0x3F3F, 0x3F3F,
+    0x3F3F, 0x0000, 0x3F3F, 0x3F3F, 0x3F3F, 0x0000, 0x0000, 0x0000, 0x0000,
+    0x0000, 0xF0F0, 0xF0F0, 0xF0F0, 0x0000, 0xF0F0, 0xF0F0, 0xF0F0, 0x0000,
+    0xF0F0, 0xF0F0, 0xF0F0, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0xF0F0,
+    0xF0F0, 0xF0F0, 0x0000, 0xF0F0, 0xF0F0, 0xF0F0, 0x0000, 0xF0F0, 0xF0F0,
+    0xF0F0, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+    0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+    0x0000, 0x0000, 0x2000, 0x0000
 };
 
 /* CS:0x0FCC: the 256-byte OPL state the probe installs.  The non-zero
@@ -146,56 +146,56 @@ static const uint8_t _opl_init[256] = {
 /* Every byte of the driver's 22-byte voice record (CS:0x1268 + voice*0x16)
  * that the sequencer reads or writes; the offsets are the driver's. */
 typedef struct AdlibSlot {
-    uint8_t note;            /* +0x0  */
-    uint8_t instrument;      /* +0x1  1-based; 0 = no voice change */
-    uint8_t command;         /* +0x2  */
-    uint8_t param;           /* +0x3  */
-    uint8_t volume;          /* +0x4  */
-    uint8_t last_instrument; /* +0x8  */
-    uint16_t slide_target;   /* +0x9  note-table entry, 0 = not sliding */
-    uint8_t slide_dir;       /* +0xB  1 = up */
-    uint8_t slide_step;      /* +0xC  */
-    uint16_t note_entry;     /* +0xD  the entry last written */
-    uint8_t note_copy;       /* +0xF  the note the slide lands on */
-    uint8_t octave;          /* +0x11 */
-    uint16_t fnum;           /* +0x12 */
-    uint8_t mod_atten;       /* +0x14 instrument block[0x12] */
-    uint8_t car_atten;       /* +0x15 instrument block[0x23] */
+    uint8_t note;            // +0x0
+    uint8_t instrument;      // +0x1  1-based; 0 = no voice change
+    uint8_t command;         // +0x2
+    uint8_t param;           // +0x3
+    uint8_t volume;          // +0x4
+    uint8_t last_instrument; // +0x8
+    uint16_t slide_target;   // +0x9  note-table entry, 0 = not sliding
+    uint8_t slide_dir;       // +0xB  1 = up
+    uint8_t slide_step;      // +0xC
+    uint16_t note_entry;     // +0xD  the entry last written
+    uint8_t note_copy;       // +0xF  the note the slide lands on
+    uint8_t octave;          // +0x11
+    uint16_t fnum;           // +0x12
+    uint8_t mod_atten;       // +0x14 instrument block[0x12]
+    uint8_t car_atten;       // +0x15 instrument block[0x23]
 } AdlibSlot;
 
 /* The driver's song record (built by cmd 5 from a 0x158+id*16 image record). */
 typedef struct AdlibRecord {
-    uint8_t active;                   /* +0x0  0xFF while playing */
-    uint8_t tracks;                   /* +0x1  the image record's +0xD */
-    uint8_t ticks_per_row;            /* +0x2  default 6, voice cmd 0x0F */
-    uint8_t order;                    /* +0x3  index into the order list */
-    uint16_t cursor;                  /* +0x4  pattern-relative stream pos */
-    uint8_t tick;                     /* +0x6  */
-    uint8_t advance;                  /* +0x7  toggled by cmds 0x0B/0x0D */
-    uint8_t row;                      /* +0x8  rows decoded, 0x40 = end */
-    uint8_t loop;                     /* +0x9  */
-    uint8_t first_order;              /* +0xA  */
-    uint8_t last_order;               /* +0xB  last order + 1 */
-    uint8_t finished;                 /* +0xC  */
-    uint8_t track_slot[ADLIB_TRACKS]; /* +0xD  image record +0xD */
+    uint8_t active;                   // +0x0  0xFF while playing
+    uint8_t tracks;                   // +0x1  the image record's +0xD
+    uint8_t ticks_per_row;            // +0x2  default 6, voice cmd 0x0F
+    uint8_t order;                    // +0x3  index into the order list
+    uint16_t cursor;                  // +0x4  pattern-relative stream pos
+    uint8_t tick;                     // +0x6
+    uint8_t advance;                  // +0x7  toggled by cmds 0x0B/0x0D
+    uint8_t row;                      // +0x8  rows decoded, 0x40 = end
+    uint8_t loop;                     // +0x9
+    uint8_t first_order;              // +0xA
+    uint8_t last_order;               // +0xB  last order + 1
+    uint8_t finished;                 // +0xC
+    uint8_t track_slot[ADLIB_TRACKS]; // +0xD  image record +0xD
 } AdlibRecord;
 
 struct SoundDriver {
     uint32_t sampleRate;
     uint8_t ready;
-    uint8_t tempo;                   /* [0x1556] */
-    uint8_t slot_free[ADLIB_TRACKS]; /* [0x1406] */
-    uint8_t voice_volume[16];        /* [0x1557+voice] */
-    uint8_t shadow[256];             /* [0x1456] */
-    uint8_t header[ADLIB_HEADER];    /* [0x10FD] */
-    uint16_t offset[ADLIB_OFFSETS];  /* [0x1595] */
+    uint8_t tempo;                   // [0x1556]
+    uint8_t slot_free[ADLIB_TRACKS]; // [0x1406]
+    uint8_t voice_volume[16];        // [0x1557+voice]
+    uint8_t shadow[256];             // [0x1456]
+    uint8_t header[ADLIB_HEADER];    // [0x10FD]
+    uint16_t offset[ADLIB_OFFSETS];  // [0x1595]
     uint16_t offset_count;
     AdlibSlot slot[ADLIB_VOICES];
     AdlibRecord record[ADLIB_RECORDS];
     uint8_t *tune;
     uint32_t tune_size;
-    uint32_t song_data;              /* SDS offset into tune */
-    uint32_t patch_base;             /* tune offset of the patch bank */
+    uint32_t song_data;              // SDS offset into tune
+    uint32_t patch_base;             // tune offset of the patch bank
     opl3_chip opl;
 };
 
@@ -259,9 +259,7 @@ static uint16_t _note_raw(uint8_t idx) { return _note_table[idx]; }
  * @return the F-number | octave word
  */
 static uint16_t _note_entry(uint8_t note)
-{
-    return _note_raw((uint8_t)(note - 12u));
-}
+{ return _note_raw((uint8_t)(note - 12u)); }
 
 /**
  * @brief The level byte an OPL volume register gets for velocity and volume.
@@ -499,7 +497,7 @@ static void _set_volume(SoundDriver *drv, unsigned voice, uint8_t volume)
     uint8_t atten;
     uint8_t reg;
 
-    if (volume >= 0x40u) volume = 0x3Fu; /* 1E95:0A05: CMP 0x40 / MOV 0x3F */
+    if (volume >= 0x40u) volume = 0x3Fu; // 1E95:0A05: CMP 0x40 / MOV 0x3F
     if (volume > drv->tempo) volume = drv->tempo;
     if (volume == drv->voice_volume[voice]) return;
     drv->voice_volume[voice] = volume;
@@ -643,32 +641,32 @@ static void _tick_command(SoundDriver *drv, unsigned voice)
     uint16_t entry;
 
     switch (v->command & 0x1Fu) {
-    case 0x01: /* 1E95:08AA: slide up by 2 * parameter, octave wrap at 0x2AE */
+    case 0x01: // 1E95:08AA: slide up by 2 * parameter, octave wrap at 0x2AE
         step = (uint16_t)(2u * v->param);
         fnum = (uint16_t)(v->fnum + step);
         while (fnum >= ADLIB_FNUM_WRAP) {
             fnum = (uint16_t)((fnum - ADLIB_FNUM_WRAP) + ADLIB_FNUM_FIRST);
-            v->octave++; /* 8-bit, as the driver's INC DL */
+            v->octave++; // 8-bit, as the driver's INC DL
         }
         v->fnum = fnum;
         entry = (uint16_t)(fnum | (v->octave << 12));
         v->note_entry = entry;
         _set_frequency(drv, voice, entry);
         break;
-    case 0x02: /* 1E95:08D4: slide down by 2 * parameter, wrap at 0x142 */
+    case 0x02: // 1E95:08D4: slide down by 2 * parameter, wrap at 0x142
         step = (uint16_t)(2u * v->param);
         fnum = (uint16_t)(v->fnum - step);
         while (fnum <= ADLIB_FNUM_LOW) {
             /* 1E95:08E9 SUB 0x142 / NEG / ADD 0x28A: 0x28A + (0x142 - fnum) */
             fnum = (uint16_t)(ADLIB_FNUM_TOP + (ADLIB_FNUM_LOW - fnum));
-            v->octave--; /* 8-bit, as the driver's DEC DL */
+            v->octave--; // 8-bit, as the driver's DEC DL
         }
         v->fnum = fnum;
         entry = (uint16_t)(fnum | (v->octave << 12));
         v->note_entry = entry;
         _set_frequency(drv, voice, entry);
         break;
-    case 0x03: /* 1E95:0972: portamento toward the cached note entry */
+    case 0x03: // 1E95:0972: portamento toward the cached note entry
         _slide_tick(drv, voice);
         break;
     case 0x0A: { /* 1E95:0874: volume delta; the high nibble adds, 0
@@ -731,22 +729,22 @@ static void _note_command(SoundDriver *drv, AdlibRecord *rec, unsigned voice)
     AdlibSlot *v = &drv->slot[voice];
 
     switch (v->command & 0x1Fu) {
-    case 6: /* 1E95:0900: note off */
+    case 6: // 1E95:0900: note off
         v->command = 0;
         _key_off(drv, voice);
         break;
-    case 0x0B: /* 1E95:090F: jump to order parameter-1, advance next tick */
+    case 0x0B: // 1E95:090F: jump to order parameter-1, advance next tick
         rec->order = (uint8_t)(v->param - 1u);
         rec->advance = (uint8_t)~rec->advance;
         break;
-    case 0x0C: /* 1E95:091F: volume = min(parameter, 0x40) */
+    case 0x0C: // 1E95:091F: volume = min(parameter, 0x40)
         if (v->param > ADLIB_ROWS) v->param = ADLIB_ROWS;
         _set_volume(drv, voice, v->param);
         break;
-    case 0x0D: /* 1E95:0907: advance to the next order on the next tick */
+    case 0x0D: // 1E95:0907: advance to the next order on the next tick
         rec->advance = (uint8_t)~rec->advance;
         break;
-    case 0x0F: /* 1E95:0932: ticks per row */
+    case 0x0F: // 1E95:0932: ticks per row
         if ((v->param & 0x1Fu) != 0) {
             rec->tick = 0;
             rec->ticks_per_row = (uint8_t)(v->param & 0x1Fu);
@@ -788,7 +786,7 @@ static void _play_cell(SoundDriver *drv, AdlibRecord *rec, unsigned voice)
     if (v->note == 0) {
         _note_command(drv, rec, voice);
     } else if ((v->command & 0x1Fu) == 3u) {
-        _slide_setup(drv, voice); /* command 3's note-path entry is a RET */
+        _slide_setup(drv, voice); // command 3's note-path entry is a RET
     } else {
         _note_command(drv, rec, voice);
         _note_on(drv, voice, v->note);
@@ -880,11 +878,11 @@ static void _decode_row(SoundDriver *drv, AdlibRecord *rec)
     uint32_t base;
     uint16_t mask;
     uint16_t row_mask;
-    uint16_t cells; /* the post-mask cursor */
+    uint16_t cells; // the post-mask cursor
     unsigned i;
 
     if (rec->order >= 0x7Fu) {
-        rec->row = ADLIB_ROWS; /* the order list is 0x7F bytes */
+        rec->row = ADLIB_ROWS; // the order list is 0x7F bytes
         return;
     }
     pattern = drv->header[0x18u + rec->order];
@@ -896,7 +894,7 @@ static void _decode_row(SoundDriver *drv, AdlibRecord *rec)
            ((uint32_t)drv->offset[pattern] - drv->offset[0]) * 16u;
     mask = _tune_u16(drv, base + rec->cursor);
     rec->cursor = (uint16_t)(rec->cursor + 2u);
-    cells = rec->cursor; /* 1E95:071C: SI after LODSW */
+    cells = rec->cursor; // 1E95:071C: SI after LODSW
     row_mask = mask;
 
     for (i = 0; i < rec->tracks && i < ADLIB_TRACKS; i++) {
@@ -1145,7 +1143,7 @@ static void _adlib_load_tune(SoundDriver *drv, const uint8_t *image,
     drv->song_data = sds;
     drv->patch_base =
         sds + ((uint32_t)drv->offset[patterns] - drv->offset[0]) * 16u;
-    _reset_voices(drv); /* 1E95:031E */
+    _reset_voices(drv); // 1E95:031E
 }
 
 /**

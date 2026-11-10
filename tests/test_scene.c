@@ -329,7 +329,7 @@ int main(int argc, char **argv)
         for (uint32_t t = 1; t < 3000u && quiet < 60u; t++) {
             uint32_t h = 0;
 
-            palette_tick();             /* the ISR body's fade step */
+            palette_tick();             // the ISR body's fade step
             if (scene_play_level_intro(0) != 1) {
                 fprintf(stderr, "FAIL intro ended early at tick %u\n", t);
                 return 1;
@@ -555,7 +555,7 @@ int main(int argc, char **argv)
                 if (h == last) {
                     quiet++;
                 } else {
-                    if (quiet >= 200u) replayed = 1;   /* after the wait */
+                    if (quiet >= 200u) replayed = 1;   // after the wait
                     last = h;
                     quiet = 0;
                 }

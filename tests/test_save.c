@@ -71,7 +71,7 @@ static InputState _idle(void)
 static int32_t _tick(GameFlow *s, const InputState *in)
 {
     *s = gameflow_step(*s, in);
-    palette_tick();                 /* game_tick's ISR body */
+    palette_tick();                 // game_tick's ISR body
     return *s == FLOW_LEVEL;
 }
 
@@ -91,7 +91,7 @@ static int32_t _walk_to(GameFlow *s, uint32_t dirBit, uint32_t want,
     InputState in = _idle();
     in.joyBits = dirBit;
     for (uint32_t i = 0; i < 400u; i++) {
-        if (_tick(s, &in)) return 0;             /* the room exited */
+        if (_tick(s, &in)) return 0;             // the room exited
         if (frontend_cell_for_probe() != start) break;
     }
     if (frontend_cell_for_probe() != want) {
@@ -135,16 +135,16 @@ int main(int argc, char **argv)
     /* the fixture: header + two recognisable blob bytes */
     static uint8_t fx[SAVE_LEN];
     memset(fx, 0, sizeof fx);
-    _put16(fx + 0x00, 2);                 /* the level -> LB#1          */
-    _put16(fx + 0x02, 0x1234);            /* score low                  */
-    _put16(fx + 0x04, 0x0001);            /* score high                 */
-    fx[0x06] = 7;                        /* the state id               */
-    _put16(fx + 0x07, 0x0549);            /* 5:49 remaining (BCD)       */
+    _put16(fx + 0x00, 2);                 // the level -> LB#1
+    _put16(fx + 0x02, 0x1234);            // score low
+    _put16(fx + 0x04, 0x0001);            // score high
+    fx[0x06] = 7;                        // the state id
+    _put16(fx + 0x07, 0x0549);            // 5:49 remaining (BCD)
     fx[0x09] = 0;
-    fx[0x0A] = 9;          /* the counter digits         */
-    _put16(fx + 0x0B, 7);                 /* members: the board gives 12 */
-    fx[0x0D] = 0xC3;                     /* the blob's first byte      */
-    fx[0x17F0] = 0x5A;                   /* the parameter block        */
+    fx[0x0A] = 9;          // the counter digits
+    _put16(fx + 0x0B, 7);                 // members: the board gives 12
+    fx[0x0D] = 0xC3;                     // the blob's first byte
+    fx[0x17F0] = 0x5A;                   // the parameter block
 
     snprintf(path, sizeof path, "%s/HUMANS.001", vol_dir);
     FILE *f = fopen(path, "rb");
@@ -194,8 +194,8 @@ int main(int argc, char **argv)
         bad = 1;
     }
     bad |= _walk_to(&s, 0x08u, 6u, "right to RESTORE GAME");
-    bad |= _press_action(&s);              /* 0 -> 1 */
-    bad |= _press_action(&s);              /* 1 -> 2 */
+    bad |= _press_action(&s);              // 0 -> 1
+    bad |= _press_action(&s);              // 1 -> 2
     if (frontend_option(FRONTEND_OPT_GAME) != 2u) {
         fprintf(stderr, "FAIL RESTORE GAME is %u, want 2\n",
                 frontend_option(FRONTEND_OPT_GAME));
@@ -225,7 +225,7 @@ int main(int argc, char **argv)
         bad = 1;
     } else {
         const LevelData *d = level_data();
-        if (d->levelId != 1u) {                 /* LB#1 = level 2 */
+        if (d->levelId != 1u) {                 // LB#1 = level 2
             fprintf(stderr, "FAIL the save's level did not win (%u)\n",
                     d->levelId);
             bad = 1;

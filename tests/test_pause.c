@@ -232,7 +232,7 @@ int main(int argc, char **argv)
         memset(&k, 0, sizeof k);
         menu_close();
         level_set_updates(1);
-        k.keyScan = 0x01u;                       /* ESC */
+        k.keyScan = 0x01u;                       // ESC
         if (gameflow_key_list(&k) != 1 || !menu_active() || menu_time_up()) {
             fprintf(stderr, "FAIL D-15: ESC does not open the pause menu\n");
             bad = 1;
@@ -246,7 +246,7 @@ int main(int argc, char **argv)
             bad = 1;
         }
         menu_close();
-        k.keyScan = 0u;                          /* a non-listed key */
+        k.keyScan = 0u;                          // a non-listed key
         k.lastKey = 'Z';
         if (gameflow_key_list(&k) != 0 || menu_active()) {
             fprintf(stderr, "FAIL D-15: a non-ESC key opens the pause menu\n");
@@ -299,12 +299,12 @@ int main(int argc, char **argv)
         (void)_press(0x02u);
         (void)_press(0x02u);
         (void)_press(0x02u);
-        (void)_press(0x80u); /* SAVE GAME -> the grid */
+        (void)_press(0x80u); // SAVE GAME -> the grid
         if (level_updates()) {
             fprintf(stderr, "FAIL D-232: the save grid did not stay frozen\n");
             bad = 1;
         }
-        (void)_press(0x80u); /* pick a slot -> MENU_DONE */
+        (void)_press(0x80u); // pick a slot -> MENU_DONE
         menu_close();
         if (!level_updates()) {
             fprintf(stderr,
@@ -326,12 +326,12 @@ int main(int argc, char **argv)
             fprintf(stderr, "FAIL the menu did not open\n");
             return 1;
         }
-        for (uint32_t i = 0; i < r; i++) (void)_press(0x02u);   /* down */
+        for (uint32_t i = 0; i < r; i++) (void)_press(0x02u);   // down
         if (r > 0u && menu_result() != -1) {
             fprintf(stderr, "FAIL the result appeared early\n");
             bad = 1;
         }
-        (void)_press(0x80u);                                    /* ACTION */
+        (void)_press(0x80u);                                    // ACTION
         if (r == 3u) {
             /* SAVE GAME opens the grid instead of closing */
             if (!menu_active() || menu_result() != -1) {
@@ -359,7 +359,7 @@ int main(int argc, char **argv)
         const uint8_t *page = osys_null_page(0);
         uint32_t fill = 0, text = 0, outline = 0, violations = 0;
         for (uint32_t i = 0; i < 320u * 200u; i++)
-            if (page[i] == 26u) fill++;          /* BOX.SPR's fill index */
+            if (page[i] == 26u) fill++;          // BOX.SPR's fill index
         /* the text = the fill tile's EB..E4..EB ramp | 0x10 -> F4..FB, and
          * the black outline around it (1000:9FA7 -> 9FB1) */
         _text_outline(page, &text, &outline, &violations);
@@ -392,13 +392,13 @@ int main(int argc, char **argv)
     menu_open_pause();
     (void)_press(0x02u);
     (void)_press(0x02u);
-    (void)_press(0x02u); /* row 3 */
-    (void)_press(0x80u); /* the grid */
+    (void)_press(0x02u); // row 3
+    (void)_press(0x80u); // the grid
     if (!menu_active()) {
         fprintf(stderr, "FAIL the grid did not open\n");
         return 1;
     }
-    (void)_press(0x02u); /* row 1 */
+    (void)_press(0x02u); // row 1
     (void)_press(0x80u);
     if (menu_slot() != 2u || menu_result() != 3) {
         fprintf(stderr, "FAIL grid (0,1) gave game %u (result %d)\n",
@@ -412,7 +412,7 @@ int main(int argc, char **argv)
     (void)_press(0x02u);
     (void)_press(0x02u);
     (void)_press(0x80u);
-    (void)_press(0x08u); /* right */
+    (void)_press(0x08u); // right
     (void)_press(0x80u);
     if (menu_slot() != 5u) {
         fprintf(stderr, "FAIL grid (0,1) gave game %u, want 5\n", menu_slot());
@@ -444,8 +444,8 @@ int main(int argc, char **argv)
     (void)_press(0x02u);
     (void)_press(0x02u);
     (void)_press(0x80u);
-    (void)_press(0x01u); /* row wrap 0->3 */
-    (void)_press(0x04u); /* left wrap 0->4 */
+    (void)_press(0x01u); // row wrap 0->3
+    (void)_press(0x04u); // left wrap 0->4
     (void)_press(0x80u);
     if (menu_slot() != 20u) {
         fprintf(stderr, "FAIL the grid wrap gave game %u, want 20\n",
@@ -557,9 +557,9 @@ int main(int argc, char **argv)
             }
         }
         memset(ent, 0, sizeof ent);
-        ent[0] = 1; /* [0x64C2] = 1 */
+        ent[0] = 1; // [0x64C2] = 1
         ent[2] = 0x34;
-        ent[3] = 0x12; /* slot 0 +0x0 */
+        ent[3] = 0x12; // slot 0 +0x0
         entity_load_fixed(ent);
         if (!entity_at(0u) || entity_at(0u)->x0 != 0x1234u) {
             fprintf(stderr, "FAIL the entity array did not load\n");
@@ -596,10 +596,10 @@ int main(int argc, char **argv)
         _put16(fx + 0x0D + 2u, 0u);
         for (uint32_t i = 0; i < 29u; i++)
             _put16(fx + 0x0D + 4u + 2u * i, (0x3E75u + 0x12u * i));
-        fx[0x0D + 0x3E + 1u] = 6u; /* class slot 1 */
-        fx[0x0D + 0x53u] = 9u; /* [0x3E73] */
-        _put16(fx + 0x0D + 0x55u, 0x1234u); /* record 0 x */
-        _put16(fx + 0x0D + 0x57u, 0x5678u); /* record 0 y */
+        fx[0x0D + 0x3E + 1u] = 6u; // class slot 1
+        fx[0x0D + 0x53u] = 9u; // [0x3E73]
+        _put16(fx + 0x0D + 0x55u, 0x1234u); // record 0 x
+        _put16(fx + 0x0D + 0x57u, 0x5678u); // record 0 y
         /* 0x6F20: the two single-byte tile ids (D-143), then the register
          * and span pools. */
         memset(fx + 0x026C + 2u, 0xFF, 0x70u);
@@ -705,11 +705,11 @@ int main(int argc, char **argv)
          * the tune load has already reset the driver's voices (MT-32). */
         audio_init(&g_osys_null);
         audio_install();
-        audio_music_resume(); /* the level's record: starts +1, [0x40BB] set */
+        audio_music_resume(); // the level's record: starts +1, [0x40BB] set
         uint32_t starts0 = osys_null_audio_starts();
         uint32_t stops0 = osys_null_audio_stops();
 
-        level_set_members(5u); /* the reload must not happen yet */
+        level_set_members(5u); // the reload must not happen yet
         if (gameflow_pause_action(1, &quit) != FLOW_LEVEL) {
             fprintf(stderr, "FAIL RESTART THIS LEVEL\n");
             bad = 1;
@@ -764,7 +764,7 @@ int main(int argc, char **argv)
                         osys_null_audio_stops(), stops0 + 1u);
                 bad = 1;
             }
-            audio_music_resume(); /* the party's: only starts once released */
+            audio_music_resume(); // the party's: only starts once released
             if (osys_null_audio_starts() != starts0 + 1u) {
                 fprintf(stderr,
                         "FAIL the restarted music_resume is gated off "
@@ -798,8 +798,8 @@ int main(int argc, char **argv)
         (void)_press(0x02u);
         (void)_press(0x02u);
         (void)_press(0x02u);
-        (void)_press(0x80u); /* the grid */
-        (void)_press(0x02u); /* row 1 = game 2 */
+        (void)_press(0x80u); // the grid
+        (void)_press(0x02u); // row 1 = game 2
         (void)_press(0x80u);
         if (menu_slot() != 2u) {
             fprintf(stderr, "FAIL the action's slot is %u\n", menu_slot());
@@ -852,7 +852,7 @@ int main(int argc, char **argv)
             fprintf(stderr, "FAIL the time-up dialog did not open\n");
             bad = 1;
         }
-        (void)_press(0x02u); /* row 1 */
+        (void)_press(0x02u); // row 1
         (void)_press(0x80u);
         if (!menu_time_up() || menu_result() != 1) {
             fprintf(stderr, "FAIL the time-up dialog gave %d (kind %d)\n",
@@ -893,8 +893,8 @@ int main(int argc, char **argv)
         uint16_t t0, a0;
         uint32_t i;
 
-        menu_close(); /* no dialog; restores the world gate */
-        (void)level_load(0); /* reset the ended/time-up state */
+        menu_close(); // no dialog; restores the world gate
+        (void)level_load(0); // reset the ended/time-up state
         level_begin();
         for (i = 0; i < 400u && level_starting(); i++) {
             level_tick();
@@ -902,7 +902,7 @@ int main(int argc, char **argv)
             if (level_loading_screen()) level_loading_tick();
         }
         object_set_action_entity(0u);
-        (void)object_cycle_entity(1); /* 1000:4188 arms record 8 */
+        (void)object_cycle_entity(1); // 1000:4188 arms record 8
         m = object_slot(8u);
         level_set_updates(0);
         t0 = rd_le_u16(m + 8u);
@@ -941,8 +941,8 @@ int main(int argc, char **argv)
         (void)_press(0x02u);
         (void)_press(0x02u);
         (void)_press(0x02u);
-        (void)_press(0x80u); /* the save grid */
-        level_tick(); /* the fresh level frame */
+        (void)_press(0x80u); // the save grid
+        level_tick(); // the fresh level frame
         menu_draw();
         _dump_ppm(dump_dir, "menu_port_grid", osys_null_page(0),
                   osys_null_palette());

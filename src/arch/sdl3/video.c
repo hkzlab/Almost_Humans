@@ -12,15 +12,15 @@
 #include <SDL3/SDL.h>
 #include <stdlib.h>
 
-static VideoMode _vid_mode = (VideoMode)-1;   /* the core's last mode set */
+static VideoMode _vid_mode = (VideoMode)-1;   // the core's last mode set
 
 static SDL_Window *_win;
 static SDL_Renderer *_ren;
 static SDL_Texture *_tex;
 static int32_t _tex_rows =
-    VIDEO_PAGE_H_MODE13H; /* the texture's height = the field */
+    VIDEO_PAGE_H_MODE13H; // the texture's height = the field
 static uint8_t _pages[2][VIDEO_PAGE_BYTES];
-static uint32_t _lut[256]; /* the palette LUT, 6-bit expanded */
+static uint32_t _lut[256]; // the palette LUT, 6-bit expanded
 static int32_t _present_probe; /* HUMANSRE_RATE_PROBE: report the
                                          * loop/present rate every 5 s    */
 
@@ -72,8 +72,7 @@ static void _vid_init_video(void)
      * blocks on the display either - the CRTC flip is latched at vsync by
      * the ISR - so a 60 Hz host display must not drag the 70 Hz flow. */
     _vid_make_texture(VIDEO_PAGE_H_MODE13H);
-    for (uint32_t i = 0; i < 256u; i++)
-        _lut[i] = 0xFF000000u; /* opaque black */
+    for (uint32_t i = 0; i < 256u; i++) _lut[i] = 0xFF000000u; // opaque black
     _present_probe = getenv("HUMANSRE_RATE_PROBE") != NULL;
 }
 

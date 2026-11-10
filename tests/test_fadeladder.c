@@ -130,7 +130,7 @@ int main(int argc, char **argv)
 
     /* drive into PH_SET1/2 and the wait: the ladder during each phase */
     uint8_t entry_dac[768];
-    memcpy(entry_dac, dac, sizeof entry_dac);   /* the blues phase, settled */
+    memcpy(entry_dac, dac, sizeof entry_dac);   // the blues phase, settled
     uint32_t tick = 40u, settled_grey = 0;
     for (uint32_t t = 0u; t < 900u; t++) {
         palette_tick();

@@ -7,14 +7,14 @@
 
 /* One entity record: the DS layout word-for-word (+0x00..+0x0E). */
 typedef struct {
-    uint16_t x0; /* +0x0: endpoint A - handler 1's target        */
-    uint16_t x1; /* +0x2: endpoint B - handler 0's target        */
-    uint16_t handler; /* +0x4: the dispatch index (game: 0/1 only)    */
-    uint16_t x; /* +0x6: the live position                      */
-    uint16_t y; /* +0x8: row*16 - 0x30 + 1                      */
-    uint16_t hold; /* +0xA: the beat countdown, seeded 3           */
-    uint16_t waypoint; /* +0xC: the waypoint / animation index         */
-    uint16_t life; /* +0xE: the goal word's high byte              */
+    uint16_t x0; // +0x0: endpoint A - handler 1's target
+    uint16_t x1; // +0x2: endpoint B - handler 0's target
+    uint16_t handler; // +0x4: the dispatch index (game: 0/1 only)
+    uint16_t x; // +0x6: the live position
+    uint16_t y; // +0x8: row*16 - 0x30 + 1
+    uint16_t hold; // +0xA: the beat countdown, seeded 3
+    uint16_t waypoint; // +0xC: the waypoint / animation index
+    uint16_t life; // +0xE: the goal word's high byte
 } Entity;
 
 /**

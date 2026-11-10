@@ -60,10 +60,10 @@ enum {
     MAP_CONGRATS,
     MAP_NAME_FADE,
     MAP_NAME,
-    MAP_ENTER, /* 1000:049A..0x0516: the spin + white fade after Enter */
+    MAP_ENTER, // 1000:049A..0x0516: the spin + white fade after Enter
     MAP_LIST_HEADER,
     MAP_LIST,
-    MAP_EXIT, /* 1000:062B: fade all 256 entries to black, hold, save */
+    MAP_EXIT, // 1000:062B: fade all 256 entries to black, hold, save
     MAP_EXIT_FADE
 };
 struct MapFade {
@@ -77,30 +77,30 @@ struct MapFade {
 static uint8_t *_map_high;
 static uint32_t _map_high_size;
 static uint8_t *_map_font;
-static uint8_t *_alpha_packed;     /* apl\alpha.spr, the 4bpp sheet        */
-static uint8_t *_alpha_sheet;      /* its 4-plane expansion (64 KB)         */
+static uint8_t *_alpha_packed;     // apl\alpha.spr, the 4bpp sheet
+static uint8_t *_alpha_sheet;      // its 4-plane expansion (64 KB)
 static uint8_t _map_up;
 static uint8_t _map_armed;  /* the first tick ignores the key that skipped the
                            * ending cutscene */
 static uint8_t _map_phase;
 static char _map_name_store[NAME_MAX + 2u];
-static char *_map_name = _map_name_store + 1u; /* one byte for 0x756's delete */
+static char *_map_name = _map_name_store + 1u; // one byte for 0x756's delete
 static uint8_t _map_name_len;
 static uint8_t _map_col;
 /* 1000:03FB/0x0405: the fire append waits for the ISR tick counter [0x5AC8]
  * to reach 0x23 and resets it; the name screen arms it at entry (0x030A). */
 static uint16_t _map_fire_wait;
 /* 1000:05F4/0613: a panel step is 0x14 frames, one [0x8AE] unit per frame. */
-static uint8_t _map_step; /* frames left in the current step */
-static int8_t _map_step_dir; /* +1 = up (0x060C), -1 = down (0x05ED) */
+static uint8_t _map_step; // frames left in the current step
+static int8_t _map_step_dir; // +1 = up (0x060C), -1 = down (0x05ED)
 /* 1000:0251's MOV CX,2 loop: the congratulation page is drawn twice, with
  * flip_page_swap (1000:87C7) between.  The port presents once per tick, so
  * the main loop's present after each map_tick is the flip equivalent. */
 static uint8_t _map_congrats_draws;
 /* 1000:028C..030A: the name-entry transition's fade/rectangle steps. */
-static uint8_t _map_trans; /* 0..6; 6 = the ring is up */
+static uint8_t _map_trans; // 0..6; 6 = the ring is up
 #define MAP_FADE_LOG 16u
-static uint8_t _map_fade_starts; /* the palette_build_fade calls made */
+static uint8_t _map_fade_starts; // the palette_build_fade calls made
 static struct MapFade _map_fade_log[MAP_FADE_LOG];
 /* the 0x48BC ramp: zeroed = black, the opening's 0x0239 target. */
 static const uint8_t _map_black[768];
@@ -113,9 +113,9 @@ static uint8_t _map_intro_frames;
 /* the top-ten list's 0x0518 header frames (the 15 outlines) before 0x0577. */
 static uint8_t _map_list_step;
 /* 1000:049A..0x0516: the Enter spin, the white ramp and the two fades. */
-static uint8_t _map_enter_phase; /* 0 = to white, 1 = back to working */
-static uint16_t _map_enter_bx; /* the 0x04B9/0x0515 counter */
-static uint8_t _map_white[0xC0]; /* the 0x48BC ramp during the spin */
+static uint8_t _map_enter_phase; // 0 = to white, 1 = back to working
+static uint16_t _map_enter_bx; // the 0x04B9/0x0515 counter
+static uint8_t _map_white[0xC0]; // the 0x48BC ramp during the spin
 /* 1000:0577/0x0595: the offscreen list page (cleared, then the rows). */
 static uint8_t _map_off[MAP_PAGE];
 /* 1000:063A/0x063D: the 0x4B-frame hold after the exit fade (present_frames_75). */
@@ -126,11 +126,11 @@ static uint8_t _map_music_fade;
  * cell index derived from the angle (`(0x10E - angle) / 0x0C`). */
 static uint16_t _map_angle;
 static uint8_t _map_angle_step;
-static uint8_t _map_spin; /* frames left in the entry spin (20 + 3) */
+static uint8_t _map_spin; // frames left in the entry spin (20 + 3)
 /* 1000:03B5..0x03F8: a left/right press is four 3-degree draws plus the three
  * 0x0330 holds, not one 12-degree jump. */
 static uint8_t _map_move_steps;
-static int8_t _map_move_dir; /* -1 = left (0x03DA), +1 = right (0x03B5) */
+static int8_t _map_move_dir; // -1 = left (0x03DA), +1 = right (0x03B5)
 static uint8_t _map_move_hold;
 /* 1000:0368 clears [0x5ACE]: after a typed key the action bit is swallowed
  * until the key is released (Z is the shipped action key). */
@@ -276,10 +276,10 @@ static const int16_t _alpha_sin[360] = {
  * `[0x8AE]` moving one unit per frame (`1000:05F4`/`0613`), so the band
  * scrolls through the fixed frame windows rather than changing contents.
  */
-static uint8_t *_band_sheet; /* apl\band.spr: 304 rows x 80 bytes      */
+static uint8_t *_band_sheet; // apl\band.spr: 304 rows x 80 bytes
 
-uint16_t g_map_box_bottom; /* [0x8AE]                                */
-uint16_t g_map_panel; /** [0x8A2]: 1..6                          */
+uint16_t g_map_box_bottom; // [0x8AE]
+uint16_t g_map_panel; // [0x8A2]: 1..6
 
 /**
  * @brief Accessor: the running score as one 32-bit value.
@@ -340,13 +340,13 @@ void alpha_expand(const uint8_t *src, uint8_t *dst)
 {
     for (uint16_t p = 0; p < 4u; p++) {
         uint16_t si = 0;
-        uint32_t di = p * 0x4000u; /* 4 writes/row reach 0x10000 */
+        uint32_t di = p * 0x4000u; // 4 writes/row reach 0x10000
 
         for (uint16_t i = 0; i < 0x1000u; i++) {
             uint16_t bx = _alpha_ror16(rd_le_u16(src + si), p);
 
             si += 2u;
-            dst[di++] = _alpha_hi_right((uint8_t)(bx & 0xFFu)); /* BL */
+            dst[di++] = _alpha_hi_right((uint8_t)(bx & 0xFFu)); // BL
             dst[di++] = _alpha_lo_left((uint8_t)(bx & 0xFFu));
             /* MOV BL,BH */
             dst[di++] = _alpha_hi_right((uint8_t)((bx >> 8) & 0xFFu));
@@ -715,7 +715,7 @@ void map_draw_box_edges(uint8_t *page, uint32_t row)
     if (!page || !_band_sheet) return;
     for (uint16_t i = 0; i < 5u; i++) {
         _map_blit_row(page, dstByte[i], src, mask[i]);
-        src += 0x640u; /* ADD SI,0x640 */
+        src += 0x640u; // ADD SI,0x640
     }
 }
 
@@ -796,7 +796,7 @@ static void _map_blit_strip(uint16_t phase, uint32_t ch, uint8_t *page)
     for (uint16_t r = 0; r < 40u; r++)
         for (uint16_t c = 0; c < 8u; c++) {
             uint32_t a = src + r * 8u + c;
-            uint16_t da = dst + r * 80u + c; /* the 0x48 gap + 8 bytes */
+            uint16_t da = dst + r * 80u + c; // the 0x48 gap + 8 bytes
             uint32_t px = (da / 80u) * VIDEO_PAGE_W + (da % 80u) * 4u;
 
             if (a >= MAP_STAGE_ADDRS) continue;
@@ -839,7 +839,7 @@ static void _map_anim_tick_1(void)
     _map_b77 = (uint8_t)(_map_b77 - 1u);
     if ((int8_t)_map_b77 >= 0) return;
     if (_map_ch[2] < 2u) {
-        _map_ch[2] ^= 0x0100u; /* XOR word [0x95],1 */
+        _map_ch[2] ^= 0x0100u; // XOR word [0x95],1
         _map_b77 = 0x0Au;
     } else {
         _map_ch[2] = 1u;
@@ -896,7 +896,7 @@ static void _map_anim_table_tick(uint32_t ch, uint8_t *timer, uint8_t *repeat,
         bl = (uint8_t)((*step & 3u) + 1u);
         *next = bl;
     }
-    bl = (uint8_t)(*idx & 7u); /* the image's 0x80..0x87 window */
+    bl = (uint8_t)(*idx & 7u); // the image's 0x80..0x87 window
     _map_ch[ch] = table[bl];
     if (table[(uint32_t)bl + 1u] & 0x80u) {
         bl = 0u;
@@ -930,7 +930,7 @@ static void _map_palette_animate(void)
     _map_anim_ticks();
     for (uint16_t ch = 0; ch < 4u; ch++) {
         if (_map_ch[ch] == _map_shadow[ch]) continue;
-        _map_prev_ch[ch] = _map_shadow[ch]; /* 0xA0 = the old 0x98 */
+        _map_prev_ch[ch] = _map_shadow[ch]; // 0xA0 = the old 0x98
         _map_shadow[ch] = _map_ch[ch];
         _map_blit_strip((uint16_t)(_map_ch[ch] + off[ch]), ch, page);
     }
@@ -994,7 +994,7 @@ void map_draw_list(uint8_t *page)
     uint16_t row = 0u;
 
     if (!page) return;
-    memset(page, 0, MAP_PAGE); /* 1000:0577 */
+    memset(page, 0, MAP_PAGE); // 1000:0577
     for (uint16_t i = 0; i < hiscore_count(); i++) {
         char buf[24];
 
@@ -1013,7 +1013,7 @@ void map_draw_list_header(uint8_t *page)
     for (uint16_t i = 0; i < 5u; i++) {
         uint8_t y = (uint8_t)(0x2Du + 0x14u * i);
 
-        map_draw_rect(page, 0x12u, y, 0x1Cu, 0x0Fu); /* 1000:0B5F */
+        map_draw_rect(page, 0x12u, y, 0x1Cu, 0x0Fu); // 1000:0B5F
         map_draw_rect(page, 0x32u, y, 0xA0u, 0x0Fu);
         map_draw_rect(page, 0xD6u, y, 0x58u, 0x0Fu);
     }
@@ -1163,7 +1163,7 @@ static int32_t _map_move_tick(void)
         return 1;
     }
     if (_map_move_hold > 0) {
-        _map_redraw(); /* 1000:0330 */
+        _map_redraw(); // 1000:0330
         _map_move_hold--;
         return 1;
     }
@@ -1174,11 +1174,11 @@ uint8_t map_begin(void)
 {
     if (_map_up) return 1;
 
-    res_set_disc(0u); /* entry 0x151A [0xF7E]=0 */
+    res_set_disc(0u); // entry 0x151A [0xF7E]=0
     _map_high = res_load_chunk("LBM\\HIGH.BIT", &_map_high_size, NULL);
     uint8_t *page = video_page(0);
     if (_map_high && _map_high_size >= MAP_PAGE + 768u)
-        palette_load_working(_map_high + MAP_PAGE); /* 1000:01C3/8D24 */
+        palette_load_working(_map_high + MAP_PAGE); // 1000:01C3/8D24
 
     _map_font = res_load_chunk("APL\\TEXT.SPR", NULL, NULL);
     font_publish(_map_font);
@@ -1198,7 +1198,7 @@ uint8_t map_begin(void)
     _band_sheet = NULL;
     _band_sheet = res_load_chunk("APL\\BAND.SPR", NULL, NULL);
     _map_stage_ready = 0;
-    _map_stage_fill(); /* 1000:12D3 */
+    _map_stage_fill(); // 1000:12D3
 
     /* 1000:01CD: the running total is offered to the table.  A qualifying one
      * opens the name entry first, then the list. */
@@ -1223,8 +1223,8 @@ uint8_t map_begin(void)
     _map_enter_bx = 0u;
     _map_exit_hold = 0u;
     memset(_map_off, 0, sizeof _map_off);
-    g_map_box_bottom = 0x130u; /* 1000:0518's [0x8AE] */
-    g_map_panel = 0u; /* 0 = the entry animation */
+    g_map_box_bottom = 0x130u; // 1000:0518's [0x8AE]
+    g_map_panel = 0u; // 0 = the entry animation
     _map_step = 0;
     _map_step_dir = 0;
     _map_phase = hiscore_qualifies(_map_score()) ? MAP_CONGRATS : MAP_EXIT;
@@ -1235,12 +1235,12 @@ uint8_t map_begin(void)
         audio_play_tune(audio_tune_hiscore);
         audio_music_resume();
         audio_fade_in();
-        _map_music_fade = 1; /* 1000:018D-0196's timing_loop */
+        _map_music_fade = 1; // 1000:018D-0196's timing_loop
         /* 1000:021E..0x0233: high.bit, the strips, then the band's 0x10..0x1F
          * colours fade in (the rest of the DAC is still the previous page's). */
         _map_page_copy(page);
-        map_palette_reset(); /* 0x0221 */
-        _map_build_fade(0x10u, 0x10u, 0x1Eu, 0x30u); /* 0x0224 */
+        map_palette_reset(); // 0x0221
+        _map_build_fade(0x10u, 0x10u, 0x1Eu, 0x30u); // 0x0224
     }
 
     _map_up = 1;
@@ -1260,16 +1260,16 @@ static void _map_list_begin(void)
 
     _map_phase = MAP_LIST_HEADER;
     _map_list_step = 0u;
-    _map_enter_phase = 2u; /* the test seam: the Enter spin is over */
+    _map_enter_phase = 2u; // the test seam: the Enter spin is over
     if (!page) return;
-    _map_page_copy(page); /* 0x0526 */
-    map_draw_list_header(page); /* 0x052F..0x054E */
-    if (_map_stage_ready) map_palette_reset(); /* 0x053B */
+    _map_page_copy(page); // 0x0526
+    map_draw_list_header(page); // 0x052F..0x054E
+    if (_map_stage_ready) map_palette_reset(); // 0x053B
     /* 0x055E: the working palette is reloaded from high.bit, then 0x0568
      * fades 0x20..0x5F to it before the rows' box unroll starts. */
     if (_map_high && _map_high_size >= MAP_PAGE + 768u)
         palette_load_working(_map_high + MAP_PAGE);
-    _map_build_fade(0x20u, 0x40u, 0x1Eu, 0x60u); /* 0x0568 */
+    _map_build_fade(0x20u, 0x40u, 0x1Eu, 0x60u); // 0x0568
 }
 
 /** @brief 1000:049A..0x0516: the Enter spin, white ramp and two fades.
@@ -1282,8 +1282,8 @@ static void _map_list_begin(void)
  */
 static void _map_enter_begin(void)
 {
-    memset(_map_white, 0x3Fu, sizeof _map_white); /* 0x049A */
-    _map_build_fade_to(0x20u, 0x40u, 0x64u, _map_white, 0xFFFFu); /* 0x04B4 */
+    memset(_map_white, 0x3Fu, sizeof _map_white); // 0x049A
+    _map_build_fade_to(0x20u, 0x40u, 0x64u, _map_white, 0xFFFFu); // 0x04B4
     _map_enter_phase = 0u;
     _map_enter_bx = 1u;
     _map_phase = MAP_ENTER;
@@ -1296,9 +1296,9 @@ static void _map_enter_begin(void)
  */
 static void _map_exit_begin(void)
 {
-    _map_build_fade_to(0u, 0x100u, 0x23u, _map_black, 0xFFFFu); /* 0x062B */
-    _map_exit_hold = 0x4Bu; /* 0x063D */
-    audio_fade_out(); /* 0x063D: present_frames_75 */
+    _map_build_fade_to(0u, 0x100u, 0x23u, _map_black, 0xFFFFu); // 0x062B
+    _map_exit_hold = 0x4Bu; // 0x063D
+    audio_fade_out(); // 0x063D: present_frames_75
     _map_phase = MAP_EXIT_FADE;
 }
 
@@ -1306,8 +1306,8 @@ static void _map_exit_begin(void)
 static void _map_close(void)
 {
     _map_up = 0;
-    audio_music_stop(); /* 0x0640 */
-    hiscore_write(); /* 0x06CC */
+    audio_music_stop(); // 0x0640
+    hiscore_write(); // 0x06CC
     free(_map_high);
     _map_high = NULL;
     free(_map_font);
@@ -1355,24 +1355,24 @@ uint8_t map_tick(const InputState *in)
         _map_armed = 1;
         return 1;
     }
-    if (_map_music_fade) { /* the congrats trio's fade-in blocks */
+    if (_map_music_fade) { // the congrats trio's fade-in blocks
         if (audio_fade_busy()) return 1;
         _map_music_fade = 0;
     }
-    _map_palette_animate(); /* 1000:09DA, every menu-loop iteration */
+    _map_palette_animate(); // 1000:09DA, every menu-loop iteration
 
     if (_map_phase == MAP_EXIT) {
-        _map_exit_begin(); /* 1000:062B: fade/save, no list */
+        _map_exit_begin(); // 1000:062B: fade/save, no list
         return 1;
     }
     if (_map_phase == MAP_EXIT_FADE) {
-        if (palette_fade_active()) return 1; /* 0x062B..0x063A */
-        if (_map_exit_hold > 0u) { /* 0x063D present_frames_75 */
+        if (palette_fade_active()) return 1; // 0x062B..0x063A
+        if (_map_exit_hold > 0u) { // 0x063D present_frames_75
             _map_exit_hold--;
             return 1;
         }
-        if (audio_fade_busy()) return 1; /* 0x063D's blocking fade */
-        _map_close(); /* 0x06CC */
+        if (audio_fade_busy()) return 1; // 0x063D's blocking fade
+        _map_close(); // 0x06CC
         return 0;
     }
     if (_map_phase == MAP_CONGRATS) {
@@ -1387,16 +1387,16 @@ uint8_t map_tick(const InputState *in)
             _map_intro_frames++;
             if (_map_intro_frames < 0x8Cu) return 1;
             _map_build_fade_to(0x20u, 0x20u, 2u, _map_black,
-                               0xFFFFu); /* 0x0239 */
+                               0xFFFFu); // 0x0239
             _map_intro = 1u;
             return 1;
         case 1: {
             uint8_t *page = video_page(0);
 
             if (palette_fade_active()) return 1;
-            _map_page_copy(page); /* 0x024B */
-            _map_draw_strips(page); /* the display strips survive the copy */
-            map_draw_congrats(page); /* 0x024E, first pass */
+            _map_page_copy(page); // 0x024B
+            _map_draw_strips(page); // the display strips survive the copy
+            map_draw_congrats(page); // 0x024E, first pass
             _map_congrats_draws = 1u;
             _map_intro = 2u;
             return 1;
@@ -1404,9 +1404,9 @@ uint8_t map_tick(const InputState *in)
         case 2: {
             uint8_t *page = video_page(0);
 
-            map_draw_congrats(page); /* 0x0251's second pass after the flip */
+            map_draw_congrats(page); // 0x0251's second pass after the flip
             _map_congrats_draws = 2u;
-            _map_build_fade(0u, 0x40u, 0x28u, 0u); /* 0x0273 */
+            _map_build_fade(0u, 0x40u, 0x28u, 0u); // 0x0273
             _map_intro = 3u;
             return 1;
         }
@@ -1417,7 +1417,7 @@ uint8_t map_tick(const InputState *in)
         default: break;
         }
         if (in->lastKey || (in->joyBits & 0x80u)) {
-            _map_phase = MAP_NAME_FADE; /* 1000:0285: the key wait */
+            _map_phase = MAP_NAME_FADE; // 1000:0285: the key wait
             _map_trans = 0;
         }
         return 1;
@@ -1428,17 +1428,17 @@ uint8_t map_tick(const InputState *in)
         switch (_map_trans) {
         case 0:
             if (palette_fade_active()) return 1;
-            _map_build_fade(0x80u, 0x80u, 2u, 0x180u); /* 1000:028F */
+            _map_build_fade(0x80u, 0x80u, 2u, 0x180u); // 1000:028F
             _map_trans = 1;
             return 1;
         case 1:
             if (palette_fade_active()) return 1;
-            _map_build_fade(0x20u, 0x20u, 0x1Eu, 0x120u); /* 1000:02A1 */
+            _map_build_fade(0x20u, 0x20u, 0x1Eu, 0x120u); // 1000:02A1
             _map_trans = 2;
             return 1;
         case 2:
             if (palette_fade_active()) return 1;
-            _map_build_fade(0x40u, 0x20u, 2u, 0x120u); /* 1000:02B3 */
+            _map_build_fade(0x40u, 0x20u, 2u, 0x120u); // 1000:02B3
             _map_trans = 3;
             return 1;
         case 3: {
@@ -1446,11 +1446,11 @@ uint8_t map_tick(const InputState *in)
 
             if (palette_fade_active()) return 1;
             if (page) {
-                _map_page_reset(page); /* 1000:02C5 */
-                map_draw_rect(page, 0x95u, 9u, 0xFu, 0xFu); /* 1000:02C8 */
-                map_draw_rect(page, 0x60u, 0x45u, 0x77u, 0xFu); /* 1000:02D7 */
+                _map_page_reset(page); // 1000:02C5
+                map_draw_rect(page, 0x95u, 9u, 0xFu, 0xFu); // 1000:02C8
+                map_draw_rect(page, 0x60u, 0x45u, 0x77u, 0xFu); // 1000:02D7
             }
-            _map_build_fade(0x40u, 0x20u, 0x1Eu, 0xC0u); /* 1000:02E9 */
+            _map_build_fade(0x40u, 0x20u, 0x1Eu, 0xC0u); // 1000:02E9
             _map_trans = 4;
             return 1;
         }
@@ -1461,10 +1461,10 @@ uint8_t map_tick(const InputState *in)
             _map_build_fade(0x20u, 0x20u, 0x46u, 0x60u);
             _map_trans = 6;
             _map_phase = MAP_NAME;
-            _map_fire_wait = 0x23u; /* 1000:030A: [0x5AC8] := 0x23 */
-            _map_angle = 0x10Eu; /* 1000:0310 */
-            _map_angle_step = 0x12u; /* 1000:0316 */
-            _map_spin = 23; /* 20 stepped draws + the three 0x0330 draws */
+            _map_fire_wait = 0x23u; // 1000:030A: [0x5AC8] := 0x23
+            _map_angle = 0x10Eu; // 1000:0310
+            _map_angle_step = 0x12u; // 1000:0316
+            _map_spin = 23; // 20 stepped draws + the three 0x0330 draws
             _map_col = 0u;
             _map_move_steps = 0;
             _map_move_hold = 0;
@@ -1487,35 +1487,34 @@ uint8_t map_tick(const InputState *in)
     }
 
     if (_map_phase == MAP_NAME) {
-        if (_map_fire_wait < 0xFFFFu) _map_fire_wait++; /* the [0x5AC8] tick */
-        if (in->lastKey) _map_pending_key = in->lastKey; /* [0x48A3] latch */
+        if (_map_fire_wait < 0xFFFFu) _map_fire_wait++; // the [0x5AC8] tick
+        if (in->lastKey) _map_pending_key = in->lastKey; // [0x48A3] latch
 
         /* 1000:031C..0x0342: the ring spins one full revolution (20 x 0x12)
          * and then holds for the three 0x0330 draws. */
         if (_map_spin > 0) {
             _map_redraw();
             if (_map_spin > 3) {
-                _map_angle =
-                    (_map_angle + _map_angle_step) % 0x168u; /* 0x0DF3 */
+                _map_angle = (_map_angle + _map_angle_step) % 0x168u; // 0x0DF3
             } else {
-                _map_angle_step = 0u; /* 1000:032A */
+                _map_angle_step = 0u; // 1000:032A
             }
             _map_spin--;
             _map_col = _map_col_from_angle();
             return 1;
         }
-        if (_map_move_tick()) return 1; /* four 3-degree draws + three holds */
+        if (_map_move_tick()) return 1; // four 3-degree draws + three holds
 
         if (!(in->joyBits & 0x80u)) _map_fire_lock = 0;
 
         uint8_t committed = 0;
 
-        if (in->joyBits & 0x04u) { /* left: 1000:03DA, [0x48] -= 3 x4 */
+        if (in->joyBits & 0x04u) { // left: 1000:03DA, [0x48] -= 3 x4
             _map_move_dir = -1;
             _map_move_steps = 4;
             return (uint8_t)(_map_move_tick());
         }
-        if (in->joyBits & 0x08u) { /* right: 1000:03B5, [0x48] += 3 x4 */
+        if (in->joyBits & 0x08u) { // right: 1000:03B5, [0x48] += 3 x4
             _map_move_dir = 1;
             _map_move_steps = 4;
             return (uint8_t)(_map_move_tick());
@@ -1524,14 +1523,14 @@ uint8_t map_tick(const InputState *in)
             uint8_t c = _map_pending_key;
             uint8_t cell = 0xFFu;
 
-            _map_pending_key = 0u; /* 1000:0363 [0x48A3] = 0 */
+            _map_pending_key = 0u; // 1000:0363 [0x48A3] = 0
             if (c >= 'a' && c <= 'z') c -= 32u;
             if (c >= 'A' && c <= 'Z') cell = c - 'A';
             else if (c == ' ') cell = 0x1Au;
             else if (c == '.') cell = 0x1Bu;
-            else if (c == 8u || c == 0x7Fu) cell = 0x1Cu; /* delete */
-            else if (c == 13u || c == 10u) cell = 0x1Du; /* enter  */
-            _map_fire_lock = 1; /* 1000:0368 [0x5ACE] = 0 */
+            else if (c == 8u || c == 0x7Fu) cell = 0x1Cu; // delete
+            else if (c == 13u || c == 10u) cell = 0x1Du; // enter
+            _map_fire_lock = 1; // 1000:0368 [0x5ACE] = 0
             if (cell != 0xFFu) {
                 /* 1000:039C..0x03B3: the key turns the ring to the cell and
                  * then falls into the shared append at 0x040B (the typed
@@ -1547,7 +1546,7 @@ uint8_t map_tick(const InputState *in)
             committed = (uint8_t)(_map_apply(_map_col));
         }
         if (committed) return 1;
-        _map_redraw(); /* 1000:033C */
+        _map_redraw(); // 1000:033C
         return 1;
     }
 
@@ -1559,7 +1558,7 @@ uint8_t map_tick(const InputState *in)
         if (step > 0x10u) step = 0x10u;
         _map_angle = (_map_angle + 0x168u - step) % 0x168u;
         _map_col = _map_col_from_angle();
-        _map_redraw(); /* 0x0CBE */
+        _map_redraw(); // 0x0CBE
         if (palette_fade_active()) {
             _map_enter_bx++;
             return 1;
@@ -1569,12 +1568,12 @@ uint8_t map_tick(const InputState *in)
             memcpy(_map_white, palette_working() + 0x120u, 0x60u);
             memcpy(_map_white + 0x60u, palette_working() + 0x120u, 0x60u);
             _map_build_fade_to(0x20u, 0x40u, 0x3Cu, _map_white,
-                               0xFFFFu); /* 0x050E */
+                               0xFFFFu); // 0x050E
             _map_enter_phase = 1u;
             _map_enter_bx++;
             return 1;
         }
-        _map_list_begin(); /* 0x0518 */
+        _map_list_begin(); // 0x0518
         return 1;
     }
 
@@ -1585,11 +1584,11 @@ uint8_t map_tick(const InputState *in)
         _map_list_step++;
         if (_map_list_step <= 2u) return 1;
         if (_map_list_step == 3u) {
-            map_draw_list(_map_off); /* 0x0577 + 0x0595 */
+            map_draw_list(_map_off); // 0x0577 + 0x0595
             return 1;
         }
-        if (palette_fade_active()) return 1; /* 0x0598 */
-        g_map_box_bottom = 0x130u; /* 0x059B */
+        if (palette_fade_active()) return 1; // 0x0598
+        g_map_box_bottom = 0x130u; // 0x059B
         g_map_panel = 0u;
         _map_step = 0;
         _map_step_dir = 0;
@@ -1601,7 +1600,7 @@ uint8_t map_tick(const InputState *in)
      * per frame, so the five frame rows unroll; [0x8A2] becomes 1 when it ends
      * and the panel loop (0x05B9) takes over. */
     if (g_map_panel == 0u) {
-        _map_redraw(); /* 1000:05A5: draw, wait, then SUB */
+        _map_redraw(); // 1000:05A5: draw, wait, then SUB
         if (g_map_box_bottom > 2u) g_map_box_bottom--;
         else g_map_panel = 1u;
         return 1;
@@ -1610,7 +1609,7 @@ uint8_t map_tick(const InputState *in)
      * frame draws the frame and moves [0x8AE] by one; [0x8A2] changes only
      * after the 0x14th.  Up (bit 0x01) adds 1, down (bit 0x02) subtracts 1. */
     if (_map_step > 0) {
-        _map_redraw(); /* 1000:05F8: draw, wait, then ADD/SUB */
+        _map_redraw(); // 1000:05F8: draw, wait, then ADD/SUB
         g_map_box_bottom =
             (uint16_t)((int32_t)g_map_box_bottom + _map_step_dir);
         _map_step = (uint8_t)(_map_step - 1u);
@@ -1636,7 +1635,7 @@ uint8_t map_tick(const InputState *in)
     }
 
     if (in->lastKey || (in->joyBits & 0x80u)) {
-        _map_exit_begin(); /* 1000:062B: fade all 256 entries, then save */
+        _map_exit_begin(); // 1000:062B: fade all 256 entries, then save
         return 1;
     }
     return 1;

@@ -61,13 +61,13 @@
 #include <string.h>
 
 #define BEEP_HEADER        0x158u
-#define BEEP_RECORDS       2u   /* CS:0x0D6C, stride 0x15 */
-#define BEEP_SLOTS         2u   /* only 0 and 1 are in the free list */
+#define BEEP_RECORDS       2u   // CS:0x0D6C, stride 0x15
+#define BEEP_SLOTS         2u   // only 0 and 1 are in the free list
 #define BEEP_SLOT_BYTES    0x16u
 #define BEEP_ROWS          0x40u
-#define BEEP_OFFSETS       0x88u /* the copied offset table, in words */
+#define BEEP_OFFSETS       0x88u // the copied offset table, in words
 #define BEEP_TEMPO_DEFAULT 0x30u
-#define BEEP_PIT_HZ        1193182u /* the test's expected pitch */
+#define BEEP_PIT_HZ        1193182u // the test's expected pitch
 
 /* The 0x16-byte speaker slot's fields the sequencer reads or writes; the
  * offsets are the driver's (CS:0x0C76 + 0x16*slot). */
@@ -76,9 +76,9 @@ enum {
     BEEP_INSTRUMENT = 0x01,
     BEEP_COMMAND = 0x02,
     BEEP_PARAM = 0x03,
-    BEEP_VOLUME = 0x04, /* cmd 0x0A / 0x0C bookkeeping, never read */
-    BEEP_LAST_INSTRUMENT = 0x08, /* 0xFF after cmd 5 */
-    BEEP_DIVIDER = 0x12 /* word: the PIT channel-2 divisor */
+    BEEP_VOLUME = 0x04, // cmd 0x0A / 0x0C bookkeeping, never read
+    BEEP_LAST_INSTRUMENT = 0x08, // 0xFF after cmd 5
+    BEEP_DIVIDER = 0x12 // word: the PIT channel-2 divisor
 };
 
 /* CS:0x08B2, 84 words: the note byte is the table index (1E95:07DE).
@@ -97,42 +97,42 @@ static const uint16_t _period[84] = {
 
 /* CS:0x0D6C + 0x15*id.  Every field is one the driver sets or reads. */
 typedef struct BeeperRecord {
-    uint8_t active; /* +0x0  0xFF while playing */
-    uint8_t tracks; /* +0x1  image record +0x0D */
-    uint8_t ticks_per_row; /* +0x2  default 6, voice cmd 0x0F */
-    uint8_t order; /* +0x3  index into the order list */
-    uint16_t cursor; /* +0x4  pattern-relative stream pos */
-    uint8_t tick; /* +0x6  */
-    uint8_t advance; /* +0x7  toggled by cmds 0x0B/0x0D */
-    uint8_t row; /* +0x8  rows decoded, 0x40 = end */
-    uint8_t loop; /* +0x9  */
-    uint8_t first_order; /* +0xA  */
-    uint8_t last_order; /* +0xB  last order + 1 */
-    uint8_t finished; /* +0xC  */
-    uint8_t track_slot[BEEP_SLOTS]; /* +0xD  free-list slot numbers */
+    uint8_t active; // +0x0  0xFF while playing
+    uint8_t tracks; // +0x1  image record +0x0D
+    uint8_t ticks_per_row; // +0x2  default 6, voice cmd 0x0F
+    uint8_t order; // +0x3  index into the order list
+    uint16_t cursor; // +0x4  pattern-relative stream pos
+    uint8_t tick; // +0x6
+    uint8_t advance; // +0x7  toggled by cmds 0x0B/0x0D
+    uint8_t row; // +0x8  rows decoded, 0x40 = end
+    uint8_t loop; // +0x9
+    uint8_t first_order; // +0xA
+    uint8_t last_order; // +0xB  last order + 1
+    uint8_t finished; // +0xC
+    uint8_t track_slot[BEEP_SLOTS]; // +0xD  free-list slot numbers
 } BeeperRecord;
 
 struct SoundDriver {
     uint32_t sampleRate;
-    uint8_t ready; /* CS:0x0C65 */
-    uint8_t tempo; /* CS:0x0E64, never read */
+    uint8_t ready; // CS:0x0C65
+    uint8_t tempo; // CS:0x0E64, never read
     uint8_t slot[BEEP_SLOTS][BEEP_SLOT_BYTES];
-    uint8_t slot_flag[BEEP_SLOTS]; /* CS:0x08A2: 0xFF armed, 0xFE on */
-    uint8_t slot_free[BEEP_SLOTS]; /* CS:0x0E14 */
-    uint8_t header[BEEP_HEADER]; /* CS:0x0B0B */
-    uint16_t offset[BEEP_OFFSETS]; /* CS:0x0EA5 */
+    uint8_t slot_flag[BEEP_SLOTS]; // CS:0x08A2: 0xFF armed, 0xFE on
+    uint8_t slot_free[BEEP_SLOTS]; // CS:0x0E14
+    uint8_t header[BEEP_HEADER]; // CS:0x0B0B
+    uint16_t offset[BEEP_OFFSETS]; // CS:0x0EA5
     uint16_t offset_count;
     uint8_t *tune;
     uint32_t tune_size;
-    uint32_t song_data; /* SDS, CS:0x0C6E */
+    uint32_t song_data; // SDS, CS:0x0C6E
     BeeperRecord record[BEEP_RECORDS];
-    uint8_t record0_seen; /* CS:0x05A9 */
-    uint8_t mux_counter; /* CS:0x05A7 */
-    uint8_t mux_period; /* CS:0x0E85: ticks per row */
-    uint8_t mux_half; /* CS:0x0E86: ticks per row / 2 */
-    uint8_t speaker_on; /* CS:0x07EC */
+    uint8_t record0_seen; // CS:0x05A9
+    uint8_t mux_counter; // CS:0x05A7
+    uint8_t mux_period; // CS:0x0E85: ticks per row
+    uint8_t mux_half; // CS:0x0E86: ticks per row / 2
+    uint8_t speaker_on; // CS:0x07EC
     uint16_t divider;
-    PcSpeakerImpulse *speaker; /* the vendored impulse model */
+    PcSpeakerImpulse *speaker; // the vendored impulse model
 };
 
 /**
@@ -205,7 +205,7 @@ static void _set_note_frequency(SoundDriver *drv, unsigned slot, uint8_t note)
 {
     unsigned idx = note;
 
-    if (idx >= 84u) idx = 83u; /* shortcut: the original reads past its table */
+    if (idx >= 84u) idx = 83u; // shortcut: the original reads past its table
     drv->slot_flag[slot] = 0xFFu;
     wr_le_u16(&drv->slot[slot][BEEP_DIVIDER], _period[idx]);
 }
@@ -249,22 +249,22 @@ static void _note_command(SoundDriver *drv, BeeperRecord *rec, unsigned slot)
     uint8_t *v = drv->slot[slot];
 
     switch (v[BEEP_COMMAND] & 0x1Fu) {
-    case 6: /* 1E95:0779: note off */
+    case 6: // 1E95:0779: note off
         v[BEEP_COMMAND] = 0;
         drv->slot_flag[slot] = 0;
         break;
-    case 0x0B: /* 1E95:0788: jump to order param-1, advance next tick */
+    case 0x0B: // 1E95:0788: jump to order param-1, advance next tick
         rec->order = (uint8_t)(v[BEEP_PARAM] - 1u);
         rec->advance = (uint8_t)~rec->advance;
         break;
-    case 0x0C: /* 1E95:0798: volume = min(param, 0x40), never applied */
+    case 0x0C: // 1E95:0798: volume = min(param, 0x40), never applied
         if (v[BEEP_PARAM] > BEEP_ROWS) v[BEEP_PARAM] = BEEP_ROWS;
         v[BEEP_VOLUME] = v[BEEP_PARAM];
         break;
-    case 0x0D: /* 1E95:0780: advance to the next order next tick */
+    case 0x0D: // 1E95:0780: advance to the next order next tick
         rec->advance = (uint8_t)~rec->advance;
         break;
-    case 0x0F: /* 1E95:07AA: ticks per row, param & 0x1F (0 = no change) */
+    case 0x0F: // 1E95:07AA: ticks per row, param & 0x1F (0 = no change)
         if ((v[BEEP_PARAM] & 0x1Fu) != 0) {
             rec->tick = 0;
             rec->ticks_per_row = (uint8_t)(v[BEEP_PARAM] & 0x1Fu);
@@ -272,7 +272,7 @@ static void _note_command(SoundDriver *drv, BeeperRecord *rec, unsigned slot)
             drv->mux_half = (uint8_t)(rec->ticks_per_row >> 1);
         }
         break;
-    default: break; /* 1E95:0740/07C9: RET */
+    default: break; // 1E95:0740/07C9: RET
     }
 }
 
@@ -290,7 +290,7 @@ static void _tick_command(SoundDriver *drv, unsigned slot)
     uint8_t *v = drv->slot[slot];
 
     switch (v[BEEP_COMMAND] & 0x1Fu) {
-    case 0x0A: { /* 1E95:0742: high nibble adds, low nibble subtracts */
+    case 0x0A: { // 1E95:0742: high nibble adds, low nibble subtracts
         uint8_t delta = v[BEEP_PARAM];
         uint8_t hi = (uint8_t)(delta >> 4);
         if (hi != 0) {
@@ -333,7 +333,7 @@ static void _play_cell(SoundDriver *drv, BeeperRecord *rec, unsigned slot)
     if (v[BEEP_NOTE] == 0) {
         _note_command(drv, rec, slot);
     } else if ((v[BEEP_COMMAND] & 0x1Fu) == 3u) {
-        _note_command(drv, rec, slot); /* 1E95:07C7 RET; no note-on */
+        _note_command(drv, rec, slot); // 1E95:07C7 RET; no note-on
     } else {
         _note_command(drv, rec, slot);
         _set_note_frequency(drv, slot, v[BEEP_NOTE]);
@@ -358,7 +358,7 @@ static void _decode_row(SoundDriver *drv, BeeperRecord *rec)
     uint32_t at;
     unsigned i;
 
-    if (rec->order >= 0x7Fu) { /* shortcut: the order list is 0x7F bytes */
+    if (rec->order >= 0x7Fu) { // shortcut: the order list is 0x7F bytes
         rec->row = BEEP_ROWS;
         return;
     }
@@ -570,7 +570,7 @@ static void _beeper_set_tempo(SoundDriver *drv, uint8_t tempo)
     if (!drv) return;
     if (tempo > 0x64u) tempo = 0x64u;
     value = (uint8_t)((0xA3u * (unsigned)tempo) >> 8);
-    if (value != drv->tempo) drv->tempo = value; /* 1E95:01FF is a RET */
+    if (value != drv->tempo) drv->tempo = value; // 1E95:01FF is a RET
 }
 
 /**
@@ -631,7 +631,7 @@ static void _beeper_load_tune(SoundDriver *drv, const uint8_t *image,
         drv->offset[i] = rd_le_u16(image + stream + 2u * i);
     drv->offset_count = (uint16_t)(table / 2u);
     drv->song_data = sds;
-    _speaker_off(drv); /* 1E95:04DD at the end of cmd 0x0C */
+    _speaker_off(drv); // 1E95:04DD at the end of cmd 0x0C
 }
 
 /**
@@ -664,9 +664,9 @@ static uint16_t _beeper_start_event(SoundDriver *drv, uint16_t event)
 
     off = BEEP_HEADER + (uint32_t)event * 16u;
     tracks = _tune_u8(drv, off + 0xDu);
-    if (tracks > BEEP_SLOTS) tracks = BEEP_SLOTS; /* shortcut: 1 or 2 ship */
+    if (tracks > BEEP_SLOTS) tracks = BEEP_SLOTS; // shortcut: 1 or 2 ship
 
-    memset(rec, 0, sizeof(*rec)); /* 1E95:035B copies the zero template */
+    memset(rec, 0, sizeof(*rec)); // 1E95:035B copies the zero template
     for (i = 0; i < tracks; i++) {
         unsigned slot = 0;
         while (slot < BEEP_SLOTS && drv->slot_free[slot] == 0xFFu) slot++;
@@ -677,7 +677,7 @@ static uint16_t _beeper_start_event(SoundDriver *drv, uint16_t event)
         }
         drv->slot_free[slot] = 0xFFu;
         rec->track_slot[i] = (uint8_t)slot;
-        _speaker_off(drv); /* 1E95:04E0, once per track */
+        _speaker_off(drv); // 1E95:04E0, once per track
     }
 
     rec->tracks = (uint8_t)tracks;

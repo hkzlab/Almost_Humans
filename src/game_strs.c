@@ -415,18 +415,18 @@ const uint8_t game_strs_num_offset[GAME_LANG_COUNT][GAME_STR_COUNT] = {
         /* menu */
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
         /* party intro: the in-place digit fields (202F:0x105F..) */
-        0x14u,             /* COMING UP.... LEVEL nnn                     */
-        0x0Eu,             /* YOU WILL NEED n HUMANS TO COMPLETE          */
-        GAME_STR_NUM_NONE, /* THIS LEVEL                                  */
-        0x13u,             /* YOUR TRIBE NOW HAS nn MEMBERS!              */
-        GAME_STR_NUM_NONE, /* THE CODE FOR THIS LEVEL IS.....             */
-        0x0Eu,             /* YOUR SCORE IS nnnn                          */
-        GAME_STR_NUM_NONE, /* PRESS FIRE TO START LEVEL...                */
-        GAME_STR_NUM_NONE, /* " MEMBERS!" tail                            */
-        GAME_STR_NUM_NONE, /* GAME OVER!                                  */
-        GAME_STR_NUM_NONE, /* YOUR TRIBE IS TOO SMALL TOO CONTINUE        */
-        GAME_STR_NUM_NONE, /* IN THE RACE FOR EVOLUTION!                  */
-        GAME_STR_NUM_NONE, /* PRESS FIRE TO TRY AGAIN!                    */
+        0x14u,             // COMING UP.... LEVEL nnn
+        0x0Eu,             // YOU WILL NEED n HUMANS TO COMPLETE
+        GAME_STR_NUM_NONE, // THIS LEVEL
+        0x13u,             // YOUR TRIBE NOW HAS nn MEMBERS!
+        GAME_STR_NUM_NONE, // THE CODE FOR THIS LEVEL IS.....
+        0x0Eu,             // YOUR SCORE IS nnnn
+        GAME_STR_NUM_NONE, // PRESS FIRE TO START LEVEL...
+        GAME_STR_NUM_NONE, // " MEMBERS!" tail
+        GAME_STR_NUM_NONE, // GAME OVER!
+        GAME_STR_NUM_NONE, // YOUR TRIBE IS TOO SMALL TOO CONTINUE
+        GAME_STR_NUM_NONE, // IN THE RACE FOR EVOLUTION!
+        GAME_STR_NUM_NONE, // PRESS FIRE TO TRY AGAIN!
         /* scene headlines */
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
@@ -449,18 +449,18 @@ const uint8_t game_strs_num_offset[GAME_LANG_COUNT][GAME_STR_COUNT] = {
         /* menu */
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
         /* party intro */
-        0x13u,             /* A VENIR.... NIVEAU nnn                      */
-        0x14u,             /* VOUS AVEZ BESOIN DE n HUMANS POUR           */
-        GAME_STR_NUM_NONE, /* TERMINER CE NIVEAU                          */
-        0x0Eu,             /* VOTRE TRIBU A nn MEMBRES!                   */
-        GAME_STR_NUM_NONE, /* LE CODE DE CE NIVEAU EST.....               */
-        0x10u,             /* VOTRE SCORE EST nnnn                        */
-        GAME_STR_NUM_NONE, /* APPUYER SUR FEU POUR COMMENCER LE NIVEAU    */
-        GAME_STR_NUM_NONE, /* " MEMBRES!" tail                            */
-        GAME_STR_NUM_NONE, /* FIN DE PARTIE!                              */
-        GAME_STR_NUM_NONE, /* VOTRE TRIBU EST TROP PETITE POUR            */
-        GAME_STR_NUM_NONE, /* CONTINUER SA COURSE VERS L'EVOLUTION!       */
-        GAME_STR_NUM_NONE, /* APPUYEZ SUR 'FEU' POUR RECOMMENCER!         */
+        0x13u,             // A VENIR.... NIVEAU nnn
+        0x14u,             // VOUS AVEZ BESOIN DE n HUMANS POUR
+        GAME_STR_NUM_NONE, // TERMINER CE NIVEAU
+        0x0Eu,             // VOTRE TRIBU A nn MEMBRES!
+        GAME_STR_NUM_NONE, // LE CODE DE CE NIVEAU EST.....
+        0x10u,             // VOTRE SCORE EST nnnn
+        GAME_STR_NUM_NONE, // APPUYER SUR FEU POUR COMMENCER LE NIVEAU
+        GAME_STR_NUM_NONE, // " MEMBRES!" tail
+        GAME_STR_NUM_NONE, // FIN DE PARTIE!
+        GAME_STR_NUM_NONE, // VOTRE TRIBU EST TROP PETITE POUR
+        GAME_STR_NUM_NONE, // CONTINUER SA COURSE VERS L'EVOLUTION!
+        GAME_STR_NUM_NONE, // APPUYEZ SUR 'FEU' POUR RECOMMENCER!
         /* scene headlines */
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
@@ -483,18 +483,18 @@ const uint8_t game_strs_num_offset[GAME_LANG_COUNT][GAME_STR_COUNT] = {
         /* menu */
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
         /* party intro */
-        0x19u,             /* ALS NAECHSTES..... LEVEL nnn                */
-        0x0Au,             /* ES WERDEN n HUMANS BENOETIGT, UM DIESE      */
-        GAME_STR_NUM_NONE, /* RUNDE ZU SCHAFFEN                           */
-        0x0Fu,             /* DEIN STAMM HAT nn MITGLIEDER!               */
-        GAME_STR_NUM_NONE, /* DER CODE FUER DIESE LEVEL IST.....          */
-        0x0Fu,             /* DEIN SCORE IST nnnn                         */
-        GAME_STR_NUM_NONE, /* DRUECKE FIRE FUER DEN START...              */
-        GAME_STR_NUM_NONE, /* " MITGLIEDER!" tail                         */
-        GAME_STR_NUM_NONE, /* GAME OVER!                                  */
-        GAME_STR_NUM_NONE, /* DEINE GRUPPE IST ZU KLEIN, UM WIETERHIN     */
-        GAME_STR_NUM_NONE, /* AM FORTGANG DER EVOLUTION TEILZUNEHMEN      */
-        GAME_STR_NUM_NONE, /* DRUECKE FEUER FUER EINEN NEUEN VERSUCH      */
+        0x19u,             // ALS NAECHSTES..... LEVEL nnn
+        0x0Au,             // ES WERDEN n HUMANS BENOETIGT, UM DIESE
+        GAME_STR_NUM_NONE, // RUNDE ZU SCHAFFEN
+        0x0Fu,             // DEIN STAMM HAT nn MITGLIEDER!
+        GAME_STR_NUM_NONE, // DER CODE FUER DIESE LEVEL IST.....
+        0x0Fu,             // DEIN SCORE IST nnnn
+        GAME_STR_NUM_NONE, // DRUECKE FIRE FUER DEN START...
+        GAME_STR_NUM_NONE, // " MITGLIEDER!" tail
+        GAME_STR_NUM_NONE, // GAME OVER!
+        GAME_STR_NUM_NONE, // DEINE GRUPPE IST ZU KLEIN, UM WIETERHIN
+        GAME_STR_NUM_NONE, // AM FORTGANG DER EVOLUTION TEILZUNEHMEN
+        GAME_STR_NUM_NONE, // DRUECKE FEUER FUER EINEN NEUEN VERSUCH
         /* scene headlines */
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
@@ -517,18 +517,18 @@ const uint8_t game_strs_num_offset[GAME_LANG_COUNT][GAME_STR_COUNT] = {
         /* menu */
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
         /* party intro */
-        0x1Au,             /* STA ARRIVANDO.... LIVELLO nnn               */
-        0x0Fu,             /* HAI BISOGNO DI n HUMANS PER COMPLETARE      */
-        GAME_STR_NUM_NONE, /* QUESTO LIVELLO!                             */
-        0x11u,             /* LA TUA TRIBU' HA nn MEMBRI!                 */
-        GAME_STR_NUM_NONE, /* IL CODICE PER IL LIVELLO E' .....           */
-        0x14u,             /* IL TUO PUNTEGGIO E' nnnn                    */
-        GAME_STR_NUM_NONE, /* PREMI FUOCO PER INIZIARE IL LIVELLO!        */
-        GAME_STR_NUM_NONE, /* " MEMBRI!" tail                             */
-        GAME_STR_NUM_NONE, /* GAME OVER!                                  */
-        GAME_STR_NUM_NONE, /* LA TUA TRIBU 'E' TROPPO PICCOLA PER         */
-        GAME_STR_NUM_NONE, /* CONTINUARE LA CORSA PER L'EVOLUZIONE!       */
-        GAME_STR_NUM_NONE, /* PREMI FUOCO PER RIPROVARE!                  */
+        0x1Au,             // STA ARRIVANDO.... LIVELLO nnn
+        0x0Fu,             // HAI BISOGNO DI n HUMANS PER COMPLETARE
+        GAME_STR_NUM_NONE, // QUESTO LIVELLO!
+        0x11u,             // LA TUA TRIBU' HA nn MEMBRI!
+        GAME_STR_NUM_NONE, // IL CODICE PER IL LIVELLO E' .....
+        0x14u,             // IL TUO PUNTEGGIO E' nnnn
+        GAME_STR_NUM_NONE, // PREMI FUOCO PER INIZIARE IL LIVELLO!
+        GAME_STR_NUM_NONE, // " MEMBRI!" tail
+        GAME_STR_NUM_NONE, // GAME OVER!
+        GAME_STR_NUM_NONE, // LA TUA TRIBU 'E' TROPPO PICCOLA PER
+        GAME_STR_NUM_NONE, // CONTINUARE LA CORSA PER L'EVOLUZIONE!
+        GAME_STR_NUM_NONE, // PREMI FUOCO PER RIPROVARE!
         /* scene headlines */
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
@@ -551,18 +551,18 @@ const uint8_t game_strs_num_offset[GAME_LANG_COUNT][GAME_STR_COUNT] = {
         /* menu */
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
         /* party intro */
-        0x14u,             /* EMPEZAMOS.... NIVEL nnn                     */
-        0x0Cu,             /* NECESITARAS n HUMANS PARA COMPLETAR         */
-        GAME_STR_NUM_NONE, /* ESTE NIVEL!                                 */
-        0x15u,             /* AHORA TU TRIBU TIENE nn MIEMBROS!           */
-        GAME_STR_NUM_NONE, /* EL CODIGO DE ESTE NIVEL ES.....             */
-        0x11u,             /* TU PUNTUACION ES nnnn                       */
-        GAME_STR_NUM_NONE, /* PULSA FUEGO PARA INICIAR NIVEL!             */
-        GAME_STR_NUM_NONE, /* " MIEMBROS!" tail                           */
-        GAME_STR_NUM_NONE, /* FIN!                                        */
-        GAME_STR_NUM_NONE, /* TU TRIBU ES DEMASIADO REDUCIDA PARA         */
-        GAME_STR_NUM_NONE, /* CONTINUAR EN LA CARRERA EVOLUTIVA!          */
-        GAME_STR_NUM_NONE, /* PULSA FUEGO PARA INTENTARLO DE NUEVO!       */
+        0x14u,             // EMPEZAMOS.... NIVEL nnn
+        0x0Cu,             // NECESITARAS n HUMANS PARA COMPLETAR
+        GAME_STR_NUM_NONE, // ESTE NIVEL!
+        0x15u,             // AHORA TU TRIBU TIENE nn MIEMBROS!
+        GAME_STR_NUM_NONE, // EL CODIGO DE ESTE NIVEL ES.....
+        0x11u,             // TU PUNTUACION ES nnnn
+        GAME_STR_NUM_NONE, // PULSA FUEGO PARA INICIAR NIVEL!
+        GAME_STR_NUM_NONE, // " MIEMBROS!" tail
+        GAME_STR_NUM_NONE, // FIN!
+        GAME_STR_NUM_NONE, // TU TRIBU ES DEMASIADO REDUCIDA PARA
+        GAME_STR_NUM_NONE, // CONTINUAR EN LA CARRERA EVOLUTIVA!
+        GAME_STR_NUM_NONE, // PULSA FUEGO PARA INTENTARLO DE NUEVO!
         /* scene headlines */
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,
         GAME_STR_NUM_NONE, GAME_STR_NUM_NONE, GAME_STR_NUM_NONE,

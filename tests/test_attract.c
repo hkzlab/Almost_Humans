@@ -211,7 +211,7 @@ int main(int argc, char **argv)
                 bad = 1;
                 break;
             }
-            if (ph != ATTRACT_E4_SCROLL) continue;   /* still fading in */
+            if (ph != ATTRACT_E4_SCROLL) continue;   // still fading in
             /* this tick presented strip row `row` */
             if (cursor + 4u <= end) {
                 uint32_t want;

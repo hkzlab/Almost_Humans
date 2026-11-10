@@ -199,13 +199,13 @@ int main(int argc, char **argv)
     memset(script, 0, sizeof script);
     /* the attract cycle runs from the boot's end (~6687) until the fire
      * at 7400 escapes it; the room then walks right off the edge */
-    script[7400].joyBits = 0x80u;         /* the attract escape */
+    script[7400].joyBits = 0x80u;         // the attract escape
     for (uint32_t i = 7500; i <= 7750u; i++)
-        script[i].joyBits = 0x08u; /* hold RIGHT: the room's confirm */
+        script[i].joyBits = 0x08u; // hold RIGHT: the room's confirm
     /* the party pre-screen (t~7712..8371, per the probe's timeline): its
      * wait fires [0x48A3]-shaped aborts exactly like the original's
      * wait_frames_or_key - one key inside the first set's wait exits  */
-    script[8100].lastKey = 1u; /* the party's SET1W window    */
+    script[8100].lastKey = 1u; // the party's SET1W window
     /* the LOADING screen follows, then the level's goal page.  Hold RIGHT
      * (no key) while the page is up: scroll_map (1000:9E51) polls input only,
      * so the actor must stay put; the key at 8495 dismisses the page and the
@@ -216,9 +216,9 @@ int main(int argc, char **argv)
      * (CONTINUE) closes it again. */
     /* D-41/D-42 through the real flow: F2 selects record 1 (the second
      * human), SPACE steps the action row's selected cell. */
-    script[8927].keyScan = 0x3Cu; /* F2 */
-    script[8937].keyScan = 0x39u; /* SPACE */
-    script[9177].keyScan = 0x01u; /* ESC: the key list's id 4 */
+    script[8927].keyScan = 0x3Cu; // F2
+    script[8937].keyScan = 0x39u; // SPACE
+    script[9177].keyScan = 0x01u; // ESC: the key list's id 4
     script[9227].lastKey = 0x0Du;
     script[SCRIPT_N - 1].quit = 1u;
 
@@ -356,7 +356,7 @@ int main(int argc, char **argv)
              * range (BD3's field M: one rotation every 4 ticks), so they are
              * compared below as a rotation of the file's four entries; every
              * other byte is exact. */
-            const uint32_t animLo = 0x93u, animHi = 0x9Fu; /* in the block */
+            const uint32_t animLo = 0x93u, animHi = 0x9Fu; // in the block
             for (uint32_t r = 0; r < 5u; r++)
                 for (uint32_t i = 0; i < len[r]; i++) {
                     if (r == 2u && i >= animLo && i < animHi) continue;
@@ -370,7 +370,7 @@ int main(int argc, char **argv)
                     }
                 }
             {
-                const uint8_t *f = want[2] + animLo; /* the 4 entries */
+                const uint8_t *f = want[2] + animLo; // the 4 entries
                 uint32_t rot = 0;
                 for (uint32_t k = 0; k < 4u && !rot; k++) {
                     uint32_t ok = 1;

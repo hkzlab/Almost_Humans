@@ -54,14 +54,14 @@ typedef struct VolReader {
 typedef uint16_t (*WordReader)(void *ctx);
 
 typedef struct LzState {
-    WordReader rd; /* reads the next u16 from the stream     */
-    void *rd_ctx; /* reader context (volume or memory)      */
-    uint8_t *out; /* the whole decoded resource             */
-    uint32_t base; /* this block's first output byte         */
-    uint32_t p; /* the backward cursor (fills down)       */
-    uint32_t buf; /* the bit buffer                         */
-    uint16_t chk; /* the running BP (checksum) accumulator  */
-    uint32_t under; /* cursor wrapped past 0 (scene-form CMP  */
+    WordReader rd; // reads the next u16 from the stream
+    void *rd_ctx; // reader context (volume or memory)
+    uint8_t *out; // the whole decoded resource
+    uint32_t base; // this block's first output byte
+    uint32_t p; // the backward cursor (fills down)
+    uint32_t buf; // the bit buffer
+    uint16_t chk; // the running BP (checksum) accumulator
+    uint32_t under; // cursor wrapped past 0 (scene-form CMP
     /*  DI,-1 -> END: the game discards the   */
     /*  overshoot bytes and stops)            */
 } LzState;
@@ -72,8 +72,8 @@ typedef struct {
     const uint8_t *d;
     uint32_t pos;
     uint32_t len;
-    uint32_t over; /* a read ran past the loaded image            */
-    uint32_t ate_tail; /* the stream was consumed to the image's end  */
+    uint32_t over; // a read ran past the loaded image
+    uint32_t ate_tail; // the stream was consumed to the image's end
 } MemRd;
 
 /* The intro-movie disc table, ported from `202F:0x6287` (1000:AFF8's
@@ -153,8 +153,8 @@ static uint32_t _lz_bit(LzState *s)
     uint8_t bit = s->buf & 1u;
     s->buf >>= 1;
     if (s->buf == 0) {
-        uint16_t w = s->rd(s->rd_ctx); /* the refill delivers its bit 0 */
-        s->chk ^= w; /* every word read XORs into BP  */
+        uint16_t w = s->rd(s->rd_ctx); // the refill delivers its bit 0
+        s->chk ^= w; // every word read XORs into BP
         bit = w & 1u;
         s->buf = (w | 0x10000u) >> 1;
     }
@@ -185,7 +185,7 @@ static void _lz_literals(LzState *s, uint32_t n)
 {
     while (n--) {
         uint8_t byte =
-            (uint8_t)(_lz_bits(s, 8)); /* b4e8: the read happens FIRST */
+            (uint8_t)(_lz_bits(s, 8)); // b4e8: the read happens FIRST
         if (s->p == 0) {
             s->under = 1;
             return;
@@ -212,7 +212,7 @@ static void _lz_match(LzState *s, uint32_t n, uint32_t distbits)
         if (s->p == 0) {
             s->under = 1;
             return;
-        } /* CMP DI,-1 -> END */
+        } // CMP DI,-1 -> END
         s->p -= 1; /* source is read after the cursor step
                                          * (the reference's `p -= 1;
                                          *  out[p] = out[p + d]`).  The
@@ -247,8 +247,8 @@ static uint16_t _lz_block(LzState *s, uint32_t clen)
 {
     s->base = s->p;
     s->p += clen;
-    s->chk = s->rd(s->rd_ctx); /* the checksum field        */
-    s->buf = s->rd(s->rd_ctx); /* the initial bit buffer    */
+    s->chk = s->rd(s->rd_ctx); // the checksum field
+    s->buf = s->rd(s->rd_ctx); // the initial bit buffer
     s->chk ^= (uint16_t)s->buf;
     while (!s->under && s->p > s->base) {
         if (_lz_bit(s) == 0) {
@@ -281,7 +281,7 @@ static uint16_t _mem_word_reader(void *ctx)
     uint16_t w = rd_le_u16(mr->d + mr->pos);
     mr->pos += 2;
     if (mr->pos == mr->len)
-        mr->ate_tail = 1; /* the stream ran to the image's exact end */
+        mr->ate_tail = 1; // the stream ran to the image's exact end
     return w;
 }
 
@@ -378,8 +378,8 @@ static uint8_t *_res_decode_chunk(VolReader *r, uint32_t off,
     uint8_t failed = 0;
     while (done < length) {
         uint16_t flag = _vol_word(r);
-        acc ^= flag; /* 1000:9193, both paths   */
-        if (flag == 0) { /* stored raw  919f..91a7  */
+        acc ^= flag; // 1000:9193, both paths
+        if (flag == 0) { // stored raw  919f..91a7
             uint32_t take =
                 (uint32_t)block < length - done ? block : length - done;
             /* 1000:9199 MOV CX,[0x4781] / SHR CX,1 / STOSW / LOOP: the arm
@@ -395,7 +395,7 @@ static uint8_t *_res_decode_chunk(VolReader *r, uint32_t off,
                 acc ^= rd_le_u16(out + done + i);
             r->pos += take;
             done += take;
-        } else { /* LZ block               */
+        } else { // LZ block
             uint32_t clen = _vol_word(r);
             if (clen > length - done) {
                 failed = 1;
@@ -404,7 +404,7 @@ static uint8_t *_res_decode_chunk(VolReader *r, uint32_t off,
             /* _lz_block owns the cursor: p starts at the block's first
              * output byte and it advances p itself. */
             LzState st = { _vol_word_reader, r, out, 0, done, 0, 0, 0 };
-            acc = _lz_block(&st, clen); /* MOV BP,AX reset (91c9) */
+            acc = _lz_block(&st, clen); // MOV BP,AX reset (91c9)
             done += clen;
         }
     }

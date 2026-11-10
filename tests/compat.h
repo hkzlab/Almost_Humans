@@ -12,7 +12,7 @@
 #    include <direct.h>
 #    include <stdlib.h>
 #    ifndef PATH_MAX
-#        define PATH_MAX 260 /* the Windows MAX_PATH, _fullpath's own limit */
+#        define PATH_MAX 260 // the Windows MAX_PATH, _fullpath's own limit
 #    endif
 /**
  * @brief Change the process directory.
@@ -46,7 +46,7 @@ static inline char *compat_realpath(const char *path, char *resolved)
 { return _fullpath(resolved, path, PATH_MAX); }
 #else
 #    include <limits.h>
-#    include <stdlib.h>      /* realpath */
+#    include <stdlib.h>      // realpath
 #    include <sys/stat.h>
 #    include <unistd.h>
 /**

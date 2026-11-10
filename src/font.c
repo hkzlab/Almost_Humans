@@ -39,8 +39,8 @@ static const uint8_t _advance[45] = { 7, 8, 8, 8,  7, 7, 8, 8, 3,   7, 8,  7,
  * game_loop prologue and the front-end later; _blit_glyph's only source). */
 static const uint8_t *_glyphs;
 
-static const OSystem *_osys;  /* the warning's channel (font_init)        */
-static int _arena_warned;     /* the overflow warning fires once         */
+static const OSystem *_osys;  // the warning's channel (font_init)
+static int _arena_warned;     // the overflow warning fires once
 
 int32_t font_init(const OSystem *osys)
 {
@@ -121,21 +121,21 @@ static int _blit_glyph(uint8_t *arena, uint32_t capacity, int32_t x,
         _arena_overflow(capacity, row, col);
         return 0;
     }
-    uint16_t si = u16(gi * 32u); /* the glyph stride (SHL CX,1 x5) */
-    uint8_t k = (uint8_t)((x >= 0 ? x : 0) & 3); /* the x%4 pre-shift */
+    uint16_t si = u16(gi * 32u); // the glyph stride (SHL CX,1 x5)
+    uint8_t k = (uint8_t)((x >= 0 ? x : 0) & 3); // the x%4 pre-shift
 
     for (uint16_t r = 0; r < 16u; r++) {
         uint16_t ax = rd_le_u16(_glyphs + si);
         si += 2;
         uint8_t dh = 0;
-        if (k) { /* 4a2e..4a38 */
-            ax = (uint16_t)((ax >> 8) | (ax << 8)); /* XCHG AL,AH */
+        if (k) { // 4a2e..4a38
+            ax = (uint16_t)((ax >> 8) | (ax << 8)); // XCHG AL,AH
             for (uint16_t i = 0; i < k; i++) {
                 uint8_t cf = (uint8_t)(ax & 1u);
                 ax = (uint16_t)(ax >> 1);
-                dh = (uint8_t)((dh >> 1) | (cf << 7)); /* RCR DH,1 */
+                dh = (uint8_t)((dh >> 1) | (cf << 7)); // RCR DH,1
             }
-            ax = (uint16_t)((ax >> 8) | (ax << 8)); /* XCHG AL,AH */
+            ax = (uint16_t)((ax >> 8) | (ax << 8)); // XCHG AL,AH
         }
         uint8_t al = (uint8_t)(ax & 0xFFu);
         uint8_t ah = (uint8_t)(ax >> 8);
@@ -143,13 +143,13 @@ static int _blit_glyph(uint8_t *arena, uint32_t capacity, int32_t x,
         /* the six arena writes, bits 3..0 of six consecutive bytes.  The
          * original writes through ES unbounded; the whole tile was checked
          * against `capacity` above (D-258). */
-        arena[di] |= _rev4(al >> 4); /* 4a3c..4a54  */
-        arena[di + 1] |= _rev4(al); /* 4a57..4a6b  */
-        arena[di + 2] |= _rev4(ah >> 4); /* 4a72..4a8e  */
-        arena[di + 3] |= _rev4(ah); /* 4a91..4aa5  */
-        arena[di + 4] |= _rev4(dh >> 4); /* 4aac..4ac8  */
-        arena[di + 5] |= _rev4(dh); /* 4acb..4adf  */
-        di += 0x4Au + 6u; /* the 80-byte row stride */
+        arena[di] |= _rev4(al >> 4); // 4a3c..4a54
+        arena[di + 1] |= _rev4(al); // 4a57..4a6b
+        arena[di + 2] |= _rev4(ah >> 4); // 4a72..4a8e
+        arena[di + 3] |= _rev4(ah); // 4a91..4aa5
+        arena[di + 4] |= _rev4(dh >> 4); // 4aac..4ac8
+        arena[di + 5] |= _rev4(dh); // 4acb..4adf
+        di += 0x4Au + 6u; // the 80-byte row stride
     }
     return 1;
 }
@@ -179,7 +179,7 @@ void font_draw_text_bounded(uint8_t *arena, uint32_t capacity, const char *s,
 
     for (const uint8_t *p = (const uint8_t *)s; *p && *p != 0x0Du; p++) {
         uint8_t gi = (uint8_t)_charset_index(*p);
-        if (gi == 44u) continue; /* no glyph: skip, no _advance */
+        if (gi == 44u) continue; // no glyph: skip, no _advance
         _blit_glyph(arena, capacity, x, row, gi);
         x += _advance[gi];
     }

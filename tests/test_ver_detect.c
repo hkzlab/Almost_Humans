@@ -78,7 +78,7 @@ int main(int argc, char **argv)
     {
         static const char nodata[] = "humans_ver_detect_nodata";
 
-        (void)compat_mkdir(nodata); /* already present is fine */
+        (void)compat_mkdir(nodata); // already present is fine
         if (compat_chdir(nodata)) {
             perror(nodata);
             return 1;

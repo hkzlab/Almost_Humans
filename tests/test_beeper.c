@@ -35,7 +35,7 @@ static uint32_t _core_loaded_size;
 static uint32_t _core_resumes;
 static uint32_t _core_stops;
 static uint32_t _core_warns;
-static int32_t _core_driver_id = 0; /* Beeper */
+static int32_t _core_driver_id = 0; // Beeper
 
 /**
  * @brief The core test's cmd 0x0C: record the loaded image's size.
@@ -181,7 +181,7 @@ int main(int argc, char **argv)
     /* A command before the tune is loaded must be refused, not crash. */
     assert(g_sound_driver_beeper.startEvent(drv, 0) == 0xFFFF);
 
-    g_sound_driver_beeper.setTempo(drv, 0x4A); /* boot fade's last byte */
+    g_sound_driver_beeper.setTempo(drv, 0x4A); // boot fade's last byte
     assert(drv->tempo == (uint8_t)((0xA3u * 0x4Au) >> 8));
     g_sound_driver_beeper.loadTune(drv, image, size);
 
@@ -225,7 +225,7 @@ int main(int argc, char **argv)
     instrument = image[base + 1u];
     command = image[base + 2u];
     param = image[base + 3u];
-    assert(note != 0); /* TITLE.BEP's first cell is note 36, instrument 3 */
+    assert(note != 0); // TITLE.BEP's first cell is note 36, instrument 3
 
     assert(drv->slot[0][BEEP_NOTE] == note);
     assert(drv->slot[0][BEEP_INSTRUMENT] == instrument);
@@ -234,7 +234,7 @@ int main(int argc, char **argv)
     /* Cell 1 is zero in this first pattern; the decode copies it to slot 1
      * regardless (the stride is 0x16: 4-byte cell + 0x12 gap). */
     assert(drv->slot[1][BEEP_NOTE] == image[base + 4u]);
-    assert(drv->slot_flag[0] == 0xFEu); /* armed then switched on */
+    assert(drv->slot_flag[0] == 0xFEu); // armed then switched on
     assert(drv->speaker_on == 1);
     assert(drv->divider == _period[note]);
 
@@ -265,7 +265,7 @@ int main(int argc, char **argv)
     pattern = drv->header[0x18u + 4u];
     base = drv->song_data +
            ((uint32_t)drv->offset[pattern] - drv->offset[0]) * 16u;
-    assert(image[base + 4u] != 0); /* the second cell carries a note */
+    assert(image[base + 4u] != 0); // the second cell carries a note
     assert(drv->slot[0][BEEP_NOTE] == image[base]);
     assert(drv->slot[1][BEEP_NOTE] == image[base + 4u]);
     assert(drv->slot[1][BEEP_INSTRUMENT] == image[base + 5u]);
@@ -335,7 +335,7 @@ int main(int argc, char **argv)
         stops0 = _core_stops;
         audio_play_tune(missing);
         assert(_core_stops == stops0 + 1);
-        assert(_core_warns == 1); /* the missing tune is reported once */
+        assert(_core_warns == 1); // the missing tune is reported once
         audio_music_resume();
         assert(_core_resumes == 1);
 

@@ -225,29 +225,29 @@ int main(int argc, char **argv)
         uint8_t *e8;
 
         memset(bank, 0, sizeof bank);
-        bank[4 * 0 + 3] = 0x00;                 /* cell 0: block offset 0 */
+        bank[4 * 0 + 3] = 0x00;                 // cell 0: block offset 0
         bank[0xE0] = 0;
-        bank[0xE1] = 5;         /* its y offset             */
+        bank[0xE1] = 5;         // its y offset
         bank[0x150] = 0;
-        bank[0x151] = 2;       /* its row count            */
-        bank[4 * 1 + 3] = 0x40; /* cell 1: block offset 0x40 */
+        bank[0x151] = 2;       // its row count
+        bank[4 * 1 + 3] = 0x40; // cell 1: block offset 0x40
         bank[0xE2] = 0;
         bank[0xE3] = 6;
         bank[0x152] = 0;
         bank[0x153] = 2;
-        for (uint32_t i = 0; i < 0x40; i++) { /* the two frames' bytes */
+        for (uint32_t i = 0; i < 0x40; i++) { // the two frames' bytes
             bank[0x1C0 + i] = (uint8_t)(0x10u + i);
             bank[0x200 + i] = (uint8_t)(0x80u + i);
         }
         entity_publish_bank(bank, sizeof bank);
-        e8 = (uint8_t *)entity_at(0u); /* mutate the live record */
+        e8 = (uint8_t *)entity_at(0u); // mutate the live record
         if (e8) {
             e8[6] = 100;
-            e8[7] = 0; /* x = 100 */
+            e8[7] = 0; // x = 100
             e8[8] = 50;
-            e8[9] = 0; /* y = 50  */
+            e8[9] = 0; // y = 50
             e8[0xC] = 0;
-            e8[0xD] = 0; /* waypoint 0 */
+            e8[0xD] = 0; // waypoint 0
             memset(page, 0, sizeof page);
             entity_render(page, 0, 0);
             /* cell 0 at (100-12, 50+5) = (88, 55), block = 2 rows * 8 */
@@ -280,7 +280,7 @@ int main(int argc, char **argv)
             wr_le_u16(rec + 0, (uint16_t)(ex + 36u));
             wr_le_u16(rec + 2, (uint16_t)(ey + 30u));
             rec[4] = 0x10u;
-            rec[8] = 0x01u; /* type 1: pickable (0x6EC3 = 0) */
+            rec[8] = 0x01u; // type 1: pickable (0x6EC3 = 0)
             entity_tick();
             if ((rd_le_u16(rec + 8)) != 0x22u)
                 _failf("the pick-up's type", 10u, rec[8], 0x22);
@@ -330,7 +330,7 @@ int main(int argc, char **argv)
             wr_le_u16(rec + 0, (uint16_t)(p->x + 36u));
             wr_le_u16(rec + 2, (uint16_t)(p->y + 30u));
             rec[4] = 0x10u;
-            rec[8] = 0x20u; /* handler 0's wp[4]: a guard facing left */
+            rec[8] = 0x20u; // handler 0's wp[4]: a guard facing left
             entity_tick();
             if (p->handler != 1u)
                 _failf("D-96: the guard reverses handler 0", 10u, p->handler,
@@ -354,7 +354,7 @@ int main(int argc, char **argv)
             wr_le_u16(rec + 0, (uint16_t)(p->x - 15u));
             wr_le_u16(rec + 2, (uint16_t)(p->y + 30u));
             rec[4] = 0x10u;
-            rec[8] = 0x1Fu; /* handler 1's wp[4]: a guard facing right */
+            rec[8] = 0x1Fu; // handler 1's wp[4]: a guard facing right
             entity_tick();
             if (p->handler != 0u)
                 _failf("D-96: the guard reverses handler 1", 10u, p->handler,
@@ -397,11 +397,11 @@ int main(int argc, char **argv)
         entity_tick();
         if ((rd_le_u16(cr + 8)) != 0x22u)
             _failf("D-59: the pick-up", 10u, cr[8], 0x22);
-        statusbar_set_tribe_digits(1u, 2u); /* the bar shows 12 */
+        statusbar_set_tribe_digits(1u, 2u); // the bar shows 12
         for (t = 0; t < 4000u; t++) {
             type = (uint32_t)(rd_le_u16(cr + 8));
             if (type == 0x21u) break;
-            entity_tick(); /* the game's order: world first */
+            entity_tick(); // the game's order: world first
             (void)object_command_run(cr, 0u);
         }
         type = (uint32_t)(rd_le_u16(cr + 8));
@@ -440,10 +440,10 @@ int main(int argc, char **argv)
             x1 = entity_at(0u)->x;
             if (x1 == x0) _failf("the playing world moves", 10u, x1, x0 + 1);
 
-            level_set_end(0); /* the pause's RESTART THIS GAME */
+            level_set_end(0); // the pause's RESTART THIS GAME
             x0 = entity_at(0u)->x;
             for (uint32_t t = 0; t < 10u; t++) {
-                level_tick(); /* the caption's per-tick call */
+                level_tick(); // the caption's per-tick call
                 palette_tick();
             }
             x1 = entity_at(0u)->x;
@@ -570,7 +570,7 @@ int main(int argc, char **argv)
             if (p->handler != 4u)
                 _failf("handler 4 holds while the hold lasts", 10u, p->handler,
                        4);
-            p->hold = 0u; /* 1000:C99D's DEC wraps it to 0xFFFF */
+            p->hold = 0u; // 1000:C99D's DEC wraps it to 0xFFFF
             entity_tick();
             if (p->handler != 5u)
                 _failf("the hold's expiry", 10u, p->handler, 5);

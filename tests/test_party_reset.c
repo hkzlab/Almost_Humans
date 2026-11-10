@@ -39,7 +39,7 @@ int main(int argc, char **argv)
         printf("PARTY_RESET: init failed\n");
         return 1;
     }
-    res_set_disc(1u);                      /* the party art's volume */
+    res_set_disc(1u);                      // the party art's volume
     party_intro_set_values(1u, 4u, 12u, 0u, "DARWIN");
     if (!party_intro_start()) {
         printf("PARTY_RESET: skip (no party data)\n");

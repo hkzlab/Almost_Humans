@@ -92,29 +92,29 @@ enum {
  * copy `[0x1DD2]/[0x1DD4]` holding the *old* total - `1000:475D` then counts the
  * display up 10 at a time.
  */
-static uint16_t _score_level_term;    /* [0x1DCA] */
-static uint16_t _score_time_term;     /* [0x1DCE] */
-static uint16_t _score_total_lo, _score_total_hi;       /* [0x592]/[0x594]  */
-static uint16_t _score_shown_lo, _score_shown_hi; /* [0x1DD2]/[0x1DD4] */
-static uint16_t _score_delay; /* [0x1DC6] */
+static uint16_t _score_level_term;    // [0x1DCA]
+static uint16_t _score_time_term;     // [0x1DCE]
+static uint16_t _score_total_lo, _score_total_hi;       // [0x592]/[0x594]
+static uint16_t _score_shown_lo, _score_shown_hi; // [0x1DD2]/[0x1DD4]
+static uint16_t _score_delay; // [0x1DC6]
 static uint16_t _score_screen_timer; /* [0x1DC8]: 0x15E, the screen's
                                                    * own countdown - exits when the
                                                    * sign bit sets */
-static uint16_t _score_best_time; /* [0x1E88] */
-static uint8_t _score_is_record; /* [0x1DD6] */
+static uint16_t _score_best_time; // [0x1E88]
+static uint8_t _score_is_record; // [0x1DD6]
 static uint8_t _score_blink = 0x00; /* [0x1DD7]: the image's 0, toggles on the
                                        * first decrement's borrow */
-static uint8_t _score_blink_phase; /* [0x1DC4]: the RECORD's on/off */
+static uint8_t _score_blink_phase; // [0x1DC4]: the RECORD's on/off
 
 static uint8_t *_score_bit;
 static uint32_t _score_size;
 static uint8_t *_score_font;
-static uint8_t *_score_digits; /* apl\SCORE.SPR (the 4x16 digit blocks) */
-static uint8_t *_score_record; /* apl\RECORD.SPR (the NEW RECORD stamp)  */
-static uint8_t *_score_num; /* apl\SCORENUM.SPR (20 slots of 0x40)    */
+static uint8_t *_score_digits; // apl\SCORE.SPR (the 4x16 digit blocks)
+static uint8_t *_score_record; // apl\RECORD.SPR (the NEW RECORD stamp)
+static uint8_t *_score_num; // apl\SCORENUM.SPR (20 slots of 0x40)
 static uint8_t _score_phase;
 static uint8_t _score_armed;
-static uint8_t _score_arm_fade; /* the entry fade is still running */
+static uint8_t _score_arm_fade; // the entry fade is still running
 static uint16_t _score_hold;
 
 /* 1000:46AF: 24 rows x 16 page bytes at the 88-byte stride, Map Mask 0x0F
@@ -191,8 +191,7 @@ static void _score_terms(void)
         uint8_t mins = (uint8_t)(t >> 8);
         uint8_t secs = (uint8_t)(((t >> 4) & 0xFu) * 10u + (t & 0xFu));
 
-        _score_time_term =
-            (uint16_t)((mins * 60u + secs) * 10u); /* 1000:429B.. */
+        _score_time_term = (uint16_t)((mins * 60u + secs) * 10u); // 1000:429B..
     }
 }
 
@@ -205,30 +204,30 @@ void score_set_total(uint32_t lo, uint32_t hi)
 void score_prepare(void)
 {
     uint16_t levelNo = gameflow_level_current() + 1u;
-    uint16_t elapsed = statusbar_elapsed_word(); /* [0x1E84] */
+    uint16_t elapsed = statusbar_elapsed_word(); // [0x1E84]
     uint16_t idx = levelNo;
 
     /* [0x1DCA] is NOT cleared here: the original only drains it through the
      * score screen (1000:4786..0x478D), so a lost level's term carries over. */
     _score_terms();
-    _score_is_record = 0; /* 1000:42E4 */
-    if (elapsed < hiscore_best(idx)) { /* 1000:42F9 */
-        hiscore_set_best(idx, elapsed); /* 1000:42FD */
-        _score_best_time = elapsed; /* 1000:4301 */
-        _score_is_record = 1; /* 1000:4305 */
+    _score_is_record = 0; // 1000:42E4
+    if (elapsed < hiscore_best(idx)) { // 1000:42F9
+        hiscore_set_best(idx, elapsed); // 1000:42FD
+        _score_best_time = elapsed; // 1000:4301
+        _score_is_record = 1; // 1000:4305
     }
-    _score_shown_lo = _score_total_lo; /* 1000:433A */
+    _score_shown_lo = _score_total_lo; // 1000:433A
     _score_shown_hi = _score_total_hi;
     {
         uint32_t total = ((uint32_t)_score_total_hi << 16) | _score_total_lo;
 
-        total += _score_level_term; /* 1000:4341 */
-        total += _score_time_term; /* 1000:4348 */
+        total += _score_level_term; // 1000:4341
+        total += _score_time_term; // 1000:4348
         _score_total_lo = (uint16_t)(total & 0xFFFFu);
         _score_total_hi = (uint16_t)(total >> 16);
     }
-    _score_delay = 0x50u; /* 1000:4327 */
-    _score_screen_timer = 0x15Eu; /* 1000:432C [0x1DC8] */
+    _score_delay = 0x50u; // 1000:4327
+    _score_screen_timer = 0x15Eu; // 1000:432C [0x1DC8]
 }
 
 /* 1000:467A blink_tick: while [0x1DD6] (NEW RECORD) is set, a 0x19-frame
@@ -259,11 +258,11 @@ uint8_t score_counters_run(void)
         uint32_t shown = ((uint32_t)_score_shown_hi << 16) | _score_shown_lo;
 
         if (_score_level_term < 10u) {
-            shown += _score_level_term; /* 1000:478B..4798 */
+            shown += _score_level_term; // 1000:478B..4798
             _score_level_term = 0;
         } else {
             _score_level_term = (uint16_t)(_score_level_term - 10u);
-            shown += 10u; /* 1000:479E */
+            shown += 10u; // 1000:479E
         }
         _score_shown_lo = (uint16_t)(shown & 0xFFFFu);
         _score_shown_hi = (uint16_t)(shown >> 16);
@@ -303,14 +302,14 @@ uint32_t score_level_score(void)
     uint32_t mins, secs, remaining, bonus;
     uint16_t levelNo;
 
-    if (!level_outcome()) return 0u; /* 55B3: a lost level adds none */
+    if (!level_outcome()) return 0u; // 55B3: a lost level adds none
 
-    t = statusbar_time_word(); /* [0x5B19/1A/1B] */
+    t = statusbar_time_word(); // [0x5B19/1A/1B]
     mins = (uint32_t)(t >> 8);
     secs = (((t >> 4) & 0xFu) * 10u + (t & 0xFu));
     remaining = mins * 60u + secs;
 
-    levelNo = gameflow_level_current() + 1u; /* [0x1F41] */
+    levelNo = gameflow_level_current() + 1u; // [0x1F41]
     /* the original multiplies by the *recounted* [0x11FC] (1000:41B8: the
      * tribe counter digits plus the live records), not by the level-start tribe */
     bonus = levelNo * score_members() * 10u + remaining * 10u;
@@ -391,8 +390,8 @@ static void _score_digit_block(uint8_t *page, uint32_t digit, int32_t x,
 {
     const uint8_t *src;
 
-    if (!_score_digits || digit > 9u) return; /* ten 0x100-byte slots */
-    src = _score_digits + digit * 256u; /* SI = AX = digit*0x100 */
+    if (!_score_digits || digit > 9u) return; // ten 0x100-byte slots
+    src = _score_digits + digit * 256u; // SI = AX = digit*0x100
     /* 1000:462D: 16 rows x 4 bytes per plane pass.  The pass pushes/restores
      * only DI, NOT SI, so pass p starts 64 bytes on and reads the slot's
      * quarter p: the glyph is a 16x16 chunky image stored plane-major,
@@ -426,10 +425,10 @@ void score_column(uint8_t *page, uint32_t value, int32_t x, int32_t y,
 
 void score_draw_columns(uint8_t *page)
 {
-    score_column(page, _score_level_term, 0xE0, 0x10, 5u); /* (0xE0, 0x10) */
-    score_column(page, _score_time_term, 0xE0, 0x42, 5u); /* (0xE0, 0x42) */
+    score_column(page, _score_level_term, 0xE0, 0x10, 5u); // (0xE0, 0x10)
+    score_column(page, _score_time_term, 0xE0, 0x42, 5u); // (0xE0, 0x42)
     score_column(page, ((uint32_t)_score_shown_hi << 16) | _score_shown_lo,
-                 0xA0, 0x74, 9u); /* (0xA0, 0x74) */
+                 0xA0, 0x74, 9u); // (0xA0, 0x74)
 }
 
 /** @brief --- 1000:44BB / 1000:450F: the elapsed and best times -------------------
@@ -462,7 +461,7 @@ static void _score_num_block(uint8_t *page, uint32_t digit, uint32_t bp,
                              uint32_t off)
 {
     uint16_t row = (uint16_t)(off / 88u), col = off % 88u;
-    uint16_t px = col * 4u; /* one address = 4 px */
+    uint16_t px = col * 4u; // one address = 4 px
 
     if (!page || !_score_num || digit > 19u || row >= VIDEO_PAGE_H_MODE13H)
         return;
@@ -508,7 +507,7 @@ uint8_t score_begin(uint32_t value)
 {
     if (_score_phase != SCORE_OFF) return 1;
 
-    score_prepare(); /* 1000:41B8..4352: the terms, best, totals */
+    score_prepare(); // 1000:41B8..4352: the terms, best, totals
 
     /* 1000:428D: `MOV BX,0x128F; CALL 0x88E9` (crtc_write) sets CRTC 0x12 =
      * 0x8F, the 400-scanline vertical display, i.e. the 320x200 field - the
@@ -516,7 +515,7 @@ uint8_t score_begin(uint32_t value)
      * 0x439F, for the newspaper.) */
     video_set_mode(VIDEO_MODE_13H);
     (void)value;
-    res_set_disc(1u); /* the score assets' disc */
+    res_set_disc(1u); // the score assets' disc
     free(_score_bit);
     _score_bit = NULL;
     _score_size = 0;
@@ -558,14 +557,11 @@ uint8_t score_begin(uint32_t value)
     _score_font = res_load_chunk("APL\\TEXT.SPR", NULL, NULL);
     font_publish(_score_font);
     free(_score_digits);
-    _score_digits =
-        res_load_chunk("APL\\SCORE.SPR", NULL, NULL); /* 1000:4264 */
+    _score_digits = res_load_chunk("APL\\SCORE.SPR", NULL, NULL); // 1000:4264
     free(_score_record);
-    _score_record =
-        res_load_chunk("APL\\RECORD.SPR", NULL, NULL); /* 1000:4276 */
+    _score_record = res_load_chunk("APL\\RECORD.SPR", NULL, NULL); // 1000:4276
     free(_score_num);
-    _score_num =
-        res_load_chunk("APL\\SCORENUM.SPR", NULL, NULL); /* 1000:4269 */
+    _score_num = res_load_chunk("APL\\SCORENUM.SPR", NULL, NULL); // 1000:4269
 
     /* 1000:4310/0x4320 draw_scorenum_three_passes: the elapsed time at
      * (0x50, 0xB5) and the best time at (0xF0, 0xB5), both row 181. */
@@ -593,7 +589,7 @@ uint8_t score_tick(const InputState *in)
         /* The port's caller hands in the same InputState that dismissed the end
          * page, so the first tick skips the key test; the original calls
          * poll_input inside its loop and so never sees that key. */
-        if (_score_arm_fade) { /* 1000:4333's wait_palette_fade_done */
+        if (_score_arm_fade) { // 1000:4333's wait_palette_fade_done
             if (palette_fade_active()) return 1;
             _score_arm_fade = 0;
         }
@@ -624,7 +620,7 @@ uint8_t score_tick(const InputState *in)
              * also breaks on the fire bit ([0x5ACE] & 0x80) or [0x48A3].  The
              * screen ends by itself after 0x15E ticks. */
             if (!alive || in->lastKey || (in->joyBits & 0x80u)) {
-                palette_build_fade(0u, 0x100u, 0x23u, black); /* 1000:438A */
+                palette_build_fade(0u, 0x100u, 0x23u, black); // 1000:438A
                 _score_phase = SCORE_FADE;
             }
         }
@@ -632,7 +628,7 @@ uint8_t score_tick(const InputState *in)
     case SCORE_FADE:
         if (palette_fade_active()) return 1;
         _score_phase = SCORE_HOLD;
-        _score_hold = 0x4Bu; /* present_frames_75 */
+        _score_hold = 0x4Bu; // present_frames_75
         return 1;
     case SCORE_HOLD:
         if (_score_hold > 0u) {

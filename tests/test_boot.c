@@ -147,8 +147,8 @@ int main(int argc, char **argv)
     uint8_t r;
     while (1) {
         r = scene_play_boot_intro();
-        palette_tick();                        /* the ISR body's fade step */
-        if (r != 1) break;                     /* done (the quit cue)     */
+        palette_tick();                        // the ISR body's fade step
+        if (r != 1) break;                     // done (the quit cue)
         if (dump_dir) {
             for (size_t k = 0; k < sizeof _dump_ticks / sizeof _dump_ticks[0];
                  k++)
@@ -156,7 +156,7 @@ int main(int argc, char **argv)
                     _dump_ppm(dump_dir, _dump_ticks[k], osys_null_page(0),
                               osys_null_palette());
         }
-        if (++ticks > 10000u) break;           /* runaways are failures   */
+        if (++ticks > 10000u) break;           // runaways are failures
     }
     if (r != 0) {
         fprintf(stderr, "FAIL the boot intro did not finish (%u ticks)\n",
@@ -225,7 +225,7 @@ int main(int argc, char **argv)
         } else {
             uint16_t chk = 0;
             uint32_t off0;
-            memcpy(&off0, rsc, 4); /* entry[0] = the list object's offset */
+            memcpy(&off0, rsc, 4); // entry[0] = the list object's offset
             int32_t sz = res_decode_lzw_mem(rsc, rsc_size, off0, list,
                                             sizeof list, &chk);
             if (sz < 0 || chk != 0) {
@@ -250,7 +250,7 @@ int main(int argc, char **argv)
                     uint16_t dest = (rd_le_u16(list + si));
                     uint16_t stored =
                         (uint16_t)(list[si + 2] | (list[si + 3] << 8));
-                    uint32_t idx = (stored + 1u) & 0xFFFFu; /* INC AX at b95d */
+                    uint32_t idx = (stored + 1u) & 0xFFFFu; // INC AX at b95d
                     uint32_t off;
                     memcpy(&off, rsc + idx * 4u, 4);
                     int32_t osz = res_decode_lzw_mem(rsc, rsc_size, off, obj,

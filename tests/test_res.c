@@ -121,8 +121,8 @@ static int32_t _check_chunk(const char *name, uint32_t disc,
  */
 int main(int argc, char **argv)
 {
-    const char *vol_dir = argc > 1 ? argv[1] : "."; /* HUMANS.00N        */
-    const char *fix_dir = argc > 2 ? argv[2] : vol_dir; /* the extracted tree */
+    const char *vol_dir = argc > 1 ? argv[1] : "."; // HUMANS.00N
+    const char *fix_dir = argc > 2 ? argv[2] : vol_dir; // the extracted tree
     if (_data_missing(vol_dir)) {
         printf("skip: no volume files at %s (fixture data absent)\n", vol_dir);
         return 0;
@@ -192,17 +192,17 @@ int main(int argc, char **argv)
             fprintf(stderr, "FAIL cwd unreadable\n");
             bad = 1;
         } else {
-            (void)compat_mkdir(scratch); /* already present is fine */
+            (void)compat_mkdir(scratch); // already present is fine
             snprintf(path, sizeof path, "%s/HUMANS.000", scratch);
             uint8_t vol[0x48];
             memset(vol, 0, sizeof vol);
-            vol[0] = 1; /* one record */
+            vol[0] = 1; // one record
             memcpy(vol + 2, "TEST\\ODD.BIN      ", 18);
-            vol[2 + 0x36] = 5; /* the block size (odd)     */
-            vol[2 + 0x38] = 5; /* the chunk length (odd)   */
-            vol[2 + 0x3C] = 0x42; /* the data offset      */
-            vol[0x42] = 0; /* the flag word: stored     */
-            vol[0x44] = 0x11; /* the four even payload    */
+            vol[2 + 0x36] = 5; // the block size (odd)
+            vol[2 + 0x38] = 5; // the chunk length (odd)
+            vol[2 + 0x3C] = 0x42; // the data offset
+            vol[0x42] = 0; // the flag word: stored
+            vol[0x44] = 0x11; // the four even payload
             vol[0x45] = 0x22;
             vol[0x46] = 0x33;
             vol[0x47] = 0x44;
@@ -220,7 +220,7 @@ int main(int argc, char **argv)
                     uint32_t n = 0;
                     uint8_t *got;
 
-                    res_set_disc(0); /* the synthetic volume */
+                    res_set_disc(0); // the synthetic volume
                     got = res_load_chunk("TEST\\ODD.BIN", &n, NULL);
 
                     if (!got) {

@@ -39,10 +39,10 @@
 
 #include <string.h>
 
-#define HIS_LEVELS 160u /* the table's 1-based level count        */
+#define HIS_LEVELS 160u // the table's 1-based level count
 #define HIS_TOPN   10u
 #define HIS_ENTRY  18u
-#define HIS_NAME   14u /* 13 chars + NUL                         */
+#define HIS_NAME   14u // 13 chars + NUL
 #define HIS_TABLE  (2u + HIS_LEVELS * 2u + 18u + HIS_TOPN * HIS_ENTRY)
 
 static uint8_t _hiscore_table[HIS_TABLE];
@@ -95,7 +95,7 @@ static void _hiscore_crypt(void)
 static void _hiscore_defaults(void)
 {
     memset(_hiscore_table, 0, sizeof _hiscore_table);
-    wr_le_u16(_hiscore_table, 0x0999u); /* [0x38A] = 0x0999 */
+    wr_le_u16(_hiscore_table, 0x0999u); // [0x38A] = 0x0999
     for (uint16_t n = 1; n <= HIS_LEVELS; n++)
         wr_le_u16(_hiscore_table + 2u * n, 0x0999u);
     for (uint16_t i = 0; i < HIS_TOPN; i++) {
@@ -197,7 +197,7 @@ int32_t hiscore_insert(uint32_t score, const char *name)
             break;
         }
     }
-    if (pos >= HIS_TOPN) return -1; /* the last entry still wins */
+    if (pos >= HIS_TOPN) return -1; // the last entry still wins
     for (uint16_t j = HIS_TOPN - 1u; j > pos; j--)
         memmove(_hiscore_entry(j), _hiscore_entry(j - 1u), HIS_ENTRY);
     {
@@ -233,7 +233,7 @@ static void _name_put(char *name, uint8_t *len, char c)
         name[n] = c;
         name[++n] = '\0';
     } else {
-        name[12] = c; /* 1000:044F/0x0450: a full buffer overwrites index 12 */
+        name[12] = c; // 1000:044F/0x0450: a full buffer overwrites index 12
     }
     *len = n;
 }
@@ -253,17 +253,17 @@ uint8_t hiscore_name_apply(char *name, uint8_t column, uint8_t *len)
         _name_put(name, len, column == 0x1Au ? ' ' : '.');
         return 0;
     }
-    if (column == 0x1Cu) { /* delete the last char */
+    if (column == 0x1Cu) { // delete the last char
         n = *len;
         if (n) {
             n--;
             name[n] = '\0';
         } else {
-            name[-1] = '\0'; /* 1000:046C: 0x757 - 2 = 0x756 */
+            name[-1] = '\0'; // 1000:046C: 0x757 - 2 = 0x756
         }
         *len = n;
         return 0;
     }
-    if (column == 0x1Du) return 1; /* Enter: commit */
+    if (column == 0x1Du) return 1; // Enter: commit
     return 0;
 }

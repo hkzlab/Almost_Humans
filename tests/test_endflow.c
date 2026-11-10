@@ -128,7 +128,7 @@ int main(int argc, char **argv)
     script[7950].lastKey = 1u;
     for (uint32_t i = 8000u; i <= 8490u; i++) script[i].lastKey = 1u;
     for (uint32_t i = FORCE_POLL + 50u; i <= FORCE_POLL + 160u; i++)
-        script[i].lastKey = 1u;              /* the caption's key */
+        script[i].lastKey = 1u;              // the caption's key
     script[SCRIPT_N - 1].quit = 1u;
 
     osys_null_input_script(script, SCRIPT_N);
