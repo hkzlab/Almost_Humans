@@ -261,6 +261,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "FAIL slot 0 did not clear the save\n");
         bad = 1;
     }
+    level_seed_tribe(); // entry 1000:009C..0x00B1
     if (level_load(0) != 0) {
         fprintf(stderr, "FAIL the fresh level did not load\n");
         bad = 1;
@@ -271,6 +272,24 @@ int main(int argc, char **argv)
                     "FAIL the fresh pick is not the board's "
                     "(time 0x%04x, members %u)\n",
                     (uint32_t)level_time_limit(), level_tribe_members());
+            bad = 1;
+        }
+        /* D-265: only the entry seeds the count; a level transition keeps the
+         * carried value and a restart restores that level's start count. */
+        level_set_members(9u);
+        if (level_load(1u) != 0) {
+            fprintf(stderr, "FAIL level 2 did not load\n");
+            bad = 1;
+        } else if (level_tribe_members() != 9u) {
+            fprintf(stderr, "FAIL the count did not carry (%u, want 9)\n",
+                    level_tribe_members());
+            bad = 1;
+        }
+        level_set_members(5u);
+        level_restore_members();
+        if (level_tribe_members() != 9u) {
+            fprintf(stderr, "FAIL the restart count is %u, want 9\n",
+                    level_tribe_members());
             bad = 1;
         }
     }

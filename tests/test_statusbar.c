@@ -518,7 +518,9 @@ int main(int argc, char **argv)
 
     /* 5. the integration: level_load seeds the bar with the record's own
      * timeA and the map's 0xAA count, and level_tick composes world + bar
-     * into the page. */
+     * into the page.  The tribe count is the entry seed (1000:009C), which
+     * the loader no longer applies. */
+    level_seed_tribe(); // entry 1000:009C, before the level walk
     if (level_load(0) != 0) {
         fprintf(stderr, "FAIL level 0 did not load\n");
         return 1;

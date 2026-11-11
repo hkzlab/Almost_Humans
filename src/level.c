@@ -1207,14 +1207,16 @@ int32_t level_load(uint16_t levelId)
     object_load_terrain_objects(_level_map_copy);
 
     /* the bar (level_start 1000:957B + build_statusbar_layout 1000:961B):
-     * the time limit and the tribe pair.  On a fresh game both come from the
-     * LEVEL board's counter [0x5E65] read at entry: render_level_frame
+     * the time limit and the tribe pair.  The time comes from the LEVEL
+     * board's counter [0x5E65] read per level: render_level_frame
      * (1000:9589) selects [0x17F5]/[0x17F7]/[0x17F9] - this record's
-     * timeA/B/C - by 0/1/else, and entry (1000:009F) maps the same byte to
-     * the starting tribe [0x11FC] := 12/10/8.  With a save loaded ([0x34],
-     * render_level_frame 1000:959E) the save's own +0x07 word and +0x0B
-     * members replace both.  The required = the map's 0xAA-tile count
-     * (load_level 1000:315F counts the first 640-byte block). */
+     * timeA/B/C - by 0/1/else.  With a save loaded ([0x34], render_level_frame
+     * 1000:959E) the save's own +0x07 word and +0x0B members replace both.
+     * The tribe count is NOT re-seeded here: entry's 1000:009C..0x00B1 seed
+     * (level_seed_tribe) runs once per game, and the count then carries from
+     * level to level (load_level 1000:30BC only reads [0x11FC] at the gate).
+     * The required = the map's 0xAA-tile count (load_level 1000:315F counts
+     * the first 640-byte block). */
     {
         uint16_t required = 0;
         for (uint16_t i = 0; i < MAP_LEN; i++)
@@ -1227,7 +1229,6 @@ int32_t level_load(uint16_t levelId)
             _time_limit = (skill == 0u)   ? d->timeA
                           : (skill == 1u) ? d->timeB
                                           : d->timeC;
-            _tribe_members = (skill == 0u) ? 12u : (skill == 1u) ? 10u : 8u;
         }
         _level_required = required;
         _members_at_start = _tribe_members; // [0x1970] (306D)
@@ -1626,8 +1627,13 @@ static void _level_goal_pan_tick(void)
         return;
     }
     if (!object_goal_flag()) { // 1000:35A2
+        /* 1000:35A2 tests [0x6531] alone: whenever the goal flag is down and
+         * the marker mode is up it is cleared (35A9), with no pan state
+         * involved.  This is what a RESTART THIS LEVEL relies on: level_load
+         * resets the pan state without touching the mode, so the re-spawned
+         * behaviour-9 records would otherwise erase their reloaded cells. */
+        object_set_marker_mode(0); // 1000:35A9
         if (_goal_pan_state != GOALPAN_NONE) {
-            object_set_marker_mode(0); // 1000:35A9
             _goal_follow_record = -1;
             _goal_pan_state = GOALPAN_NONE;
         }
@@ -1743,6 +1749,13 @@ void level_restore_members(void)
 {
     _tribe_members = _members_at_start;
     statusbar_start(_time_limit, _tribe_members, _level_required);
+}
+
+void level_seed_tribe(void)
+{
+    uint8_t skill = frontend_option(FRONTEND_OPT_LEVEL); // [0x5E65]
+
+    _tribe_members = (skill == 0u) ? 12u : (skill == 1u) ? 10u : 8u; // 00B1
 }
 
 void level_goal_reached(void) { _goal_hit = 1; }

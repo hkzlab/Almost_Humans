@@ -137,6 +137,7 @@ int main(int argc, char **argv)
     video_init(&g_osys_null);
     palette_init(&g_osys_null);
     level_init(&g_osys_null);
+    level_seed_tribe(); // entry 1000:009C..0x00B1; the loader keeps the count
 
     /* 1+2. lb#1: the exact spawn fields and the 0xB4 join. */
     if (level_load(10u) != 0) {

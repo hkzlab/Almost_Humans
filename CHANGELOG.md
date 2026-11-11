@@ -21,3 +21,12 @@ _First release: a C99 port of the 1992 DOS game Humans, reimplemented from the o
   ported subsystems against the shipped game data
 - Add AdLib, Beeper and MT-32 sound drivers behind the INT 60h-shaped ABI, selectable at run time
 - Detect the installed language from the first 2048 bytes of `HUMANS.001` (FNV-1a 32)
+
+### Fixed
+
+- A restart kept the win pan's marker mode, so the `0xBB` marker blocks the pan removed stayed
+  erased (and passable) after RESTART THIS LEVEL; the port now clears it at `1000:35A2`'s
+  unconditional arm
+- The tribe count was re-seeded from the LEVEL board on every level load; it now carries across
+  levels and a restart restores the level-start count, as `entry 1000:009C..00B1` and
+  `level_run 306D` do

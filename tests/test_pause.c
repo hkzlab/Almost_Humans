@@ -192,6 +192,7 @@ int main(int argc, char **argv)
     }
 
     res_init(&g_osys_null);
+    save_init(&g_osys_null); // the SAVE GAME writer and save_load_slot below
     video_init(&g_osys_null);
     palette_init(&g_osys_null);
     font_init(&g_osys_null);
@@ -316,6 +317,7 @@ int main(int argc, char **argv)
 
     /* the level's assets: the dialog's box tiles (apl\box.spr, disc 1) and
      * the bar/level palette the page's indices ride */
+    level_seed_tribe(); // entry 1000:009C..0x00B1; the loader keeps the count
     if (level_load(0) != 0) {
         fprintf(stderr, "FAIL level 0 did not load\n");
         return 1;
@@ -667,6 +669,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "FAIL save_consume left [0x34] set\n");
         bad = 1;
     }
+    level_seed_tribe(); // entry 1000:009C..0x00B1, the starting 12
     if (level_load(0) != 0) {
         fprintf(stderr, "FAIL the level did not load\n");
         bad = 1;

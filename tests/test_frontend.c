@@ -542,6 +542,7 @@ int main(int argc, char **argv)
     }
 
     /* --- (c) LEVEL -> the level's own time B and the 10-member tribe --- */
+    level_seed_tribe(); // entry 1000:009C..0x00B1, before the level walk
     if (level_load(0) != 0) {
         fprintf(stderr, "FAIL level 0 did not load\n");
         return 1;

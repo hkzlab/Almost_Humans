@@ -418,11 +418,21 @@ void level_add_member(void);
  */
 void level_set_members(uint32_t n);
 
+/** @brief entry 1000:009C..0x00B1: [0x11FC] := 12/10/8 by the LEVEL board's
+ * counter ([0x5E65]).
+ *
+ * Runs once when the front-end room hands over to the level walk (after the
+ * RESTORE GAME slot is read and before the first load).  A level transition
+ * inside the walk and a RESTART THIS LEVEL do not re-seed: the count carries,
+ * and level_restore (1000:35AF) puts back the level-start snapshot.
+ */
+void level_seed_tribe(void);
+
 /** @brief level_restore (1000:35AF): [0x11FC] := [0x1970], the members the
  * level started with, before its own joins.
  *
- * level_start (1000:3032) then re-picks the time; the port re-runs level_load,
- * so the snapshot is put back afterwards.
+ * Runs before the reload, as 1000:35CD does (level_start 1000:3032 and
+ * level_run 1000:3054 re-read and re-snapshot the same count at 306D).
  */
 void level_restore_members(void);
 
@@ -520,8 +530,9 @@ uint8_t level_outcome(void);
 /** @brief [0x5D31] after level_load's LEVEL-board pick: the record's timeA/B/C
  * word (the bar's seed).
  *
- * The same pick sets the 12/10/8 starting tribe in [0x11FC] (entry 1000:009F,
- * render_level_frame 1000:9589).
+ * The pick is per level (render_level_frame 1000:9589); the 12/10/8 starting
+ * tribe is the entry's seed (level_seed_tribe, 1000:009C..0x00B1) and is not
+ * re-picked here.
  *
  * @return the time limit word
  */

@@ -130,6 +130,7 @@ int main(int argc, char **argv)
     video_init(&g_osys_null);
     palette_init(&g_osys_null);
     level_init(&g_osys_null);
+    level_seed_tribe(); // entry 1000:009C..0x00B1; the loader keeps the count
 
     /* 1. all 160 levels load and the census distributions hold. */
     uint32_t intro_hist[8] = { 0 };   // 00,01,02,03,04,05,09,FF
@@ -909,6 +910,42 @@ int main(int argc, char **argv)
         }
         if (level_goal_pan_running_for_probe()) {
             fprintf(stderr, "FAIL D-259: the pan hung after the flag fell\n");
+            bad = 1;
+        }
+    }
+
+    /* --- D-264: a reload must not keep the win pan's marker mode ---------- */
+    if (level_load(25) == 0) {
+        uint32_t t;
+
+        object_set_marker_mode(1); // 1000:358C, the win pan's [0x6531]
+        /* the restart's reload resets the port's pan state without touching
+         * the mode; menu_flag_tick's 1000:35A2 arm must clear [0x6531] on the
+         * next frame, before the re-spawned behaviour-9 markers tick. */
+        if (level_load(25) != 0) {
+            fprintf(stderr, "FAIL D-264: the reload failed\n");
+            bad = 1;
+        }
+        level_begin();
+        for (t = 0; t < 4000u && level_starting(); t++) {
+            level_tick();
+            palette_tick();
+            if (level_loading_screen()) level_loading_tick();
+        }
+        for (t = 0; t < 16u; t++) {
+            level_tick();
+            palette_tick();
+        }
+        if (object_marker_mode()) {
+            fprintf(stderr, "FAIL D-264: [0x6531] survived the reload\n");
+            bad = 1;
+        }
+        if (level_map()[9] != 0xBBu || level_map()[41] != 0xBBu ||
+            level_map()[73] != 0xBBu) {
+            fprintf(stderr,
+                    "FAIL D-264: the reloaded 0xBB cells were erased "
+                    "(%02X %02X %02X)\n",
+                    level_map()[9], level_map()[41], level_map()[73]);
             bad = 1;
         }
     }

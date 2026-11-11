@@ -232,7 +232,8 @@ static void _level_publish_goal(void)
  * re-runs present_frames_75 + music_stop and re-enters the level (the party
  * screen runs again, 1000:3073).  The port reloads the record (the header is
  * the same file record; the original skips the read) and re-spawns the map's
- * entities like the level entry, then puts the members snapshot back.
+ * entities like the level entry.  The member restore runs before the reload,
+ * at 1000:35CD's position.
  */
 static void _level_restart_finish(void)
 {
@@ -245,10 +246,13 @@ static void _level_restart_finish(void)
     _level_music_done = 0;
     _level_start_fade = 1;
     audio_fade_out(); // 1000:303A
+    /* 1000:35CD: [0x11FC] := [0x1970] BEFORE level_start/level_run, so the
+     * reload's own snapshot (306D) keeps it and the bar is rebuilt with the
+     * level-start count; a later join/loss is not carried into the restart. */
+    level_restore_members();
     if (level_load(_level_current) == 0) {
         const LevelData *ld = level_data();
         entity_spawn_from_map(level_map(), ld->style, ld->entityLife);
-        level_restore_members();
     }
     /* 1000:307D CALL level_setup: its 1000:31BD arm runs again after a
      * restart, so the title page is re-armed like a fresh load. */
@@ -478,6 +482,12 @@ GameFlow gameflow_step(GameFlow state, const InputState *input)
             uint16_t lv = save_level();
             if (lv >= 1u && lv <= 160u) _level_current = lv - 1u;
         }
+        /* entry 1000:009C..0x00B1, after the slot load and before the level
+         * walk: [0x11FC] := 12/10/8 by the LEVEL board.  This is the only
+         * place the count is seeded; a next level and a RESTART THIS LEVEL
+         * keep the carried value (a save's +0x0B still overrides it in
+         * level_load). */
+        level_seed_tribe();
         return FLOW_LEVEL;
 
     case FLOW_LEVEL:

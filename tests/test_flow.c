@@ -196,6 +196,7 @@ int main(int argc, char **argv)
     palette_init(&g_osys_null);
     level_init(&g_osys_null);
     statusbar_init(&g_osys_null); // the charge bar draws into the band
+    level_seed_tribe(); // entry 1000:009C..0x00B1; the loader keeps the count
 
     /* 0. font_draw_text_bounded: a fitting line draws the same bytes as
      * draw_text; a glyph whose 16-row tile would pass the arena's end is
@@ -501,6 +502,7 @@ int main(int argc, char **argv)
     } else printf("skip: the level data is not on the disc\n");
 
     /* 4. the level's own end: the stub hook + [0x138E]'s outcome */
+    level_seed_tribe(); // entry 1000:009C..0x00B1, the once-per-game seed
     if (level_load(0) == 0) {
         _check(!level_ended(), "a fresh level is in play");
         level_request_end(1);
@@ -522,6 +524,20 @@ int main(int argc, char **argv)
             level_restore_members();
             _check(level_members() == mem && level_required() == req,
                    "level_restore restores the start snapshot");
+            /* D-265: the board seed is the entry's, not the loader's - a
+             * carried count survives the next level's load, and the restart
+             * restores that level's start count. */
+            level_set_members(9u); // losses during this level
+            if (level_load(1u) == 0) {
+                _check(level_members() == 9u,
+                       "the tribe count carries to the next level");
+                level_set_members(5u); // a later loss on the restarted level
+                level_restore_members();
+                _check(level_members() == 9u,
+                       "the restart restores the carried start count");
+            }
+            level_set_members(12u);
+            (void)level_load(0); // the blocks below expect level 1
         }
 
         /* 5. draw_level_text's two pages render (and differ) */
@@ -583,6 +599,7 @@ int main(int argc, char **argv)
             _check(score_level_score() == 0u,
                    "a lost level adds no score (55B3 -> 578A)");
         }
+        level_seed_tribe(); // the next scenario starts a fresh game (009C)
         (void)level_load(0);
     } else printf("skip: the level data is not on the disc\n");
 
