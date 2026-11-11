@@ -322,6 +322,11 @@ target_link_libraries(test_save PRIVATE core fs_posix)
 humansre_warnings(test_save)
 add_test(NAME save COMMAND test_save ${HUMANS_DATA_DIR})
 
+# pause and save both drive slot 2 (SAVEB) in the data directory: a parallel
+# ctest must not run them at the same time (they skip only when a real SAVEB
+# is already there).
+set_tests_properties(pause save PROPERTIES RESOURCE_LOCK save_slot_b)
+
 # The front-end room's option read side: walk to each board, press ACTION,
 # and assert the counter/badge pixels and each setting's consumer.
 add_executable(test_frontend tests/test_frontend.c
