@@ -21,6 +21,7 @@
  * @return 0 on success, -1 on failure
  */
 static inline int32_t compat_chdir(const char *dir) { return _chdir(dir); }
+
 /**
  * @brief Create a directory.
  *
@@ -28,6 +29,7 @@ static inline int32_t compat_chdir(const char *dir) { return _chdir(dir); }
  * @return 0 on success, -1 on failure
  */
 static inline int32_t compat_mkdir(const char *dir) { return _mkdir(dir); }
+
 /**
  * @brief Remove a directory.
  *
@@ -35,6 +37,7 @@ static inline int32_t compat_mkdir(const char *dir) { return _mkdir(dir); }
  * @return 0 on success, -1 on failure
  */
 static inline int32_t compat_rmdir(const char *dir) { return _rmdir(dir); }
+
 /**
  * @brief Resolve an absolute path.
  *
@@ -44,6 +47,7 @@ static inline int32_t compat_rmdir(const char *dir) { return _rmdir(dir); }
  */
 static inline char *compat_realpath(const char *path, char *resolved)
 { return _fullpath(resolved, path, PATH_MAX); }
+
 #else
 #    include <limits.h>
 #    include <stdlib.h>      // realpath
@@ -56,6 +60,7 @@ static inline char *compat_realpath(const char *path, char *resolved)
  * @return 0 on success, -1 on failure
  */
 static inline int32_t compat_chdir(const char *dir) { return chdir(dir); }
+
 /**
  * @brief Create a directory.
  *
@@ -63,6 +68,7 @@ static inline int32_t compat_chdir(const char *dir) { return chdir(dir); }
  * @return 0 on success, -1 on failure
  */
 static inline int32_t compat_mkdir(const char *dir) { return mkdir(dir, 0777); }
+
 /**
  * @brief Remove a directory.
  *
@@ -70,6 +76,7 @@ static inline int32_t compat_mkdir(const char *dir) { return mkdir(dir, 0777); }
  * @return 0 on success, -1 on failure
  */
 static inline int32_t compat_rmdir(const char *dir) { return rmdir(dir); }
+
 /**
  * @brief Resolve an absolute path.
  *
@@ -79,6 +86,7 @@ static inline int32_t compat_rmdir(const char *dir) { return rmdir(dir); }
  */
 static inline char *compat_realpath(const char *path, char *resolved)
 { return realpath(path, resolved); }
+
 #endif
 
 #endif /* HUMANSRE_TEST_COMPAT_H */

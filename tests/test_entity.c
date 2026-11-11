@@ -68,6 +68,7 @@ static void _failf(const char *what, uint32_t id, int64_t got, int64_t want)
             what, got, want);
     _bad = 1;
 }
+
 /**
  * @brief The style-6 spawn prologue's bonus test for one matched cell.
  *

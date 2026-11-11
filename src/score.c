@@ -254,11 +254,17 @@ uint8_t score_counters_run(void)
 }
 
 uint8_t score_is_record(void) { return _score_is_record; }
+
 uint16_t score_best_for(uint32_t level) { return hiscore_best(level); }
+
 uint16_t score_best_time(void) { return _score_best_time; }
+
 uint16_t score_total_lo(void) { return _score_total_lo; }
+
 uint16_t score_total_hi(void) { return _score_total_hi; }
+
 uint32_t score_shown_lo(void) { return _score_shown_lo; }
+
 uint32_t score_shown_hi(void) { return _score_shown_hi; }
 
 uint32_t score_level_score(void)

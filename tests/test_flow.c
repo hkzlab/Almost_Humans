@@ -108,6 +108,7 @@ static void _check(int32_t ok, const char *what)
  */
 static uint32_t _tf_rd16(const uint8_t *r, uint32_t o)
 { return (uint32_t)(rd_le_u16(r + o)); }
+
 /**
  * @brief Store one little-endian 16-bit word.
  *

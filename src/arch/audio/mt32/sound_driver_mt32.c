@@ -1123,6 +1123,7 @@ static void MT32EMU_C_CALL _report_debug(void *data, const char *fmt,
 
 /* Drop the control-ROM error (create() reports it). */
 static void MT32EMU_C_CALL _report_error_control(void *data) { (void)data; }
+
 /* Drop the PCM-ROM error (create() reports it). */
 static void MT32EMU_C_CALL _report_error_pcm(void *data) { (void)data; }
 
@@ -1152,6 +1153,7 @@ static void MT32EMU_C_CALL _report_realtime(void *data, mt32emu_bit8u byte)
 
 /* Drop the reset notice. */
 static void MT32EMU_C_CALL _report_reset(void *data) { (void)data; }
+
 /* Drop the reconfig notice. */
 static void MT32EMU_C_CALL _report_reconfig(void *data) { (void)data; }
 

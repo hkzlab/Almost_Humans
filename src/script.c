@@ -101,16 +101,26 @@ void script_fire(CueScript *s, uint16_t frame)
 }
 
 uint8_t script_quit(const CueScript *s) { return s->quit; }
+
 uint8_t script_done(const CueScript *s) { return s->done; }
+
 uint16_t script_group_dwell(const CueScript *s) { return s->groupDwell; }
+
 uint8_t script_dwell_pending(const CueScript *s) { return s->dwellPending; }
+
 void script_dwell_done(CueScript *s) { s->dwellPending = 0; }
+
 uint8_t script_scroll_on(const CueScript *s) { return s->scrollOn; }
+
 uint16_t script_scroll_delta(const CueScript *s) { return s->scrollDelta; }
+
 uint16_t script_transition_index(const CueScript *s)
 { return s->transitionIdx; }
+
 uint8_t script_seek_pending(const CueScript *s) { return s->seekPending; }
+
 uint16_t script_seek_frame(const CueScript *s) { return s->seekFrame; }
+
 void script_seek_done(CueScript *s) { s->seekPending = 0; }
 
 void script_intro_start(CueScript *s) { script_start(s, _intro_cues, 25u); }

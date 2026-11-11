@@ -1667,4 +1667,5 @@ uint32_t scene_boot_phase_for_probe(void) { return (uint32_t)_boot_phase; }
 void scene_al_expand_for_probe(const uint8_t *src, uint32_t src_size,
                                uint8_t *dst, uint32_t dst_size)
 { _scene_al_expand(src, src_size, dst, dst_size); }
+
 #endif

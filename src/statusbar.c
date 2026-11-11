@@ -91,9 +91,12 @@ static const uint8_t _action_gold[40] = {
 };
 
 uint8_t statusbar_tribe_count_nonzero(void) { return (_td[0] | _td[1]) != 0; }
+
 uint8_t statusbar_tribe_value(void)
 { return u8((uint32_t)_td[0] * 10u + _td[1]); }
+
 uint8_t statusbar_tribe_digit(uint32_t i) { return _td[i & 1u]; }
+
 void statusbar_set_tribe_digits(uint32_t tens, uint32_t ones)
 {
     _td[0] = (uint8_t)(tens % 10u);
@@ -193,6 +196,7 @@ static void _draw_band(uint8_t *page)
             dst[x] = (uint8_t)(0xC0u | src[x]);
     }
 }
+
 void statusbar_charge_bar(uint32_t v)
 {
     static const uint8_t shade[10] = { 0xDF, 0xE0, 0xE1, 0xE2, 0xE3,
@@ -680,16 +684,19 @@ void statusbar_arm_tribe_count(void) { _tc_state = 0xFF; }
 uint8_t statusbar_time_up(void) { return _time_up; }
 
 void statusbar_set_active(uint8_t on) { _active = on ? 1 : 0; }
+
 void statusbar_set_split(uint16_t row)
 {
     _bar_split = row > VIDEO_PAGE_H_MODE13H ? VIDEO_PAGE_H_MODE13H : row;
     _bar_hidden = 0; // an explicit split re-composes it
 }
+
 void statusbar_hide(void)
 {
     _bar_hidden = 1;
     _bar_split = 0xC9u;
 }
+
 uint16_t statusbar_split(void) { return _bar_split; }
 
 uint16_t statusbar_time_word(void)

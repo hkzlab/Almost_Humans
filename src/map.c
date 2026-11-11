@@ -1011,7 +1011,9 @@ void map_draw_rect(uint8_t *page, uint32_t x, uint32_t y, uint32_t w,
 }
 
 uint8_t map_transition_step(void) { return _map_trans; }
+
 uint8_t map_fade_starts(void) { return _map_fade_starts; }
+
 int32_t map_fade_at(uint32_t i, uint32_t *first, uint32_t *entries,
                     uint32_t *div, uint32_t *target)
 {

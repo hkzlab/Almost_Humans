@@ -993,6 +993,7 @@ void level_draw_bg_sprites(uint8_t *page, int32_t scrollX, int32_t scrollY)
 }
 
 const uint8_t *level_bg_for_probe(void) { return _bg_image; }
+
 uint32_t level_anim_frames(void) { return _bd_anim_frames; }
 
 int32_t level_slope_byte(uint32_t id, uint32_t sub)
@@ -1004,10 +1005,13 @@ int32_t level_slope_byte(uint32_t id, uint32_t sub)
     if (off + sub >= _slope_size) return 0;
     return (int8_t)_slope_profiles[off + sub];
 }
+
 const uint8_t *level_p_block_for_probe(void)
 { return _bd_p_have ? _bd_p_block : NULL; }
+
 const uint8_t *level_c_block_for_probe(void)
 { return _bd_c_have ? _bd_c_block : NULL; }
+
 uint16_t level_bg_index_for_probe(void) { return _level_bg_index; }
 
 int32_t level_init(const OSystem *osys)
@@ -1582,6 +1586,7 @@ void level_follow_view(void)
 }
 
 uint16_t level_view_x(void) { return _view_x; }
+
 uint16_t level_view_y(void) { return _view_y; }
 
 /** @brief menu_flag_tick (1000:3540): the goal pan.
@@ -1686,9 +1691,13 @@ static void _level_goal_pan_after(void)
 }
 
 void level_set_updates(uint8_t on) { _world_updates = on ? 1 : 0; }
+
 uint8_t level_updates(void) { return _world_updates; }
+
 void level_set_offset_word(uint16_t v) { _level_offset_word = v; }
+
 uint16_t level_offset_word(void) { return _level_offset_word; }
+
 void level_reset_offset_walk(void) { _level_offset_ptr = 0x2D92u; }
 
 void level_begin(void)
@@ -1735,9 +1744,12 @@ uint8_t level_starting(void)
 { return _level_loaded && _start_phase != LVSTART_PLAYING; }
 
 uint16_t level_required(void) { return _level_required; }
+
 uint32_t level_goal_count(void)
 { return _level_loaded ? _level_data_cur.goalCount : 0u; }
+
 uint16_t level_members(void) { return _tribe_members; }
+
 void level_add_member(void)
 {
     if (_tribe_members < 0xFFu) _tribe_members++;
@@ -1797,13 +1809,17 @@ void level_request_end(uint8_t won)
     _end_requested = 1;
     _end_won = won ? 1 : 0;
 }
+
 uint8_t level_ended(void) { return _end_requested && _play_exit_hold == 0u; }
+
 uint8_t level_end_holding(void) { return _play_exit_hold > 0u; }
+
 void level_set_end(uint8_t won)
 {
     _end_requested = 1;
     _end_won = won ? 1 : 0;
 }
+
 uint8_t level_outcome(void) { return _end_won; }
 
 uint8_t level_page_free(uint32_t id)
@@ -1874,6 +1890,7 @@ void level_end_palette(void)
 }
 
 uint16_t level_time_limit(void) { return _time_limit; }
+
 uint16_t level_tribe_members(void) { return _tribe_members; }
 
 void level_note_input(const InputState *in)

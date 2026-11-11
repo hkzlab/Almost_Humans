@@ -116,12 +116,15 @@ static FSVolume *_null_open_volume(uint16_t disc)
     (void)disc;
     return NULL;
 }
+
 static void _null_close_volume(FSVolume *v) { (void)v; }
+
 static uint32_t _null_volume_size(FSVolume *v)
 {
     (void)v;
     return 0;
 }
+
 static uint32_t _null_read(FSVolume *v, uint32_t off, uint8_t *dst, uint32_t n)
 {
     (void)v;
@@ -136,6 +139,7 @@ static FSSave *_null_open_save(char letter)
     (void)letter;
     return NULL;
 }
+
 static uint32_t _null_save_read(FSSave *s, uint32_t off, uint8_t *dst,
                                 uint32_t n)
 {
@@ -145,11 +149,13 @@ static uint32_t _null_save_read(FSSave *s, uint32_t off, uint8_t *dst,
     (void)n;
     return 0;
 }
+
 static FSSave *_null_create_save(char letter)
 {
     (void)letter;
     return NULL;
 }
+
 static uint32_t _null_save_write(FSSave *s, uint32_t off, const uint8_t *src,
                                  uint32_t n)
 {
@@ -159,12 +165,15 @@ static uint32_t _null_save_write(FSSave *s, uint32_t off, const uint8_t *src,
     (void)n;
     return 0;
 }
+
 static void _null_close_save(FSSave *s) { (void)s; }
+
 static FSSave *_null_open_named(const char *name)
 {
     (void)name;
     return NULL;
 }
+
 static FSSave *_null_create_named(const char *name)
 {
     (void)name;

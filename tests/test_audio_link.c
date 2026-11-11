@@ -42,58 +42,74 @@ static uint32_t _loads;
 /* --- the backend: the SDL3 one's shape, without a device -------------- */
 
 static void _vset(VideoMode m) { (void)m; }
+
 static uint8_t *_vpage(int32_t which)
 {
     static uint8_t page[VIDEO_PAGE_BYTES];
     (void)which;
     return page;
 }
+
 static void _vpresent(int32_t which) { (void)which; }
+
 static void _vpalette(const uint8_t *p6, uint32_t first, uint32_t n)
 {
     (void)p6;
     (void)first;
     (void)n;
 }
+
 static void _poll(InputState *out) { memset(out, 0, sizeof(*out)); }
+
 static void _tstart(uint32_t rate, TickFn tick)
 {
     (void)rate;
     (void)tick;
 }
+
 static void _tsync(uint32_t *lastSeen) { (void)lastSeen; }
+
 static int32_t _install(void)
 {
     _drv = g_sound_driver_adlib.create(RATE);
     return _drv ? 0 : -1;
 }
+
 static int32_t _load(const uint8_t *image, uint32_t size)
 {
     _loads++;
     g_sound_driver_adlib.loadTune(_drv, image, size);
     return 0;
 }
+
 static void _resume(void) { _voice = g_sound_driver_adlib.startEvent(_drv, 0); }
+
 static void _stop(void)
 {
     _stops++;
     if (_voice != 0xFFFFu) g_sound_driver_adlib.releaseEvent(_drv, _voice);
     _voice = 0xFFFFu;
 }
+
 static void _sfx(uint16_t id)
 { _voice = g_sound_driver_adlib.startEvent(_drv, id); }
+
 static void _tempo(uint8_t cl)
 {
     _tempo_byte = cl;
     g_sound_driver_adlib.setTempo(_drv, cl);
 }
+
 static void _tick(void)
 {
     _ticks++;
     g_sound_driver_adlib.tick(_drv);
 }
+
 static int32_t _driver_id(void) { return 1; } // AdLib
+
 static void _warn(const char *msg) { fprintf(stderr, "warn: %s\n", msg); }
+
 static void _fatal(const char *msg)
 {
     fprintf(stderr, "fatal: %s\n", msg);

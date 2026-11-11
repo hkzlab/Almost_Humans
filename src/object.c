@@ -1029,6 +1029,7 @@ uint8_t object_type_blocked(uint32_t type)
     }
     return 0;
 }
+
 /* 0x6847: the per-record settled position (4 bytes per record). */
 static uint16_t _obj_settled[OBJ_SLOTS][2];
 
@@ -1117,6 +1118,7 @@ static const int8_t _obj_proj_curve[25] = {
 static uint8_t _obj_marker_mode;
 
 void object_set_marker_mode(uint8_t on) { _obj_marker_mode = on ? 1u : 0u; }
+
 uint8_t object_marker_mode(void) { return _obj_marker_mode; }
 
 
@@ -1593,6 +1595,7 @@ static const uint16_t _pend_wait[17] = {
 
 uint16_t object_pend_off_for_probe(uint32_t i)
 { return i < sizeof _pend_off / sizeof _pend_off[0] ? _pend_off[i] : 0u; }
+
 uint16_t object_pend_wait_for_probe(uint32_t i)
 { return i < sizeof _pend_wait / sizeof _pend_wait[0] ? _pend_wait[i] : 0u; }
 
@@ -1716,11 +1719,13 @@ void object_span_seed_for_probe(uint32_t i, uint32_t top)
 
 int32_t object_throw_dx_for_probe(uint32_t type)
 { return type < 0x22u ? (int16_t)_obj_throw_dx_word[type] : 0; }
+
 uint16_t object_recipe_param_for_probe(uint32_t recipe, uint32_t k)
 {
     return recipe < 4u && k < 4u ? rd_le_u16(_obj_recipes[recipe] + 4u + 2u * k)
                                  : 0u;
 }
+
 void object_set_slot_class_for_probe(uint32_t slot, uint8_t cls)
 {
     if (slot < sizeof _obj_slot_class) _obj_slot_class[slot] = cls;
@@ -5041,6 +5046,7 @@ void object_world_tick(void)
     object_animator_tick();
     _obj_bg_tick();
 }
+
 uint32_t object_world_ticks_probe(void) { return _obj_world_ticks; }
 
 void object_claim_frame(const uint8_t *levelPal)
@@ -5117,6 +5123,7 @@ void object_marker_tick(void)
 
 void object_set_action_entity(uint16_t i)
 { _obj_entity = i < OBJ_STATIC ? i : _obj_entity; }
+
 uint8_t object_action_program(void) { return (uint8_t)(_obj_program_id()); }
 
 const uint8_t *object_program_header(uint32_t group)
@@ -5157,6 +5164,7 @@ void object_step_action_cell(void)
 
 void object_action_set_program(uint32_t index)
 { _obj_set_program_index(index); }
+
 void object_action_set_cursor(uint8_t cursor)
 {
     uint8_t *p = _obj_program_slot(_obj_program_id());
@@ -5164,6 +5172,7 @@ void object_action_set_cursor(uint8_t cursor)
     _obj_cursor = cursor;
     if (p) p[1] = cursor; // D-186
 }
+
 uint8_t object_action_pending(void) { return _obj_pending; }
 
 /**
@@ -6425,7 +6434,9 @@ static void _obj_cmd_idle_b(uint8_t *actor)
     wr_le_u16(actor + 8u, 0x0000u);
     wr_le_u16(actor + 0xAu, 0x0004u);
 }
+
 uint8_t object_action_latched(void) { return _obj_action_latch != 0; }
+
 void object_set_action_latched(uint8_t on)
 { _obj_action_latch = on ? 0xFFu : 0u; }
 
@@ -6434,7 +6445,9 @@ static void _obj_driver_call(uint32_t n)
     _obj_sfx = (uint8_t)(n);
     audio_sfx(n); // 1000:83B7: the gate lives in audio.c
 }
+
 void object_driver_call(uint32_t n) { _obj_driver_call(n); }
+
 uint8_t object_last_sfx(void) { return _obj_sfx; }
 
 /** @brief 1000:EA33: the acting entity's bit in the two stack masks, 0x64AD and
@@ -6705,10 +6718,12 @@ static void _obj_cmd_enter(uint8_t *actor)
     _obj_out_state_hi = 1; // 1000:EEFC
     _obj_driver_call(3);
 }
+
 /**
  * @brief Set the 0x6FE6 flag.
  */
 static void _obj_flag6f_e6_set(void) { _obj_flag6f_e6 = 0xFFu; }
+
 uint8_t object_flag6f_e6(void) { return _obj_flag6f_e6 != 0u; }
 
 /* Step the frame down within [lo,hi] and count +0xA down. */
@@ -8290,7 +8305,9 @@ static void _obj_cmd_clear_countdown(uint8_t *actor)
 { wr_le_u16(actor + 0xAu, 0u); }
 
 void object_stream_command(uint8_t *actor) { _obj_cmd_stream_timed(actor); }
+
 void object_clear_countdown(uint8_t *actor) { _obj_cmd_clear_countdown(actor); }
+
 void object_set_command_timer(uint32_t v) { _obj_cmd_timer = (uint16_t)v; }
 
 /**
@@ -9132,6 +9149,7 @@ void object_animator_tick(void)
 
 uint8_t *object_group_at(uint32_t i)
 { return i < 8u ? (uint8_t *)_obj_register[i] : NULL; }
+
 void object_animator_reset(void)
 {
     _obj_anim_div = 0;

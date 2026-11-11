@@ -154,4 +154,5 @@ void sdl3_video_set_palette(const uint8_t *p6, uint32_t first, uint32_t n)
 }
 
 uint8_t *sdl3_video_page(int32_t which) { return _vid_page(which); }
+
 void sdl3_video_present(int32_t which) { _vid_present(which); }

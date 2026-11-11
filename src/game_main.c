@@ -180,8 +180,11 @@ static void _game_tick(void)
      * calling it here as well would tick the clock and the slides twice per
      * display period. */
 }
+
 uint8_t gameflow_goal_page_up(void) { return _goal_showing; }
+
 uint8_t gameflow_goal_armed(void) { return _goal_page; }
+
 uint8_t gameflow_key_wait_active(void) { return _key_wait_stage != 0; }
 
 /** @brief One tick of 1000:3954's three wait loops.

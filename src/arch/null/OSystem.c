@@ -167,17 +167,21 @@ const OSystem g_osys_null = {
 };
 
 static void _null_set_mode(VideoMode mode) { _mode_set = mode; }
+
 static uint8_t *_null_page(int32_t which) { return _pages[which & 1]; }
+
 static void _null_present(int32_t which)
 {
     (void)which;
     if (_present_hook) _present_hook(_poll_count);
 }
+
 static void _null_set_palette(const uint8_t *p6, uint32_t first, uint32_t n)
 {
     if (first + n > 256) n = 256 - first;
     memcpy(_pal + first * 3, p6, (size_t)n * 3);
 }
+
 static void _null_poll(InputState *out)
 {
     if (_script_states && _script_n) {
@@ -191,11 +195,13 @@ static void _null_poll(InputState *out)
      * (game_main's input.quit check), not from inside the backend */
     if (_tick_limit && _tick_counter >= _tick_limit) out->quit = 1;
 }
+
 static void _null_timer_start(uint32_t rate, TickFn tick)
 {
     (void)rate; // the null backend has no clock: one tickSync = one tick
     _the_tick = tick;
 }
+
 /* One tick boundary: bump the counter and run the ISR body. */
 static void _null_tick_sync(uint32_t *lastSeen)
 {
@@ -207,11 +213,13 @@ static void _null_tick_sync(uint32_t *lastSeen)
     if (_the_tick) _the_tick();
     *lastSeen = _tick_counter;
 }
+
 static int32_t _null_audio_install(void)
 {
     _audio_installs++;
     return 0;
 }
+
 static int32_t _null_audio_load(const uint8_t *image, uint32_t size)
 {
     (void)image;
@@ -220,17 +228,25 @@ static int32_t _null_audio_load(const uint8_t *image, uint32_t size)
     _audio_tune_size = size;
     return 0;
 }
+
 static void _null_audio_resume(void) { _audio_starts++; }
+
 static void _null_audio_stop(void) { _audio_stops++; }
+
 static void _null_audio_sfx(uint16_t id)
 {
     _audio_sfx_count++;
     _audio_last_sfx = id;
 }
+
 static void _null_audio_tempo(uint8_t cl) { _audio_tempo = cl; }
+
 static void _null_audio_tick(void) { _audio_ticks++; }
+
 static int32_t _null_audio_driver_id(void) { return 1; }
+
 static void _null_warn(const char *msg) { fprintf(stderr, "%s\n", msg); }
+
 static void _null_fatal(const char *msg)
 {
     fprintf(stderr, "fatal: %s\n", msg);
@@ -264,30 +280,35 @@ void osys_null_inject(const InputState *in) { _the_input = *in; }
  * @return The audio-start count.
  */
 uint32_t osys_null_audio_starts(void) { return _audio_starts; }
+
 /**
  * @brief Accessor: the music-stop (cmd 6) count.
  *
  * @return The audio-stop count.
  */
 uint32_t osys_null_audio_stops(void) { return _audio_stops; }
+
 /**
  * @brief Accessor: the install count.
  *
  * @return The install count.
  */
 uint32_t osys_null_audio_installs(void) { return _audio_installs; }
+
 /**
  * @brief Accessor: the tune-load count.
  *
  * @return The tune-load count.
  */
 uint32_t osys_null_audio_loads(void) { return _audio_loads; }
+
 /**
  * @brief Accessor: the last loaded tune's byte size.
  *
  * @return The size.
  */
 uint32_t osys_null_audio_tune_size(void) { return _audio_tune_size; }
+
 /**
  * @brief Accessor: the byte size of the i-th tune load.
  *
@@ -296,12 +317,14 @@ uint32_t osys_null_audio_tune_size(void) { return _audio_tune_size; }
  */
 uint32_t osys_null_audio_load_size(uint32_t i)
 { return i < _AUDIO_LOADS_MAX ? _audio_load_size[i] : 0u; }
+
 /**
  * @brief Accessor: the sound-effect command count.
  *
  * @return The count.
  */
 uint32_t osys_null_audio_sfx_count(void) { return _audio_sfx_count; }
+
 /**
  * @brief Accessor: the last sound-effect event id.
  *
@@ -309,18 +332,21 @@ uint32_t osys_null_audio_sfx_count(void) { return _audio_sfx_count; }
  */
 uint16_t osys_null_audio_last_sfx(void)
 { return _audio_sfx_count ? _audio_last_sfx : 0xFFFFu; }
+
 /**
  * @brief Accessor: the last master-volume byte (cmd 0x0A).
  *
  * @return The byte.
  */
 uint8_t osys_null_audio_tempo(void) { return _audio_tempo; }
+
 /**
  * @brief Accessor: the music-tick count (cmd 2).
  *
  * @return The count.
  */
 uint32_t osys_null_audio_ticks(void) { return _audio_ticks; }
+
 /**
  * @brief Accessor: the last video mode set.
  *
@@ -333,6 +359,7 @@ VideoMode osys_null_video_mode(void) { return _mode_set; }
  * @return the eventsPoll call count
  */
 uint32_t osys_null_poll_count(void) { return _poll_count; }
+
 /**
  * @brief Install the present hook.
  *

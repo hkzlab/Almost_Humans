@@ -574,6 +574,7 @@ void party_intro_set_values(uint16_t level, uint16_t need, uint16_t members,
 }
 
 void party_intro_set_game_over(uint8_t on) { _game_over_mode = on ? 1 : 0; }
+
 uint16_t party_intro_score(void) { return _g_score; }
 
 /**
@@ -590,6 +591,7 @@ static uint8_t *_load(const char *name)
 }
 
 const uint8_t *party_intro_workpal(void) { return _workpal; }
+
 const uint8_t *party_intro_pal_upper(void) { return _pal_upper; }
 
 uint8_t party_intro_start(void)

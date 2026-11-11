@@ -154,6 +154,7 @@ static inline uint16_t bo_be16(uint16_t v) { return bo_bswap16(v); }
  * @return the host-order value
  */
 static inline uint32_t bo_be32(uint32_t v) { return bo_bswap32(v); }
+
 #else
 /**
  * @brief Convert a little-endian 16-bit value to host order.
@@ -186,6 +187,7 @@ static inline uint16_t bo_be16(uint16_t v) { return v; }
  * @return the host-order value
  */
 static inline uint32_t bo_be32(uint32_t v) { return v; }
+
 #endif
 
 /* --- reads ----------------------------------------------------------- */

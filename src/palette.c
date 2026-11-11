@@ -64,8 +64,11 @@ void palette_build_fade(uint16_t first, uint16_t entries, uint16_t div,
 uint8_t palette_fade_active(void) { return _fade_active; }
 
 const uint8_t *palette_dac_shadow(void) { return _dac; }
+
 const uint8_t *palette_fade_target(void) { return _fade_target; }
+
 uint16_t palette_fade_first(void) { return _fade_first; }
+
 uint16_t palette_fade_comps(void) { return _fade_comps; }
 
 void palette_tick(void)

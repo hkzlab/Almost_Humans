@@ -43,9 +43,13 @@ uint8_t save_load_slot(uint8_t slot)
 void save_consume(void) { _save_loaded = 0; }
 
 uint8_t save_present(void) { return _save_loaded; }
+
 uint16_t save_level(void) { return rd_le_u16(_save_buf + 0x00); }
+
 uint16_t save_time(void) { return rd_le_u16(_save_buf + 0x07); }
+
 uint16_t save_members(void) { return rd_le_u16(_save_buf + 0x0B); }
+
 const uint8_t *save_blob(void) { return _save_buf; }
 
 int32_t save_write_slot(uint8_t slot, uint16_t level, uint16_t timeWord,
