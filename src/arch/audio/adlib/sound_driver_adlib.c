@@ -13,10 +13,10 @@
 #include "audio/adlib/sound_driver_adlib.h"
 
 #include "byteorder.h"
+#include "arch_mem.h"
 #include "thirdparty/opl3.h"
 
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
 
 #define ADLIB_VOICES        11u   // 6 FM channels + 5 rhythm voices
@@ -984,10 +984,11 @@ static void _step_record(SoundDriver *drv, AdlibRecord *rec)
  */
 static SoundDriver *_adlib_create(uint32_t sampleRate)
 {
-    SoundDriver *drv = calloc(1, sizeof(*drv));
+    SoundDriver *drv = arch_mem_alloc(sizeof(*drv));
     unsigned i;
 
     if (!drv) return NULL;
+    memset(drv, 0, sizeof(*drv));
     if (sampleRate == 0) sampleRate = 48000;
     drv->sampleRate = sampleRate;
     OPL3_Reset(&drv->opl, sampleRate);
@@ -1008,8 +1009,8 @@ static SoundDriver *_adlib_create(uint32_t sampleRate)
 static void _adlib_destroy(SoundDriver *drv)
 {
     if (!drv) return;
-    free(drv->tune);
-    free(drv);
+    arch_mem_free(drv->tune);
+    arch_mem_free(drv);
 }
 
 /**
@@ -1097,8 +1098,8 @@ static void _adlib_load_tune(SoundDriver *drv, const uint8_t *image,
     if (table_end > size) return;
     if (table / 2u > ADLIB_OFFSETS) return;
 
-    free(drv->tune);
-    drv->tune = malloc(size);
+    arch_mem_free(drv->tune);
+    drv->tune = arch_mem_alloc(size);
     if (!drv->tune) {
         drv->tune_size = 0;
         return;

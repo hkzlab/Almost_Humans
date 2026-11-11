@@ -122,7 +122,7 @@ target_compile_definitions(core PRIVATE $<$<CONFIG:Debug>:HUMANSRE_DEBUG_EXTRAS>
 add_executable(test_loop tests/test_loop.c
     src/arch/null/OSystem.c)          # the null backend: the attract composes
 target_include_directories(test_loop PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_link_libraries(test_loop PRIVATE core fs_posix)
+target_link_libraries(test_loop PRIVATE core fs_posix arch_mem)
 humansre_warnings(test_loop)
 add_test(NAME flow COMMAND test_loop)
 
@@ -148,7 +148,7 @@ set(HUMANS_VOLUMES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../binaries/volumes"
 add_executable(test_ver_detect tests/test_ver_detect.c
     src/arch/null/OSystem.c)          # the null backend: the warning's destination
 target_include_directories(test_ver_detect PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_link_libraries(test_ver_detect PRIVATE core fs_posix)
+target_link_libraries(test_ver_detect PRIVATE core fs_posix arch_mem)
 humansre_warnings(test_ver_detect)
 add_test(NAME ver_detect COMMAND test_ver_detect ${HUMANS_VOLUMES_DIR})
 
@@ -172,7 +172,7 @@ endif()
 add_executable(test_res tests/test_res.c
     src/arch/null/OSystem.c)
 target_include_directories(test_res PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_link_libraries(test_res PRIVATE core fs_posix)
+target_link_libraries(test_res PRIVATE core fs_posix arch_mem)
 humansre_warnings(test_res)
 add_test(NAME res COMMAND test_res ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 
@@ -181,13 +181,13 @@ add_test(NAME res COMMAND test_res ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 add_executable(test_party tests/test_party.c
     src/arch/null/OSystem.c)
 target_include_directories(test_party PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_link_libraries(test_party PRIVATE core fs_posix)
+target_link_libraries(test_party PRIVATE core fs_posix arch_mem)
 humansre_warnings(test_party)
 add_test(NAME party COMMAND test_party ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 add_executable(test_party_reset tests/test_party_reset.c
     src/arch/null/OSystem.c)
 target_include_directories(test_party_reset PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_link_libraries(test_party_reset PRIVATE core fs_posix)
+target_link_libraries(test_party_reset PRIVATE core fs_posix arch_mem)
 humansre_warnings(test_party_reset)
 add_test(NAME party_reset COMMAND test_party_reset ${HUMANS_DATA_DIR})
 
@@ -196,7 +196,7 @@ add_test(NAME party_reset COMMAND test_party_reset ${HUMANS_DATA_DIR})
 add_executable(test_fadeladder tests/test_fadeladder.c
     src/arch/null/OSystem.c)
 target_include_directories(test_fadeladder PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_link_libraries(test_fadeladder PRIVATE core fs_posix)
+target_link_libraries(test_fadeladder PRIVATE core fs_posix arch_mem)
 humansre_warnings(test_fadeladder)
 add_test(NAME fadeladder COMMAND test_fadeladder ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 
@@ -206,7 +206,7 @@ add_test(NAME fadeladder COMMAND test_fadeladder ${HUMANS_DATA_DIR} ${HUMANS_FIX
 add_executable(test_scene tests/test_scene.c
     src/arch/null/OSystem.c)          # the null backend's test hooks
 target_include_directories(test_scene PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_link_libraries(test_scene PRIVATE core fs_posix)
+target_link_libraries(test_scene PRIVATE core fs_posix arch_mem)
 humansre_warnings(test_scene)
 add_test(NAME scene COMMAND test_scene ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 
@@ -215,7 +215,7 @@ add_test(NAME scene COMMAND test_scene ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 add_executable(test_smoke tests/test_smoke.c
     src/arch/null/OSystem.c)          # the null backend's test hooks
 target_include_directories(test_smoke PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_link_libraries(test_smoke PRIVATE core fs_posix)
+target_link_libraries(test_smoke PRIVATE core fs_posix arch_mem)
 humansre_warnings(test_smoke)
 add_test(NAME smoke COMMAND test_smoke ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 
@@ -224,7 +224,7 @@ add_test(NAME smoke COMMAND test_smoke ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 add_executable(test_endflow tests/test_endflow.c
     src/arch/null/OSystem.c)          # the null backend's test hooks
 target_include_directories(test_endflow PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_link_libraries(test_endflow PRIVATE core fs_posix)
+target_link_libraries(test_endflow PRIVATE core fs_posix arch_mem)
 humansre_warnings(test_endflow)
 add_test(NAME endflow_won COMMAND test_endflow ${HUMANS_DATA_DIR} 1)
 add_test(NAME endflow_lost COMMAND test_endflow ${HUMANS_DATA_DIR} 0)
@@ -235,7 +235,7 @@ add_test(NAME endflow_restart COMMAND test_endflow ${HUMANS_DATA_DIR} 2)
 add_executable(test_boot tests/test_boot.c
     src/arch/null/OSystem.c)          # the null backend's test hooks
 target_include_directories(test_boot PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_link_libraries(test_boot PRIVATE core fs_posix)
+target_link_libraries(test_boot PRIVATE core fs_posix arch_mem)
 humansre_warnings(test_boot)
 add_test(NAME boot COMMAND test_boot ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 
@@ -244,7 +244,7 @@ add_test(NAME boot COMMAND test_boot ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 add_executable(test_boot_key tests/test_boot_key.c
     src/arch/null/OSystem.c)          # the null backend's test hooks
 target_include_directories(test_boot_key PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_link_libraries(test_boot_key PRIVATE core fs_posix)
+target_link_libraries(test_boot_key PRIVATE core fs_posix arch_mem)
 humansre_warnings(test_boot_key)
 add_test(NAME boot_key COMMAND test_boot_key ${HUMANS_DATA_DIR})
 
@@ -253,7 +253,7 @@ add_test(NAME boot_key COMMAND test_boot_key ${HUMANS_DATA_DIR})
 add_executable(test_boot_flash tests/test_boot_flash.c
     src/arch/null/OSystem.c)          # the null backend's test hooks
 target_include_directories(test_boot_flash PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_link_libraries(test_boot_flash PRIVATE core fs_posix)
+target_link_libraries(test_boot_flash PRIVATE core fs_posix arch_mem)
 humansre_warnings(test_boot_flash)
 add_test(NAME boot_flash COMMAND test_boot_flash ${HUMANS_DATA_DIR})
 
@@ -262,7 +262,7 @@ add_test(NAME boot_flash COMMAND test_boot_flash ${HUMANS_DATA_DIR})
 add_executable(test_boot_scene_key tests/test_boot_scene_key.c
     src/arch/null/OSystem.c)          # the null backend's test hooks
 target_include_directories(test_boot_scene_key PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_link_libraries(test_boot_scene_key PRIVATE core fs_posix)
+target_link_libraries(test_boot_scene_key PRIVATE core fs_posix arch_mem)
 humansre_warnings(test_boot_scene_key)
 add_test(NAME boot_scene_key_trans COMMAND test_boot_scene_key ${HUMANS_DATA_DIR} trans)
 add_test(NAME boot_scene_key_frame COMMAND test_boot_scene_key ${HUMANS_DATA_DIR} frame)
@@ -272,7 +272,7 @@ add_test(NAME boot_scene_key_frame COMMAND test_boot_scene_key ${HUMANS_DATA_DIR
 add_executable(test_level tests/test_level.c
     src/arch/null/OSystem.c)          # the null backend's test hooks
 target_include_directories(test_level PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_link_libraries(test_level PRIVATE core fs_posix)
+target_link_libraries(test_level PRIVATE core fs_posix arch_mem)
 humansre_warnings(test_level)
 add_test(NAME level COMMAND test_level ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 
@@ -282,7 +282,7 @@ add_test(NAME level COMMAND test_level ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 add_executable(test_statusbar tests/test_statusbar.c
     src/arch/null/OSystem.c)          # the null backend's test hooks
 target_include_directories(test_statusbar PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_link_libraries(test_statusbar PRIVATE core fs_posix)
+target_link_libraries(test_statusbar PRIVATE core fs_posix arch_mem)
 humansre_warnings(test_statusbar)
 add_test(NAME statusbar COMMAND test_statusbar ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 
@@ -292,7 +292,7 @@ add_test(NAME statusbar COMMAND test_statusbar ${HUMANS_DATA_DIR} ${HUMANS_FIX_D
 add_executable(test_entity tests/test_entity.c
     src/arch/null/OSystem.c)          # the null backend's test hooks
 target_include_directories(test_entity PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_link_libraries(test_entity PRIVATE core fs_posix)
+target_link_libraries(test_entity PRIVATE core fs_posix arch_mem)
 humansre_warnings(test_entity)
 add_test(NAME entity COMMAND test_entity ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 
@@ -301,7 +301,7 @@ add_test(NAME entity COMMAND test_entity ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 add_executable(test_pause tests/test_pause.c
     src/arch/null/OSystem.c)          # the null backend's test hooks
 target_include_directories(test_pause PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_link_libraries(test_pause PRIVATE core fs_posix)
+target_link_libraries(test_pause PRIVATE core fs_posix arch_mem)
 humansre_warnings(test_pause)
 add_test(NAME pause COMMAND test_pause ${HUMANS_DATA_DIR})
 
@@ -310,7 +310,7 @@ add_test(NAME pause COMMAND test_pause ${HUMANS_DATA_DIR})
 add_executable(test_pan_input tests/test_pan_input.c
     src/arch/null/OSystem.c)          # the null backend: the input script
 target_include_directories(test_pan_input PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_link_libraries(test_pan_input PRIVATE core fs_posix)
+target_link_libraries(test_pan_input PRIVATE core fs_posix arch_mem)
 humansre_warnings(test_pan_input)
 add_test(NAME pan_input COMMAND test_pan_input ${HUMANS_DATA_DIR})
 
@@ -319,7 +319,7 @@ add_test(NAME pan_input COMMAND test_pan_input ${HUMANS_DATA_DIR})
 add_executable(test_save tests/test_save.c
     src/arch/null/OSystem.c)          # the null backend's test hooks
 target_include_directories(test_save PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_link_libraries(test_save PRIVATE core fs_posix)
+target_link_libraries(test_save PRIVATE core fs_posix arch_mem)
 humansre_warnings(test_save)
 add_test(NAME save COMMAND test_save ${HUMANS_DATA_DIR})
 
@@ -333,7 +333,7 @@ set_tests_properties(pause save PROPERTIES RESOURCE_LOCK save_slot_b)
 add_executable(test_frontend tests/test_frontend.c
     src/arch/null/OSystem.c)          # the null backend's test hooks
 target_include_directories(test_frontend PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_link_libraries(test_frontend PRIVATE core fs_posix)
+target_link_libraries(test_frontend PRIVATE core fs_posix arch_mem)
 humansre_warnings(test_frontend)
 add_test(NAME frontend COMMAND test_frontend ${HUMANS_DATA_DIR})
 
@@ -344,7 +344,7 @@ set(HUMANS_REF_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../analysis/attract_scroll"
 add_executable(test_attract tests/test_attract.c
     src/arch/null/OSystem.c)          # the null backend's test hooks
 target_include_directories(test_attract PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_link_libraries(test_attract PRIVATE core fs_posix)
+target_link_libraries(test_attract PRIVATE core fs_posix arch_mem)
 humansre_warnings(test_attract)
 add_test(NAME attract COMMAND test_attract ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR} ${HUMANS_REF_DIR})
 
@@ -359,6 +359,12 @@ add_library(fs_null  src/arch/fs/null/fs_null.c)
 add_library(fs_posix src/arch/fs/posix/fs_posix.c)
 target_include_directories(fs_null  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 target_include_directories(fs_posix PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+
+# The process heap (arch/mem.h): OSystem's memAlloc/memFree point at these
+# forwarders, and the arch modules call them directly.  It is the only
+# non-thirdparty place that calls the CRT allocator.
+add_library(arch_mem src/arch/arch_mem.c)
+target_include_directories(arch_mem PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 
 # The sound-driver modules (audio/sound_driver.h): a port links the ones it
 # offers and selects one at run time.  adlib/sound_driver_adlib.c is
@@ -381,6 +387,9 @@ target_include_directories(audio_adlib PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_include_directories(audio_beeper PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 target_include_directories(audio_beeper PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_include_directories(audio_null PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(audio_adlib PRIVATE arch_mem)
+target_link_libraries(audio_beeper PRIVATE arch_mem)
+target_link_libraries(audio_null PRIVATE arch_mem)
 if(NOT MSVC)
     # the vendored impulse model builds its sinc LUT with sin/cos
     target_link_libraries(audio_beeper PRIVATE m)
@@ -399,6 +408,7 @@ if(MT32EMU_INCLUDE_DIR AND MT32EMU_LIBRARY)
     target_include_directories(audio_mt32 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
                                                   ${MT32EMU_INCLUDE_DIR})
     target_link_libraries(audio_mt32 PUBLIC ${MT32EMU_LIBRARY})
+    target_link_libraries(audio_mt32 PRIVATE arch_mem)
     message(STATUS "mt32emu: ${MT32EMU_LIBRARY} - --audio mt32 available")
 else()
     set(HUMANSRE_MT32 FALSE)
@@ -421,7 +431,7 @@ add_test(NAME audio_link COMMAND test_audio_link ${HUMANS_DATA_DIR})
 add_executable(test_adlib_live tests/test_adlib_live.c
     src/arch/audio/adlib/thirdparty/opl3.c)
 target_include_directories(test_adlib_live PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_link_libraries(test_adlib_live PRIVATE m)
+target_link_libraries(test_adlib_live PRIVATE m arch_mem)
 humansre_warnings(test_adlib_live)
 humansre_test_asserts(test_adlib_live)
 add_test(NAME adlib_live COMMAND test_adlib_live ${HUMANS_FIX_DIR}/HUMANS.000/MUS/TITLE.ALB)
@@ -442,13 +452,22 @@ add_test(NAME adlib COMMAND test_adlib ${HUMANS_FIX_DIR})
 add_executable(test_beeper tests/test_beeper.c
     src/arch/audio/beeper/thirdparty/pcspeaker_impulse.c)
 target_include_directories(test_beeper PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_link_libraries(test_beeper PRIVATE core fs_posix)
+target_link_libraries(test_beeper PRIVATE core fs_posix arch_mem)
 if(NOT MSVC)
     target_link_libraries(test_beeper PRIVATE m)
 endif()
 humansre_warnings(test_beeper)
 humansre_test_asserts(test_beeper)
 add_test(NAME beeper COMMAND test_beeper ${HUMANS_FIX_DIR} ${HUMANS_DATA_DIR})
+
+# The settable arch heap: OSystem's pair and the arch modules share it; a
+# counting pair must see both, and a driver's create/destroy must balance.
+add_executable(test_arch_mem tests/test_arch_mem.c)
+target_include_directories(test_arch_mem PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(test_arch_mem PRIVATE arch_mem audio_adlib)
+humansre_warnings(test_arch_mem)
+humansre_test_asserts(test_arch_mem)
+add_test(NAME arch_mem COMMAND test_arch_mem)
 
 # The MT-32 driver module against a real .RLD and a real ROM set.  The ROMs
 # are not shipped: ctest passes HUMANS_MT32_ROM_DIR when it exists, and the
@@ -457,7 +476,7 @@ add_test(NAME beeper COMMAND test_beeper ${HUMANS_FIX_DIR} ${HUMANS_DATA_DIR})
 if(HUMANSRE_MT32)
     add_executable(test_mt32 tests/test_mt32.c)
     target_include_directories(test_mt32 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch ${MT32EMU_INCLUDE_DIR})
-    target_link_libraries(test_mt32 PRIVATE ${MT32EMU_LIBRARY})
+    target_link_libraries(test_mt32 PRIVATE ${MT32EMU_LIBRARY} arch_mem)
     humansre_warnings(test_mt32)
     add_test(NAME mt32 COMMAND test_mt32 ${HUMANS_FIX_DIR})
     if(HUMANS_MT32_ROM_DIR AND EXISTS "${HUMANS_MT32_ROM_DIR}")
@@ -471,7 +490,7 @@ add_executable(humans-null
     src/arch/null/OSystem.c
     src/arch/null/main.c
 )
-target_link_libraries(humans-null PRIVATE core fs_posix)
+target_link_libraries(humans-null PRIVATE core fs_posix arch_mem)
 humansre_warnings(humans-null)
 
 # The first real port (optional so the tree builds on machines without SDL3).
@@ -484,7 +503,7 @@ if(SDL3_FOUND)
         src/arch/sdl3/timer.c
         src/arch/sdl3/audio.c
     )
-    target_link_libraries(humans-sdl3 PRIVATE core fs_posix audio_adlib audio_beeper SDL3::SDL3)
+    target_link_libraries(humans-sdl3 PRIVATE core fs_posix audio_adlib audio_beeper arch_mem SDL3::SDL3)
     target_include_directories(humans-sdl3 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     if(HUMANSRE_MT32)
         target_link_libraries(humans-sdl3 PRIVATE audio_mt32)
@@ -501,6 +520,6 @@ endif()
 add_executable(test_flow tests/test_flow.c
     src/arch/null/OSystem.c)          # the null backend's test hooks
 target_include_directories(test_flow PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_link_libraries(test_flow PRIVATE core fs_posix)
+target_link_libraries(test_flow PRIVATE core fs_posix arch_mem)
 humansre_warnings(test_flow)
 add_test(NAME level_flow COMMAND test_flow ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})

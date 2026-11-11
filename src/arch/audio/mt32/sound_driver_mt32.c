@@ -11,12 +11,12 @@
  */
 #include "audio/mt32/sound_driver_mt32.h"
 #include "byteorder.h"
+#include "arch_mem.h"
 
 #include <mt32emu.h>
 
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 #ifdef _WIN32
@@ -960,13 +960,13 @@ static uint8_t *_read_file(const char *path, size_t *size)
         fclose(f);
         return NULL;
     }
-    buf = malloc((size_t)n);
+    buf = arch_mem_alloc((size_t)n);
     if (!buf) {
         fclose(f);
         return NULL;
     }
     if (fread(buf, 1, (size_t)n, f) != (size_t)n) {
-        free(buf);
+        arch_mem_free(buf);
         fclose(f);
         return NULL;
     }
@@ -1003,7 +1003,7 @@ static void _load_rom_dir(SoundDriver *drv, const char *dir)
             drv->rom_size[drv->rom_count] = size;
             drv->rom_count++;
         } else {
-            free(buf);
+            arch_mem_free(buf);
         }
     } while (FindNextFileA(h, &fd));
     FindClose(h);
@@ -1023,7 +1023,7 @@ static void _load_rom_dir(SoundDriver *drv, const char *dir)
             drv->rom_size[drv->rom_count] = size;
             drv->rom_count++;
         } else {
-            free(buf);
+            arch_mem_free(buf);
         }
     }
     closedir(d);
@@ -1244,8 +1244,9 @@ static SoundDriver *_mt32_create(uint32_t sampleRate)
         fprintf(stderr, "audio(mt32): no ROM directory given\n");
         return NULL;
     }
-    drv = calloc(1, sizeof(*drv));
+    drv = arch_mem_alloc(sizeof(*drv));
     if (!drv) return NULL;
+    memset(drv, 0, sizeof(*drv));
     if (sampleRate == 0) sampleRate = 48000;
     drv->sampleRate = sampleRate;
 
@@ -1253,7 +1254,7 @@ static SoundDriver *_mt32_create(uint32_t sampleRate)
     drv->ctx = mt32emu_create_context(report, NULL);
     if (!drv->ctx) {
         fprintf(stderr, "audio(mt32): cannot create the emulator context\n");
-        free(drv);
+        arch_mem_free(drv);
         return NULL;
     }
     mt32emu_set_stereo_output_samplerate(drv->ctx, (double)sampleRate);
@@ -1276,8 +1277,8 @@ static SoundDriver *_mt32_create(uint32_t sampleRate)
         fprintf(stderr, "audio(mt32): no control+PCM ROM pair found in '%s'\n",
                 _rom_dir);
         mt32emu_free_context(drv->ctx);
-        for (i = 0; i < drv->rom_count; i++) free(drv->rom[i]);
-        free(drv);
+        for (i = 0; i < drv->rom_count; i++) arch_mem_free(drv->rom[i]);
+        arch_mem_free(drv);
         return NULL;
     }
     if (mt32emu_open_synth(drv->ctx) != MT32EMU_RC_OK) {
@@ -1285,8 +1286,8 @@ static SoundDriver *_mt32_create(uint32_t sampleRate)
                 "audio(mt32): cannot open the synth with the ROMs in '%s'\n",
                 _rom_dir);
         mt32emu_free_context(drv->ctx);
-        for (i = 0; i < drv->rom_count; i++) free(drv->rom[i]);
-        free(drv);
+        for (i = 0; i < drv->rom_count; i++) arch_mem_free(drv->rom[i]);
+        arch_mem_free(drv);
         return NULL;
     }
     if (mt32emu_get_actual_stereo_output_samplerate(drv->ctx) != sampleRate) {
@@ -1294,8 +1295,8 @@ static SoundDriver *_mt32_create(uint32_t sampleRate)
                 sampleRate);
         mt32emu_close_synth(drv->ctx);
         mt32emu_free_context(drv->ctx);
-        for (i = 0; i < drv->rom_count; i++) free(drv->rom[i]);
-        free(drv);
+        for (i = 0; i < drv->rom_count; i++) arch_mem_free(drv->rom[i]);
+        arch_mem_free(drv);
         return NULL;
     }
 
@@ -1332,9 +1333,9 @@ static void _mt32_destroy(SoundDriver *drv)
     if (!drv) return;
     mt32emu_close_synth(drv->ctx);
     mt32emu_free_context(drv->ctx);
-    for (i = 0; i < drv->rom_count; i++) free(drv->rom[i]);
-    free(drv->tune);
-    free(drv);
+    for (i = 0; i < drv->rom_count; i++) arch_mem_free(drv->rom[i]);
+    arch_mem_free(drv->tune);
+    arch_mem_free(drv);
 }
 
 /**
@@ -1386,8 +1387,8 @@ static void _mt32_load_tune(SoundDriver *drv, const uint8_t *image,
     if (drv->off_base + 0x200u > size || drv->record_base + 0x800u > size)
         return;
 
-    free(drv->tune);
-    drv->tune = malloc(size);
+    arch_mem_free(drv->tune);
+    drv->tune = arch_mem_alloc(size);
     if (!drv->tune) {
         drv->tune_size = 0;
         return;

@@ -13,10 +13,10 @@
 #include "audio/beeper/sound_driver_beeper.h"
 
 #include "byteorder.h"
+#include "arch_mem.h"
 #include "thirdparty/pcspeaker_impulse.h"
 
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
 
 #define BEEP_HEADER        0x158u
@@ -481,9 +481,10 @@ static void _beeper_tick(SoundDriver *drv)
  */
 static SoundDriver *_beeper_create(uint32_t sampleRate)
 {
-    SoundDriver *drv = calloc(1, sizeof(*drv));
+    SoundDriver *drv = arch_mem_alloc(sizeof(*drv));
 
     if (!drv) return NULL;
+    memset(drv, 0, sizeof(*drv));
     if (sampleRate == 0) sampleRate = 48000;
     drv->sampleRate = sampleRate;
     drv->ready = 1;
@@ -495,7 +496,7 @@ static SoundDriver *_beeper_create(uint32_t sampleRate)
     drv->mux_half = 6;
     drv->speaker = pcspeaker_impulse_create(sampleRate);
     if (!drv->speaker) {
-        free(drv);
+        arch_mem_free(drv);
         return NULL;
     }
     _speaker_off(drv);
@@ -512,8 +513,8 @@ static void _beeper_destroy(SoundDriver *drv)
 {
     if (!drv) return;
     pcspeaker_impulse_destroy(drv->speaker);
-    free(drv->tune);
-    free(drv);
+    arch_mem_free(drv->tune);
+    arch_mem_free(drv);
 }
 
 /**
@@ -576,8 +577,8 @@ static void _beeper_load_tune(SoundDriver *drv, const uint8_t *image,
     if (sds > size) return;
     if (table / 2u > BEEP_OFFSETS) return;
 
-    free(drv->tune);
-    drv->tune = malloc(size);
+    arch_mem_free(drv->tune);
+    drv->tune = arch_mem_alloc(size);
     if (!drv->tune) {
         drv->tune_size = 0;
         return;

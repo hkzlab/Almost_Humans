@@ -24,6 +24,7 @@
 #include "byteorder.h"
 #include "compat.h"
 #include "fs/posix/fs_posix.h"
+#include "arch_mem.h"
 #include "osystem.h"
 #include "res.h"
 
@@ -323,8 +324,8 @@ int main(int argc, char **argv)
                                       .audioDriverId = _core_id,
                                       .warn = _core_warn,
                                       .fs = &g_fs_posix,
-                                      .memAlloc = malloc,
-                                      .memFree = free };
+                                      .memAlloc = arch_mem_alloc,
+                                      .memFree = arch_mem_free };
         static const char missing[] = "mus\\nope";
         uint32_t stops0;
 

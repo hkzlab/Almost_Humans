@@ -5,6 +5,7 @@
  * and --version.
  */
 #include "osystem.h"
+#include "arch_mem.h"
 #include "fs/posix/fs_posix.h"
 
 #include <SDL3/SDL.h>
@@ -157,21 +158,6 @@ static void _warn(const char *msg);
  */
 static void _fatal(const char *msg);
 
-/**
- * @brief The SDL3 backend's heap (the host allocator).
- *
- * @param size the byte count
- * @return the block, or NULL out of memory
- */
-static void *_mem_alloc(size_t size);
-
-/**
- * @brief The SDL3 backend's release.
- *
- * @param p the block
- */
-static void _mem_free(void *p);
-
 const OSystem g_osys_sdl3 = { sdl3_video_set_mode,
                               sdl3_video_page,
                               sdl3_video_present,
@@ -190,15 +176,11 @@ const OSystem g_osys_sdl3 = { sdl3_video_set_mode,
                               _warn,
                               _fatal,
                               &g_fs_posix,
-                              _mem_alloc,
-                              _mem_free };
+                              arch_mem_alloc,
+                              arch_mem_free };
 
 static void _warn(const char *msg)
 { SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "%s", msg); }
-
-static void *_mem_alloc(size_t size) { return malloc(size); }
-
-static void _mem_free(void *p) { free(p); }
 
 static void _fatal(const char *msg)
 {

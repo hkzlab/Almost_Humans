@@ -3,10 +3,10 @@
  * Port-only; built as `audio_null`, linked into no executable.
  */
 #include "audio/null/sound_driver_null.h"
+#include "arch_mem.h"
 
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 struct SoundDriver {
@@ -24,7 +24,7 @@ static const uint8_t _command_block[8];
  */
 static SoundDriver *_null_create(uint32_t sampleRate)
 {
-    SoundDriver *drv = malloc(sizeof(*drv));
+    SoundDriver *drv = arch_mem_alloc(sizeof(*drv));
     if (!drv) return NULL;
     drv->sampleRate = sampleRate;
     fprintf(stderr, "audio(null): install rate=%u\n", sampleRate);
@@ -40,7 +40,7 @@ static void _null_destroy(SoundDriver *drv)
 {
     if (!drv) return;
     fprintf(stderr, "audio(null): cmd 0x00 uninstall\n");
-    free(drv);
+    arch_mem_free(drv);
 }
 
 /**
