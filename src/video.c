@@ -13,23 +13,21 @@ static const OSystem *_video_osys;
 /* the A000 planar space: one address byte = four pixels, one per plane */
 static uint8_t _vram[65536][4];
 
-/* the shared text arena: 200 rows x 80 bytes.  The original carves it from
- * the boot heap block ([0xC9D] = [0x48AC] + the attract's buffers, 16000 B),
- * so it is allocated with the session and released at exit. */
+/* The shared text/scratch arena: 200 rows x 80 bytes.  The original carves
+ * the same region twice - the attract's 16000-B arena ([0xC9D], game_loop
+ * 1000:1369) and the level's [0x1E20] (init_buffer_ptrs 1000:31DA) - and
+ * every screen that draws text through it (the attract's effect 2, the room's
+ * name entry, the briefing, the dialogs).  The port takes one block when a
+ * screen first uses it and releases it when that screen exits
+ * (video_arena_release). */
+#define ARENA_BYTES 16000u
 static uint8_t *_arena;
 
 int32_t video_init(const OSystem *osys)
 {
     _video_osys = osys;
     mem_bind(osys);
-    _arena = mem_alloc(16000u);
-    return _arena ? 0 : -1;
-}
-
-void video_shutdown(void)
-{
-    mem_free(_arena);
-    _arena = NULL;
+    return 0;
 }
 
 void video_tick(void) { /* the flip is the backend's videoPresent */ }
@@ -100,6 +98,20 @@ void video_vram_present(uint8_t *page, uint16_t base, uint16_t pitch,
 
 uint8_t *video_flat(void) { return _video_osys->videoPage(1); }
 
-uint8_t *video_arena(void) { return _arena; }
+uint8_t *video_arena(void)
+{
+    if (!_arena) {
+        _arena = mem_alloc(ARENA_BYTES);
+        if (!_arena && _video_osys)
+            _video_osys->fatalError("text arena allocation failed");
+    }
+    return _arena;
+}
+
+void video_arena_release(void)
+{
+    mem_free(_arena);
+    _arena = NULL;
+}
 
 void video_set_mode(VideoMode mode) { _video_osys->videoSetMode(mode); }

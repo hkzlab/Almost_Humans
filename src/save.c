@@ -70,13 +70,6 @@ uint16_t save_members(void)
 
 const uint8_t *save_blob(void) { return _save_buf; }
 
-void save_shutdown(void)
-{
-    mem_free(_save_buf);
-    _save_buf = NULL;
-    _save_loaded = 0;
-}
-
 int32_t save_write_slot(uint8_t slot, uint16_t level, uint16_t timeWord,
                         uint16_t members)
 {

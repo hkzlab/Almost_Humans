@@ -611,6 +611,7 @@ uint8_t score_tick(const InputState *in)
         mem_free(_score_num);
         _score_num = NULL;
         font_publish(NULL);
+        video_arena_release(); // the card's [0x1E20] text arena
         return 0;
     default: return 0;
     }

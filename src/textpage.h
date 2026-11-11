@@ -31,11 +31,6 @@
 void textpage_publish_box(const uint8_t *bank);
 
 /**
- * @brief Release the dialog arena (the [0x1E20] heap block).
- */
-void textpage_shutdown(void);
-
-/**
  * @brief Draw a page of text into the page buffer.
  *
  * The block's two header lines (title + blank) come from `text` itself, so

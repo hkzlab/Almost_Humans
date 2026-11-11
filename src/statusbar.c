@@ -141,19 +141,6 @@ int32_t statusbar_init(const OSystem *osys)
     return 0;
 }
 
-void statusbar_shutdown(void)
-{
-    mem_free(_strip);
-    _strip = NULL;
-    mem_free(_panel4);
-    _panel4 = NULL;
-    _p4_size = 0;
-    mem_free(_icons3);
-    _icons3 = NULL;
-    mem_free(_stage);
-    _stage = NULL;
-}
-
 /**
  * @brief Write one 8-pixel mark row into the status band.
  *
@@ -432,7 +419,10 @@ void statusbar_charge_begin(void)
     _draw_band_slice(page);
     _frame_box(page, 0x5Fu, _bar_split + 0x0Cu, 0x82u, 0x0Fu, NULL, 0u);
     /* 1000:99D8's staging + the 0x9B7D trough: the second-half art at
-     * 0x3EE0+len reads the staged trough, not clean panel4. */
+     * 0x3EE0+len reads the staged trough, not clean panel4.  The staging
+     * exists only for the charge that built it (the 0x99D8 frame);
+     * statusbar_charge_end releases it. */
+    if (!_stage) _stage = mem_alloc(STAGE_BYTES);
     if (!_stage) return;
     for (uint16_t i = 0; i < STAGE_BYTES; i++)
         _stage[i] = (uint8_t)(0xC0u | _panel4[i]);
@@ -443,6 +433,8 @@ void statusbar_charge_end(void)
 {
     uint8_t *page = _sb_osys ? _sb_osys->videoPage(0) : NULL;
 
+    mem_free(_stage);
+    _stage = NULL;
     if (!page || !_panel4) return;
     _draw_band_slice(page);
     _draw_actions(page);

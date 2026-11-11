@@ -21,11 +21,6 @@
  */
 int32_t save_init(const OSystem *osys);
 
-/**
- * @brief Release the restore buffer ([0x1C92]).
- */
-void save_shutdown(void);
-
 /** @brief entry:004C: load slot 1..20 (letter 'A'+(n-1)); 0 = GAME OFF.
  *
  * Resets the state first, so a failed or absent slot leaves the fresh-game

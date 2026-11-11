@@ -132,7 +132,6 @@ static const OSystem *_scene_osys;
 static ScenePhase _scene_phase = SCENE_IDLE;
 static uint16_t _scene_level = 0xFFFFu; // the level the intro is for
 
-static uint8_t *_ani_data;
 static Ani _ani;
 static uint8_t *_script_buf; // decoded script object
 static uint16_t _plays;
@@ -402,8 +401,12 @@ static int32_t _scene_key_held(void)
  */
 static void _scene_unload(void)
 {
-    mem_free(_ani_data);
-    _ani_data = NULL;
+    mem_free(_ani.image);
+    _ani.image = NULL;
+    _ani.image_size = 0;
+    mem_free(_ani.entries);
+    _ani.entries = NULL;
+    _ani.n_entries = 0;
     mem_free(_script_buf);
     _script_buf = NULL;
     _indices = NULL;

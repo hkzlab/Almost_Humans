@@ -75,12 +75,6 @@ uint8_t party_intro_start(void);
 uint8_t party_intro_tick(const InputState *in);
 
 /**
- * @brief Release the briefing's heap blocks (the sprite sheet, the birdy strip,
- * the .bit image, the published font and the script store).
- */
-void party_intro_shutdown(void);
-
-/**
  * @brief 2B1B format_score + 2B70: format the score as a decimal string.
  *
  * @param v the value

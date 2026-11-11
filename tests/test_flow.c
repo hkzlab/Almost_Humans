@@ -7848,7 +7848,8 @@ int main(int argc, char **argv)
          * first non-zero word is 0xE007 at offset 16; the expander turns it
          * into [0, 14, 7, 0] on plane 0 and [0, 12, 15, 0] on plane 1. */
         {
-            static uint8_t in[32], out[65536];
+            /* 1000:0705 reads a fixed 4096-word (8192-B) window */
+            static uint8_t in[8192], out[65536];
 
             memset(in, 0, sizeof in);
             in[16] = 0x07u;

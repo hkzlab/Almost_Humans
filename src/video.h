@@ -25,10 +25,10 @@
  */
 int32_t video_init(const OSystem *osys);
 
-/**
- * @brief Release the session-long heap buffers (the shared text arena).
+/** @brief Release the shared text arena.  Every screen that uses it calls
+ * this when it exits; the next user allocates it again.
  */
-void video_shutdown(void);
+void video_arena_release(void);
 
 /**
  * @brief The video per-tick hook: empty, the flip is video_vram_present.

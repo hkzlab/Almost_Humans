@@ -946,6 +946,13 @@ uint8_t attract_tick(const InputState *in)
             break;
         }
         if (palette_fade_active()) break;
+        /* effect 4's work area and file: [0xD76] and [0xC9F] are dead once
+         * the credits have finished; the next cycle re-carves them */
+        mem_free(_e4strip);
+        _e4strip = NULL;
+        mem_free(_credtext);
+        _credtext = NULL;
+        _credtext_size = 0;
         _next_effect(); // -> effect 1: the cycle
         break;
 
@@ -969,9 +976,11 @@ void attract_shutdown(void)
     _unload_img();
     mem_free(_credtext);
     _credtext = NULL;
+    _credtext_size = 0;
     if (_text_spr) font_publish(NULL); // the glyph table dies with it
     mem_free(_text_spr);
     _text_spr = NULL;
     mem_free(_e4strip);
     _e4strip = NULL;
+    video_arena_release(); // the attract's [0xC9D] arena
 }

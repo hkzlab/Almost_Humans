@@ -559,7 +559,7 @@ void party_intro_set_values(uint16_t level, uint16_t need, uint16_t members,
     _g_members = members;
     _g_score = score;
     memset(_g_tribe, 0, sizeof _g_tribe);
-    if (tribe) memcpy(_g_tribe, tribe, sizeof _g_tribe - 1u);
+    if (tribe) strncpy(_g_tribe, tribe, sizeof _g_tribe - 1u);
     /* the image's verbatim strings (202F:0x105F..; the digit fields are
      * fixed-width and the formatter rewrites them in place, 0x3F1B) */
     strncpy(_s_all, game_strs[g_game_lang][GAME_STR_PARTY_COMING_UP],
@@ -893,10 +893,15 @@ uint8_t party_intro_tick(const InputState *in)
 
     case PH_DONE:
     default:
+        /* the briefing's carve at [0x11fe] (1000:253f/2546) and the arena it
+         * draws through are dead once the screen has exited */
         mem_free(_sheet);
         _sheet = NULL;
         mem_free(_strip);
         _strip = NULL;
+        mem_free(_bit_img);
+        _bit_img = NULL;
+        video_arena_release();
         break;
     }
 
@@ -912,18 +917,4 @@ void party_intro_compose(uint8_t *pg)
 {
     video_vram_present(pg, (uint16_t)(_page_disp + 8u), 88u, 0u,
                        VIDEO_PAGE_H_MODE13H);
-}
-
-void party_intro_shutdown(void)
-{
-    mem_free(_sheet);
-    _sheet = NULL;
-    mem_free(_strip);
-    _strip = NULL;
-    mem_free(_bit_img);
-    _bit_img = NULL;
-    mem_free(_font_bytes);
-    _font_bytes = NULL;
-    mem_free(_script_store);
-    _script_store = NULL;
 }

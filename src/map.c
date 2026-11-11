@@ -18,9 +18,10 @@
 #include <stdio.h>
 #include <string.h>
 
-#define MAP_PAGE   VIDEO_PAGE_BYTES
-#define NAME_MAX   13u
-#define GRID_CELLS 30u
+#define MAP_PAGE     VIDEO_PAGE_BYTES
+#define ALPHA_WINDOW 0x2000u // 1000:0705's fixed 4096-word source window
+#define NAME_MAX     13u
+#define GRID_CELLS   30u
 
 enum {
     MAP_CONGRATS,
@@ -1152,7 +1153,29 @@ uint8_t map_begin(void)
     _alpha_packed = NULL;
     mem_free(_alpha_sheet);
     _alpha_sheet = NULL;
-    _alpha_packed = res_load_chunk("APL\\ALPHA.SPR", NULL, NULL);
+    {
+        uint32_t asz = 0;
+
+        _alpha_packed = res_load_chunk("APL\\ALPHA.SPR", &asz, NULL);
+        /* 1000:0705 transposes a fixed 4096-word (8192-B) window.  The
+         * shipped file is 8128 B, so the window's 64-byte tail is zeroed
+         * rather than read past the chunk (the original's tail is whatever
+         * follows ALPHA in its pool; the cells that would use it are never
+         * drawn). */
+        if (_alpha_packed && asz < ALPHA_WINDOW) {
+            uint8_t *win = mem_alloc(ALPHA_WINDOW);
+
+            if (!win) {
+                mem_free(_alpha_packed);
+                _alpha_packed = NULL;
+            } else {
+                memset(win, 0, ALPHA_WINDOW);
+                memcpy(win, _alpha_packed, asz);
+                mem_free(_alpha_packed);
+                _alpha_packed = win;
+            }
+        }
+    }
     if (_alpha_packed) {
         _alpha_sheet = mem_alloc(65536u);
         if (_alpha_sheet) alpha_expand(_alpha_packed, _alpha_sheet);
@@ -1285,7 +1308,10 @@ static void _map_close(void)
     _alpha_sheet = NULL;
     mem_free(_band_sheet);
     _band_sheet = NULL;
+    mem_free(_map_off); // the [0x8A4] pool head from map_begin
+    _map_off = NULL;
     _map_stage_ready = 0;
+    video_arena_release(); // the list/header text arena
     font_publish(NULL);
 }
 

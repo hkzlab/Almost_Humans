@@ -78,7 +78,8 @@ uint32_t attract_phase_for_probe(void);
  * built ([0xD39]).
  *
  * The byte-exact fixture test compares the fill against the reference dump.
- * Valid from the first ATTRACT_E4 load until the next effect begins.
+ * Valid from effect 4's load until the effect ends (ATTRACT_E4_OUT releases
+ * the strip).
  *
  * @param rowsBuilt the output row count
  * @return the pointer, or NULL when unavailable

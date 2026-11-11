@@ -1,13 +1,13 @@
 #include "frontend.h"
 #include "audio.h"
 #include "font.h"
+#include "mem.h"
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
 #include "video.h"
 
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
 
 /* --- the module state (the DS analogs in comments) -------------------- */
@@ -85,6 +85,7 @@ static uint8_t _name_screen; // [0x6267]: the name-screen flag
 
 static uint8_t *_code2, *_codehum, *_codes;
 static uint8_t *_codeb1, *_codeb2, *_restore;
+static uint8_t *_text_spr; // the room's apl\text.spr (published to the font)
 static uint32_t _code2_size, _codehum_size, _codes_size;
 static uint32_t _codeb1_size, _codeb2_size, _restore_size;
 static const uint8_t _ramp0[768]; // the 0x48BC ramp: zeroed = black
@@ -624,17 +625,33 @@ static void _start_exit(void)
  */
 static void _do_load(void)
 {
-    uint8_t *textSpr = NULL;
     video_set_mode(VIDEO_MODE_X); /* frontend_room_setup: reset_display_mode
                                         * (1000:82c6) - the 320x192 field   */
+    /* frontend_room_setup's buffers: one set per room entry, so the previous
+     * room's releases before the new loads (1000:A48E's ladder) */
+    mem_free(_code2);
+    _code2 = NULL;
+    mem_free(_codehum);
+    _codehum = NULL;
+    mem_free(_codes);
+    _codes = NULL;
+    mem_free(_codeb1);
+    _codeb1 = NULL;
+    mem_free(_codeb2);
+    _codeb2 = NULL;
+    mem_free(_restore);
+    _restore = NULL;
+    mem_free(_text_spr);
+    _text_spr = NULL;
+
     _code2 = res_load_chunk("LBM\\CODE2.RAW", &_code2_size, NULL);
     _codehum = res_load_chunk("APL\\CODEHUM.SPR", &_codehum_size, NULL);
     _codes = res_load_chunk("LEVELS\\CODES.BIN", &_codes_size, NULL);
     _codeb1 = res_load_chunk("APL\\CODEB1.SPR", &_codeb1_size, NULL);
     _codeb2 = res_load_chunk("APL\\CODEB2.SPR", &_codeb2_size, NULL);
     _restore = res_load_chunk("APL\\RESTORE.SPR", &_restore_size, NULL);
-    textSpr = res_load_chunk("APL\\TEXT.SPR", NULL, NULL);
-    font_publish(textSpr);
+    _text_spr = res_load_chunk("APL\\TEXT.SPR", NULL, NULL);
+    font_publish(_text_spr);
 
     /* the room's opening state (frontend_room_setup's seeds) */
     _page_draw = 0;
@@ -776,7 +793,10 @@ uint8_t frontend_tick(const InputState *in)
         /* Keep the name screen's page (0x2800): it is single-buffered, so
          * the fade composes with no swap. */
         _compose(0);
-        if (!palette_fade_active()) return 0; // the room has exited
+        if (!palette_fade_active()) {
+            video_arena_release(); // the room's [0x1E20] text arena
+            return 0; // the room has exited
+        }
         return 1;
     }
     return 1;

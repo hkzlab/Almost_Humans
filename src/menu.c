@@ -4,6 +4,7 @@
 #include "osystem.h"
 #include "statusbar.h"
 #include "textpage.h"
+#include "video.h"
 
 #include <stdint.h>
 #include <string.h>
@@ -49,6 +50,7 @@ uint8_t menu_slot(void) { return _slot; }
 
 void menu_close(void)
 {
+    video_arena_release(); // the dialog's [0x1E20] arena
     _phase = MENU_NONE;
     _result = -1;
     _prev_bits = 0;

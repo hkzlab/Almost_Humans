@@ -109,7 +109,7 @@ static int32_t _load_fixtures(const char *fix_dir)
     }
     memcpy(_strip, n1, 768u);
     memcpy(_strip + 768u, n2, 512u);
-    memcpy(_panel4, p4, 12800u + 0xFA00u + 768u);
+    memcpy(_panel4, p4, p4s); // the file is the art + palette; the rest stays 0
     memcpy(_icons3, i3, sizeof _icons3);
     free(n1);
     free(n2);
@@ -246,7 +246,7 @@ static int32_t _check_actions(const uint8_t *page)
                 page[(BAR_Y + 35u) * 320u + 132u]);
         bad = 1;
     }
-    for (uint32_t r = 0; r < 29u; r++) {          // 0x5B57[6+r]
+    for (uint32_t r = 0; r < 29u; r++) { // 0x5B57[6+r]
         uint8_t want =
             (r <= 13u) ? (uint8_t)(0xD6u + r) : (uint8_t)(0xE3u - (r - 14u));
         if (page[(BAR_Y + 6u + r) * 320u + 132u] != want) {
@@ -428,7 +428,7 @@ int main(int argc, char **argv)
      * second the roll-start phases are stamped (the ones at 0xB0 = the
      * blank above '9'); 16 frames later the slides have settled. */
     for (uint32_t i = 0; i < 69u; i++) statusbar_tick();
-    statusbar_tick();                       /* tick 70: the second fires AND
+    statusbar_tick(); /* tick 70: the second fires AND
                                                the slide divider (seeded 2,
                                                advancing every 2nd tick)
                                                takes its first step         */

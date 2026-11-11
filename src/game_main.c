@@ -159,19 +159,6 @@ int32_t resources_init(const OSystem *osys)
     return res_init_state;
 }
 
-/**
- * @brief Release the session-long heap blocks when the flow loop ends.
- */
-static void resources_free(void)
-{
-    attract_shutdown();
-    party_intro_shutdown();
-    statusbar_shutdown();
-    save_shutdown();
-    textpage_shutdown();
-    video_shutdown();
-}
-
 /** @brief The ISR body: the per-tick work (the flip hook, the palette fade
  * step, the music tick), in the original's order.
  *
@@ -1063,6 +1050,5 @@ int32_t game_main(const OSystem *osys)
     }
 
     osys->audioStop();
-    resources_free();
     return 0;
 }
