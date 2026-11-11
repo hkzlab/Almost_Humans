@@ -887,7 +887,7 @@ int main(int argc, char **argv)
         for (t = 0; t < 40u; t++) {
             level_tick();
             palette_tick();
-            if (level_goal_pan_running_for_probe()) {
+            if (level_goal_pan_running()) {
                 sawRun = 1;
                 break;
             }
@@ -904,11 +904,11 @@ int main(int argc, char **argv)
             fprintf(stderr, "FAIL D-259: the goal flag survived the cell\n");
             bad = 1;
         }
-        for (t = 0; t < 400u && level_goal_pan_running_for_probe(); t++) {
+        for (t = 0; t < 400u && level_goal_pan_running(); t++) {
             level_tick();
             palette_tick();
         }
-        if (level_goal_pan_running_for_probe()) {
+        if (level_goal_pan_running()) {
             fprintf(stderr, "FAIL D-259: the pan hung after the flag fell\n");
             bad = 1;
         }

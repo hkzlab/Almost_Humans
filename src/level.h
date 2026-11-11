@@ -271,9 +271,16 @@ uint16_t level_view_x(void);
  */
 uint16_t level_view_y(void);
 
-/* menu_flag_tick's goal pan is blocked (the original's pan loop): a test seam
- * for the input latch/marker-mode sequence. */
-uint8_t level_goal_pan_running_for_probe(void);
+/**
+ * @brief Accessor: menu_flag_tick's goal pan (1000:3540) is running.
+ *
+ * The original's pan is a blocking loop, so input_dispatch_loop (1000:349E)
+ * does not reach pause_toggle, scan_id_list or the [0x1979] dispatch while it
+ * runs; the port's play loop skips them on this flag.
+ *
+ * @return 1 while the pan runs, 0 otherwise
+ */
+uint8_t level_goal_pan_running(void);
 
 /**
  * @brief 1000:3E73's tail (`JMP 0x3DC0` at (x - 0x20, y - 0x20)): clear the

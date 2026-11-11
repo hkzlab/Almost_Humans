@@ -304,6 +304,15 @@ target_link_libraries(test_pause PRIVATE core fs_posix)
 humansre_warnings(test_pause)
 add_test(NAME pause COMMAND test_pause ${HUMANS_DATA_DIR})
 
+# menu_flag_tick's win pan blocks input_dispatch_loop (1000:3540): a key
+# pressed during it (ESC here) is not seen until the pan returns.
+add_executable(test_pan_input tests/test_pan_input.c
+    src/arch/null/OSystem.c)          # the null backend: the input script
+target_include_directories(test_pan_input PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_link_libraries(test_pan_input PRIVATE core fs_posix)
+humansre_warnings(test_pan_input)
+add_test(NAME pan_input COMMAND test_pan_input ${HUMANS_DATA_DIR})
+
 # The save-game slot load (entry:004C): the room's RESTORE GAME counter
 # reaches save.c, the save's level/time/members replace the room's.
 add_executable(test_save tests/test_save.c

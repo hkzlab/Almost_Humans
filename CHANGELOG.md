@@ -30,3 +30,5 @@ _First release: a C99 port of the 1992 DOS game Humans, reimplemented from the o
 - The tribe count was re-seeded from the LEVEL board on every level load; it now carries across
   levels and a restart restores the level-start count, as `entry 1000:009C..00B1` and
   `level_run 306D` do
+- The play loop no longer reads ESC/ACTION, opens the time-up dialog or dispatches a pending
+  code while the win pan runs (`1000:3540`'s blocking loop defers them)

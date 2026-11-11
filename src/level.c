@@ -1608,7 +1608,7 @@ static int32_t _level_goal_pan_running(void)
            _goal_pan_state == GOALPAN_HOLD || _goal_pan_state == GOALPAN_TAIL;
 }
 
-uint8_t level_goal_pan_running_for_probe(void)
+uint8_t level_goal_pan_running(void)
 { return (uint8_t)(_level_goal_pan_running()); }
 
 /**

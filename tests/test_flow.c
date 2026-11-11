@@ -6193,8 +6193,7 @@ int main(int argc, char **argv)
         in.joyBits = 0x08u; // right
         level_note_input(&in);
         level_tick();
-        _check(level_goal_pan_running_for_probe() != 0,
-               "1000:3540 starts the goal pan");
+        _check(level_goal_pan_running() != 0, "1000:3540 starts the goal pan");
         {
             uint16_t x0 = rd_le_u16(h + 0u);
 
@@ -6206,13 +6205,12 @@ int main(int argc, char **argv)
         }
         /* let the pan finish so _goal_follow_record is cleared before the
          * camera-follower tests below */
-        for (uint32_t k = 0; k < 2000u && level_goal_pan_running_for_probe();
-             k++) {
+        for (uint32_t k = 0; k < 2000u && level_goal_pan_running(); k++) {
             memset(&in, 0, sizeof in);
             level_note_input(&in);
             level_tick();
         }
-        _check(!level_goal_pan_running_for_probe(), "the goal pan completes");
+        _check(!level_goal_pan_running(), "the goal pan completes");
     }
 
     /* 7b. the rest of the type rows' handlers (DS:0x6918) */

@@ -819,7 +819,12 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
             (void)gameflow_key_list(input);
             return 1;
         }
-        if (statusbar_time_up() && !_timeout_shown && !menu_active()) {
+        /* menu_flag_tick (1000:3540) blocks input_dispatch_loop (1000:349E)
+         * while the win pan runs, so the [0x5E44] time-up test (34A8) is not
+         * reached again until it returns.  The port advances one pan frame per
+         * level tick, so a running pan skips it here. */
+        if (!level_goal_pan_running() && statusbar_time_up() &&
+            !_timeout_shown && !menu_active()) {
             _timeout_shown = 1;
             menu_open_time_up();
         }
@@ -841,18 +846,23 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
              * pause_toggle runs after it.  The event-4 loop blocks
              * pause_toggle until it ends (1000:36DB). */
         level_tick(); // 1000:34B5 update_world
-        if (!menu_active() && pressed && !(input->joyBits & 0x0Fu))
+        /* 1000:3540's blocking loop: while the pan runs, the rest of
+         * input_dispatch_loop waits - pause_toggle (34BD), scan_id_list
+         * (34C0) and the [0x1979] dispatch (34C3). */
+        uint8_t pan = level_goal_pan_running();
+        if (!pan && !menu_active() && pressed && !(input->joyBits & 0x0Fu))
             object_action_run(); // 1000:34BD pause_toggle
         /* the latch is not assigned here: object_action_run sets it
              * (1000:3538) and the release above clears it (1000:85A9). */
-        if (level_end_holding()) {
+        if (!pan && level_end_holding()) {
             /* 1000:34E6: the play loop's exit hold - the end sound
                  * (0x83B7, AX = 0xC) and 15 vsyncs (0x8B56) on the frozen
-                 * world, then draw_level_text's chain. */
+                 * world, then draw_level_text's chain.  The JS 34BB follows
+                 * object_test_dispatch, so the pan defers it too. */
             statusbar_set_active(0); // [0x5B12] = 0: the clock stops
             return 1;
         }
-        if (level_ended()) {
+        if (!pan && level_ended()) {
             /* object_test_dispatch returned negative (1000:35D6):
                  * the play loop is over; [0x138E] keeps its outcome */
             _end_page_up = 1;
@@ -860,8 +870,8 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
             statusbar_set_active(0); // [0x5B12] = 0: the clock stops
         }
         /* scan_id_list (1000:386E) runs after update_world and before
-             * the pending-event table. */
-        if (!menu_active() && !level_ended() && !object_charge_active())
+             * the pending-event table, once the pan has returned. */
+        if (!pan && !menu_active() && !level_ended() && !object_charge_active())
             (void)gameflow_key_list(input); /* scan_id_list is blocked by
                                               * the event-4 loop (1000:36DB) */
         if (menu_active()) {
@@ -881,8 +891,9 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
              * 4's charge loop then takes its per-frame share (1000:3702)
              * with the world frame already updated.  A negative
              * object_test_dispatch (level_ended) leaves the play loop
-             * before the dispatch (JS 0x34E6). */
-        if (!level_ended()) {
+             * before the dispatch (JS 0x34E6), and a running pan defers
+             * both until 1000:3540 returns. */
+        if (!pan && !level_ended()) {
             object_pending_run();
             (void)object_charge_tick();
         }
