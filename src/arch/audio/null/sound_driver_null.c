@@ -2,7 +2,7 @@
  *
  * Port-only; built as `audio_null`, linked into no executable.
  */
-#include "audio/sound_driver.h"
+#include "audio/null/sound_driver_null.h"
 
 #include <stdint.h>
 #include <stdio.h>

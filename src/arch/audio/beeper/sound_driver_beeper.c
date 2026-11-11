@@ -10,7 +10,7 @@
  * The tune image is copied, not aliased.
  * Deviations: D-254 (bounded table and image reads).
  */
-#include "audio/sound_driver.h"
+#include "audio/beeper/sound_driver_beeper.h"
 
 #include "byteorder.h"
 #include "thirdparty/pcspeaker_impulse.h"

@@ -10,7 +10,7 @@
  * image is copied; cmd 5 returns the record index.
  * Deviations: D-249 (Nuked-OPL3-fast, not the YM3812), D-261 (bounded reads).
  */
-#include "audio/sound_driver.h"
+#include "audio/adlib/sound_driver_adlib.h"
 
 #include "byteorder.h"
 #include "thirdparty/opl3.h"

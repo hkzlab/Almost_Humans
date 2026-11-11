@@ -9,8 +9,6 @@
  * The tune image is copied, not aliased.
  * Deviations: D-255 (bounded reads), D-256 (no MPU-401/INT 8/envelope).
  */
-#include "audio/sound_driver.h"
-
 #include "audio/mt32/sound_driver_mt32.h"
 #include "byteorder.h"
 

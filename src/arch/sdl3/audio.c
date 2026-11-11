@@ -7,7 +7,8 @@
  * Deviation: D-251 (the music tick runs on the audio sample clock).
  */
 #include "audio.h"
-#include "audio/sound_driver.h"
+#include "audio/adlib/sound_driver_adlib.h"
+#include "audio/beeper/sound_driver_beeper.h"
 #include "gameflow.h"
 #ifdef HUMANSRE_HAVE_MT32
 #    include "audio/mt32/sound_driver_mt32.h"

@@ -42,11 +42,4 @@ typedef struct SoundDriverModule {
     void (*generate)(SoundDriver *drv, int16_t *dst, uint32_t frames);
 } SoundDriverModule;
 
-/* Defined by each sound-driver module; a port declares nothing and links the
- * ones it offers, then selects one with SoundDriverModule::create. */
-extern const SoundDriverModule g_sound_driver_adlib;
-extern const SoundDriverModule g_sound_driver_beeper;
-extern const SoundDriverModule g_sound_driver_mt32;
-extern const SoundDriverModule g_sound_driver_null;
-
 #endif /* HUMANSRE_SOUND_DRIVER_H */

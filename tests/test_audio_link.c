@@ -22,7 +22,7 @@
 #include "scene.h"
 #include "video.h"
 
-#include "audio/sound_driver.h"
+#include "audio/adlib/sound_driver_adlib.h"
 
 #include <assert.h>
 #include <stdint.h>
