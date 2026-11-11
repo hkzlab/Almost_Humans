@@ -54,6 +54,13 @@ static void _vid_make_texture(int32_t rows)
     if (_tex) SDL_DestroyTexture(_tex);
     _tex = SDL_CreateTexture(_ren, SDL_PIXELFORMAT_ARGB8888,
                              SDL_TEXTUREACCESS_STREAMING, VIDEO_PAGE_W, rows);
+    /* The default (linear) blurs every pixel of a 320-wide field upscaled 3x
+     * or more; PIXELART keeps the source pixels crisp. */
+#if SDL_VERSION_ATLEAST(3, 4, 0)
+    SDL_SetTextureScaleMode(_tex, SDL_SCALEMODE_PIXELART);
+#else
+    SDL_SetTextureScaleMode(_tex, SDL_SCALEMODE_NEAREST);
+#endif
     _tex_rows = rows;
 }
 
