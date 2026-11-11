@@ -133,10 +133,9 @@ static void _null_fatal(const char *msg);
 static uint8_t _pages[2][VIDEO_PAGE_BYTES];
 static uint8_t _pal[256 * 3];
 static TickFn _the_tick;
-static uint32_t _the_rate;
 static InputState _the_input;    // injected input (idle by default)
 static const InputState *_script_states; // scripted input for smoke tests
-static uint32_t _script_n, _script_i;
+static uint32_t _script_n, _poll_count;
 static VideoMode _mode_set; // the core's last videoSetMode
 
 /* The frame-evidence dumps key on the poll count, which only the backend
@@ -172,7 +171,7 @@ static uint8_t *_null_page(int32_t which) { return _pages[which & 1]; }
 static void _null_present(int32_t which)
 {
     (void)which;
-    if (_present_hook) _present_hook(_script_i);
+    if (_present_hook) _present_hook(_poll_count);
 }
 static void _null_set_palette(const uint8_t *p6, uint32_t first, uint32_t n)
 {
@@ -181,9 +180,12 @@ static void _null_set_palette(const uint8_t *p6, uint32_t first, uint32_t n)
 }
 static void _null_poll(InputState *out)
 {
-    if (_script_states && _script_i < _script_n)
-        _the_input = _script_states[_script_i++];
-    else if (_script_states) _the_input = _script_states[_script_n - 1];
+    if (_script_states && _script_n) {
+        /* the script holds one state per poll; the last one repeats */
+        uint32_t i = _poll_count < _script_n ? _poll_count : _script_n - 1u;
+        _the_input = _script_states[i];
+    }
+    _poll_count++;
     *out = _the_input;
     /* the headless executable's --ticks: quit through the core's own path
      * (game_main's input.quit check), not from inside the backend */
@@ -191,7 +193,7 @@ static void _null_poll(InputState *out)
 }
 static void _null_timer_start(uint32_t rate, TickFn tick)
 {
-    _the_rate = rate;
+    (void)rate; // the null backend has no clock: one tickSync = one tick
     _the_tick = tick;
 }
 /* One tick boundary: bump the counter and run the ISR body. */
@@ -247,7 +249,6 @@ void osys_null_run_ticks(uint32_t n)
         _tick_counter++; // the ISR's INC [0x5AC8] (1000:8AA4)
         _the_tick();
     }
-    (void)_the_rate;
 }
 
 /**
@@ -329,9 +330,9 @@ VideoMode osys_null_video_mode(void) { return _mode_set; }
 
 /** @brief The eventsPoll count: the smoke test's frame-dump clock.
  *
- * @return the script cursor
+ * @return the eventsPoll call count
  */
-uint32_t osys_null_poll_count(void) { return _script_i; }
+uint32_t osys_null_poll_count(void) { return _poll_count; }
 /**
  * @brief Install the present hook.
  *
@@ -349,7 +350,7 @@ void osys_null_input_script(const InputState *states, uint32_t n)
 {
     _script_states = states;
     _script_n = n;
-    _script_i = 0;
+    _poll_count = 0;
 }
 
 /** @brief Accessor: the i-th null video page.

@@ -20,7 +20,7 @@ static InputState _cur;
  * @param k the SDL keycode
  * @param down the key-down flag
  */
-static void _joy_bits(SDL_Keycode k, int32_t down)
+static void _set_joy_bits(SDL_Keycode k, uint8_t down)
 {
     uint32_t mask;
     switch (k) {
@@ -103,7 +103,7 @@ static uint8_t _key_code(SDL_Keycode k)
  * @param k the SDL keycode
  * @return 1 when the make sets `[0x48A3]` nonzero, 0 otherwise
  */
-static int32_t _key_sets_held(SDL_Keycode k)
+static uint8_t _key_sets_held(SDL_Keycode k)
 {
     switch (k) {
     case SDLK_UNKNOWN:
@@ -132,17 +132,17 @@ void sdl3_events_poll(InputState *out)
         switch (ev.type) {
         case SDL_EVENT_QUIT: _cur.quit = 1; break;
         case SDL_EVENT_KEY_DOWN:
-            _joy_bits(ev.key.key, 1);
+            _set_joy_bits(ev.key.key, 1);
             _cur.lastKey = _key_code(ev.key.key);
             _cur.keyScan = _scan_code(ev.key.key);
-            _cur.keyHeld = (uint8_t)_key_sets_held(ev.key.key);
+            _cur.keyHeld = _key_sets_held(ev.key.key);
             break;
         case SDL_EVENT_KEY_UP:
             /* the ISR's 942F: EVERY key-up clears the flag - a tapped
              * key must not linger as "held" (the stub-era code re-set
              * the code on release, which made one ENTER tap cascade:
              * abort the boot intro AND immediately escape the attract) */
-            _joy_bits(ev.key.key, 0);
+            _set_joy_bits(ev.key.key, 0);
             _cur.lastKey = 0u;
             _cur.keyScan = 0u;
             _cur.keyHeld = 0u;
