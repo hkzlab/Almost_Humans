@@ -21,6 +21,12 @@
  */
 int32_t statusbar_init(const OSystem *osys);
 
+/**
+ * @brief Release the bar's loaded assets (the strip, PANEL4, ICONS3 and the
+ * staged panel4 copy).
+ */
+void statusbar_shutdown(void);
+
 /** @brief build_statusbar_layout (1000:961B) + level_start's time pick
  * (1000:9589).
  *

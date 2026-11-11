@@ -116,11 +116,15 @@ static void _fatal(const char *msg)
     exit(1);
 }
 
-static const OSystem _osys = { _vset,  _vpage,     _vpresent,  _vpalette,
-                               _poll,  _tstart,    _tsync,     _install,
-                               _load,  _resume,    _stop,      _sfx,
-                               _tempo, _tick,      _driver_id, _warn,
-                               _fatal, &g_fs_posix };
+static void *_mem_alloc(size_t size) { return malloc(size); }
+
+static void _mem_free(void *p) { free(p); }
+
+static const OSystem _osys = { _vset,  _vpage,      _vpresent,  _vpalette,
+                               _poll,  _tstart,     _tsync,     _install,
+                               _load,  _resume,     _stop,      _sfx,
+                               _tempo, _tick,       _driver_id, _warn,
+                               _fatal, &g_fs_posix, _mem_alloc, _mem_free };
 
 /**
  * @brief Render some audio and return the largest absolute sample.

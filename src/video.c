@@ -1,4 +1,5 @@
 #include "video.h"
+#include "mem.h"
 #include "osystem.h"
 
 #include <stdint.h>
@@ -12,13 +13,23 @@ static const OSystem *_video_osys;
 /* the A000 planar space: one address byte = four pixels, one per plane */
 static uint8_t _vram[65536][4];
 
-/* the shared text arena: 200 rows x 80 bytes */
-static uint8_t _arena[16000];
+/* the shared text arena: 200 rows x 80 bytes.  The original carves it from
+ * the boot heap block ([0xC9D] = [0x48AC] + the attract's buffers, 16000 B),
+ * so it is allocated with the session and released at exit. */
+static uint8_t *_arena;
 
 int32_t video_init(const OSystem *osys)
 {
     _video_osys = osys;
-    return 0;
+    mem_bind(osys);
+    _arena = mem_alloc(16000u);
+    return _arena ? 0 : -1;
+}
+
+void video_shutdown(void)
+{
+    mem_free(_arena);
+    _arena = NULL;
 }
 
 void video_tick(void) { /* the flip is the backend's videoPresent */ }

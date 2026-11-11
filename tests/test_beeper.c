@@ -322,7 +322,9 @@ int main(int argc, char **argv)
                                       .audioTempo = _core_tempo,
                                       .audioDriverId = _core_id,
                                       .warn = _core_warn,
-                                      .fs = &g_fs_posix };
+                                      .fs = &g_fs_posix,
+                                      .memAlloc = malloc,
+                                      .memFree = free };
         static const char missing[] = "mus\\nope";
         uint32_t stops0;
 

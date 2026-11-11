@@ -3,6 +3,7 @@
 #include "font.h"
 #include "frontend.h"
 #include "game_strs.h"
+#include "mem.h"
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
@@ -13,7 +14,6 @@
 
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 #define ANI_NAME     "ANM\\ANI%02u.ANI"
@@ -304,9 +304,9 @@ static int32_t _ani_load(Ani *a, uint32_t ani_idx)
 
     a->table_size = rd_le_u32(a->image);
     a->n_entries = a->table_size / 4;
-    a->entries = malloc(a->n_entries * sizeof(uint32_t));
+    a->entries = mem_alloc(a->n_entries * sizeof(uint32_t));
     if (!a->entries) {
-        free(a->image);
+        mem_free(a->image);
         a->image = NULL;
         return -1;
     }
@@ -368,6 +368,7 @@ static void _scene_quit_fade(void)
 int32_t scene_init(const OSystem *osys)
 {
     _scene_osys = osys;
+    mem_bind(osys);
     return 0;
 }
 
@@ -401,19 +402,19 @@ static int32_t _scene_key_held(void)
  */
 static void _scene_unload(void)
 {
-    free(_ani_data);
+    mem_free(_ani_data);
     _ani_data = NULL;
-    free(_script_buf);
+    mem_free(_script_buf);
     _script_buf = NULL;
     _indices = NULL;
     _plays = 0;
-    free(_obj_buf);
+    mem_free(_obj_buf);
     _obj_buf = NULL;
-    free(_scoops_buf);
+    mem_free(_scoops_buf);
     _scoops_buf = NULL;
     _scoops_size = 0;
     if (_text_spr) font_publish(NULL); // the glyph table dies with it
-    free(_text_spr);
+    mem_free(_text_spr);
     _text_spr = NULL;
     memset(&_ani, 0, sizeof _ani);
 }
@@ -435,8 +436,8 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
     snprintf(name, sizeof name, ANI_NAME, index);
     if (_ani_load(&_ani, index)) return -1;
 
-    _script_buf = malloc(OBJ_SEG_SIZE);
-    _obj_buf = malloc(OBJ_SEG_SIZE);
+    _script_buf = mem_alloc(OBJ_SEG_SIZE);
+    _obj_buf = mem_alloc(OBJ_SEG_SIZE);
     if (!_script_buf || !_obj_buf) {
         _scene_unload();
         return -1;
@@ -459,13 +460,13 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
         if (_panel_pal_valid)
             for (uint16_t i = 0; i < 768u; i++) // 1000:8D24's AND 0x3F
                 _panel_pal[i] = daily[PAGE_SIZE + i] & 0x3Fu;
-        free(daily);
+        mem_free(daily);
     }
 
     /* apl\text.spr (the original's second load, 1000:C490): the panel's
      * headline is drawn with these glyphs (blit_text_tile), so the scene
      * publishes them for its own frame */
-    free(_text_spr);
+    mem_free(_text_spr);
     _text_spr = res_load_chunk("APL\\TEXT.SPR", NULL, NULL);
     font_publish(_text_spr);
 
@@ -486,7 +487,7 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
                 src += 0x40u;
             }
         }
-        free(_scoops_buf);
+        mem_free(_scoops_buf);
         _scoops_buf = NULL;
     }
 
@@ -765,12 +766,12 @@ static int32_t _boot_card_show(const char *name)
     uint32_t size = 0;
     uint8_t *img = res_load_chunk(name, &size, NULL);
     if (!img || size < VIDEO_PAGE_BYTES) {
-        free(img);
+        mem_free(img);
         return 0;
     }
     memcpy(video_page(0), img, VIDEO_PAGE_BYTES);
     palette_load_working(img + VIDEO_PAGE_BYTES);
-    free(img);
+    mem_free(img);
     return 1;
 }
 
@@ -792,35 +793,35 @@ static int32_t _boot_abort_poll(void)
  */
 static void _boot_unload(void)
 {
-    free(_boot_bac);
+    mem_free(_boot_bac);
     _boot_bac = NULL;
-    free(_boot_treetop);
+    mem_free(_boot_treetop);
     _boot_treetop = NULL;
-    free(_boot_treebot);
+    mem_free(_boot_treebot);
     _boot_treebot = NULL;
-    free(_boot_apple);
+    mem_free(_boot_apple);
     _boot_apple = NULL;
-    free(_boot_words);
+    mem_free(_boot_words);
     _boot_words = NULL;
-    free(_boot_rsc);
+    mem_free(_boot_rsc);
     _boot_rsc = NULL;
     _boot_rsc_size = 0;
-    free(_boot_entries);
+    mem_free(_boot_entries);
     _boot_entries = NULL;
     _boot_entry_count = 0;
-    free(_boot_list_buf);
+    mem_free(_boot_list_buf);
     _boot_list_buf = NULL;
-    free(_boot_obj);
+    mem_free(_boot_obj);
     _boot_obj = NULL;
-    free(_boot_gt);
+    mem_free(_boot_gt);
     _boot_gt = NULL;
     _boot_gt_size = 0;
-    free(_boot_gt_entries);
+    mem_free(_boot_gt_entries);
     _boot_gt_entries = NULL;
     _boot_gt_entry_count = 0;
-    free(_boot_gt_list);
+    mem_free(_boot_gt_list);
     _boot_gt_list = NULL;
-    free(_boot_itb);
+    mem_free(_boot_itb);
     _boot_itb = NULL;
 }
 
@@ -1100,12 +1101,12 @@ static int32_t _boot_start(void)
         return 0;
     }
     _boot_entry_count = _boot_rsc_size / 4u;
-    _boot_entries = malloc(_boot_entry_count * sizeof(uint32_t));
+    _boot_entries = mem_alloc(_boot_entry_count * sizeof(uint32_t));
     _boot_gt_entry_count = _boot_gt_size / 4u;
-    _boot_gt_entries = malloc(_boot_gt_entry_count * sizeof(uint32_t));
-    _boot_list_buf = malloc(OBJ_SEG_SIZE);
-    _boot_obj = malloc(OBJ_SEG_SIZE);
-    _boot_gt_list = malloc(OBJ_SEG_SIZE);
+    _boot_gt_entries = mem_alloc(_boot_gt_entry_count * sizeof(uint32_t));
+    _boot_list_buf = mem_alloc(OBJ_SEG_SIZE);
+    _boot_obj = mem_alloc(OBJ_SEG_SIZE);
+    _boot_gt_list = mem_alloc(OBJ_SEG_SIZE);
     if (!_boot_entries || !_boot_gt_entries || !_boot_list_buf || !_boot_obj ||
         !_boot_gt_list) {
         _boot_unload();
@@ -1449,13 +1450,13 @@ uint8_t scene_play_boot_intro(void)
     case BOOT_GT_OUT:
         if (_boot_abort_poll()) return 1; // c0af (bf6f)
         if (palette_fade_active()) return 1;
-        free(_boot_gt);
+        mem_free(_boot_gt);
         _boot_gt = NULL;
         _boot_gt_size = 0;
-        free(_boot_gt_entries);
+        mem_free(_boot_gt_entries);
         _boot_gt_entries = NULL;
         _boot_gt_entry_count = 0;
-        free(_boot_gt_list);
+        mem_free(_boot_gt_list);
         _boot_gt_list = NULL;
         if (!_boot_card_show("INTRO\\IDI.BIT")) {
             _boot_unload();
@@ -1544,7 +1545,7 @@ uint8_t scene_play_boot_intro(void)
          * until the post-dwell fade - the port does the same. */
         memcpy(video_page(0), _boot_itb, VIDEO_PAGE_BYTES);
         palette_load_working(_boot_itb + VIDEO_PAGE_BYTES);
-        free(_boot_itb);
+        mem_free(_boot_itb);
         _boot_itb = NULL;
         /* b68f-b69e: fade the DAC to the working palette (= the card's own
          * palette) and wait; the card fades in.  The zeroed _boot_ramp is

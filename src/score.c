@@ -3,6 +3,7 @@
 #include "gameflow.h"
 #include "hiscore.h"
 #include "level.h"
+#include "mem.h"
 #include "object.h"
 #include "osystem.h"
 #include "palette.h"
@@ -13,7 +14,6 @@
 #include "width.h"
 
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
 
 #define SCORE_PAGE VIDEO_PAGE_BYTES
@@ -483,7 +483,7 @@ uint8_t score_begin(uint32_t value)
     video_set_mode(VIDEO_MODE_13H);
     (void)value;
     res_set_disc(1u); // the score assets' disc
-    free(_score_bit);
+    mem_free(_score_bit);
     _score_bit = NULL;
     _score_size = 0;
     _score_bit = res_load_chunk("LBM\\SCORE.BIT", &_score_size, NULL);
@@ -517,14 +517,14 @@ uint8_t score_begin(uint32_t value)
         }
         _score_arm_fade = 1;
     }
-    free(_score_font);
+    mem_free(_score_font);
     _score_font = res_load_chunk("APL\\TEXT.SPR", NULL, NULL);
     font_publish(_score_font);
-    free(_score_digits);
+    mem_free(_score_digits);
     _score_digits = res_load_chunk("APL\\SCORE.SPR", NULL, NULL); // 1000:4264
-    free(_score_record);
+    mem_free(_score_record);
     _score_record = res_load_chunk("APL\\RECORD.SPR", NULL, NULL); // 1000:4276
-    free(_score_num);
+    mem_free(_score_num);
     _score_num = res_load_chunk("APL\\SCORENUM.SPR", NULL, NULL); // 1000:4269
 
     /* 1000:430E/431A draw_scorenum_three_passes: the elapsed time at
@@ -601,14 +601,14 @@ uint8_t score_tick(const InputState *in)
         /* 1000:439F's tail: [0x4105] = 0 and [0x1DC4] = 0 - the stamp's phase
          * is cleared as the mode goes back to 13h. */
         _score_blink_phase = 0;
-        free(_score_bit);
+        mem_free(_score_bit);
         _score_bit = NULL;
         _score_size = 0;
-        free(_score_font);
+        mem_free(_score_font);
         _score_font = NULL;
-        free(_score_record);
+        mem_free(_score_record);
         _score_record = NULL;
-        free(_score_num);
+        mem_free(_score_num);
         _score_num = NULL;
         font_publish(NULL);
         return 0;

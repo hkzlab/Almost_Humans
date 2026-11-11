@@ -1,11 +1,11 @@
 #include "audio.h"
 #include "frontend.h"
+#include "mem.h"
 #include "osystem.h"
 #include "res.h"
 
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 /* 202F:002A / 0x77A / 0xF91 / 0x11AA / 0x1391 / 0x139B. */
@@ -43,6 +43,7 @@ static uint8_t _tune_missing;  // the last play_tune found no image
 int32_t audio_init(const OSystem *osys)
 {
     _au_osys = osys;
+    mem_bind(osys);
     return 0;
 }
 
@@ -106,7 +107,7 @@ void audio_play_tune(const char *name)
         _au_osys->warn(msg);
     }
     _au_osys->audioLoadTune(image, size);
-    free(image);
+    mem_free(image);
 }
 
 void audio_play_level_tune(uint16_t level1)

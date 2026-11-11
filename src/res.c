@@ -1,10 +1,10 @@
 #include "res.h"
+#include "mem.h"
 #include "osystem.h"
 #include "byteorder.h"
 #include "fs/fs.h"
 
 #include <stdint.h>
-#include <stdlib.h>
 
 typedef struct VolReader {
     FSVolume *v;
@@ -295,7 +295,7 @@ static int32_t _name_equal(const char *req, const uint8_t *rec)
     return *a == 0;
 }
 
-/** @brief Decode the chunk whose record lives at `off` into a malloc'd buffer
+/** @brief Decode the chunk whose record lives at `off` into a heap buffer
  * of `length` bytes (caller frees).
  *
  * `chkOut` receives the resource-level BP as resource_decode_chunk drives it:
@@ -314,14 +314,14 @@ static uint8_t *_res_decode_chunk(VolReader *r, uint32_t off,
                                   uint16_t *chkOut)
 {
     uint16_t block = rd_le_u16(rec + 0x36);
-    uint8_t *out = malloc(length ? length : 1);
+    uint8_t *out = mem_alloc(length ? length : 1);
     uint16_t acc = 0;
     if (!out) return NULL;
     if (block == 0u) { /* the original's stored loop copies 0x10000 words
                         * (LOOP with CX = 0) and never advances the chunk;
                         * the port refuses the malformed record instead -
                         * deviation D-198. */
-        free(out);
+        mem_free(out);
         return NULL;
     }
 
@@ -361,7 +361,7 @@ static uint8_t *_res_decode_chunk(VolReader *r, uint32_t off,
         }
     }
     if (failed) {
-        free(out);
+        mem_free(out);
         return NULL;
     }
     if (chkOut) *chkOut = acc;
@@ -401,6 +401,7 @@ uint8_t *res_load_chunk(const char *name, uint32_t *sizeOut, uint16_t *chkOut)
 int32_t res_init(const OSystem *osys)
 {
     _res_osys = osys;
+    mem_bind(osys);
     return 0;
 }
 

@@ -1,5 +1,6 @@
 #include "textpage.h"
 #include "font.h"
+#include "mem.h"
 #include "osystem.h"
 
 #include <stdint.h>
@@ -12,8 +13,11 @@ static const uint8_t *_tp_box;          // APL\BOX.SPR: 9 x 16x16 tiles
 /* [0x1E20]: the text arena.  The original carves 0x640 paragraphs = 25600 B =
  * 320 rows x 80 (init_buffer_ptrs 1000:31e9); the port keeps the 20 rows a
  * line can reach here - the 1280-B clear plus the widest line's spill - and
- * font_draw_text_bounded drops + warns on anything past that (D-258). */
-static uint8_t _tp_arena[1600];
+ * font_draw_text_bounded drops + warns on anything past that (D-258).  It is
+ * part of the boot heap block, allocated on the first dialog and released at
+ * exit. */
+#define TP_ARENA_BYTES 1600u
+static uint8_t *_tp_arena;
 
 /* 202F:0x5D33 / 0x5D8B / 0x5DE3 - the 8x11 marker patterns (88 bytes). */
 static const uint8_t _marker_l[88] = {
@@ -38,6 +42,12 @@ static const uint8_t _marker_r[88] = {
 };
 
 void textpage_publish_box(const uint8_t *bank) { _tp_box = bank; }
+
+void textpage_shutdown(void)
+{
+    mem_free(_tp_arena);
+    _tp_arena = NULL;
+}
 
 /**
  * @brief One line's measure: the advance sum (draw_text's own walk).
@@ -146,9 +156,10 @@ static void _draw_line(uint8_t *page, const char *line, uint32_t centreX,
                        uint32_t cellTop, uint8_t ink, int or_into)
 {
     /* blit_text_tile 1000:47e2: CX = 0x280 words = the 16 rows read below */
+    if (!_tp_arena) _tp_arena = mem_alloc(TP_ARENA_BYTES);
+    if (!_tp_arena) return;
     memset(_tp_arena, 0, 0x280u * 2u);
-    font_draw_text_bounded(_tp_arena, (uint32_t)sizeof _tp_arena, line, centreX,
-                           0);
+    font_draw_text_bounded(_tp_arena, TP_ARENA_BYTES, line, centreX, 0);
     for (uint16_t r = 0; r < 16u; r++) {
         uint32_t y = cellTop + r;
         if (y >= VIDEO_PAGE_H_MODE13H) break;

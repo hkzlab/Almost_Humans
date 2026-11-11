@@ -8,6 +8,7 @@
 #include "hiscore.h"
 #include "level.h"
 #include "map.h"
+#include "mem.h"
 #include "menu.h"
 #include "object.h"
 #include "osystem.h"
@@ -143,6 +144,7 @@ static const uint8_t _key_list[][2] = {
  */
 int32_t resources_init(const OSystem *osys)
 {
+    mem_bind(osys);
     menu_init(osys);
     hiscore_bind(osys);
     uint8_t res_init_state =
@@ -155,6 +157,19 @@ int32_t resources_init(const OSystem *osys)
     if (res_init_state) osys->fatalError("module init failed");
 
     return res_init_state;
+}
+
+/**
+ * @brief Release the session-long heap blocks when the flow loop ends.
+ */
+static void resources_free(void)
+{
+    attract_shutdown();
+    party_intro_shutdown();
+    statusbar_shutdown();
+    save_shutdown();
+    textpage_shutdown();
+    video_shutdown();
 }
 
 /** @brief The ISR body: the per-tick work (the flip hook, the palette fade
@@ -1048,5 +1063,6 @@ int32_t game_main(const OSystem *osys)
     }
 
     osys->audioStop();
+    resources_free();
     return 0;
 }

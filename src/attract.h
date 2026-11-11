@@ -53,6 +53,13 @@ typedef enum AttractPhase {
 int32_t attract_init(const OSystem *osys);
 
 /**
+ * @brief Release the attract's heap blocks (the effect images, the 192-KB
+ * credit strip and the published font).  The escape path calls it, and so does
+ * the session teardown.
+ */
+void attract_shutdown(void);
+
+/**
  * @brief One attract tick; 1 = still playing.
  *
  * @param in the input state

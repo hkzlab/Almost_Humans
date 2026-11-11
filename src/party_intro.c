@@ -2,6 +2,7 @@
 #include "audio.h"
 #include "font.h"
 #include "game_strs.h"
+#include "mem.h"
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
@@ -10,7 +11,6 @@
 #include "width.h"
 
 #include <stdint.h>
-#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -61,9 +61,14 @@ static uint16_t _marq_phase; // [0xf9e], 0..0x15F
 static uint16_t _marq_cell; // [0xf9c], 0..0xB
 static uint16_t _marq_hold; // [0xfa6]
 
-/* === the [0x11fe] heap-segment buffers ====================================== */
-static uint8_t _sheet[2784]; // [0x1202]: the 29x96 party sprites
-static uint8_t _strip[15360]; // [0x1206]: the rescaled birdy
+/* === the [0x11fe] heap-segment buffers ====================================== *
+ * Both are carved from the heap block the level_intro_screen setup takes at
+ * [0x11fe] (253f/2546), so they are allocated by party_intro_start and
+ * released when the screen exits. */
+#define PARTY_SHEET_BYTES 2784u // [0x1202]: the 29x96 party sprites
+#define PARTY_STRIP_BYTES 15360u // [0x1206]: the rescaled birdy
+static uint8_t *_sheet;
+static uint8_t *_strip;
 static uint8_t _workpal[768]; // 202F:0x4bbc
 /* 0x4d3c is not a buffer of its own: it is 0x4bbc + 0x180, the .PAL working
  * palette's own upper half (28d0 = 4 x 0x60 B from .PAL[0..31]). */
@@ -139,8 +144,8 @@ void party_intro_seed_scripts(const uint8_t *bytes, uint32_t len)
     /* the [live] pointer table: the DS offsets into the first body 0x1036 */
     uint32_t offs[SCRIPT_COUNT] = { 0x1036u, 0x103bu, 0x1044u, 0x1047u,
                                     0x104eu, 0x1053u, 0x105cu };
-    free(_script_store);
-    _script_store = (uint8_t *)malloc(len ? len : 1u);
+    mem_free(_script_store);
+    _script_store = (uint8_t *)mem_alloc(len ? len : 1u);
     if (_script_store) memcpy(_script_store, bytes, len);
     for (uint16_t i = 0; i < SCRIPT_COUNT; i++) {
         uint16_t rel =
@@ -619,6 +624,11 @@ uint8_t party_intro_start(void)
     _marq_phase = 0u;
     _marq_cell = 0u;
     _marq_hold = 1u;
+    mem_free(_sheet);
+    _sheet = mem_alloc(PARTY_SHEET_BYTES);
+    mem_free(_strip);
+    _strip = mem_alloc(PARTY_STRIP_BYTES);
+    if (!_sheet || !_strip) return 0;
     video_vram_clear();
     memset(_ramp_tbl, 0xE0u, sizeof _ramp_tbl); // the table's clean state
     _clear_canvas();
@@ -628,14 +638,14 @@ uint8_t party_intro_start(void)
     if (!b) return 0;
     {
         uint8_t ok = (uint8_t)(_expand_nibbles(b, 0x570u, _sheet));
-        free(b);
+        mem_free(b);
         if (!ok) return 0;
     }
 
     b = _load("APL\\BIRDY.SPR"); // 257c
     if (!b) return 0;
     _rescale_rows(b);
-    free(b);
+    mem_free(b);
 
     {
         uint8_t d = (uint8_t)(_g_level & 7u) + 1u; // 2519: '1'+(lvl&7)
@@ -645,15 +655,17 @@ uint8_t party_intro_start(void)
     if (!b) return 0;
     palette_load_working(b); // 2591 (8d24): -> 0x4bbc
     memcpy(_workpal, palette_working(), 768u);
-    free(b);
+    mem_free(b);
 
     b = _load("LBM\\PARTY1.BIT"); // 259a
     if (!b) return 0;
+    mem_free(_bit_img);
     _bit_img = b;
 
     b = _load("APL\\TEXT.SPR"); // 25af
+    mem_free(_font_bytes);
+    _font_bytes = b;
     if (b) {
-        _font_bytes = b;
         font_publish(b);
     } else {
         _font_bytes = NULL;
@@ -880,7 +892,12 @@ uint8_t party_intro_tick(const InputState *in)
         break;
 
     case PH_DONE:
-    default: break;
+    default:
+        mem_free(_sheet);
+        _sheet = NULL;
+        mem_free(_strip);
+        _strip = NULL;
+        break;
     }
 
     /* the compose (the attract's contract): the display page into the
@@ -895,4 +912,18 @@ void party_intro_compose(uint8_t *pg)
 {
     video_vram_present(pg, (uint16_t)(_page_disp + 8u), 88u, 0u,
                        VIDEO_PAGE_H_MODE13H);
+}
+
+void party_intro_shutdown(void)
+{
+    mem_free(_sheet);
+    _sheet = NULL;
+    mem_free(_strip);
+    _strip = NULL;
+    mem_free(_bit_img);
+    _bit_img = NULL;
+    mem_free(_font_bytes);
+    _font_bytes = NULL;
+    mem_free(_script_store);
+    _script_store = NULL;
 }

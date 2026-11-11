@@ -157,14 +157,34 @@ static uint32_t _audio_load_size[_AUDIO_LOADS_MAX];
 static uint16_t _audio_last_sfx;
 static uint8_t _audio_tempo;
 
+/**
+ * @brief The null backend: allocate a heap block.
+ *
+ * @param size the byte count
+ * @return the block, or NULL out of memory
+ */
+static void *_null_mem_alloc(size_t size);
+
+/**
+ * @brief The null backend: release a heap block.
+ *
+ * @param p the block
+ */
+static void _null_mem_free(void *p);
+
 const OSystem g_osys_null = {
     _null_set_mode,     _null_page,          _null_present,
     _null_set_palette,  _null_poll,          _null_timer_start,
     _null_tick_sync,    _null_audio_install, _null_audio_load,
     _null_audio_resume, _null_audio_stop,    _null_audio_sfx,
     _null_audio_tempo,  _null_audio_tick,    _null_audio_driver_id,
-    _null_warn,         _null_fatal,         &g_fs_posix
+    _null_warn,         _null_fatal,         &g_fs_posix,
+    _null_mem_alloc,    _null_mem_free
 };
+
+static void *_null_mem_alloc(size_t size) { return malloc(size); }
+
+static void _null_mem_free(void *p) { free(p); }
 
 static void _null_set_mode(VideoMode mode) { _mode_set = mode; }
 

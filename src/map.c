@@ -3,6 +3,7 @@
 #include "font.h"
 #include "game_strs.h"
 #include "hiscore.h"
+#include "mem.h"
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
@@ -15,7 +16,6 @@
 #include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 #define MAP_PAGE   VIDEO_PAGE_BYTES
@@ -82,8 +82,10 @@ static uint8_t _map_list_step;
 static uint8_t _map_enter_phase; // 0 = to white, 1 = back to working
 static uint16_t _map_enter_bx; // the 0x04B9/0x0515 counter
 static uint8_t _map_white[0xC0]; // the 0x48BC ramp during the spin
-/* 1000:0577/0x0595: the offscreen list page (cleared, then the rows). */
-static uint8_t _map_off[MAP_PAGE];
+/* 1000:0577/0x0595: the offscreen list page (cleared, then the rows).  It is
+ * the pool's head, [0x8A4] (menu_loop 1000:013B), a heap segment - not a VGA
+ * page - so it is allocated with the screen and released by _map_close. */
+static uint8_t *_map_off;
 /* 1000:063A/0x063D: the 0x4B-frame hold after the exit fade (present_frames_75). */
 static uint8_t _map_exit_hold;
 static uint8_t _map_music_fade;
@@ -619,7 +621,7 @@ static uint32_t _map_off_byte(uint32_t a)
     uint16_t row = (uint16_t)(a / 80u), col = (a % 80u) * 4u;
     uint8_t v = 0;
 
-    if (row >= VIDEO_PAGE_H_MODE13H) return 0u;
+    if (!_map_off || row >= VIDEO_PAGE_H_MODE13H) return 0u;
     for (uint16_t p = 0; p < 4u; p++)
         v |= (_map_off[row * VIDEO_PAGE_W + col + p] & 1u) << p;
     return v;
@@ -1146,17 +1148,17 @@ uint8_t map_begin(void)
     font_publish(_map_font);
 
     /* 1000:01A2..0x01AB: apl\alpha.spr expanded 4bpp -> four planes */
-    free(_alpha_packed);
+    mem_free(_alpha_packed);
     _alpha_packed = NULL;
-    free(_alpha_sheet);
+    mem_free(_alpha_sheet);
     _alpha_sheet = NULL;
     _alpha_packed = res_load_chunk("APL\\ALPHA.SPR", NULL, NULL);
     if (_alpha_packed) {
-        _alpha_sheet = calloc(1, 65536u);
+        _alpha_sheet = mem_alloc(65536u);
         if (_alpha_sheet) alpha_expand(_alpha_packed, _alpha_sheet);
     }
     /* 1000:01B7: apl\band.spr, the 304 x 80 sheet */
-    free(_band_sheet);
+    mem_free(_band_sheet);
     _band_sheet = NULL;
     _band_sheet = res_load_chunk("APL\\BAND.SPR", NULL, NULL);
     _map_stage_ready = 0;
@@ -1184,7 +1186,10 @@ uint8_t map_begin(void)
     _map_enter_phase = 0u;
     _map_enter_bx = 0u;
     _map_exit_hold = 0u;
-    memset(_map_off, 0, sizeof _map_off);
+    mem_free(_map_off);
+    _map_off = mem_alloc(MAP_PAGE);
+    if (!_map_off) return 0;
+    memset(_map_off, 0, MAP_PAGE);
     g_map_box_bottom = 0x130u; // 1000:0518's [0x8AE]
     g_map_panel = 0u; // 0 = the entry animation
     _map_step = 0;
@@ -1270,15 +1275,15 @@ static void _map_close(void)
     _map_up = 0;
     audio_music_stop(); // 0x0640
     hiscore_write(); // 0x06CC
-    free(_map_high);
+    mem_free(_map_high);
     _map_high = NULL;
-    free(_map_font);
+    mem_free(_map_font);
     _map_font = NULL;
-    free(_alpha_packed);
+    mem_free(_alpha_packed);
     _alpha_packed = NULL;
-    free(_alpha_sheet);
+    mem_free(_alpha_sheet);
     _alpha_sheet = NULL;
-    free(_band_sheet);
+    mem_free(_band_sheet);
     _band_sheet = NULL;
     _map_stage_ready = 0;
     font_publish(NULL);

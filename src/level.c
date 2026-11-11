@@ -4,6 +4,7 @@
 #include "font.h"
 #include "frontend.h"
 #include "game_strs.h"
+#include "mem.h"
 #include "object.h"
 #include "osystem.h"
 #include "palette.h"
@@ -17,7 +18,6 @@
 
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 #define MAP_LEN   640u
@@ -558,15 +558,15 @@ static void _spark_draw(void)
  */
 static void _visuals_free(void)
 {
-    free(_atlas);
+    mem_free(_atlas);
     _atlas = NULL;
-    free(_bg_image);
+    mem_free(_bg_image);
     _bg_image = NULL;
-    free(_world);
+    mem_free(_world);
     _world = NULL;
-    free(_anim_table);
+    mem_free(_anim_table);
     _anim_table = NULL;
-    free(_page_items);
+    mem_free(_page_items);
     _page_items = NULL;
     _page_items_size = 0;
     _page_valid = 0;
@@ -870,7 +870,7 @@ static int32_t _visuals_load(uint32_t style)
         _bd_p_have = 1;
     }
     if (end == bdSize && animN) {
-        _anim_table = malloc(4u * animN);
+        _anim_table = mem_alloc(4u * animN);
         if (_anim_table) {
             memcpy(_anim_table, anim, 4u * animN);
             _anim_count = animN;
@@ -879,8 +879,8 @@ static int32_t _visuals_load(uint32_t style)
     /* The terrain page table (draw_terrain2 1000:505C) is built from the
      * tile _atlas once that has loaded - _page_table_build below. */
     if (page.items && page.itemsSize <= bdSize) {
-        free(_page_items);
-        _page_items = malloc(page.itemsSize);
+        mem_free(_page_items);
+        _page_items = mem_alloc(page.itemsSize);
         if (_page_items) {
             memcpy(_page_items, page.items, page.itemsSize);
             _page_items_size = page.itemsSize;
@@ -888,14 +888,14 @@ static int32_t _visuals_load(uint32_t style)
         }
     }
     if (end != bdSize) {
-        free(bd);
+        mem_free(bd);
         return -1;
     }
 
     snprintf(name, sizeof name, "LEVELS\\BS%u.BLK", style);
     _atlas = res_load_chunk(name, &bdSize, &chk);
     if (!_atlas || bdSize != 0x400u + ATLAS_TILES * 0x100u) {
-        free(bd);
+        mem_free(bd);
         _visuals_free();
         return -1;
     }
@@ -905,7 +905,7 @@ static int32_t _visuals_load(uint32_t style)
     /* draw_objects (1000:558B) then fills field B's item records; it needs
      * the same J bytes, so it runs before the BD image is released. */
     _item_masks_build(&page);
-    free(bd);
+    mem_free(bd);
 
     _level_bg_index = bgIdx;
     if (bgIdx != 0u) {
@@ -931,7 +931,7 @@ static int32_t _visuals_load(uint32_t style)
         }
     }
 
-    _world = malloc(WORLD_W * WORLD_H);
+    _world = mem_alloc(WORLD_W * WORLD_H);
     if (!_world) {
         _visuals_free();
         return -1;
@@ -1017,6 +1017,7 @@ uint16_t level_bg_index_for_probe(void) { return _level_bg_index; }
 int32_t level_init(const OSystem *osys)
 {
     _level_osys = osys; // the render goes through videoSetPalette
+    mem_bind(osys);
     return 0;
 }
 
@@ -1151,7 +1152,7 @@ int32_t level_load(uint16_t levelId)
         if (p == 0) break; // the file's records exhausted
     }
 
-    free(image);
+    mem_free(image);
     if (!ok) return -1;
 
     /* the header's style selects the visual set; the census across all 160
@@ -1163,20 +1164,20 @@ int32_t level_load(uint16_t levelId)
 
     /* load_level_assets (1000:3468): the in-level dialog's box tiles
      * (apl\box.spr, 9 x 16x16 at [0x13B1]) load with the level's assets. */
-    free(_box_spr);
+    mem_free(_box_spr);
     _box_spr = res_load_chunk("APL\\BOX.SPR", &_box_size, NULL);
     textpage_publish_box(_box_spr && _box_size >= 0x900u ? _box_spr : NULL);
 
     /* load_level_assets (1000:3488): APL\SPRITES.DAT is the object sprite
      * image (81744 = 0x13F50 bytes); the object pass draws from it. */
-    free(_obj_bank);
+    mem_free(_obj_bank);
     _obj_bank = NULL;
     _obj_bank = res_load_chunk("APL\\SPRITES.DAT", &_obj_bank_size, NULL);
     object_publish_bank(_obj_bank, _obj_bank_size);
 
     /* load_level_assets 1000:4F82: apl\rex.dat into the entity slot [0x13AD]
      * (the entity pass's bank, 1000:5823). */
-    free(_ent_bank);
+    mem_free(_ent_bank);
     _ent_bank = NULL;
     _ent_bank_size = 0;
     _ent_bank = res_load_chunk("APL\\REX.DAT", &_ent_bank_size, NULL);
@@ -1184,7 +1185,7 @@ int32_t level_load(uint16_t levelId)
 
     /* load_level_assets 1000:4F89: apl\TER.dat into [0x13AF] (the 0x649A
      * slots' draw pass, 1000:5C2F). */
-    free(_ter_bank);
+    mem_free(_ter_bank);
     _ter_bank = NULL;
     _ter_bank_size = 0;
     _ter_bank = res_load_chunk("APL\\TER.DAT", &_ter_bank_size, NULL);
@@ -1253,7 +1254,7 @@ int32_t level_load(uint16_t levelId)
             uint8_t *sp = res_load_chunk("APL\\SPRPAL.APL", &spSize, NULL);
             if (sp && spSize >= 0x1Bu + 0x5Du)
                 memcpy(_level_pal + 3u, sp + 0x1Bu, 0x5Du);
-            free(sp);
+            mem_free(sp);
         }
         if (_atlas) memcpy(_level_pal + 32u * 3u, _atlas + 0x18, 0x60u);
         if (_bg_image)
@@ -1273,7 +1274,7 @@ int32_t level_load(uint16_t levelId)
 
     /* a fresh load starts the chain again (level_fade_in runs per level) */
     _start_phase = LVSTART_IDLE;
-    free(_loading_bank);
+    mem_free(_loading_bank);
     _loading_bank = NULL;
     _loading_size = 0;
     _load_phase = 0; // the LOADING screen repeats
@@ -1308,7 +1309,7 @@ void level_loading_begin(void)
     /* 1000:1DCF..1E3F: dicon+0x18 -> 0x14D3 entries 0..0x7F, then the DAC
      * FADES to them (0x80 entries, div 0x19) before the frames run */
     memset(_load_pal, 0, sizeof _load_pal);
-    free(_load_dic);
+    mem_free(_load_dic);
     _load_dic = NULL;
     _load_dic_size = 0;
     /* 1000:1E9B's style table f,s,c,w,d,p indexed by style-1; 0xEA8 is
@@ -1488,7 +1489,7 @@ void level_loading_tick(void)
             for (uint16_t e = 0; e < _load_walker_count; e++)
                 wr_le_u16(_load_walker_snap + e * 10u + 8u,
                           0x10u); // arms-up hold
-            memcpy(_load_list, _load_letters + 2, sizeof _load_list);
+            memcpy(_load_list, _load_letters + 2, 8u * 10u);
             _load_entries = rd_le_u16(_load_letters);
             _load_cx = 1;
             _load_reload = 1; // particle_frame(1, 0x56)
@@ -1496,7 +1497,7 @@ void level_loading_tick(void)
             _load_phase = 2;
         } else {
             _load_phase = 3;
-            free(_load_dic);
+            mem_free(_load_dic);
             _load_dic = NULL;
             _load_dic_size = 0;
         }
@@ -2298,10 +2299,10 @@ static void _disk_draw(uint16_t disc)
                 page[g * 8u + bit] = (uint8_t)px;
             }
         }
-        free(img);
+        mem_free(img);
     }
 
-    free(_disk_font);
+    mem_free(_disk_font);
     _disk_font = res_load_chunk("APL\\TEXT.SPR", NULL, NULL);
     font_publish(_disk_font);
 
@@ -2341,7 +2342,7 @@ void level_disk_status_reset(void)
 {
     _disk_phase = DISK_OFF;
     _disk_hold = 0;
-    free(_disk_font);
+    mem_free(_disk_font);
     _disk_font = NULL;
     font_publish(NULL);
 }
@@ -2381,7 +2382,7 @@ uint8_t level_disk_status_tick(const InputState *in)
         }
         if (audio_fade_busy()) return 1; // 1000:20BE's blocking fade
         _disk_phase = DISK_OFF;
-        free(_disk_font);
+        mem_free(_disk_font);
         _disk_font = NULL;
         font_publish(NULL);
         return 0;

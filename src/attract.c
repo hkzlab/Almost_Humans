@@ -2,6 +2,7 @@
 #include "font.h"
 #include "game_strs.h"
 #include "hiscore.h"
+#include "mem.h"
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
@@ -10,7 +11,6 @@
 #include "width.h"
 
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
 
 /* --- the machine --------------------------------------------------------- */
@@ -43,7 +43,8 @@ static uint8_t _colour1881 = 0x43; // CS:0x1881: _blit_80x200's colour base
  * screenful): a vertical bitmap of 80-byte rows - [0] the row signature,
  * [1] the write-mode-2 bit mask, [2..19] pad, [20..79] the presented 60
  * bytes = the text arena's pixels 80..319. */
-static uint8_t _e4strip[196608];
+#define E4_STRIP_BYTES 196608u
+static uint8_t *_e4strip; // allocated when effect 4 loads, freed on exit
 static uint8_t
     _row_sig[VIDEO_PAGE_H_MODE13H]; // CS:0x1CF7: the row-signature cache
 static uint8_t _row_sig_init; // the shipped 0x80 fill runs once
@@ -78,7 +79,7 @@ static void _fastest_time(uint32_t levelMinus1, uint8_t rec[2])
 
 int32_t attract_init(const OSystem *osys)
 {
-    (void)osys;
+    mem_bind(osys);
     return 0;
 }
 
@@ -334,7 +335,7 @@ static void _wipe_row(uint32_t k)
 /** @brief Drop the current effect image. */
 static void _unload_img(void)
 {
-    free(_img_buf);
+    mem_free(_img_buf);
     _img_buf = NULL;
 }
 
@@ -446,7 +447,7 @@ static int32_t _e2_load(void)
     uint8_t *palBuf = res_load_chunk("LBM\\SCOREPAL.PAL", &sz, NULL);
     if (palBuf) {
         palette_load_working(palBuf);
-        free(palBuf);
+        mem_free(palBuf);
     }
     palette_build_fade(0u, 256u, 0x1Eu, palette_working());
     return 1;
@@ -492,7 +493,8 @@ static void _fill_pattern_clip(uint8_t *tile)
 static void _e4_fill(void)
 {
     char scratch[1024]; // 0xCAE; bounded only in the port
-    memset(_e4strip, 0, sizeof _e4strip);
+    if (!_e4strip) return;
+    memset(_e4strip, 0, E4_STRIP_BYTES);
     _rows_built = 0;
     do {
         uint16_t n = 0; // strcpy_cae: line -> scratch
@@ -538,7 +540,8 @@ static void _e4_fill(void)
  */
 static void _blit_scroll(uint32_t row)
 {
-    uint32_t src = (row * 80u) % sizeof _e4strip;
+    if (!_e4strip) return;
+    uint32_t src = (row * 80u) % E4_STRIP_BYTES;
     uint16_t di = _page_draw + 0x14u;
     for (uint16_t i = 0; i < VIDEO_PAGE_H_MODE13H; i++) {
         uint8_t sig = _e4strip[src];
@@ -547,11 +550,11 @@ static void _blit_scroll(uint32_t row)
             uint8_t mask = _e4strip[src + 1u];
             for (uint16_t k = 0; k < 60u; k++) {
                 video_vram_wm2((uint16_t)(di + k),
-                               _e4strip[(src + 0x14u + k) % sizeof _e4strip],
+                               _e4strip[(src + 0x14u + k) % E4_STRIP_BYTES],
                                mask);
             }
         }
-        src = (src + 80u) % sizeof _e4strip;
+        src = (src + 80u) % E4_STRIP_BYTES;
         di += 80u;
     }
 }
@@ -567,7 +570,7 @@ static int32_t _e4_load(void)
 {
     /* 19b9/19be: [0xD3D]:=0, [0x1E7C]:=8 - both write-only (no reader is
      * traced; see the note by the module state) */
-    free(_credtext);
+    mem_free(_credtext);
     _credtext = NULL;
     _credtext = res_load_chunk("CREDTEXT.BIN", &_credtext_size, NULL);
     if (!_credtext) return 0;
@@ -593,6 +596,10 @@ static int32_t _e4_load(void)
      * real signature matches) and - like the original's CS bytes - is
      * never reset after the first fill: it persists across cycles. */
     _cred_cursor = 0;
+    if (!_e4strip) {
+        _e4strip = mem_alloc(E4_STRIP_BYTES);
+        if (!_e4strip) return 0;
+    }
     if (!_row_sig_init) {
         memset(_row_sig, 0x80, sizeof _row_sig);
         _row_sig_init = 1;
@@ -608,7 +615,7 @@ static void _attract_restart(void)
 {
     video_set_mode(VIDEO_MODE_13H); // 132f: vga_set_mode_13h (1000:8300)
     res_set_disc(0u); // LAB_000E: [0xF7E] := 0
-    free(_text_spr);
+    mem_free(_text_spr);
     _text_spr = res_load_chunk("APL\\TEXT.SPR", NULL, NULL);
     font_publish(_text_spr); // [0x1E1C] - may be NULL (headless)
 
@@ -945,12 +952,7 @@ uint8_t attract_tick(const InputState *in)
     /* --- the escape: the longjmp 13B2's fade, waited without polling ---- */
     case ATTRACT_ESCAPE:
         if (palette_fade_active()) break; // 8b8b: wait_palette_fade_done
-        _unload_img();
-        free(_credtext);
-        _credtext = NULL; // [0xC9F] released
-        free(_text_spr);
-        _text_spr = NULL;
-        font_publish(NULL);
+        attract_shutdown();
         _phase = ATTRACT_DONE;
         break;
 
@@ -960,4 +962,16 @@ uint8_t attract_tick(const InputState *in)
 
     _compose_window();
     return _phase != ATTRACT_DONE;
+}
+
+void attract_shutdown(void)
+{
+    _unload_img();
+    mem_free(_credtext);
+    _credtext = NULL;
+    if (_text_spr) font_publish(NULL); // the glyph table dies with it
+    mem_free(_text_spr);
+    _text_spr = NULL;
+    mem_free(_e4strip);
+    _e4strip = NULL;
 }

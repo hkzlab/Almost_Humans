@@ -26,6 +26,11 @@
 int32_t video_init(const OSystem *osys);
 
 /**
+ * @brief Release the session-long heap buffers (the shared text arena).
+ */
+void video_shutdown(void);
+
+/**
  * @brief The video per-tick hook: empty, the flip is video_vram_present.
  */
 void video_tick(void);

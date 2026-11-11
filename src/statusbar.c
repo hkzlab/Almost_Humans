@@ -1,4 +1,5 @@
 #include "statusbar.h"
+#include "mem.h"
 #include "object.h"
 #include "osystem.h"
 #include "res.h"
@@ -6,7 +7,6 @@
 #include "width.h"
 
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
 
 #define STRIP_LEN     1280u // PANELN1 (768) + PANELN2 (512), level strip
@@ -24,8 +24,11 @@ static uint8_t *_strip; // the four-plane panel _strip
 static uint8_t *_panel4; // LBM\PANEL4.BIT (the art + the palette)
 static uint32_t _p4_size; // its length: the charge bar reads 0x3EE0+
 /* shift_screen_up's +0x3200 staging (1000:99D8): panel4's first 0xC800
- * bytes, +0xC0 tagged, with the charge trough drawn in by statusbar_charge_begin. */
-static uint8_t _stage[0xC800];
+ * bytes, +0xC0 tagged, with the charge trough drawn in by
+ * statusbar_charge_begin.  It lives in the loaded panel4's heap block, so it
+ * is allocated with the level's bar and released with it. */
+#define STAGE_BYTES 0xC800u
+static uint8_t *_stage;
 static uint8_t *_icons3; // APL\ICONS3.SPR: 12 x 16x24 (0x180 each)
 
 static uint8_t _active; // [0x5B12]: the bar's ticking gate
@@ -134,7 +137,21 @@ void statusbar_load_params(const uint8_t *in)
 int32_t statusbar_init(const OSystem *osys)
 {
     _sb_osys = osys;
+    mem_bind(osys);
     return 0;
+}
+
+void statusbar_shutdown(void)
+{
+    mem_free(_strip);
+    _strip = NULL;
+    mem_free(_panel4);
+    _panel4 = NULL;
+    _p4_size = 0;
+    mem_free(_icons3);
+    _icons3 = NULL;
+    mem_free(_stage);
+    _stage = NULL;
 }
 
 /**
@@ -232,7 +249,8 @@ void statusbar_charge_bar(uint32_t v)
          * is already in it, so the inset slices carry the trough edges). */
         uint16_t src = 0x0CE0u + len;
 
-        if (src + 0x140u * 15u + 4u > sizeof _stage) return; // past the art
+        // past the art
+        if (!_stage || src + 0x140u * 15u + 4u > STAGE_BYTES) return;
         for (i = 0; i < 2u; i++) {
             uint16_t x = 4u * col + p;
 
@@ -415,7 +433,8 @@ void statusbar_charge_begin(void)
     _frame_box(page, 0x5Fu, _bar_split + 0x0Cu, 0x82u, 0x0Fu, NULL, 0u);
     /* 1000:99D8's staging + the 0x9B7D trough: the second-half art at
      * 0x3EE0+len reads the staged trough, not clean panel4. */
-    for (uint16_t i = 0; i < sizeof _stage; i++)
+    if (!_stage) return;
+    for (uint16_t i = 0; i < STAGE_BYTES; i++)
         _stage[i] = (uint8_t)(0xC0u | _panel4[i]);
     _frame_box(_stage, 0x5Fu, 0x0Cu, 0x82u, 0x0Fu, NULL, 0u);
 }
@@ -611,42 +630,42 @@ void statusbar_start(uint16_t packedTimeBcd, uint16_t tribeMembers,
 
     n1 = res_load_chunk("APL\\PANELN1.SPR", &n1Size, &chk);
     if (!n1 || n1Size != 768u) {
-        free(n1);
+        mem_free(n1);
         return;
     }
     n2 = res_load_chunk("APL\\PANELN2.SPR", &n2Size, &chk);
     if (!n2 || n2Size != 512u) {
-        free(n1);
-        free(n2);
+        mem_free(n1);
+        mem_free(n2);
         return;
     }
-    free(_strip);
-    _strip = malloc(STRIP_LEN);
+    mem_free(_strip);
+    _strip = mem_alloc(STRIP_LEN);
     if (!_strip) {
-        free(n1);
-        free(n2);
+        mem_free(n1);
+        mem_free(n2);
         return;
     }
     memcpy(_strip, n1, 768u);
     memcpy(_strip + 768u, n2, 512u);
-    free(n1);
-    free(n2);
+    mem_free(n1);
+    mem_free(n2);
 
     /* level_video_init's load (1000:32AD): the +0xC0 paragraph stride puts
      * PANELN2 right after PANELN1 - one 1280-byte _strip         */
-    free(_panel4);
+    mem_free(_panel4);
     _p4_size = 0;
     _panel4 = res_load_chunk("LBM\\PANEL4.BIT", &_p4_size, &chk);
     if (!_panel4 || _p4_size < 0xFA00u + 768u) {
-        free(_panel4);
+        mem_free(_panel4);
         _panel4 = NULL;
         return;
     }
 
-    free(_icons3);
+    mem_free(_icons3);
     _icons3 = res_load_chunk("APL\\ICONS3.SPR", &i3Size, &chk);
     if (!_icons3 || i3Size != 4608u) {
-        free(_icons3);
+        mem_free(_icons3);
         _icons3 = NULL;
     }
 

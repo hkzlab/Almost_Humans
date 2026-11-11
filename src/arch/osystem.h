@@ -5,6 +5,7 @@
  *   timer    int8_timer_isr 1000:8A70
  *   audio    INT 60h, driver_reset 1000:84DE (sound_driver.h)
  *   files    DOS INT 21h; int63_load_resource 1000:8D63 (fs.h)
+ *   heap     DOS INT 21h AH=48h; the boot block [0x48AC] (mem.h)
  *
  * The core never touches SDL, the GPU, the OS or a path: if a behaviour cannot
  * be expressed here, this interface is wrong, not the core.
@@ -15,6 +16,7 @@
 
 #include "fs/fs.h"
 
+#include <stddef.h>
 #include <stdint.h>
 
 /* One poll's input: the two bytes the game's foreground reads, plus the
@@ -150,6 +152,13 @@ typedef struct OSystem {
     /* The filesystem module the core reads the volumes and saves through
      * It is defined by the arch layer. */
     const FSModule *fs;
+
+    /* --- heap -------------------------------------------------------- *
+     * The original's DOS allocation (INT 21h AH=48h): the one way the core
+     * obtains a dynamic buffer.  src/mem.c wraps these two; a core module
+     * never calls malloc/free. */
+    void *(*memAlloc)(size_t size); // a block, or NULL when unavailable
+    void (*memFree)(void *p); // release a memAlloc block
 } OSystem;
 
 /**
