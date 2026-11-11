@@ -157,23 +157,28 @@ int32_t resources_init(const OSystem *osys)
     return res_init_state;
 }
 
-/** @brief The ISR body: the fixed per-tick work, in the original's order.
+/** @brief The ISR body: the per-tick work (the flip hook, the palette fade
+ * step, the music tick), in the original's order.
  *
- * The entity update is not here: the original runs it from the level's
- * per-frame body (update_world 1000:80E1, once per display period from
- * level_run), so it lives in level_tick().
+ * The entity update is not here: update_world (1000:80AD) runs once per play
+ * frame from input_dispatch_loop (1000:34B5), so it lives in level_tick().
  */
 static void _game_tick(void)
 {
     video_tick();
     palette_tick();
-    /* 1000:8B1E: the music tick (2 of 3) and the master-volume fade steps,
-     * both per display period. */
+    /* 1000:8B1E's music half: its [0x5AF2] modulo-3 counter sends the
+     * driver's cmd 2 on two of every three ISR ticks and skips the third.
+     * The master-volume fade pair (1000:835A out / 1000:84A5 in) is a
+     * blocking foreground loop in the original, one step per two display
+     * periods.  The port folds both into audio_tick. */
     audio_tick();
-    /* NOT statusbar_tick: the bar's tick+stamp is 1000:96AD, whose port
-     * draws into the page after the world copy, so it runs from level_tick
-     * (the foreground).  Calling it here as well ran the clock and the
-     * slides at twice the tick rate. */
+    /* statusbar_tick is deliberately not called here.  The original reaches
+     * the bar's tick+stamp (1000:96AD, falling through to the 0x9846 stamp)
+     * from the ISR through [CS:0x8B1C] = 0x339D.  The port's flat page draws
+     * the bar after the world copy, so it runs from level_tick (D-03/D-04);
+     * calling it here as well would tick the clock and the slides twice per
+     * display period. */
 }
 uint8_t gameflow_goal_page_up(void) { return _goal_showing; }
 uint8_t gameflow_goal_armed(void) { return _goal_page; }
