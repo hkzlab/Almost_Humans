@@ -93,6 +93,18 @@ void audio_play_tune(const char *name)
         return;
     }
     _tune_missing = 0;
+    /* D-264: LEVJ.ALB (DOOM, level 82) is the one level arrangement whose
+     * record 0 ships loop=0, so the AdLib driver releases the tune after one
+     * pass and the level goes silent.  The resolved name proves the file is
+     * this exact tune; the byte test keeps every already-looping tune (and
+     * the MT-32 .RLD) untouched. */
+    if (strcmp(path, "mus\\levJ.ALB") == 0 && size > 0x164u &&
+        image[0x164u] == 0u) {
+        image[0x164u] = 1u;
+        snprintf(msg, sizeof msg,
+                 "audio: %s record 0 has loop=0; forcing it to loop", path);
+        _au_osys->warn(msg);
+    }
     _au_osys->audioLoadTune(image, size);
     free(image);
 }

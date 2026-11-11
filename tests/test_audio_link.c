@@ -265,6 +265,19 @@ int main(int argc, char **argv)
         assert(_stops == stops0 + 1u);
     }
 
+    /* --- DOOM's tune (D-264) ------------------------------------------ */
+    /* LEVJ.ALB's record 0 ships loop=0 and the AdLib driver releases it after
+     * one pass (~5630 ticks); the port forces the loop flag, so the tune must
+     * still be audible after that point. */
+    frontend_option_set_for_probe(FRONTEND_OPT_MUSIC, 0u); // music on
+    res_set_disc(1u); // the level tunes ship on HUMANS.001
+    audio_play_level_tune(82u); // level 82 = DOOM
+    assert(strcmp(audio_tune_lev, "mus\\levJ") == 0);
+    audio_music_resume();
+    (void)_run(12000); // ~8000 driver ticks: well past the one-pass end
+    peak = _run(200);
+    assert(peak > 256u);
+
     g_sound_driver_adlib.destroy(_drv);
     _drv = NULL;
     printf("test_audio_link: ok\n");
