@@ -23,7 +23,7 @@
 #include "audio/sound_driver.h"
 #include "byteorder.h"
 #include "compat.h"
-#include "fs/fs.h"
+#include "fs/posix/fs_posix.h"
 #include "osystem.h"
 #include "res.h"
 

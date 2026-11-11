@@ -32,9 +32,8 @@ typedef struct FSModule {
     FSSave *(*createNamed)(const char *name);
 } FSModule;
 
-/* The one module the build links; the arch layer puts it in OSystem::fs and
- * the core never names it. */
-extern const FSModule g_fs_posix;
-extern const FSModule g_fs_null;
+/* Each module (fs/<name>/fs_<name>.c) exports its own `g_fs_<name>` and
+ * declares it in fs/<name>/fs_<name>.h; only the code that builds an OSystem
+ * includes one. */
 
 #endif /* HUMANSRE_FS_H */

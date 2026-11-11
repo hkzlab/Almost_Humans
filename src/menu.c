@@ -40,9 +40,13 @@ uint8_t menu_active(void)
     return _phase == MENU_PAUSE || _phase == MENU_GRID ||
            _phase == MENU_TIMEOUT;
 }
+
 uint8_t menu_time_up(void) { return _time_up_kind; }
+
 int16_t menu_result(void) { return _result; }
+
 uint8_t menu_slot(void) { return _slot; }
+
 void menu_close(void)
 {
     _phase = MENU_NONE;

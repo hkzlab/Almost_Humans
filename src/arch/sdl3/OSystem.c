@@ -5,7 +5,7 @@
  * and --version.
  */
 #include "osystem.h"
-#include "fs/fs.h"
+#include "fs/posix/fs_posix.h"
 
 #include <SDL3/SDL.h>
 #include <stdint.h>

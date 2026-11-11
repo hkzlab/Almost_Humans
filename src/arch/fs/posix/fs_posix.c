@@ -4,7 +4,7 @@
  * in the core; this module only opens, sizes, reads and writes bytes.
  * Deviation: D-05 (POSIX files, no DOS drive or disc swap).
  */
-#include "fs/fs.h"
+#include "fs/posix/fs_posix.h"
 
 #include <stdint.h>
 #include <stdio.h>

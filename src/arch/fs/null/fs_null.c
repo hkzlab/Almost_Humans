@@ -3,7 +3,7 @@
  * Port-only reference for a no-data build; no current target links it.
  * Callers treat NULL as "the volume is not available" and own the error path.
  */
-#include "fs/fs.h"
+#include "fs/null/fs_null.h"
 
 #include <stdint.h>
 #include <stdio.h>
