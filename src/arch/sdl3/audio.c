@@ -179,7 +179,7 @@ int32_t sdl3_audio_select(const char *name, const char *roms)
         return 0;
     }
 #else
-    (*roms);
+    (void)roms; /* no MT-32 module built into this binary */
 #endif
     return -1;
 }
