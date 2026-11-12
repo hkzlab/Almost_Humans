@@ -5,7 +5,6 @@
 #include "font.h"
 #include "frontend.h"
 #include "game_strings.h"
-#include "hiscore.h"
 #include "level.h"
 #include "map.h"
 #include "menu.h"

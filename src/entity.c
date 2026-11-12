@@ -1,6 +1,5 @@
 #include "entity.h"
 #include "object.h"
-#include "osystem.h"
 #include "score.h"
 #include "byteorder.h"
 #include "width.h"

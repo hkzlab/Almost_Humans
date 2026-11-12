@@ -16,7 +16,6 @@
  * skip; a pre-existing SAVET is never clobbered. */
 #include "frontend.h"
 #include "font.h"
-#include "gameflow.h"
 #include "level.h"
 #include "menu.h"
 #include "object.h"

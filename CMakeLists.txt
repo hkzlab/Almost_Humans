@@ -42,15 +42,24 @@ function(humansre_test_asserts tgt)
 endfunction()
 
 # The unused-include audit: with this ON, clang-tidy's include-cleaner fails
-# the build on every #include whose declarations the file never uses.  Opt-in,
-# like the narrowing audit below it: it needs clang-tidy and adds a tidy pass
-# to each translation unit.  Only the unused half runs - the missing-include
-# half would demand one header per symbol, which contradicts the umbrella
-# headers the projects ship (SDL3/SDL.h, mt32emu.h); those two are ignored so
-# the convention does not read as an unused include.
-option(HUMANSRE_UNUSED_INCLUDES "Fail the build on unused #includes" OFF)
+# the build on every #include whose declarations the file never uses.  On by
+# default wherever clang-tidy is on PATH (a machine without it still builds;
+# -DHUMANSRE_UNUSED_INCLUDES=OFF skips the tidy pass).  Only the unused half
+# runs - the missing-include half would demand one header per symbol, which
+# contradicts the umbrella headers the projects ship (SDL3/SDL.h, mt32emu.h);
+# those two are ignored so the convention does not read as an unused include.
+find_program(HUMANSRE_CLANG_TIDY NAMES clang-tidy)
+if(HUMANSRE_CLANG_TIDY)
+    set(HUMANSRE_UNUSED_INCLUDES_DEFAULT ON)
+else()
+    set(HUMANSRE_UNUSED_INCLUDES_DEFAULT OFF)
+endif()
+option(HUMANSRE_UNUSED_INCLUDES "Fail the build on unused #includes"
+       ${HUMANSRE_UNUSED_INCLUDES_DEFAULT})
 if(HUMANSRE_UNUSED_INCLUDES)
-    find_program(HUMANSRE_CLANG_TIDY NAMES clang-tidy REQUIRED)
+    if(NOT HUMANSRE_CLANG_TIDY)
+        message(FATAL_ERROR "HUMANSRE_UNUSED_INCLUDES=ON needs clang-tidy on PATH")
+    endif()
     set(CMAKE_C_CLANG_TIDY "${HUMANSRE_CLANG_TIDY}"
         "--checks=-*,misc-include-cleaner"
         "--config={CheckOptions: {misc-include-cleaner.MissingIncludes: false, misc-include-cleaner.IgnoreHeaders: '(SDL3/SDL[.]h$|mt32emu[.]h$)'}}"
