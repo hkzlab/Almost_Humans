@@ -1,5 +1,5 @@
 #include "ver_detect.h"
-#include "game_strs.h"
+#include "game_strings.h"
 #include "fs/fs.h"
 #include "osystem.h"
 
@@ -36,14 +36,14 @@ static uint32_t _hash_update(uint32_t h, const uint8_t *buf, uint32_t n)
 int32_t ver_detect_lang(uint32_t hash)
 {
     switch (hash) {
-    case VER_DETECT_EN_HASH: return GAME_LANG_EN;
-    case 0xD7713AFAu: return GAME_LANG_FRE;
-    case 0xA6F63422u: return GAME_LANG_GER;
-    case 0x5910D3A2u: return GAME_LANG_ITA;
-    case 0xD9AB8E78u: return GAME_LANG_SPA;
+    case VER_DETECT_EN_HASH: return GAME_LANGUAGE_EN;
+    case 0xD7713AFAu: return GAME_LANGUAGE_FRE;
+    case 0xA6F63422u: return GAME_LANGUAGE_GER;
+    case 0x5910D3A2u: return GAME_LANGUAGE_ITA;
+    case 0xD9AB8E78u: return GAME_LANGUAGE_SPA;
     default:
         /* An unknown volume set (a dump of another release?) */
-        return GAME_LANG_EN;
+        return GAME_LANGUAGE_EN;
     }
 }
 
@@ -78,7 +78,7 @@ int32_t ver_detect_run(const OSystem *osys)
     lang = ver_detect_lang(hash);
     /* The map falls back to English for an unknown digest; the real ENG
      * set is the one case where that answer is not a fallback. */
-    if (lang == GAME_LANG_EN && hash != VER_DETECT_EN_HASH) {
+    if (lang == GAME_LANGUAGE_EN && hash != VER_DETECT_EN_HASH) {
         snprintf(msg, sizeof msg,
                  "ver_detect: unrecognized volume set (digest "
                  "0x%08X); using the English text",

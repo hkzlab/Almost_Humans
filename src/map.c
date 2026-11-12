@@ -1,7 +1,7 @@
 #include "audio.h"
 #include "map.h"
 #include "font.h"
-#include "game_strs.h"
+#include "game_strings.h"
 #include "hiscore.h"
 #include "osystem.h"
 #include "palette.h"
@@ -39,7 +39,7 @@ struct MapFade {
 
 /* 1000:024B..1000:0266: the qualifying page's seven lines at DS:0x7BB..0x85C
  * (verbatim from the image), drawn at x=0xA0, y=0x19 + 0x10*line with
- * blit_text_tile's 0x20 mask.  The lines are game_strs' MAP_CONGRATS block. */
+ * blit_text_tile's 0x20 mask.  The lines are game_strings' MAP_CONGRATS block. */
 
 static uint8_t *_map_high;
 static uint32_t _map_high_size;
@@ -981,7 +981,7 @@ void map_draw_list_header(uint8_t *page)
         map_draw_rect(page, 0xD6u, y, 0x58u, 0x0Fu);
     }
     textpage_draw_line_mask_at(page,
-                               game_strs[g_game_lang][GAME_STR_MAP_TOP_TEN],
+                               game_strings[g_game_language][GAME_STRING_MAP_TOP_TEN],
                                0xA0u, 0x14u, 0x20u);
 }
 
@@ -989,7 +989,7 @@ void map_draw_congrats(uint8_t *page)
 {
     for (uint16_t i = 0; i < 7u; i++)
         textpage_draw_line_mask_at(
-            page, game_strs[g_game_lang][GAME_STR_MAP_CONGRATS_0 + i], 0xA0u,
+            page, game_strings[g_game_language][GAME_STRING_MAP_CONGRATS_0 + i], 0xA0u,
             0x19u + 0x10u * i, 0x20u);
 }
 

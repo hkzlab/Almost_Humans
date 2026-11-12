@@ -93,7 +93,7 @@ add_library(core STATIC
     src/map.c
     src/score.c
     src/hiscore.c
-    src/game_strs.c
+    src/game_strings.c
     src/entity.c
     src/object.c
     src/script.c
@@ -137,10 +137,10 @@ add_test(NAME byteorder COMMAND test_byteorder)
 # The text table's structural invariants (no game data needed): the printf
 # markers, the in-place digit fields and the dialog line counts in every
 # language column.
-add_executable(test_game_strs tests/test_game_strs.c src/game_strs.c)
-target_include_directories(test_game_strs PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-humansre_warnings(test_game_strs)
-add_test(NAME game_strs COMMAND test_game_strs)
+add_executable(test_game_strings tests/test_game_strings.c src/game_strings.c)
+target_include_directories(test_game_strings PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+humansre_warnings(test_game_strings)
+add_test(NAME game_strings COMMAND test_game_strings)
 
 # The language detector: the FNV-1a vectors, the digest -> column map and
 # each shipped volume set (one subdirectory per language under the root).

@@ -4,7 +4,7 @@
 #include "entity.h"
 #include "font.h"
 #include "frontend.h"
-#include "game_strs.h"
+#include "game_strings.h"
 #include "hiscore.h"
 #include "level.h"
 #include "map.h"
@@ -732,11 +732,11 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
             level_tick();
             if (level_outcome())
                 snprintf(text, sizeof text,
-                         game_strs[g_game_lang][GAME_STR_GAMEFLOW_LEVEL_DONE],
+                         game_strings[g_game_language][GAME_STRING_GAMEFLOW_LEVEL_DONE],
                          _level_current + 1u);
             else
                 snprintf(text, sizeof text, "%s",
-                         game_strs[g_game_lang][GAME_STR_GAMEFLOW_EXTINCT]);
+                         game_strings[g_game_language][GAME_STRING_GAMEFLOW_EXTINCT]);
             textpage_draw(osys->videoPage(0), text, -1, 0u, 0);
             if (input->lastKey || (input->joyBits & 0x80u)) {
                 /* scroll_map's exit 0xA0E1 re-renders the page twice:
@@ -1026,8 +1026,8 @@ int32_t game_main(const OSystem *osys)
 
     /* The original's language is the executable's; the port has one binary
      * and takes the column from the installed volume set (ver_detect.h). */
-    g_game_lang = ver_detect_run(osys);
-    if (g_game_lang < 0) {
+    g_game_language = ver_detect_run(osys);
+    if (g_game_language < 0) {
         osys->fatalError("HUMANS.001 is missing or too short; the installed "
                          "language cannot be identified");
         return 1;

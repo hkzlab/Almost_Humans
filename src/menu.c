@@ -1,6 +1,6 @@
 #include "level.h"
 #include "menu.h"
-#include "game_strs.h"
+#include "game_strings.h"
 #include "osystem.h"
 #include "statusbar.h"
 #include "textpage.h"
@@ -23,7 +23,7 @@ typedef enum {
 
 /* 202F:0x5BBC+1 and 202F:0x5CD8+1, 202F:0x5C2B+1 - the pause block, the
  * 4x5 column-major SAVE GAME grid (games 1..20) and the time-up block, all in
- * game_strs.  The blocks' leading count byte ([0x5E41], not part of the text)
+ * game_strings.  The blocks' leading count byte ([0x5E41], not part of the text)
  * is not stored. */
 
 static MenuPhase _phase = MENU_NONE;
@@ -87,13 +87,13 @@ void menu_draw(void)
 {
     uint8_t *page = g_osys ? g_osys->videoPage(0) : NULL;
     if (_phase == MENU_PAUSE)
-        textpage_draw(page, game_strs[g_game_lang][GAME_STR_MENU_PAUSE_BLOCK],
+        textpage_draw(page, game_strings[g_game_language][GAME_STRING_MENU_PAUSE_BLOCK],
                       (int32_t)_row, 0u, 0);
     else if (_phase == MENU_GRID)
-        textpage_draw(page, game_strs[g_game_lang][GAME_STR_MENU_GRID_BLOCK],
+        textpage_draw(page, game_strings[g_game_language][GAME_STRING_MENU_GRID_BLOCK],
                       (int32_t)_row, _col, 1);
     else if (_phase == MENU_TIMEOUT)
-        textpage_draw(page, game_strs[g_game_lang][GAME_STR_MENU_TIME_UP_BLOCK],
+        textpage_draw(page, game_strings[g_game_language][GAME_STRING_MENU_TIME_UP_BLOCK],
                       (int32_t)_row, 0u, 0);
 }
 

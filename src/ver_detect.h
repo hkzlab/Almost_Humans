@@ -30,10 +30,10 @@
 uint32_t ver_detect_hash(const uint8_t *buf, uint32_t n);
 
 /**
- * @brief Map a HUMANS.001 digest to a game_strs column.
+ * @brief Map a HUMANS.001 digest to a game_strings column.
  *
  * @param hash a digest from ver_detect_hash over the VER_DETECT_LEN window
- * @return the enum GameLang index, GAME_LANG_EN for an unknown digest
+ * @return the enum GameLanguage index, GAME_LANGUAGE_EN for an unknown digest
  */
 int32_t ver_detect_lang(uint32_t hash);
 
@@ -49,7 +49,7 @@ int32_t ver_detect_lang(uint32_t hash);
  * aborts the boot.
  *
  * @param osys the backend interface (the warning's destination)
- * @return the enum GameLang index, GAME_LANG_EN on an unrecognized digest
+ * @return the enum GameLanguage index, GAME_LANGUAGE_EN on an unrecognized digest
  *         (with a warning); a negative value when HUMANS.001 is missing or
  *         shorter than the window
  */

@@ -3,7 +3,7 @@
 #include "entity.h"
 #include "font.h"
 #include "frontend.h"
-#include "game_strs.h"
+#include "game_strings.h"
 #include "object.h"
 #include "osystem.h"
 #include "palette.h"
@@ -2311,15 +2311,15 @@ static void _disk_draw(uint16_t disc)
     font_publish(_disk_font);
 
     char line[32];
-    textpage_draw_line(page, game_strs[g_game_lang][GAME_STR_LEVEL_PUT_DISK],
+    textpage_draw_line(page, game_strings[g_game_language][GAME_STRING_LEVEL_PUT_DISK],
                        0x50u, 0x0Fu);
     snprintf(line, sizeof line,
-             game_strs[g_game_lang][GAME_STR_LEVEL_INTO_DRIVE],
+             game_strings[g_game_language][GAME_STRING_LEVEL_INTO_DRIVE],
              (char)('1' + disc));
     textpage_draw_line(page, line, 0x60u, 0x0Fu);
-    textpage_draw_line(page, game_strs[g_game_lang][GAME_STR_LEVEL_PRESS_FIRE],
+    textpage_draw_line(page, game_strings[g_game_language][GAME_STRING_LEVEL_PRESS_FIRE],
                        0x88u, 0x0Fu);
-    textpage_draw_line(page, game_strs[g_game_lang][GAME_STR_LEVEL_WHEN_READY],
+    textpage_draw_line(page, game_strings[g_game_language][GAME_STRING_LEVEL_WHEN_READY],
                        0x98u, 0x0Fu);
 }
 

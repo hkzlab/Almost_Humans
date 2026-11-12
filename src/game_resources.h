@@ -2,7 +2,7 @@
  *
  * Every resource the game loads by name comes from `game_resources[id]`; the
  * loaders carry no literals.  The text the player reads is localisable and
- * lives in game_strs.h; these names are not - they are identical in every
+ * lives in game_strings.h; these names are not - they are identical in every
  * build.
  *
  * A `_FMT` entry is the snprintf() template for a per-level/-style family;

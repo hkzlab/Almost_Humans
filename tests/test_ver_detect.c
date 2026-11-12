@@ -1,6 +1,6 @@
 /* test_ver_detect.c - the language detector (ver_detect.h).
  *
- * Unit part: the FNV-1a known vectors and the digest -> game_strs column map.
+ * Unit part: the FNV-1a known vectors and the digest -> game_strings column map.
  * Data part: the real volume sets, argv[1] being a directory that holds one
  * subdirectory per language (ENG, FRE, GER, ITA, SPA), each with its
  * HUMANS.001.  Missing data = skip; a wrong detection = fail.
@@ -10,7 +10,7 @@
  * replaced volume set fails here instead of silently showing the wrong text.
  */
 #include "compat.h"
-#include "game_strs.h"
+#include "game_strings.h"
 #include "ver_detect.h"
 
 #include <stdio.h>
@@ -47,9 +47,9 @@ int main(int argc, char **argv)
         const char *dir;
         int32_t lang;
     } langs[] = {
-        { "ENG", GAME_LANG_EN },  { "FRE", GAME_LANG_FRE },
-        { "GER", GAME_LANG_GER }, { "ITA", GAME_LANG_ITA },
-        { "SPA", GAME_LANG_SPA },
+        { "ENG", GAME_LANGUAGE_EN },  { "FRE", GAME_LANGUAGE_FRE },
+        { "GER", GAME_LANGUAGE_GER }, { "ITA", GAME_LANGUAGE_ITA },
+        { "SPA", GAME_LANGUAGE_SPA },
     };
 
     /* the algorithm: the standard FNV-1a 32-bit vectors */
@@ -57,12 +57,12 @@ int main(int argc, char **argv)
     _check(ver_detect_hash(hello, 5) == 0x4F9F2CABu, "hello digest");
 
     /* the map: every shipped digest, and an unknown one */
-    _check(ver_detect_lang(0xCFDBFBFFu) == GAME_LANG_EN, "map ENG");
-    _check(ver_detect_lang(0xD7713AFAu) == GAME_LANG_FRE, "map FRE");
-    _check(ver_detect_lang(0xA6F63422u) == GAME_LANG_GER, "map GER");
-    _check(ver_detect_lang(0x5910D3A2u) == GAME_LANG_ITA, "map ITA");
-    _check(ver_detect_lang(0xD9AB8E78u) == GAME_LANG_SPA, "map SPA");
-    _check(ver_detect_lang(0x12345678u) == GAME_LANG_EN,
+    _check(ver_detect_lang(0xCFDBFBFFu) == GAME_LANGUAGE_EN, "map ENG");
+    _check(ver_detect_lang(0xD7713AFAu) == GAME_LANGUAGE_FRE, "map FRE");
+    _check(ver_detect_lang(0xA6F63422u) == GAME_LANGUAGE_GER, "map GER");
+    _check(ver_detect_lang(0x5910D3A2u) == GAME_LANGUAGE_ITA, "map ITA");
+    _check(ver_detect_lang(0xD9AB8E78u) == GAME_LANGUAGE_SPA, "map SPA");
+    _check(ver_detect_lang(0x12345678u) == GAME_LANGUAGE_EN,
            "an unknown digest keeps English");
 
     if (_bad) return 1;

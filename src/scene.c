@@ -2,7 +2,7 @@
 #include "audio.h"
 #include "font.h"
 #include "frontend.h"
-#include "game_strs.h"
+#include "game_strings.h"
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
@@ -126,7 +126,7 @@ static const uint8_t _scene_bg_table[10] = { 1, 2, 3, 4, 5, 6, 8, 0, 5, 7 };
  * 202F:0x6305 for scene index N (1000:B0C1 scans N+1 NULs forward).  String 9
  * (202F:0x6416) is the empty one, so scene 8 draws nothing and scene 9 prints
  * "HUMANS RECOVER THE STOLEN IDOL!".  Drawn centred at 0xA0, row 0x41,
- * colour 0x10.  The strings themselves are game_strs' SCENE_HEADLINE block. */
+ * colour 0x10.  The strings themselves are game_strings' SCENE_HEADLINE block. */
 
 static ScenePhase _scene_phase = SCENE_IDLE;
 static uint16_t _scene_level = 0xFFFFu; // the level the intro is for
@@ -496,7 +496,7 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
      * vertical ramp) - the index-th string of 202F:0x6304 */
     {
         const char *headline =
-            game_strs[g_game_lang][GAME_STR_SCENE_HEADLINE_0 + index];
+            game_strings[g_game_language][GAME_STRING_SCENE_HEADLINE_0 + index];
 
         if (headline[0])
             textpage_draw_line_mask(video_page(0), headline, 0x41u, 0x10u);
