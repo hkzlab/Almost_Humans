@@ -1,7 +1,8 @@
 /* The SDL3 video backend: window, renderer, texture and the two 8bpp pages.
  *
  * Indexed 320x200 (mode 13h) or 320x192 (mode X) through a palette LUT into
- * one 960x720 4:3 window; the loop is paced by the tick gate, not vsync.
+ * a 4:3 picture that is letterboxed and centred in a resizable window; the
+ * loop is paced by the tick gate, not vsync.
  * Port-only: it replaces the VGA/CRTC services the original programs directly.
  * Deviation: D-04 (flat pages; the mode-X model is core-side).
  */
@@ -22,6 +23,12 @@ static int32_t _tex_rows =
     VIDEO_PAGE_H_MODE13H; // the texture's height = the field
 static uint8_t _pages[2][VIDEO_PAGE_BYTES];
 static uint32_t _lut[256]; // the palette LUT, 6-bit expanded
+
+/* The logical picture is 320x240: the 4:3 box the field is stretched into.
+ * VGA 320x200 and 320x192 pixels are 1.2 tall, so the picture's aspect is the
+ * 4:3 of the monitor, not the field's own pixel grid.  Letterboxing keeps that
+ * aspect and centres the picture in any window size. */
+#define VID_LOGICAL_H 240
 #if defined(HUMANSRE_TEST_PROBES)
 /* Test probe (HUMANSRE_TEST_PROBES): HUMANSRE_RATE_PROBE also reports the
  * present rate.  Never part of a release build. */
@@ -65,7 +72,7 @@ static void _vid_make_texture(int32_t rows)
 #if SDL_VERSION_ATLEAST(3, 4, 0)
     SDL_SetTextureScaleMode(_tex, SDL_SCALEMODE_PIXELART);
 #else
-    SDL_SetTextureScaleMode(_tex, SDL_SCALEMODE_NEAREST);
+    SDL_SetTextureScaleMode(_tex, SDL_SCALEMODE_LINEAR);
 #endif
     _tex_rows = rows;
 }
@@ -75,6 +82,10 @@ static void _vid_make_texture(int32_t rows)
  */
 static void _vid_init_video(void)
 {
+    /* The renderer preference: Vulkan first, OpenGL when it is unavailable.
+     * The hint is a comma-separated try order - naming only vulkan would
+     * leave a machine without a Vulkan device with no renderer at all. */
+    SDL_SetHint(SDL_HINT_RENDER_DRIVER, "vulkan,opengl");
     if (!SDL_CreateWindowAndRenderer(
             HUMANSRE_PROJECT_TITLE " " HUMANSRE_VERSION, 960, 720,
             SDL_WINDOW_RESIZABLE, &_win, &_ren))
@@ -96,8 +107,6 @@ void sdl3_video_set_mode(VideoMode mode)
     if (mode == _vid_mode) return;
     _vid_mode = mode;
     if (_mode_rows() != _tex_rows) _vid_make_texture(_mode_rows());
-    SDL_SetRenderScale(_ren, 960.0f / (float)VIDEO_PAGE_W,
-                       720.0f / (float)_mode_rows());
     SDL_Log("video: mode switched to %s (%dx%d)",
             mode == VIDEO_MODE_X ? "VGA mode X" : "VGA mode 13h",
             (int32_t)VIDEO_PAGE_W, _mode_rows());
@@ -118,36 +127,60 @@ static uint8_t *_vid_page(int32_t which) { return _pages[which & 1]; }
  */
 static void _vid_present(int32_t which)
 {
+#if defined(HUMANSRE_TEST_PROBES)
+    const Uint64 started = SDL_GetTicksNS();
+#endif
+    int outW = 0, outH = 0;
+    SDL_GetRenderOutputSize(_ren, &outW, &outH);
+
     const uint8_t *p = _pages[which & 1];
-    static uint32_t argb[VIDEO_PAGE_BYTES];
     const int32_t rows = _mode_rows();
+    /* A plain update with an intermediate ARGB buffer measured faster than
+     * SDL_LockTexture on both renderers (0.94 vs 1.1 ms Vulkan, 0.63 vs 0.86 ms
+     * OpenGL at 960x720): lock/unlock stages the upload twice. */
+    static uint32_t argb[VIDEO_PAGE_BYTES];
     for (int32_t i = 0; i < (int32_t)VIDEO_PAGE_W * rows; i++)
         argb[i] = _lut[p[i]];
     SDL_UpdateTexture(_tex, NULL, argb, (int)(VIDEO_PAGE_W * 4u));
     SDL_SetRenderDrawColor(_ren, 0, 0, 0, 255);
     SDL_RenderClear(_ren);
-    const SDL_FRect dst = { 0, 0, (float)VIDEO_PAGE_W, (float)rows };
+    /* Fit the 4:3 picture into whatever window size the user picked: as large
+     * as fits, centred, black bars on the free axis.  Scaling the destination
+     * rect (not drawing at native size) keeps the source pixel grid intact for
+     * PIXELART sampling; the draw is in pixels, so no render scale is set. */
+    float scale = (float)outW / (float)VIDEO_PAGE_W;
+    if (scale * (float)VID_LOGICAL_H > (float)outH)
+        scale = (float)outH / (float)VID_LOGICAL_H;
+    const float w = (float)VIDEO_PAGE_W * scale;
+    const float h = (float)VID_LOGICAL_H * scale;
+    const SDL_FRect dst = { ((float)outW - w) / 2.0f, ((float)outH - h) / 2.0f,
+                            w, h };
     SDL_RenderTexture(_ren, _tex, NULL, &dst);
     SDL_RenderPresent(_ren);
 #if defined(HUMANSRE_TEST_PROBES)
     if (_present_probe) {
         static uint32_t frames;
-        static Uint64 windowStart;
+        static Uint64 windowStart, total, worst;
+        const Uint64 done = SDL_GetTicksNS();
         frames++;
-        Uint64 now = SDL_GetPerformanceCounter();
+        total += done - started;
+        if (done - started > worst) worst = done - started;
         if (!windowStart) {
-            windowStart = now;
+            windowStart = done;
             return;
         }
-        double s =
-            (double)(now - windowStart) / (double)SDL_GetPerformanceFrequency();
+        double s = (double)(done - windowStart) / 1e9;
         if (s >= 5.0) {
             /* Scene playback presents from its own loops too, so this can
              * exceed the tick rate: it is not the loop rate. */
-            SDL_Log("present rate: %.2f Hz (videoPresent calls)",
-                    (double)frames / s);
+            SDL_Log("present rate: %.2f Hz (videoPresent calls), mean %.2f ms, "
+                    "worst %.2f ms, output %dx%d",
+                    (double)frames / s, (double)total / (double)frames / 1e6,
+                    (double)worst / 1e6, outW, outH);
             frames = 0;
-            windowStart = now;
+            total = 0;
+            worst = 0;
+            windowStart = done;
         }
     }
 #endif /* HUMANSRE_TEST_PROBES */
