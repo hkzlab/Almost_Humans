@@ -8,6 +8,7 @@
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
+#include "game_resources.h"
 #include "save.h"
 #include "statusbar.h"
 #include "textpage.h"
@@ -803,7 +804,7 @@ static int32_t _visuals_load(uint32_t style)
     _visuals_free();
 
     char name[32];
-    snprintf(name, sizeof name, "DEFS\\BD%u.BIN", style);
+    snprintf(name, sizeof name, game_resources[GAME_RES_DEFS_BD_FMT], style);
     uint32_t bdSize = 0;
     uint16_t chk = 0;
     uint8_t *bd = res_load_chunk(name, &bdSize, &chk);
@@ -890,7 +891,7 @@ static int32_t _visuals_load(uint32_t style)
         return -1;
     }
 
-    snprintf(name, sizeof name, "LEVELS\\BS%u.BLK", style);
+    snprintf(name, sizeof name, game_resources[GAME_RES_LEVELS_BS_FMT], style);
     _atlas = res_load_chunk(name, &bdSize, &chk);
     if (!_atlas || bdSize != 0x400u + ATLAS_TILES * 0x100u) {
         g_osys->memFree(bd);
@@ -907,7 +908,8 @@ static int32_t _visuals_load(uint32_t style)
 
     _level_bg_index = bgIdx;
     if (bgIdx != 0u) {
-        snprintf(name, sizeof name, "BACKS\\BG%u.RAW", bgIdx);
+        snprintf(name, sizeof name, game_resources[GAME_RES_BACKS_BG_FMT],
+                 bgIdx);
         _bg_image = res_load_chunk(name, &bdSize, &chk);
         if (!_bg_image || bdSize != WORLD_W * WORLD_H + 768u) {
             _visuals_free();
@@ -1087,7 +1089,8 @@ int32_t level_load(uint16_t levelId)
     res_set_disc(disc);
 
     char name[32];
-    snprintf(name, sizeof name, "LEVELS\\L%c.BIN", 'A' + levelId / 10u);
+    snprintf(name, sizeof name, game_resources[GAME_RES_LEVELS_L_FMT],
+             'A' + levelId / 10u);
 
     uint32_t fileSize = 0;
     uint16_t chk = 0;
@@ -1158,14 +1161,16 @@ int32_t level_load(uint16_t levelId)
     /* load_level_assets (1000:3468): the in-level dialog's box tiles
      * (apl\box.spr, 9 x 16x16 at [0x13B1]) load with the level's assets. */
     g_osys->memFree(_box_spr);
-    _box_spr = res_load_chunk("APL\\BOX.SPR", &_box_size, NULL);
+    _box_spr =
+        res_load_chunk(game_resources[GAME_RES_APL_BOX_SPR], &_box_size, NULL);
     textpage_publish_box(_box_spr && _box_size >= 0x900u ? _box_spr : NULL);
 
     /* load_level_assets (1000:3488): APL\SPRITES.DAT is the object sprite
      * image (81744 = 0x13F50 bytes); the object pass draws from it. */
     g_osys->memFree(_obj_bank);
     _obj_bank = NULL;
-    _obj_bank = res_load_chunk("APL\\SPRITES.DAT", &_obj_bank_size, NULL);
+    _obj_bank = res_load_chunk(game_resources[GAME_RES_APL_SPRITES_DAT],
+                               &_obj_bank_size, NULL);
     object_publish_bank(_obj_bank, _obj_bank_size);
 
     /* load_level_assets 1000:4F82: apl\rex.dat into the entity slot [0x13AD]
@@ -1173,7 +1178,8 @@ int32_t level_load(uint16_t levelId)
     g_osys->memFree(_ent_bank);
     _ent_bank = NULL;
     _ent_bank_size = 0;
-    _ent_bank = res_load_chunk("APL\\REX.DAT", &_ent_bank_size, NULL);
+    _ent_bank = res_load_chunk(game_resources[GAME_RES_APL_REX_DAT],
+                               &_ent_bank_size, NULL);
     entity_publish_bank(_ent_bank, _ent_bank_size);
 
     /* load_level_assets 1000:4F89: apl\TER.dat into [0x13AF] (the 0x649A
@@ -1181,7 +1187,8 @@ int32_t level_load(uint16_t levelId)
     g_osys->memFree(_ter_bank);
     _ter_bank = NULL;
     _ter_bank_size = 0;
-    _ter_bank = res_load_chunk("APL\\TER.DAT", &_ter_bank_size, NULL);
+    _ter_bank = res_load_chunk(game_resources[GAME_RES_APL_TER_DAT],
+                               &_ter_bank_size, NULL);
     object_publish_ter(_ter_bank, _ter_bank_size);
 
     /* Publish the level before the placed-object pass: the spawn's y snap
@@ -1244,7 +1251,8 @@ int32_t level_load(uint16_t levelId)
         memset(_level_pal, 0, sizeof _level_pal);
         {
             uint32_t spSize = 0;
-            uint8_t *sp = res_load_chunk("APL\\SPRPAL.APL", &spSize, NULL);
+            uint8_t *sp = res_load_chunk(
+                game_resources[GAME_RES_APL_SPRPAL_APL], &spSize, NULL);
             if (sp && spSize >= 0x1Bu + 0x5Du)
                 memcpy(_level_pal + 3u, sp + 0x1Bu, 0x5Du);
             g_osys->memFree(sp);
@@ -1312,7 +1320,7 @@ void level_loading_begin(void)
         uint8_t st = _level_data_cur.style;
         char icon[32];
         char l = (st >= 1u && st <= 6u) ? letter[st - 1u] : 'd';
-        snprintf(icon, sizeof icon, "BACKS\\%cICON.APL", l);
+        snprintf(icon, sizeof icon, game_resources[GAME_RES_BACKS_ICON_FMT], l);
         _load_dic = res_load_chunk(icon, &_load_dic_size, NULL);
     }
     if (_load_dic && _load_dic_size >= 0x18u + 0x180u) {
@@ -1323,7 +1331,8 @@ void level_loading_begin(void)
         const uint8_t *bank = statusbar_palette();
         if (bank) palette_set_dac(bank, 0xC0u, 0x40u);
     }
-    _loading_bank = res_load_chunk("APL\\LOADING.APL", &_loading_size, NULL);
+    _loading_bank = res_load_chunk(game_resources[GAME_RES_APL_LOADING_APL],
+                                   &_loading_size, NULL);
     if (!_loading_bank) {
         _load_phase = 3;
         return;
@@ -2275,7 +2284,8 @@ static void _disk_draw(uint16_t disc)
     for (uint16_t k = 0; k < 3u && !img; k++) {
         used = (k == 0u) ? disc : (k == 1u ? 0u : (disc == 1u ? 2u : 1u));
         res_set_disc(used);
-        img = res_load_chunk("APL\\DISKIMG1.DAT", &isz, NULL);
+        img = res_load_chunk(game_resources[GAME_RES_APL_DISKIMG1_DAT], &isz,
+                             NULL);
     }
     if (img) {
         if (isz >= 0x18u + 768u) memcpy(_disk_pal, img + 0x18, 768u);
@@ -2296,7 +2306,8 @@ static void _disk_draw(uint16_t disc)
     }
 
     g_osys->memFree(_disk_font);
-    _disk_font = res_load_chunk("APL\\TEXT.SPR", NULL, NULL);
+    _disk_font =
+        res_load_chunk(game_resources[GAME_RES_APL_TEXT_SPR], NULL, NULL);
     font_publish(_disk_font);
 
     char line[32];

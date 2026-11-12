@@ -6,6 +6,7 @@
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
+#include "game_resources.h"
 #include "script.h"
 #include "textpage.h"
 #include "video.h"
@@ -15,7 +16,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define ANI_NAME     "ANM\\ANI%02u.ANI"
+#define ANI_NAME     game_resources[GAME_RES_ANM_ANI_FMT]
 #define PAGE_SIZE    VIDEO_PAGE_BYTES
 #define OBJ_SEG_SIZE 65536u // the original decodes objects into a 64K segment
 
@@ -442,7 +443,8 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
     /* lbm\daily.bit -> the page: [64000-byte screen][768-byte palette] */
     {
         uint32_t dailySize = 0;
-        uint8_t *daily = res_load_chunk("LBM\\DAILY.BIT", &dailySize, NULL);
+        uint8_t *daily = res_load_chunk(game_resources[GAME_RES_LBM_DAILY_BIT],
+                                        &dailySize, NULL);
         uint8_t *page = video_page(0);
         if (!daily) {
             _scene_unload();
@@ -463,11 +465,13 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
      * headline is drawn with these glyphs (blit_text_tile), so the scene
      * publishes them for its own frame */
     g_osys->memFree(_text_spr);
-    _text_spr = res_load_chunk("APL\\TEXT.SPR", NULL, NULL);
+    _text_spr =
+        res_load_chunk(game_resources[GAME_RES_APL_TEXT_SPR], NULL, NULL);
     font_publish(_text_spr);
 
     /* apl\scoops.apl -> the background block, overlaid onto the page */
-    _scoops_buf = res_load_chunk("APL\\SCOOPS.APL", &_scoops_size, NULL);
+    _scoops_buf = res_load_chunk(game_resources[GAME_RES_APL_SCOOPS_APL],
+                                 &_scoops_size, NULL);
     if (_scoops_buf) {
         uint8_t *page = video_page(0);
         uint32_t srcOff = 0x400u + (uint32_t)_scene_bg_table[index] * 0xE00u;
@@ -1082,14 +1086,22 @@ static int32_t _boot_start(void)
     _scene_fast = 1; // 1000:B59F
     _boot_unload();
     res_set_disc(0u); // the boot assets ship on disc 0
-    _boot_gt = res_load_chunk("INTRO\\GAMETEK.RSC", &_boot_gt_size, NULL);
-    _boot_bac = res_load_chunk("INTRO\\BAC.BIT", NULL, NULL);
-    _boot_treetop = res_load_chunk("INTRO\\TREETOP.BIT", NULL, NULL);
-    _boot_treebot = res_load_chunk("INTRO\\TREEBOT.BIT", NULL, NULL);
-    _boot_apple = res_load_chunk("INTRO\\APPLE.SPR", NULL, NULL);
-    _boot_words = res_load_chunk("INTRO\\WORDS.BIT", NULL, NULL);
-    _boot_rsc = res_load_chunk("INTRO\\INTRO.RSC", &_boot_rsc_size, NULL);
-    _boot_itb = res_load_chunk("INTRO\\ITB.BIT", NULL, NULL);
+    _boot_gt = res_load_chunk(game_resources[GAME_RES_INTRO_GAMETEK_RSC],
+                              &_boot_gt_size, NULL);
+    _boot_bac =
+        res_load_chunk(game_resources[GAME_RES_INTRO_BAC_BIT], NULL, NULL);
+    _boot_treetop =
+        res_load_chunk(game_resources[GAME_RES_INTRO_TREETOP_BIT], NULL, NULL);
+    _boot_treebot =
+        res_load_chunk(game_resources[GAME_RES_INTRO_TREEBOT_BIT], NULL, NULL);
+    _boot_apple =
+        res_load_chunk(game_resources[GAME_RES_INTRO_APPLE_SPR], NULL, NULL);
+    _boot_words =
+        res_load_chunk(game_resources[GAME_RES_INTRO_WORDS_BIT], NULL, NULL);
+    _boot_rsc = res_load_chunk(game_resources[GAME_RES_INTRO_INTRO_RSC],
+                               &_boot_rsc_size, NULL);
+    _boot_itb =
+        res_load_chunk(game_resources[GAME_RES_INTRO_ITB_BIT], NULL, NULL);
     if (!_boot_gt || !_boot_bac || !_boot_treetop || !_boot_treebot ||
         !_boot_apple || !_boot_words || !_boot_rsc || !_boot_itb) {
         _boot_unload();
@@ -1455,7 +1467,7 @@ uint8_t scene_play_boot_intro(void)
         _boot_gt_entry_count = 0;
         g_osys->memFree(_boot_gt_list);
         _boot_gt_list = NULL;
-        if (!_boot_card_show("INTRO\\IDI.BIT")) {
+        if (!_boot_card_show(game_resources[GAME_RES_INTRO_IDI_BIT])) {
             _boot_unload();
             _boot_phase = BOOT_DONE;
             return 0;
@@ -1483,7 +1495,7 @@ uint8_t scene_play_boot_intro(void)
     case BOOT_IDI_OUT:
         if (_boot_abort_poll()) return 1; // c0af (bdae)
         if (palette_fade_active()) return 1;
-        if (!_boot_card_show("INTRO\\FIRST.BIT")) {
+        if (!_boot_card_show(game_resources[GAME_RES_INTRO_FIRST_BIT])) {
             _boot_unload();
             _boot_phase = BOOT_DONE;
             return 0;

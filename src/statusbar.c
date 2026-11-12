@@ -2,6 +2,7 @@
 #include "object.h"
 #include "osystem.h"
 #include "res.h"
+#include "game_resources.h"
 #include "byteorder.h"
 #include "width.h"
 
@@ -612,12 +613,14 @@ void statusbar_start(uint16_t packedTimeBcd, uint16_t tribeMembers,
     uint8_t s = (uint8_t)(packedTimeBcd & 0xFFu);
     uint16_t diff;
 
-    n1 = res_load_chunk("APL\\PANELN1.SPR", &n1Size, &chk);
+    n1 =
+        res_load_chunk(game_resources[GAME_RES_APL_PANELN1_SPR], &n1Size, &chk);
     if (!n1 || n1Size != 768u) {
         g_osys->memFree(n1);
         return;
     }
-    n2 = res_load_chunk("APL\\PANELN2.SPR", &n2Size, &chk);
+    n2 =
+        res_load_chunk(game_resources[GAME_RES_APL_PANELN2_SPR], &n2Size, &chk);
     if (!n2 || n2Size != 512u) {
         g_osys->memFree(n1);
         g_osys->memFree(n2);
@@ -639,7 +642,8 @@ void statusbar_start(uint16_t packedTimeBcd, uint16_t tribeMembers,
      * PANELN2 right after PANELN1 - one 1280-byte _strip         */
     g_osys->memFree(_panel4);
     _p4_size = 0;
-    _panel4 = res_load_chunk("LBM\\PANEL4.BIT", &_p4_size, &chk);
+    _panel4 = res_load_chunk(game_resources[GAME_RES_LBM_PANEL4_BIT], &_p4_size,
+                             &chk);
     if (!_panel4 || _p4_size < 0xFA00u + 768u) {
         g_osys->memFree(_panel4);
         _panel4 = NULL;
@@ -647,7 +651,8 @@ void statusbar_start(uint16_t packedTimeBcd, uint16_t tribeMembers,
     }
 
     g_osys->memFree(_icons3);
-    _icons3 = res_load_chunk("APL\\ICONS3.SPR", &i3Size, &chk);
+    _icons3 =
+        res_load_chunk(game_resources[GAME_RES_APL_ICONS3_SPR], &i3Size, &chk);
     if (!_icons3 || i3Size != 4608u) {
         g_osys->memFree(_icons3);
         _icons3 = NULL;

@@ -7,6 +7,7 @@
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
+#include "game_resources.h"
 #include "statusbar.h"
 #include "video.h"
 #include "byteorder.h"
@@ -485,7 +486,8 @@ uint8_t score_begin(uint32_t value)
     g_osys->memFree(_score_bit);
     _score_bit = NULL;
     _score_size = 0;
-    _score_bit = res_load_chunk("LBM\\SCORE.BIT", &_score_size, NULL);
+    _score_bit = res_load_chunk(game_resources[GAME_RES_LBM_SCORE_BIT],
+                                &_score_size, NULL);
     uint8_t *page = video_page(0);
     /* The page is NOT cleared: check_highscore draws the card straight over
      * whatever the level's caption left on it (draw_level_text 0x33A3 ends
@@ -517,14 +519,18 @@ uint8_t score_begin(uint32_t value)
         _score_arm_fade = 1;
     }
     g_osys->memFree(_score_font);
-    _score_font = res_load_chunk("APL\\TEXT.SPR", NULL, NULL);
+    _score_font =
+        res_load_chunk(game_resources[GAME_RES_APL_TEXT_SPR], NULL, NULL);
     font_publish(_score_font);
     g_osys->memFree(_score_digits);
-    _score_digits = res_load_chunk("APL\\SCORE.SPR", NULL, NULL); // 1000:4264
+    _score_digits = res_load_chunk(game_resources[GAME_RES_APL_SCORE_SPR], NULL,
+                                   NULL); // 1000:4264
     g_osys->memFree(_score_record);
-    _score_record = res_load_chunk("APL\\RECORD.SPR", NULL, NULL); // 1000:4276
+    _score_record = res_load_chunk(game_resources[GAME_RES_APL_RECORD_SPR],
+                                   NULL, NULL); // 1000:4276
     g_osys->memFree(_score_num);
-    _score_num = res_load_chunk("APL\\SCORENUM.SPR", NULL, NULL); // 1000:4269
+    _score_num = res_load_chunk(game_resources[GAME_RES_APL_SCORENUM_SPR], NULL,
+                                NULL); // 1000:4269
 
     /* 1000:430E/431A draw_scorenum_three_passes: the elapsed time at
      * (0x50, 0xB5) and the best time at (0xF0, 0xB5), both row 181. */

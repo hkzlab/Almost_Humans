@@ -4,6 +4,7 @@
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
+#include "game_resources.h"
 #include "video.h"
 
 #include <stdint.h>
@@ -639,13 +640,20 @@ static void _do_load(void)
     g_osys->memFree(_text_spr);
     _text_spr = NULL;
 
-    _code2 = res_load_chunk("LBM\\CODE2.RAW", &_code2_size, NULL);
-    _codehum = res_load_chunk("APL\\CODEHUM.SPR", &_codehum_size, NULL);
-    _codes = res_load_chunk("LEVELS\\CODES.BIN", &_codes_size, NULL);
-    _codeb1 = res_load_chunk("APL\\CODEB1.SPR", &_codeb1_size, NULL);
-    _codeb2 = res_load_chunk("APL\\CODEB2.SPR", &_codeb2_size, NULL);
-    _restore = res_load_chunk("APL\\RESTORE.SPR", &_restore_size, NULL);
-    _text_spr = res_load_chunk("APL\\TEXT.SPR", NULL, NULL);
+    _code2 = res_load_chunk(game_resources[GAME_RES_LBM_CODE2_RAW],
+                            &_code2_size, NULL);
+    _codehum = res_load_chunk(game_resources[GAME_RES_APL_CODEHUM_SPR],
+                              &_codehum_size, NULL);
+    _codes = res_load_chunk(game_resources[GAME_RES_LEVELS_CODES_BIN],
+                            &_codes_size, NULL);
+    _codeb1 = res_load_chunk(game_resources[GAME_RES_APL_CODEB1_SPR],
+                             &_codeb1_size, NULL);
+    _codeb2 = res_load_chunk(game_resources[GAME_RES_APL_CODEB2_SPR],
+                             &_codeb2_size, NULL);
+    _restore = res_load_chunk(game_resources[GAME_RES_APL_RESTORE_SPR],
+                              &_restore_size, NULL);
+    _text_spr =
+        res_load_chunk(game_resources[GAME_RES_APL_TEXT_SPR], NULL, NULL);
     font_publish(_text_spr);
 
     /* the room's opening state (frontend_room_setup's seeds) */

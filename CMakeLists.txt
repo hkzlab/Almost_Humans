@@ -82,6 +82,7 @@ add_library(core STATIC
     src/game_main.c
     src/arch/osystem.c
     src/res.c
+    src/game_resources.c
     src/video.c
     src/palette.c
     src/font.c

@@ -5,6 +5,7 @@
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
+#include "game_resources.h"
 #include "video.h"
 #include "byteorder.h"
 #include "width.h"
@@ -633,7 +634,7 @@ uint8_t party_intro_start(void)
     _clear_canvas();
     _seed_slots_live(); // the DS:0xFA8's [live]
 
-    b = _load("APL\\PARTY.SPR"); // 2570
+    b = _load(game_resources[GAME_RES_APL_PARTY_SPR]); // 2570
     if (!b) return 0;
     {
         uint8_t ok = (uint8_t)(_expand_nibbles(b, 0x570u, _sheet));
@@ -641,14 +642,14 @@ uint8_t party_intro_start(void)
         if (!ok) return 0;
     }
 
-    b = _load("APL\\BIRDY.SPR"); // 257c
+    b = _load(game_resources[GAME_RES_APL_BIRDY_SPR]); // 257c
     if (!b) return 0;
     _rescale_rows(b);
     g_osys->memFree(b);
 
     {
         uint8_t d = (uint8_t)(_g_level & 7u) + 1u; // 2519: '1'+(lvl&7)
-        sprintf(name, "LBM\\PARTY%u.PAL", d);
+        sprintf(name, game_resources[GAME_RES_LBM_PARTY_PAL_FMT], d);
     }
     b = _load(name); // 2588
     if (!b) return 0;
@@ -656,12 +657,12 @@ uint8_t party_intro_start(void)
     memcpy(_workpal, palette_working(), 768u);
     g_osys->memFree(b);
 
-    b = _load("LBM\\PARTY1.BIT"); // 259a
+    b = _load(game_resources[GAME_RES_LBM_PARTY1_BIT]); // 259a
     if (!b) return 0;
     g_osys->memFree(_bit_img);
     _bit_img = b;
 
-    b = _load("APL\\TEXT.SPR"); // 25af
+    b = _load(game_resources[GAME_RES_APL_TEXT_SPR]); // 25af
     g_osys->memFree(_font_bytes);
     _font_bytes = b;
     if (b) {

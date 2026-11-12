@@ -5,6 +5,7 @@
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
+#include "game_resources.h"
 #include "video.h"
 #include "byteorder.h"
 #include "width.h"
@@ -344,7 +345,8 @@ static int32_t _e1_load(void)
     video_vram_clear();
     uint32_t sz = 0;
     _unload_img();
-    _img_buf = res_load_chunk("LBM\\GAMEINT.BIT", &sz, NULL);
+    _img_buf =
+        res_load_chunk(game_resources[GAME_RES_LBM_GAMEINT_BIT], &sz, NULL);
     if (!_img_buf || sz < VIDEO_PAGE_BYTES + 768u) {
         _unload_img();
         return 0;
@@ -379,7 +381,8 @@ static int32_t _e3_load(void)
     video_vram_clear();
     uint32_t sz = 0;
     _unload_img();
-    _img_buf = res_load_chunk("LBM\\PCTITLE.RAW", &sz, NULL);
+    _img_buf =
+        res_load_chunk(game_resources[GAME_RES_LBM_PCTITLE_RAW], &sz, NULL);
     if (!_img_buf || sz < 112768u) {
         _unload_img();
         return 0;
@@ -406,7 +409,8 @@ static int32_t _e2_load(void)
     _page_disp = 0x8000u;
     uint32_t sz = 0;
     _unload_img();
-    _img_buf = res_load_chunk("LBM\\GAMEINT.BIT", &sz, NULL);
+    _img_buf =
+        res_load_chunk(game_resources[GAME_RES_LBM_GAMEINT_BIT], &sz, NULL);
     if (!_img_buf || sz < VIDEO_PAGE_BYTES + 768u) {
         _unload_img();
         return 0;
@@ -439,7 +443,8 @@ static int32_t _e2_load(void)
                          VIDEO_PAGE_H_MODE13H);
     _flip_page();
 
-    uint8_t *palBuf = res_load_chunk("LBM\\SCOREPAL.PAL", &sz, NULL);
+    uint8_t *palBuf =
+        res_load_chunk(game_resources[GAME_RES_LBM_SCOREPAL_PAL], &sz, NULL);
     if (palBuf) {
         palette_load_working(palBuf);
         g_osys->memFree(palBuf);
@@ -567,11 +572,13 @@ static int32_t _e4_load(void)
      * traced; see the note by the module state) */
     g_osys->memFree(_credtext);
     _credtext = NULL;
-    _credtext = res_load_chunk("CREDTEXT.BIN", &_credtext_size, NULL);
+    _credtext = res_load_chunk(game_resources[GAME_RES_CREDTEXT_BIN],
+                               &_credtext_size, NULL);
     if (!_credtext) return 0;
     uint32_t sz = 0;
     _unload_img();
-    _img_buf = res_load_chunk("LBM\\INTCRED4.BIT", &sz, NULL);
+    _img_buf =
+        res_load_chunk(game_resources[GAME_RES_LBM_INTCRED4_BIT], &sz, NULL);
     if (!_img_buf || sz < VIDEO_PAGE_BYTES + 768u) {
         _unload_img();
         return 0;
@@ -611,7 +618,8 @@ static void _attract_restart(void)
     video_set_mode(VIDEO_MODE_13H); // 132f: vga_set_mode_13h (1000:8300)
     res_set_disc(0u); // LAB_000E: [0xF7E] := 0
     g_osys->memFree(_text_spr);
-    _text_spr = res_load_chunk("APL\\TEXT.SPR", NULL, NULL);
+    _text_spr =
+        res_load_chunk(game_resources[GAME_RES_APL_TEXT_SPR], NULL, NULL);
     font_publish(_text_spr); // [0x1E1C] - may be NULL (headless)
 
     _saved_draw = _page_draw;

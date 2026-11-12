@@ -6,6 +6,7 @@
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
+#include "game_resources.h"
 #include "score.h"
 #include "textpage.h"
 #include "video.h"
@@ -1139,12 +1140,14 @@ uint8_t map_begin(void)
     if (_map_up) return 1;
 
     res_set_disc(0u); // entry 0x151A [0xF7E]=0
-    _map_high = res_load_chunk("LBM\\HIGH.BIT", &_map_high_size, NULL);
+    _map_high = res_load_chunk(game_resources[GAME_RES_LBM_HIGH_BIT],
+                               &_map_high_size, NULL);
     uint8_t *page = video_page(0);
     if (_map_high && _map_high_size >= MAP_PAGE + 768u)
         palette_load_working(_map_high + MAP_PAGE); // 1000:01C3/8D24
 
-    _map_font = res_load_chunk("APL\\TEXT.SPR", NULL, NULL);
+    _map_font =
+        res_load_chunk(game_resources[GAME_RES_APL_TEXT_SPR], NULL, NULL);
     font_publish(_map_font);
 
     /* 1000:01A2..0x01AB: apl\alpha.spr expanded 4bpp -> four planes */
@@ -1155,7 +1158,8 @@ uint8_t map_begin(void)
     {
         uint32_t asz = 0;
 
-        _alpha_packed = res_load_chunk("APL\\ALPHA.SPR", &asz, NULL);
+        _alpha_packed =
+            res_load_chunk(game_resources[GAME_RES_APL_ALPHA_SPR], &asz, NULL);
         /* 1000:0705 transposes a fixed 4096-word (8192-B) window.  The
          * shipped file is 8128 B, so the window's 64-byte tail is zeroed
          * rather than read past the chunk (the original's tail is whatever
@@ -1182,7 +1186,8 @@ uint8_t map_begin(void)
     /* 1000:01B7: apl\band.spr, the 304 x 80 sheet */
     g_osys->memFree(_band_sheet);
     _band_sheet = NULL;
-    _band_sheet = res_load_chunk("APL\\BAND.SPR", NULL, NULL);
+    _band_sheet =
+        res_load_chunk(game_resources[GAME_RES_APL_BAND_SPR], NULL, NULL);
     _map_stage_ready = 0;
     _map_stage_fill(); // 1000:12D3
 
