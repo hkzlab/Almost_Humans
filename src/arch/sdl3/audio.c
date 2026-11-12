@@ -178,6 +178,8 @@ int32_t sdl3_audio_select(const char *name, const char *roms)
         _driver_id = 3;
         return 0;
     }
+#else
+    (*roms);
 #endif
     return -1;
 }
