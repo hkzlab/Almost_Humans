@@ -106,6 +106,8 @@ void frontend_restart(void)
 uint8_t frontend_option(uint32_t idx)
 { return idx < 4u ? _opt_counter[idx] : 0u; }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 void frontend_option_set_for_probe(uint32_t idx, uint32_t value)
 {
     if (idx < 4u) _opt_counter[idx] = (uint8_t)(value);
@@ -116,6 +118,7 @@ uint16_t frontend_cell_for_probe(void) { return _cell; }
 uint8_t frontend_name_screen_for_probe(void) { return _phase == FE_NAME; }
 
 const char *frontend_name_for_probe(void) { return _name_buf; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 /* --- the VRAM primitives -------------------------------------------- */
 

@@ -52,6 +52,8 @@ void alpha_expand(const uint8_t *src, uint8_t *dst);
  */
 void alpha_cell(uint32_t cell, uint32_t angle, uint16_t *src, uint16_t *dst);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Draw the letter wheel.
  *
@@ -59,7 +61,10 @@ void alpha_cell(uint32_t cell, uint32_t angle, uint16_t *src, uint16_t *dst);
  * @param base the base offset
  */
 void alpha_draw_wheel(uint8_t *page, uint32_t base);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /** @brief 1000:0CBE init_display_lists' name pass, stateless: the typed
  * characters at their final row-0x45 slots.
  *
@@ -67,6 +72,7 @@ void alpha_draw_wheel(uint8_t *page, uint32_t base);
  * @param name the name
  */
 void alpha_draw_name(uint8_t *page, const char *name);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /**
  * @brief 1000:07E6: the five frame bands from band row `[0x8AE]`.
@@ -108,6 +114,8 @@ void map_draw_list_header(uint8_t *page);
  */
 void map_draw_congrats(uint8_t *page);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Test/probe seam: 1 after the first draw, 2 after the flip's redraw
  * (1000:0251's two passes).
@@ -115,6 +123,7 @@ void map_draw_congrats(uint8_t *page);
  * @return the draw pass (1 or 2)
  */
 uint8_t map_congrats_draws(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief 1000:1251: a rectangle outline in the flat page.  The top edge ORs 0x40,
  * the left and bottom 0x50, the right 0x40 (1000:1263..1298).
@@ -128,20 +137,28 @@ uint8_t map_congrats_draws(void);
 void map_draw_rect(uint8_t *page, uint32_t x, uint32_t y, uint32_t w,
                    uint32_t h);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Accessor: the MAP transition step (0..6, 1000:028C..030A).
  *
  * @return the step
  */
 uint8_t map_transition_step(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Accessor: the MAP fade's start count (palette_build_fade calls).
  *
  * @return the count
  */
 uint8_t map_fade_starts(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Accessor: one MAP fade entry.
  *
@@ -154,6 +171,7 @@ uint8_t map_fade_starts(void);
  */
 int32_t map_fade_at(uint32_t i, uint32_t *first, uint32_t *entries,
                     uint32_t *div, uint32_t *target);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /**
  * @brief 1000:0CBE: clear the previous frame's cells, draw the 30-cell ring at
@@ -175,6 +193,8 @@ extern uint16_t g_map_panel; // [0x8A2]: 1..6
  */
 void map_palette_reset(void);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 /** @brief Accessor: one animation channel word (the test seam), the four
  * words at [0x90]/[0x92]/[0x94]/[0x96].
  *
@@ -259,7 +279,10 @@ const char *map_name_for_probe(void);
  * @return 1 when ready
  */
 uint8_t map_stage_ready_for_probe(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /** @brief Accessor: one staging-page byte (the test seam; 1000:12D3 plane byte).
  *
  * @param addr the byte address
@@ -267,5 +290,6 @@ uint8_t map_stage_ready_for_probe(void);
  * @return the byte, or 0 out of range
  */
 uint8_t map_stage_at(uint32_t addr, uint32_t plane);
+#endif /* HUMANSRE_TEST_PROBES */
 
 #endif /* HUMANSRE_MAP_H */

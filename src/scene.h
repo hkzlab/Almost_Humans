@@ -31,6 +31,8 @@ int32_t scene_init(void);
  */
 uint8_t scene_play_level_intro(uint16_t introIndex);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Test seam: skip the intro's per-frame waits ([0x627C]).
  *
@@ -40,6 +42,7 @@ uint8_t scene_play_level_intro(uint16_t introIndex);
  * @param on the on/off flag
  */
 void scene_set_fast_mode(uint8_t on);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /**
  * @brief Force the next scene_play_level_intro call to reload its .ANI.
@@ -74,11 +77,14 @@ uint8_t scene_play_boot_intro(void);
  */
 void scene_note_input(const InputState *in);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 /** @brief probe hook: the boot state machine's current phase (read-only, for the
  * tests and the diagnostics)
  *
  * @return the boot phase
  */
 uint32_t scene_boot_phase_for_probe(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
 #endif /* HUMANSRE_SCENE_H */

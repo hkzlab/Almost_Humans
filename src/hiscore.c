@@ -71,11 +71,14 @@ static void _hiscore_defaults(void)
     }
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 void hiscore_reset(void)
 {
     _hiscore_defaults();
     _hiscore_loaded = 1;
 }
+#endif /* HUMANSRE_TEST_PROBES */
 
 void hiscore_init(void)
 {
@@ -114,7 +117,10 @@ void hiscore_set_best(uint32_t level, uint16_t value)
 
 uint8_t hiscore_count(void) { return HIS_TOPN; }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint32_t hiscore_table_size(void) { return HIS_TABLE; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 uint32_t hiscore_score(uint32_t i)
 {

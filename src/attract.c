@@ -79,6 +79,8 @@ static void _fastest_time(uint32_t levelMinus1, uint8_t rec[2])
 
 int32_t attract_init(void) { return 0; }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint32_t attract_phase_for_probe(void) { return (uint32_t)_phase; }
 
 const uint8_t *attract_strip_for_probe(uint32_t *rowsOut)
@@ -86,6 +88,7 @@ const uint8_t *attract_strip_for_probe(uint32_t *rowsOut)
     if (rowsOut) *rowsOut = _rows_built;
     return _e4strip;
 }
+#endif /* HUMANSRE_TEST_PROBES */
 
 /* --- the VRAM primitives are video.c's (shared A000 model) -------------- */
 
@@ -187,8 +190,11 @@ static void _format_decimal(uint32_t v, char *out)
     out[n] = 0;
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 void attract_format_decimal_for_probe(uint32_t v, char *out)
 { _format_decimal(v, out); }
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief _draw_score_block (1000:0651): [0x36]=0x10, [0x38]=0x18 (set by
  * intro_frame_1); rank x=0x20, name x=0x82, score x=0x102.

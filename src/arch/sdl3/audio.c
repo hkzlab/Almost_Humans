@@ -17,7 +17,9 @@
 #include <SDL3/SDL.h>
 
 #include <stdint.h>
-#include <stdlib.h>
+#if defined(HUMANSRE_TEST_PROBES)
+#    include <stdlib.h> /* getenv: the audio probe */
+#endif
 #include <string.h>
 
 /* 48 kHz: Nuked-OPL3 resamples from its 49716 Hz native rate in
@@ -38,11 +40,14 @@ static uint16_t _voice = 0xFFFFu; // the current cmd-5 handle ([0x5AF0])
  * SDL3_AUDIO_RATE - exact integer arithmetic, no drift. */
 static uint32_t _tick_acc;
 
-/* The audio _probe (HUMANSRE_AUDIO_PROBE set): reports the rendered peak
- * once per second.  Verification aid for the D-01 wiring, not a feature. */
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): HUMANSRE_AUDIO_PROBE set reports the
+ * rendered peak once per second.  Verification aid for the D-01 wiring, not
+ * a feature; never part of a release build. */
 static int32_t _probe;
 static uint32_t _probe_frames;
 static int32_t _probe_peak;
+#endif
 
 /**
  * @brief The stream callback: render frames and step the audio clock.
@@ -84,6 +89,7 @@ static void SDLCALL _audio_callback(void *userdata, SDL_AudioStream *stream,
             _tick_acc -= SDL3_AUDIO_RATE;
             audio_render_tick();
         }
+#if defined(HUMANSRE_TEST_PROBES)
         if (_probe) {
             int k;
             for (k = 0; k < n * 2; k++) {
@@ -98,6 +104,7 @@ static void SDLCALL _audio_callback(void *userdata, SDL_AudioStream *stream,
                 _probe_peak = 0;
             }
         }
+#endif /* HUMANSRE_TEST_PROBES */
     }
 }
 
@@ -147,7 +154,9 @@ int32_t sdl3_audio_install(void)
     _tick_acc = 0;
     /* the render path owns the audio clock from here on (audio.h) */
     audio_set_render_clock(1);
+#if defined(HUMANSRE_TEST_PROBES)
     _probe = getenv("HUMANSRE_AUDIO_PROBE") != NULL;
+#endif
     SDL_Log("audio: %s driver ready (%u Hz stereo)", _module_name,
             SDL3_AUDIO_RATE);
     return 0;

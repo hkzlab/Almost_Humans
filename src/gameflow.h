@@ -76,12 +76,15 @@ GameFlow gameflow_pause_action(int16_t choice, uint8_t *quit);
  */
 uint16_t gameflow_party_score(void);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief test seam: the restart left the party screen pending (1000:3073).
  *
  * @return 1 when the party screen is still pending, 0 otherwise
  */
 uint8_t gameflow_party_pending(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief 1000:35CA `wait_palette_fade_done`: 1 while the restart's fade to
  * black runs (1000:35AF/35CA); the level reloads and the party screen starts
@@ -112,19 +115,25 @@ const char *gameflow_party_tribe(void);
  */
 uint8_t gameflow_key_list(const InputState *in);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Accessor: the goal page is up ([0x5BBA], scroll_map 1000:9E51).
  *
  * @return 1 while the goal page is up, 0 otherwise
  */
 uint8_t gameflow_goal_page_up(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /** @brief Test seam: level_setup armed the goal/title page ([0x5BBA]) but the
  * first play frame has not shown it yet.
  *
  * @return 1 when the page is pending its first play frame.
  */
 uint8_t gameflow_goal_armed(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /**
  * @brief Accessor: a scripted key wait is active (1000:3954, F10).
@@ -146,12 +155,15 @@ uint8_t gameflow_key_wait_active(void);
  */
 GameFlow gameflow_time_up_action(int16_t choice, uint8_t *quit);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief test seam: the pause/time-up RESTART THIS GAME arm set [0x1809] = 0xFF.
  *
  * @return 1 when a restart is pending, 0 otherwise
  */
 uint8_t gameflow_restart_pending(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief entry LAB_00CD's post-level step: [0x22]++ / [0x26]-- (0xA0 - [0x22]).
  * While the window has levels left the PLAY arm runs again - the next level

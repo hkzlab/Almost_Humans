@@ -182,6 +182,8 @@ static void _seed_slots_live(void)
     party_intro_seed_scripts(_scripts_file, sizeof _scripts_file);
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 void party_intro_format_score(uint32_t v, char *out)
 {
     static const uint32_t divs[8] = { 100000000u, 10000000u, 1000000u, 100000u,
@@ -200,6 +202,7 @@ void party_intro_format_score(uint32_t v, char *out)
     *out++ = (char)('0' + (v % 10u)); // 2b68
     *out = '\0';
 }
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief the party's in-place number formatter (1000:3F1B).
  *
@@ -319,13 +322,20 @@ static void _blit_slot(uint32_t frame)
  * @param src the source offset (out)
  * @param dhi the destination high byte (out)
  */
-void party_intro_marquee_for_probe(uint16_t phase, uint16_t cell, uint16_t *src,
-                                   uint16_t *dhi)
+static void _marquee_offset(uint16_t phase, uint16_t cell, uint16_t *src,
+                            uint16_t *dhi)
 {
     uint16_t v = (uint16_t)(cell * 4u + (phase & 3u)); // 2a76..2a83
     if (src) *src = u16(v * 320u); // 2a85..2a8d: v*256 + v*64
     if (dhi) *dhi = (uint16_t)(0x2260u + phase / 4u); // 2a8f..2a95
 }
+
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
+void party_intro_marquee_for_probe(uint16_t phase, uint16_t cell, uint16_t *src,
+                                   uint16_t *dhi)
+{ _marquee_offset(phase, cell, src, dhi); }
+#endif /* HUMANSRE_TEST_PROBES */
 
 /**
  * @brief 2a3a draw_scrolling_marquee
@@ -341,7 +351,7 @@ static void _marquee(void)
     }
 
     uint16_t src, dhi;
-    party_intro_marquee_for_probe(_marq_phase, _marq_cell, &src, &dhi);
+    _marquee_offset(_marq_phase, _marq_cell, &src, &dhi);
 
     enum {
         MASK = 0x40u
@@ -580,7 +590,10 @@ void party_intro_set_values(uint16_t level, uint16_t need, uint16_t members,
 
 void party_intro_set_game_over(uint8_t on) { _game_over_mode = on ? 1 : 0; }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint16_t party_intro_score(void) { return _g_score; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 /**
  * @brief Load one intro asset by name.
@@ -595,9 +608,15 @@ static uint8_t *_load(const char *name)
     return res_load_chunk(name, &sz, &ck);
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 const uint8_t *party_intro_workpal(void) { return _workpal; }
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 const uint8_t *party_intro_pal_upper(void) { return _pal_upper; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 uint8_t party_intro_start(void)
 {

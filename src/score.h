@@ -33,12 +33,15 @@ uint32_t score_level_score(void);
  */
 uint16_t score_members(void);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 /** @brief Accessor: the level's score term [0x1DCA] (the test seam for the
  * cross-level leftover).
  *
  * @return the level term
  */
 uint16_t score_level_term_for_probe(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /**
  * @brief 1000:C9B9: handler 4 adds 0x7D0 to the level's score term [0x1DCA].
@@ -59,12 +62,15 @@ void score_prepare(void);
  */
 uint8_t score_counters_run(void);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Accessor: the score set a record ([0x1DD6]).
  *
  * @return 1 when a new record was set, 0 otherwise
  */
 uint8_t score_is_record(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /**
  * @brief Advance the score screen's blink (1000:467A: 1 = phase flipped).
@@ -130,6 +136,8 @@ void score_draw_card(uint8_t *page);
 void score_draw_num3(uint8_t *page, uint32_t ax, uint16_t value, uint32_t bx,
                      uint32_t bp);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Accessor: the best score for one level (DS:0x38A + level*2).
  *
@@ -137,13 +145,17 @@ void score_draw_num3(uint8_t *page, uint32_t ax, uint16_t value, uint32_t bx,
  * @return the best time, or 0x0999 when unset
  */
 uint16_t score_best_for(uint32_t level);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Accessor: the best time ([0x1E88]).
  *
  * @return the best time word
  */
 uint16_t score_best_time(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /**
  * @brief Accessor: the total score's low word ([0x592]).
@@ -167,19 +179,25 @@ uint16_t score_total_hi(void);
  */
 void score_set_total(uint32_t lo, uint32_t hi);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Accessor: the shown score's low word ([0x1DD2]).
  *
  * @return the low word
  */
 uint32_t score_shown_lo(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Accessor: the shown score's high word ([0x1DD4]).
  *
  * @return the high word
  */
 uint32_t score_shown_hi(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /**
  * @brief Open the score/record screen for one level's score.

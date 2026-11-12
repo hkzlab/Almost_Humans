@@ -95,7 +95,9 @@ static uint16_t _level_current = 0u;
 static uint8_t _goal_page;
 /* the page is being displayed (the flow is inside scroll_map's wait) - distinct
  * from _goal_page, which the level's entry sets long before the page shows. */
-static uint8_t _goal_showing;
+#if defined(HUMANSRE_TEST_PROBES)
+static uint8_t _goal_showing; // read by the test seam only
+#endif
 /* scroll_map renders two frames and then polls input only; the port freezes
  * the [0xC] update gate for the page's lifetime (1 = it was ours to restore,
  * so a gate the claim already closed is left alone). */
@@ -180,9 +182,15 @@ static void _game_tick(void)
      * display period. */
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint8_t gameflow_goal_page_up(void) { return _goal_showing; }
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint8_t gameflow_goal_armed(void) { return _goal_page; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 uint8_t gameflow_key_wait_active(void) { return _key_wait_stage != 0; }
 
@@ -212,9 +220,15 @@ static uint8_t _key_wait_step(const InputState *in)
     return 1;
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint8_t gameflow_restart_pending(void) { return _restart_game; }
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint8_t gameflow_party_pending(void) { return !_party_tried; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief level_setup's title-page arm (1000:316A -> level_reset_view 1000:3185,
  * `1000:31BD MOV word ptr [0x5BBA],0x180C`).
@@ -229,7 +243,9 @@ static void _level_publish_goal(void)
     const LevelData *g = level_data();
 
     _goal_page = !_level_skipped && g && g->goal[0] != 0;
+#if defined(HUMANSRE_TEST_PROBES)
     _goal_showing = 0;
+#endif
     _goal_froze_updates = 0;
     if (_goal_page) statusbar_set_active(0);
 }
@@ -805,13 +821,17 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
             _goal_froze_updates = level_updates();
             level_set_updates(0);
         }
+#if defined(HUMANSRE_TEST_PROBES)
         _goal_showing = 1;
+#endif
         statusbar_set_active(0);
         level_tick();
         textpage_draw(osys->videoPage(0), lv->goal, -1, 0u, 0);
         if (input->lastKey || (input->joyBits & 0x80u)) {
             _goal_page = 0;
+#if defined(HUMANSRE_TEST_PROBES)
             _goal_showing = 0;
+#endif
             if (_goal_froze_updates) level_set_updates(1); // 1000:9E9D
             _goal_froze_updates = 0;
             statusbar_set_active(1);

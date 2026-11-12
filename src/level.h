@@ -170,6 +170,8 @@ uint32_t level_page_byte(uint32_t id, uint32_t subcol);
  */
 uint32_t level_item_word(uint32_t id, uint32_t row);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /** @brief The item record's raw byte at `off` from the tile's offset, i.e. from field
  * B.  (`1000:EC27` reads field A, the slope profiles, through
  * `level_slope_byte`; this accessor is the item record's own field-B read.)
@@ -179,6 +181,7 @@ uint32_t level_item_word(uint32_t id, uint32_t row);
  * @return the item byte, or 0x80 when out of range
  */
 uint32_t level_item_byte(uint32_t id, uint32_t off);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /**
  * @brief One play frame: update the world, render and pump the effects.
@@ -236,18 +239,24 @@ void level_set_updates(uint8_t on);
  */
 void level_set_offset_word(uint16_t v);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Accessor: the record's offset word.
  *
  * @return the word
  */
 uint16_t level_offset_word(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Test seam: 1000:5D37's walk pointer ([0x2D90]) back to the table's
  * first pair.
  */
 void level_reset_offset_walk(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /**
  * @brief Accessor: the world-update gate ([0xC]).
@@ -301,6 +310,8 @@ void level_spark_begin(uint16_t ox, uint16_t oy, const uint8_t *shade);
  */
 uint8_t level_spark_active(void);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Test seam: one byte of 1000:3DC0's scratch strip.
  *
@@ -310,7 +321,10 @@ uint8_t level_spark_active(void);
  * @return the byte, or 0 out of range
  */
 uint8_t level_spark_strip_at(uint32_t col, uint32_t row, uint32_t plane);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief The first live spark slot's world position and value (the test seam).
  *
@@ -320,7 +334,10 @@ uint8_t level_spark_strip_at(uint32_t col, uint32_t row, uint32_t plane);
  * @return 1 when a live spark slot was found, 0 otherwise
  */
 int32_t level_spark_peek(uint32_t *x, uint32_t *y, uint32_t *value);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief The 0x48BC queue as the original's 0x2C0-byte window (offset 0 =
  * 0x48BC), for object.c's DS record model.
@@ -329,7 +346,10 @@ int32_t level_spark_peek(uint32_t *x, uint32_t *y, uint32_t *value);
  * @return the spark byte
  */
 uint8_t level_spark_byte(uint32_t off);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Test seam: poke one spark buffer byte.
  *
@@ -337,6 +357,7 @@ uint8_t level_spark_byte(uint32_t off);
  * @param value the value
  */
 void level_spark_set_byte(uint32_t off, uint8_t value);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief Latch the play loop's [0x5ACE] for the command dispatch (1000:E3F6).
  *
@@ -478,19 +499,28 @@ uint8_t level_disk_status_begin(uint16_t disc);
  */
 uint8_t level_disk_status_tick(const InputState *in);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Clear the disc indicator's state (test/lifecycle: drop the screen).
  */
 void level_disk_status_reset(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /** @brief The win hook the discovery/claim path sets.
  */
 void level_goal_reached(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief One tribe member was lost: decrement the counter.
  */
 void level_member_lost(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /**
  * @brief The level-end test (object_test_dispatch's negative return).
@@ -533,6 +563,8 @@ void level_set_end(uint8_t won);
  */
 uint8_t level_outcome(void);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /** @brief [0x5D31] after level_load's LEVEL-board pick: the record's timeA/B/C
  * word (the bar's seed).
  *
@@ -543,6 +575,7 @@ uint8_t level_outcome(void);
  * @return the time limit word
  */
 uint16_t level_time_limit(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /**
  * @brief Accessor: the tribe's member count.
@@ -551,12 +584,15 @@ uint16_t level_time_limit(void);
  */
 uint16_t level_tribe_members(void);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief The stamped background, for the exit/igloo test.
  *
  * @return the pointer, or NULL when unavailable
  */
 const uint8_t *level_bg_for_probe(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief 1000:54A9's stamp y for the exit cell at (col, row): the handler's
  * `row*16`, then 0x5662's style-6 nudge, then `ADD DX,0x10 / SUB DX,0x40`.
@@ -567,6 +603,8 @@ const uint8_t *level_bg_for_probe(void);
  */
 int32_t level_exit_stamp_y(uint32_t col, uint32_t row);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Accessor: the record's P block (exit art).
  *
@@ -587,6 +625,7 @@ uint16_t level_bg_index_for_probe(void);
  * @return the pointer, or NULL when unavailable
  */
 const uint8_t *level_c_block_for_probe(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief 1000:5F54 - render_objects' tail: for each 0x32B9 entry it blits the two
  * 32 x 24 mode-2 C-block sprites at (x, y) and (x + 0x20, y) (0x5FBE ADDs

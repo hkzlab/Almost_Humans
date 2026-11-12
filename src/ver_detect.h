@@ -20,6 +20,8 @@
 #define VER_DETECT_VOLUME 1u
 #define VER_DETECT_LEN    2048u
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief FNV-1a 32-bit digest of a byte buffer.
  *
@@ -28,6 +30,7 @@
  * @return the digest, the offset basis for an empty buffer
  */
 uint32_t ver_detect_hash(const uint8_t *buf, uint32_t n);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /**
  * @brief Map a HUMANS.001 digest to a game_strings column.

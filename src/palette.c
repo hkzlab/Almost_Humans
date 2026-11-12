@@ -58,13 +58,25 @@ void palette_build_fade(uint16_t first, uint16_t entries, uint16_t div,
 
 uint8_t palette_fade_active(void) { return _fade_active; }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 const uint8_t *palette_dac_shadow(void) { return _dac; }
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 const uint8_t *palette_fade_target(void) { return _fade_target; }
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint16_t palette_fade_first(void) { return _fade_first; }
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint16_t palette_fade_comps(void) { return _fade_comps; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 void palette_tick(void)
 {

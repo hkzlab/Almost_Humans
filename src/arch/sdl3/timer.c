@@ -9,19 +9,26 @@
 
 #include <SDL3/SDL.h>
 #include <stdint.h>
-#include <stdlib.h>
+#if defined(HUMANSRE_TEST_PROBES)
+#    include <stdlib.h> /* getenv: the rate probe */
+#endif
 
 static TickFn _the_tick;
-static uint32_t _the_rate;
+#if defined(HUMANSRE_TEST_PROBES)
+static uint32_t _the_rate; // the probe's log target rate
+#endif
 static Uint64 _tick_interval_ns;
 static SDL_AtomicInt _tick_count;        // [0x5AC8]
 static SDL_AtomicInt _running;
 
-/* The rate _probe (HUMANSRE_RATE_PROBE set): reports the measured tick rate
- * every 5 s.  Verification aid for the pacing work, not a game feature. */
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): HUMANSRE_RATE_PROBE set reports the
+ * measured tick rate every 5 s.  Verification aid for the pacing work, not a
+ * game feature; never part of a release build. */
 static int32_t _probe;
 static uint32_t _probe_ticks;
 static Uint64 _probe_window_start_ns;
+#endif
 
 /**
  * @brief Run the fixed-tick callback and advance the tick counter.
@@ -30,6 +37,7 @@ static void _fire_tick(void)
 {
     SDL_AddAtomicInt(&_tick_count, 1); // the ISR's INC [0x5AC8] (1000:8AA4)
     _the_tick();
+#if defined(HUMANSRE_TEST_PROBES)
     if (_probe) {
         _probe_ticks++;
         Uint64 now = SDL_GetTicksNS();
@@ -41,6 +49,7 @@ static void _fire_tick(void)
             _probe_window_start_ns = now;
         }
     }
+#endif /* HUMANSRE_TEST_PROBES */
 }
 
 /**
@@ -72,14 +81,18 @@ static int32_t SDLCALL _tick_thread_fn(void *arg)
 void sdl3_timer_start(uint32_t ticksPerSec, TickFn tick)
 {
     _the_tick = tick;
+#if defined(HUMANSRE_TEST_PROBES)
     _the_rate = ticksPerSec;
+#endif
     /* 14285714.29 at 70 Hz: truncation errs 0.3 ns per tick, no
      * accumulation. */
     _tick_interval_ns = 1000000000ull / ticksPerSec;
     SDL_SetAtomicInt(&_tick_count, 0);
+#if defined(HUMANSRE_TEST_PROBES)
     _probe = getenv("HUMANSRE_RATE_PROBE") != NULL;
     _probe_ticks = 0;
     _probe_window_start_ns = SDL_GetTicksNS();
+#endif
     SDL_SetAtomicInt(&_running, 1);
     /* the thread lives until process exit (the original's ISR is likewise
      * installed for the session; there is no timerStop in the interface) */

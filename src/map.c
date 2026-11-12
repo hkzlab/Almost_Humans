@@ -63,7 +63,9 @@ static int8_t _map_step_dir; // +1 = up (0x060C), -1 = down (0x05ED)
 /* 1000:0251's MOV CX,2 loop: the congratulation page is drawn twice, with
  * flip_page_swap (1000:87C7) between.  The port presents once per tick, so
  * the main loop's present after each map_tick is the flip equivalent. */
-static uint8_t _map_congrats_draws;
+#if defined(HUMANSRE_TEST_PROBES)
+static uint8_t _map_congrats_draws; // read by the test seam only
+#endif
 /* 1000:028C..030A: the name-entry transition's fade/rectangle steps. */
 static uint8_t _map_trans; // 0..6; 6 = the ring is up
 #define MAP_FADE_LOG 16u
@@ -485,8 +487,11 @@ static void _map_wheel_draw(uint8_t *page, uint32_t base, int32_t record)
     }
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 void alpha_draw_wheel(uint8_t *page, uint32_t base)
 { _map_wheel_draw(page, base, 0); }
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief 1000:0CBE's name target x for `len` characters: 9 px apart, the run
  * centred on 0xA0, `-8 - ((len*9 - 1)/2 - 0xA0)`.
@@ -525,6 +530,8 @@ static int32_t _map_glyph_draw(uint8_t *page, char c, int32_t x, int32_t y,
     return 1;
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 void alpha_draw_name(uint8_t *page, const char *name)
 {
     uint8_t len = 0;
@@ -538,6 +545,7 @@ void alpha_draw_name(uint8_t *page, const char *name)
         x += 9;
     }
 }
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief One <=4-px step of `current` toward `target` (1000:0D32..0x0D76).
  *
@@ -909,6 +917,8 @@ void map_palette_reset(void)
     _map_palette_animate();
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint16_t map_anim_channel_for_probe(uint32_t ch)
 { return ch < 4u ? _map_ch[ch] : 0u; }
 
@@ -945,12 +955,16 @@ int32_t map_glyph_for_probe(uint32_t i, int32_t *tx, int32_t *ty, int32_t *cx,
 }
 
 uint8_t map_stage_ready_for_probe(void) { return _map_stage_ready; }
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint8_t map_stage_at(uint32_t addr, uint32_t plane)
 {
     if (addr >= MAP_STAGE_ADDRS || plane >= 4u) return 0u;
     return video_vram_group((uint16_t)(MAP_STAGE_BASE + addr))[plane];
 }
+#endif /* HUMANSRE_TEST_PROBES */
 
 void map_draw_list(uint8_t *page)
 {
@@ -993,7 +1007,10 @@ void map_draw_congrats(uint8_t *page)
             0x19u + 0x10u * i, 0x20u);
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint8_t map_congrats_draws(void) { return _map_congrats_draws; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 void map_draw_rect(uint8_t *page, uint32_t x, uint32_t y, uint32_t w,
                    uint32_t h)
@@ -1013,10 +1030,18 @@ void map_draw_rect(uint8_t *page, uint32_t x, uint32_t y, uint32_t w,
     }
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint8_t map_transition_step(void) { return _map_trans; }
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint8_t map_fade_starts(void) { return _map_fade_starts; }
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 int32_t map_fade_at(uint32_t i, uint32_t *first, uint32_t *entries,
                     uint32_t *div, uint32_t *target)
 {
@@ -1027,6 +1052,7 @@ int32_t map_fade_at(uint32_t i, uint32_t *first, uint32_t *entries,
     if (target) *target = _map_fade_log[i].target;
     return 1;
 }
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief Build a fade to an arbitrary target and log it.
  *
@@ -1222,7 +1248,9 @@ uint8_t map_begin(void)
     _map_step = 0;
     _map_step_dir = 0;
     _map_phase = hiscore_qualifies(_map_score()) ? MAP_CONGRATS : MAP_EXIT;
+#if defined(HUMANSRE_TEST_PROBES)
     _map_congrats_draws = 0u;
+#endif
     if (_map_phase == MAP_CONGRATS) {
         /* 1000:018D-0196: play_tune("mus\hiscore") / music_resume /
          * timing_loop for the congrats + name entry. */
@@ -1394,7 +1422,9 @@ uint8_t map_tick(const InputState *in)
             _map_page_copy(page); // 0x024B
             _map_draw_strips(page); // the display strips survive the copy
             map_draw_congrats(page); // 0x024E, first pass
+#if defined(HUMANSRE_TEST_PROBES)
             _map_congrats_draws = 1u;
+#endif
             _map_intro = 2u;
             return 1;
         }
@@ -1402,7 +1432,9 @@ uint8_t map_tick(const InputState *in)
             uint8_t *page = video_page(0);
 
             map_draw_congrats(page); // 0x0251's second pass after the flip
+#if defined(HUMANSRE_TEST_PROBES)
             _map_congrats_draws = 2u;
+#endif
             _map_build_fade(0u, 0x40u, 0x28u, 0u); // 0x0273
             _map_intro = 3u;
             return 1;

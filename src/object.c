@@ -479,8 +479,11 @@ static void _obj_class_byte_set(uint32_t b, uint8_t value)
  * that range; the bytes are kept so the write is part of the state. */
 static uint8_t _obj_ds_tail5105[0x10]; // 0x5105..0x5114
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint8_t object_ds_tail5105(uint32_t off)
 { return off < sizeof _obj_ds_tail5105 ? _obj_ds_tail5105[off] : 0u; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 /* The four shipped recipes (202F:0x19BA, 12 bytes each): [uses][behaviour]
  * then the sprite word and the four parameter words, re-armed to one use
@@ -1119,7 +1122,10 @@ static uint8_t _obj_marker_mode;
 
 void object_set_marker_mode(uint8_t on) { _obj_marker_mode = on ? 1u : 0u; }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint8_t object_marker_mode(void) { return _obj_marker_mode; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 
 /* DS:0x1C76 (behaviour -> program - 1) and DS:0x5B81 (behaviour -> the
@@ -1593,11 +1599,14 @@ static const uint16_t _pend_wait[17] = {
     0x0C, 0x0F, 0x12, 0x32, 0x17, 0x3C, 0x0A, 0x04,
 };
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint16_t object_pend_off_for_probe(uint32_t i)
 { return i < sizeof _pend_off / sizeof _pend_off[0] ? _pend_off[i] : 0u; }
 
 uint16_t object_pend_wait_for_probe(uint32_t i)
 { return i < sizeof _pend_wait / sizeof _pend_wait[0] ? _pend_wait[i] : 0u; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 /* 0x5B37..0x5B5E: the six overlapping program runs.  The six words at
  * 202F:0x5B2B point at offsets 0, 4, 0xA, 0x10, 0x16 and 0x1C; the raw id at
@@ -1701,12 +1710,17 @@ uint16_t object_placed_humans(void) { return _obj_placed_humans; }
 uint8_t *object_slot(uint32_t i)
 { return i < OBJ_SLOTS ? _obj_array + i * OBJ_STRIDE : NULL; }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint32_t object_slots(void) { return OBJ_SLOTS; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 uint16_t object_live_count(void) { return _obj_live_count; }
 
 uint8_t object_slot_class(uint32_t slot) { return _obj_class_byte_at(slot); }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint8_t *object_link_for_probe(uint32_t off) { return _obj_link_record(off); }
 
 uint8_t *object_span_at_for_probe(uint32_t i)
@@ -1730,14 +1744,21 @@ void object_set_slot_class_for_probe(uint32_t slot, uint8_t cls)
 {
     if (slot < sizeof _obj_slot_class) _obj_slot_class[slot] = cls;
 }
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 void object_set_slot_class(uint32_t slot, uint32_t cls)
 {
     if (slot < sizeof _obj_slot_class) _obj_slot_class[slot] = (uint8_t)cls;
 }
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint8_t object_beh_state_for_probe(uint32_t beh)
 { return _obj_beh_state[beh & 0x3Fu]; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 int16_t object_current(void) { return _obj_current; }
 
@@ -1746,8 +1767,11 @@ void object_set_current(int16_t slot)
 
 int16_t object_player(void) { return _obj_player; }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 void object_set_player(int16_t slot)
 { _obj_player = (slot >= 0 && (uint32_t)slot < OBJ_SLOTS) ? slot : -1; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 /* --- object_test_dispatch's predicates (1000:35D6) ---------------------
  *
@@ -2673,8 +2697,13 @@ uint32_t object_load_terrain_objects(uint8_t *map)
     return _obj_live_count;
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint32_t object_frame_slots(void) { return OBJ_FRAME_SLOTS; }
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint16_t object_frame_counter_probe(void) { return _obj_frame; }
 
 void object_frame_for_probe(uint32_t frame, uint32_t *off, uint32_t *rows)
@@ -2687,6 +2716,7 @@ void object_frame_for_probe(uint32_t frame, uint32_t *off, uint32_t *rows)
     *off = _obj_sprites[frame].off;
     *rows = _obj_sprites[frame].rows;
 }
+#endif /* HUMANSRE_TEST_PROBES */
 
 uint8_t object_bg_count(void) { return _obj_bg_count; }
 
@@ -3142,8 +3172,11 @@ void object_ter_slot_init(void)
     wr_le_u16(_obj_ter_slot[1] + 0x10u, 0xFFFFu); // 1000:4CC6 [0x64BE]
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint8_t *object_ter_slot_at(uint32_t i)
 { return i < 2u ? _obj_ter_slot[i] : NULL; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 void object_publish_ter(const uint8_t *bank, uint32_t size)
 {
@@ -5029,6 +5062,8 @@ void object_update_list(void)
     }
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 void object_tick(const uint8_t *levelPal)
 {
     _obj_frame++;
@@ -5036,18 +5071,26 @@ void object_tick(const uint8_t *levelPal)
     object_claim_tick(levelPal);
     _obj_bg_tick();
 }
+#endif /* HUMANSRE_TEST_PROBES */
 
 /* update_world's two tails (1000:80CC/0x80CF): the pending-move animator and
  * the bg-log settle.  level_tick runs them only inside its [0xC] gate. */
-static uint32_t _obj_world_ticks;
+#if defined(HUMANSRE_TEST_PROBES)
+static uint32_t _obj_world_ticks; // test probe counter
+#endif
 void object_world_tick(void)
 {
+#if defined(HUMANSRE_TEST_PROBES)
     _obj_world_ticks++;
+#endif
     object_animator_tick();
     _obj_bg_tick();
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint32_t object_world_ticks_probe(void) { return _obj_world_ticks; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 void object_claim_frame(const uint8_t *levelPal)
 {
@@ -5121,8 +5164,11 @@ void object_marker_tick(void)
     wr_le_u16(m + 8u, (uint16_t)(ax)); // 1000:D6AE
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 void object_set_action_entity(uint16_t i)
 { _obj_entity = i < OBJ_STATIC ? i : _obj_entity; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 uint8_t object_action_program(void) { return (uint8_t)(_obj_program_id()); }
 
@@ -5142,12 +5188,15 @@ uint8_t object_action_byte(uint32_t k)
     return off < sizeof _obj_program_region ? _obj_program_region[off] : 0u;
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint32_t object_action_program_si(void)
 {
     uint8_t *h = _obj_program_slot(_obj_program_id());
 
     return h ? 0x5B37u + (uint32_t)(h - _obj_program_region) : 0u;
 }
+#endif /* HUMANSRE_TEST_PROBES */
 
 void object_step_action_cell(void)
 {
@@ -5165,6 +5214,8 @@ void object_step_action_cell(void)
 void object_action_set_program(uint32_t index)
 { _obj_set_program_index(index); }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 void object_action_set_cursor(uint8_t cursor)
 {
     uint8_t *p = _obj_program_slot(_obj_program_id());
@@ -5172,6 +5223,7 @@ void object_action_set_cursor(uint8_t cursor)
     _obj_cursor = cursor;
     if (p) p[1] = cursor; // D-186
 }
+#endif /* HUMANSRE_TEST_PROBES */
 
 uint8_t object_action_pending(void) { return _obj_pending; }
 
@@ -6108,8 +6160,11 @@ static int32_t _obj_land_y(int32_t x, int32_t y, uint32_t *cellOut)
     return row + 0x10 + (int32_t)(int8_t)b;
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 int32_t object_land_y_for_probe(int32_t x, int32_t y, uint32_t *cellOut)
 { return _obj_land_y(x, y, cellOut); }
+#endif /* HUMANSRE_TEST_PROBES */
 
 /* Probe the ground one step (dx,dy) from the actor. */
 static int32_t _obj_step_probe_at(const uint8_t *actor, int32_t dx, int32_t dy,
@@ -6242,8 +6297,11 @@ static int32_t _obj_settle_gate(uint8_t *actor)
     return 1;
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint8_t object_settle_gate_for_probe(uint8_t *actor)
 { return (uint8_t)(_obj_settle_gate(actor)); }
+#endif /* HUMANSRE_TEST_PROBES */
 
 /* Mark the background pixel under the actor's feet. */
 static int32_t _obj_bg_mark(const uint8_t *actor)
@@ -6513,11 +6571,24 @@ static void _obj_place_at(uint8_t *actor)
     wr_le_u16(actor + 8u, _obj_sel_frame);
 }
 
-uint16_t object_span_flag_for_probe(int32_t d, uint32_t frame)
+/** @brief 1000:FD7B: the span's +0x12 flag (0xFFFF = same frame, 0 below,
+ * 1 above).
+ *
+ * @param d the stored frame
+ * @param frame the frame index
+ * @return the span flag
+ */
+static uint16_t _obj_span_flag(int32_t d, uint32_t frame)
 {
     if (d == (int32_t)frame) return 0xFFFFu;
     return d < (int32_t)frame ? 0u : 1u;
 }
+
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
+uint16_t object_span_flag_for_probe(int32_t d, uint32_t frame)
+{ return _obj_span_flag(d, frame); }
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief 1000:FC81: the point scan.  Runs only on even frames (on odd ones it just
  * clears the ACTION latch).  From (xoff + record.x, record.y + 0x10) it walks
@@ -6594,8 +6665,8 @@ static void _obj_scan_point(uint8_t *actor, uint32_t xoff)
         wr_le_u16(span + 0xCu, (uint16_t)top);
         _obj_span_top[((uint16_t *)span - _obj_span[0]) / 14u] = (uint16_t)top;
     }
-    wr_le_u16(span + 0x12u, object_span_flag_for_probe(
-                                d, (uint32_t)_obj_sel_frame)); // 1000:FD7B
+    wr_le_u16(span + 0x12u,
+              _obj_span_flag(d, (uint32_t)_obj_sel_frame)); // 1000:FD7B
 }
 
 /** @brief 1000:FAF4: the neighbour pass.  For every appended record whose class slot is
@@ -8304,11 +8375,20 @@ static void _obj_cmd_stream_timed(uint8_t *actor)
 static void _obj_cmd_clear_countdown(uint8_t *actor)
 { wr_le_u16(actor + 0xAu, 0u); }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 void object_stream_command(uint8_t *actor) { _obj_cmd_stream_timed(actor); }
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 void object_clear_countdown(uint8_t *actor) { _obj_cmd_clear_countdown(actor); }
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 void object_set_command_timer(uint32_t v) { _obj_cmd_timer = (uint16_t)v; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 /**
  * @brief Dispatch one command handler address.
@@ -8753,7 +8833,10 @@ int32_t object_stack_scan_dissolve(uint32_t recIndex)
     return found;
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 void object_find_overlap_for_probe(uint8_t *actor) { _obj_find_overlap(actor); }
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief 0xEA71 (op 8): on odd frames reset the span entry of the acting record.
  * On even frames the original also clears [0x13A4]; the port's equivalent is
@@ -9147,12 +9230,18 @@ void object_animator_tick(void)
     }
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint8_t *object_group_at(uint32_t i)
 { return i < 8u ? (uint8_t *)_obj_register[i] : NULL; }
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 void object_animator_reset(void)
 {
     _obj_anim_div = 0;
     _pend_tag = _pend_count = _pend_slot = _pend_index = _pend_cursor = 0u;
     _pend_div = 0;
 }
+#endif /* HUMANSRE_TEST_PROBES */

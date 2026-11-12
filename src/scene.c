@@ -333,7 +333,10 @@ static int32_t _ani_decode_object(const Ani *a, uint32_t idx, uint8_t *out,
                               out_size, chkOut);
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 void scene_set_fast_mode(uint8_t on) { _scene_fast = on ? 1u : 0u; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 void scene_reset_intro(void)
 {
@@ -1663,11 +1666,15 @@ uint8_t scene_play_boot_intro(void)
     return 0;
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint32_t scene_boot_phase_for_probe(void) { return (uint32_t)_boot_phase; }
+#endif /* HUMANSRE_TEST_PROBES */
 
-#if defined(HUMANSRE_DEBUG_EXTRAS)
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): built into the test executables only,
+ * never into a release binary (CMakeLists.txt's core_test). */
 /** @brief probe hook: the AL expander, for the offline byte-comparisons.
- * Built in Debug configurations only (CMakeLists.txt's HUMANSRE_DEBUG_EXTRAS).
  *
  * @param src the source buffer
  * @param src_size the source size
@@ -1678,4 +1685,4 @@ void scene_al_expand_for_probe(const uint8_t *src, uint32_t src_size,
                                uint8_t *dst, uint32_t dst_size)
 { _scene_al_expand(src, src_size, dst, dst_size); }
 
-#endif
+#endif /* HUMANSRE_TEST_PROBES */

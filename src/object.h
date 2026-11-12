@@ -66,12 +66,15 @@ const uint8_t *object_action_header(void);
  */
 uint8_t object_action_byte(uint32_t k);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /** @brief The resolved header pointer (SI) for the current raw id (image address, 0
  * outside 1..6).
  *
  * @return SI, or 0 outside 1..6
  */
 uint32_t object_action_program_si(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief 1000:3933's tail (0x3941-0x394D): advance the selected cell with the wrap
  * to 1 past the count. It is the program's cursor byte, so the next ACTION
@@ -143,12 +146,15 @@ void object_row_pass(void);
  */
 void object_set_marker_mode(uint8_t on);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Accessor: the marker mode flag ([0x6531]).
  *
  * @return 1 while the marker mode holds, 0 otherwise
  */
 uint8_t object_marker_mode(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief The array's initial state (`1000:4CAB`): every one of the 29 records gets
  * `x = y = 0xFFFF` and `+6 = 0x80` (flags bit 7 = free, class 0), the rest 0;
@@ -178,6 +184,8 @@ void object_blit_sprite(uint8_t *page, const uint8_t *src, uint32_t rows,
  */
 void object_ter_slot_init(void);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Accessor: one terrain slot.
  *
@@ -185,6 +193,7 @@ void object_ter_slot_init(void);
  * @return the slot, or NULL past the two
  */
 uint8_t *object_ter_slot_at(uint32_t i);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /**
  * @brief Publish the terrain bank.
@@ -225,20 +234,28 @@ void object_camera_slots_tick(void);
  */
 uint8_t *object_slot(uint32_t i);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Accessor: the record slot count.
  *
  * @return the count
  */
 uint32_t object_slots(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Accessor: the frame slot count (the 0x11E sprite-table bound).
  *
  * @return the count
  */
 uint32_t object_frame_slots(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Accessor: the frame counter ([0x4103]).
  *
@@ -254,6 +271,7 @@ uint16_t object_frame_counter_probe(void);
  * @param rows the row count
  */
 void object_frame_for_probe(uint32_t frame, uint32_t *off, uint32_t *rows);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /**
  * @brief Accessor: the 0x32B9 background-sprite queue's count (1000:5F54's
@@ -366,12 +384,15 @@ void object_set_current(int16_t slot);
  */
 int16_t object_player(void);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Set the player record.
  *
  * @param slot the slot
  */
 void object_set_player(int16_t slot);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /**
  * @brief 1000:3640 - -1 when NO record's type is 0x1D.
@@ -435,6 +456,8 @@ uint16_t object_live_count(void);
  */
 uint8_t object_slot_class(uint32_t slot);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Test seam: resolve a link offset (the +0xE/+0xC link encoding).
  *
@@ -510,7 +533,10 @@ uint16_t object_pend_off_for_probe(uint32_t i);
  * @return the wait
  */
 uint16_t object_pend_wait_for_probe(uint32_t i);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Accessor: one byte of the out-of-range DS tail record
  * (0x5105..0x5114, objCmdEnter).
@@ -519,7 +545,10 @@ uint16_t object_pend_wait_for_probe(uint32_t i);
  * @return the byte
  */
 uint8_t object_ds_tail5105(uint32_t off);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Test seam: set [0x3E5E + slot] (the behaviour bytes).
  *
@@ -527,7 +556,10 @@ uint8_t object_ds_tail5105(uint32_t off);
  * @param cls the class byte
  */
 void object_set_slot_class_for_probe(uint32_t slot, uint8_t cls);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Test seam: set one slot's class.
  *
@@ -535,6 +567,7 @@ void object_set_slot_class_for_probe(uint32_t slot, uint8_t cls);
  * @param cls the class byte
  */
 void object_set_slot_class(uint32_t slot, uint32_t cls);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /**
  * @brief 1000:5662: the style-6 +3 row nudge for the cell at (col, row).
@@ -551,6 +584,8 @@ void object_set_slot_class(uint32_t slot, uint32_t cls);
  */
 uint32_t object_style_y_nudge(uint32_t col, uint32_t row);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 /** @brief the 0x6EB6 read window, for the tests (D-160's closure): behaviour -> the
  * state byte `test_class_against_6eb6` compares against (DS:0x6EB6 window).
  *
@@ -558,6 +593,7 @@ uint32_t object_style_y_nudge(uint32_t col, uint32_t row);
  * @return the behaviour state
  */
 uint8_t object_beh_state_for_probe(uint32_t beh);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief object_test_dispatch (1000:35D6): the level record's goal test.
  *
@@ -664,26 +700,35 @@ ObjCommand object_command_select(uint8_t *rec, uint8_t input);
  */
 int32_t object_command_run(uint8_t *actor, uint8_t input);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /** @brief Test seams for the two handler bodies (the row selector's one-shot gate
  * keeps 1000:E7C0 from being driven directly in the unit test).
  *
  * @param actor the object record
  */
 void object_stream_command(uint8_t *actor);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Test seam: clear the record's hold.
  *
  * @param actor the object record
  */
 void object_clear_countdown(uint8_t *actor);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Test seam: set the command timer.
  *
  * @param v the value
  */
 void object_set_command_timer(uint32_t v);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief 0x6F22 entry: word0 = base x (bit 15 free), +4 = direction<<4 | count,
  * +5.. = member list (bit-7 terminated). Every 6th call the count steps and
@@ -692,6 +737,8 @@ void object_set_command_timer(uint32_t v);
  */
 void object_animator_tick(void);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Accessor: one group record (0x6F22 entry).
  *
@@ -699,11 +746,15 @@ void object_animator_tick(void);
  * @return the record
  */
 uint8_t *object_group_at(uint32_t i);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Reset the animator's state.
  */
 void object_animator_reset(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /**
  * @brief 1000:E697 (inside 1000:E609, the walk-up state): push the acting
@@ -819,11 +870,14 @@ int32_t object_stack_scan_dissolve(uint32_t recIndex);
  */
 uint8_t object_type_blocked(uint32_t type);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 /** @brief Test seam: 1000:F2E0's per-candidate dissolve + conversion.
  *
  * @param actor the object record
  */
 void object_find_overlap_for_probe(uint8_t *actor);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief Test seam: 1000:FA13 object_group_dissolve by group slot.
  *
@@ -955,6 +1009,8 @@ void object_claim_tick(const uint8_t *levelPal);
  */
 int32_t object_find_neighbour(int32_t actor);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief object_tick: one level frame for the object machine (the frame
  * counter + the claim).
@@ -962,6 +1018,7 @@ int32_t object_find_neighbour(int32_t actor);
  * @param levelPal the level palette
  */
 void object_tick(const uint8_t *levelPal);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /**
  * @brief One world tick.
@@ -971,12 +1028,15 @@ void object_tick(const uint8_t *levelPal);
  */
 void object_world_tick(void);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Accessor: the world tick counter.
  *
  * @return the counter
  */
 uint32_t object_world_ticks_probe(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief The claim's own frame: [0x4103] advances on every page flip, and the claim
  * sequence runs while update_world is frozen (D-163).
@@ -1002,6 +1062,8 @@ void object_claim_frame(const uint8_t *levelPal);
  */
 int16_t object_low_phase_match(void);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 /** @brief Test seam: run `1000:F3ED` on `actor`.
  *
  * 1000:F3ED's gate, for the test: clears the mask, applies the 0x6EBE type
@@ -1013,6 +1075,7 @@ int16_t object_low_phase_match(void);
  * @return 1 when the settle may run, 0 when a TER slot claimed the actor
  */
 uint8_t object_settle_gate_for_probe(uint8_t *actor);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /**
  * @brief script_op_dispatch: one ACTION press.
@@ -1104,12 +1167,15 @@ void object_level_start_record(void);
  */
 void object_marker_tick(void);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Set the acting record.
  *
  * @param index the acting record's index
  */
 void object_set_action_entity(uint16_t index);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /**
  * @brief Accessor: the action program index ([0x5B56]).
@@ -1125,12 +1191,15 @@ uint8_t object_action_program(void);
  */
 uint8_t object_action_pending(void);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief [0x1988]: the program cursor byte (the pending action 5 writes it, 0x382D).
  *
  * @param cursor the cursor
  */
 void object_action_set_cursor(uint8_t cursor);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief [0x5B56] (a raw byte), for tests and for a program restored from a
  * save.  The shipped writers produce 1..6; the collision tail can store the

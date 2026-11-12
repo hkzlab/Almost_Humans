@@ -25,10 +25,13 @@
  */
 void hiscore_init(void);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Restore the shipped defaults (tests and a fresh install).
  */
 void hiscore_reset(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief 1000:06DE crypt_table_38a - the involution, same routine for both
  * directions: [di] ^= bl; bl = rol8(bl,1) + 3.
@@ -70,11 +73,14 @@ void hiscore_set_best(uint32_t level, uint16_t value);
  */
 uint8_t hiscore_count(void);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /** @brief The on-disk table length (the original's 0x208 = 520 bytes).
  *
  * @return the table size
  */
 uint32_t hiscore_table_size(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /**
  * @brief Accessor: one entry's score (the top-10, descending).

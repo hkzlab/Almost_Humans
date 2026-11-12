@@ -73,6 +73,9 @@ void frontend_restart(void);
  */
 uint8_t frontend_option(uint32_t idx);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
+
 /**
  * @brief The room's write side, exposed for the audio/sfx gate's tests.
  *
@@ -103,5 +106,7 @@ uint8_t frontend_name_screen_for_probe(void);
  * @return the name buffer
  */
 const char *frontend_name_for_probe(void);
+
+#endif /* HUMANSRE_TEST_PROBES */
 
 #endif /* HUMANSRE_FRONTEND_H */

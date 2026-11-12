@@ -59,6 +59,8 @@ uint16_t save_time(void);
  */
 uint16_t save_members(void);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Accessor: the save blob.
  *
@@ -72,6 +74,7 @@ uint16_t save_members(void);
  * @return the 0x1800 buffer, or NULL when no save is loaded
  */
 const uint8_t *save_blob(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief entry:004C / load_level_record_a+_b: put the saved ranges back after the
  * level has been loaded and its map spawns have run (after level_load: the

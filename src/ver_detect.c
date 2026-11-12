@@ -21,8 +21,11 @@
  */
 static uint32_t _hash_update(uint32_t h, const uint8_t *buf, uint32_t n);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint32_t ver_detect_hash(const uint8_t *buf, uint32_t n)
 { return _hash_update(FNV32_OFFSET, buf, n); }
+#endif /* HUMANSRE_TEST_PROBES */
 
 static uint32_t _hash_update(uint32_t h, const uint8_t *buf, uint32_t n)
 {

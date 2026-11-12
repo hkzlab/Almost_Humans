@@ -313,7 +313,9 @@ static uint16_t _bd_anim_frames; // field F -> [0x6532]
 static uint8_t _bd_c_have;
 static uint8_t _bd_p_block[0x1000]; // field P: the exit/igloo art (0xB9)
 static uint8_t _bd_p_have;
+#if defined(HUMANSRE_TEST_PROBES)
 static uint16_t _level_bg_index; // the BD page's field L (test probe)
+#endif
 static uint8_t *_page_items; // field B + its record area
 static uint32_t _page_items_size;
 static uint8_t _page_valid;
@@ -461,20 +463,31 @@ void level_spark_begin(uint16_t ox, uint16_t oy, const uint8_t *shade)
 
 uint8_t level_spark_active(void) { return _spark_on; }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint8_t level_spark_strip_at(uint32_t col, uint32_t row, uint32_t plane)
 {
     if (col >= 0x12u || row >= 0x40u || plane >= 4u) return 0u;
     return _spark_strip[row][col][plane];
 }
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint8_t level_spark_byte(uint32_t off)
 { return off < sizeof _spark ? ((const uint8_t *)_spark)[off] : 0u; }
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 void level_spark_set_byte(uint32_t off, uint8_t value)
 {
     if (off < sizeof _spark) ((uint8_t *)_spark)[off] = value;
 }
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 int32_t level_spark_peek(uint32_t *x, uint32_t *y, uint32_t *value)
 {
     for (uint16_t i = 0; i < 0x58u; i++)
@@ -486,6 +499,7 @@ int32_t level_spark_peek(uint32_t *x, uint32_t *y, uint32_t *value)
         }
     return 0;
 }
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief 1000:3FB3: spawn one cell (while fewer than 0x100 have been spawned and the
  * write slot is free), then move every live cell by path[age] and drop it at
@@ -906,7 +920,9 @@ static int32_t _visuals_load(uint32_t style)
     _item_masks_build(&page);
     g_osys->memFree(bd);
 
+#if defined(HUMANSRE_TEST_PROBES)
     _level_bg_index = bgIdx;
+#endif
     if (bgIdx != 0u) {
         snprintf(name, sizeof name, game_resources[GAME_RES_BACKS_BG_FMT],
                  bgIdx);
@@ -992,7 +1008,10 @@ void level_draw_bg_sprites(uint8_t *page, int32_t scrollX, int32_t scrollY)
     }
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 const uint8_t *level_bg_for_probe(void) { return _bg_image; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 uint32_t level_anim_frames(void) { return _bd_anim_frames; }
 
@@ -1006,6 +1025,8 @@ int32_t level_slope_byte(uint32_t id, uint32_t sub)
     return (int8_t)_slope_profiles[off + sub];
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 const uint8_t *level_p_block_for_probe(void)
 { return _bd_p_have ? _bd_p_block : NULL; }
 
@@ -1013,6 +1034,7 @@ const uint8_t *level_c_block_for_probe(void)
 { return _bd_c_have ? _bd_c_block : NULL; }
 
 uint16_t level_bg_index_for_probe(void) { return _level_bg_index; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 int32_t level_init(void) { return 0; }
 
@@ -1699,9 +1721,15 @@ uint8_t level_updates(void) { return _world_updates; }
 
 void level_set_offset_word(uint16_t v) { _level_offset_word = v; }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint16_t level_offset_word(void) { return _level_offset_word; }
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 void level_reset_offset_walk(void) { _level_offset_ptr = 0x2D92u; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 void level_begin(void)
 {
@@ -1773,8 +1801,13 @@ void level_seed_tribe(void)
     _tribe_members = (skill == 0u) ? 12u : (skill == 1u) ? 10u : 8u; // 00B1
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 void level_goal_reached(void) { _goal_hit = 1; }
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 void level_member_lost(void)
 {
     if (_tribe_members > 0u) _tribe_members--;
@@ -1784,6 +1817,7 @@ void level_member_lost(void)
         _end_won = 0;
     }
 }
+#endif /* HUMANSRE_TEST_PROBES */
 
 uint8_t level_end_test(void)
 {
@@ -1846,6 +1880,8 @@ uint32_t level_page_byte(uint32_t id, uint32_t subcol)
     return _page_mask[id][subcol];
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /* The `[0x1FD6]` item record's `row` word: `B + word[B + 2*id]` then `2*row`,
  * i.e. the 16-bit sub-cell occupancy mask 1000:F25F tests. 0xFFFF when absent. */
 uint32_t level_item_byte(uint32_t id, uint32_t off)
@@ -1857,6 +1893,7 @@ uint32_t level_item_byte(uint32_t id, uint32_t off)
     if (o + off >= _page_items_size) return 0x80u;
     return _page_items[o + off];
 }
+#endif /* HUMANSRE_TEST_PROBES */
 
 uint32_t level_item_word(uint32_t id, uint32_t row)
 {
@@ -1892,7 +1929,10 @@ void level_end_palette(void)
            sizeof _level_end_gradient);
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint16_t level_time_limit(void) { return _time_limit; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 uint16_t level_tribe_members(void) { return _tribe_members; }
 
@@ -2342,6 +2382,8 @@ uint8_t level_disk_status_begin(uint16_t disc)
     return 1;
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 void level_disk_status_reset(void)
 {
     _disk_phase = DISK_OFF;
@@ -2350,6 +2392,7 @@ void level_disk_status_reset(void)
     _disk_font = NULL;
     font_publish(NULL);
 }
+#endif /* HUMANSRE_TEST_PROBES */
 
 uint8_t level_disk_status_tick(const InputState *in)
 {

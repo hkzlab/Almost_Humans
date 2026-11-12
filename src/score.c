@@ -124,7 +124,10 @@ uint16_t score_members(void)
 void score_add_level_term(uint16_t v)
 { _score_level_term = (uint16_t)(_score_level_term + v); }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint16_t score_level_term_for_probe(void) { return _score_level_term; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 /**
  * @brief 1000:41EA..4235: the level's two terms.
@@ -253,19 +256,34 @@ uint8_t score_counters_run(void)
     return (_score_screen_timer & 0x8000u) ? 0 : 1;
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint8_t score_is_record(void) { return _score_is_record; }
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint16_t score_best_for(uint32_t level) { return hiscore_best(level); }
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint16_t score_best_time(void) { return _score_best_time; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 uint16_t score_total_lo(void) { return _score_total_lo; }
 
 uint16_t score_total_hi(void) { return _score_total_hi; }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint32_t score_shown_lo(void) { return _score_shown_lo; }
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint32_t score_shown_hi(void) { return _score_shown_hi; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 uint32_t score_level_score(void)
 {

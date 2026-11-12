@@ -85,6 +85,8 @@ void palette_build_fade(uint16_t first, uint16_t entries, uint16_t div,
  */
 uint8_t palette_fade_active(void);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /** @brief The DAC shadow, read-only: window 0x80+n mirrors buffer entry n.
  *
  * The fade-ladder harness compares the port's per-tick progression against
@@ -93,26 +95,36 @@ uint8_t palette_fade_active(void);
  * @return the pointer, or NULL when unavailable
  */
 const uint8_t *palette_dac_shadow(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Accessor: the fade's target palette.
  *
  * @return the target
  */
 const uint8_t *palette_fade_target(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Accessor: the fade's first entry.
  *
  * @return the entry
  */
 uint16_t palette_fade_first(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Accessor: the fade's component count.
  *
  * @return the count
  */
 uint16_t palette_fade_comps(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
 #endif /* HUMANSRE_PALETTE_H */

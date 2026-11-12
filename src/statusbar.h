@@ -123,12 +123,15 @@ uint8_t statusbar_tribe_value(void);
  */
 void statusbar_set_active(uint8_t on);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Set the bar's split row.
  *
  * @param row the row
  */
 void statusbar_set_split(uint16_t row);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief draw_level_text 0x342B: park the split at 0xC9 (off-screen) so the bar is
  * not composed; the level's ISR hook (0x331E) is already uninstalled, so it
@@ -136,12 +139,15 @@ void statusbar_set_split(uint16_t row);
  */
 void statusbar_hide(void);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Accessor: the bar's split row.
  *
  * @return the row
  */
 uint16_t statusbar_split(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /* [0x5B56]: the current ACTION program - a raw byte; draws both the program
  * and the action row's group.  An id outside 1..6 has no header (D-186).
@@ -190,13 +196,18 @@ void statusbar_charge_begin(void);
  */
 void statusbar_charge_end(void);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief [0x5B56] itself, for the tests: the group the bar's next draw uses.
  *
  * @return the action group index
  */
 uint8_t statusbar_action_group(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief the group's icon count (its header's first byte), for the tests.
  *
@@ -204,7 +215,10 @@ uint8_t statusbar_action_group(void);
  * @return the icon count
  */
 uint8_t statusbar_action_count(uint32_t group);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief the group's selected-cell byte, for the tests (0 past the table).
  *
@@ -212,6 +226,7 @@ uint8_t statusbar_action_count(uint32_t group);
  * @return the selected cell byte
  */
 uint8_t statusbar_action_cell(uint32_t group);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief The countdown word the save writes at +0x07: minutes << 8 | BCD seconds
  * (the original's [0x5B19] and [0x5B1A]*16 + [0x5B1B]).

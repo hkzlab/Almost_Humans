@@ -24,12 +24,15 @@
  */
 void party_intro_set_game_over(uint8_t on);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Accessor: the briefing's score (g_score [0x592]).
  *
  * @return the score
  */
 uint16_t party_intro_score(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /**
  * @brief Seed the briefing's level, counts, score and tribe name.
@@ -74,6 +77,8 @@ uint8_t party_intro_start(void);
  */
 uint8_t party_intro_tick(const InputState *in);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief 2B1B format_score + 2B70: format the score as a decimal string.
  *
@@ -81,6 +86,7 @@ uint8_t party_intro_tick(const InputState *in);
  * @param out the output buffer
  */
 void party_intro_format_score(uint32_t v, char *out);
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief the closed layout law, exposed for the byte-exact fixtures: the page's
  * pixel (x,y) = video_vram_group(pagebase + 8 + y*88 + (x>>2))[x&3] of the
@@ -90,6 +96,8 @@ void party_intro_format_score(uint32_t v, char *out);
  */
 void party_intro_compose(uint8_t *page320x200);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /** @brief the palette buffers, exposed for the fade-ladder harness: the port's
  * 0x4bbc/0x4d3c(+0x180)/0x1208 stand-ins (read-only diagnostics, see
  * test_fadeladder)
@@ -97,14 +105,20 @@ void party_intro_compose(uint8_t *page320x200);
  * @return the pointer, or NULL when unavailable
  */
 const uint8_t *party_intro_workpal(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief Accessor: the upper palette half (0x4D3C = 0x4BBC + 0x180).
  *
  * @return the 0x180-byte upper half
  */
 const uint8_t *party_intro_pal_upper(void);
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
  * @brief 2a76..2a95: the marquee's source offset and destination row for a
  * phase/cell pair (the phase is the 0x160 word [0xf9e]).
@@ -116,5 +130,6 @@ const uint8_t *party_intro_pal_upper(void);
  */
 void party_intro_marquee_for_probe(uint16_t phase, uint16_t cell, uint16_t *src,
                                    uint16_t *dhi);
+#endif /* HUMANSRE_TEST_PROBES */
 
 #endif /* HUMANSRE_PARTY_INTRO_H */

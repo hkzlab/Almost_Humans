@@ -9,7 +9,9 @@
 
 #include <SDL3/SDL.h>
 #include <stdint.h>
-#include <stdlib.h>
+#if defined(HUMANSRE_TEST_PROBES)
+#    include <stdlib.h> /* getenv: the present-rate probe */
+#endif
 
 static VideoMode _vid_mode = (VideoMode)-1;   // the core's last mode set
 
@@ -20,7 +22,11 @@ static int32_t _tex_rows =
     VIDEO_PAGE_H_MODE13H; // the texture's height = the field
 static uint8_t _pages[2][VIDEO_PAGE_BYTES];
 static uint32_t _lut[256]; // the palette LUT, 6-bit expanded
-static int32_t _present_probe; // HUMANSRE_RATE_PROBE: present-rate report
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): HUMANSRE_RATE_PROBE also reports the
+ * present rate.  Never part of a release build. */
+static int32_t _present_probe;
+#endif
 
 /** @brief The field's row count: 192 in mode X, 200 in mode 13h.
  *
@@ -79,7 +85,9 @@ static void _vid_init_video(void)
      * the ISR - so a 60 Hz host display must not drag the 70 Hz flow. */
     _vid_make_texture(VIDEO_PAGE_H_MODE13H);
     for (uint32_t i = 0; i < 256u; i++) _lut[i] = 0xFF000000u; // opaque black
+#if defined(HUMANSRE_TEST_PROBES)
     _present_probe = getenv("HUMANSRE_RATE_PROBE") != NULL;
+#endif
 }
 
 void sdl3_video_set_mode(VideoMode mode)
@@ -121,6 +129,7 @@ static void _vid_present(int32_t which)
     const SDL_FRect dst = { 0, 0, (float)VIDEO_PAGE_W, (float)rows };
     SDL_RenderTexture(_ren, _tex, NULL, &dst);
     SDL_RenderPresent(_ren);
+#if defined(HUMANSRE_TEST_PROBES)
     if (_present_probe) {
         static uint32_t frames;
         static Uint64 windowStart;
@@ -141,6 +150,7 @@ static void _vid_present(int32_t which)
             windowStart = now;
         }
     }
+#endif /* HUMANSRE_TEST_PROBES */
 }
 
 void sdl3_video_set_palette(const uint8_t *p6, uint32_t first, uint32_t n)

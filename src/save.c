@@ -61,7 +61,10 @@ uint16_t save_time(void)
 uint16_t save_members(void)
 { return _save_buf ? rd_le_u16(_save_buf + 0x0B) : 0u; }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 const uint8_t *save_blob(void) { return _save_buf; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 int32_t save_write_slot(uint8_t slot, uint16_t level, uint16_t timeWord,
                         uint16_t members)

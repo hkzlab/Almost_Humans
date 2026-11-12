@@ -255,21 +255,30 @@ void statusbar_charge_bar(uint32_t v)
 
 void statusbar_cycle_action(void) { object_step_action_cell(); /* 1000:3941 */ }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint8_t statusbar_action_group(void) { return object_action_program(); }
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint8_t statusbar_action_count(uint32_t group)
 {
     const uint8_t *h = object_program_header(group);
 
     return h ? (uint8_t)((uint32_t)h[0]) : 0u;
 }
+#endif /* HUMANSRE_TEST_PROBES */
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint8_t statusbar_action_cell(uint32_t group)
 {
     const uint8_t *h = object_program_header(group);
 
     return h ? (uint8_t)((uint32_t)h[1]) : 0u;
 }
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief 0xAFFE: one frame pixel - the mask byte when it is non-zero, else the
  * destination shaded by `d` and clamped to the bar bank.
@@ -693,11 +702,14 @@ uint8_t statusbar_time_up(void) { return _time_up; }
 
 void statusbar_set_active(uint8_t on) { _active = on ? 1 : 0; }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 void statusbar_set_split(uint16_t row)
 {
     _bar_split = row > VIDEO_PAGE_H_MODE13H ? VIDEO_PAGE_H_MODE13H : row;
     _bar_hidden = 0; // an explicit split re-composes it
 }
+#endif /* HUMANSRE_TEST_PROBES */
 
 void statusbar_hide(void)
 {
@@ -705,7 +717,10 @@ void statusbar_hide(void)
     _bar_split = 0xC9u;
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint16_t statusbar_split(void) { return _bar_split; }
+#endif /* HUMANSRE_TEST_PROBES */
 
 uint16_t statusbar_time_word(void)
 {

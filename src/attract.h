@@ -66,6 +66,9 @@ void attract_shutdown(void);
  */
 uint8_t attract_tick(const InputState *in);
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
+
 /**
  * @brief Accessor: the attract phase (the tests' phase read).
  *
@@ -94,5 +97,7 @@ const uint8_t *attract_strip_for_probe(uint32_t *rowsBuilt);
  * @param out the output buffer (at least 8 bytes)
  */
 void attract_format_decimal_for_probe(uint32_t v, char *out);
+
+#endif /* HUMANSRE_TEST_PROBES */
 
 #endif /* HUMANSRE_ATTRACT_H */
