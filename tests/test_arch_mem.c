@@ -36,13 +36,15 @@ static void *_count_alloc(size_t size)
 /**
  * @brief The counting allocator's release side.
  *
+ * Counts every call, including a NULL block: arch_mem_free forwards NULL to
+ * the installed free, so a call with NULL must be visible here.
+ *
  * @param p the block
  */
 static void _count_free(void *p)
 {
-    if (!p) return;
     _frees++;
-    _live--;
+    if (p) _live--;
     free(p);
 }
 
@@ -55,8 +57,8 @@ int main(void)
 {
     int32_t bad = 0;
 
-    /* 1. the forwarders use the installed pair, and a NULL free is not
-     *    forwarded to it. */
+    /* 1. the forwarders use the installed pair, and a NULL free is forwarded
+     *    to it (free(NULL) is a no-op, but the call is visible). */
     arch_mem_set(_count_alloc, _count_free);
     {
         void *b = arch_mem_alloc(64);
@@ -66,7 +68,7 @@ int main(void)
         arch_mem_free(b);
         bad |= _frees != 1u || _live != 0;
         arch_mem_free(NULL);
-        bad |= _frees != 1u;
+        bad |= _frees != 2u || _live != 0;
     }
 
     /* 2. a driver's create/destroy goes through the same heap. */

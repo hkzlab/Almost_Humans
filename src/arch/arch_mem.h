@@ -37,7 +37,7 @@ void *arch_mem_alloc(size_t size);
 /**
  * @brief Release a block from arch_mem_alloc.
  *
- * @param p the block (NULL is a no-op)
+ * @param p the block to free
  */
 void arch_mem_free(void *p);
 
