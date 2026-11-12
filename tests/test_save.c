@@ -173,15 +173,16 @@ int main(int argc, char **argv)
     }
     fclose(f);
 
-    res_init(&g_osys_null);
-    video_init(&g_osys_null);
-    palette_init(&g_osys_null);
-    font_init(&g_osys_null);
-    audio_init(&g_osys_null);
-    statusbar_init(&g_osys_null);
-    level_init(&g_osys_null);
-    frontend_init(&g_osys_null);
-    save_init(&g_osys_null);
+    osys_bind(&g_osys_null);
+    res_init();
+    video_init();
+    palette_init();
+    font_init();
+    audio_init();
+    statusbar_init();
+    level_init();
+    frontend_init();
+    save_init();
 
     /* the room: load + fade-in, then the walk to RESTORE GAME */
     GameFlow s = FLOW_MENU;

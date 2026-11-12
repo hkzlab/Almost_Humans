@@ -16,12 +16,11 @@
 #include "osystem.h"
 
 /**
- * @brief Bind the scene module to the backend.
+ * @brief Scene module init (the backend is bound once by osys_bind()).
  *
- * @param osys the backend interface
  * @return 0 on success
  */
-int32_t scene_init(const OSystem *osys);
+int32_t scene_init(void);
 
 /**
  * @brief Play one level's .ANI newspaper for a frame (the cd_file_op body).

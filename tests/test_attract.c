@@ -150,8 +150,9 @@ int main(int argc, char **argv)
     int32_t bad = 0;
     {
         const OSystem *os = &g_osys_null;
-        if (res_init(os) || video_init(os) || palette_init(os) ||
-            font_init(os) || attract_init(os)) {
+        osys_bind(os);
+        if (res_init() || video_init() || palette_init() || font_init() ||
+            attract_init()) {
             fprintf(stderr, "FAIL: module init\n");
             return 1;
         }

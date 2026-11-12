@@ -13,12 +13,11 @@
 #include "osystem.h"
 
 /**
- * @brief Bind the font module to the backend.
+ * @brief Reset the font module's per-boot state (the arena warning latch).
  *
- * @param osys the backend interface
  * @return 0 on success
  */
-int32_t font_init(const OSystem *osys);
+int32_t font_init(void);
 
 /**
  * @brief Publish the TEXT.SPR glyph bank.

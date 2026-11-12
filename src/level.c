@@ -4,7 +4,6 @@
 #include "font.h"
 #include "frontend.h"
 #include "game_strs.h"
-#include "mem.h"
 #include "object.h"
 #include "osystem.h"
 #include "palette.h"
@@ -289,7 +288,6 @@ static uint8_t _spark_strip[0x40][0x12][4];
 static int16_t _spark_strip_x, _spark_strip_y; // [0x1AEA] / [0x1AEC]
 static uint8_t _spark_strip_on;
 
-static const OSystem *_level_osys;
 
 static uint8_t *_atlas; // 0x400 + 169*256
 static uint8_t *_bg_image; // 512*320 + 768
@@ -558,15 +556,15 @@ static void _spark_draw(void)
  */
 static void _visuals_free(void)
 {
-    mem_free(_atlas);
+    g_osys->memFree(_atlas);
     _atlas = NULL;
-    mem_free(_bg_image);
+    g_osys->memFree(_bg_image);
     _bg_image = NULL;
-    mem_free(_world);
+    g_osys->memFree(_world);
     _world = NULL;
-    mem_free(_anim_table);
+    g_osys->memFree(_anim_table);
     _anim_table = NULL;
-    mem_free(_page_items);
+    g_osys->memFree(_page_items);
     _page_items = NULL;
     _page_items_size = 0;
     _page_valid = 0;
@@ -870,7 +868,7 @@ static int32_t _visuals_load(uint32_t style)
         _bd_p_have = 1;
     }
     if (end == bdSize && animN) {
-        _anim_table = mem_alloc(4u * animN);
+        _anim_table = g_osys->memAlloc(4u * animN);
         if (_anim_table) {
             memcpy(_anim_table, anim, 4u * animN);
             _anim_count = animN;
@@ -879,8 +877,8 @@ static int32_t _visuals_load(uint32_t style)
     /* The terrain page table (draw_terrain2 1000:505C) is built from the
      * tile _atlas once that has loaded - _page_table_build below. */
     if (page.items && page.itemsSize <= bdSize) {
-        mem_free(_page_items);
-        _page_items = mem_alloc(page.itemsSize);
+        g_osys->memFree(_page_items);
+        _page_items = g_osys->memAlloc(page.itemsSize);
         if (_page_items) {
             memcpy(_page_items, page.items, page.itemsSize);
             _page_items_size = page.itemsSize;
@@ -888,14 +886,14 @@ static int32_t _visuals_load(uint32_t style)
         }
     }
     if (end != bdSize) {
-        mem_free(bd);
+        g_osys->memFree(bd);
         return -1;
     }
 
     snprintf(name, sizeof name, "LEVELS\\BS%u.BLK", style);
     _atlas = res_load_chunk(name, &bdSize, &chk);
     if (!_atlas || bdSize != 0x400u + ATLAS_TILES * 0x100u) {
-        mem_free(bd);
+        g_osys->memFree(bd);
         _visuals_free();
         return -1;
     }
@@ -905,7 +903,7 @@ static int32_t _visuals_load(uint32_t style)
     /* draw_objects (1000:558B) then fills field B's item records; it needs
      * the same J bytes, so it runs before the BD image is released. */
     _item_masks_build(&page);
-    mem_free(bd);
+    g_osys->memFree(bd);
 
     _level_bg_index = bgIdx;
     if (bgIdx != 0u) {
@@ -931,7 +929,7 @@ static int32_t _visuals_load(uint32_t style)
         }
     }
 
-    _world = mem_alloc(WORLD_W * WORLD_H);
+    _world = g_osys->memAlloc(WORLD_W * WORLD_H);
     if (!_world) {
         _visuals_free();
         return -1;
@@ -1014,12 +1012,7 @@ const uint8_t *level_c_block_for_probe(void)
 
 uint16_t level_bg_index_for_probe(void) { return _level_bg_index; }
 
-int32_t level_init(const OSystem *osys)
-{
-    _level_osys = osys; // the render goes through videoSetPalette
-    mem_bind(osys);
-    return 0;
-}
+int32_t level_init(void) { return 0; }
 
 const LevelData *level_data(void)
 { return _level_loaded ? &_level_data_cur : NULL; }
@@ -1152,7 +1145,7 @@ int32_t level_load(uint16_t levelId)
         if (p == 0) break; // the file's records exhausted
     }
 
-    mem_free(image);
+    g_osys->memFree(image);
     if (!ok) return -1;
 
     /* the header's style selects the visual set; the census across all 160
@@ -1164,20 +1157,20 @@ int32_t level_load(uint16_t levelId)
 
     /* load_level_assets (1000:3468): the in-level dialog's box tiles
      * (apl\box.spr, 9 x 16x16 at [0x13B1]) load with the level's assets. */
-    mem_free(_box_spr);
+    g_osys->memFree(_box_spr);
     _box_spr = res_load_chunk("APL\\BOX.SPR", &_box_size, NULL);
     textpage_publish_box(_box_spr && _box_size >= 0x900u ? _box_spr : NULL);
 
     /* load_level_assets (1000:3488): APL\SPRITES.DAT is the object sprite
      * image (81744 = 0x13F50 bytes); the object pass draws from it. */
-    mem_free(_obj_bank);
+    g_osys->memFree(_obj_bank);
     _obj_bank = NULL;
     _obj_bank = res_load_chunk("APL\\SPRITES.DAT", &_obj_bank_size, NULL);
     object_publish_bank(_obj_bank, _obj_bank_size);
 
     /* load_level_assets 1000:4F82: apl\rex.dat into the entity slot [0x13AD]
      * (the entity pass's bank, 1000:5823). */
-    mem_free(_ent_bank);
+    g_osys->memFree(_ent_bank);
     _ent_bank = NULL;
     _ent_bank_size = 0;
     _ent_bank = res_load_chunk("APL\\REX.DAT", &_ent_bank_size, NULL);
@@ -1185,7 +1178,7 @@ int32_t level_load(uint16_t levelId)
 
     /* load_level_assets 1000:4F89: apl\TER.dat into [0x13AF] (the 0x649A
      * slots' draw pass, 1000:5C2F). */
-    mem_free(_ter_bank);
+    g_osys->memFree(_ter_bank);
     _ter_bank = NULL;
     _ter_bank_size = 0;
     _ter_bank = res_load_chunk("APL\\TER.DAT", &_ter_bank_size, NULL);
@@ -1254,7 +1247,7 @@ int32_t level_load(uint16_t levelId)
             uint8_t *sp = res_load_chunk("APL\\SPRPAL.APL", &spSize, NULL);
             if (sp && spSize >= 0x1Bu + 0x5Du)
                 memcpy(_level_pal + 3u, sp + 0x1Bu, 0x5Du);
-            mem_free(sp);
+            g_osys->memFree(sp);
         }
         if (_atlas) memcpy(_level_pal + 32u * 3u, _atlas + 0x18, 0x60u);
         if (_bg_image)
@@ -1274,7 +1267,7 @@ int32_t level_load(uint16_t levelId)
 
     /* a fresh load starts the chain again (level_fade_in runs per level) */
     _start_phase = LVSTART_IDLE;
-    mem_free(_loading_bank);
+    g_osys->memFree(_loading_bank);
     _loading_bank = NULL;
     _loading_size = 0;
     _load_phase = 0; // the LOADING screen repeats
@@ -1309,7 +1302,7 @@ void level_loading_begin(void)
     /* 1000:1DCF..1E3F: dicon+0x18 -> 0x14D3 entries 0..0x7F, then the DAC
      * FADES to them (0x80 entries, div 0x19) before the frames run */
     memset(_load_pal, 0, sizeof _load_pal);
-    mem_free(_load_dic);
+    g_osys->memFree(_load_dic);
     _load_dic = NULL;
     _load_dic_size = 0;
     /* 1000:1E9B's style table f,s,c,w,d,p indexed by style-1; 0xEA8 is
@@ -1446,7 +1439,7 @@ void level_loading_tick(void)
     uint8_t *page;
 
     if (_load_phase != 1 && _load_phase != 2) return;
-    page = _level_osys->videoPage(0);
+    page = g_osys->videoPage(0);
 
     if (--_load_cx < 0) _load_cx = _load_reload;
     for (uint16_t e = 0; e < _load_entries; e++) {
@@ -1497,7 +1490,7 @@ void level_loading_tick(void)
             _load_phase = 2;
         } else {
             _load_phase = 3;
-            mem_free(_load_dic);
+            g_osys->memFree(_load_dic);
             _load_dic = NULL;
             _load_dic_size = 0;
         }
@@ -1723,8 +1716,8 @@ void level_begin(void)
      * the party screen on a fresh start - never shows through them.
      * Both port pages model the one cleared VRAM window. */
     {
-        uint8_t *p0 = _level_osys->videoPage(0);
-        uint8_t *p1 = _level_osys->videoPage(1);
+        uint8_t *p0 = g_osys->videoPage(0);
+        uint8_t *p1 = g_osys->videoPage(1);
 
         if (p0) memset(p0, 0, VIDEO_PAGE_BYTES);
         if (p1) memset(p1, 0, VIDEO_PAGE_BYTES);
@@ -1919,7 +1912,7 @@ static void _stamp_tile(uint8_t *dst, const uint8_t *src)
  * One byte per pixel, `4*address + plane = pixel`. */
 static void _present_plane(void)
 {
-    uint8_t *page = _level_osys->videoPage(0);
+    uint8_t *page = g_osys->videoPage(0);
 
     if (!page) return;
     for (uint16_t y = 0; y < VIDEO_PAGE_H_MODE13H; y++)
@@ -1931,7 +1924,7 @@ static void _present_plane(void)
 /* Bake the visible page back into the planar work buffer. */
 static void _bake_page_to_plane(void)
 {
-    const uint8_t *page = _level_osys->videoPage(0);
+    const uint8_t *page = g_osys->videoPage(0);
 
     if (!page) return;
     for (uint16_t y = 0; y < VIDEO_PAGE_H_MODE13H; y++)
@@ -1993,7 +1986,7 @@ static void _render_world(void)
         _spark_step(); // 1000:3FB3 (spawns, ages, paints)
         _spark_draw(); // 1000:3F4A's inline loop
     }
-    uint8_t *page = _level_osys->videoPage(0);
+    uint8_t *page = g_osys->videoPage(0);
     _present_plane();
 
     /* the object pass (render_objects 1000:5D56): the placed records' base
@@ -2018,13 +2011,13 @@ static void _render_world(void)
 
 void level_redraw_page(void)
 {
-    if (!_level_loaded || !_level_osys) return;
+    if (!_level_loaded || !g_osys) return;
     _render_world();
 }
 
 void level_end_redraw_page(void)
 {
-    if (!_level_loaded || !_level_osys) return;
+    if (!_level_loaded || !g_osys) return;
     if (level_view_y() > 0x78u) level_set_view(level_view_x(), 0x78u);
     _render_world();
 }
@@ -2045,8 +2038,8 @@ void level_claim_frame(void)
 {
     uint8_t *page;
 
-    if (!_level_loaded || !_level_osys) return;
-    page = _level_osys->videoPage(0);
+    if (!_level_loaded || !g_osys) return;
+    page = g_osys->videoPage(0);
     if (!page) return;
     if (_spark_on) { // 1000:3F4A / 1000:40CA's restore
         _spark_strip_restore();
@@ -2070,7 +2063,7 @@ uint8_t level_tick(void)
         return 1;
     }
 
-    if (!_world || !_level_osys) return 1;
+    if (!_world || !g_osys) return 1;
 
     /* level_fade_in (1000:3334) - the chain: the fade-out waits for its
      * steps, then the eight update_world (1000:80AD) frames, then the final
@@ -2225,7 +2218,7 @@ uint8_t level_tick(void)
         object_claim_flip_active()) {
         _render_world();
         if (object_claim_pan_active()) { // 1000:3D5E's recolour on both pan frames
-            uint8_t *page = _level_osys->videoPage(0);
+            uint8_t *page = g_osys->videoPage(0);
 
             level_claim_recolour();
             /* 1000:3D30: 40CA redraws the two records AFTER the recolour, so
@@ -2299,10 +2292,10 @@ static void _disk_draw(uint16_t disc)
                 page[g * 8u + bit] = (uint8_t)px;
             }
         }
-        mem_free(img);
+        g_osys->memFree(img);
     }
 
-    mem_free(_disk_font);
+    g_osys->memFree(_disk_font);
     _disk_font = res_load_chunk("APL\\TEXT.SPR", NULL, NULL);
     font_publish(_disk_font);
 
@@ -2342,7 +2335,7 @@ void level_disk_status_reset(void)
 {
     _disk_phase = DISK_OFF;
     _disk_hold = 0;
-    mem_free(_disk_font);
+    g_osys->memFree(_disk_font);
     _disk_font = NULL;
     font_publish(NULL);
 }
@@ -2382,7 +2375,7 @@ uint8_t level_disk_status_tick(const InputState *in)
         }
         if (audio_fade_busy()) return 1; // 1000:20BE's blocking fade
         _disk_phase = DISK_OFF;
-        mem_free(_disk_font);
+        g_osys->memFree(_disk_font);
         _disk_font = NULL;
         font_publish(NULL);
         return 0;

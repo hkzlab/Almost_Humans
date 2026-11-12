@@ -30,12 +30,11 @@ typedef struct {
 /* --- src/script.c - interpreter skeleton -------------------------------- */
 
 /**
- * @brief Bind the cue-script module to the backend.
+ * @brief Cue-script module init (the backend is bound once by osys_bind()).
  *
- * @param osys the backend interface
  * @return 0 on success
  */
-int32_t script_init(const OSystem *osys);
+int32_t script_init(void);
 
 /**
  * @brief Start the intro cue script: the verbatim 202F:0x843C list (25 cues,

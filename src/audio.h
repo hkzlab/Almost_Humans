@@ -29,12 +29,11 @@ extern const char audio_tune_humfx[];
 extern char audio_tune_lev[]; // "mus\levA"; the letter is rewritten
 
 /**
- * @brief Bind the audio module to the backend.
+ * @brief Audio module init (the backend is bound once by osys_bind()).
  *
- * @param osys the backend interface
  * @return 0 on success
  */
-int32_t audio_init(const OSystem *osys);
+int32_t audio_init(void);
 
 /**
  * @brief Install the resident driver (driver_reset 1000:84DE), once at boot.

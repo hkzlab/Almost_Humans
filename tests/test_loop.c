@@ -13,6 +13,7 @@
  * chdirs into an empty scratch directory first - a build tree that carries
  * HUMANS.00N links must not turn this into the real, multi-hundred-tick
  * playback (test_attract and test_smoke drive that path). */
+#include "audio.h"
 #include "attract.h"
 #include "font.h"
 #include "gameflow.h"
@@ -108,8 +109,9 @@ int main(void)
      * trimmed to the flow-relevant ones) */
     {
         const OSystem *os = &g_osys_null;
-        if (res_init(os) || video_init(os) || palette_init(os) ||
-            font_init(os) || attract_init(os)) {
+        osys_bind(os);
+        if (res_init() || video_init() || palette_init() || font_init() ||
+            attract_init()) {
             fprintf(stderr, "FAIL: module init\n");
             return 1;
         }
@@ -123,6 +125,7 @@ int main(void)
         for (tick = 1; tick <= 2000u; tick++) {
             s = gameflow_step(s, &in);
             palette_tick();               // the ISR body's fade step
+            audio_tick();
             if (s != FLOW_ATTRACT) {
                 fprintf(stderr,
                         "FAIL at tick %u: idle attract left the "
@@ -154,6 +157,7 @@ int main(void)
             }
             s = gameflow_step(s, &in);
             palette_tick();
+            audio_tick();
         }
         /* the cycle edges: 1 -> 3 -> 2 -> 4 -> 1, rotation-independent
          * (test 1's idle ticks already left the machine mid-cycle, so the
@@ -183,12 +187,14 @@ int main(void)
         GameFlow s = FLOW_ATTRACT;
         s = gameflow_step(s, &in);
         palette_tick();
+        audio_tick();
         bad |= _expect_state(s, FLOW_ATTRACT, 0, "escape: fade still running");
         InputState idle = _make_input();
         uint32_t guard = 0;
         while (s == FLOW_ATTRACT && guard++ < 200u) {
             s = gameflow_step(s, &idle);
             palette_tick();
+            audio_tick();
         }
         if (s != FLOW_MENU) {
             fprintf(stderr,
@@ -226,6 +232,7 @@ int main(void)
         GameFlow s = FLOW_ATTRACT;
         s = gameflow_step(s, &idle);      // the restart + the first effect
         palette_tick();
+        audio_tick();
         bad |= _expect_state(s, FLOW_ATTRACT, 0, "re-entry plays");
         uint32_t ph = attract_phase_for_probe();
         if (ph == ATTRACT_DONE || ph == ATTRACT_IDLE) {
@@ -237,11 +244,13 @@ int main(void)
         fire.joyBits = 0x80u;
         s = gameflow_step(s, &fire);      // escape again
         palette_tick();
+        audio_tick();
         uint32_t guard = 0;
         while (s == FLOW_ATTRACT && guard++ < 200u) {
             InputState idle2 = _make_input();
             s = gameflow_step(s, &idle2);
             palette_tick();
+            audio_tick();
         }
         bad |= _expect_state(s, FLOW_MENU, 0, "second escape -> menu");
     }
@@ -257,7 +266,8 @@ int main(void)
         do {
             s = gameflow_step(s, &right);
             palette_tick();
-        } while (s == FLOW_MENU && guard++ < 400u);
+            audio_tick();
+        } while (s == FLOW_MENU && guard++ < 1200u);
         if (s != FLOW_LEVEL) {
             fprintf(stderr,
                     "FAIL: the right-edge walk never reached LEVEL "

@@ -2,7 +2,6 @@
 #include "audio.h"
 #include "font.h"
 #include "game_strs.h"
-#include "mem.h"
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
@@ -144,8 +143,8 @@ void party_intro_seed_scripts(const uint8_t *bytes, uint32_t len)
     /* the [live] pointer table: the DS offsets into the first body 0x1036 */
     uint32_t offs[SCRIPT_COUNT] = { 0x1036u, 0x103bu, 0x1044u, 0x1047u,
                                     0x104eu, 0x1053u, 0x105cu };
-    mem_free(_script_store);
-    _script_store = (uint8_t *)mem_alloc(len ? len : 1u);
+    g_osys->memFree(_script_store);
+    _script_store = (uint8_t *)g_osys->memAlloc(len ? len : 1u);
     if (_script_store) memcpy(_script_store, bytes, len);
     for (uint16_t i = 0; i < SCRIPT_COUNT; i++) {
         uint16_t rel =
@@ -624,10 +623,10 @@ uint8_t party_intro_start(void)
     _marq_phase = 0u;
     _marq_cell = 0u;
     _marq_hold = 1u;
-    mem_free(_sheet);
-    _sheet = mem_alloc(PARTY_SHEET_BYTES);
-    mem_free(_strip);
-    _strip = mem_alloc(PARTY_STRIP_BYTES);
+    g_osys->memFree(_sheet);
+    _sheet = g_osys->memAlloc(PARTY_SHEET_BYTES);
+    g_osys->memFree(_strip);
+    _strip = g_osys->memAlloc(PARTY_STRIP_BYTES);
     if (!_sheet || !_strip) return 0;
     video_vram_clear();
     memset(_ramp_tbl, 0xE0u, sizeof _ramp_tbl); // the table's clean state
@@ -638,14 +637,14 @@ uint8_t party_intro_start(void)
     if (!b) return 0;
     {
         uint8_t ok = (uint8_t)(_expand_nibbles(b, 0x570u, _sheet));
-        mem_free(b);
+        g_osys->memFree(b);
         if (!ok) return 0;
     }
 
     b = _load("APL\\BIRDY.SPR"); // 257c
     if (!b) return 0;
     _rescale_rows(b);
-    mem_free(b);
+    g_osys->memFree(b);
 
     {
         uint8_t d = (uint8_t)(_g_level & 7u) + 1u; // 2519: '1'+(lvl&7)
@@ -655,15 +654,15 @@ uint8_t party_intro_start(void)
     if (!b) return 0;
     palette_load_working(b); // 2591 (8d24): -> 0x4bbc
     memcpy(_workpal, palette_working(), 768u);
-    mem_free(b);
+    g_osys->memFree(b);
 
     b = _load("LBM\\PARTY1.BIT"); // 259a
     if (!b) return 0;
-    mem_free(_bit_img);
+    g_osys->memFree(_bit_img);
     _bit_img = b;
 
     b = _load("APL\\TEXT.SPR"); // 25af
-    mem_free(_font_bytes);
+    g_osys->memFree(_font_bytes);
     _font_bytes = b;
     if (b) {
         font_publish(b);
@@ -895,11 +894,11 @@ uint8_t party_intro_tick(const InputState *in)
     default:
         /* the briefing's carve at [0x11fe] (1000:253f/2546) and the arena it
          * draws through are dead once the screen has exited */
-        mem_free(_sheet);
+        g_osys->memFree(_sheet);
         _sheet = NULL;
-        mem_free(_strip);
+        g_osys->memFree(_strip);
         _strip = NULL;
-        mem_free(_bit_img);
+        g_osys->memFree(_bit_img);
         _bit_img = NULL;
         video_arena_release();
         break;

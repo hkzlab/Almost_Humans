@@ -13,12 +13,11 @@
 #include "osystem.h"
 
 /**
- * @brief Bind the palette module to the backend.
+ * @brief Palette module init (the backend is bound once by osys_bind()).
  *
- * @param osys the backend interface
  * @return 0 on success
  */
-int32_t palette_init(const OSystem *osys);
+int32_t palette_init(void);
 
 /** @brief palette_fade_step (1000:8BFD): one step per tick (the ISR body's
  * palette work, game_main's game_tick).

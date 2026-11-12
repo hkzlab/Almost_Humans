@@ -2,7 +2,6 @@
 #include "font.h"
 #include "game_strs.h"
 #include "hiscore.h"
-#include "mem.h"
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
@@ -77,11 +76,7 @@ static void _fastest_time(uint32_t levelMinus1, uint8_t rec[2])
     wr_le_u16(rec, v); // [seconds][minutes]
 }
 
-int32_t attract_init(const OSystem *osys)
-{
-    mem_bind(osys);
-    return 0;
-}
+int32_t attract_init(void) { return 0; }
 
 uint32_t attract_phase_for_probe(void) { return (uint32_t)_phase; }
 
@@ -335,7 +330,7 @@ static void _wipe_row(uint32_t k)
 /** @brief Drop the current effect image. */
 static void _unload_img(void)
 {
-    mem_free(_img_buf);
+    g_osys->memFree(_img_buf);
     _img_buf = NULL;
 }
 
@@ -447,7 +442,7 @@ static int32_t _e2_load(void)
     uint8_t *palBuf = res_load_chunk("LBM\\SCOREPAL.PAL", &sz, NULL);
     if (palBuf) {
         palette_load_working(palBuf);
-        mem_free(palBuf);
+        g_osys->memFree(palBuf);
     }
     palette_build_fade(0u, 256u, 0x1Eu, palette_working());
     return 1;
@@ -570,7 +565,7 @@ static int32_t _e4_load(void)
 {
     /* 19b9/19be: [0xD3D]:=0, [0x1E7C]:=8 - both write-only (no reader is
      * traced; see the note by the module state) */
-    mem_free(_credtext);
+    g_osys->memFree(_credtext);
     _credtext = NULL;
     _credtext = res_load_chunk("CREDTEXT.BIN", &_credtext_size, NULL);
     if (!_credtext) return 0;
@@ -597,7 +592,7 @@ static int32_t _e4_load(void)
      * never reset after the first fill: it persists across cycles. */
     _cred_cursor = 0;
     if (!_e4strip) {
-        _e4strip = mem_alloc(E4_STRIP_BYTES);
+        _e4strip = g_osys->memAlloc(E4_STRIP_BYTES);
         if (!_e4strip) return 0;
     }
     if (!_row_sig_init) {
@@ -615,7 +610,7 @@ static void _attract_restart(void)
 {
     video_set_mode(VIDEO_MODE_13H); // 132f: vga_set_mode_13h (1000:8300)
     res_set_disc(0u); // LAB_000E: [0xF7E] := 0
-    mem_free(_text_spr);
+    g_osys->memFree(_text_spr);
     _text_spr = res_load_chunk("APL\\TEXT.SPR", NULL, NULL);
     font_publish(_text_spr); // [0x1E1C] - may be NULL (headless)
 
@@ -948,9 +943,9 @@ uint8_t attract_tick(const InputState *in)
         if (palette_fade_active()) break;
         /* effect 4's work area and file: [0xD76] and [0xC9F] are dead once
          * the credits have finished; the next cycle re-carves them */
-        mem_free(_e4strip);
+        g_osys->memFree(_e4strip);
         _e4strip = NULL;
-        mem_free(_credtext);
+        g_osys->memFree(_credtext);
         _credtext = NULL;
         _credtext_size = 0;
         _next_effect(); // -> effect 1: the cycle
@@ -974,13 +969,13 @@ uint8_t attract_tick(const InputState *in)
 void attract_shutdown(void)
 {
     _unload_img();
-    mem_free(_credtext);
+    g_osys->memFree(_credtext);
     _credtext = NULL;
     _credtext_size = 0;
     if (_text_spr) font_publish(NULL); // the glyph table dies with it
-    mem_free(_text_spr);
+    g_osys->memFree(_text_spr);
     _text_spr = NULL;
-    mem_free(_e4strip);
+    g_osys->memFree(_e4strip);
     _e4strip = NULL;
     video_arena_release(); // the attract's [0xC9D] arena
 }

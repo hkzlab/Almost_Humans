@@ -26,7 +26,6 @@ typedef enum {
  * game_strs.  The blocks' leading count byte ([0x5E41], not part of the text)
  * is not stored. */
 
-static const OSystem *_menu_osys;
 static MenuPhase _phase = MENU_NONE;
 static uint16_t _row, _col;   // [0x5E3B]/[0x5E3D]: the original's words
 static int16_t _result = -1;  // the 0-based pause choice (A167's AX)
@@ -34,7 +33,7 @@ static uint8_t _slot;         // the grid's game number 1..20
 static uint8_t _prev_bits;    // the [0x5ACE] press-edge latch
 static uint8_t _time_up_kind; // the open dialog is the time-up one
 
-void menu_init(const OSystem *osys) { _menu_osys = osys; }
+void menu_init(void) {}
 
 uint8_t menu_active(void)
 {
@@ -86,7 +85,7 @@ void menu_open_time_up(void)
 
 void menu_draw(void)
 {
-    uint8_t *page = _menu_osys ? _menu_osys->videoPage(0) : NULL;
+    uint8_t *page = g_osys ? g_osys->videoPage(0) : NULL;
     if (_phase == MENU_PAUSE)
         textpage_draw(page, game_strs[g_game_lang][GAME_STR_MENU_PAUSE_BLOCK],
                       (int32_t)_row, 0u, 0);

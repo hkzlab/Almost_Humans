@@ -10,6 +10,7 @@
  * argv[1] = the game data directory holding HUMANS.000/001/002.
  * argv[2] = the extracted-tree fixture root (expected bytes).
  * Missing volumes = skip; a wrong decode with data present = fail. */
+#include "audio.h"
 #include "osystem.h"
 #include "res.h"
 #include "palette.h"
@@ -82,8 +83,9 @@ static int32_t _scene_to_first_frame(uint32_t idx)
     static uint8_t panel[64000];
     if (scene_play_level_intro(idx) != 1) return 0;
     memcpy(panel, osys_null_page(0), sizeof panel);
-    for (uint32_t t = 0; t < 400u; t++) {
+    for (uint32_t t = 0; t < 900u; t++) {
         palette_tick();
+        audio_tick();
         if (scene_play_level_intro(idx) != 1) return 0;
         if (memcmp(panel, osys_null_page(0), sizeof panel) != 0) return 1;
     }
@@ -123,10 +125,11 @@ int main(int argc, char **argv)
     }
 
     int32_t bad = 0;
-    res_init(&g_osys_null);
-    scene_init(&g_osys_null);
-    video_init(&g_osys_null);
-    palette_init(&g_osys_null);
+    osys_bind(&g_osys_null);
+    res_init();
+    scene_init();
+    video_init();
+    palette_init();
 
     /* 1. the intro plays: dwell (210) + 34 objects (6 ticks each) - well
      * past that, every call still returns 1 (the scene-0 chain replays).
@@ -154,6 +157,7 @@ int main(int argc, char **argv)
                 uint32_t t = 0;
                 while (palette_fade_active() && t < 100u) {
                     palette_tick();
+                    audio_tick();
                     t++;
                 }
                 const uint8_t *pal = osys_null_palette();
@@ -256,8 +260,9 @@ int main(int argc, char **argv)
      * frame. */
     {
         uint32_t guard = 0;
-        while (!palette_fade_active() && guard < 300u) {
+        while (!palette_fade_active() && guard < 900u) {
             palette_tick();
+            audio_tick();
             if (scene_play_level_intro(0) != 1) {
                 fprintf(stderr, "FAIL intro ended before the panel "
                                 "fade-out\n");
@@ -272,6 +277,7 @@ int main(int argc, char **argv)
             uint32_t t = 0;
             while (palette_fade_active() && t < 100u) {
                 palette_tick();
+                audio_tick();
                 t++;
             }
             const uint8_t *pal = osys_null_palette();
@@ -297,8 +303,9 @@ int main(int argc, char **argv)
         memcpy(panelPage, osys_null_page(0), sizeof panelPage);
         uint32_t guard = 0;
         while (memcmp(panelPage, osys_null_page(0), sizeof panelPage) == 0 &&
-               guard < 400u) {
+               guard < 900u) {
             palette_tick();
+            audio_tick();
             if (scene_play_level_intro(0) != 1) {
                 fprintf(stderr, "FAIL intro ended while waiting for the "
                                 "first frame\n");
@@ -331,6 +338,7 @@ int main(int argc, char **argv)
             uint32_t h = 0;
 
             palette_tick();             // the ISR body's fade step
+            audio_tick();
             if (scene_play_level_intro(0) != 1) {
                 fprintf(stderr, "FAIL intro ended early at tick %u\n", t);
                 return 1;
@@ -407,8 +415,9 @@ int main(int argc, char **argv)
         } else {
             uint32_t t = 0;
             uint8_t r = 1;
-            while (r == 1 && t < 100u) {
+            while (r == 1 && t < 400u) {
                 palette_tick();
+                audio_tick();
                 r = scene_play_level_intro(0);
                 t++;
             }
@@ -482,6 +491,7 @@ int main(int argc, char **argv)
             uint32_t t = 0;
             while (palette_fade_active() && t < 100u) {
                 palette_tick();
+                audio_tick();
                 t++;
             }
             fadeTicks[k] = t;
@@ -549,6 +559,7 @@ int main(int argc, char **argv)
 
             for (t = 0; t < 3000u; t++) {
                 palette_tick();
+                audio_tick();
                 if (scene_play_level_intro(6) != 1) break;
                 h = 0;
                 for (uint32_t i = 0; i + 1 < 320u * 200u; i += 2)
@@ -574,6 +585,7 @@ int main(int argc, char **argv)
                 uint8_t r = 1;
                 for (t = 0; t < 200u && r == 1; t++) {
                     palette_tick();
+                    audio_tick();
                     r = scene_play_level_intro(6);
                 }
                 if (r != 0) {

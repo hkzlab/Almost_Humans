@@ -14,12 +14,11 @@
 #include "osystem.h"
 
 /**
- * @brief Bind the status bar to the backend.
+ * @brief Status bar module init (the backend is bound once by osys_bind()).
  *
- * @param osys the backend interface
  * @return 0 on success
  */
-int32_t statusbar_init(const OSystem *osys);
+int32_t statusbar_init(void);
 
 /** @brief build_statusbar_layout (1000:961B) + level_start's time pick
  * (1000:9589).

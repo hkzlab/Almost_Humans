@@ -330,8 +330,9 @@ int main(int argc, char **argv)
         uint32_t stops0;
 
         assert(compat_chdir(argv[2]) == 0);
-        assert(audio_init(&osys) == 0);
-        res_init(&osys);
+        osys_bind(&osys);
+        assert(audio_init() == 0);
+        res_init();
         audio_play_tune(audio_tune_title);
         assert(_core_loaded_size == size);
         audio_music_resume();

@@ -13,11 +13,9 @@
 #include "osystem.h"
 
 /**
- * @brief Bind the menu module to the backend.
- *
- * @param osys the backend interface
+ * @brief The menu module's init pass (the backend is bound once by osys_bind()).
  */
-void menu_init(const OSystem *osys);
+void menu_init(void);
 
 /**
  * @brief Open the pause menu ([0x5B12] := 0, cursor 0).

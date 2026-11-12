@@ -80,7 +80,7 @@ endif()
 # It talks to the machine only through OSystem.
 add_library(core STATIC
     src/game_main.c
-    src/mem.c
+    src/arch/osystem.c
     src/res.c
     src/video.c
     src/palette.c

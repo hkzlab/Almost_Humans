@@ -1,6 +1,5 @@
 #include "save.h"
 #include "entity.h"
-#include "mem.h"
 #include "object.h"
 #include "osystem.h"
 #include "score.h"
@@ -21,30 +20,24 @@ static uint8_t *_save_buf;
 static uint8_t _save_loaded;          // [0x34]: a save is present
 
 /* The backend (and through it the filesystem module); save_init binds it. */
-static const OSystem *_save_osys;
 
-int32_t save_init(const OSystem *osys)
-{
-    _save_osys = osys;
-    mem_bind(osys);
-    return 0;
-}
+int32_t save_init(void) { return 0; }
 
 uint8_t save_load_slot(uint8_t slot)
 {
     _save_loaded = 0;
-    mem_free(_save_buf);
+    g_osys->memFree(_save_buf);
     _save_buf = NULL;
     if (slot == 0u || slot > 20u) return 0;
 
     /* entry:004C's INT 21h AH=48h: the buffer exists only for the restore */
-    _save_buf = mem_alloc(SAVE_LEN);
+    _save_buf = g_osys->memAlloc(SAVE_LEN);
     if (!_save_buf) return 0;
     memset(_save_buf, 0, SAVE_LEN);
-    FSSave *f = _save_osys->fs->openSave((char)('A' + (int32_t)slot - 1));
+    FSSave *f = g_osys->fs->openSave((char)('A' + (int32_t)slot - 1));
     if (!f) return 0;                        // the JC path
-    uint32_t got = _save_osys->fs->saveRead(f, 0, _save_buf, SAVE_LEN);
-    _save_osys->fs->closeSave(f);
+    uint32_t got = g_osys->fs->saveRead(f, 0, _save_buf, SAVE_LEN);
+    g_osys->fs->closeSave(f);
     if (got < SAVE_HDR) return 0;            // no header = not a save
     _save_loaded = 1;
     return 1;
@@ -53,7 +46,7 @@ uint8_t save_load_slot(uint8_t slot)
 void save_consume(void)
 {
     _save_loaded = 0;
-    mem_free(_save_buf);
+    g_osys->memFree(_save_buf);
     _save_buf = NULL;
 }
 
@@ -76,7 +69,7 @@ int32_t save_write_slot(uint8_t slot, uint16_t level, uint16_t timeWord,
     if (slot == 0u || slot > 20u) return 0;
 
     /* save_progress 1FE7:0000's own 0x180-paragraph allocation */
-    uint8_t *out = mem_alloc(SAVE_LEN);
+    uint8_t *out = g_osys->memAlloc(SAVE_LEN);
     if (!out) return 0;
     memset(out, 0, SAVE_LEN);
     wr_le_u16(out + 0x00u, level);
@@ -96,14 +89,14 @@ int32_t save_write_slot(uint8_t slot, uint16_t level, uint16_t timeWord,
     object_save_spans(out + 0x16F0u);          // 0x6F92, 0x54
     statusbar_save_params(out + 0x17F0u);      // [0x5B22], 8
 
-    FSSave *f = _save_osys->fs->createSave((char)('A' + (int32_t)slot - 1));
+    FSSave *f = g_osys->fs->createSave((char)('A' + (int32_t)slot - 1));
     if (!f) {
-        mem_free(out);
+        g_osys->memFree(out);
         return 0;
     }
-    uint32_t put = _save_osys->fs->saveWrite(f, 0, out, SAVE_LEN);
-    _save_osys->fs->closeSave(f);
-    mem_free(out);
+    uint32_t put = g_osys->fs->saveWrite(f, 0, out, SAVE_LEN);
+    g_osys->fs->closeSave(f);
+    g_osys->memFree(out);
     return put == SAVE_LEN;
 }
 

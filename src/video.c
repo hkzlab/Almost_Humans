@@ -1,11 +1,8 @@
 #include "video.h"
-#include "mem.h"
 #include "osystem.h"
 
 #include <stdint.h>
 #include <string.h>
-
-static const OSystem *_video_osys;
 
 /* shortcut: the A000 plane model is always recomposed in software; a backend
  * with native planar output would move it behind an optional module (D-04). */
@@ -23,16 +20,11 @@ static uint8_t _vram[65536][4];
 #define ARENA_BYTES 16000u
 static uint8_t *_arena;
 
-int32_t video_init(const OSystem *osys)
-{
-    _video_osys = osys;
-    mem_bind(osys);
-    return 0;
-}
+int32_t video_init(void) { return 0; }
 
 void video_tick(void) { /* the flip is the backend's videoPresent */ }
 
-uint8_t *video_page(int32_t which) { return _video_osys->videoPage(which); }
+uint8_t *video_page(int32_t which) { return g_osys->videoPage(which); }
 
 uint8_t *video_vram_group(uint16_t addr) { return _vram[addr]; }
 
@@ -96,22 +88,22 @@ void video_vram_present(uint8_t *page, uint16_t base, uint16_t pitch,
     }
 }
 
-uint8_t *video_flat(void) { return _video_osys->videoPage(1); }
+uint8_t *video_flat(void) { return g_osys->videoPage(1); }
 
 uint8_t *video_arena(void)
 {
     if (!_arena) {
-        _arena = mem_alloc(ARENA_BYTES);
-        if (!_arena && _video_osys)
-            _video_osys->fatalError("text arena allocation failed");
+        _arena = g_osys->memAlloc(ARENA_BYTES);
+        if (!_arena && g_osys)
+            g_osys->fatalError("text arena allocation failed");
     }
     return _arena;
 }
 
 void video_arena_release(void)
 {
-    mem_free(_arena);
+    g_osys->memFree(_arena);
     _arena = NULL;
 }
 
-void video_set_mode(VideoMode mode) { _video_osys->videoSetMode(mode); }
+void video_set_mode(VideoMode mode) { g_osys->videoSetMode(mode); }

@@ -12,6 +12,7 @@
  * argv[1] = the game data directory holding HUMANS.000/001/002.
  * argv[2] = the extracted-tree fixture root (the raw L*.BIN files).
  * Missing volumes = skip. */
+#include "audio.h"
 #include "level.h"
 #include "object.h"
 #include "osystem.h"
@@ -125,11 +126,12 @@ int main(int argc, char **argv)
     }
 
     int32_t bad = 0;
-    res_init(&g_osys_null);
-    scene_init(&g_osys_null);
-    video_init(&g_osys_null);
-    palette_init(&g_osys_null);
-    level_init(&g_osys_null);
+    osys_bind(&g_osys_null);
+    res_init();
+    scene_init();
+    video_init();
+    palette_init();
+    level_init();
     level_seed_tribe(); // entry 1000:009C..0x00B1; the loader keeps the count
 
     /* 1. all 160 levels load and the census distributions hold. */
@@ -308,6 +310,7 @@ int main(int argc, char **argv)
             for (uint32_t i = 0; i < 4000u && level_starting(); i++) {
                 level_tick();
                 palette_tick();
+                audio_tick();
                 if (level_loading_screen()) {
                     loadingSeen = 1;
                     level_loading_tick();
@@ -430,9 +433,11 @@ int main(int argc, char **argv)
             /* The three placed humans now settle through `collision_scan`
              * (1000:D860, D-89): the tile walk leaves them at row*16-7 and
              * their type-2 row hook (0xFF) runs the settle every frame, which
-             * lands them one pixel higher at row*16-8 (24/136/264).  This run
-             * pins sum 5742629. */
-            if (sum != 5742629u || nz != 64000u) {
+             * lands them one pixel higher at row*16-8 (24/136/264).  The
+             * status bar is live once the backend is bound, so level_fade_in's
+             * reveal draws panel4's band into rows 152..191 and the pin
+             * includes it.  This run pins sum 7177588. */
+            if (sum != 7177588u || nz != 64000u) {
                 fprintf(stderr, "FAIL level 0 page: sum %u nz %u\n", sum, nz);
                 bad = 1;
             }
@@ -476,8 +481,10 @@ int main(int argc, char **argv)
                     bad = 1;
                 }
             }
-            for (uint32_t i = 0; i < 200u && palette_fade_active(); i++)
+            for (uint32_t i = 0; i < 200u && palette_fade_active(); i++) {
                 palette_tick();                 // level_fade_in
+                audio_tick();
+            }
             const uint8_t *pal = osys_null_palette();
             uint32_t n = 0;
             uint8_t *sp =
@@ -535,6 +542,7 @@ int main(int argc, char **argv)
                     level_note_input(&in);
                     level_tick();
                     palette_tick();
+                    audio_tick();
                 }
                 {
                     int32_t x1 = (int32_t)(int16_t)(rd_le_u16(m + 0));
@@ -625,6 +633,7 @@ int main(int argc, char **argv)
         for (uint32_t i = 0; i < 400u && level_starting(); i++) {
             level_tick();
             palette_tick();
+            audio_tick();
             if (level_loading_screen()) level_loading_tick();
         }
         const uint8_t *pal = osys_null_palette();
@@ -677,6 +686,7 @@ int main(int argc, char **argv)
             for (uint32_t t = 0; t < 20000u && object_claim_active(); t++) {
                 level_tick();
                 palette_tick();
+                audio_tick();
             }
         }
         object_init();
@@ -731,6 +741,7 @@ int main(int argc, char **argv)
         for (uint32_t i = 0; i < 4000u && level_starting(); i++) {
             level_tick();
             palette_tick();
+            audio_tick();
             if (level_loading_screen()) level_loading_tick();
         }
         for (uint32_t i = 0; i < 4u; i++) {
@@ -761,6 +772,7 @@ int main(int argc, char **argv)
         for (uint32_t i = 0; i < 4000u && level_starting(); i++) {
             level_tick();
             palette_tick();
+            audio_tick();
             if (level_loading_screen()) level_loading_tick();
         }
         object_goal_scan();
@@ -811,6 +823,7 @@ int main(int argc, char **argv)
             for (t = 0; t < 400u && !object_marker_mode(); t++) {
                 level_tick();
                 palette_tick();
+                audio_tick();
             }
             markerAt = t;
             holdX = level_view_x();
@@ -820,6 +833,7 @@ int main(int argc, char **argv)
             for (; t < 400u && level_view_x() == holdX; t++) {
                 level_tick();
                 palette_tick();
+                audio_tick();
             }
             doneAt = t;
             if (holdX != 0xC0u || holdY != 0x00u) {
@@ -871,6 +885,7 @@ int main(int argc, char **argv)
         for (t = 0; t < 4000u && level_starting(); t++) {
             level_tick();
             palette_tick();
+            audio_tick();
             if (level_loading_screen()) level_loading_tick();
         }
         /* rec 4 onto PARKVIEW's one 0xBA cell (col 2, row 13) */
@@ -887,6 +902,7 @@ int main(int argc, char **argv)
         for (t = 0; t < 40u; t++) {
             level_tick();
             palette_tick();
+            audio_tick();
             if (level_goal_pan_running()) {
                 sawRun = 1;
                 break;
@@ -907,6 +923,7 @@ int main(int argc, char **argv)
         for (t = 0; t < 400u && level_goal_pan_running(); t++) {
             level_tick();
             palette_tick();
+            audio_tick();
         }
         if (level_goal_pan_running()) {
             fprintf(stderr, "FAIL D-259: the pan hung after the flag fell\n");
@@ -930,11 +947,13 @@ int main(int argc, char **argv)
         for (t = 0; t < 4000u && level_starting(); t++) {
             level_tick();
             palette_tick();
+            audio_tick();
             if (level_loading_screen()) level_loading_tick();
         }
         for (t = 0; t < 16u; t++) {
             level_tick();
             palette_tick();
+            audio_tick();
         }
         if (object_marker_mode()) {
             fprintf(stderr, "FAIL D-264: [0x6531] survived the reload\n");

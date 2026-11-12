@@ -4,7 +4,6 @@
 
 #include <stdint.h>
 
-static const OSystem *_pal_osys;
 static uint8_t _working[768];   // 202F:0x4BBC - the _working palette
 static uint8_t _dac[768];       // the DAC's 6-bit shadow (8bac's IN 3C9h)
 
@@ -15,11 +14,7 @@ static const uint8_t *_fade_target;   // [0x48B6]: the target palette bytes
 static uint8_t _fade_active;   // [0x48B4]
 static uint16_t _ramp[768][2]; // [0x4EBC]: {cur<<8, delta<<8}
 
-int32_t palette_init(const OSystem *osys)
-{
-    _pal_osys = osys;
-    return 0;
-}
+int32_t palette_init(void) { return 0; }
 
 void palette_load_working(const uint8_t *p6)
 {
@@ -42,7 +37,7 @@ void palette_seal_triples(uint8_t *p6, uint32_t first, uint32_t entries)
 void palette_set_dac(const uint8_t *p6, uint32_t first, uint32_t n)
 {
     for (uint16_t i = 0; i < n * 3u; i++) _dac[first * 3u + i] = p6[i] & 0x3Fu;
-    _pal_osys->videoSetPalette(p6, first, n);
+    g_osys->videoSetPalette(p6, first, n);
 }
 
 void palette_build_fade(uint16_t first, uint16_t entries, uint16_t div,
@@ -102,6 +97,6 @@ void palette_tick(void)
         _dac[_fade_first * 3u + c] = v;
     }
     if (done == _fade_comps) _fade_active = 0;
-    _pal_osys->videoSetPalette(_dac + _fade_first * 3u, _fade_first,
-                               _fade_comps / 3u);
+    g_osys->videoSetPalette(_dac + _fade_first * 3u, _fade_first,
+                            _fade_comps / 3u);
 }

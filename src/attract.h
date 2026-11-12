@@ -45,12 +45,11 @@ typedef enum AttractPhase {
  * write-only (the cycle/effect tag and the skip flag; no reader is traced). */
 
 /**
- * @brief Bind the attract module to the backend.
+ * @brief Attract module init (the backend is bound once by osys_bind()).
  *
- * @param osys the backend interface
  * @return 0 on success
  */
-int32_t attract_init(const OSystem *osys);
+int32_t attract_init(void);
 
 /**
  * @brief Release the attract's heap blocks (the effect images, the 192-KB

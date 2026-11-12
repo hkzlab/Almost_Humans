@@ -6,6 +6,7 @@
  *
  * argv[1] = the volume dir (holding HUMANS.000/001/002).  Missing data =
  * skip with a notice, like the other fixture tests. */
+#include "audio.h"
 #include "font.h"
 #include "osystem.h"
 #include "palette.h"
@@ -35,8 +36,8 @@ int main(int argc, char **argv)
         perror(vol_dir);
         return 1;
     }
-    if (res_init(&g_osys_null) || palette_init(&g_osys_null) ||
-        font_init(&g_osys_null) || video_init(&g_osys_null)) {
+    osys_bind(&g_osys_null);
+    if (res_init() || palette_init() || font_init() || video_init()) {
         printf("PARTY_RESET: init failed\n");
         return 1;
     }
@@ -57,11 +58,14 @@ int main(int argc, char **argv)
         for (; t < 400u; t++) {
             (void)party_intro_tick(&in);
             palette_tick();
+            audio_tick();
         }
         in.lastKey = 1u;
+        in.joyBits = 0x80u;
         for (; t < 20000u; t++) {
             run = party_intro_tick(&in);
             palette_tick();
+            audio_tick();
             in.lastKey = 0u;
             if (!run) break;
         }

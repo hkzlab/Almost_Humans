@@ -1,7 +1,6 @@
 #include "frontend.h"
 #include "audio.h"
 #include "font.h"
-#include "mem.h"
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
@@ -93,11 +92,7 @@ static uint16_t _split_row =
     VIDEO_PAGE_H_MODE13H; /** [0x5B0A]: the CRTC split (0x88 on the
                                    * name screen - the fixed band below) */
 
-int32_t frontend_init(const OSystem *osys)
-{
-    (void)osys;
-    return 0;
-}
+int32_t frontend_init(void) { return 0; }
 
 uint16_t frontend_selected_level(void) { return _code_index; }
 
@@ -629,19 +624,19 @@ static void _do_load(void)
                                         * (1000:82c6) - the 320x192 field   */
     /* frontend_room_setup's buffers: one set per room entry, so the previous
      * room's releases before the new loads (1000:A48E's ladder) */
-    mem_free(_code2);
+    g_osys->memFree(_code2);
     _code2 = NULL;
-    mem_free(_codehum);
+    g_osys->memFree(_codehum);
     _codehum = NULL;
-    mem_free(_codes);
+    g_osys->memFree(_codes);
     _codes = NULL;
-    mem_free(_codeb1);
+    g_osys->memFree(_codeb1);
     _codeb1 = NULL;
-    mem_free(_codeb2);
+    g_osys->memFree(_codeb2);
     _codeb2 = NULL;
-    mem_free(_restore);
+    g_osys->memFree(_restore);
     _restore = NULL;
-    mem_free(_text_spr);
+    g_osys->memFree(_text_spr);
     _text_spr = NULL;
 
     _code2 = res_load_chunk("LBM\\CODE2.RAW", &_code2_size, NULL);

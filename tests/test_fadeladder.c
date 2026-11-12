@@ -78,8 +78,8 @@ int main(int argc, char **argv)
     }
     (void)argv;
 
-    if (res_init(&g_osys_null) || palette_init(&g_osys_null) ||
-        font_init(&g_osys_null) || video_init(&g_osys_null)) {
+    osys_bind(&g_osys_null);
+    if (res_init() || palette_init() || font_init() || video_init()) {
         printf("FADELADDER: init failed\n");
         return 1;
     }

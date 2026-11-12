@@ -28,6 +28,7 @@
  * argv[3] = optional PPM frame-dump directory (frames 0, 100, 322, 344,
  *           384 rendered with bac.bit's palette - for eyeballing/analysis).
  * Missing volumes = skip. */
+#include "audio.h"
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
@@ -136,10 +137,11 @@ int main(int argc, char **argv)
     }
 
     int32_t bad = 0;
-    res_init(&g_osys_null);
-    scene_init(&g_osys_null);
-    video_init(&g_osys_null);
-    palette_init(&g_osys_null);
+    osys_bind(&g_osys_null);
+    res_init();
+    scene_init();
+    video_init();
+    palette_init();
 
     const char *dump_dir = argc > 3 ? argv[3] : NULL;
 
@@ -149,6 +151,7 @@ int main(int argc, char **argv)
     while (1) {
         r = scene_play_boot_intro();
         palette_tick();                        // the ISR body's fade step
+        audio_tick();
         if (r != 1) break;                     // done (the quit cue)
         if (dump_dir) {
             for (size_t k = 0; k < sizeof _dump_ticks / sizeof _dump_ticks[0];

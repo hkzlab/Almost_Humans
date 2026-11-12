@@ -33,12 +33,11 @@ typedef struct {
 } LevelData;
 
 /**
- * @brief Bind the level module to the backend.
+ * @brief Level module init (the backend is bound once by osys_bind()).
  *
- * @param osys the backend interface
  * @return 0 on success
  */
-int32_t level_init(const OSystem *osys);
+int32_t level_init(void);
 
 /**
  * @brief Load one level record and its terrain from the volume (0..159; 0 = ok).

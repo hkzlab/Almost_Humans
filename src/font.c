@@ -19,12 +19,10 @@ static const uint8_t _advance[45] = { 7, 8, 8, 8,  7, 7, 8, 8, 3,   7, 8,  7,
  * game_loop prologue and the front-end later; _blit_glyph's only source). */
 static const uint8_t *_glyphs;
 
-static const OSystem *_osys;  // the warning's channel (font_init)
 static int _arena_warned;     // the overflow warning fires once
 
-int32_t font_init(const OSystem *osys)
+int32_t font_init(void)
 {
-    _osys = osys;
     _arena_warned = 0;
     return 0;
 }
@@ -75,7 +73,7 @@ static void _arena_overflow(uint32_t capacity, uint32_t row, uint32_t col)
              "font: glyph at arena row %u col %u does not fit the %u-byte "
              "arena; dropped (reported once)",
              row, col, capacity);
-    if (_osys && _osys->warn) _osys->warn(msg);
+    if (g_osys && g_osys->warn) g_osys->warn(msg);
 }
 
 /** @brief _blit_glyph (1000:49FC) - one 16-row glyph into the arena.  `x` is the

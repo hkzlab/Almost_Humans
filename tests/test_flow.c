@@ -10,6 +10,7 @@
  * argv[1] = the game data directory (HUMANS.000/001/002).  A no-data run
  * skips the level-loading parts.
  */
+#include "audio.h"
 #include "entity.h"
 #include "font.h"
 #include "gameflow.h"
@@ -190,13 +191,13 @@ int main(int argc, char **argv)
     const char *vol_dir = argc > 1 ? argv[1] : ".";
     const char *fix_dir = argc > 2 ? argv[2] : vol_dir;
 
-    res_init(&g_osys_null);
-    save_init(&g_osys_null);
-    hiscore_bind(&g_osys_null);
-    video_init(&g_osys_null);
-    palette_init(&g_osys_null);
-    level_init(&g_osys_null);
-    statusbar_init(&g_osys_null); // the charge bar draws into the band
+    osys_bind(&g_osys_null);
+    res_init();
+    save_init();
+    video_init();
+    palette_init();
+    level_init();
+    statusbar_init(); // the charge bar draws into the band
     level_seed_tribe(); // entry 1000:009C..0x00B1; the loader keeps the count
 
     /* 0. font_draw_text_bounded: a fitting line draws the same bytes as
@@ -254,7 +255,8 @@ int main(int argc, char **argv)
 
         os.warn = _tf_warn;
         _tf_warns = 0;
-        font_init(&os);
+        osys_bind(&os);
+        font_init();
         memset(tiny, 0xCC, sizeof tiny);
         font_draw_text_bounded(tiny, sizeof tiny, "HELLO", 0xA0u, 0u);
         _check(tiny[0] == 0xCC && tiny[sizeof tiny - 1u] == 0xCC &&
@@ -262,7 +264,8 @@ int main(int argc, char **argv)
                "an unfitting glyph is dropped and warned about");
         font_draw_text_bounded(tiny, sizeof tiny, "HELLO", 0xA0u, 0u);
         _check(_tf_warns == 1u, "the drop warning is reported once");
-        font_init(&g_osys_null);
+        osys_bind(&g_osys_null);
+        font_init();
 
         /* textpage_draw (1000:A08E): the 9-slice box sits at
          * left = 160 - (tiles+2)*8, top = 76 - (lines+2)*8 and the text
@@ -362,14 +365,17 @@ int main(int argc, char **argv)
             level_begin();
             level_tick();
             palette_tick();
+            audio_tick();
         }
         _check(level_loading_screen(), "the LOADING screen starts");
         /* load_sprite_pal's fade (1000:1E33): 0x80 entries toward
          * dicon+0x18, div 0x19, before the frames */
         _check(palette_fade_active(),
                "the LOADING screen fades its palette in");
-        for (uint32_t t = 0; t < 60u && palette_fade_active(); t++)
+        for (uint32_t t = 0; t < 60u && palette_fade_active(); t++) {
             palette_tick();
+            audio_tick();
+        }
         _check(!palette_fade_active(), "the loading fade completes");
         {
             char dp[512];
@@ -496,6 +502,7 @@ int main(int argc, char **argv)
                 level_begin();
                 level_tick();
                 palette_tick();
+                audio_tick();
             }
             _check(level_loading_screen(), "a reload restarts the screen");
             for (uint32_t t = 0; t < 0x100u; t++) level_loading_tick();
@@ -784,6 +791,7 @@ int main(int argc, char **argv)
                    "the claim snaps the window to 4 px, without moving it");
             while (object_claim_active() && t++ < 20000u) {
                 palette_tick();
+                audio_tick();
                 object_tick(testPal);
                 level_claim_frame(); // the claim's presented frame
                 if (!level_updates()) frozen = 1;
@@ -823,6 +831,7 @@ int main(int argc, char **argv)
                     level_begin(); // waits for a running fade
                     level_tick();
                     palette_tick();
+                    audio_tick();
                     if (level_loading_screen()) level_loading_tick();
                 }
             }
@@ -915,6 +924,7 @@ int main(int argc, char **argv)
 
                 while (object_claim_active() && t3++ < 20000u) {
                     palette_tick();
+                    audio_tick();
                     object_tick(testPal);
                     level_claim_frame(); // the reveal's presented frame
                 }
@@ -959,6 +969,7 @@ int main(int argc, char **argv)
                 while (level_spark_active() && t4++ < 400u) {
                     level_tick();
                     palette_tick();
+                    audio_tick();
                 }
                 t4 = 0u;
                 object_set_player(0);
@@ -1016,6 +1027,7 @@ int main(int argc, char **argv)
                 while (object_claim_active() && t4++ < 4000u) {
                     level_tick();
                     palette_tick();
+                    audio_tick();
                     if (object_claim_pan_active()) {
                         pan = 1u;
                         afterPan = 0u;
@@ -1322,6 +1334,7 @@ int main(int argc, char **argv)
         for (uint32_t t = 0; t < 4000u && level_starting(); t++) {
             level_tick();
             palette_tick();
+            audio_tick();
             if (level_loading_screen()) level_loading_tick();
         }
         level_tick();
@@ -3492,9 +3505,20 @@ int main(int argc, char **argv)
             /* 1000:2042's timing_loop runs before the page: the first tick
              * draws it and starts the palette fade. */
             _check(level_disk_status_tick(&k) == 1, "the prompt starts");
+            {
+                /* the page blits after 1000:204b's audio timing_loop */
+                uint32_t t = 0;
+                while (!palette_fade_active() && t++ < 400u) {
+                    audio_tick();
+                    palette_tick();
+                    if (level_disk_status_tick(&k) != 1) break;
+                }
+            }
             _check(palette_fade_active(), "the prompt fades its palette in");
-            for (uint32_t t = 0; t < 80u && palette_fade_active(); t++)
+            for (uint32_t t = 0; t < 80u && palette_fade_active(); t++) {
                 palette_tick();
+                audio_tick();
+            }
             _check(!palette_fade_active(), "the prompt fade completes");
             k.lastKey = 1;
             _check(level_disk_status_tick(&k) == 1,
@@ -5839,7 +5863,10 @@ int main(int argc, char **argv)
         {
             uint32_t t;
 
-            for (t = 0; t < 200u && palette_fade_active(); t++) palette_tick();
+            for (t = 0; t < 200u && palette_fade_active(); t++) {
+                palette_tick();
+                audio_tick();
+            }
             _check(!palette_fade_active(), "the score's fade-in completes");
         }
         _check(score_tick(&k) == 1, "the score screen's first tick arms");
@@ -5847,7 +5874,10 @@ int main(int argc, char **argv)
         {
             uint32_t guard = 0;
 
-            while (score_tick(&k) && guard++ < 5000u) palette_tick();
+            while (score_tick(&k) && guard++ < 5000u) {
+                palette_tick();
+                audio_tick();
+            }
             _check(guard < 5000u, "the score screen exits after the hold");
         }
         /* D-52: 1000:4692/1000:4694 - the expiry runs the NEW phase's handler,
@@ -5910,11 +5940,13 @@ int main(int argc, char **argv)
             for (t = 0; t < 400u && palette_fade_active(); t++) {
                 (void)score_tick(&tk);
                 palette_tick();
+                audio_tick();
             }
             (void)score_tick(&tk); // the arm tick
             for (t = 0; t < 400u && score_blink_on() == 0; t++) {
                 (void)score_tick(&tk);
                 palette_tick();
+                audio_tick();
             }
             for (uint32_t r = 0; r < 24u; r++)
                 for (uint32_t x = 0; x < 64u; x++)
@@ -5922,6 +5954,7 @@ int main(int argc, char **argv)
             for (t = 0; t < 400u && score_blink_on() == 1; t++) {
                 (void)score_tick(&tk);
                 palette_tick();
+                audio_tick();
             }
             for (uint32_t r = 0; r < 24u; r++)
                 for (uint32_t x = 0; x < 64u; x++)
@@ -5931,7 +5964,10 @@ int main(int argc, char **argv)
                 if (cellOn[i] != cellOff[i]) diff++;
             _check(diff != 0u,
                    "1000:4692: the off phase erases the NEW RECORD stamp");
-            for (t = 0; t < 6000u && score_tick(&tk); t++) palette_tick();
+            for (t = 0; t < 6000u && score_tick(&tk); t++) {
+                palette_tick();
+                audio_tick();
+            }
         }
     }
 
@@ -6178,6 +6214,7 @@ int main(int argc, char **argv)
         for (uint32_t t = 0; t < 4000u && level_starting(); t++) {
             level_tick();
             palette_tick();
+            audio_tick();
             if (level_loading_screen()) level_loading_tick();
         }
         object_set_slot_class(1u,
@@ -7082,6 +7119,7 @@ int main(int argc, char **argv)
                 level_begin();
                 level_tick();
                 palette_tick();
+                audio_tick();
                 if (level_loading_screen()) level_loading_tick();
                 if (s0 && rd_le_u16(s0 + 0x0u) != 224u) moved = 1;
             }
@@ -7344,6 +7382,7 @@ int main(int argc, char **argv)
                 while (map_intro_step_for_probe() < 4u && guard++ < 4000u) {
                     map_tick(&k);
                     palette_tick();
+                    audio_tick();
                     if (guard == 0x60u) step_mid = map_intro_step_for_probe();
                     /* D-217: after the 0x0224 fade has had its 0x1E ticks and
                      * while 0x0233 still runs, the strips' 0x10..0x1F half is
@@ -7443,6 +7482,7 @@ int main(int argc, char **argv)
                 while (map_transition_step() < 6u && guard++ < 2000u) {
                     map_tick(&k);
                     palette_tick();
+                    audio_tick();
                 }
                 _check(guard < 2000u && map_transition_step() == 6u,
                        "1000:028C..030A: the name transition completes");
@@ -7697,6 +7737,7 @@ int main(int argc, char **argv)
                     k.lastKey = 0;
                     map_tick(&k);
                     palette_tick();
+                    audio_tick();
                 }
                 _check(map_name_angle_for_probe() != a0,
                        "D-218: the wheel spins during the white fade");
@@ -7718,6 +7759,7 @@ int main(int argc, char **argv)
                     }
                     map_tick(&k);
                     palette_tick();
+                    audio_tick();
                 }
                 _check(white_ok, "D-218: 1000:04B4 reaches white");
                 _check(map_fade_at(map_fade_starts() - 1u, &f, &e, &d, &t) &&
@@ -7744,6 +7786,7 @@ int main(int argc, char **argv)
                     }
                     map_tick(&k);
                     palette_tick();
+                    audio_tick();
                 }
                 _check(back_ok && map_enter_step_for_probe() == 2u,
                        "D-218: 1000:050E returns to working 0x60..0x7F");
@@ -7972,6 +8015,7 @@ int main(int argc, char **argv)
             while (g_map_panel == 0u && guard++ < 2000u) {
                 map_tick(&k);
                 palette_tick();
+                audio_tick();
             }
             _check(guard >= 0x12Eu && g_map_box_bottom == 2u &&
                        g_map_panel == 1u,
@@ -8088,7 +8132,10 @@ int main(int argc, char **argv)
                        f == 0u && e == 0x100u && d == 0x23u,
                    "D-220: 1000:062B fades all 256 entries (0x23)");
             k.lastKey = 0;
-            while (map_tick(&k) == 1 && guard++ < 3000u) palette_tick();
+            while (map_tick(&k) == 1 && guard++ < 3000u) {
+                palette_tick();
+                audio_tick();
+            }
             _check(guard < 3000u, "D-220: the fade and hold end the MAP");
         }
     }
@@ -8451,6 +8498,7 @@ int main(int argc, char **argv)
         for (t = 0; t < 4000u && level_starting(); t++) {
             level_tick();
             palette_tick();
+            audio_tick();
             if (level_loading_screen()) level_loading_tick();
         }
         /* the claim runs after the start chain: level_spark_begin needs the
@@ -8460,6 +8508,7 @@ int main(int argc, char **argv)
             while (object_claim_active() && t++ < 5000u) {
                 level_tick();
                 palette_tick();
+                audio_tick();
                 if (level_loading_screen()) level_loading_tick();
             }
             _check(!object_claim_active(), "the PARKVIEW claim finishes");

@@ -128,15 +128,16 @@ int main(int argc, char **argv)
     _script[8872].lastKey = 1u;
     _script[SCRIPT_N - 1].quit = 1u;
 
-    res_init(&g_osys_null);
-    video_init(&g_osys_null);
-    palette_init(&g_osys_null);
-    font_init(&g_osys_null);
-    statusbar_init(&g_osys_null);
-    level_init(&g_osys_null);
-    save_init(&g_osys_null);
-    frontend_init(&g_osys_null);
-    menu_init(&g_osys_null);
+    osys_bind(&g_osys_null);
+    res_init();
+    video_init();
+    palette_init();
+    font_init();
+    statusbar_init();
+    level_init();
+    save_init();
+    frontend_init();
+    menu_init();
 
     /* the save's state ranges come from a loaded level, so its object table
      * carries the 0xC0 player record the test moves onto the 0xBA cell */

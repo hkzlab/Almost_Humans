@@ -191,14 +191,15 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    res_init(&g_osys_null);
-    save_init(&g_osys_null); // the SAVE GAME writer and save_load_slot below
-    video_init(&g_osys_null);
-    palette_init(&g_osys_null);
-    font_init(&g_osys_null);
-    statusbar_init(&g_osys_null);
-    level_init(&g_osys_null);
-    menu_init(&g_osys_null);
+    osys_bind(&g_osys_null);
+    res_init();
+    save_init(); // the SAVE GAME writer and save_load_slot below
+    video_init();
+    palette_init();
+    font_init();
+    statusbar_init();
+    level_init();
+    menu_init();
 
     /* the dialog's text needs the shipped glyphs (the room publishes them
      * on the real path) */
@@ -707,7 +708,7 @@ int main(int argc, char **argv)
          * (1000:303A/303D) before the party.  A level record left live would
          * keep [0x40BB] set, so the party's music_resume is gated off while
          * the tune load has already reset the driver's voices (MT-32). */
-        audio_init(&g_osys_null);
+        audio_init();
         audio_install();
         audio_music_resume(); // the level's record: starts +1, [0x40BB] set
         uint32_t starts0 = osys_null_audio_starts();

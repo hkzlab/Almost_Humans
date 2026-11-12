@@ -26,13 +26,6 @@
 void hiscore_init(void);
 
 /**
- * @brief Bind the module to the backend it writes HISCORES.HUM through.
- *
- * @param osys the backend interface
- */
-void hiscore_bind(const OSystem *osys);
-
-/**
  * @brief Restore the shipped defaults (tests and a fresh install).
  */
 void hiscore_reset(void);

@@ -1,5 +1,4 @@
 #include "statusbar.h"
-#include "mem.h"
 #include "object.h"
 #include "osystem.h"
 #include "res.h"
@@ -19,7 +18,6 @@
  * (152) over 48 ticks; crtc_set_scroll sets the line compare to 2*row-1. */
 static uint16_t _bar_split = 152u;
 
-static const OSystem *_sb_osys;
 static uint8_t *_strip; // the four-plane panel _strip
 static uint8_t *_panel4; // LBM\PANEL4.BIT (the art + the palette)
 static uint32_t _p4_size; // its length: the charge bar reads 0x3EE0+
@@ -134,12 +132,7 @@ void statusbar_load_params(const uint8_t *in)
     _td_phase[1] = in[7];
 }
 
-int32_t statusbar_init(const OSystem *osys)
-{
-    _sb_osys = osys;
-    mem_bind(osys);
-    return 0;
-}
+int32_t statusbar_init(void) { return 0; }
 
 /**
  * @brief Write one 8-pixel mark row into the status band.
@@ -205,7 +198,7 @@ void statusbar_charge_bar(uint32_t v)
 {
     static const uint8_t shade[10] = { 0xDF, 0xE0, 0xE1, 0xE2, 0xE3,
                                        0xE3, 0xE2, 0xE1, 0xE0, 0xDF };
-    uint8_t *page = _sb_osys ? _sb_osys->videoPage(0) : NULL;
+    uint8_t *page = g_osys->videoPage(0);
     uint32_t i, r;
 
     if (!page || !_panel4) return; // no bar art: nothing to draw
@@ -413,7 +406,7 @@ static void _draw_band_slice(uint8_t *page)
 
 void statusbar_charge_begin(void)
 {
-    uint8_t *page = _sb_osys ? _sb_osys->videoPage(0) : NULL;
+    uint8_t *page = g_osys->videoPage(0);
 
     if (!page || !_panel4) return;
     _draw_band_slice(page);
@@ -422,7 +415,7 @@ void statusbar_charge_begin(void)
      * 0x3EE0+len reads the staged trough, not clean panel4.  The staging
      * exists only for the charge that built it (the 0x99D8 frame);
      * statusbar_charge_end releases it. */
-    if (!_stage) _stage = mem_alloc(STAGE_BYTES);
+    if (!_stage) _stage = g_osys->memAlloc(STAGE_BYTES);
     if (!_stage) return;
     for (uint16_t i = 0; i < STAGE_BYTES; i++)
         _stage[i] = (uint8_t)(0xC0u | _panel4[i]);
@@ -431,9 +424,9 @@ void statusbar_charge_begin(void)
 
 void statusbar_charge_end(void)
 {
-    uint8_t *page = _sb_osys ? _sb_osys->videoPage(0) : NULL;
+    uint8_t *page = g_osys->videoPage(0);
 
-    mem_free(_stage);
+    g_osys->memFree(_stage);
     _stage = NULL;
     if (!page || !_panel4) return;
     _draw_band_slice(page);
@@ -566,10 +559,9 @@ void statusbar_tick(void)
 {
     uint8_t *page;
 
-    if (!_sb_osys) return;
     if (_bar_hidden) return; // 1000:342B: [0x5B0A] = 0xC9, no split
     if (_bar_split > 152u) _bar_split--; // 1000:331E, one per display period
-    page = _sb_osys->videoPage(0);
+    page = g_osys->videoPage(0);
     if (!_strip || !_panel4 || !page) return;
 
     _draw_band(page);
@@ -622,42 +614,42 @@ void statusbar_start(uint16_t packedTimeBcd, uint16_t tribeMembers,
 
     n1 = res_load_chunk("APL\\PANELN1.SPR", &n1Size, &chk);
     if (!n1 || n1Size != 768u) {
-        mem_free(n1);
+        g_osys->memFree(n1);
         return;
     }
     n2 = res_load_chunk("APL\\PANELN2.SPR", &n2Size, &chk);
     if (!n2 || n2Size != 512u) {
-        mem_free(n1);
-        mem_free(n2);
+        g_osys->memFree(n1);
+        g_osys->memFree(n2);
         return;
     }
-    mem_free(_strip);
-    _strip = mem_alloc(STRIP_LEN);
+    g_osys->memFree(_strip);
+    _strip = g_osys->memAlloc(STRIP_LEN);
     if (!_strip) {
-        mem_free(n1);
-        mem_free(n2);
+        g_osys->memFree(n1);
+        g_osys->memFree(n2);
         return;
     }
     memcpy(_strip, n1, 768u);
     memcpy(_strip + 768u, n2, 512u);
-    mem_free(n1);
-    mem_free(n2);
+    g_osys->memFree(n1);
+    g_osys->memFree(n2);
 
     /* level_video_init's load (1000:32AD): the +0xC0 paragraph stride puts
      * PANELN2 right after PANELN1 - one 1280-byte _strip         */
-    mem_free(_panel4);
+    g_osys->memFree(_panel4);
     _p4_size = 0;
     _panel4 = res_load_chunk("LBM\\PANEL4.BIT", &_p4_size, &chk);
     if (!_panel4 || _p4_size < 0xFA00u + 768u) {
-        mem_free(_panel4);
+        g_osys->memFree(_panel4);
         _panel4 = NULL;
         return;
     }
 
-    mem_free(_icons3);
+    g_osys->memFree(_icons3);
     _icons3 = res_load_chunk("APL\\ICONS3.SPR", &i3Size, &chk);
     if (!_icons3 || i3Size != 4608u) {
-        mem_free(_icons3);
+        g_osys->memFree(_icons3);
         _icons3 = NULL;
     }
 

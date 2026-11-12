@@ -18,12 +18,11 @@
 #include "osystem.h"
 
 /**
- * @brief Bind the video module to the backend.
+ * @brief Video module init (the backend is bound once by osys_bind()).
  *
- * @param osys the backend interface
  * @return 0 on success
  */
-int32_t video_init(const OSystem *osys);
+int32_t video_init(void);
 
 /** @brief Release the shared text arena.  Every screen that uses it calls
  * this when it exits; the next user allocates it again.

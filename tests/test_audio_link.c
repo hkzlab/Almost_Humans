@@ -188,8 +188,9 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    assert(audio_init(&_osys) == 0);
-    res_init(&_osys);
+    osys_bind(&_osys);
+    assert(audio_init() == 0);
+    res_init();
     audio_install();
     assert(_drv != NULL);
 
@@ -251,10 +252,10 @@ int main(int argc, char **argv)
     assert(strcmp(audio_tune_lev, "mus\\levB") == 0);
 
     /* --- the disc prompt's tune (1000:2042) --------------------------- */
-    assert(video_init(&_osys) == 0);
-    assert(palette_init(&_osys) == 0);
-    assert(font_init(&_osys) == 0);
-    assert(level_init(&_osys) == 0);
+    assert(video_init() == 0);
+    assert(palette_init() == 0);
+    assert(font_init() == 0);
+    assert(level_init() == 0);
     audio_music_stop();
     {
         uint32_t loads0 = _loads;
@@ -264,7 +265,7 @@ int main(int argc, char **argv)
     level_disk_status_reset();
 
     /* --- cd_file_op's tune (1000:B061) -------------------------------- */
-    assert(scene_init(&_osys) == 0);
+    assert(scene_init() == 0);
     scene_reset_intro();
     res_set_disc(0u);
     {

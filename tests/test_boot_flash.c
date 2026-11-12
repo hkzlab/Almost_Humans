@@ -14,6 +14,7 @@
  * argv[1] = the game data directory holding HUMANS.000/001/002.
  * Missing volumes = skip. */
 
+#include "audio.h"
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
@@ -59,10 +60,11 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    res_init(&g_osys_null);
-    scene_init(&g_osys_null);
-    video_init(&g_osys_null);
-    palette_init(&g_osys_null);
+    osys_bind(&g_osys_null);
+    res_init();
+    scene_init();
+    video_init();
+    palette_init();
 
     uint32_t itb_size = 0;
     uint8_t *itb = res_load_chunk("INTRO\\ITB.BIT", &itb_size, NULL);
@@ -114,6 +116,7 @@ int main(int argc, char **argv)
         }
         r = scene_play_boot_intro();
         palette_tick();
+        audio_tick();
         t++;
     }
 

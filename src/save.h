@@ -14,12 +14,11 @@
 #include "osystem.h"
 
 /**
- * @brief Bind the save module to the backend.
+ * @brief Save module init (the backend is bound once by osys_bind()).
  *
- * @param osys the backend interface
  * @return 0 on success
  */
-int32_t save_init(const OSystem *osys);
+int32_t save_init(void);
 
 /** @brief entry:004C: load slot 1..20 (letter 'A'+(n-1)); 0 = GAME OFF.
  *

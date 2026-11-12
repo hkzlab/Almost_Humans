@@ -15,12 +15,11 @@
 #include "osystem.h"
 
 /**
- * @brief Bind the resource module to the backend.
+ * @brief Resource module init (the backend is bound once by osys_bind()).
  *
- * @param osys the backend interface
  * @return 0 on success
  */
-int32_t res_init(const OSystem *osys);
+int32_t res_init(void);
 
 /**
  * @brief Set the current disc.

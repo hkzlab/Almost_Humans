@@ -515,11 +515,7 @@ void entity_tick(void)
     }
 }
 
-int32_t entity_init(const OSystem *osys)
-{
-    (void)osys;
-    return 0;
-}
+int32_t entity_init(void) { return 0; }
 
 const Entity *entity_at(uint32_t i)
 {

@@ -1,5 +1,4 @@
 #include "res.h"
-#include "mem.h"
 #include "osystem.h"
 #include "byteorder.h"
 #include "fs/fs.h"
@@ -54,7 +53,6 @@ static const uint8_t _res_movie_disc_table[10] = {
 static uint16_t _res_current_disc = 0;
 
 /* The backend (and through it the filesystem module); res_init binds it. */
-static const OSystem *_res_osys;
 
 void res_set_disc(uint16_t disc) { _res_current_disc = disc; }
 
@@ -75,7 +73,7 @@ uint8_t res_movie_disc(uint32_t idx)
  */
 static int32_t _vol_read_at(VolReader *r, uint32_t at, uint8_t *dst, uint32_t n)
 {
-    uint32_t got = _res_osys->fs->read(r->v, at, dst, n);
+    uint32_t got = g_osys->fs->read(r->v, at, dst, n);
     if (got != n) return -1;
     return 0;
 }
@@ -314,14 +312,14 @@ static uint8_t *_res_decode_chunk(VolReader *r, uint32_t off,
                                   uint16_t *chkOut)
 {
     uint16_t block = rd_le_u16(rec + 0x36);
-    uint8_t *out = mem_alloc(length ? length : 1);
+    uint8_t *out = g_osys->memAlloc(length ? length : 1);
     uint16_t acc = 0;
     if (!out) return NULL;
     if (block == 0u) { /* the original's stored loop copies 0x10000 words
                         * (LOOP with CX = 0) and never advances the chunk;
                         * the port refuses the malformed record instead -
                         * deviation D-198. */
-        mem_free(out);
+        g_osys->memFree(out);
         return NULL;
     }
 
@@ -361,7 +359,7 @@ static uint8_t *_res_decode_chunk(VolReader *r, uint32_t off,
         }
     }
     if (failed) {
-        mem_free(out);
+        g_osys->memFree(out);
         return NULL;
     }
     if (chkOut) *chkOut = acc;
@@ -373,13 +371,13 @@ uint8_t *res_load_chunk(const char *name, uint32_t *sizeOut, uint16_t *chkOut)
     uint8_t *result = NULL;
     /* One volume, the disc the caller installed (the original's [0xF7E]-
      * built "HUMANS  .00N" open; a miss is the insert-disc-prompt case). */
-    FSVolume *v = _res_osys->fs->openVolume(_res_current_disc);
+    FSVolume *v = g_osys->fs->openVolume(_res_current_disc);
     if (!v) return NULL;
     VolReader r = { v, 0 };
 
     uint8_t head[2];
     if (_vol_read_at(&r, 0, head, 2)) {
-        _res_osys->fs->closeVolume(v);
+        g_osys->fs->closeVolume(v);
         return NULL;
     }
     uint16_t count = rd_le_u16(head);
@@ -394,21 +392,16 @@ uint8_t *res_load_chunk(const char *name, uint32_t *sizeOut, uint16_t *chkOut)
         result = _res_decode_chunk(&r, off, rec, length, chkOut);
         if (result && sizeOut) *sizeOut = length;
     }
-    _res_osys->fs->closeVolume(v);
+    g_osys->fs->closeVolume(v);
     return result;
 }
 
-int32_t res_init(const OSystem *osys)
-{
-    _res_osys = osys;
-    mem_bind(osys);
-    return 0;
-}
+int32_t res_init(void) { return 0; }
 
 uint8_t res_volume_present(uint16_t disc)
 {
-    FSVolume *v = _res_osys->fs->openVolume(disc);
+    FSVolume *v = g_osys->fs->openVolume(disc);
     if (!v) return 0;
-    _res_osys->fs->closeVolume(v);
+    g_osys->fs->closeVolume(v);
     return 1;
 }

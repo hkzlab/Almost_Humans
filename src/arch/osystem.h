@@ -5,7 +5,8 @@
  *   timer    int8_timer_isr 1000:8A70
  *   audio    INT 60h, driver_reset 1000:84DE (sound_driver.h)
  *   files    DOS INT 21h; int63_load_resource 1000:8D63 (fs.h)
- *   heap     DOS INT 21h AH=48h; the boot block [0x48AC] (mem.h)
+ *   heap     DOS INT 21h AH=48h; the boot block [0x48AC]
+ *            (OSystem.memAlloc/memFree)
  *
  * The core never touches SDL, the GPU, the OS or a path: if a behaviour cannot
  * be expressed here, this interface is wrong, not the core.
@@ -155,11 +156,28 @@ typedef struct OSystem {
 
     /* --- heap -------------------------------------------------------- *
      * The original's DOS allocation (INT 21h AH=48h): the one way the core
-     * obtains a dynamic buffer.  src/mem.c wraps these two; a core module
-     * never calls malloc/free. */
+     * obtains a dynamic buffer.  Callers go through the active backend
+     * (g_osys->memAlloc/memFree); no core module calls malloc/free. */
     void *(*memAlloc)(size_t size); // a block, or NULL when unavailable
     void (*memFree)(void *p); // release a memAlloc block
 } OSystem;
+
+/* The one backend the core talks to.  osys_bind() writes it once at boot
+ * (game_main, first statement), before the first core allocation or vtable
+ * call; it is read-only afterwards, so the timer and audio threads start only
+ * after the bind.  The vtable, including memAlloc/memFree, is always fully populated,
+ * so core code needs no unbound test before using it. */
+extern const OSystem *g_osys;
+
+/**
+ * @brief Bind the one backend the core talks to.
+ *
+ * Called once by game_main at boot, before the init pass.  A test that drives
+ * modules outside game_main calls it before the init pass it exercises.
+ *
+ * @param osys the backend interface (fully populated)
+ */
+void osys_bind(const OSystem *osys);
 
 /**
  * @brief The application entry: boot, then the foreground flow loop.

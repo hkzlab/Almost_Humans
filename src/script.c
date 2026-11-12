@@ -46,11 +46,7 @@ static const uint16_t _intro_cues[25u * 3u] = {
     385, 5, 0, // quit
 };
 
-int32_t script_init(const OSystem *osys)
-{
-    (void)osys;
-    return 0;
-}
+int32_t script_init(void) { return 0; }
 
 /**
  * @brief Wire a cue list (flattened [frame][cmd][arg] u16 triples).

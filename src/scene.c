@@ -3,7 +3,6 @@
 #include "font.h"
 #include "frontend.h"
 #include "game_strs.h"
-#include "mem.h"
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
@@ -128,7 +127,6 @@ static const uint8_t _scene_bg_table[10] = { 1, 2, 3, 4, 5, 6, 8, 0, 5, 7 };
  * "HUMANS RECOVER THE STOLEN IDOL!".  Drawn centred at 0xA0, row 0x41,
  * colour 0x10.  The strings themselves are game_strs' SCENE_HEADLINE block. */
 
-static const OSystem *_scene_osys;
 static ScenePhase _scene_phase = SCENE_IDLE;
 static uint16_t _scene_level = 0xFFFFu; // the level the intro is for
 
@@ -303,9 +301,9 @@ static int32_t _ani_load(Ani *a, uint32_t ani_idx)
 
     a->table_size = rd_le_u32(a->image);
     a->n_entries = a->table_size / 4;
-    a->entries = mem_alloc(a->n_entries * sizeof(uint32_t));
+    a->entries = g_osys->memAlloc(a->n_entries * sizeof(uint32_t));
     if (!a->entries) {
-        mem_free(a->image);
+        g_osys->memFree(a->image);
         a->image = NULL;
         return -1;
     }
@@ -364,12 +362,7 @@ static void _scene_quit_fade(void)
     _scene_phase = SCENE_QUIT_FADE;
 }
 
-int32_t scene_init(const OSystem *osys)
-{
-    _scene_osys = osys;
-    mem_bind(osys);
-    return 0;
-}
+int32_t scene_init(void) { return 0; }
 
 /**
  * @brief The boot intro's key gate: any key or fire.
@@ -392,7 +385,7 @@ void scene_note_input(const InputState *in) { _scene_last_input = *in; }
 static int32_t _scene_key_held(void)
 {
     InputState in;
-    _scene_osys->eventsPoll(&in);
+    g_osys->eventsPoll(&in);
     return in.keyHeld != 0u || in.lastKey != 0u || (in.joyBits & 0x80u) != 0;
 }
 
@@ -401,23 +394,23 @@ static int32_t _scene_key_held(void)
  */
 static void _scene_unload(void)
 {
-    mem_free(_ani.image);
+    g_osys->memFree(_ani.image);
     _ani.image = NULL;
     _ani.image_size = 0;
-    mem_free(_ani.entries);
+    g_osys->memFree(_ani.entries);
     _ani.entries = NULL;
     _ani.n_entries = 0;
-    mem_free(_script_buf);
+    g_osys->memFree(_script_buf);
     _script_buf = NULL;
     _indices = NULL;
     _plays = 0;
-    mem_free(_obj_buf);
+    g_osys->memFree(_obj_buf);
     _obj_buf = NULL;
-    mem_free(_scoops_buf);
+    g_osys->memFree(_scoops_buf);
     _scoops_buf = NULL;
     _scoops_size = 0;
     if (_text_spr) font_publish(NULL); // the glyph table dies with it
-    mem_free(_text_spr);
+    g_osys->memFree(_text_spr);
     _text_spr = NULL;
     memset(&_ani, 0, sizeof _ani);
 }
@@ -439,8 +432,8 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
     snprintf(name, sizeof name, ANI_NAME, index);
     if (_ani_load(&_ani, index)) return -1;
 
-    _script_buf = mem_alloc(OBJ_SEG_SIZE);
-    _obj_buf = mem_alloc(OBJ_SEG_SIZE);
+    _script_buf = g_osys->memAlloc(OBJ_SEG_SIZE);
+    _obj_buf = g_osys->memAlloc(OBJ_SEG_SIZE);
     if (!_script_buf || !_obj_buf) {
         _scene_unload();
         return -1;
@@ -463,13 +456,13 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
         if (_panel_pal_valid)
             for (uint16_t i = 0; i < 768u; i++) // 1000:8D24's AND 0x3F
                 _panel_pal[i] = daily[PAGE_SIZE + i] & 0x3Fu;
-        mem_free(daily);
+        g_osys->memFree(daily);
     }
 
     /* apl\text.spr (the original's second load, 1000:C490): the panel's
      * headline is drawn with these glyphs (blit_text_tile), so the scene
      * publishes them for its own frame */
-    mem_free(_text_spr);
+    g_osys->memFree(_text_spr);
     _text_spr = res_load_chunk("APL\\TEXT.SPR", NULL, NULL);
     font_publish(_text_spr);
 
@@ -490,7 +483,7 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
                 src += 0x40u;
             }
         }
-        mem_free(_scoops_buf);
+        g_osys->memFree(_scoops_buf);
         _scoops_buf = NULL;
     }
 
@@ -505,7 +498,7 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
             textpage_draw_line_mask(video_page(0), headline, 0x41u, 0x10u);
     }
 
-    _scene_osys->videoPresent(0);
+    g_osys->videoPresent(0);
 
     /* 1000:B0DA: after the panel is drawn and flipped, its first 0x20 DAC
      * entries fade from the previous screen's palette to daily.bit's
@@ -627,7 +620,7 @@ uint8_t scene_play_level_intro(uint16_t introIndex)
                 }
                 _scene_al_expand(_obj_buf, (uint32_t)sz, video_page(0),
                                  PAGE_SIZE);
-                _scene_osys->videoPresent(0);
+                g_osys->videoPresent(0);
             }
             /* 1000:B263: now the DAC fades to the script object's palette at
              * 0x6FEA (= _script_buf+2): the whole 256 entries div 0x19 (or 4
@@ -662,7 +655,7 @@ uint8_t scene_play_level_intro(uint16_t introIndex)
                 }
                 _scene_al_expand(_obj_buf, (uint32_t)sz, video_page(0),
                                  PAGE_SIZE);
-                _scene_osys->videoPresent(0);
+                g_osys->videoPresent(0);
                 _obj_wait =
                     _scene_fast ? 1u : 6u; // wait_flag_timeout 1000:B2D3
                 _obj_index++;
@@ -769,12 +762,12 @@ static int32_t _boot_card_show(const char *name)
     uint32_t size = 0;
     uint8_t *img = res_load_chunk(name, &size, NULL);
     if (!img || size < VIDEO_PAGE_BYTES) {
-        mem_free(img);
+        g_osys->memFree(img);
         return 0;
     }
     memcpy(video_page(0), img, VIDEO_PAGE_BYTES);
     palette_load_working(img + VIDEO_PAGE_BYTES);
-    mem_free(img);
+    g_osys->memFree(img);
     return 1;
 }
 
@@ -796,35 +789,35 @@ static int32_t _boot_abort_poll(void)
  */
 static void _boot_unload(void)
 {
-    mem_free(_boot_bac);
+    g_osys->memFree(_boot_bac);
     _boot_bac = NULL;
-    mem_free(_boot_treetop);
+    g_osys->memFree(_boot_treetop);
     _boot_treetop = NULL;
-    mem_free(_boot_treebot);
+    g_osys->memFree(_boot_treebot);
     _boot_treebot = NULL;
-    mem_free(_boot_apple);
+    g_osys->memFree(_boot_apple);
     _boot_apple = NULL;
-    mem_free(_boot_words);
+    g_osys->memFree(_boot_words);
     _boot_words = NULL;
-    mem_free(_boot_rsc);
+    g_osys->memFree(_boot_rsc);
     _boot_rsc = NULL;
     _boot_rsc_size = 0;
-    mem_free(_boot_entries);
+    g_osys->memFree(_boot_entries);
     _boot_entries = NULL;
     _boot_entry_count = 0;
-    mem_free(_boot_list_buf);
+    g_osys->memFree(_boot_list_buf);
     _boot_list_buf = NULL;
-    mem_free(_boot_obj);
+    g_osys->memFree(_boot_obj);
     _boot_obj = NULL;
-    mem_free(_boot_gt);
+    g_osys->memFree(_boot_gt);
     _boot_gt = NULL;
     _boot_gt_size = 0;
-    mem_free(_boot_gt_entries);
+    g_osys->memFree(_boot_gt_entries);
     _boot_gt_entries = NULL;
     _boot_gt_entry_count = 0;
-    mem_free(_boot_gt_list);
+    g_osys->memFree(_boot_gt_list);
     _boot_gt_list = NULL;
-    mem_free(_boot_itb);
+    g_osys->memFree(_boot_itb);
     _boot_itb = NULL;
 }
 
@@ -1104,12 +1097,13 @@ static int32_t _boot_start(void)
         return 0;
     }
     _boot_entry_count = _boot_rsc_size / 4u;
-    _boot_entries = mem_alloc(_boot_entry_count * sizeof(uint32_t));
+    _boot_entries = g_osys->memAlloc(_boot_entry_count * sizeof(uint32_t));
     _boot_gt_entry_count = _boot_gt_size / 4u;
-    _boot_gt_entries = mem_alloc(_boot_gt_entry_count * sizeof(uint32_t));
-    _boot_list_buf = mem_alloc(OBJ_SEG_SIZE);
-    _boot_obj = mem_alloc(OBJ_SEG_SIZE);
-    _boot_gt_list = mem_alloc(OBJ_SEG_SIZE);
+    _boot_gt_entries =
+        g_osys->memAlloc(_boot_gt_entry_count * sizeof(uint32_t));
+    _boot_list_buf = g_osys->memAlloc(OBJ_SEG_SIZE);
+    _boot_obj = g_osys->memAlloc(OBJ_SEG_SIZE);
+    _boot_gt_list = g_osys->memAlloc(OBJ_SEG_SIZE);
     if (!_boot_entries || !_boot_gt_entries || !_boot_list_buf || !_boot_obj ||
         !_boot_gt_list) {
         _boot_unload();
@@ -1265,7 +1259,7 @@ static int32_t _boot_black(void)
                            _boot_rsc_size, _boot_entries, _boot_entry_count,
                            _boot_obj, _boot_list_pos, video_page(0));
     _boot_compose_present(video_page(0));
-    _scene_osys->videoPresent(0);
+    g_osys->videoPresent(0);
     _boot_list_pos = _boot_list_start; // b748
     script_intro_start(&_boot_script);
     _boot_phase = BOOT_FRAME;
@@ -1352,7 +1346,7 @@ static int32_t _boot_frame_step(void)
      * margins composed in - the original's bar lives in the visible
      * page below every present, untouched until the next transition */
     _boot_compose_present(video_page(0));
-    _scene_osys->videoPresent(0);
+    g_osys->videoPresent(0);
     /* 1000:b780 waits `[0x5AC8] >= 2`; doubled only for this scene -
      * deviation D-248 (requested slowdown) */
     _boot_wait_ticks = 4u;
@@ -1453,13 +1447,13 @@ uint8_t scene_play_boot_intro(void)
     case BOOT_GT_OUT:
         if (_boot_abort_poll()) return 1; // c0af (bf6f)
         if (palette_fade_active()) return 1;
-        mem_free(_boot_gt);
+        g_osys->memFree(_boot_gt);
         _boot_gt = NULL;
         _boot_gt_size = 0;
-        mem_free(_boot_gt_entries);
+        g_osys->memFree(_boot_gt_entries);
         _boot_gt_entries = NULL;
         _boot_gt_entry_count = 0;
-        mem_free(_boot_gt_list);
+        g_osys->memFree(_boot_gt_list);
         _boot_gt_list = NULL;
         if (!_boot_card_show("INTRO\\IDI.BIT")) {
             _boot_unload();
@@ -1548,7 +1542,7 @@ uint8_t scene_play_boot_intro(void)
          * until the post-dwell fade - the port does the same. */
         memcpy(video_page(0), _boot_itb, VIDEO_PAGE_BYTES);
         palette_load_working(_boot_itb + VIDEO_PAGE_BYTES);
-        mem_free(_boot_itb);
+        g_osys->memFree(_boot_itb);
         _boot_itb = NULL;
         /* b68f-b69e: fade the DAC to the working palette (= the card's own
          * palette) and wait; the card fades in.  The zeroed _boot_ramp is

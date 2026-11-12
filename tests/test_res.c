@@ -142,7 +142,8 @@ int main(int argc, char **argv)
     int32_t bad = 0;
     char path[512];
 
-    res_init(&g_osys_null);
+    osys_bind(&g_osys_null);
+    res_init();
 
     /* The ANI disc table, corpus-verified 10/10 (see res.c): ANI03 -> 1. */
     if (res_movie_disc(0) != 2 || res_movie_disc(1) != 0 ||

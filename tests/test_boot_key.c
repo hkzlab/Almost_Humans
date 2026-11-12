@@ -16,6 +16,7 @@
  * argv[1] = the game data directory holding HUMANS.000/001/002.
  * Missing volumes = skip. */
 
+#include "audio.h"
 #include "osystem.h"
 #include "res.h"
 #include "palette.h"
@@ -60,10 +61,11 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    res_init(&g_osys_null);
-    scene_init(&g_osys_null);
-    video_init(&g_osys_null);
-    palette_init(&g_osys_null);
+    osys_bind(&g_osys_null);
+    res_init();
+    scene_init();
+    video_init();
+    palette_init();
 
     /* the idle prefix: the boot's fade to black and the first logo groups */
     InputState idle;
@@ -75,6 +77,7 @@ int main(int argc, char **argv)
     for (; t < 50u && r == 1; t++) {
         r = scene_play_boot_intro();
         palette_tick();
+        audio_tick();
     }
     if (r != 1) {
         fprintf(stderr,
@@ -96,6 +99,7 @@ int main(int argc, char **argv)
         if (scene_boot_phase_for_probe() == BOOT_ABORT_PHASE) saw_abort = 1;
         r = scene_play_boot_intro();
         palette_tick();
+        audio_tick();
         held_ticks++;
     }
 

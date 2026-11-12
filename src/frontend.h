@@ -28,12 +28,11 @@ enum {
 };
 
 /**
- * @brief Bind the frontend module to the backend.
+ * @brief Frontend module init (the backend is bound once by osys_bind()).
  *
- * @param osys the backend interface
  * @return 0 on success
  */
-int32_t frontend_init(const OSystem *osys);
+int32_t frontend_init(void);
 
 /**
  * @brief One frontend tick: the room, the name screen or the load.

@@ -11,6 +11,7 @@
  * transition).  The two modes pin the two poll sites; run once each.
  * Missing volumes = skip. */
 
+#include "audio.h"
 #include "osystem.h"
 #include "res.h"
 #include "palette.h"
@@ -57,10 +58,11 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    res_init(&g_osys_null);
-    scene_init(&g_osys_null);
-    video_init(&g_osys_null);
-    palette_init(&g_osys_null);
+    osys_bind(&g_osys_null);
+    res_init();
+    scene_init();
+    video_init();
+    palette_init();
 
     InputState idle;
     memset(&idle, 0, sizeof idle);
@@ -89,6 +91,7 @@ int main(int argc, char **argv)
         }
         r = scene_play_boot_intro();
         palette_tick();
+        audio_tick();
         t++;
     }
 
@@ -117,6 +120,7 @@ int main(int argc, char **argv)
         }
         r = scene_play_boot_intro();
         palette_tick();
+        audio_tick();
         held_ticks++;
     }
 

@@ -335,11 +335,12 @@ int main(int argc, char **argv)
 
     if (_load_fixtures(fix_abs)) return 1;
 
-    res_init(&g_osys_null);
-    video_init(&g_osys_null);
-    palette_init(&g_osys_null);
-    statusbar_init(&g_osys_null);
-    level_init(&g_osys_null);
+    osys_bind(&g_osys_null);
+    res_init();
+    video_init();
+    palette_init();
+    statusbar_init();
+    level_init();
     /* the level flow's disc: level_load's res_set_disc(1) - the panel
      * assets ship on HUMANS.001 (the direct statusbar_start cases below
      * run outside level_load, so install the same disc here) */

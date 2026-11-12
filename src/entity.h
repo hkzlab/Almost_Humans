@@ -28,12 +28,11 @@ typedef struct {
 } Entity;
 
 /**
- * @brief Bind the entity module to the backend.
+ * @brief Entity module init (the backend is bound once by osys_bind()).
  *
- * @param osys the backend interface
  * @return 0 on success
  */
-int32_t entity_init(const OSystem *osys);
+int32_t entity_init(void);
 
 /**
  * @brief entity_dispatch (1000:C93C): step every live entity.

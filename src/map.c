@@ -3,7 +3,6 @@
 #include "font.h"
 #include "game_strs.h"
 #include "hiscore.h"
-#include "mem.h"
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
@@ -1149,9 +1148,9 @@ uint8_t map_begin(void)
     font_publish(_map_font);
 
     /* 1000:01A2..0x01AB: apl\alpha.spr expanded 4bpp -> four planes */
-    mem_free(_alpha_packed);
+    g_osys->memFree(_alpha_packed);
     _alpha_packed = NULL;
-    mem_free(_alpha_sheet);
+    g_osys->memFree(_alpha_sheet);
     _alpha_sheet = NULL;
     {
         uint32_t asz = 0;
@@ -1163,25 +1162,25 @@ uint8_t map_begin(void)
          * follows ALPHA in its pool; the cells that would use it are never
          * drawn). */
         if (_alpha_packed && asz < ALPHA_WINDOW) {
-            uint8_t *win = mem_alloc(ALPHA_WINDOW);
+            uint8_t *win = g_osys->memAlloc(ALPHA_WINDOW);
 
             if (!win) {
-                mem_free(_alpha_packed);
+                g_osys->memFree(_alpha_packed);
                 _alpha_packed = NULL;
             } else {
                 memset(win, 0, ALPHA_WINDOW);
                 memcpy(win, _alpha_packed, asz);
-                mem_free(_alpha_packed);
+                g_osys->memFree(_alpha_packed);
                 _alpha_packed = win;
             }
         }
     }
     if (_alpha_packed) {
-        _alpha_sheet = mem_alloc(65536u);
+        _alpha_sheet = g_osys->memAlloc(65536u);
         if (_alpha_sheet) alpha_expand(_alpha_packed, _alpha_sheet);
     }
     /* 1000:01B7: apl\band.spr, the 304 x 80 sheet */
-    mem_free(_band_sheet);
+    g_osys->memFree(_band_sheet);
     _band_sheet = NULL;
     _band_sheet = res_load_chunk("APL\\BAND.SPR", NULL, NULL);
     _map_stage_ready = 0;
@@ -1209,8 +1208,8 @@ uint8_t map_begin(void)
     _map_enter_phase = 0u;
     _map_enter_bx = 0u;
     _map_exit_hold = 0u;
-    mem_free(_map_off);
-    _map_off = mem_alloc(MAP_PAGE);
+    g_osys->memFree(_map_off);
+    _map_off = g_osys->memAlloc(MAP_PAGE);
     if (!_map_off) return 0;
     memset(_map_off, 0, MAP_PAGE);
     g_map_box_bottom = 0x130u; // 1000:0518's [0x8AE]
@@ -1298,17 +1297,17 @@ static void _map_close(void)
     _map_up = 0;
     audio_music_stop(); // 0x0640
     hiscore_write(); // 0x06CC
-    mem_free(_map_high);
+    g_osys->memFree(_map_high);
     _map_high = NULL;
-    mem_free(_map_font);
+    g_osys->memFree(_map_font);
     _map_font = NULL;
-    mem_free(_alpha_packed);
+    g_osys->memFree(_alpha_packed);
     _alpha_packed = NULL;
-    mem_free(_alpha_sheet);
+    g_osys->memFree(_alpha_sheet);
     _alpha_sheet = NULL;
-    mem_free(_band_sheet);
+    g_osys->memFree(_band_sheet);
     _band_sheet = NULL;
-    mem_free(_map_off); // the [0x8A4] pool head from map_begin
+    g_osys->memFree(_map_off); // the [0x8A4] pool head from map_begin
     _map_off = NULL;
     _map_stage_ready = 0;
     video_arena_release(); // the list/header text arena

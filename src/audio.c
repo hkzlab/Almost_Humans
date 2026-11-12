@@ -1,6 +1,5 @@
 #include "audio.h"
 #include "frontend.h"
-#include "mem.h"
 #include "osystem.h"
 #include "res.h"
 
@@ -25,33 +24,26 @@ char audio_tune_lev[] = "mus\\levA";
 /* Two display periods per fade step (two wait_vsync calls, 1000:84BF/84C2). */
 #define AUDIO_FADE_TICKS 2
 
-static const OSystem *_au_osys;
-static uint8_t _music_active;  // [0x40BB]: the music_resume latch
-static uint8_t _fade_latch;    // [0x40BA]: the fade-in latch
-static uint16_t _tick_phase;   // [0x5AF2]: 1,2 tick; 3 resets
+static uint8_t _music_active; // [0x40BB]: the music_resume latch
+static uint8_t _fade_latch; // [0x40BA]: the fade-in latch
+static uint16_t _tick_phase; // [0x5AF2]: 1,2 tick; 3 resets
 /* 1 when the backend steps the tick from its audio sample clock (the SDL3
  * render path).  The game tick then skips audio_tick: one clock only. */
 static int32_t _render_clock;
 static const char *_tune_name; // [0x40B8]: the dedup key
-static int8_t _fade_dir;      // +1 in, -1 out, 0 idle
-static uint8_t _fade_step;     // the CL currently applied
-static uint8_t _fade_wait;     // ticks until the next step
-static uint8_t _record_live;   // a cmd-5 record is playing
+static int8_t _fade_dir; // +1 in, -1 out, 0 idle
+static uint8_t _fade_step; // the CL currently applied
+static uint8_t _fade_wait; // ticks until the next step
+static uint8_t _record_live; // a cmd-5 record is playing
 static uint8_t _stop_after_fade; // present_frames_75 then music_stop
-static uint8_t _tune_missing;  // the last play_tune found no image
+static uint8_t _tune_missing; // the last play_tune found no image
 
-int32_t audio_init(const OSystem *osys)
-{
-    _au_osys = osys;
-    mem_bind(osys);
-    return 0;
-}
+int32_t audio_init(void) { return 0; }
 
 void audio_install(void)
 {
-    if (!_au_osys) return;
-    if (_au_osys->audioInstall()) {
-        _au_osys->warn("audio: the driver did not install; the game is silent");
+    if (g_osys->audioInstall()) {
+        g_osys->warn("audio: the driver did not install; the game is silent");
     }
 }
 
@@ -62,8 +54,8 @@ void audio_install(void)
  */
 static int32_t _driver_id(void)
 {
-    if (!_au_osys || !_au_osys->audioDriverId) return 1;
-    return _au_osys->audioDriverId();
+    if (!g_osys->audioDriverId) return 1;
+    return g_osys->audioDriverId();
 }
 
 void audio_play_tune(const char *name)
@@ -75,7 +67,7 @@ void audio_play_tune(const char *name)
     int32_t id;
     const char *ext;
 
-    if (!_au_osys || !name) return;
+    if (!name) return;
     if (name == _tune_name) return; // 1000:843E
     _tune_name = name;
 
@@ -88,7 +80,7 @@ void audio_play_tune(const char *name)
     if (!image) {
         snprintf(msg, sizeof msg,
                  "audio: cannot load %s; the record is silenced", path);
-        _au_osys->warn(msg);
+        g_osys->warn(msg);
         _tune_missing = 1;
         audio_music_stop(); // D-252: silence instead of the original's exit
         return;
@@ -104,10 +96,10 @@ void audio_play_tune(const char *name)
         image[0x164u] = 1u;
         snprintf(msg, sizeof msg,
                  "audio: %s record 0 has loop=0; forcing it to loop", path);
-        _au_osys->warn(msg);
+        g_osys->warn(msg);
     }
-    _au_osys->audioLoadTune(image, size);
-    mem_free(image);
+    g_osys->audioLoadTune(image, size);
+    g_osys->memFree(image);
 }
 
 void audio_play_level_tune(uint16_t level1)
@@ -119,7 +111,7 @@ void audio_play_level_tune(uint16_t level1)
 
 void audio_music_resume(void)
 {
-    if (!_au_osys || _music_active) return;
+    if (_music_active) return;
     /* D-252: a tune that could not be loaded must not restart the previous
      * driver image; the game stays silent until a later play_tune succeeds. */
     if (_tune_missing) return;
@@ -130,24 +122,22 @@ void audio_music_resume(void)
      * state the original ends up in), and cancel its deferred stop. */
     if (_record_live) audio_music_stop();
     _stop_after_fade = 0;
-    _au_osys->audioResume();
+    g_osys->audioResume();
     _record_live = 1;
-    _au_osys->audioTempo(0);
+    g_osys->audioTempo(0);
     _music_active = 1;
 }
 
 void audio_music_stop(void)
 {
-    if (!_au_osys) return;
     _music_active = 0;
     _record_live = 0;
     _stop_after_fade = 0;
-    _au_osys->audioStop();
+    g_osys->audioStop();
 }
 
 void audio_music_gate(uint32_t off)
 {
-    if (!_au_osys) return;
     if (off) {
         if (_music_active) audio_music_stop();
         return;
@@ -155,21 +145,20 @@ void audio_music_gate(uint32_t off)
     /* 1000:A5F4: music_resume (its own [0x40BB] latch); 1000:A5F7: cmd
      * 0x0A with CL=0x4B runs *every frame*, latch or not. */
     audio_music_resume();
-    _au_osys->audioTempo(AUDIO_TEMPO_MAX);
+    g_osys->audioTempo(AUDIO_TEMPO_MAX);
 }
 
 void audio_fade_in(void)
 {
-    if (!_au_osys || _fade_latch) return; // 1000:84AF
+    if (_fade_latch) return; // 1000:84AF
     _fade_dir = 1;
     _fade_step = 0;
     _fade_wait = AUDIO_FADE_TICKS;
-    _au_osys->audioTempo(0);
+    g_osys->audioTempo(0);
 }
 
 void audio_fade_out(void)
 {
-    if (!_au_osys) return;
     _fade_dir = -1;
     /* The original blocks inside present_frames_75, so its [0x40BA] is
      * cleared before the next screen's timing_loop runs.  The port's fade
@@ -181,7 +170,7 @@ void audio_fade_out(void)
     /* 1000:835A is always followed by music_stop (1000:8389): defer the
      * stop to the end of the ramp, exactly as the blocking loop does. */
     _stop_after_fade = 1;
-    _au_osys->audioTempo(_fade_step);
+    g_osys->audioTempo(_fade_step);
 }
 
 uint8_t audio_fade_busy(void) { return _fade_dir != 0; }
@@ -194,14 +183,12 @@ uint8_t audio_fade_busy(void) { return _fade_dir != 0; }
  */
 static void _tick_body(void)
 {
-    if (!_au_osys) return;
-
     if (_fade_dir != 0 && --_fade_wait <= 0) {
         _fade_wait = AUDIO_FADE_TICKS;
         if (_fade_dir > 0) {
             if (_fade_step < AUDIO_FADE_IN_LAST) {
                 _fade_step++;
-                _au_osys->audioTempo(_fade_step);
+                g_osys->audioTempo(_fade_step);
             } else {
                 /* 1000:84CE: the latch is set after the last hold. */
                 _fade_dir = 0;
@@ -210,7 +197,7 @@ static void _tick_body(void)
         } else {
             if (_fade_step > 0) {
                 _fade_step--;
-                _au_osys->audioTempo(_fade_step);
+                g_osys->audioTempo(_fade_step);
             } else {
                 /* 1000:8379/1000:8389: the stop that always follows the
                  * fade-out runs when the ramp ends. */
@@ -226,7 +213,7 @@ static void _tick_body(void)
         _tick_phase = 0;
         return;
     }
-    _au_osys->audioTick();
+    g_osys->audioTick();
 }
 
 void audio_tick(void)
@@ -241,7 +228,6 @@ void audio_set_render_clock(uint8_t on) { _render_clock = on; }
 
 void audio_sfx(uint32_t id)
 {
-    if (!_au_osys) return;
     if ((uint8_t)id == 0xFFu) return; // 1000:83C1
     if (frontend_option(FRONTEND_OPT_MUSIC) == 0) return; // 1000:83C5
     /* 1000:83CC: the Beeper driver (id 0) never gets cmd 5. */
@@ -249,5 +235,5 @@ void audio_sfx(uint32_t id)
     /* 1000:83D3: event 0x0E is the one MT-32 configuration's. */
     if (id == 0x0Eu && _driver_id() != 3) return;
     _record_live = 1; // the driver_call stores the sfx handle in [0x5AF0]
-    _au_osys->audioSfx((uint16_t)id);
+    g_osys->audioSfx((uint16_t)id);
 }

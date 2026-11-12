@@ -8,7 +8,6 @@
 #include "hiscore.h"
 #include "level.h"
 #include "map.h"
-#include "mem.h"
 #include "menu.h"
 #include "object.h"
 #include "osystem.h"
@@ -137,22 +136,21 @@ static const uint8_t _key_list[][2] = {
 };
 
 /**
- * @brief Load the shipped defaults and bind the resource modules.
+ * @brief Load the shipped defaults and run the module init pass.
+ *
+ * Initialises every module; game_main already bound the backend.
  *
  * @param osys the backend interface
  * @return 0 on success, 1 when a shipped default failed to load
  */
 int32_t resources_init(const OSystem *osys)
 {
-    mem_bind(osys);
-    menu_init(osys);
-    hiscore_bind(osys);
-    uint8_t res_init_state =
-        res_init(osys) || video_init(osys) || palette_init(osys) ||
-        font_init(osys) || statusbar_init(osys) || scene_init(osys) ||
-        level_init(osys) || entity_init(osys) || script_init(osys) ||
-        audio_init(osys) || save_init(osys) || frontend_init(osys) ||
-        attract_init(osys);
+    menu_init();
+    uint8_t res_init_state = res_init() || video_init() || palette_init() ||
+                             font_init() || statusbar_init() || scene_init() ||
+                             level_init() || entity_init() || script_init() ||
+                             audio_init() || save_init() || frontend_init() ||
+                             attract_init();
 
     if (res_init_state) osys->fatalError("module init failed");
 
@@ -1019,6 +1017,10 @@ static uint8_t _game_frame(const OSystem *osys, GameFlow *state,
 
 int32_t game_main(const OSystem *osys)
 {
+    /* The one backend, bound before the first core call (ver_detect_run,
+     * resources_init and every module read g_osys). */
+    osys_bind(osys);
+
     // Initialize the video mode
     osys->videoSetMode(VIDEO_MODE_13H); // bios_set_mode_13h (1000:88fb)
 

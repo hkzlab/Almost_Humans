@@ -193,15 +193,16 @@ int main(int argc, char **argv)
 
     int32_t bad = 0;
 
-    res_init(&g_osys_null);
-    video_init(&g_osys_null);
-    palette_init(&g_osys_null);
-    font_init(&g_osys_null);
-    audio_init(&g_osys_null);
-    statusbar_init(&g_osys_null);
-    level_init(&g_osys_null);
-    scene_init(&g_osys_null);
-    frontend_init(&g_osys_null);
+    osys_bind(&g_osys_null);
+    res_init();
+    video_init();
+    palette_init();
+    font_init();
+    audio_init();
+    statusbar_init();
+    level_init();
+    scene_init();
+    frontend_init();
 
     /* the shipped badge art (the same chunks the placer reads, from disc 0) */
     uint32_t cb1Size = 0, cb2Size = 0, rstSize = 0;
