@@ -5703,8 +5703,13 @@ int main(int argc, char **argv)
         }
 
         /* 1000:44BB draw_scorenum_three_passes: the elapsed and best times are
-         * three SCORENUM digits at row 181, px 80..87 and px 240..247, every
-         * byte stored as v | 0xC0 (0x450F: 8 rows x 2 page bytes, +0x58/row). */
+         * three SCORENUM digits at row 181.  The pitch is not uniform -
+         * 0x450F returns DI += 2 (0x4574) and 0x44BB adds 2 more once
+         * (0x44ED) - so the slots sit at +6/+10/+12: px 104, 120 and 128 from
+         * AX = 0x50, and px 264, 280 and 288 from AX = 0xF0.  Those are
+         * SCORE.BIT's baked "0:00:00" cells 3, 5 and 6 (the colon at cell 4 is
+         * left alone).  Every byte is stored as v | 0xC0 (0x450F: 8 rows x 2
+         * page bytes, +0x58/row). */
         {
             static uint8_t a[VIDEO_PAGE_BYTES], b[VIDEO_PAGE_BYTES];
             uint32_t ina = 0, outside = 0, low = 0, diff = 0;
@@ -5716,7 +5721,9 @@ int main(int argc, char **argv)
             for (uint32_t i = 0; i < sizeof a; i++) {
                 uint32_t y = i / 320u, x = i % 320u;
                 if (a[i]) {
-                    if (y < 181u || y >= 189u || x < 104u || x >= 128u)
+                    /* cells 3, 5 and 6 only: 104..111, 120..127, 128..135 */
+                    if (y < 181u || y >= 189u || (x >= 112u && x < 120u) ||
+                        x < 104u || x >= 136u)
                         outside++;
                     else if (a[i] < 0xC0u) low++;
                     else ina++;
@@ -5724,7 +5731,7 @@ int main(int argc, char **argv)
                 if (a[i] != b[i]) diff++;
             }
             _check(ina != 0u && outside == 0u && low == 0u,
-                   "1000:44BB draws the time digits at row 181, px 104..127");
+                   "1000:44BB: the digits sit at px 104/120/128, not at an 8-px pitch");
             /* the first digit of 0x0123 is slot 1; its row 0 is
              * 17 17 02 02 02 02 17 17 -> D7 D7 C2 C2 C2 C2 D7 D7 */
             _check(a[181u * 320u + 104u] == 0xD7u &&
@@ -5735,13 +5742,18 @@ int main(int argc, char **argv)
             memset(a, 0, sizeof a);
             score_draw_num3(a, 0xF0u, 0x0123u, 0xB5u, 0x280u);
             {
-                uint32_t hit = 0;
+                uint32_t hit = 0, gap = 0;
 
-                for (uint32_t y = 181u; y < 189u; y++)
-                    for (uint32_t x = 264u; x < 288u; x++)
+                for (uint32_t y = 181u; y < 189u; y++) {
+                    for (uint32_t x = 264u; x < 296u; x++)
                         if (a[y * 320u + x]) hit++;
+                    for (uint32_t x = 272u; x < 280u; x++)
+                        if (a[y * 320u + x]) gap++;
+                }
                 _check(hit != 0u,
-                       "the best time sits at px 264 with BP = 0x280");
+                       "the best time sits at px 264/280/288 with BP = 0x280");
+                _check(gap == 0u,
+                       "the best time leaves the card's baked colon cell at 272..279");
             }
         }
 

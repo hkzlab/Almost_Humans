@@ -423,8 +423,12 @@ void score_draw_columns(uint8_t *page)
  *
  *   iVar2 = BX*88 + (AX>>2) + [0x4106]
  *   digit 1 = (DX>>8) & 0x0F        at iVar2 + 6
- *   digit 2 = (DX>>4) & 0x0F        at iVar2 + 8
- *   digit 3 =  DX      & 0x0F       at iVar2 + 10
+ *   digit 2 = (DX>>4) & 0x0F        at iVar2 + 10
+ *   digit 3 =  DX      & 0x0F       at iVar2 + 12
+ *
+ * (The pitch is not uniform: `0x450F` ends with `POP DI` / `ADD DI,0x2`
+ * (`1000:4574`), so it returns the caller's `DI` 2 addresses on, and `0x44BB`
+ * adds 2 more only once, at `1000:44ED`.)
  *
  * and `blit_scorenum_slot_plane` (`0x450F`) draws one slot: `DS:[0x1DDC]` +
  * `digit*0x40` + `BP`, **8 rows x 2 page addresses** (`src[0]` and `src[4]`,
@@ -435,7 +439,9 @@ void score_draw_columns(uint8_t *page)
  * So the two times are drawn with SCORENUM's 8x8 digits: `(0x50, 0xB5)` the
  * elapsed word `[0x1E84]` with `BP = 0` (slots 0..9) and `(0xF0, 0xB5)` the best
  * time `[0x1E88]` with `BP = 0x280` (slots 10..19) - one page address = 4 px,
- * so the digits sit at row 181, px 104..127 and px 264..287.
+ * so the digits sit at row 181, px 104, 120, 128 and 264, 280, 288.  Those are
+ * SCORE.BIT's baked `0:00:00` cells 3, 5 and 6, so the read-out prints
+ * `0:0M:SS` (the hours and the minute-tens are baked art).
  *
  * @param page the page buffer
  * @param digit the digit
@@ -471,8 +477,8 @@ void score_draw_num3(uint8_t *page, uint32_t ax, uint16_t value, uint32_t bx,
     uint16_t off = (uint16_t)(bx * 88u + (ax >> 2));
 
     _score_num_block(page, ((value >> 8) & 0x0Fu), bp, off + 6u);
-    _score_num_block(page, ((value >> 4) & 0x0Fu), bp, off + 8u);
-    _score_num_block(page, (value & 0x0Fu), bp, off + 10u);
+    _score_num_block(page, ((value >> 4) & 0x0Fu), bp, off + 10u);
+    _score_num_block(page, (value & 0x0Fu), bp, off + 12u);
 }
 
 void score_draw_card(uint8_t *page)
