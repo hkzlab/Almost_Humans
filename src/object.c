@@ -1807,6 +1807,14 @@ int16_t object_class_matches(uint32_t want)
 int16_t object_type_equals(uint32_t type)
 { return rd_le_u16(_obj_actor() + 8u) == type ? -1 : 0; }
 
+/* DS:0x200B, the map copy's offset: the image word at `202F:1FA0` (`[0x1FA0]`),
+ * read live as 0x200B in every session.  `1000:3138` copies the level record's
+ * 640 map bytes there. */
+#define OBJ_MAP_DS_BASE 0x200Bu
+/* `1000:3146 ADD DI,0x20` / `1000:3149 REP MOVSB`: 640 map bytes, a 32-byte gap
+ * the loader never writes, then a full second copy of the map. */
+#define OBJ_MAP_DS_GAP (OBJ_MAP_DS_BASE + 640u)
+#define OBJ_MAP_DS_END (OBJ_MAP_DS_BASE + 1312u)
 /** @brief The map buffer as `1000:3138` builds it: 640 map bytes, a **32-byte gap the
  * loader never writes** at `+0x280..+0x29F`, then a **full second copy of the
  * map at `+0x2A0`** (1000:3146 `ADD DI,0x20` / 1000:3149 `REP MOVSB`).  The
@@ -1815,8 +1823,9 @@ int16_t object_type_equals(uint32_t type)
  *
  * The live first 640 bytes are `level_map()`; the tail is `_obj_map_tail`, seeded
  * at level load (gap zero, second copy = the load-time map).  The `0xA9`
- * handler is the only tail writer (`_obj_map_put`).  Reads before the buffer and
- * past the second copy are the port's bounds (deviation D-233).
+ * handler is the only tail writer (`_obj_map_put`).  An address that wraps
+ * below the copy reads the sparse prelude (D-269) and one past the second copy
+ * returns 0 (D-233).
  */
 static uint8_t _obj_map_tail[32u + 640u];
 
@@ -1835,17 +1844,40 @@ void object_map_tail_reset(const uint8_t *map)
  * @brief The map buffer byte for an explicit 640-byte map (the spawn handlers get
  * the map they are loading, not necessarily `level_map()`).
  *
+ * The original forms the address in 16 bits - `MOV SI,[0x1FA0]` then `ADD SI,CX`
+ * twice (`1000:E2E8`, `1000:E1CB`) - so a cell above the map lands in the image
+ * bytes below the copy and a far one wraps through DS.  The port keeps the
+ * 16-bit wrap and models `DS:0x1FA0..0x252A`; outside that window it returns 0
+ * (D-233).
+ *
+ * Below the copy the image holds only three things: the words at `202F:1FA0` and
+ * `202F:1FA2` (both the map base, `0x200B`), zeros, and the dead
+ * `"levels\level01.map"` string at `202F:1FD8..0x1FEA`.  They are modelled from
+ * those two facts rather than from a byte image.  A probe one row above a row-0
+ * point lands in the 32-byte zero pad `202F:1FEB..202F:200A`, so the tile above
+ * the top row is empty, not a wall (D-269).
+ *
  * @param map the 640-byte map
- * @param idx the buffer index
+ * @param idx the cell index, relative to the copy (0..+0x51F in play)
  * @return the map byte
  */
 static uint32_t _obj_map_byte_at(const uint8_t *map, int32_t idx)
 {
+    static const char prelude[] = "levels\\level01.map";
+    uint16_t addr;
+
     if (!map) return 0u;
-    if (idx < 0) return 0xFFu;
-    if (idx < 640) return map[idx];
-    if (idx < 1312) return _obj_map_tail[idx - 640];
-    return 0u;
+    addr = (uint16_t)(OBJ_MAP_DS_BASE + (uint16_t)idx);
+    if (addr < OBJ_MAP_DS_BASE) { // wrapped below the copy
+        if ((uint16_t)(addr - 0x1FA0u) < 4u) // [0x1FA0], the map base twice
+            return (OBJ_MAP_DS_BASE >> (8u * (addr & 1u))) & 0xFFu;
+        if ((uint16_t)(addr - 0x1FD8u) < sizeof prelude) // the dead path string
+            return (uint8_t)prelude[addr - 0x1FD8u];
+        return 0u; // the zero pad, or below 0x1FA0 (D-233)
+    }
+    if (addr < OBJ_MAP_DS_GAP) return map[addr - OBJ_MAP_DS_BASE];
+    if (addr < OBJ_MAP_DS_END) return _obj_map_tail[addr - OBJ_MAP_DS_GAP];
+    return 0u; // past the second copy (D-233)
 }
 
 /* Read one byte of the live map buffer (the level map plus its tail). */
@@ -1854,7 +1886,9 @@ static uint32_t _obj_map_buffer_byte(int32_t idx)
 
 /**
  * @brief Write one byte of the map buffer: the live 640-byte map, then the
- * gap/second copy.  Outside 0..1311 the write is dropped (D-233).
+ * gap/second copy.  The two `0xA9` writers pass `cell + 0x21` / `cell + 0x22`
+ * (`1000:51F9`), so row 19 reaches the gap/second copy (index 672 at most); the
+ * `>= 1312` drop is unreachable.
  *
  * @param map the 640-byte map
  * @param idx the buffer index

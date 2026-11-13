@@ -8569,6 +8569,52 @@ int main(int argc, char **argv)
         }
     }
 
+    /* 6c2d. D-269 (closed 2026-11-13): a behaviour-5 record whose move scan
+     * projects into map row 0 probes the tile above it ([SI-0x20], 1000:E1D3)
+     * and the original reads the image's 32-byte zero pad just before the map
+     * copy (202F:1FEB..202F:200A) - "nothing above the level", not a wall.
+     * The port's old 0xFF sentinel read >= 0xF0 and ran 1000:E27A: the record
+     * was hidden (+6 = 0xFF) and its class byte zeroed, which is how a spear
+     * carried/thrown at the level top disappeared in mid-air. */
+    object_init();
+    if (level_load(0) == 0) {
+        uint8_t *sp = object_slot(9u);
+
+        _check(sp != NULL, "D-269: the level's spear is record 9");
+        if (sp) {
+            object_set_slot_class(1u, 0x85u); // behaviour 5 + the carried mark
+            sp[0] = 40u;
+            sp[1] = 0u;
+            sp[2] = (uint8_t)(uint16_t)-6; // the carrier-overlay hand cache
+            sp[3] = (uint8_t)((uint16_t)-6 >> 8);
+            wr_le_u16(sp + 4u, 0x005Cu); // pair A (0x0F, 0x07): y -6 + 7 = row 0
+            wr_le_u16(sp + 6u, 0u);
+            wr_le_u16(sp + 8u, 0xFFFFu);
+            wr_le_u16(sp + 0xAu, 0u);
+            wr_le_u16(sp + 0xCu, 0u);
+            wr_le_u16(sp + 0xEu, 0u);
+            /* the stepper (and so the move scan) runs on odd frames only */
+            while ((object_frame_counter_probe() & 1u) == 0u) object_tick(NULL);
+            object_update_list();
+            _check(sp[6] == 0x00u && object_slot_class(1u) == 0x85u,
+                   "D-269: a row-0 probe reads the image pad, not a wall");
+        }
+
+        /* 6c2e. The prelude's other non-zero content: the dead
+         * `"levels\level01.map"` string at `202F:1FD8..0x1FEA`.  A probe whose
+         * row base is `0xFFE0` (y `-32..-17`) reads it as a tile id; here
+         * `x>>4 = 0x0E` lands on the `'e'` at `202F:1FD9`, whose page byte is 0
+         * (a surface) where id 0's is `0xFF` (solid) - so a zeroed prelude
+         * would report "blocked" (-1) instead of the row. */
+        {
+            uint32_t cell = 0;
+
+            _check(object_land_y_for_probe(0xE0, -17, &cell) == -32 &&
+                       cell == 0x65u,
+                   "D-269: the prelude string byte reads as its own tile");
+        }
+    }
+
     if (_bad) {
         fprintf(stderr, "flow: FAIL\n");
         return 1;
