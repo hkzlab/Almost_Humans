@@ -206,6 +206,53 @@ int main(int argc, char **argv)
         }
     }
 
+    /* cmd 1 (0x0209): a ready driver answers success and resets the voices -
+     * every record released and the free list back to 0..7.  Start one record
+     * first, so the reset has something to clear.  A driver that is not ready
+     * answers the original's CF. */
+    voice = g_sound_driver_mt32.startEvent(drv, 0);
+    if (voice == 0xFFFFu || !drv->record[voice].active) {
+        fprintf(stderr,
+                "FAIL: the record cmd 1 should release was not started\n");
+        g_sound_driver_mt32.destroy(drv);
+        free(rld);
+        return 1;
+    }
+    if (!g_sound_driver_mt32.reset || g_sound_driver_mt32.reset(drv) != 0) {
+        fprintf(stderr, "FAIL: cmd 1 refused on a ready driver\n");
+        g_sound_driver_mt32.destroy(drv);
+        free(rld);
+        return 1;
+    }
+    for (j = 0; j < MT32_RECORDS; j++) {
+        if (drv->record[j].active) {
+            fprintf(stderr, "FAIL: cmd 1 left record %u active\n", j);
+            g_sound_driver_mt32.destroy(drv);
+            free(rld);
+            return 1;
+        }
+    }
+    for (j = 0; j < MT32_SLOTS; j++) {
+        if (drv->slot_free[j] != (uint8_t)j) {
+            fprintf(stderr, "FAIL: cmd 1 left slot %u free=%02x\n", j,
+                    drv->slot_free[j]);
+            g_sound_driver_mt32.destroy(drv);
+            free(rld);
+            return 1;
+        }
+    }
+    {
+        SoundDriver blank;
+        memset(&blank, 0, sizeof(blank));
+        if (g_sound_driver_mt32.reset(&blank) == 0) {
+            fprintf(stderr,
+                    "FAIL: cmd 1 passed on a driver that is not ready\n");
+            g_sound_driver_mt32.destroy(drv);
+            free(rld);
+            return 1;
+        }
+    }
+
     g_sound_driver_mt32.destroy(drv);
     free(rld);
 
@@ -213,7 +260,6 @@ int main(int argc, char **argv)
         fprintf(stderr, "FAIL: TITLE.RLD rendered silence\n");
         return 1;
     }
-    printf("ok: geometry and TITLE.RLD render (peak %d, %u ticks)\n", peak,
-           i);
+    printf("ok: geometry and TITLE.RLD render (peak %d, %u ticks)\n", peak, i);
     return 0;
 }

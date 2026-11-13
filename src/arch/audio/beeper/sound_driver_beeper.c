@@ -688,7 +688,8 @@ static void _beeper_generate(SoundDriver *drv, int16_t *dst, uint32_t frames)
 }
 
 const SoundDriverModule g_sound_driver_beeper = {
-    _beeper_create,        _beeper_destroy,   _beeper_set_tempo,
-    _beeper_command_block, _beeper_load_tune, _beeper_start_event,
-    _beeper_release_event, _beeper_tick,      _beeper_generate
+    _beeper_create,      _beeper_destroy,       NULL,
+    _beeper_set_tempo,   _beeper_command_block, _beeper_load_tune,
+    _beeper_start_event, _beeper_release_event, _beeper_tick,
+    _beeper_generate
 };

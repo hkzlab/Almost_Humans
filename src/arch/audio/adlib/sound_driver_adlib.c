@@ -1234,7 +1234,8 @@ static void _adlib_generate(SoundDriver *drv, int16_t *dst, uint32_t frames)
 }
 
 const SoundDriverModule g_sound_driver_adlib = {
-    _adlib_create,        _adlib_destroy,   _adlib_set_tempo,
-    _adlib_command_block, _adlib_load_tune, _adlib_start_event,
-    _adlib_release_event, _adlib_tick,      _adlib_generate
+    _adlib_create,      _adlib_destroy,       NULL,
+    _adlib_set_tempo,   _adlib_command_block, _adlib_load_tune,
+    _adlib_start_event, _adlib_release_event, _adlib_tick,
+    _adlib_generate
 };

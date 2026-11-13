@@ -1,12 +1,14 @@
-/* MT32.DRV's replacement: the sequencer over the system mt32emu.
+/* MT32.DRV's replacement: the sequencer over mt32emu.
  *
  * Image-relative offsets (the driver is a CD resource):
- *   install   0x00DE   cmd 0     0x0178   cmd 2     0x0792   cmd 5  0x02A7
- *   cmd 6     0x03FA   cmd 0x0A  0x01CD   cmd 0x0C  0x0236   cmd 0x0E 0x01BB
+ *   install   0x00DE   cmd 0     0x0178   cmd 1     0x0209   cmd 2  0x0792
+ *   cmd 5     0x02A7   cmd 6     0x03FA   cmd 0x0A  0x01CD   cmd 0x0C 0x0236
+ *   cmd 0x0E  0x01BB
  *
- * cmd 0x0A is master volume (DT1 10 00 16); cmd 2 is the only clock.  MIDI
- * goes through mt32emu's byte-stream parser; the ROM images are read here.
- * The tune image is copied, not aliased.
+ * cmd 0x0A is master volume (DT1 10 00 16); cmd 2 is the only clock the game
+ * uses.  cmd 1 re-runs the install reset and the voice reset; no game path
+ * sends it.  MIDI goes through mt32emu's byte-stream parser; the ROM images
+ * are read here.  The tune image is copied, not aliased.
  * Deviations: D-255 (bounded reads), D-256 (no MPU-401/INT 8/envelope).
  */
 #include "audio/mt32/sound_driver_mt32.h"
@@ -1229,6 +1231,25 @@ static void _install_reset(SoundDriver *drv)
 }
 
 /**
+ * @brief cmd 1: re-probe the synth and reset it (0x0209).
+ *
+ * The original's probe is the MPU-401 handshake, which the port does not
+ * model (D-256); the emulator context create() opened is the answer to it, so
+ * a ready driver re-sends what follows a successful probe: the install reset
+ * (0x0CC7) and then the voice reset (0x05A4).
+ *
+ * @param drv the driver; NULL is accepted
+ * @return 0 on success, -1 when the driver is not ready (the original's CF)
+ */
+static int32_t _mt32_reset(SoundDriver *drv)
+{
+    if (!drv || !drv->ready) return -1;
+    _install_reset(drv); // 0x0216: mt32_probe -> mt32_mpu_reset
+    _reset_voices(drv);  // 0x021B
+    return 0;
+}
+
+/**
  * @brief Install the MT-32 emulation (INT 60h install, 0x00DE).
  *
  * @param sampleRate the output rate in Hz the caller will render at
@@ -1533,7 +1554,8 @@ static void _mt32_generate(SoundDriver *drv, int16_t *dst, uint32_t frames)
 }
 
 const SoundDriverModule g_sound_driver_mt32 = {
-    _mt32_create,        _mt32_destroy,   _mt32_set_tempo,
-    _mt32_command_block, _mt32_load_tune, _mt32_start_event,
-    _mt32_release_event, _mt32_tick,      _mt32_generate
+    _mt32_create,      _mt32_destroy,       _mt32_reset,
+    _mt32_set_tempo,   _mt32_command_block, _mt32_load_tune,
+    _mt32_start_event, _mt32_release_event, _mt32_tick,
+    _mt32_generate
 };

@@ -2,6 +2,7 @@
  *
  *   install       AX=0x60        create(rate)      driver_reset 1000:84DE
  *   cmd 0         destroy()                         game_exit 1000:8DD6
+ *   cmd 1         reset()         no game caller
  *   cmd 2         tick()         repin_ints_and_music_tick 1000:8B1E
  *   cmd 5         startEvent()   music_resume 1000:83F7 / driver_call 1000:83B7
  *   cmd 6         releaseEvent() music_stop 1000:8389
@@ -25,6 +26,9 @@ typedef struct SoundDriverModule {
     SoundDriver *(*create)(uint32_t sampleRate);
     /* cmd 0: uninstall.  NULL is accepted. */
     void (*destroy)(SoundDriver *drv);
+    /* cmd 1: re-probe and reset the synth, CF as the result (0 = success).
+     * Nothing in the game sends it; NULL = the module does not model it. */
+    int32_t (*reset)(SoundDriver *drv);
     /* cmd 0x0A: CL = the game's tempo byte (clamped to 0x64 by the drivers). */
     void (*setTempo)(SoundDriver *drv, uint8_t tempo);
     /* cmd 0x0E: identify - the driver's 8-byte command block, ES:DI. */
