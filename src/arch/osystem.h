@@ -10,7 +10,6 @@
  *
  * The core never touches SDL, the GPU, the OS or a path: if a behaviour cannot
  * be expressed here, this interface is wrong, not the core.
- * Deviations: D-02, D-03, D-05 (details in port_deviations.md).
  */
 #ifndef HUMANSRE_OSYSTEM_H
 #define HUMANSRE_OSYSTEM_H

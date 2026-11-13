@@ -4,7 +4,6 @@
  * bits; printable keys pass as ASCII; ESC/Enter/Backspace use the INT 9 codes
  * (poll_input 1000:8526, int9_keyboard_isr 1000:93A1).  A key-up clears the
  * code.
- * Deviation: D-02 (keyboard only, no analogue joystick).
  */
 #include "osystem.h"
 
