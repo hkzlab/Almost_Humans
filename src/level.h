@@ -66,6 +66,16 @@ const LevelData *level_data(void);
 const uint8_t *level_map(void);
 
 /**
+ * @brief One byte of DS `0x1FA4..0x200A` as level setup leaves it: the opacity
+ * flags, the row-block pointer and the palette-rotation table (`1000:4D16`,
+ * `1000:5137`, `1000:4E7E`, `1000:4EA1`).
+ *
+ * @param addr the DS offset
+ * @return the byte, or -1 when setup writes nothing there
+ */
+int32_t level_map_pre(uint16_t addr);
+
+/**
  * @brief The record's style byte (header +0, `[0x17EE]`): 1000:5662 tests it against 6.
  *
  * @return the level style

@@ -300,9 +300,17 @@ static uint8_t *_world; // the 512x320 composite (BG + terrain)
  * `load_terrain_pages` (1000:505C) implements. */
 static uint8_t _page_mask[256][16];
 static uint8_t _page_opacity[32]; // 0x1FA4: the 32-colour opacity flags
+/* DS:0x1FA4..0x1FC3 after level setup: `draw_objects` (`1000:4F7C`) is the last
+ * of the two `expand_terrain_bits` calls, so the window holds field J's FIRST
+ * four bytes.  A map probe above the top row reads it (`level_map_pre`). */
+static uint8_t _bd_mask[32];
 /* BD field I, copied by copy_level_row (0x4EE9) into the level palette's
  * 0x80..0xBF bank: the level background's 64-colour gradient. */
 static uint8_t _bd_row_block[0xC0];
+/* Field I's offset in the BD record.  `level_setup_screen` (`1000:4E7E`) copies
+ * the block from DS:0x6FE8 and stores the cursor at `[0x1FC4]`, so the DS word
+ * is `0x6FE8 + this`. */
+static uint32_t _bd_row_off;
 static uint8_t _bd_c_block[0x600]; // field C: the 0xA9 background art
 static uint8_t _bd_g_block[3u * 4u * 0x100u]; // field G: 3 layers x 4 max
 static uint8_t _bd_e_block[0x80]; // field E: the A9 log sprite
@@ -584,6 +592,9 @@ static void _visuals_free(void)
     _page_items_size = 0;
     _page_valid = 0;
     _anim_count = 0;
+    memset(_page_opacity, 0, sizeof _page_opacity);
+    memset(_bd_mask, 0, sizeof _bd_mask);
+    _bd_row_off = 0;
 }
 
 /**
@@ -679,17 +690,26 @@ static uint32_t _bd_walk(const uint8_t *b, uint32_t size, uint16_t *bgIndex,
 /**
  * @brief 1000:5137: expand four mask bytes into 32 opacity flags, bit 0 first.
  *
+ * @param dst the 32-byte destination
  * @param four the four-pixel value
  */
-static void _page_mask_build(const uint8_t *four)
+static void _mask_expand(uint8_t *dst, const uint8_t *four)
 {
     uint8_t bit = 0;
 
-    memset(_page_opacity, 0, sizeof _page_opacity);
+    memset(dst, 0, 32u);
     for (uint16_t b = 0; b < 4u; b++)
         for (uint16_t k = 0; k < 8u; k++)
-            _page_opacity[bit++] = (uint8_t)((four[b] >> k) & 1u ? 0xFFu : 0u);
+            dst[bit++] = (uint8_t)((four[b] >> k) & 1u ? 0xFFu : 0u);
 }
+
+/**
+ * @brief 1000:5137 into the draw pass's scratch (`_page_opacity`).
+ *
+ * @param four the four-pixel value
+ */
+static void _page_mask_build(const uint8_t *four)
+{ _mask_expand(_page_opacity, four); }
 
 /**
  * @brief The first opaque row of one 16-px tile column (0xFF when empty).
@@ -830,6 +850,8 @@ static int32_t _visuals_load(uint32_t style)
     memset(&page, 0, sizeof page);
     uint32_t end = _bd_walk(bd, bdSize, &bgIdx, &anim, &animN, &page);
     memset(_bd_row_block, 0, sizeof _bd_row_block);
+    _bd_row_off =
+        (end == bdSize && page.rowBlock) ? (uint32_t)(page.rowBlock - bd) : 0u;
     if (end == bdSize && page.rowBlock)
         memcpy(_bd_row_block, page.rowBlock, sizeof _bd_row_block); // 0x4EE9
     /* 1000:4D58's add_delta_nonzero(0x20) applies to E and H too. */
@@ -918,6 +940,10 @@ static int32_t _visuals_load(uint32_t style)
     /* draw_objects (1000:558B) then fills field B's item records; it needs
      * the same J bytes, so it runs before the BD image is released. */
     _item_masks_build(&page);
+    /* the DS window as load_level_assets leaves it: draw_objects' expand ran
+     * last, unconditionally (0x4F7C), so 0x1FA4 holds field J's first four. */
+    if (page.jBytes) _mask_expand(_bd_mask, page.jBytes);
+    else memset(_bd_mask, 0, sizeof _bd_mask);
     g_osys->memFree(bd);
 
 #if defined(HUMANSRE_TEST_PROBES)
@@ -1913,6 +1939,41 @@ uint32_t level_style(void)
 
 const uint8_t *level_map(void)
 { return _level_loaded ? _level_map_copy : NULL; }
+
+/**
+ * @brief One byte of DS `0x1FA4..0x200A` as level setup leaves it.
+ *
+ * `level_setup_screen` (`1000:4D16`) writes the BD fields into the data segment:
+ * `expand_terrain_bits` (`1000:5137`, called last by `draw_objects` at
+ * `1000:4F7C`) expands field J's **first** four bytes into the 32 opacity flags
+ * at `0x1FA4..0x1FC3`; `1000:4E7E` stores its row-block cursor at `[0x1FC4]`
+ * (`0x6FE8` + field I's offset); `1000:4EA1` copies field M - a `u16` count and
+ * that many 4-byte ranges - to `0x1FC6..`.  A map probe above the top row reads
+ * those bytes, so the map accessor asks for them here.
+ *
+ * @param addr the DS offset
+ * @return the byte, or -1 when setup writes nothing there (the image's byte applies)
+ */
+int32_t level_map_pre(uint16_t addr)
+{
+    if (addr >= 0x1FA4u && addr < 0x1FC4u) // the opacity flags
+        return (int32_t)_bd_mask[addr - 0x1FA4u];
+    if (addr >= 0x1FC4u && addr < 0x1FC6u) { // [0x1FC4], field I's DS pointer
+        uint16_t ptr = (uint16_t)(0x6FE8u + _bd_row_off);
+
+        if (_bd_row_off == 0u) return -1;
+        return (int32_t)((ptr >> (8u * (addr - 0x1FC4u))) & 0xFFu);
+    }
+    if (addr >= 0x1FC6u && addr < 0x200Bu) { // field M: the rotation table
+        uint32_t i = (uint32_t)(addr - 0x1FC6u);
+
+        if (i < 2u) return (int32_t)((_anim_count >> (8u * i)) & 0xFFu);
+        i -= 2u;
+        if (_anim_table && i < 4u * (uint32_t)_anim_count)
+            return (int32_t)_anim_table[i];
+    }
+    return -1;
+}
 
 const uint8_t *level_palette(void) { return _level_pal; }
 

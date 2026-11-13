@@ -8613,6 +8613,104 @@ int main(int argc, char **argv)
                        cell == 0x65u,
                    "D-269: the prelude string byte reads as its own tile");
         }
+
+        /* 6c2f. The level-setup part of the window, `0x1FA4..0x1FCB`.  The
+         * original's DS holds what `level_setup_screen` wrote, not the image's
+         * zeros: field J's first four bytes expanded into the 32 opacity flags
+         * (`1000:5137`, last from `draw_objects` `1000:4F7C`), the row-block
+         * pointer at `[0x1FC4]` (`1000:4E7E`) and field M's rotation table at
+         * `[0x1FC6]` (`1000:4EA1`).  Level 1 is style 3 (BD3), whose field J is
+         * `7E F8 00 3F ...` and whose table is `01 00 | 03 03 71 04`. */
+        _check(level_map_pre(0x1FA4) == 0x00 &&
+                   level_map_pre(0x1FAB) == 0x00 &&
+                   level_map_pre(0x1FAF) == 0xFF &&
+                   level_map_pre(0x1FB3) == 0xFF &&
+                   level_map_pre(0x1FB4) == 0x00 &&
+                   level_map_pre(0x1FC4) == 0xCA &&
+                   level_map_pre(0x1FC5) == 0x8D &&
+                   level_map_pre(0x1FC6) == 0x01 &&
+                   level_map_pre(0x1FC7) == 0x00 &&
+                   level_map_pre(0x1FC8) == 0x03 &&
+                   level_map_pre(0x1FC9) == 0x03 &&
+                   level_map_pre(0x1FCA) == 0x71 &&
+                   level_map_pre(0x1FCB) == 0x04,
+               "D-269: 0x1FA4..0x1FCB is the level setup's window");
+        _check(level_map_pre(0x1FEB) < 0 && level_map_pre(0x1FD8) < 0,
+               "D-269: the pad and the dead string are not setup's");
+
+        /* 6c30. The consequence: a behaviour-5 record whose projection is one
+         * row base above the map (`bx` -32..-17) probes `0x1FAB + (x>>4)`.
+         * On an opacity flag of 0xFF the original runs 1000:E27A (hidden,
+         * class byte 0); on a 0x00 flag - and on the row-0 pad - it does not. */
+        {
+            static const struct {
+                uint16_t x;
+                int16_t y;
+                uint8_t killed;
+                const char *what;
+            } cases[3] = {
+                { 0x40u, -17, 1u, "D-269: a 0xFF opacity flag kills (1000:E27A)" },
+                { 0x00u, -17, 0u, "D-269: a 0x00 opacity flag does not" },
+                { 0x40u, -6, 0u, "D-269: the row-0 pad does not" },
+            };
+            uint32_t k;
+
+            for (k = 0; k < 3u; k++) {
+                uint8_t *r;
+
+                if (level_load(0) != 0) break;
+                r = object_slot(9u); // level 1's spear, class slot 1 = 5
+                if (!r) break;
+                object_set_slot_class(1u, 5u);
+                r[0] = (uint8_t)(cases[k].x & 0xFFu);
+                r[1] = (uint8_t)(cases[k].x >> 8);
+                r[2] = (uint8_t)((uint16_t)cases[k].y & 0xFFu);
+                r[3] = (uint8_t)(((uint16_t)cases[k].y >> 8) & 0xFFu);
+                wr_le_u16(r + 4u, 0x0058u); // pair A (7,0): bx = y
+                wr_le_u16(r + 6u, 0u);
+                wr_le_u16(r + 8u, 0xFFFFu);
+                wr_le_u16(r + 0xAu, 0u);
+                wr_le_u16(r + 0xCu, 0u);
+                wr_le_u16(r + 0xEu, 0u);
+                while ((object_frame_counter_probe() & 1u) == 0u)
+                    object_tick(NULL);
+                object_update_list();
+                _check(cases[k].killed
+                           ? (r[6] == 0xFFu && object_slot_class(1u) == 0u)
+                           : (r[6] == 0x00u && object_slot_class(1u) == 5u),
+                       cases[k].what);
+            }
+        }
+    }
+
+    /* 6c31. Level 4 (style 2, BD2) is the reported level: its opacity flags
+     * start one byte later (`0x1FA5`), so the same 17-px probe reads 0x00 and
+     * the spear survives there - the D-269 behaviour is unchanged. */
+    if (level_load(3) == 0) {
+        _check(level_map_pre(0x1FA5) == 0xFF &&
+                   level_map_pre(0x1FAA) == 0xFF &&
+                   level_map_pre(0x1FAB) == 0x00 &&
+                   level_map_pre(0x1FC4) == 0x6A &&
+                   level_map_pre(0x1FC5) == 0x8F &&
+                   level_map_pre(0x1FC6) == 0x00 &&
+                   level_map_pre(0x1FC7) == 0x00,
+               "D-269: level 4's setup window is BD2's");
+    }
+
+    /* 6c32. D-233's remaining bound, pinned so it cannot drift silently: a
+     * record a row below the map reaches `0x290 + x>>4` (`DS:0x2537`), past
+     * the second copy, and the accessor returns 0. */
+    if (level_load(0) == 0) {
+        uint8_t *r = object_slot(0u);
+
+        if (r) {
+            r[0] = 0x40u;
+            r[1] = 0u;
+            r[2] = 0x90u; // y = 0x290: one row below the map
+            r[3] = 0x02u;
+            _check(object_record_map_cell(0u) == 0u,
+                   "D-233: a record below the map reads 0");
+        }
     }
 
     if (_bad) {

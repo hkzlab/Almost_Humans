@@ -1845,17 +1845,18 @@ void object_map_tail_reset(const uint8_t *map)
  * the map they are loading, not necessarily `level_map()`).
  *
  * The original forms the address in 16 bits - `MOV SI,[0x1FA0]` then `ADD SI,CX`
- * twice (`1000:E2E8`, `1000:E1CB`) - so a cell above the map lands in the image
- * bytes below the copy and a far one wraps through DS.  The port keeps the
+ * twice (`1000:E2E8`, `1000:E1CB`) - so a cell above the map lands in the data
+ * segment below the copy and a far one wraps through DS.  The port keeps the
  * 16-bit wrap and models `DS:0x1FA0..0x252A`; outside that window it returns 0
  * (D-233).
  *
- * Below the copy the image holds only three things: the words at `202F:1FA0` and
- * `202F:1FA2` (both the map base, `0x200B`), zeros, and the dead
- * `"levels\level01.map"` string at `202F:1FD8..0x1FEA`.  They are modelled from
- * those two facts rather than from a byte image.  A probe one row above a row-0
- * point lands in the 32-byte zero pad `202F:1FEB..202F:200A`, so the tile above
- * the top row is empty, not a wall (D-269).
+ * Below the copy the original's bytes are, in order: `[0x1FA0]`/`[0x1FA2]`
+ * (the map base twice, image words), the level-setup window `0x1FA4..0x1FCB`
+ * (`level_map_pre`: the opacity flags, the row-block pointer and the rotation
+ * table), and then image data - zeros and the dead `"levels\level01.map"`
+ * string at `202F:1FD8..0x1FEA`.  The 32-byte zero pad `202F:1FEB..0x200A` is
+ * what a probe one row above a row-0 point reads, so the tile above the top row
+ * is empty, not a wall (D-269).
  *
  * @param map the 640-byte map
  * @param idx the cell index, relative to the copy (0..+0x51F in play)
@@ -1865,12 +1866,15 @@ static uint32_t _obj_map_byte_at(const uint8_t *map, int32_t idx)
 {
     static const char prelude[] = "levels\\level01.map";
     uint16_t addr;
+    int32_t pre;
 
     if (!map) return 0u;
     addr = (uint16_t)(OBJ_MAP_DS_BASE + (uint16_t)idx);
     if (addr < OBJ_MAP_DS_BASE) { // wrapped below the copy
         if ((uint16_t)(addr - 0x1FA0u) < 4u) // [0x1FA0], the map base twice
             return (OBJ_MAP_DS_BASE >> (8u * (addr & 1u))) & 0xFFu;
+        pre = level_map_pre(addr); // the level setup's bytes at 0x1FA4..
+        if (pre >= 0) return (uint32_t)pre;
         if ((uint16_t)(addr - 0x1FD8u) < sizeof prelude) // the dead path string
             return (uint8_t)prelude[addr - 0x1FD8u];
         return 0u; // the zero pad, or below 0x1FA0 (D-233)
