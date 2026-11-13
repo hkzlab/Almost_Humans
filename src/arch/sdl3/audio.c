@@ -170,12 +170,14 @@ int32_t sdl3_audio_select(const char *name, const char *roms)
         _driver_id = 1;
         return 0;
     }
+
     if (strcmp(name, "beeper") == 0) {
         _module = &g_sound_driver_beeper;
         _module_name = "Beeper";
         _driver_id = 0;
         return 0;
     }
+    
 #ifdef HUMANSRE_HAVE_MT32
     if (strcmp(name, "mt32") == 0) {
         if (!roms || !roms[0]) return -2;

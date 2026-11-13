@@ -22,6 +22,12 @@
 #    include <unistd.h>
 #endif
 
+#ifdef HUMANSRE_HAVE_MT32
+#            define AVAILABLE_AUDIO_DRIVERS  "adlib|beeper|mt32"
+#else
+#            define AVAILABLE_AUDIO_DRIVERS  "adlib|beeper"
+#endif
+
 /** @brief Set the mode, scaling the 320x200 and 320x192 fields to fill 4:3.
  *
  * @param mode the mode
@@ -245,9 +251,10 @@ static CliParseResult _parse_args(int argc, char **argv, CliOptions *opts)
     }
     if (!opts->path) {
         fprintf(stderr,
-                "USAGE: %s [--audio adlib|beeper|mt32] [--mt32-roms <dir>] "
+                "USAGE: %s [--audio %s] [--mt32-roms <dir>] "
                 "[--version] /path/to/HUMANS/volumes\n",
-                argv[0]);
+                argv[0],
+                AVAILABLE_AUDIO_DRIVERS);
         return CLI_PARSE_ERROR;
     }
     return CLI_PARSE_CONTINUE;
@@ -291,15 +298,12 @@ static int _select_audio(const CliOptions *opts)
         fprintf(stderr, "--audio mt32 needs --mt32-roms <directory>\n");
         return 1;
     default:
-#ifdef HUMANSRE_HAVE_MT32
-        fprintf(stderr, "unknown audio driver '%s' (adlib, beeper, mt32)\n",
-                opts->audio);
-#else
         fprintf(stderr,
-                "unknown audio driver '%s' (adlib, beeper; this "
-                "build has no mt32emu)\n",
-                opts->audio);
-#endif
+            "unknown audio driver '%s' (available: %s)\n",
+            opts->audio,
+            AVAILABLE_AUDIO_DRIVERS 
+        );
+
         return 1;
     }
 }
