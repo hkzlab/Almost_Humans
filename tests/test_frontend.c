@@ -100,7 +100,7 @@ static int32_t _walk_to(uint32_t dirBit, uint32_t want, const char *what)
 static void _press_action(void)
 {
     InputState in = _idle();
-    in.joyBits = 0x80u;
+    in.joyBits = JOYBITS_FIRE;
     _tick(&in);
     InputState rel = _idle();
     _tick(&rel);
@@ -264,8 +264,8 @@ int main(int argc, char **argv)
     }
 
     /* --- LEVEL: cell 2 (EASY/NORMAL/HARD = 3 states) ------------------- */
-    bad |= _walk_to(0x01u, 1u, "up to the walkway");
-    bad |= _walk_to(0x04u, 2u, "left to LEVEL");
+    bad |= _walk_to(JOYBITS_UP, 1u, "up to the walkway");
+    bad |= _walk_to(JOYBITS_LEFT, 2u, "left to LEVEL");
     if (frontend_option(FRONTEND_OPT_LEVEL) != 0u) {
         fprintf(stderr, "FAIL LEVEL starts at %u, want 0\n",
                 frontend_option(FRONTEND_OPT_LEVEL));
@@ -288,7 +288,7 @@ int main(int argc, char **argv)
     _press_action(); // leave it on NORMAL for the level
 
     /* --- MUSIC: cell 3 (ON/OFF = 2 states) ----------------------------- */
-    bad |= _walk_to(0x04u, 3u, "left to MUSIC");
+    bad |= _walk_to(JOYBITS_LEFT, 3u, "left to MUSIC");
     _press_action(); // 0 -> 1: OFF
     if (frontend_option(FRONTEND_OPT_MUSIC) != 1u) {
         fprintf(stderr, "FAIL MUSIC did not advance to 1\n");
@@ -323,10 +323,10 @@ int main(int argc, char **argv)
     }
 
     /* --- on to RESTORE GAME: cell 6 (OFF/1..20 = 21 states) ----------- */
-    bad |= _walk_to(0x08u, 2u, "right back to LEVEL");
-    bad |= _walk_to(0x08u, 1u, "right to the floor rail");
-    bad |= _walk_to(0x02u, 0u, "down to the floor");
-    bad |= _walk_to(0x08u, 6u, "right to RESTORE GAME");
+    bad |= _walk_to(JOYBITS_RIGHT, 2u, "right back to LEVEL");
+    bad |= _walk_to(JOYBITS_RIGHT, 1u, "right to the floor rail");
+    bad |= _walk_to(JOYBITS_DOWN, 0u, "down to the floor");
+    bad |= _walk_to(JOYBITS_RIGHT, 6u, "right to RESTORE GAME");
     _press_action(); // 0 -> 1
     if (frontend_option(FRONTEND_OPT_GAME) != 1u) {
         fprintf(stderr, "FAIL RESTORE GAME did not advance to 1\n");
@@ -343,10 +343,10 @@ int main(int argc, char **argv)
     _press_action(); // leave GAME 1 for the exit
 
     /* --- ANIMATIONS: cell 5 (ON/OFF = 2 states) ----------------------- */
-    bad |= _walk_to(0x04u, 0u, "left to the floor start");
-    bad |= _walk_to(0x01u, 1u, "up to the walkway");
-    bad |= _walk_to(0x01u, 4u, "up to the top rail");
-    bad |= _walk_to(0x08u, 5u, "right to ANIMATIONS");
+    bad |= _walk_to(JOYBITS_LEFT, 0u, "left to the floor start");
+    bad |= _walk_to(JOYBITS_UP, 1u, "up to the walkway");
+    bad |= _walk_to(JOYBITS_UP, 4u, "up to the top rail");
+    bad |= _walk_to(JOYBITS_RIGHT, 5u, "right to ANIMATIONS");
     _press_action(); // 0 -> 1: OFF
     if (frontend_option(FRONTEND_OPT_ANIM) != 1u) {
         fprintf(stderr, "FAIL ANIMATIONS did not advance to 1\n");
@@ -363,11 +363,11 @@ int main(int argc, char **argv)
     _press_action(); // leave it OFF for the cutscene gate
 
     /* --- exit: walk off the right edge, carrying the settings out ----- */
-    bad |= _walk_to(0x04u, 4u, "left off the top rail");
-    bad |= _walk_to(0x02u, 1u, "down to the walkway");
-    bad |= _walk_to(0x02u, 0u, "down to the floor");
-    bad |= _walk_to(0x08u, 6u, "right to the exit rail");
-    bad |= _walk_to(0x08u, 0u, "off the right edge");
+    bad |= _walk_to(JOYBITS_LEFT, 4u, "left off the top rail");
+    bad |= _walk_to(JOYBITS_DOWN, 1u, "down to the walkway");
+    bad |= _walk_to(JOYBITS_DOWN, 0u, "down to the floor");
+    bad |= _walk_to(JOYBITS_RIGHT, 6u, "right to the exit rail");
+    bad |= _walk_to(JOYBITS_RIGHT, 0u, "off the right edge");
     {
         InputState in = _idle();
         uint32_t i;
@@ -408,7 +408,7 @@ int main(int argc, char **argv)
 
         /* hold left: the rail takes the character to x=0x108, then the pan
          * runs the scroll to 0 and the name screen opens */
-        in.joyBits = 0x04u;
+        in.joyBits = JOYBITS_LEFT;
         for (t = 0; t < 800u && !frontend_name_screen_for_probe(); t++)
             _tick(&in);
         in = _idle();

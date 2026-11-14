@@ -299,15 +299,15 @@ int main(int argc, char **argv)
         }
         /* the save grid is opened from the pause and must stay frozen */
         menu_open_pause();
-        (void)_press(0x02u);
-        (void)_press(0x02u);
-        (void)_press(0x02u);
-        (void)_press(0x80u); // SAVE GAME -> the grid
+        (void)_press(JOYBITS_DOWN);
+        (void)_press(JOYBITS_DOWN);
+        (void)_press(JOYBITS_DOWN);
+        (void)_press(JOYBITS_FIRE); // SAVE GAME -> the grid
         if (level_updates()) {
             fprintf(stderr, "FAIL D-232: the save grid did not stay frozen\n");
             bad = 1;
         }
-        (void)_press(0x80u); // pick a slot -> MENU_DONE
+        (void)_press(JOYBITS_FIRE); // pick a slot -> MENU_DONE
         menu_close();
         if (!level_updates()) {
             fprintf(stderr,
@@ -330,12 +330,12 @@ int main(int argc, char **argv)
             fprintf(stderr, "FAIL the menu did not open\n");
             return 1;
         }
-        for (uint32_t i = 0; i < r; i++) (void)_press(0x02u);   // down
+        for (uint32_t i = 0; i < r; i++) (void)_press(JOYBITS_DOWN); // down
         if (r > 0u && menu_result() != -1) {
             fprintf(stderr, "FAIL the result appeared early\n");
             bad = 1;
         }
-        (void)_press(0x80u);                                    // ACTION
+        (void)_press(JOYBITS_FIRE); // ACTION
         if (r == 3u) {
             /* SAVE GAME opens the grid instead of closing */
             if (!menu_active() || menu_result() != -1) {
@@ -357,13 +357,13 @@ int main(int argc, char **argv)
 
     /* wrap: UP from row 0 -> row 4 (QUIT) */
     menu_open_pause();
-    (void)_press(0x01u);
+    (void)_press(JOYBITS_UP);
     menu_draw();
     {
         const uint8_t *page = osys_null_page(0);
         uint32_t fill = 0, text = 0, outline = 0, violations = 0;
         for (uint32_t i = 0; i < 320u * 200u; i++)
-            if (page[i] == 26u) fill++;          // BOX.SPR's fill index
+            if (page[i] == 26u) fill++; // BOX.SPR's fill index
         /* the text = the fill tile's EB..E4..EB ramp | 0x10 -> F4..FB, and
          * the black outline around it (1000:9FA7 -> 9FB1) */
         _text_outline(page, &text, &outline, &violations);
@@ -385,7 +385,7 @@ int main(int argc, char **argv)
             bad = 1;
         }
     }
-    (void)_press(0x80u);
+    (void)_press(JOYBITS_FIRE);
     if (menu_result() != 4) {
         fprintf(stderr, "FAIL the UP wrap gave %d, want 4\n", menu_result());
         bad = 1;
@@ -394,16 +394,16 @@ int main(int argc, char **argv)
     /* 2. the SAVE GAME grid: 4x5 column-major, cell r,c = 4c+r+1.
      *    Row 0 col 0 = game 1; DOWN once = game 2; RIGHT once = game 5. */
     menu_open_pause();
-    (void)_press(0x02u);
-    (void)_press(0x02u);
-    (void)_press(0x02u); // row 3
-    (void)_press(0x80u); // the grid
+    (void)_press(JOYBITS_DOWN);
+    (void)_press(JOYBITS_DOWN);
+    (void)_press(JOYBITS_DOWN); // row 3
+    (void)_press(JOYBITS_FIRE); // the grid
     if (!menu_active()) {
         fprintf(stderr, "FAIL the grid did not open\n");
         return 1;
     }
-    (void)_press(0x02u); // row 1
-    (void)_press(0x80u);
+    (void)_press(JOYBITS_DOWN); // row 1
+    (void)_press(JOYBITS_FIRE);
     if (menu_slot() != 2u || menu_result() != 3) {
         fprintf(stderr, "FAIL grid (0,1) gave game %u (result %d)\n",
                 menu_slot(), menu_result());
@@ -412,12 +412,12 @@ int main(int argc, char **argv)
     menu_close();
 
     menu_open_pause();
-    (void)_press(0x02u);
-    (void)_press(0x02u);
-    (void)_press(0x02u);
-    (void)_press(0x80u);
-    (void)_press(0x08u); // right
-    (void)_press(0x80u);
+    (void)_press(JOYBITS_DOWN);
+    (void)_press(JOYBITS_DOWN);
+    (void)_press(JOYBITS_DOWN);
+    (void)_press(JOYBITS_FIRE);
+    (void)_press(JOYBITS_RIGHT); // right
+    (void)_press(JOYBITS_FIRE);
     if (menu_slot() != 5u) {
         fprintf(stderr, "FAIL grid (0,1) gave game %u, want 5\n", menu_slot());
         bad = 1;
@@ -426,10 +426,10 @@ int main(int argc, char **argv)
 
     /* the grid page is the same draw_map_object, so it gets the outline too */
     menu_open_pause();
-    (void)_press(0x02u);
-    (void)_press(0x02u);
-    (void)_press(0x02u);
-    (void)_press(0x80u);
+    (void)_press(JOYBITS_DOWN);
+    (void)_press(JOYBITS_DOWN);
+    (void)_press(JOYBITS_DOWN);
+    (void)_press(JOYBITS_FIRE);
     {
         const uint8_t *page = osys_null_page(0);
         uint32_t text = 0, outline = 0, violations = 0;
@@ -444,13 +444,13 @@ int main(int argc, char **argv)
         }
     }
     menu_open_pause();
-    (void)_press(0x02u);
-    (void)_press(0x02u);
-    (void)_press(0x02u);
-    (void)_press(0x80u);
-    (void)_press(0x01u); // row wrap 0->3
-    (void)_press(0x04u); // left wrap 0->4
-    (void)_press(0x80u);
+    (void)_press(JOYBITS_DOWN);
+    (void)_press(JOYBITS_DOWN);
+    (void)_press(JOYBITS_DOWN);
+    (void)_press(JOYBITS_FIRE);
+    (void)_press(JOYBITS_UP); // row wrap 0->3
+    (void)_press(JOYBITS_LEFT); // left wrap 0->4
+    (void)_press(JOYBITS_FIRE);
     if (menu_slot() != 20u) {
         fprintf(stderr, "FAIL the grid wrap gave game %u, want 20\n",
                 menu_slot());
@@ -800,12 +800,12 @@ int main(int argc, char **argv)
         }
         /* SAVE GAME through the action: the menu's slot + the live state */
         menu_open_pause();
-        (void)_press(0x02u);
-        (void)_press(0x02u);
-        (void)_press(0x02u);
-        (void)_press(0x80u); // the grid
-        (void)_press(0x02u); // row 1 = game 2
-        (void)_press(0x80u);
+        (void)_press(JOYBITS_DOWN);
+        (void)_press(JOYBITS_DOWN);
+        (void)_press(JOYBITS_DOWN);
+        (void)_press(JOYBITS_FIRE); // the grid
+        (void)_press(JOYBITS_DOWN); // row 1 = game 2
+        (void)_press(JOYBITS_FIRE);
         if (menu_slot() != 2u) {
             fprintf(stderr, "FAIL the action's slot is %u\n", menu_slot());
             bad = 1;
@@ -857,8 +857,8 @@ int main(int argc, char **argv)
             fprintf(stderr, "FAIL the time-up dialog did not open\n");
             bad = 1;
         }
-        (void)_press(0x02u); // row 1
-        (void)_press(0x80u);
+        (void)_press(JOYBITS_DOWN); // row 1
+        (void)_press(JOYBITS_FIRE);
         if (!menu_time_up() || menu_result() != 1) {
             fprintf(stderr, "FAIL the time-up dialog gave %d (kind %d)\n",
                     menu_result(), menu_time_up());
@@ -943,10 +943,10 @@ int main(int argc, char **argv)
         _dump_ppm(dump_dir, "menu_port_pause", osys_null_page(0),
                   osys_null_palette());
         level_tick();
-        (void)_press(0x02u);
-        (void)_press(0x02u);
-        (void)_press(0x02u);
-        (void)_press(0x80u); // the save grid
+        (void)_press(JOYBITS_DOWN);
+        (void)_press(JOYBITS_DOWN);
+        (void)_press(JOYBITS_DOWN);
+        (void)_press(JOYBITS_FIRE); // the save grid
         level_tick(); // the fresh level frame
         menu_draw();
         _dump_ppm(dump_dir, "menu_port_grid", osys_null_page(0),

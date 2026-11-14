@@ -61,7 +61,7 @@ int main(int argc, char **argv)
             audio_tick();
         }
         in.lastKey = 1u;
-        in.joyBits = 0x80u;
+        in.joyBits = JOYBITS_FIRE;
         for (; t < 20000u; t++) {
             run = party_intro_tick(&in);
             palette_tick();

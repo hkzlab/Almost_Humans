@@ -148,7 +148,7 @@ uint8_t level_disk_status_tick(const InputState *in)
         _disk_phase = DISK_WAIT;
         return 1;
     case DISK_WAIT:
-        if (in->lastKey || (in->joyBits & 0x80u)) {
+        if (in->lastKey || (in->joyBits & JOYBITS_FIRE)) {
             if (res_volume_present(_disk_disc)) {
                 palette_build_fade(0u, 0x100u, 0x1Eu, _disk_black);
                 _disk_phase = DISK_FADE_OUT;

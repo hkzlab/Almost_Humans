@@ -610,7 +610,7 @@ uint8_t score_tick(const InputState *in)
             /* check_highscore's loop: while ([0x1DC8] & 0x8000) == 0, and it
              * also breaks on the fire bit ([0x5ACE] & 0x80) or [0x48A3].  The
              * screen ends by itself after 0x15E ticks. */
-            if (!alive || in->lastKey || (in->joyBits & 0x80u)) {
+            if (!alive || in->lastKey || (in->joyBits & JOYBITS_FIRE)) {
                 palette_build_fade(0u, 0x100u, 0x23u, black); // 1000:438A
                 _score_phase = SCORE_FADE;
             }

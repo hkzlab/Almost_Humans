@@ -537,7 +537,7 @@ int main(int argc, char **argv)
                 int32_t x0 = (int32_t)(int16_t)(rd_le_u16(m + 0));
 
                 memset(&in, 0, sizeof in);
-                in.joyBits = 0x08u;                 // right
+                in.joyBits = JOYBITS_RIGHT; // right
                 for (uint32_t t = 0; t < 6u; t++) {
                     level_note_input(&in);
                     level_tick();

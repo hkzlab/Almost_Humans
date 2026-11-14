@@ -662,7 +662,7 @@ static void _next_effect(void)
 static int32_t _local_key(const InputState *in)
 {
     return in->keyHeld != 0u || in->lastKey != 0u ||
-           (in->joyBits & 0x80u) != 0u;
+           (in->joyBits & JOYBITS_FIRE) != 0u;
 }
 
 /** @brief attract_exit (1000:13E9): the escape test - the configured action key
@@ -675,7 +675,7 @@ static int32_t _local_key(const InputState *in)
  */
 static int32_t _escape_test(const InputState *in)
 {
-    return (in->joyBits & 0x80u) != 0u || in->keyHeld != 0u ||
+    return (in->joyBits & JOYBITS_FIRE) != 0u || in->keyHeld != 0u ||
            in->lastKey != 0u;
 }
 

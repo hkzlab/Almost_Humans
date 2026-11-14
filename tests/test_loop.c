@@ -183,7 +183,7 @@ int main(void)
      *    ticks (div 0x23) end the attract -> MENU. */
     {
         InputState in = _make_input();
-        in.joyBits = 0x80u;               // the configured action key
+        in.joyBits = JOYBITS_FIRE; // the configured action key
         GameFlow s = FLOW_ATTRACT;
         s = gameflow_step(s, &in);
         palette_tick();
@@ -219,7 +219,7 @@ int main(void)
         bad |=
             _expect_state(s, FLOW_MENU, 0, "menu ESC stays (clears the name)");
         InputState act = _make_input();
-        act.joyBits = 0x80u;
+        act.joyBits = JOYBITS_FIRE;
         s = gameflow_step(s, &act);
         bad |=
             _expect_state(s, FLOW_MENU, 0, "menu action stays (option cycle)");
@@ -241,7 +241,7 @@ int main(void)
             bad = 1;
         }
         InputState fire = _make_input();
-        fire.joyBits = 0x80u;
+        fire.joyBits = JOYBITS_FIRE;
         s = gameflow_step(s, &fire);      // escape again
         palette_tick();
         audio_tick();
@@ -260,7 +260,7 @@ int main(void)
      *    and the fade, and the flow lands in LEVEL. */
     {
         InputState right = _make_input();
-        right.joyBits = 0x08u;
+        right.joyBits = JOYBITS_RIGHT;
         GameFlow s = FLOW_MENU;
         uint32_t guard = 0;
         do {

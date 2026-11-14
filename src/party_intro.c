@@ -719,7 +719,7 @@ static void _party_begin(void)
 
 uint8_t party_intro_tick(const InputState *in)
 {
-    uint8_t fire = (uint8_t)(in->joyBits & 0x80u);
+    uint8_t fire = (uint8_t)(in->joyBits & JOYBITS_FIRE);
     uint8_t anyk = (in->lastKey != 0u);
 
     switch (_phase) {

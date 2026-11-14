@@ -518,7 +518,7 @@ uint8_t map_tick(const InputState *in)
             return 1;
         default: break;
         }
-        if (in->lastKey || (in->joyBits & 0x80u)) {
+        if (in->lastKey || (in->joyBits & JOYBITS_FIRE)) {
             _map_phase = MAP_NAME_FADE; // 1000:0285: the key wait
             _map_trans = 0;
         }
@@ -607,16 +607,16 @@ uint8_t map_tick(const InputState *in)
         }
         if (_map_move_tick()) return 1; // four 3-degree draws + three holds
 
-        if (!(in->joyBits & 0x80u)) _map_fire_lock = 0;
+        if (!(in->joyBits & JOYBITS_FIRE)) _map_fire_lock = 0;
 
         uint8_t committed = 0;
 
-        if (in->joyBits & 0x04u) { // left: 1000:03DA, [0x48] -= 3 x4
+        if (in->joyBits & JOYBITS_LEFT) { // left: 1000:03DA, [0x48] -= 3 x4
             _map_move_dir = -1;
             _map_move_steps = 4;
             return (uint8_t)(_map_move_tick());
         }
-        if (in->joyBits & 0x08u) { // right: 1000:03B5, [0x48] += 3 x4
+        if (in->joyBits & JOYBITS_RIGHT) { // right: 1000:03B5, [0x48] += 3 x4
             _map_move_dir = 1;
             _map_move_steps = 4;
             return (uint8_t)(_map_move_tick());
@@ -641,7 +641,7 @@ uint8_t map_tick(const InputState *in)
                 _map_angle = (0x10Eu + 0x168u - cell * 0x0Cu) % 0x168u;
                 committed = (uint8_t)(_map_apply(cell));
             }
-        } else if ((in->joyBits & 0x80u) && !_map_fire_lock &&
+        } else if ((in->joyBits & JOYBITS_FIRE) && !_map_fire_lock &&
                    _map_fire_wait >= 0x23u) {
             /* 1000:03FB CMP [0x5AC8],0x23 / 0x0405 reset */
             _map_fire_wait = 0u;
@@ -719,7 +719,7 @@ uint8_t map_tick(const InputState *in)
             g_map_panel = (uint16_t)((int32_t)g_map_panel + _map_step_dir);
         return 1;
     }
-    if (in->joyBits & 0x01u) {
+    if (in->joyBits & JOYBITS_UP) {
         if (g_map_panel < 6u) {
             _map_step = 0x14;
             _map_step_dir = 1;
@@ -727,7 +727,7 @@ uint8_t map_tick(const InputState *in)
         _map_redraw();
         return 1;
     }
-    if (in->joyBits & 0x02u) {
+    if (in->joyBits & JOYBITS_DOWN) {
         if (g_map_panel > 1u) {
             _map_step = 0x14;
             _map_step_dir = -1;
@@ -736,7 +736,7 @@ uint8_t map_tick(const InputState *in)
         return 1;
     }
 
-    if (in->lastKey || (in->joyBits & 0x80u)) {
+    if (in->lastKey || (in->joyBits & JOYBITS_FIRE)) {
         _map_exit_begin(); // 1000:062B: fade all 256 entries, then save
         return 1;
     }

@@ -122,7 +122,7 @@ static uint16_t _boot_hold; // the stages' hold counters (c0b8's CX)
 static int32_t _boot_key_state(void)
 {
     return _scene_last_input.keyHeld != 0u || _scene_last_input.lastKey != 0u ||
-           (_scene_last_input.joyBits & 0x80u) != 0u;
+           (_scene_last_input.joyBits & JOYBITS_FIRE) != 0u;
 }
 
 void scene_note_input(const InputState *in) { _scene_last_input = *in; }

@@ -111,9 +111,9 @@ uint8_t menu_tick(const InputState *in)
 
     if (_phase == MENU_PAUSE || _phase == MENU_TIMEOUT) {
         uint8_t nrows = (_phase == MENU_PAUSE) ? MENU_ROWS : 3u; // [0x5E41]
-        if (press & 0x01u) _row = _row ? _row - 1u : nrows - 1u;
-        else if (press & 0x02u) _row = (_row + 1u) % nrows;
-        if ((press & 0x80u) || key == 0x0D) {
+        if (press & JOYBITS_UP) _row = _row ? _row - 1u : nrows - 1u;
+        else if (press & JOYBITS_DOWN) _row = (_row + 1u) % nrows;
+        if ((press & JOYBITS_FIRE) || key == 0x0D) {
             if (_phase == MENU_TIMEOUT) {
                 _result = (int16_t)_row;
                 _phase = MENU_DONE;
@@ -130,11 +130,11 @@ uint8_t menu_tick(const InputState *in)
             }
         }
     } else { // MENU_GRID
-        if (press & 0x01u) _row = _row ? _row - 1u : GRID_ROWS - 1u;
-        else if (press & 0x02u) _row = (_row + 1u) % GRID_ROWS;
-        else if (press & 0x08u) _col = (_col + 1u) % GRID_COLS;
-        else if (press & 0x04u) _col = _col ? _col - 1u : GRID_COLS - 1u;
-        if ((press & 0x80u) || key == 0x0D) {
+        if (press & JOYBITS_UP) _row = _row ? _row - 1u : GRID_ROWS - 1u;
+        else if (press & JOYBITS_DOWN) _row = (_row + 1u) % GRID_ROWS;
+        else if (press & JOYBITS_RIGHT) _col = (_col + 1u) % GRID_COLS;
+        else if (press & JOYBITS_LEFT) _col = _col ? _col - 1u : GRID_COLS - 1u;
+        if ((press & JOYBITS_FIRE) || key == 0x0D) {
             _slot = (uint8_t)(4u * _col + _row + 1u); // the 4c+r+1 law
             _result = 3;
             _phase = MENU_DONE;

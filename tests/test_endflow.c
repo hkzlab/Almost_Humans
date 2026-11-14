@@ -124,8 +124,8 @@ int main(int argc, char **argv)
      * held key, then force the level's end at FORCE_POLL and dismiss the
      * caption. */
     memset(script, 0, sizeof script);
-    script[7400].joyBits = 0x80u;
-    for (uint32_t i = 7500; i <= 7750u; i++) script[i].joyBits = 0x08u;
+    script[7400].joyBits = JOYBITS_FIRE;
+    for (uint32_t i = 7500; i <= 7750u; i++) script[i].joyBits = JOYBITS_RIGHT;
     script[7950].lastKey = 1u;
     for (uint32_t i = 8000u; i <= 8490u; i++) script[i].lastKey = 1u;
     for (uint32_t i = FORCE_POLL + 50u; i <= FORCE_POLL + 160u; i++)

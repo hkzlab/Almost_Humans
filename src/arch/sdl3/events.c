@@ -23,15 +23,15 @@ static void _set_joy_bits(SDL_Keycode k, uint8_t down)
 {
     uint32_t mask;
     switch (k) {
-    case SDLK_UP: mask = 0x01u; break;
-    case SDLK_DOWN: mask = 0x02u; break;
-    case SDLK_LEFT: mask = 0x04u; break;
-    case SDLK_RIGHT: mask = 0x08u; break;
+    case SDLK_UP: mask = JOYBITS_UP; break;
+    case SDLK_DOWN: mask = JOYBITS_DOWN; break;
+    case SDLK_LEFT: mask = JOYBITS_LEFT; break;
+    case SDLK_RIGHT: mask = JOYBITS_RIGHT; break;
     case SDLK_Z:
         /* The configured action key ([0x5B05] = scancode 0x2C = Z).  Only
          * this key sets the action bit: an Enter mapping here made the
          * attract's action-bit escape fire on Enter. */
-        mask = 0x80u;
+        mask = JOYBITS_FIRE;
         break;
     default: return;
     }

@@ -120,10 +120,12 @@ int main(int argc, char **argv)
      * walk-out (7500..7750), the party key (8100), the goal page's key
      * (8872), then the play loop - the pan follows the 9000 seed below. */
     memset(_script, 0, sizeof _script);
-    _script[7400].joyBits = 0x80u;
-    for (uint32_t i = 7500u; i <= 7750u; i++) _script[i].joyBits = 0x08u;
+    _script[7400].joyBits = JOYBITS_FIRE;
+    for (uint32_t i = 7500u; i <= 7750u; i++)
+        _script[i].joyBits = JOYBITS_RIGHT;
     _script[8100].lastKey = 1u;
-    for (uint32_t i = 8777u; i <= 8867u; i++) _script[i].joyBits = 0x08u;
+    for (uint32_t i = 8777u; i <= 8867u; i++)
+        _script[i].joyBits = JOYBITS_RIGHT;
     _script[8872].lastKey = 1u;
     _script[SCRIPT_N - 1].quit = 1u;
 

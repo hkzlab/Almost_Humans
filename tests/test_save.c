@@ -113,7 +113,7 @@ static int32_t _walk_to(GameFlow *s, uint32_t dirBit, uint32_t want,
 static int32_t _press_action(GameFlow *s)
 {
     InputState in = _idle();
-    in.joyBits = 0x80u;
+    in.joyBits = JOYBITS_FIRE;
     int32_t over = _tick(s, &in);
     InputState rel = _idle();
     return over | _tick(s, &rel);

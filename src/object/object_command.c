@@ -6,6 +6,7 @@
 #include "object_core.h"
 #include "object_units.h"
 #include "level/level.h"
+#include "osystem.h"
 #include "byteorder.h"
 #include <string.h>
 
@@ -496,7 +497,7 @@ ObjCommand object_command_select(uint8_t *rec, uint8_t input)
 {
     ObjCommand out;
     uint8_t v = _obj_sequence_normalise_input(input);
-    uint8_t cmd = _obj_cmd_key[v & 0x0Fu];
+    uint8_t cmd = _obj_cmd_key[v & JOYBITS_DIRS];
     const uint8_t *row;
     uint16_t type = rd_le_u16(rec + 8u); // [SI+8]
     uint8_t idx;
@@ -506,7 +507,7 @@ ObjCommand object_command_select(uint8_t *rec, uint8_t input)
     out.hook = 0u;
     out.command = 0u;
     if (type >= 35u) return out; // no row: the original reads 0x6DEA
-    row = _obj_cmd_rows[type] + ((v & 0x80u) ? 0x10u : 0u);
+    row = _obj_cmd_rows[type] + ((v & JOYBITS_FIRE) ? 0x10u : 0u);
     out.tail = rd_le_u16(row + 0xCu);
     out.hook = row[0xAu];
     if (cmd & 0x80u) return out; // bit 7: this input has no command
@@ -1475,7 +1476,8 @@ int32_t object_command_run(uint8_t *actor, uint8_t input)
      * keyboard, so keep the press directions and the live fire bit (the
      * release is what ends the loop). */
     if (_obj_charging)
-        dispatch = (uint8_t)((input & 0x80u) | (_obj_charge_joy & 0x0Fu));
+        dispatch = (uint8_t)((input & JOYBITS_FIRE) |
+                             (_obj_charge_joy & JOYBITS_DIRS));
 
     /* 1000:E447: the output state [0x6916]/[0x6917] is per-call, so a queued
      * code cannot re-arm itself on every later frame (which would reset the

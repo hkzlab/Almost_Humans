@@ -509,10 +509,10 @@ static void _walk_step(uint32_t dir)
 static void _room_walk(const InputState *in)
 {
     uint8_t dir = 4;
-    if (in->joyBits & 0x04u) dir = 0; // left  - the cascade's order
-    else if (in->joyBits & 0x08u) dir = 1; // right
-    else if (in->joyBits & 0x01u) dir = 2; // up
-    else if (in->joyBits & 0x02u) dir = 3; // down
+    if (in->joyBits & JOYBITS_LEFT) dir = 0; // left  - the cascade's order
+    else if (in->joyBits & JOYBITS_RIGHT) dir = 1; // right
+    else if (in->joyBits & JOYBITS_UP) dir = 2; // up
+    else if (in->joyBits & JOYBITS_DOWN) dir = 3; // down
 
     if (dir != 4u) {
         if (_walk_state & 0x8000u) { // at rest: the rail
@@ -734,11 +734,12 @@ uint8_t frontend_tick(const InputState *in)
          * [0x5E5B] stops the music when non-zero, resumes it when zero */
         audio_music_gate(frontend_option(FRONTEND_OPT_MUSIC));
 
-        if ((in->joyBits & 0x80u) && (_walk_state & 0x8000u) && !_fire_latch) {
+        if ((in->joyBits & JOYBITS_FIRE) && (_walk_state & 0x8000u) &&
+            !_fire_latch) {
             _cycle_option();
             _fire_latch = 1;
         }
-        if (!(in->joyBits & 0x80u)) _fire_latch = 0;
+        if (!(in->joyBits & JOYBITS_FIRE)) _fire_latch = 0;
 
         _set_scroll();
         _draw_option_sprites(); // place_4_sprites_to_vga (A684)

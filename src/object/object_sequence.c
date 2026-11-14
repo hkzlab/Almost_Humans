@@ -6,6 +6,7 @@
 #include "object_sequence.h"
 #include "object_units.h"
 #include "level/level.h"
+#include "osystem.h"
 #include "palette.h"
 #include "statusbar.h"
 #include "byteorder.h"
@@ -1140,10 +1141,13 @@ static void _obj_sequence_op_mark_walk(uint8_t *actor, uint32_t step)
 uint8_t _obj_sequence_normalise_input(uint8_t in)
 {
     uint8_t v =
-        (uint8_t)((in & 0x83u) | ((in & 0x08u) >> 1) | ((in & 0x04u) << 1));
+        (uint8_t)((in & (JOYBITS_FIRE | JOYBITS_UP | JOYBITS_DOWN)) |
+                  ((in & JOYBITS_RIGHT) >> 1) | ((in & JOYBITS_LEFT) << 1));
 
-    if ((v & 0x03u) == 0x03u) v &= 0x8Du;
-    if ((v & 0x0Cu) == 0x0Cu) v &= 0x8Bu;
+    if ((v & (JOYBITS_UP | JOYBITS_DOWN)) == (JOYBITS_UP | JOYBITS_DOWN))
+        v &= (uint8_t)~JOYBITS_DOWN;
+    if ((v & (JOYBITS_LEFT | JOYBITS_RIGHT)) == (JOYBITS_LEFT | JOYBITS_RIGHT))
+        v &= (uint8_t)~JOYBITS_LEFT; // the swapped RIGHT bit is in bit 2
     return v;
 }
 

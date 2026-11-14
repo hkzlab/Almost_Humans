@@ -6324,7 +6324,7 @@ int main(int argc, char **argv)
         _check(object_core_goal_flag(),
                "the human at level 6's 0xBA sets the goal");
         memset(&in, 0, sizeof in);
-        in.joyBits = 0x08u; // right
+        in.joyBits = JOYBITS_RIGHT; // right
         level_note_input(&in);
         level_tick();
         _check(level_goal_pan_running() != 0, "1000:3540 starts the goal pan");
@@ -7715,7 +7715,7 @@ int main(int argc, char **argv)
 
                 memcpy(before, osys_null_page(0), sizeof before);
                 k.lastKey = 0;
-                k.joyBits = 0x08u; // right
+                k.joyBits = JOYBITS_RIGHT; // right
                 map_tick(&k);
                 _check(map_name_angle_for_probe() == (a0 + 3u) % 0x168u,
                        "D-213: right starts with one 3-degree draw");
@@ -7729,7 +7729,7 @@ int main(int argc, char **argv)
                 for (uint32_t i = 0; i < 3u; i++) map_tick(&k); // 0x0330
                 _check(map_name_angle_for_probe() == a0,
                        "D-213: the three hold draws do not move the ring");
-                k.joyBits = 0x04u; // left
+                k.joyBits = JOYBITS_LEFT; // left
                 map_tick(&k);
                 for (uint32_t i = 0; i < 3u; i++) map_tick(&k);
                 _check(map_name_col_for_probe() == c0,
@@ -7743,7 +7743,7 @@ int main(int argc, char **argv)
              * next immediate one does not. */
             _check(map_name_fire_wait_for_probe() >= 0x23u,
                    "D-203: the name screen arms the fire counter");
-            k.joyBits = 0x80u;
+            k.joyBits = JOYBITS_FIRE;
             map_tick(&k);
             _check(map_name_for_probe()[0] == 'A' &&
                        map_name_for_probe()[1] == 0,
@@ -7767,7 +7767,7 @@ int main(int argc, char **argv)
                 for (uint32_t i = 0; i < 0x23u; i++)
                     map_tick(&k); // re-arm [0x5AC8] after D-203's fire
                 k.lastKey = 'Z';
-                k.joyBits = 0x80u;
+                k.joyBits = JOYBITS_FIRE;
                 map_tick(&k);
                 _check(map_name_for_probe()[0] == 'Z' &&
                            map_name_for_probe()[1] == 0,
@@ -8123,7 +8123,7 @@ int main(int argc, char **argv)
         {
             uint32_t before = g_map_box_bottom;
 
-            k.joyBits = 0x01u;
+            k.joyBits = JOYBITS_UP;
             map_tick(&k);
             _check(g_map_box_bottom == before && g_map_panel == 1u,
                    "1000:060C: the step tick only arms the 0x14-frame walk");
@@ -8138,7 +8138,7 @@ int main(int argc, char **argv)
             _check(g_map_box_bottom == before + 0x14u && g_map_panel == 2u,
                    "1000:060C: after 0x14 frames the panel is 2");
             for (uint32_t p = 2u; p < 6u; p++) {
-                k.joyBits = 0x01u;
+                k.joyBits = JOYBITS_UP;
                 map_tick(&k);
                 k.joyBits = 0;
                 for (uint32_t i = 0; i < 0x14u; i++) map_tick(&k);
@@ -8146,7 +8146,7 @@ int main(int argc, char **argv)
             _check(g_map_panel == 6u && g_map_box_bottom == 2u + 5u * 0x14u,
                    "the panel stops at 6 with the frame at 2 + 5*0x14");
             /* down reverses the same 0x14-frame walk */
-            k.joyBits = 0x02u;
+            k.joyBits = JOYBITS_DOWN;
             map_tick(&k);
             k.joyBits = 0;
             for (uint32_t i = 0; i < 0x14u; i++) map_tick(&k);

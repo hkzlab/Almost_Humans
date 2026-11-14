@@ -200,9 +200,9 @@ int main(int argc, char **argv)
     memset(script, 0, sizeof script);
     /* the attract cycle runs from the boot's end (~6687) until the fire
      * at 7400 escapes it; the room then walks right off the edge */
-    script[7400].joyBits = 0x80u;         // the attract escape
+    script[7400].joyBits = JOYBITS_FIRE;         // the attract escape
     for (uint32_t i = 7500; i <= 7750u; i++)
-        script[i].joyBits = 0x08u; // hold RIGHT: the room's confirm
+        script[i].joyBits = JOYBITS_RIGHT; // hold RIGHT: the room's confirm
     /* the party pre-screen (t~7712..8371, per the probe's timeline): its
      * wait fires [0x48A3]-shaped aborts exactly like the original's
      * wait_frames_or_key - one key inside the first set's wait exits  */
@@ -211,7 +211,7 @@ int main(int argc, char **argv)
      * (no key) while the page is up: scroll_map (1000:9E51) polls input only,
      * so the actor must stay put; the key at 8495 dismisses the page and the
      * play loop follows. */
-    for (uint32_t i = 8777u; i <= 8867u; i++) script[i].joyBits = 0x08u;
+    for (uint32_t i = 8777u; i <= 8867u; i++) script[i].joyBits = JOYBITS_RIGHT;
     script[8872].lastKey = 1u;
     /* D-15: ESC opens the pause block in the play loop; Enter on row 0
      * (CONTINUE) closes it again. */

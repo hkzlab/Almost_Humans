@@ -62,6 +62,13 @@ typedef struct InputState {
                       * not a game input; the flow loop reads input.quit. */
 } InputState;
 
+#define JOYBITS_UP    (1 << 0)
+#define JOYBITS_DOWN  (1 << 1)
+#define JOYBITS_LEFT  (1 << 2)
+#define JOYBITS_RIGHT (1 << 3)
+#define JOYBITS_DIRS  (JOYBITS_UP | JOYBITS_DOWN | JOYBITS_LEFT | JOYBITS_RIGHT)
+#define JOYBITS_FIRE  (1 << 7)
+
 /* The fixed-tick callback: everything the original's INT 8 ISR body did, in
  * the same order (the tick counter, the palette-fade step, the pending page
  * flip apply) happens here, once per tick. */

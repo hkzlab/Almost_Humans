@@ -756,7 +756,7 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
                          game_strings[g_game_language]
                                      [GAME_STRING_GAMEFLOW_EXTINCT]);
             textpage_draw(osys->videoPage(0), text, -1, 0u, 0);
-            if (input->lastKey || (input->joyBits & 0x80u)) {
+            if (input->lastKey || (input->joyBits & JOYBITS_FIRE)) {
                 /* scroll_map's exit 0xA0E1 re-renders the page twice:
                      * the caption box and its text are gone before the
                      * fades start (the original's grey/gradient frames
@@ -830,7 +830,7 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
         statusbar_set_active(0);
         level_tick();
         textpage_draw(osys->videoPage(0), lv->goal, -1, 0u, 0);
-        if (input->lastKey || (input->joyBits & 0x80u)) {
+        if (input->lastKey || (input->joyBits & JOYBITS_FIRE)) {
             _goal_page = 0;
 #if defined(HUMANSRE_TEST_PROBES)
             _goal_showing = 0;
@@ -880,7 +880,8 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
          * input_dispatch_loop waits - pause_toggle (34BD), scan_id_list
          * (34C0) and the [0x1979] dispatch (34C3). */
         uint8_t pan = level_goal_pan_running();
-        if (!pan && !menu_active() && pressed && !(input->joyBits & 0x0Fu))
+        if (!pan && !menu_active() && pressed &&
+            !(input->joyBits & JOYBITS_DIRS))
             object_sequence_action_run(); // 1000:34BD pause_toggle
         /* the latch is not assigned here: object_sequence_action_run sets it
              * (1000:3538) and the release above clears it (1000:85A9). */
@@ -998,14 +999,14 @@ static uint8_t _game_frame(const OSystem *osys, GameFlow *state,
     uint8_t rawFire;
 
     osys->eventsPoll(&input);
-    rawFire = (input.joyBits & 0x80u) != 0;
+    rawFire = (input.joyBits & JOYBITS_FIRE) != 0;
     /* 1000:8598-0x85AE (poll_input's tail): while [0x13A4] is set the
          * fire bit is masked out of [0x5ACE]; the release clears the latch
          * (1000:85A9).  One flag, owned by object.c.  The event-4 charge is a
          * blocking loop in the original and never polls, so its update_world
          * keeps the press frame's fire; do not mask it here. */
     if (object_core_action_latched() && !object_sequence_charge_active()) {
-        if (rawFire) input.joyBits &= 0x0Fu;
+        if (rawFire) input.joyBits &= (uint8_t)JOYBITS_DIRS;
         else object_core_set_action_latched(0);
     }
     scene_note_input(&input); // the waits read this tick's *state

@@ -131,7 +131,8 @@ static int32_t _scene_key_held(void)
 {
     InputState in;
     g_osys->eventsPoll(&in);
-    return in.keyHeld != 0u || in.lastKey != 0u || (in.joyBits & 0x80u) != 0;
+    return in.keyHeld != 0u || in.lastKey != 0u ||
+           (in.joyBits & JOYBITS_FIRE) != 0;
 }
 
 /**
