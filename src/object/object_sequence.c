@@ -542,7 +542,7 @@ void object_sequence_marker_tick(void)
     type = rd_le_u16(m + 8u);
     wr_le_u16(m + 2u, (uint16_t)(rd_le_u16(r + 2u) - type)); // 1000:D65F
     frame = rd_le_u16(r + 4u);
-    mode = frame < OBJ_FRAME_SLOTS ? _obj_sprites[frame].mode : 0u;
+    mode = object_sprite_at(frame).mode;
     wr_le_u16(m + 0u, (uint16_t)(rd_le_u16(m + 0u) +
                                  ((int32_t)mode - 1) * 8)); // 1000:D66B
     m[0xAu] = (uint8_t)(m[0xAu] - 1u); // 1000:D68F

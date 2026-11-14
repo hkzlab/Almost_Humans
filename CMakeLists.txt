@@ -119,6 +119,7 @@ set(HUMANSRE_CORE_SOURCES
     src/entity.c
     src/object/object_core.c
     src/object/object_render.c
+    src/object/object_sprites.c
     src/object/object_spawn.c
     src/object/object_sequence.c
     src/object/object_command.c

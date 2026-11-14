@@ -8,7 +8,9 @@
  *   level_restore 35AF    [0x11FC] := [0x1970] (the level-start members)
  *
  * argv[1] = the game data directory (HUMANS.000/001/002).  A no-data run
- * skips the level-loading parts.
+ * skips the level-loading parts.  argv[2] = the extracted resource tree the
+ * pixel checks compare against (defaults to argv[1]); it must hold the
+ * HUMANS.000/001/002 *directories*, not the volume archives.
  */
 #include "audio.h"
 #include "entity.h"
@@ -316,6 +318,20 @@ int main(int argc, char **argv)
                    "object_render_blit_sprite's block stride is a word");
         }
     }
+
+    /* The port packs the frame table one 32-bit word per slot, so the
+     * SPRITES.DAT offset field is 17 bits wide: 0x102's 80880 (0x13BF0) is
+     * the largest, and a 16-bit field would truncate 0xFE and 0x102. */
+    {
+        uint32_t off = 0, rows = 0;
+
+        object_render_frame_for_probe(0xFEu, &off, &rows);
+        _check(off == 77936u && rows == 24u,
+               "frame 0xFE keeps its offset past 0xFFFF");
+        object_render_frame_for_probe(0x102u, &off, &rows);
+        _check(off == 80880u && rows == 27u,
+               "frame 0x102 keeps the table's largest offset");
+    }
     if (compat_chdir(vol_dir)) {
         perror(vol_dir);
         return 1;
@@ -326,6 +342,22 @@ int main(int argc, char **argv)
         FILE *probe = fopen(path, "rb");
         if (!probe) {
             printf("skip: no volume files at %s\n", vol_dir);
+            return 0;
+        }
+        fclose(probe);
+    }
+    /* The fixture tree (argv[2]) is a different directory from the volumes:
+     * its HUMANS.000/001/002 are the extracted directories, where the volume
+     * dir holds the archives.  Without this gate a defaulted fix_dir makes the
+     * two asserting fixture reads fail instead of skipping. */
+    {
+        char path[512];
+        FILE *probe;
+
+        snprintf(path, sizeof path, "%s/HUMANS.001/APL/LOADING.APL", fix_dir);
+        probe = fopen(path, "rb");
+        if (!probe) {
+            printf("skip: no extracted resources at %s\n", fix_dir);
             return 0;
         }
         fclose(probe);
