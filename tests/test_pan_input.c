@@ -18,7 +18,7 @@
 #include "font.h"
 #include "level.h"
 #include "menu.h"
-#include "object.h"
+#include "object/object.h"
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
@@ -55,8 +55,8 @@ static int32_t _menu_during_pan, _menu_after_pan;
 static void _hook(uint32_t poll)
 {
     if (level_data() && level_data()->levelId == 25u && !_moved &&
-        object_player() >= 0 && poll >= 8900u) {
-        uint8_t *r = object_slot((uint32_t)object_player());
+        object_core_player() >= 0 && poll >= 8900u) {
+        uint8_t *r = object_core_slot((uint32_t)object_core_player());
 
         /* the level's one 0xBA cell: (col 2, row 13) */
         if (r) {

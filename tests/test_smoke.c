@@ -11,7 +11,7 @@
  * Missing volumes = skip. */
 #include "gameflow.h"
 #include "menu.h"
-#include "object.h"
+#include "object/object.h"
 #include "osystem.h"
 #include "statusbar.h"
 #include "compat.h"
@@ -129,7 +129,7 @@ static void _present_hook(uint32_t poll)
      * the Enter at 9227 selects CONTINUE and closes it. */
     if (poll >= 9178u && poll <= 9228u && menu_active()) _saw_pause = 1;
     if (gameflow_goal_page_up()) {
-        uint8_t *a = object_slot(object_action_entity());
+        uint8_t *a = object_core_slot(object_sequence_action_entity());
         int32_t x = a ? (int32_t)(int16_t)(rd_le_u16(a + 0)) : -1;
 
         if (!_saw_goal) {
@@ -292,9 +292,9 @@ int main(int argc, char **argv)
     }
     /* D-41: the F2 make at 7750 selected record 1; D-42: the SPACE make at
      * 7760 stepped the action row's cell from 1 to 2. */
-    if (object_action_entity() != 1u) {
+    if (object_sequence_action_entity() != 1u) {
         fprintf(stderr, "FAIL F2 did not select record 1 (entity %u)\n",
-                object_action_entity());
+                object_sequence_action_entity());
         bad = 1;
     }
     if (statusbar_action_cell(1u) != 2u) {

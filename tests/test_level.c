@@ -14,7 +14,7 @@
  * Missing volumes = skip. */
 #include "audio.h"
 #include "level.h"
-#include "object.h"
+#include "object/object.h"
 #include "osystem.h"
 #include "res.h"
 #include "palette.h"
@@ -533,7 +533,7 @@ int main(int argc, char **argv)
              * rotation (entries 0x71..0x74, every 4th tick). */
             {
                 InputState in;
-                uint8_t *m = object_slot(object_action_entity());
+                uint8_t *m = object_core_slot(object_sequence_action_entity());
                 int32_t x0 = (int32_t)(int16_t)(rd_le_u16(m + 0));
 
                 memset(&in, 0, sizeof in);
@@ -654,11 +654,11 @@ int main(int argc, char **argv)
         uint8_t *a, *n;
         uint32_t ticks;
 
-        object_init();
-        object_set_player(0);
-        object_set_action_entity(0u);
-        a = object_slot(0);
-        n = object_slot(3);
+        object_core_init();
+        object_core_set_player(0);
+        object_sequence_set_action_entity(0u);
+        a = object_core_slot(0);
+        n = object_core_slot(3);
         a[0] = 0x00;
         a[1] = 0x01;
         a[2] = 0x80;
@@ -671,25 +671,26 @@ int main(int argc, char **argv)
         n[3] = 0x00;
         n[6] = 0x00;
         n[8] = 0x02;
-        if (object_claim_begin(0u, 0) != 3) {
+        if (object_sequence_claim_begin(0u, 0) != 3) {
             fprintf(stderr, "FAIL the D-163 claim did not start\n");
             bad = 1;
         } else {
             level_set_updates(1); // 1000:3CAB's [0xC] = 0xFF
-            ticks = object_world_ticks_probe();
+            ticks = object_core_world_ticks_probe();
             for (uint32_t t = 0; t < 4u; t++) level_tick();
-            if (object_world_ticks_probe() != ticks) {
+            if (object_core_world_ticks_probe() != ticks) {
                 fprintf(stderr,
                         "FAIL update_world ran during a claim (D-163)\n");
                 bad = 1;
             }
-            for (uint32_t t = 0; t < 20000u && object_claim_active(); t++) {
+            for (uint32_t t = 0; t < 20000u && object_sequence_claim_active();
+                 t++) {
                 level_tick();
                 palette_tick();
                 audio_tick();
             }
         }
-        object_init();
+        object_core_init();
     }
 
     /* The placed decorations' spawn snap (1000:5639 -> map_get 1000:E389).
@@ -709,8 +710,8 @@ int main(int argc, char **argv)
             fprintf(stderr, "FAIL level 15 is not style 6\n");
             bad = 1;
         }
-        for (uint32_t i = 0; i < object_slots(); i++) {
-            uint8_t *r = object_slot(i);
+        for (uint32_t i = 0; i < object_core_slots(); i++) {
+            uint8_t *r = object_core_slot(i);
 
             if (!r) continue;
             if ((rd_le_u16(r + 4)) != 0x9Cu) continue;
@@ -745,7 +746,7 @@ int main(int argc, char **argv)
             if (level_loading_screen()) level_loading_tick();
         }
         for (uint32_t i = 0; i < 4u; i++) {
-            const uint8_t *r = object_slot(i);
+            const uint8_t *r = object_core_slot(i);
             uint32_t y = (uint32_t)(rd_le_u16(r + 2));
 
             if (y != wantY[i]) {
@@ -755,7 +756,7 @@ int main(int argc, char **argv)
             }
         }
         for (uint32_t i = 4u; i < 8u; i++) {
-            const uint8_t *r = object_slot(i);
+            const uint8_t *r = object_core_slot(i);
             if (r[0] != 0xFFu || r[1] != 0xFFu) {
                 fprintf(stderr, "FAIL D-89: free slot %u was touched\n", i);
                 bad = 1;
@@ -775,14 +776,14 @@ int main(int argc, char **argv)
             audio_tick();
             if (level_loading_screen()) level_loading_tick();
         }
-        object_goal_scan();
-        if (object_goal_flag()) {
+        object_core_goal_scan();
+        if (object_core_goal_flag()) {
             fprintf(stderr, "FAIL D-95: the goal flag is set with nothing on "
                             "the 0xBA cell\n");
             bad = 1;
         }
         {
-            uint8_t *r = object_slot(4);
+            uint8_t *r = object_core_slot(4);
 
             r[0] = 0xC0u; // x = 448 -> (448+8)/16 = 28
             r[1] = 0x01u;
@@ -795,32 +796,32 @@ int main(int argc, char **argv)
             r[8] = 0x18u; // type 0x18: no row hook, a bare-RET tail
             r[9] = 0x00u;
         }
-        object_goal_scan();
-        if (!object_goal_flag()) {
+        object_core_goal_scan();
+        if (!object_core_goal_flag()) {
             fprintf(stderr, "FAIL D-95: a record on the 0xBA cell does not "
                             "reach the level's goal byte\n");
             bad = 1;
         }
         /* 0x6549 excludes id 3 (mask byte 0 = 0x1F) */
-        object_slot(4)[8] = 0x03u;
-        object_goal_scan();
-        if (object_goal_flag()) {
+        object_core_slot(4)[8] = 0x03u;
+        object_core_goal_scan();
+        if (object_core_goal_flag()) {
             fprintf(stderr, "FAIL D-95: a 0x6549-excluded id was counted\n");
             bad = 1;
         }
-        object_slot(4)[8] = 0x18u;
+        object_core_slot(4)[8] = 0x18u;
 
         /* the pan: the follower leaves the acting record and converges on the
          * first class-9 record.  Records 14/15 carry a row tail that would
          * move them, so the pan is pointed at 16 (type 0x59, no row) at
          * (400, 32): the window clamps to (0xC0, 0). */
-        object_set_slot_class_for_probe(5u, 0u); // record 14
-        object_set_slot_class_for_probe(6u, 0u); // record 15
+        object_core_set_slot_class_for_probe(5u, 0u); // record 14
+        object_core_set_slot_class_for_probe(6u, 0u); // record 15
         {
             uint32_t t, markerAt = 0xFFFFFFFFu, doneAt = 0xFFFFFFFFu;
             uint32_t holdX = 0xFFFFFFFFu, holdY = 0xFFFFFFFFu;
 
-            for (t = 0; t < 400u && !object_marker_mode(); t++) {
+            for (t = 0; t < 400u && !object_core_marker_mode(); t++) {
                 level_tick();
                 palette_tick();
                 audio_tick();
@@ -859,11 +860,11 @@ int main(int argc, char **argv)
             }
         }
         /* the flag falls -> [0x6531] is cleared again (1000:35A2) */
-        object_slot(4)[0] = 0xFFu;
-        object_slot(4)[1] = 0xFFu;
-        object_goal_scan();
+        object_core_slot(4)[0] = 0xFFu;
+        object_core_slot(4)[1] = 0xFFu;
+        object_core_goal_scan();
         level_tick();
-        if (object_marker_mode()) {
+        if (object_core_marker_mode()) {
             fprintf(stderr, "FAIL D-95: [0x6531] survived the goal flag\n");
             bad = 1;
         }
@@ -877,7 +878,7 @@ int main(int argc, char **argv)
      * The pan target here, (8, 0), differs from the (0xC0, 0) the previous
      * block leaves in the capture, so skipping the capture cannot terminate. */
     if (level_load(25) == 0) {
-        uint8_t *r = object_slot(4);
+        uint8_t *r = object_core_slot(4);
         uint32_t t;
         int32_t sawRun = 0;
 
@@ -915,8 +916,8 @@ int main(int argc, char **argv)
         /* the human walks off the cell: the goal scan clears [0x6530] */
         r[0] = 0xFFu;
         r[1] = 0xFFu;
-        object_goal_scan();
-        if (object_goal_flag()) {
+        object_core_goal_scan();
+        if (object_core_goal_flag()) {
             fprintf(stderr, "FAIL D-259: the goal flag survived the cell\n");
             bad = 1;
         }
@@ -935,7 +936,7 @@ int main(int argc, char **argv)
     if (level_load(25) == 0) {
         uint32_t t;
 
-        object_set_marker_mode(1); // 1000:358C, the win pan's [0x6531]
+        object_core_set_marker_mode(1); // 1000:358C, the win pan's [0x6531]
         /* the restart's reload resets the port's pan state without touching
          * the mode; menu_flag_tick's 1000:35A2 arm must clear [0x6531] on the
          * next frame, before the re-spawned behaviour-9 markers tick. */
@@ -955,7 +956,7 @@ int main(int argc, char **argv)
             palette_tick();
             audio_tick();
         }
-        if (object_marker_mode()) {
+        if (object_core_marker_mode()) {
             fprintf(stderr, "FAIL D-264: [0x6531] survived the reload\n");
             bad = 1;
         }
@@ -972,7 +973,7 @@ int main(int argc, char **argv)
     /* --- D-90: the handled-object slots' stripe (1000:5D65) ---------------- */
     {
         static uint8_t page[VIDEO_PAGE_BYTES];
-        uint16_t *s = (uint16_t *)object_span_at_for_probe(0);
+        uint16_t *s = (uint16_t *)object_core_span_at_for_probe(0);
         uint32_t x = 300u, seed = 100u;
 
         memset(page, 0, sizeof page);
@@ -983,9 +984,9 @@ int main(int argc, char **argv)
         s[5] = (uint16_t)x; // +0xA: the stripe's x
         s[6] = (uint16_t)seed; // +0xC: one past the drawn rows
         s[9] = 1u; // +0x12: growing
-        object_span_seed_for_probe(0u, seed);
-        while ((object_frame_counter_probe() & 1u) != 0u)
-            object_tick(level_palette()); // an even frame: no animation
+        object_core_span_seed_for_probe(0u, seed);
+        while ((object_core_frame_counter_probe() & 1u) != 0u)
+            object_core_tick(level_palette()); // an even frame: no animation
         object_render(page, 0, 0);
         if (page[seed * 320u + x] == 0x18u) {
             fprintf(stderr, "FAIL D-90: a zero-length stripe drew\n");
@@ -993,7 +994,7 @@ int main(int argc, char **argv)
         }
         /* one odd frame grows it four rows (1000:5DD1's DX = 3 loop); the
          * animation runs in the draw pass, so the odd frame must render */
-        object_tick(level_palette());
+        object_core_tick(level_palette());
         memset(page, 0, sizeof page);
         object_render(page, 0, 0);
         if (page[seed * 320u + x] != 0x18u ||
@@ -1004,8 +1005,8 @@ int main(int argc, char **argv)
             bad = 1;
         }
         /* the next odd frame reaches +8 and finishes (1000:5DE2) */
-        object_tick(level_palette());
-        object_tick(level_palette());
+        object_core_tick(level_palette());
+        object_core_tick(level_palette());
         memset(page, 0, sizeof page);
         object_render(page, 0, 0);
         if (page[(seed + 7u) * 320u + x] != 0x18u || s[9] != 0xFFFFu) {
@@ -1016,8 +1017,8 @@ int main(int argc, char **argv)
         s[4] = 0u;
         s[9] = 0u;
         for (uint32_t i = 0; i < 3u; i++) {
-            object_tick(level_palette()); // even: no animation
-            object_tick(level_palette()); // odd
+            object_core_tick(level_palette()); // even: no animation
+            object_core_tick(level_palette()); // odd
             memset(page, 0, sizeof page);
             object_render(page, 0, 0);
         }
@@ -1026,7 +1027,7 @@ int main(int argc, char **argv)
             bad = 1;
         }
         memset(s, 0xFF, 28u); // free it again
-        object_span_seed_for_probe(0u, 0u);
+        object_core_span_seed_for_probe(0u, 0u);
     }
 
     /* D-157: draw_level_text clamps [0x2] to 0x78 before its page frames. */

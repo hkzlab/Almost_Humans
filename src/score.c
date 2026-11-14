@@ -3,7 +3,7 @@
 #include "gameflow.h"
 #include "hiscore.h"
 #include "level.h"
-#include "object.h"
+#include "object/object.h"
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
@@ -104,11 +104,11 @@ static uint8_t _stamp_under[24u * 64u];
 uint16_t score_members(void)
 {
     uint8_t n = statusbar_tribe_value();
-    uint16_t live = object_live_count();
+    uint16_t live = object_core_live_count();
 
     (void)live;
-    for (uint16_t i = 0; i < object_static_slots(); i++) {
-        const uint8_t *r = object_slot(i);
+    for (uint16_t i = 0; i < object_core_static_slots(); i++) {
+        const uint8_t *r = object_core_slot(i);
 
         if (!r || (r[6] & 0x80u)) continue;
         {
@@ -146,8 +146,8 @@ static void _score_terms(void)
     /* 1000:41F6 is an ADD: [0x1DCA] also carries whatever the handler-4
      * steps (1000:C9B9) added during play, so the term accumulates. */
     _score_level_term = (uint16_t)(_score_level_term + levelNo * members * 10u);
-    for (uint16_t i = 0; i < object_static_slots(); i++) {
-        uint8_t cell = (uint8_t)(object_record_map_cell(i));
+    for (uint16_t i = 0; i < object_core_static_slots(); i++) {
+        uint8_t cell = (uint8_t)(object_core_record_map_cell(i));
 
         if (cell == 0xA8u)
             _score_level_term = (uint16_t)(_score_level_term + 1000u);
@@ -304,8 +304,8 @@ uint32_t score_level_score(void)
     bonus = levelNo * score_members() * 10u + remaining * 10u;
 
     /* 55FA..5635: the eight static records' cells, 0xA8 (+1000) / 0xA7 (+2000) */
-    for (uint16_t i = 0; i < object_static_slots(); i++) {
-        uint8_t cell = (uint8_t)(object_record_map_cell(i));
+    for (uint16_t i = 0; i < object_core_static_slots(); i++) {
+        uint8_t cell = (uint8_t)(object_core_record_map_cell(i));
         if (cell == 0xA8u) bonus += 1000u;
         else if (cell == 0xA7u) bonus += 2000u;
     }

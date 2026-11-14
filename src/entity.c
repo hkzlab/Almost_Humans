@@ -1,5 +1,5 @@
 #include "entity.h"
-#include "object.h"
+#include "object/object.h"
 #include "score.h"
 #include "byteorder.h"
 #include "width.h"
@@ -288,7 +288,7 @@ static void _entity_tail_interact(Entity *ep, uint32_t slot, uint32_t off)
     uint16_t w9 = _ent_word(slot, off, 9);
 
     for (uint16_t i = 0; i < 8u; i++) { // DX = 7: the static eight
-        uint8_t *rec = object_slot(i);
+        uint8_t *rec = object_core_slot(i);
         int32_t dx, dy;
         uint16_t type;
 
@@ -309,8 +309,8 @@ static void _entity_tail_interact(Entity *ep, uint32_t slot, uint32_t off)
             return;
         }
         if (type == 4u || type == 5u) continue; // 1000:CAC5
-        if (object_type_blocked(type)) continue; // 1000:CAE1 (DS:0x6EC3)
-        (void)object_stack_scan_dissolve(i); // 1000:CAFE: 0xF453, DX = 5
+        if (object_core_type_blocked(type)) continue; // 1000:CAE1 (DS:0x6EC3)
+        (void)object_units_stack_scan_dissolve(i); // 1000:CAFE: 0xF453, DX = 5
         wr_le_u16(rec + 8u, 0x0022u); // 1000:CB15
         /* 1000:CB19 stores the entity record pointer (0x64C4 + 0x10*n); the
          * port tags the index so it cannot collide with the object links
@@ -327,7 +327,7 @@ static void _entity_tail_interact(Entity *ep, uint32_t slot, uint32_t off)
         ep->handler = w8; // 1000:CB56
         ep->waypoint = w9; // 1000:CB65
         ep->hold = 0xA032u; // 1000:CB6A
-        object_driver_call(9); // 1000:CB73
+        object_core_driver_call(9); // 1000:CB73
         return;
     }
 }
@@ -407,7 +407,7 @@ static void _entity_carry_anim(Entity *ep)
         if (sub & 0xF0u) { // cbc8
             sub -= 0x10u; // cbe8
             b[0xBu] = sub;
-            if (sub & 0x10u) object_driver_call(0xBu); // cbf0..cbf9
+            if (sub & 0x10u) object_core_driver_call(0xBu); // cbf0..cbf9
             return;
         }
     }
@@ -462,8 +462,8 @@ void entity_render(uint8_t *page, int32_t scrollX, int32_t scrollY)
 
             if (!entity_frame_info(a, &src, &rows, &yoff)) break;
             if (src + rows * 8u > _ent_bank_size) break;
-            object_blit_sprite(page, _ent_bank + src, rows, 32u, x - scrollX,
-                               y + (int32_t)yoff - scrollY);
+            object_render_blit_sprite(page, _ent_bank + src, rows, 32u,
+                                      x - scrollX, y + (int32_t)yoff - scrollY);
             x += 0x20; // 1000:58A1 ADD AX,0x20
         }
     }
@@ -503,7 +503,7 @@ void entity_tick(void)
             if ((int16_t)ep->hold < 0) { // C99D/C9A1
                 ep->waypoint++; // C9A6: INC word [record+0xC]
                 ep->handler = 5u; // C9AD
-                object_driver_call(0x0Cu); // C9B2
+                object_core_driver_call(0x0Cu); // C9B2
                 score_add_level_term(0x7D0u); // C9B9
             }
             break;

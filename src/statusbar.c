@@ -1,5 +1,5 @@
 #include "statusbar.h"
-#include "object.h"
+#include "object/object.h"
 #include "osystem.h"
 #include "res.h"
 #include "game_resources.h"
@@ -82,7 +82,7 @@ static const uint16_t _mark_bias[5] = { 0, 0xC0, 0, 0, 0 };
  * is the 16x24 cell at +4,+4 (0 = transparent).
  *
  * The group is the ACTION program at 0x5B37 (`count, cursor`); the port reads
- * it back through object_action_byte, so highlight and op cannot drift.  An id
+ * it back through object_sequence_action_byte, so highlight and op cannot drift.  An id
  * outside 1..6 draws nothing (D-186). */
 static const uint8_t _action_gold[40] = {
     /* 202F:0x5B57 */
@@ -253,18 +253,20 @@ void statusbar_charge_bar(uint32_t v)
     }
 }
 
-void statusbar_cycle_action(void) { object_step_action_cell(); /* 1000:3941 */ }
+void statusbar_cycle_action(void)
+{ object_sequence_step_action_cell(); /* 1000:3941 */ }
 
 #if defined(HUMANSRE_TEST_PROBES)
 /* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
-uint8_t statusbar_action_group(void) { return object_action_program(); }
+uint8_t statusbar_action_group(void)
+{ return object_sequence_action_program(); }
 #endif /* HUMANSRE_TEST_PROBES */
 
 #if defined(HUMANSRE_TEST_PROBES)
 /* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint8_t statusbar_action_count(uint32_t group)
 {
-    const uint8_t *h = object_program_header(group);
+    const uint8_t *h = object_sequence_program_header(group);
 
     return h ? (uint8_t)((uint32_t)h[0]) : 0u;
 }
@@ -274,7 +276,7 @@ uint8_t statusbar_action_count(uint32_t group)
 /* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint8_t statusbar_action_cell(uint32_t group)
 {
-    const uint8_t *h = object_program_header(group);
+    const uint8_t *h = object_sequence_program_header(group);
 
     return h ? (uint8_t)((uint32_t)h[1]) : 0u;
 }
@@ -367,12 +369,12 @@ static void _draw_actions(uint8_t *page)
 {
     /* An id outside 1..6 has no header (D-186): the original resolves a
      * garbage pointer and draws from it, the port leaves the row blank. */
-    if (!object_action_header()) return;
+    if (!object_sequence_action_header()) return;
     /* Every step is a 16-bit word operation: the span/x below reproduce
      * `MUL BH` x2, `ADD`, `SUB 0x140`, `NEG`, `SHR 1`, and BP is the
      * original's do-while counter (count 0 wraps and draws 65536 times). */
-    uint8_t count = object_action_byte(0u);
-    uint8_t cursor = object_action_byte(1u);
+    uint8_t count = object_sequence_action_byte(0u);
+    uint8_t cursor = object_sequence_action_byte(1u);
     uint16_t span = (uint16_t)((uint16_t)(count * 0x17u) +
                                (uint16_t)((uint8_t)(count - 1u) * 0x0Cu));
     uint16_t ax = (uint16_t)(VIDEO_PAGE_W - span); // SUB 0x140 / NEG
@@ -388,7 +390,7 @@ static void _draw_actions(uint8_t *page)
         if (cursor != 0u && i == cursor - 1u)
             _frame_box(page, x + 1u, y + 1u, 21u, 29u, _action_gold, 6u);
         _draw_action_icon(page, x + 4u, y + 4u,
-                          (object_action_byte(2u + i) - 1u));
+                          (object_sequence_action_byte(2u + i) - 1u));
         x = (uint16_t)(x + 4u + 0x1Fu); // +4 then +0x1F, 16-bit
         i++;
         bp--;
@@ -578,7 +580,7 @@ void statusbar_tick(void)
     /* 1000:990A is not called inside the charge loop: the entry's 0x9A18
      * repaint (statusbar_charge_begin) has just erased the action row, and
      * the exit's 0x990A (statusbar_charge_end) brings it back. */
-    if (!object_charge_active()) _draw_actions(page);
+    if (!object_sequence_charge_active()) _draw_actions(page);
 
     if (_active) {
         uint8_t died = 0;

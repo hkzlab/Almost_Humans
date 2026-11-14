@@ -1,6 +1,6 @@
 #include "save.h"
 #include "entity.h"
-#include "object.h"
+#include "object/object.h"
 #include "osystem.h"
 #include "score.h"
 #include "statusbar.h"
@@ -78,18 +78,18 @@ int32_t save_write_slot(uint8_t slot, uint16_t level, uint16_t timeWord,
     wr_le_u16(out + 0x00u, level);
     wr_le_u16(out + 0x02u, score_total_lo());
     wr_le_u16(out + 0x04u, score_total_hi());
-    out[0x06] = object_action_program();   // [0x5B56]
+    out[0x06] = object_sequence_action_program();   // [0x5B56]
     wr_le_u16(out + 0x07u, timeWord);               // BCD sec  | min
     out[0x09] = statusbar_tribe_digit(0u);  // [0x5B25]
     out[0x0A] = statusbar_tribe_digit(1u);  // [0x5B26]
     wr_le_u16(out + 0x0Bu, members);
 
-    object_save_table(out + 0x000Du);          // 0x3E20, 0x25F
-    object_save_pool(out + 0x026Cu);           // 0x6F20, 0x13CA
-    object_save_programs(out + 0x1636u);       // 0x5B37, 0x20
-    object_save_ter(out + 0x1656u);            // 0x649A, 0x28
+    object_core_save_table(out + 0x000Du);          // 0x3E20, 0x25F
+    object_core_save_pool(out + 0x026Cu);           // 0x6F20, 0x13CA
+    object_core_save_programs(out + 0x1636u);       // 0x5B37, 0x20
+    object_core_save_ter(out + 0x1656u);            // 0x649A, 0x28
     entity_save_fixed(out + 0x167Eu);          // 0x64C2, 0x72
-    object_save_spans(out + 0x16F0u);          // 0x6F92, 0x54
+    object_core_save_spans(out + 0x16F0u);          // 0x6F92, 0x54
     statusbar_save_params(out + 0x17F0u);      // [0x5B22], 8
 
     FSSave *f = g_osys->fs->createSave((char)('A' + (int32_t)slot - 1));
@@ -106,14 +106,14 @@ int32_t save_write_slot(uint8_t slot, uint16_t level, uint16_t timeWord,
 void save_restore_state(void)
 {
     if (!_save_loaded || !_save_buf) return;
-    object_load_table(_save_buf + 0x000Du);
-    object_load_pool(_save_buf + 0x026Cu);
-    object_load_programs(_save_buf + 0x1636u);
-    object_load_ter(_save_buf + 0x1656u);
+    object_core_load_table(_save_buf + 0x000Du);
+    object_core_load_pool(_save_buf + 0x026Cu);
+    object_core_load_programs(_save_buf + 0x1636u);
+    object_core_load_ter(_save_buf + 0x1656u);
     entity_load_fixed(_save_buf + 0x167Eu);
-    object_load_spans(_save_buf + 0x16F0u);
+    object_core_load_spans(_save_buf + 0x16F0u);
     score_set_total(rd_le_u16(_save_buf + 0x02), rd_le_u16(_save_buf + 0x04));
     statusbar_load_params(_save_buf + 0x17F0u);
     statusbar_set_tribe_digits(_save_buf[0x09], _save_buf[0x0A]);
-    object_action_set_program(_save_buf[0x06]);
+    object_sequence_action_set_program(_save_buf[0x06]);
 }

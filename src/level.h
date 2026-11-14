@@ -58,7 +58,7 @@ const LevelData *level_data(void);
  * @brief Accessor: the live 640-cell map buffer.
  *
  * The loader's writable copy of LevelData.map (1000:3138).  In play
- * object_load_terrain_objects and the 0xA9 handler rewrite it; the record's
+ * object_spawn_load_terrain_objects and the 0xA9 handler rewrite it; the record's
  * own map (level_data()->map) stays the pristine parsed copy.
  *
  * @return the map buffer, or NULL before a load
@@ -207,7 +207,7 @@ void level_set_view(uint16_t x, uint16_t y);
 /** @brief 1000:5CB6 - the first call of `update_world` (`1000:80AD`), guarded there by
  * `[0xC] != 0`: the camera follows the **acting record** (`get_object_ptr`,
  * `1000:79F4`, walks the 29-word table at `0x3E24` with `[0x3E22]`, i.e.
- * `object_slot(object_action_entity())`), or the record `[0x2D8C]` names while
+ * `object_core_slot(object_sequence_action_entity())`), or the record `[0x2D8C]` names while
  * menu_flag_tick's goal pan holds it (`1000:5CB9..5CC0`).
  *
  *   target = record + the offset pair at `[0x2D90]` - (0x88, 0x44)
@@ -466,12 +466,12 @@ void level_restore_members(void);
 /**
  * @brief The level's end request with the win/lose outcome.
  *
- * level_run's end: the play loop exits when object_test_dispatch (1000:35D6)
+ * level_run's end: the play loop exits when object_core_test_dispatch (1000:35D6)
  * returns negative, and [0x138E] (0xFF won / 0 extinct) then selects
  * draw_level_text's page.
  * The six test handlers need the placed- object array (0x3E75), which object.c
  * holds; level_end_test evaluates the six predicates through
- * object_test_dispatch.
+ * object_core_test_dispatch.
  * level_request_end(1) = the level was completed.
  *
  * @param won the won flag
@@ -523,7 +523,7 @@ void level_member_lost(void);
 #endif /* HUMANSRE_TEST_PROBES */
 
 /**
- * @brief The level-end test (object_test_dispatch's negative return).
+ * @brief The level-end test (object_core_test_dispatch's negative return).
  *
  * Runs from level_tick's play phase, like the original's call in
  * input_dispatch_loop.  [0x138E] stays 0xFF for a win and is cleared for the
@@ -549,7 +549,7 @@ uint8_t level_ended(void);
 uint8_t level_end_holding(void);
 
 /** @brief 1000:F66D: the goal-record tail's "no survivor" exit sets [0x138E] = 0 and
- * ends the play loop (the same state object_test_dispatch's negative return
+ * ends the play loop (the same state object_core_test_dispatch's negative return
  * produces, reached from the object machine instead).
  *
  * @param won the won flag

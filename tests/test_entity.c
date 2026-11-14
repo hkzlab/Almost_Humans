@@ -25,7 +25,7 @@
  */
 #include "entity.h"
 #include "level.h"
-#include "object.h"
+#include "object/object.h"
 #include "osystem.h"
 #include "res.h"
 #include "palette.h"
@@ -274,7 +274,7 @@ int main(int argc, char **argv)
      * entity_select_frame_0c), which the earlier "0/1 only" reading missed. */
     {
         const Entity *p = entity_at(0);
-        uint8_t *rec = object_slot(0u);
+        uint8_t *rec = object_core_slot(0u);
 
         if (p && rec && p->handler == 0u) {
             uint32_t ex = p->x, ey = p->y;
@@ -321,7 +321,7 @@ int main(int argc, char **argv)
      * entity's waypoint and dispatch index instead of carrying it. */
     {
         Entity *p = entity_at_mut(0u);
-        uint8_t *rec = object_slot(0u);
+        uint8_t *rec = object_core_slot(0u);
 
         if (p && rec) {
             /* handler 0, walking right: wp[3] = -35, so rec.x = x + 36 */
@@ -384,8 +384,8 @@ int main(int argc, char **argv)
         (void)level_load(10u);
         entity_spawn_from_map(level_map(), level_data()->style,
                               level_data()->entityLife);
-        object_init();
-        cr = object_slot(0u);
+        object_core_init();
+        cr = object_core_slot(0u);
         {
             const Entity *p = entity_at(0u);
             uint32_t px = p ? p->x : 320u, py = p ? p->y : 193u;
@@ -396,7 +396,7 @@ int main(int argc, char **argv)
             cr[4] = 0x10u;
             cr[8] = 0x01u;
         }
-        object_set_action_entity(0u);
+        object_sequence_set_action_entity(0u);
         entity_tick();
         if ((rd_le_u16(cr + 8)) != 0x22u)
             _failf("D-59: the pick-up", 10u, cr[8], 0x22);

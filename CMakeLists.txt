@@ -104,7 +104,13 @@ set(HUMANSRE_CORE_SOURCES
     src/hiscore.c
     src/game_strings.c
     src/entity.c
-    src/object.c
+    src/object/object_core.c
+    src/object/object_render.c
+    src/object/object_spawn.c
+    src/object/object_sequence.c
+    src/object/object_command.c
+    src/object/object_walk.c
+    src/object/object_units.c
     src/script.c
     src/audio.c
     src/frontend.c
@@ -118,14 +124,16 @@ set(HUMANSRE_CORE_SOURCES
 # The shipping core: the test seams (the *_for_probe accessors and the
 # test-only accessors in src/*.h) are compiled out.
 add_library(core STATIC ${HUMANSRE_CORE_SOURCES})
-target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch
+                                      ${CMAKE_CURRENT_SOURCE_DIR}/src)
 humansre_warnings(core)
 
 # The test core: the same sources with HUMANSRE_TEST_PROBES, so the test
 # executables see the seam declarations and definitions.  No release binary
 # links this library; the seams cannot reach a shipped build.
 add_library(core_test STATIC ${HUMANSRE_CORE_SOURCES})
-target_include_directories(core_test PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_include_directories(core_test PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch
+                                           ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_compile_definitions(core_test PRIVATE HUMANSRE_TEST_PROBES)
 humansre_warnings(core_test)
 

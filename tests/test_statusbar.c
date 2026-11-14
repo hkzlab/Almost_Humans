@@ -18,7 +18,7 @@
  *           rendered with the installed DAC - for eyeballing/analysis).
  * Missing volumes = skip. */
 #include "level.h"
-#include "object.h"
+#include "object/object.h"
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
@@ -606,18 +606,18 @@ int main(int argc, char **argv)
         uint32_t c1 = 0, c2 = 0;
         uint8_t mark0 = pg[MARK_Y * 320u + 8u]; // the minutes glyph
 
-        object_init();
-        a = object_slot(0);
-        object_set_action_entity(0u);
-        object_action_set_program(2u);
-        object_action_set_cursor(2u); // program 2, cell 2 = op 4
-        object_set_action_latched(0);
-        object_set_slot_class(1u, 5u);
+        object_core_init();
+        a = object_core_slot(0);
+        object_sequence_set_action_entity(0u);
+        object_sequence_action_set_program(2u);
+        object_sequence_action_set_cursor(2u); // program 2, cell 2 = op 4
+        object_core_set_action_latched(0);
+        object_core_set_slot_class(1u, 5u);
         a[7] = 1u;
         a[8] = 1; // op 4's gate is CMP AX,2 / JNC (D-113)
         a[9] = 0;
-        object_action_run(); // the wind-up
-        object_set_action_latched(0); // its release
+        object_sequence_action_run(); // the wind-up
+        object_core_set_action_latched(0); // its release
 
 #define BAR_SHADE()                                                            \
     ({                                                                         \
@@ -630,16 +630,17 @@ int main(int argc, char **argv)
         _n;                                                                    \
     })
         (void)object_command_run(a, 0x80u); // a held frame
-        object_pending_run();
-        if (!object_charge_active() || object_charge_tick() != 1) {
+        object_sequence_pending_run();
+        if (!object_sequence_charge_active() ||
+            object_sequence_charge_tick() != 1) {
             fprintf(stderr, "FAIL D-81: the charge loop did not start\n");
             bad = 1;
         }
         c1 = BAR_SHADE();
         for (uint32_t k = 0; k < 2u; k++) { // +0xE -> 8, 0xC
             (void)object_command_run(a, 0x80u);
-            object_pending_run();
-            (void)object_charge_tick();
+            object_sequence_pending_run();
+            (void)object_sequence_charge_tick();
         }
         c2 = BAR_SHADE();
         if (c2 <= c1 + 10u) {
@@ -680,9 +681,9 @@ int main(int argc, char **argv)
                                 "marks\n");
                 bad = 1;
             }
-            object_set_action_latched(0);
+            object_core_set_action_latched(0);
             (void)object_command_run(a, 0x00u); // the release
-            if (object_charge_tick() != 0) {
+            if (object_sequence_charge_tick() != 0) {
                 fprintf(stderr, "FAIL D-83: the release did not end the "
                                 "charge\n");
                 bad = 1;
@@ -707,25 +708,25 @@ int main(int argc, char **argv)
         uint8_t *a;
         uint32_t v = 0;
 
-        object_init();
-        a = object_slot(0);
-        object_set_action_entity(0u);
-        object_action_set_program(2u);
-        object_action_set_cursor(2u);
-        object_set_action_latched(0);
-        object_set_slot_class(1u, 5u);
+        object_core_init();
+        a = object_core_slot(0);
+        object_sequence_set_action_entity(0u);
+        object_sequence_action_set_program(2u);
+        object_sequence_action_set_cursor(2u);
+        object_core_set_action_latched(0);
+        object_core_set_slot_class(1u, 5u);
         a[7] = 1u;
         a[8] = 1u;
         a[9] = 0u;
-        object_action_run();
-        object_set_action_latched(0);
+        object_sequence_action_run();
+        object_core_set_action_latched(0);
         (void)object_command_run(a, 0x80u);
-        object_pending_run();
-        (void)object_charge_tick();
+        object_sequence_pending_run();
+        (void)object_sequence_charge_tick();
         for (uint32_t k = 0; k < 70u; k++) {
             (void)object_command_run(a, 0x80u);
-            object_pending_run();
-            (void)object_charge_tick();
+            object_sequence_pending_run();
+            (void)object_sequence_charge_tick();
             v = (a[0xE] | ((uint32_t)a[0xF] << 8)) & 0x1FFu;
             if (v >= 0x104u) break;
         }
@@ -789,8 +790,8 @@ int main(int argc, char **argv)
         const uint8_t *pg = osys_null_page(0);
         uint32_t badpx = 0;
 
-        object_init();
-        object_action_set_program(0x10u);
+        object_core_init();
+        object_sequence_action_set_program(0x10u);
         statusbar_set_split(152u);
         statusbar_set_active(1);
         statusbar_tick();

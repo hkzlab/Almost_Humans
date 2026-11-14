@@ -24,7 +24,7 @@
 #include "gameflow.h"
 #include "level.h"
 #include "menu.h"
-#include "object.h"
+#include "object/object.h"
 #include "osystem.h"
 #include "palette.h"
 #include "party_intro.h"
@@ -463,7 +463,7 @@ int main(int argc, char **argv)
     score_set_total(0x1234u, 1u);
     statusbar_set_tribe_digits(0u, 9u);
     {
-        uint8_t *r0 = object_slot(0);
+        uint8_t *r0 = object_core_slot(0);
 
         if (r0) {
             r0[0] = 0x34;
@@ -471,7 +471,7 @@ int main(int argc, char **argv)
             r0[2] = 0x56;
             r0[3] = 0x78;
         }
-        object_set_slot_class(1u, 6u);
+        object_core_set_slot_class(1u, 6u);
     }
     if (!save_write_slot(2u, 2u, 0x0549u, 7u)) {
         fprintf(stderr, "FAIL save_write_slot(SLOT 2) failed\n");
@@ -517,10 +517,10 @@ int main(int argc, char **argv)
         bad = 1;
     }
     {
-        const uint8_t *r0 = object_slot(0);
+        const uint8_t *r0 = object_core_slot(0);
 
         if (!r0 || r0[0] != 0x34u || r0[1] != 0x12u || r0[2] != 0x56u ||
-            object_slot_class(1u) != 6u) {
+            object_core_slot_class(1u) != 6u) {
             fprintf(stderr, "FAIL the saved object table did not restore\n");
             bad = 1;
         }
@@ -529,7 +529,7 @@ int main(int argc, char **argv)
     {
         static uint8_t tbl[0x25F];
         static uint8_t ent[0x72];
-        uint8_t *r = object_slot(0);
+        uint8_t *r = object_core_slot(0);
 
         if (!r) {
             fprintf(stderr, "FAIL no object slot 0\n");
@@ -539,13 +539,13 @@ int main(int argc, char **argv)
             r[1] = 0x12;
             r[2] = 0x56;
             r[3] = 0x78;
-            object_set_slot_class(0u, 5u);
-            object_save_table(tbl);
+            object_core_set_slot_class(0u, 5u);
+            object_core_save_table(tbl);
             r[0] = 0;
-            object_set_slot_class(0u, 0u);
-            object_load_table(tbl);
+            object_core_set_slot_class(0u, 0u);
+            object_core_load_table(tbl);
             if (r[0] != 0x34 || r[1] != 0x12 || r[2] != 0x56 ||
-                object_slot_class(0u) != 5u) {
+                object_core_slot_class(0u) != 5u) {
                 fprintf(stderr, "FAIL the object table did not round-trip\n");
                 bad = 1;
             }
@@ -553,7 +553,7 @@ int main(int argc, char **argv)
         {
             static uint8_t pool[0x13CA];
 
-            object_save_pool(pool);
+            object_core_save_pool(pool);
             if (pool[0] != (uint8_t)level_special_tile(0u) ||
                 pool[1] != (uint8_t)level_special_tile(1u)) {
                 fprintf(stderr, "FAIL D-143: the pool's two tile bytes\n");
@@ -906,9 +906,9 @@ int main(int argc, char **argv)
             palette_tick();
             if (level_loading_screen()) level_loading_tick();
         }
-        object_set_action_entity(0u);
-        (void)object_cycle_entity(1); // 1000:4188 arms record 8
-        m = object_slot(8u);
+        object_sequence_set_action_entity(0u);
+        (void)object_sequence_cycle_entity(1); // 1000:4188 arms record 8
+        m = object_core_slot(8u);
         level_set_updates(0);
         t0 = rd_le_u16(m + 8u);
         a0 = rd_le_u16(m + 0xAu);

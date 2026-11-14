@@ -8,7 +8,7 @@
 #include "level.h"
 #include "map.h"
 #include "menu.h"
-#include "object.h"
+#include "object/object.h"
 #include "osystem.h"
 #include "palette.h"
 #include "party_intro.h"
@@ -81,7 +81,7 @@ static uint8_t _end_scene_index;
  * with its own +0x00 (entry:004C's POP AX). */
 static uint16_t _level_current = 0u;
 
-/* [0x13A4] lives in object.c (`object_action_latched`): it is the *only*
+/* [0x13A4] lives in object.c (`object_core_action_latched`): it is the *only*
  * ACTION latch.  poll_input's tail (1000:8598..0x85AE) masks the ACTION bit
  * while it is set and clears it on the release (1000:85A9); pause_toggle
  * (1000:3538) is the only setter.  A charge never sets it, because
@@ -381,7 +381,7 @@ uint8_t gameflow_key_list(const InputState *in)
     if (!in) return 0;
     if (_key_wait_stage) return _key_wait_step(in); // 1000:3954
     /* 1000:386E's first test: a pending event skips the whole key walk. */
-    if (object_action_pending() != 0u) return 0;
+    if (object_sequence_action_pending() != 0u) return 0;
     if (in->keyScan == 0u) return 0;
     for (uint16_t i = 0; i < sizeof _key_list / sizeof _key_list[0]; i++) {
         uint8_t id = _key_list[i][1];
@@ -390,15 +390,16 @@ uint8_t gameflow_key_list(const InputState *in)
         if (!(id & 0x80u) && !level_updates()) return 0; // 1000:38AD
         switch (id & 0x7Fu) {
         case 1: // F1..F8
-            (void)object_select_by_index((uint32_t)in->keyScan - 0x3Bu);
+            (void)object_sequence_select_by_index((uint32_t)in->keyScan -
+                                                  0x3Bu);
             return 1; // 1000:38C3
-        case 2: (void)object_cycle_entity(-1); return 1; // ','
-        case 3: (void)object_cycle_entity(1); return 1; // '.'
+        case 2: (void)object_sequence_cycle_entity(-1); return 1; // ','
+        case 3: (void)object_sequence_cycle_entity(1); return 1; // '.'
         case 4: // ESC
             if (!menu_active() && !level_ended())
                 menu_open_pause(); // 1000:38EA
             return 1;
-        case 8: (void)object_space_action(); return 1; // SPACE
+        case 8: (void)object_sequence_space_action(); return 1; // SPACE
         case 9: // F10
             statusbar_set_active(0); // 1000:3954
             _key_wait_stage = 1;
@@ -747,11 +748,13 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
             level_tick();
             if (level_outcome())
                 snprintf(text, sizeof text,
-                         game_strings[g_game_language][GAME_STRING_GAMEFLOW_LEVEL_DONE],
+                         game_strings[g_game_language]
+                                     [GAME_STRING_GAMEFLOW_LEVEL_DONE],
                          _level_current + 1u);
             else
                 snprintf(text, sizeof text, "%s",
-                         game_strings[g_game_language][GAME_STRING_GAMEFLOW_EXTINCT]);
+                         game_strings[g_game_language]
+                                     [GAME_STRING_GAMEFLOW_EXTINCT]);
             textpage_draw(osys->videoPage(0), text, -1, 0u, 0);
             if (input->lastKey || (input->joyBits & 0x80u)) {
                 /* scroll_map's exit 0xA0E1 re-renders the page twice:
@@ -864,8 +867,8 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
              * runs the ACTION program.  [0x42F0] is never set in the image,
              * so the 0xE3F9 ACTION edge is dead and the same frame's
              * command dispatch still sees the fire half of the row. */
-        uint8_t pressed =
-            rawFire && !object_action_latched() && !object_charge_active();
+        uint8_t pressed = rawFire && !object_core_action_latched() &&
+                          !object_sequence_charge_active();
 
         /* the original's order (1000:34B5 -> 0x34BD): update_world
              * runs first - the record command dispatch inside it sees the
@@ -878,19 +881,19 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
          * (34C0) and the [0x1979] dispatch (34C3). */
         uint8_t pan = level_goal_pan_running();
         if (!pan && !menu_active() && pressed && !(input->joyBits & 0x0Fu))
-            object_action_run(); // 1000:34BD pause_toggle
-        /* the latch is not assigned here: object_action_run sets it
+            object_sequence_action_run(); // 1000:34BD pause_toggle
+        /* the latch is not assigned here: object_sequence_action_run sets it
              * (1000:3538) and the release above clears it (1000:85A9). */
         if (!pan && level_end_holding()) {
             /* 1000:34E6: the play loop's exit hold - the end sound
                  * (0x83B7, AX = 0xC) and 15 vsyncs (0x8B56) on the frozen
                  * world, then draw_level_text's chain.  The JS 34BB follows
-                 * object_test_dispatch, so the pan defers it too. */
+                 * object_core_test_dispatch, so the pan defers it too. */
             statusbar_set_active(0); // [0x5B12] = 0: the clock stops
             return 1;
         }
         if (!pan && level_ended()) {
-            /* object_test_dispatch returned negative (1000:35D6):
+            /* object_core_test_dispatch returned negative (1000:35D6):
                  * the play loop is over; [0x138E] keeps its outcome */
             _end_page_up = 1;
             _end_phase = END_CAPTION; // draw_level_text's chain
@@ -898,7 +901,8 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
         }
         /* scan_id_list (1000:386E) runs after update_world and before
              * the pending-event table, once the pan has returned. */
-        if (!pan && !menu_active() && !level_ended() && !object_charge_active())
+        if (!pan && !menu_active() && !level_ended() &&
+            !object_sequence_charge_active())
             (void)gameflow_key_list(input); /* scan_id_list is blocked by
                                               * the event-4 loop (1000:36DB) */
         if (menu_active()) {
@@ -917,12 +921,12 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
              * pause_toggle (both of which may have armed a code); event
              * 4's charge loop then takes its per-frame share (1000:3702)
              * with the world frame already updated.  A negative
-             * object_test_dispatch (level_ended) leaves the play loop
+             * object_core_test_dispatch (level_ended) leaves the play loop
              * before the dispatch (JS 0x34E6), and a running pan defers
              * both until 1000:3540 returns. */
         if (!pan && !level_ended()) {
-            object_pending_run();
-            (void)object_charge_tick();
+            object_sequence_pending_run();
+            (void)object_sequence_charge_tick();
         }
         if (*quit_requested) return 0;
     }
@@ -1000,9 +1004,9 @@ static uint8_t _game_frame(const OSystem *osys, GameFlow *state,
          * (1000:85A9).  One flag, owned by object.c.  The event-4 charge is a
          * blocking loop in the original and never polls, so its update_world
          * keeps the press frame's fire; do not mask it here. */
-    if (object_action_latched() && !object_charge_active()) {
+    if (object_core_action_latched() && !object_sequence_charge_active()) {
         if (rawFire) input.joyBits &= 0x0Fu;
-        else object_set_action_latched(0);
+        else object_core_set_action_latched(0);
     }
     scene_note_input(&input); // the waits read this tick's *state
     level_note_input(&input); // 1000:8526: the play loop's [0x5ACE]
