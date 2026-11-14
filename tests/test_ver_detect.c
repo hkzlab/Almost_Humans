@@ -11,13 +11,12 @@
  */
 #include "compat.h"
 #include "game_strings.h"
+#include "null/osys_null.h"
 #include "ver_detect.h"
 
 #include <stdio.h>
 
 static int32_t _bad;
-
-extern const OSystem g_osys_null;
 
 /**
  * @brief Assert one condition and count a failure.

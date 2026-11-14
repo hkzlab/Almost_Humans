@@ -238,8 +238,8 @@ static void _draw_times_row(uint8_t *ar, uint32_t levelMinus1,
     secs[0] = (char)('0' + (rec[0] >> 4));
     secs[1] = (char)('0' + (rec[0] & 0xFu));
     secs[2] = 0;
-    font_draw_text(ar, game_strings[g_game_language][GAME_STRING_ATTRACT_TIMES_LABEL],
-                   0x92u, row); // 16D3, redrawn per row
+    font_draw_text(ar, game_string(GAME_STRING_ATTRACT_TIMES_LABEL), 0x92u,
+                   row); // 16D3, redrawn per row
     font_draw_text(ar, num, 0x3Du, row);
     font_draw_text(ar, mins, 0x74u, row);
     font_draw_text(ar, secs, 0xD8u, row);
@@ -352,7 +352,7 @@ static int32_t _e1_load(void)
     uint32_t sz = 0;
     _unload_img();
     _img_buf =
-        res_load_chunk(game_resources[GAME_RES_LBM_GAMEINT_BIT], &sz, NULL);
+        res_load_chunk(game_resource_name(GAME_RES_LBM_GAMEINT_BIT), &sz, NULL);
     if (!_img_buf || sz < VIDEO_PAGE_BYTES + 768u) {
         _unload_img();
         return 0;
@@ -388,7 +388,7 @@ static int32_t _e3_load(void)
     uint32_t sz = 0;
     _unload_img();
     _img_buf =
-        res_load_chunk(game_resources[GAME_RES_LBM_PCTITLE_RAW], &sz, NULL);
+        res_load_chunk(game_resource_name(GAME_RES_LBM_PCTITLE_RAW), &sz, NULL);
     if (!_img_buf || sz < 112768u) {
         _unload_img();
         return 0;
@@ -416,7 +416,7 @@ static int32_t _e2_load(void)
     uint32_t sz = 0;
     _unload_img();
     _img_buf =
-        res_load_chunk(game_resources[GAME_RES_LBM_GAMEINT_BIT], &sz, NULL);
+        res_load_chunk(game_resource_name(GAME_RES_LBM_GAMEINT_BIT), &sz, NULL);
     if (!_img_buf || sz < VIDEO_PAGE_BYTES + 768u) {
         _unload_img();
         return 0;
@@ -449,8 +449,8 @@ static int32_t _e2_load(void)
                          VIDEO_PAGE_H_MODE13H);
     _flip_page();
 
-    uint8_t *palBuf =
-        res_load_chunk(game_resources[GAME_RES_LBM_SCOREPAL_PAL], &sz, NULL);
+    uint8_t *palBuf = res_load_chunk(
+        game_resource_name(GAME_RES_LBM_SCOREPAL_PAL), &sz, NULL);
     if (palBuf) {
         palette_load_working(palBuf);
         g_osys->memFree(palBuf);
@@ -578,13 +578,13 @@ static int32_t _e4_load(void)
      * traced; see the note by the module state) */
     g_osys->memFree(_credtext);
     _credtext = NULL;
-    _credtext = res_load_chunk(game_resources[GAME_RES_CREDTEXT_BIN],
+    _credtext = res_load_chunk(game_resource_name(GAME_RES_CREDTEXT_BIN),
                                &_credtext_size, NULL);
     if (!_credtext) return 0;
     uint32_t sz = 0;
     _unload_img();
-    _img_buf =
-        res_load_chunk(game_resources[GAME_RES_LBM_INTCRED4_BIT], &sz, NULL);
+    _img_buf = res_load_chunk(game_resource_name(GAME_RES_LBM_INTCRED4_BIT),
+                              &sz, NULL);
     if (!_img_buf || sz < VIDEO_PAGE_BYTES + 768u) {
         _unload_img();
         return 0;
@@ -625,7 +625,7 @@ static void _attract_restart(void)
     res_set_disc(0u); // LAB_000E: [0xF7E] := 0
     g_osys->memFree(_text_spr);
     _text_spr =
-        res_load_chunk(game_resources[GAME_RES_APL_TEXT_SPR], NULL, NULL);
+        res_load_chunk(game_resource_name(GAME_RES_APL_TEXT_SPR), NULL, NULL);
     font_publish(_text_spr); // [0x1E1C] - may be NULL (headless)
 
     _saved_draw = _page_draw;
@@ -837,15 +837,13 @@ uint8_t attract_tick(const InputState *in)
         memcpy(video_flat(), _img_buf, VIDEO_PAGE_BYTES); // copy_page 18a4
         memset(ar, 0, 16000u); // clear_screen_buf 1882
         if (_frame == 0u) { // intro_frame_1 1625
-            font_draw_text(
-                ar, game_strings[g_game_language][GAME_STRING_ATTRACT_SCORE_HEADER],
-                0xA0u, 4u);
+            font_draw_text(ar, game_string(GAME_STRING_ATTRACT_SCORE_HEADER),
+                           0xA0u, 4u);
             _draw_score_block(ar);
         } else { // intro_frame_2 1652
             uint16_t base = (_frame - 1u) * 10u;
-            font_draw_text(
-                ar, game_strings[g_game_language][GAME_STRING_ATTRACT_TIMES_HEADER],
-                0xA0u, 4u);
+            font_draw_text(ar, game_string(GAME_STRING_ATTRACT_TIMES_HEADER),
+                           0xA0u, 4u);
             for (uint16_t r = 0; r < 10u; r++) {
                 uint8_t rec[2];
 

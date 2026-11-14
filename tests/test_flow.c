@@ -17,6 +17,7 @@
 #include "hiscore.h"
 #include "level/level.h"
 #include "map/map.h"
+#include "null/osys_null.h"
 #include "object/object.h"
 #include "osystem.h"
 #include "palette.h"
@@ -34,12 +35,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-extern const uint8_t *osys_null_page(int32_t which);
-extern const uint8_t *osys_null_palette(void);
-extern VideoMode osys_null_video_mode(void);
-
-extern const OSystem g_osys_null;
 
 static int32_t _bad;
 
@@ -1344,7 +1339,6 @@ int main(int argc, char **argv)
                "op 4 does not apply for behaviour 13 (state 0)");
         object_sequence_action_set_cursor(1u);
         object_core_set_slot_class(1u, 0x85u); // the spear's taken mark back
-
 
         /* and the level's own flow ends it as won */
         object_sequence_pending_run();
@@ -8109,33 +8103,35 @@ int main(int argc, char **argv)
             uint32_t guard = 0;
 
             k.lastKey = 0;
-            while (g_map_panel == 0u && guard++ < 2000u) {
+            while (map_panel_for_probe() == 0u && guard++ < 2000u) {
                 map_tick(&k);
                 palette_tick();
                 audio_tick();
             }
-            _check(guard >= 0x12Eu && g_map_box_bottom == 2u &&
-                       g_map_panel == 1u,
+            _check(guard >= 0x12Eu && map_box_bottom_for_probe() == 2u &&
+                       map_panel_for_probe() == 1u,
                    "1000:0518: the frame unrolls from row 0x130 to row 2");
         }
         /* 1000:05F4/0613: a panel step is 0x14 frames of one [0x8AE] unit
          * each; [0x8A2] changes only after the 0x14th. */
         {
-            uint32_t before = g_map_box_bottom;
+            uint32_t before = map_box_bottom_for_probe();
 
             k.joyBits = JOYBITS_UP;
             map_tick(&k);
-            _check(g_map_box_bottom == before && g_map_panel == 1u,
+            _check(map_box_bottom_for_probe() == before &&
+                       map_panel_for_probe() == 1u,
                    "1000:060C: the step tick only arms the 0x14-frame walk");
             k.joyBits = 0;
             for (uint32_t i = 0; i < 0x14u; i++) {
                 map_tick(&k);
                 if (i + 1u < 0x14u)
-                    _check(g_map_box_bottom == before + i + 1u &&
-                               g_map_panel == 1u,
+                    _check(map_box_bottom_for_probe() == before + i + 1u &&
+                               map_panel_for_probe() == 1u,
                            "1000:0613: the frame moves one unit per tick");
             }
-            _check(g_map_box_bottom == before + 0x14u && g_map_panel == 2u,
+            _check(map_box_bottom_for_probe() == before + 0x14u &&
+                       map_panel_for_probe() == 2u,
                    "1000:060C: after 0x14 frames the panel is 2");
             for (uint32_t p = 2u; p < 6u; p++) {
                 k.joyBits = JOYBITS_UP;
@@ -8143,7 +8139,8 @@ int main(int argc, char **argv)
                 k.joyBits = 0;
                 for (uint32_t i = 0; i < 0x14u; i++) map_tick(&k);
             }
-            _check(g_map_panel == 6u && g_map_box_bottom == 2u + 5u * 0x14u,
+            _check(map_panel_for_probe() == 6u &&
+                       map_box_bottom_for_probe() == 2u + 5u * 0x14u,
                    "the panel stops at 6 with the frame at 2 + 5*0x14");
             /* down reverses the same 0x14-frame walk */
             k.joyBits = JOYBITS_DOWN;
@@ -8151,7 +8148,8 @@ int main(int argc, char **argv)
             k.joyBits = 0;
             for (uint32_t i = 0; i < 0x14u; i++) map_tick(&k);
             _check(
-                g_map_panel == 5u && g_map_box_bottom == 2u + 4u * 0x14u,
+                map_panel_for_probe() == 5u &&
+                    map_box_bottom_for_probe() == 2u + 4u * 0x14u,
                 "1000:05ED: a down step walks the frame back over 0x14 frames");
         }
         /* 1000:07E6: the five frame rows, at rows 46/66/86/106/126 (the
@@ -8236,7 +8234,6 @@ int main(int argc, char **argv)
             _check(guard < 3000u, "D-220: the fade and hold end the MAP");
         }
     }
-
 
     /* 9. the last four tails and the level-end probe, field by field.
      *    These run last: they free records and re-arm the bar. */

@@ -18,6 +18,7 @@
 #include "font.h"
 #include "level/level.h"
 #include "menu.h"
+#include "null/osys_null.h"
 #include "object/object.h"
 #include "osystem.h"
 #include "palette.h"
@@ -34,10 +35,6 @@
 #define SAVE_SLOT 20u
 #define SAVE_NAME "SAVET"
 #define SCRIPT_N  10000u
-
-extern const OSystem g_osys_null;
-extern void osys_null_input_script(const InputState *states, uint32_t n);
-extern void osys_null_on_present(void (*fn)(uint32_t poll));
 
 static InputState _script[SCRIPT_N];
 static uint8_t _moved, _saw_pan, _esc_armed, _pan_done, _checked;

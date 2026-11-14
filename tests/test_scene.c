@@ -11,6 +11,7 @@
  * argv[2] = the extracted-tree fixture root (expected bytes).
  * Missing volumes = skip; a wrong decode with data present = fail. */
 #include "audio.h"
+#include "null/osys_null.h"
 #include "osystem.h"
 #include "res.h"
 #include "palette.h"
@@ -23,12 +24,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-extern void osys_null_inject(const InputState *in);
-extern const uint8_t *osys_null_page(int32_t which);
-extern const uint8_t *osys_null_palette(void);
-
-extern const OSystem g_osys_null;
 
 /**
  * @brief XOR the little-endian words of a byte range.

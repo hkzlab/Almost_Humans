@@ -1,7 +1,7 @@
 /* Text: the localisable strings, one column per shipped build.
  *
- * `game_strings[language][id]` is the only source of displayed text; adding a
- * language means filling a row in `game_strings` and `game_strings_num_offset`.
+ * `game_string(id)` is the only source of displayed text; adding a
+ * language means adding its column to the two tables in game_strings.c.
  * Every column is byte-for-byte from that build's image (202F:0x5F..,
  * 0x7BB.., 0x105F.., ...).
  *
@@ -94,20 +94,39 @@ enum GameString {
     GAME_STRING_COUNT
 };
 
-/* The active column.  ver_detect_run() stores the language of the installed
- * volume set here at boot; every consumer indexes the tables below with it,
- * so a call site never names a language. */
-extern uint32_t g_game_language;
+/* The active column: ver_detect_run() stores the language of the installed
+ * volume set at boot; every consumer reads it through game_language(), so a
+ * call site never names a language. */
+enum GameLanguage game_language(void);
 
-extern const char *const game_strings[GAME_LANGUAGE_COUNT][GAME_STRING_COUNT];
+/**
+ * @brief Select the text column.
+ *
+ * @param lang the language
+ */
+void game_language_set(enum GameLanguage lang);
 
-/* Byte offset of each string's in-place digit field, parallel to game_strings:
- * the briefing's `_put_number` calls patch digits into a copied template, and
- * a translation may move the field, so the offset is language data too.
- * GAME_STRING_NUM_NONE marks a string with no in-place field (printed verbatim,
- * or formatted through printf into a scratch buffer). */
+/**
+ * @brief One string in the active column.
+ *
+ * @param id the string
+ * @return the text, or NULL for an id out of range
+ */
+const char *game_string(enum GameString id);
+
+/* Byte offset of each string's in-place digit field, parallel to the text
+ * above: the briefing's `_put_number` calls patch digits into a copied
+ * template, and a translation may move the field, so the offset is language
+ * data too.  GAME_STRING_NUM_NONE marks a string with no in-place field
+ * (printed verbatim, or formatted through printf into a scratch buffer). */
 #define GAME_STRING_NUM_NONE 0xFFu
 
-extern const uint8_t game_strings_num_offset[GAME_LANGUAGE_COUNT][GAME_STRING_COUNT];
+/**
+ * @brief The in-place digit field's byte offset for one active-column string.
+ *
+ * @param id the string
+ * @return the byte offset, GAME_STRING_NUM_NONE when the string has no field
+ */
+uint8_t game_string_num_offset(enum GameString id);
 
 #endif

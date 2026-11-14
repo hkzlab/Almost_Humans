@@ -82,7 +82,8 @@ static void level_loading_begin(void)
         uint8_t st = _level_record()->style;
         char icon[32];
         char l = (st >= 1u && st <= 6u) ? letter[st - 1u] : 'd';
-        snprintf(icon, sizeof icon, game_resources[GAME_RES_BACKS_ICON_FMT], l);
+        snprintf(icon, sizeof icon, game_resource_name(GAME_RES_BACKS_ICON_FMT),
+                 l);
         _load_dic = res_load_chunk(icon, &_load_dic_size, NULL);
     }
     if (_load_dic && _load_dic_size >= 0x18u + 0x180u) {
@@ -93,7 +94,7 @@ static void level_loading_begin(void)
         const uint8_t *bank = statusbar_palette();
         if (bank) palette_set_dac(bank, 0xC0u, 0x40u);
     }
-    _loading_bank = res_load_chunk(game_resources[GAME_RES_APL_LOADING_APL],
+    _loading_bank = res_load_chunk(game_resource_name(GAME_RES_APL_LOADING_APL),
                                    &_loading_size, NULL);
     if (!_loading_bank) {
         _load_phase = 3;

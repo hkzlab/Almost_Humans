@@ -1,9 +1,12 @@
 #include "game_resources.h"
 
+#include <stddef.h>
+#include <stdint.h>
+
 /* The names are the volume directory's, byte for byte: uppercase, `\`
  * separated, no leading separator.  A `_FMT` entry is the template the
  * loader snprintf()s. */
-const char *const game_resources[GAME_RES_COUNT] = {
+static const char *const _game_resources[GAME_RES_COUNT] = {
     [GAME_RES_ANM_ANI_FMT] = "ANM\\ANI%02u.ANI",
 
     [GAME_RES_APL_ALPHA_SPR] = "APL\\ALPHA.SPR",
@@ -64,3 +67,6 @@ const char *const game_resources[GAME_RES_COUNT] = {
 
     [GAME_RES_CREDTEXT_BIN] = "CREDTEXT.BIN",
 };
+
+const char *game_resource_name(enum GameResource id)
+{ return (uint32_t)id < GAME_RES_COUNT ? _game_resources[id] : NULL; }

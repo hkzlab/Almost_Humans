@@ -23,6 +23,7 @@
 #include "font.h"
 #include "frontend.h"
 #include "level/level.h"
+#include "null/osys_null.h"
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
@@ -35,13 +36,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-extern const uint8_t *osys_null_page(int32_t which);
-extern uint32_t osys_null_audio_starts(void);
-extern uint32_t osys_null_audio_stops(void);
-extern VideoMode osys_null_video_mode(void);
-
-extern const OSystem g_osys_null;
 
 /**
  * @brief Run one frontend tick and its palette ISR step.

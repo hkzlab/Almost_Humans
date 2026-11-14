@@ -118,7 +118,7 @@ int32_t level_load(uint16_t levelId)
     res_set_disc(disc);
 
     char name[32];
-    snprintf(name, sizeof name, game_resources[GAME_RES_LEVELS_L_FMT],
+    snprintf(name, sizeof name, game_resource_name(GAME_RES_LEVELS_L_FMT),
              'A' + levelId / 10u);
 
     uint32_t fileSize = 0;
@@ -190,15 +190,15 @@ int32_t level_load(uint16_t levelId)
     /* load_level_assets (1000:3468): the in-level dialog's box tiles
      * (apl\box.spr, 9 x 16x16 at [0x13B1]) load with the level's assets. */
     g_osys->memFree(_box_spr);
-    _box_spr =
-        res_load_chunk(game_resources[GAME_RES_APL_BOX_SPR], &_box_size, NULL);
+    _box_spr = res_load_chunk(game_resource_name(GAME_RES_APL_BOX_SPR),
+                              &_box_size, NULL);
     textpage_publish_box(_box_spr && _box_size >= 0x900u ? _box_spr : NULL);
 
     /* load_level_assets (1000:3488): APL\SPRITES.DAT is the object sprite
      * image (81744 = 0x13F50 bytes); the object pass draws from it. */
     g_osys->memFree(_obj_bank);
     _obj_bank = NULL;
-    _obj_bank = res_load_chunk(game_resources[GAME_RES_APL_SPRITES_DAT],
+    _obj_bank = res_load_chunk(game_resource_name(GAME_RES_APL_SPRITES_DAT),
                                &_obj_bank_size, NULL);
     object_render_publish_bank(_obj_bank, _obj_bank_size);
 
@@ -207,7 +207,7 @@ int32_t level_load(uint16_t levelId)
     g_osys->memFree(_ent_bank);
     _ent_bank = NULL;
     _ent_bank_size = 0;
-    _ent_bank = res_load_chunk(game_resources[GAME_RES_APL_REX_DAT],
+    _ent_bank = res_load_chunk(game_resource_name(GAME_RES_APL_REX_DAT),
                                &_ent_bank_size, NULL);
     entity_publish_bank(_ent_bank, _ent_bank_size);
 
@@ -216,7 +216,7 @@ int32_t level_load(uint16_t levelId)
     g_osys->memFree(_ter_bank);
     _ter_bank = NULL;
     _ter_bank_size = 0;
-    _ter_bank = res_load_chunk(game_resources[GAME_RES_APL_TER_DAT],
+    _ter_bank = res_load_chunk(game_resource_name(GAME_RES_APL_TER_DAT),
                                &_ter_bank_size, NULL);
     object_render_publish_ter(_ter_bank, _ter_bank_size);
 

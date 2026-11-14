@@ -15,6 +15,7 @@
  * corpus measurement (the 2026-10-23 sweep in the decode's own model -
  * the last-block reset semantics of resource_load's BP): ANI03 = 0x3c3f,
  * ITB = 0x2adb. */
+#include "null/osys_null.h"
 #include "osystem.h"
 #include "res.h"
 #include "compat.h"
@@ -23,8 +24,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
-
-extern const OSystem g_osys_null;
 
 /**
  * @brief Report whether the fixture volume HUMANS.000 is absent.

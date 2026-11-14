@@ -18,6 +18,7 @@
  *           rendered with the installed DAC - for eyeballing/analysis).
  * Missing volumes = skip. */
 #include "level/level.h"
+#include "null/osys_null.h"
 #include "object/object.h"
 #include "osystem.h"
 #include "palette.h"
@@ -41,11 +42,6 @@
  * rectangle it covers (the slots sit at x 131..154 and 166..189). */
 #define ACTION_X0 128u
 #define ACTION_X1 192u
-
-extern const uint8_t *osys_null_page(int32_t which);
-extern const uint8_t *osys_null_palette(void);
-
-extern const OSystem g_osys_null;
 
 static uint8_t _strip[1280];
 static uint8_t _panel4[12800 + 0xFA00 + 768]; // art + the palette
@@ -567,7 +563,6 @@ int main(int argc, char **argv)
                       osys_null_palette());
         }
     }
-
 
     /* 1000:3933 (SPACE): the group header's second byte is the selected cell,
      * and the gold frame sits on that cell (1000:990A counts it down per

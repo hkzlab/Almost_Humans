@@ -26,6 +26,7 @@
  * argv[1] = the volume dir, argv[2] = the extracted tree.  Missing data =
  * skip with a notice (test_party's contract). */
 #include "font.h"
+#include "null/osys_null.h"
 #include "osystem.h"
 #include "palette.h"
 #include "party_intro.h"
@@ -35,8 +36,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-
-extern const OSystem g_osys_null;
 
 /**
  * @brief Print the DAC window around the ladder for one tick.

@@ -17,6 +17,7 @@
 #include "attract.h"
 #include "font.h"
 #include "gameflow.h"
+#include "null/osys_null.h"
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
@@ -26,8 +27,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-
-extern const OSystem g_osys_null;
 
 /**
  * @brief A zeroed input state (no key, fire released).

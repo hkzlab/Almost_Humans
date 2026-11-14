@@ -7,13 +7,20 @@
 #include <stdio.h>
 #include <string.h>
 
-/* 202F:002A / 0x77A / 0xF91 / 0x11AA / 0x1391 / 0x139B. */
-const char audio_tune_title[] = "mus\\title";
-const char audio_tune_hiscore[] = "mus\\hiscore";
-const char audio_tune_disk[] = "mus\\disk";
-const char audio_tune_party[] = "mus\\party";
-const char audio_tune_humfx[] = "mus\\humfx";
-char audio_tune_lev[] = "mus\\levA";
+/* 202F:002A / 0x77A / 0xF91 / 0x11AA / 0x1391 / 0x139B.  The address is the
+ * original's dedup key, so the port keeps one object per name. */
+static const char _tune_title[] = "mus\\title";
+static const char _tune_hiscore[] = "mus\\hiscore";
+static const char _tune_disk[] = "mus\\disk";
+static const char _tune_party[] = "mus\\party";
+static const char _tune_humfx[] = "mus\\humfx";
+static char _tune_lev[] = "mus\\levA"; // the letter at +7 is [0x13A2]
+
+static const char *const _tune_names[AUDIO_TUNE_COUNT] = {
+    [AUDIO_TUNE_TITLE] = _tune_title, [AUDIO_TUNE_HISCORE] = _tune_hiscore,
+    [AUDIO_TUNE_DISK] = _tune_disk,   [AUDIO_TUNE_PARTY] = _tune_party,
+    [AUDIO_TUNE_HUMFX] = _tune_humfx, [AUDIO_TUNE_LEV] = _tune_lev,
+};
 
 /* The fade-in's last step is 0x4A (1000:84CE), the fade-out's first is
  * 0x4B (1000:8364); both map to master volume 0x2F in the driver. */
@@ -57,6 +64,9 @@ static int32_t _driver_id(void)
     if (!g_osys->audioDriverId) return 1;
     return g_osys->audioDriverId();
 }
+
+const char *audio_tune_name(enum AudioTune tune)
+{ return (uint32_t)tune < AUDIO_TUNE_COUNT ? _tune_names[tune] : NULL; }
 
 void audio_play_tune(const char *name)
 {
@@ -105,8 +115,8 @@ void audio_play_tune(const char *name)
 void audio_play_level_tune(uint16_t level1)
 {
     uint8_t letter = level1 ? (level1 - 1u) % 18u : 0u;
-    audio_tune_lev[7] = (char)('A' + letter);
-    audio_play_tune(audio_tune_lev);
+    _tune_lev[7] = (char)('A' + letter);
+    audio_play_tune(_tune_lev);
 }
 
 void audio_music_resume(void)

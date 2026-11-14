@@ -195,7 +195,7 @@ int main(int argc, char **argv)
     assert(_drv != NULL);
 
     /* --- the boot: play_tune(mus\title) / resume / fade-in ------------ */
-    audio_play_tune(audio_tune_title);
+    audio_play_tune(audio_tune_name(AUDIO_TUNE_TITLE));
     audio_music_resume();
     audio_fade_in();
     peak = _run(600);
@@ -235,7 +235,7 @@ int main(int argc, char **argv)
     /* --- driver_call: the effects bank when the board is off ---------- */
     frontend_option_set_for_probe(FRONTEND_OPT_MUSIC, 1u); // music off
     res_set_disc(1u);
-    audio_play_tune(audio_tune_humfx);
+    audio_play_tune(audio_tune_name(AUDIO_TUNE_HUMFX));
     audio_fade_in();
     audio_sfx(0u); // 1000:83B7, AX = 0 (PICKUP)
     assert(_voice != 0xFFFFu);
@@ -247,9 +247,9 @@ int main(int argc, char **argv)
     /* --- the level's lettered tune (1000:327F) ------------------------ */
     frontend_option_set_for_probe(FRONTEND_OPT_MUSIC, 0u); // music on
     audio_play_level_tune(1u);
-    assert(strcmp(audio_tune_lev, "mus\\levA") == 0);
+    assert(strcmp(audio_tune_name(AUDIO_TUNE_LEV), "mus\\levA") == 0);
     audio_play_level_tune(2u);
-    assert(strcmp(audio_tune_lev, "mus\\levB") == 0);
+    assert(strcmp(audio_tune_name(AUDIO_TUNE_LEV), "mus\\levB") == 0);
 
     /* --- the disc prompt's tune (1000:2042) --------------------------- */
     assert(video_init() == 0);
@@ -291,7 +291,7 @@ int main(int argc, char **argv)
     frontend_option_set_for_probe(FRONTEND_OPT_MUSIC, 0u); // music on
     res_set_disc(1u); // the level tunes ship on HUMANS.001
     audio_play_level_tune(82u); // level 82 = DOOM
-    assert(strcmp(audio_tune_lev, "mus\\levJ") == 0);
+    assert(strcmp(audio_tune_name(AUDIO_TUNE_LEV), "mus\\levJ") == 0);
     audio_music_resume();
     (void)_run(12000); // ~8000 driver ticks: well past the one-pass end
     peak = _run(200);

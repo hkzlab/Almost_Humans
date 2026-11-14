@@ -53,8 +53,8 @@ void _level_palette_build(void)
     memset(_level_pal, 0, sizeof _level_pal);
     {
         uint32_t spSize = 0;
-        uint8_t *sp = res_load_chunk(game_resources[GAME_RES_APL_SPRPAL_APL],
-                                     &spSize, NULL);
+        uint8_t *sp = res_load_chunk(
+            game_resource_name(GAME_RES_APL_SPRPAL_APL), &spSize, NULL);
         if (sp && spSize >= 0x1Bu + 0x5Du)
             memcpy(_level_pal + 3u, sp + 0x1Bu, 0x5Du);
         g_osys->memFree(sp);

@@ -333,7 +333,7 @@ int main(int argc, char **argv)
         osys_bind(&osys);
         assert(audio_init() == 0);
         res_init();
-        audio_play_tune(audio_tune_title);
+        audio_play_tune(audio_tune_name(AUDIO_TUNE_TITLE));
         assert(_core_loaded_size == size);
         audio_music_resume();
         assert(_core_resumes == 1);
@@ -348,7 +348,7 @@ int main(int argc, char **argv)
         assert(_core_resumes == 1);
 
         /* A successful load clears the silence and lets the music resume. */
-        audio_play_tune(audio_tune_title);
+        audio_play_tune(audio_tune_name(AUDIO_TUNE_TITLE));
         assert(_core_loaded_size == size);
         audio_music_resume();
         assert(_core_resumes == 2);

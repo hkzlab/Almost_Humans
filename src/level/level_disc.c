@@ -61,8 +61,8 @@ static void _disk_draw(uint16_t disc)
     for (uint16_t k = 0; k < 3u && !img; k++) {
         used = (k == 0u) ? disc : (k == 1u ? 0u : (disc == 1u ? 2u : 1u));
         res_set_disc(used);
-        img = res_load_chunk(game_resources[GAME_RES_APL_DISKIMG1_DAT], &isz,
-                             NULL);
+        img = res_load_chunk(game_resource_name(GAME_RES_APL_DISKIMG1_DAT),
+                             &isz, NULL);
     }
     if (img) {
         if (isz >= 0x18u + 768u) memcpy(_disk_pal, img + 0x18, 768u);
@@ -84,23 +84,19 @@ static void _disk_draw(uint16_t disc)
 
     g_osys->memFree(_disk_font);
     _disk_font =
-        res_load_chunk(game_resources[GAME_RES_APL_TEXT_SPR], NULL, NULL);
+        res_load_chunk(game_resource_name(GAME_RES_APL_TEXT_SPR), NULL, NULL);
     font_publish(_disk_font);
 
     char line[32];
-    textpage_draw_line(
-        page, game_strings[g_game_language][GAME_STRING_LEVEL_PUT_DISK], 0x50u,
-        0x0Fu);
-    snprintf(line, sizeof line,
-             game_strings[g_game_language][GAME_STRING_LEVEL_INTO_DRIVE],
+    textpage_draw_line(page, game_string(GAME_STRING_LEVEL_PUT_DISK), 0x50u,
+                       0x0Fu);
+    snprintf(line, sizeof line, game_string(GAME_STRING_LEVEL_INTO_DRIVE),
              (char)('1' + disc));
     textpage_draw_line(page, line, 0x60u, 0x0Fu);
-    textpage_draw_line(
-        page, game_strings[g_game_language][GAME_STRING_LEVEL_PRESS_FIRE],
-        0x88u, 0x0Fu);
-    textpage_draw_line(
-        page, game_strings[g_game_language][GAME_STRING_LEVEL_WHEN_READY],
-        0x98u, 0x0Fu);
+    textpage_draw_line(page, game_string(GAME_STRING_LEVEL_PRESS_FIRE), 0x88u,
+                       0x0Fu);
+    textpage_draw_line(page, game_string(GAME_STRING_LEVEL_WHEN_READY), 0x98u,
+                       0x0Fu);
 }
 
 uint8_t level_disk_status_begin(uint16_t disc)
@@ -115,7 +111,7 @@ uint8_t level_disk_status_begin(uint16_t disc)
     memset(_disk_pal, 0, sizeof _disk_pal);
     /* 1000:2042-204b: play_tune("mus\disk") / music_resume / timing_loop,
      * which blocks before the page is drawn (the page blits at 0x204E). */
-    audio_play_tune(audio_tune_disk);
+    audio_play_tune(audio_tune_name(AUDIO_TUNE_DISK));
     audio_music_resume();
     audio_fade_in();
     _disk_phase = DISK_MUSIC;

@@ -476,22 +476,22 @@ static int32_t _boot_start(void)
     _scene_fast = 1; // 1000:B59F
     _boot_unload();
     res_set_disc(0u); // the boot assets ship on disc 0
-    _boot_gt = res_load_chunk(game_resources[GAME_RES_INTRO_GAMETEK_RSC],
+    _boot_gt = res_load_chunk(game_resource_name(GAME_RES_INTRO_GAMETEK_RSC),
                               &_boot_gt_size, NULL);
     _boot_bac =
-        res_load_chunk(game_resources[GAME_RES_INTRO_BAC_BIT], NULL, NULL);
-    _boot_treetop =
-        res_load_chunk(game_resources[GAME_RES_INTRO_TREETOP_BIT], NULL, NULL);
-    _boot_treebot =
-        res_load_chunk(game_resources[GAME_RES_INTRO_TREEBOT_BIT], NULL, NULL);
-    _boot_apple =
-        res_load_chunk(game_resources[GAME_RES_INTRO_APPLE_SPR], NULL, NULL);
-    _boot_words =
-        res_load_chunk(game_resources[GAME_RES_INTRO_WORDS_BIT], NULL, NULL);
-    _boot_rsc = res_load_chunk(game_resources[GAME_RES_INTRO_INTRO_RSC],
+        res_load_chunk(game_resource_name(GAME_RES_INTRO_BAC_BIT), NULL, NULL);
+    _boot_treetop = res_load_chunk(
+        game_resource_name(GAME_RES_INTRO_TREETOP_BIT), NULL, NULL);
+    _boot_treebot = res_load_chunk(
+        game_resource_name(GAME_RES_INTRO_TREEBOT_BIT), NULL, NULL);
+    _boot_apple = res_load_chunk(game_resource_name(GAME_RES_INTRO_APPLE_SPR),
+                                 NULL, NULL);
+    _boot_words = res_load_chunk(game_resource_name(GAME_RES_INTRO_WORDS_BIT),
+                                 NULL, NULL);
+    _boot_rsc = res_load_chunk(game_resource_name(GAME_RES_INTRO_INTRO_RSC),
                                &_boot_rsc_size, NULL);
     _boot_itb =
-        res_load_chunk(game_resources[GAME_RES_INTRO_ITB_BIT], NULL, NULL);
+        res_load_chunk(game_resource_name(GAME_RES_INTRO_ITB_BIT), NULL, NULL);
     if (!_boot_gt || !_boot_bac || !_boot_treetop || !_boot_treebot ||
         !_boot_apple || !_boot_words || !_boot_rsc || !_boot_itb) {
         _boot_unload();
@@ -528,7 +528,7 @@ static int32_t _boot_start(void)
     _boot_gt_group = 0u;
     _boot_gt_bank = 0u;
     palette_build_fade(0u, 256u, 2u, _boot_ramp);
-    audio_play_tune(audio_tune_title); // 1000:b5f2
+    audio_play_tune(audio_tune_name(AUDIO_TUNE_TITLE)); // 1000:b5f2
     audio_music_resume(); // 1000:b5f8
     audio_fade_in(); // 1000:b5fb
     _boot_phase = BOOT_GT_PRE;
@@ -857,7 +857,7 @@ uint8_t scene_play_boot_intro(void)
         _boot_gt_entry_count = 0;
         g_osys->memFree(_boot_gt_list);
         _boot_gt_list = NULL;
-        if (!_boot_card_show(game_resources[GAME_RES_INTRO_IDI_BIT])) {
+        if (!_boot_card_show(game_resource_name(GAME_RES_INTRO_IDI_BIT))) {
             _boot_unload();
             _boot_phase = BOOT_DONE;
             return 0;
@@ -885,7 +885,7 @@ uint8_t scene_play_boot_intro(void)
     case BOOT_IDI_OUT:
         if (_boot_abort_poll()) return 1; // c0af (bdae)
         if (palette_fade_active()) return 1;
-        if (!_boot_card_show(game_resources[GAME_RES_INTRO_FIRST_BIT])) {
+        if (!_boot_card_show(game_resource_name(GAME_RES_INTRO_FIRST_BIT))) {
             _boot_unload();
             _boot_phase = BOOT_DONE;
             return 0;

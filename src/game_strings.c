@@ -1,10 +1,11 @@
 #include "game_strings.h"
 
+#include <stddef.h>
 #include <stdint.h>
 
-uint32_t g_game_language = GAME_LANGUAGE_EN;
+static enum GameLanguage _language = GAME_LANGUAGE_EN;
 
-const char *const game_strings[GAME_LANGUAGE_COUNT][GAME_STRING_COUNT] = {
+static const char *const _game_strings[GAME_LANGUAGE_COUNT][GAME_STRING_COUNT] = {
     [GAME_LANGUAGE_EN] = {
         /* attract */
         "FASTEST LEVEL TIMES!",
@@ -388,11 +389,11 @@ const char *const game_strings[GAME_LANGUAGE_COUNT][GAME_STRING_COUNT] = {
 };
 
 /* One row per language, one column per string, in the same order as
- * game_strings: the party templates' digit fields sit at fixed byte offsets in
+ * _game_strings: the party templates' digit fields sit at fixed byte offsets in
  * the original's string block, and the other strings have no in-place field.
  * Every row is the index of that language's first digit in its own template
  * (derived from the text, not from English). */
-const uint8_t game_strings_num_offset[GAME_LANGUAGE_COUNT][GAME_STRING_COUNT] = {
+static const uint8_t _game_strings_num_offset[GAME_LANGUAGE_COUNT][GAME_STRING_COUNT] = {
     [GAME_LANGUAGE_EN] = {
         /* attract */
         GAME_STRING_NUM_NONE, GAME_STRING_NUM_NONE, GAME_STRING_NUM_NONE,
@@ -564,3 +565,21 @@ const uint8_t game_strings_num_offset[GAME_LANGUAGE_COUNT][GAME_STRING_COUNT] = 
         GAME_STRING_NUM_NONE, GAME_STRING_NUM_NONE
     }
 };
+
+enum GameLanguage game_language(void) { return _language; }
+
+void game_language_set(enum GameLanguage lang)
+{ _language = (uint32_t)lang < GAME_LANGUAGE_COUNT ? lang : GAME_LANGUAGE_EN; }
+
+const char *game_string(enum GameString id)
+{
+    return (uint32_t)id < GAME_STRING_COUNT ? _game_strings[_language][id]
+                                            : NULL;
+}
+
+uint8_t game_string_num_offset(enum GameString id)
+{
+    return (uint32_t)id < GAME_STRING_COUNT
+               ? _game_strings_num_offset[_language][id]
+               : GAME_STRING_NUM_NONE;
+}

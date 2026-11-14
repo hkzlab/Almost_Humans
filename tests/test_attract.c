@@ -20,6 +20,7 @@
  */
 #include "attract.h"
 #include "font.h"
+#include "null/osys_null.h"
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
@@ -30,10 +31,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-extern const uint8_t *osys_null_page(int32_t which);
-
-extern const OSystem g_osys_null;
 
 /**
  * @brief Read a whole file into a malloc'd buffer; NULL on error.

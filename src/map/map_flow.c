@@ -97,7 +97,10 @@ static uint8_t _map_fire_lock;
  * lands during the spin/holds is not lost and a held key does not repeat. */
 static uint8_t _map_pending_key;
 
-uint16_t g_map_panel; // [0x8A2]: 1..6
+/* [0x8A2]: 1..6, 0 while the entry animation runs; [0x8AE]: the frame band's
+ * source row (1000:0518's 0x130 down to 2, then 0x14 steps per panel). */
+static uint16_t _map_panel;
+static uint16_t _map_box_bottom;
 
 /** @brief 1000:040B: the ring cell at an angle, `(0x10E-angle)/0x0C`.
  *
@@ -204,7 +207,7 @@ static void _map_redraw(void)
     else if (_map_phase == MAP_LIST) {
         /* 1000:05A5/05F8/0617: only the frame bands; the rows stay in the
          * offscreen page and the display keeps high.bit + the header. */
-        map_draw_box_edges(page, g_map_box_bottom);
+        map_draw_box_edges(page, _map_box_bottom);
     }
 }
 
@@ -239,14 +242,14 @@ uint8_t map_begin(void)
     if (_map_up) return 1;
 
     res_set_disc(0u); // entry 0x151A [0xF7E]=0
-    _map_high = res_load_chunk(game_resources[GAME_RES_LBM_HIGH_BIT],
+    _map_high = res_load_chunk(game_resource_name(GAME_RES_LBM_HIGH_BIT),
                                &_map_high_size, NULL);
     uint8_t *page = video_page(0);
     if (_map_high && _map_high_size >= MAP_PAGE + 768u)
         palette_load_working(_map_high + MAP_PAGE); // 1000:01C3/8D24
 
     _map_font =
-        res_load_chunk(game_resources[GAME_RES_APL_TEXT_SPR], NULL, NULL);
+        res_load_chunk(game_resource_name(GAME_RES_APL_TEXT_SPR), NULL, NULL);
     font_publish(_map_font);
 
     /* 1000:01A2..0x01AB: apl\alpha.spr expanded 4bpp -> four planes */
@@ -257,8 +260,8 @@ uint8_t map_begin(void)
     {
         uint32_t asz = 0;
 
-        _alpha_packed =
-            res_load_chunk(game_resources[GAME_RES_APL_ALPHA_SPR], &asz, NULL);
+        _alpha_packed = res_load_chunk(
+            game_resource_name(GAME_RES_APL_ALPHA_SPR), &asz, NULL);
         /* 1000:0705 transposes a fixed 4096-word (8192-B) window.  The
          * shipped file is 8128 B, so the window's 64-byte tail is zeroed
          * rather than read past the chunk (the original's tail is whatever
@@ -286,7 +289,7 @@ uint8_t map_begin(void)
     g_osys->memFree(_band_sheet);
     _band_sheet = NULL;
     _band_sheet =
-        res_load_chunk(game_resources[GAME_RES_APL_BAND_SPR], NULL, NULL);
+        res_load_chunk(game_resource_name(GAME_RES_APL_BAND_SPR), NULL, NULL);
     _map_stage_ready = 0;
     _map_stage_fill(); // 1000:12D3
 
@@ -316,8 +319,8 @@ uint8_t map_begin(void)
     _map_off = g_osys->memAlloc(MAP_PAGE);
     if (!_map_off) return 0;
     memset(_map_off, 0, MAP_PAGE);
-    g_map_box_bottom = 0x130u; // 1000:0518's [0x8AE]
-    g_map_panel = 0u; // 0 = the entry animation
+    _map_box_bottom = 0x130u; // 1000:0518's [0x8AE]
+    _map_panel = 0u; // 0 = the entry animation
     _map_step = 0;
     _map_step_dir = 0;
     _map_phase = hiscore_qualifies(_map_score()) ? MAP_CONGRATS : MAP_EXIT;
@@ -327,7 +330,7 @@ uint8_t map_begin(void)
     if (_map_phase == MAP_CONGRATS) {
         /* 1000:018D-0196: play_tune("mus\hiscore") / music_resume /
          * timing_loop for the congrats + name entry. */
-        audio_play_tune(audio_tune_hiscore);
+        audio_play_tune(audio_tune_name(AUDIO_TUNE_HISCORE));
         audio_music_resume();
         audio_fade_in();
         _map_music_fade = 1; // 1000:018D-0196's timing_loop
@@ -690,8 +693,8 @@ uint8_t map_tick(const InputState *in)
             return 1;
         }
         if (palette_fade_active()) return 1; // 0x0598
-        g_map_box_bottom = 0x130u; // 0x059B
-        g_map_panel = 0u;
+        _map_box_bottom = 0x130u; // 0x059B
+        _map_panel = 0u;
         _map_step = 0;
         _map_step_dir = 0;
         _map_phase = MAP_LIST;
@@ -701,10 +704,10 @@ uint8_t map_tick(const InputState *in)
     /* 1000:0518's entry animation: [0x8AE] runs from 0x130 down to 2, one step
      * per frame, so the five frame rows unroll; [0x8A2] becomes 1 when it ends
      * and the panel loop (0x05B9) takes over. */
-    if (g_map_panel == 0u) {
+    if (_map_panel == 0u) {
         _map_redraw(); // 1000:05A5: draw, wait, then SUB
-        if (g_map_box_bottom > 2u) g_map_box_bottom--;
-        else g_map_panel = 1u;
+        if (_map_box_bottom > 2u) _map_box_bottom--;
+        else _map_panel = 1u;
         return 1;
     }
     /* 1000:05F4/0613: a panel step is 0x14 frames long, not instant.  Each
@@ -712,15 +715,14 @@ uint8_t map_tick(const InputState *in)
      * after the 0x14th.  Up (bit 0x01) adds 1, down (bit 0x02) subtracts 1. */
     if (_map_step > 0) {
         _map_redraw(); // 1000:05F8: draw, wait, then ADD/SUB
-        g_map_box_bottom =
-            (uint16_t)((int32_t)g_map_box_bottom + _map_step_dir);
+        _map_box_bottom = (uint16_t)((int32_t)_map_box_bottom + _map_step_dir);
         _map_step = (uint8_t)(_map_step - 1u);
         if (_map_step == 0u)
-            g_map_panel = (uint16_t)((int32_t)g_map_panel + _map_step_dir);
+            _map_panel = (uint16_t)((int32_t)_map_panel + _map_step_dir);
         return 1;
     }
     if (in->joyBits & JOYBITS_UP) {
-        if (g_map_panel < 6u) {
+        if (_map_panel < 6u) {
             _map_step = 0x14;
             _map_step_dir = 1;
         }
@@ -728,7 +730,7 @@ uint8_t map_tick(const InputState *in)
         return 1;
     }
     if (in->joyBits & JOYBITS_DOWN) {
-        if (g_map_panel > 1u) {
+        if (_map_panel > 1u) {
             _map_step = 0x14;
             _map_step_dir = -1;
         }
@@ -746,6 +748,10 @@ uint8_t map_tick(const InputState *in)
 #if defined(HUMANSRE_TEST_PROBES)
 /* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 uint8_t map_congrats_draws(void) { return _map_congrats_draws; }
+
+uint16_t map_panel_for_probe(void) { return _map_panel; }
+
+uint16_t map_box_bottom_for_probe(void) { return _map_box_bottom; }
 
 uint8_t map_name_col_for_probe(void) { return _map_col; }
 

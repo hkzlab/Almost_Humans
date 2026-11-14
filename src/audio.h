@@ -19,14 +19,25 @@
 
 /* The game's tune base names (202F:002A, 0x77A, 0xF91, 0x11AA, 0x1391,
  * 0x139B and 0x62E3/0x62EC).  The address is the dedup key in the original,
- * so they are objects here, not string literals: `audio_tune_lev` is the
- * mutable 0x139B buffer whose letter at +7 is [0x13A2]. */
-extern const char audio_tune_title[];
-extern const char audio_tune_hiscore[];
-extern const char audio_tune_disk[];
-extern const char audio_tune_party[];
-extern const char audio_tune_humfx[];
-extern char audio_tune_lev[]; // "mus\levA"; the letter is rewritten
+ * so the module keeps one object per name and callers name a tune, not a
+ * string.  0x139B is the mutable level buffer whose letter is [0x13A2]. */
+enum AudioTune {
+    AUDIO_TUNE_TITLE,
+    AUDIO_TUNE_HISCORE,
+    AUDIO_TUNE_DISK,
+    AUDIO_TUNE_PARTY,
+    AUDIO_TUNE_HUMFX,
+    AUDIO_TUNE_LEV,
+    AUDIO_TUNE_COUNT
+};
+
+/**
+ * @brief The base name of one tune, as play_tune builds its file name from.
+ *
+ * @param tune the tune
+ * @return the base name, e.g. "mus\\levB", or NULL for a tune out of range
+ */
+const char *audio_tune_name(enum AudioTune tune);
 
 /**
  * @brief Audio module init (the backend is bound once by osys_bind()).
@@ -79,7 +90,8 @@ void audio_set_render_clock(uint8_t on);
  * is the forced-Beeper case: only `LEVA.BEP` of the lettered level tunes
  * ships.
  *
- * @param name the base name, e.g. "mus\\title"
+ * @param name the base name, e.g. "mus\\title"; audio_tune_name() resolves
+ *             one of the game's own tunes
  */
 void audio_play_tune(const char *name);
 

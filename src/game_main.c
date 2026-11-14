@@ -321,7 +321,7 @@ const char *gameflow_party_tribe(void)
 static void _audio_title_cycle(void)
 {
     res_set_disc(0u);
-    audio_play_tune(audio_tune_title);
+    audio_play_tune(audio_tune_name(AUDIO_TUNE_TITLE));
     audio_music_resume();
     audio_fade_in();
 }
@@ -335,7 +335,7 @@ static void _level_music(void)
         audio_music_resume();
         audio_fade_in();
     } else {
-        audio_play_tune(audio_tune_humfx); // 1000:328B
+        audio_play_tune(audio_tune_name(AUDIO_TUNE_HUMFX)); // 1000:328B
         audio_fade_in();
         audio_sfx(0x0Eu); // dropped for the AdLib driver id (1000:83D3)
     }
@@ -748,13 +748,11 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
             level_tick();
             if (level_outcome())
                 snprintf(text, sizeof text,
-                         game_strings[g_game_language]
-                                     [GAME_STRING_GAMEFLOW_LEVEL_DONE],
+                         game_string(GAME_STRING_GAMEFLOW_LEVEL_DONE),
                          _level_current + 1u);
             else
                 snprintf(text, sizeof text, "%s",
-                         game_strings[g_game_language]
-                                     [GAME_STRING_GAMEFLOW_EXTINCT]);
+                         game_string(GAME_STRING_GAMEFLOW_EXTINCT));
             textpage_draw(osys->videoPage(0), text, -1, 0u, 0);
             if (input->lastKey || (input->joyBits & JOYBITS_FIRE)) {
                 /* scroll_map's exit 0xA0E1 re-renders the page twice:
@@ -1050,11 +1048,15 @@ int32_t game_main(const OSystem *osys)
 
     /* The original's language is the executable's; the port has one binary
      * and takes the column from the installed volume set (ver_detect.h). */
-    g_game_language = ver_detect_run(osys);
-    if (g_game_language < 0) {
-        osys->fatalError("HUMANS.001 is missing or too short; the installed "
-                         "language cannot be identified");
-        return 1;
+    {
+        int32_t language = ver_detect_run(osys);
+
+        if (language < 0) {
+            osys->fatalError("HUMANS.001 is missing or too short; the "
+                             "installed language cannot be identified");
+            return 1;
+        }
+        game_language_set((enum GameLanguage)language);
     }
 
     // Initialize resources

@@ -26,10 +26,22 @@ uint8_t map_begin(void);
  */
 uint8_t map_tick(const InputState *in);
 
-extern uint16_t g_map_panel; // [0x8A2]: 1..6
-
 #if defined(HUMANSRE_TEST_PROBES)
 /* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
+/**
+ * @brief Accessor: the MAP panel [0x8A2] (0 = the entry animation, 1..6).
+ *
+ * @return the panel
+ */
+uint16_t map_panel_for_probe(void);
+
+/**
+ * @brief Accessor: the frame band's source row [0x8AE].
+ *
+ * @return the row
+ */
+uint16_t map_box_bottom_for_probe(void);
+
 /**
  * @brief Accessor: the MAP transition step (0..6, 1000:028C..030A).
  *

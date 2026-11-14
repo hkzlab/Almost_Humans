@@ -29,6 +29,7 @@
  *           384 rendered with bac.bit's palette - for eyeballing/analysis).
  * Missing volumes = skip. */
 #include "audio.h"
+#include "null/osys_null.h"
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
@@ -41,11 +42,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-extern const uint8_t *osys_null_page(int32_t which);
-extern const uint8_t *osys_null_palette(void);
-
-extern const OSystem g_osys_null;
 
 /* the render call indices for the PPM dumps predate the palette-fade
  * phases (2026-10-23) - the fade/black-hold blocks shift every offset, so

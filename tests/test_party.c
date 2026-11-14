@@ -15,6 +15,7 @@
  */
 #include "font.h"
 #include "gameflow.h"
+#include "null/osys_null.h"
 #include "osystem.h"
 #include "palette.h"
 #include "party_intro.h"
@@ -27,10 +28,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-extern VideoMode osys_null_video_mode(void);
-
-extern const OSystem g_osys_null;
 
 /**
  * @brief Read a whole file into a malloc'd buffer; NULL on error.

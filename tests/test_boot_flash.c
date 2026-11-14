@@ -15,6 +15,7 @@
  * Missing volumes = skip. */
 
 #include "audio.h"
+#include "null/osys_null.h"
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
@@ -26,10 +27,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-extern const uint8_t *osys_null_page(int32_t which);
-extern const uint8_t *osys_null_palette(void);
-extern const OSystem g_osys_null;
 
 /* BootPhase values (the private enum in scene.c): the first transition. */
 enum {

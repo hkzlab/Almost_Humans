@@ -188,8 +188,8 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
     /* lbm\daily.bit -> the page: [64000-byte screen][768-byte palette] */
     {
         uint32_t dailySize = 0;
-        uint8_t *daily = res_load_chunk(game_resources[GAME_RES_LBM_DAILY_BIT],
-                                        &dailySize, NULL);
+        uint8_t *daily = res_load_chunk(
+            game_resource_name(GAME_RES_LBM_DAILY_BIT), &dailySize, NULL);
         uint8_t *page = video_page(0);
         if (!daily) {
             _scene_unload();
@@ -211,11 +211,11 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
      * publishes them for its own frame */
     g_osys->memFree(_text_spr);
     _text_spr =
-        res_load_chunk(game_resources[GAME_RES_APL_TEXT_SPR], NULL, NULL);
+        res_load_chunk(game_resource_name(GAME_RES_APL_TEXT_SPR), NULL, NULL);
     font_publish(_text_spr);
 
     /* apl\scoops.apl -> the background block, overlaid onto the page */
-    _scoops_buf = res_load_chunk(game_resources[GAME_RES_APL_SCOOPS_APL],
+    _scoops_buf = res_load_chunk(game_resource_name(GAME_RES_APL_SCOOPS_APL),
                                  &_scoops_size, NULL);
     if (_scoops_buf) {
         uint8_t *page = video_page(0);
@@ -241,7 +241,7 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
      * vertical ramp) - the index-th string of 202F:0x6304 */
     {
         const char *headline =
-            game_strings[g_game_language][GAME_STRING_SCENE_HEADLINE_0 + index];
+            game_string(GAME_STRING_SCENE_HEADLINE_0 + index);
 
         if (headline[0])
             textpage_draw_line_mask(video_page(0), headline, 0x41u, 0x10u);
@@ -274,8 +274,9 @@ uint8_t scene_play_level_intro(uint16_t introIndex)
         /* 1000:B061-B07B: play_tune(levA or title, by [0xF7E]) /
          * music_resume / timing_loop.  _scene_start set the movie's disc,
          * which is the [0xF7E] the choice reads. */
-        audio_play_tune(res_movie_disc(introIndex) != 0u ? audio_tune_lev
-                                                         : audio_tune_title);
+        audio_play_tune(audio_tune_name(res_movie_disc(introIndex) != 0u
+                                            ? AUDIO_TUNE_LEV
+                                            : AUDIO_TUNE_TITLE));
         audio_music_resume();
         audio_fade_in();
 

@@ -4,6 +4,7 @@
  * Port-only; used by CI and the headless tests, and the shape every other
  * backend matches.
  */
+#include "osys_null.h"
 #include "osystem.h"
 #include "arch_mem.h"
 #include "fs/posix/fs_posix.h"
@@ -257,10 +258,6 @@ static void _null_fatal(const char *msg)
 
 void osys_null_set_tick_limit(uint32_t n) { _tick_limit = n; }
 
-/** @brief Drive N ticks by hand (the headless content tests).
- *
- * @param n the count
- */
 void osys_null_run_ticks(uint32_t n)
 {
     for (uint32_t i = 0; i < n && _the_tick; i++) {
@@ -269,112 +266,36 @@ void osys_null_run_ticks(uint32_t n)
     }
 }
 
-/**
- * @brief Inject the input state the next poll returns.
- *
- * @param in the input state
- */
 void osys_null_inject(const InputState *in) { _the_input = *in; }
 
-/**
- * @brief Accessor: the music-resume (cmd 5, CX = 0) count.
- *
- * @return The audio-start count.
- */
 uint32_t osys_null_audio_starts(void) { return _audio_starts; }
 
-/**
- * @brief Accessor: the music-stop (cmd 6) count.
- *
- * @return The audio-stop count.
- */
 uint32_t osys_null_audio_stops(void) { return _audio_stops; }
 
-/**
- * @brief Accessor: the install count.
- *
- * @return The install count.
- */
 uint32_t osys_null_audio_installs(void) { return _audio_installs; }
 
-/**
- * @brief Accessor: the tune-load count.
- *
- * @return The tune-load count.
- */
 uint32_t osys_null_audio_loads(void) { return _audio_loads; }
 
-/**
- * @brief Accessor: the last loaded tune's byte size.
- *
- * @return The size.
- */
 uint32_t osys_null_audio_tune_size(void) { return _audio_tune_size; }
 
-/**
- * @brief Accessor: the byte size of the i-th tune load.
- *
- * @param i the load index
- * @return the size, 0 when out of range
- */
 uint32_t osys_null_audio_load_size(uint32_t i)
 { return i < _AUDIO_LOADS_MAX ? _audio_load_size[i] : 0u; }
 
-/**
- * @brief Accessor: the sound-effect command count.
- *
- * @return The count.
- */
 uint32_t osys_null_audio_sfx_count(void) { return _audio_sfx_count; }
 
-/**
- * @brief Accessor: the last sound-effect event id.
- *
- * @return The event id, 0xFFFF when none.
- */
 uint16_t osys_null_audio_last_sfx(void)
 { return _audio_sfx_count ? _audio_last_sfx : 0xFFFFu; }
 
-/**
- * @brief Accessor: the last master-volume byte (cmd 0x0A).
- *
- * @return The byte.
- */
 uint8_t osys_null_audio_tempo(void) { return _audio_tempo; }
 
-/**
- * @brief Accessor: the music-tick count (cmd 2).
- *
- * @return The count.
- */
 uint32_t osys_null_audio_ticks(void) { return _audio_ticks; }
 
-/**
- * @brief Accessor: the last video mode set.
- *
- * @return The last video mode set.
- */
 VideoMode osys_null_video_mode(void) { return _mode_set; }
 
-/** @brief The eventsPoll count: the smoke test's frame-dump clock.
- *
- * @return the eventsPoll call count
- */
 uint32_t osys_null_poll_count(void) { return _poll_count; }
 
-/**
- * @brief Install the present hook.
- *
- * @param fn the callback
- */
 void osys_null_on_present(void (*fn)(uint32_t poll)) { _present_hook = fn; }
 
-/**
- * @brief Install a scripted input sequence.
- *
- * @param states the input sequence
- * @param n the count
- */
 void osys_null_input_script(const InputState *states, uint32_t n)
 {
     _script_states = states;
@@ -382,16 +303,6 @@ void osys_null_input_script(const InputState *states, uint32_t n)
     _poll_count = 0;
 }
 
-/** @brief Accessor: the i-th null video page.
- *
- * @param which the page selector
- * @return the page, masked to 0 or 1
- */
 const uint8_t *osys_null_page(int32_t which) { return _pages[which & 1]; }
 
-/**
- * @brief Accessor: the last palette written.
- *
- * @return The last palette written.
- */
 const uint8_t *osys_null_palette(void) { return _pal; }

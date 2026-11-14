@@ -11,6 +11,7 @@
  * Missing volumes = skip. */
 #include "gameflow.h"
 #include "menu.h"
+#include "null/osys_null.h"
 #include "object/object.h"
 #include "osystem.h"
 #include "statusbar.h"
@@ -27,23 +28,6 @@
 enum {
     SCRIPT_N = 9500
 };
-
-extern void osys_null_input_script(const InputState *states, uint32_t n);
-extern const uint8_t *osys_null_page(int32_t which);
-extern const uint8_t *osys_null_palette(void);
-extern uint32_t osys_null_poll_count(void);
-
-extern void osys_null_on_present(void (*fn)(uint32_t poll));
-
-extern const OSystem g_osys_null;
-extern uint32_t osys_null_audio_installs(void);
-extern uint32_t osys_null_audio_loads(void);
-extern uint32_t osys_null_audio_load_size(uint32_t i);
-extern uint32_t osys_null_audio_starts(void);
-extern uint32_t osys_null_audio_stops(void);
-extern uint32_t osys_null_audio_ticks(void);
-extern uint32_t osys_null_audio_sfx_count(void);
-extern uint8_t osys_null_audio_tempo(void);
 
 /* Optional frame evidence (argv[3] = a directory): page 0 + the DAC shadow
  * at the flow's milestones, so the room -> party -> .ANI -> level relay can

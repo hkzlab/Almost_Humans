@@ -8,6 +8,7 @@
  * skip with a notice, like the other fixture tests. */
 #include "audio.h"
 #include "font.h"
+#include "null/osys_null.h"
 #include "osystem.h"
 #include "palette.h"
 #include "party_intro.h"
@@ -18,8 +19,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-
-extern const OSystem g_osys_null;
 
 /**
  * @brief Run the party-reset regression test.

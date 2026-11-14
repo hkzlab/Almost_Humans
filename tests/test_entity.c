@@ -25,6 +25,7 @@
  */
 #include "entity.h"
 #include "level/level.h"
+#include "null/osys_null.h"
 #include "object/object.h"
 #include "osystem.h"
 #include "res.h"
@@ -38,8 +39,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-
-extern const OSystem g_osys_null;
 
 static int32_t _bad;
 

@@ -1,7 +1,7 @@
 /* Resource names: the volume directory's chunk names.
  *
- * Every resource the game loads by name comes from `game_resources[id]`; the
- * loaders carry no literals.  The text the player reads is localisable and
+ * Every resource the game loads by name comes from `game_resource_name(id)`;
+ * the loaders carry no literals.  The text the player reads is localisable and
  * lives in game_strings.h; these names are not - they are identical in every
  * build.
  *
@@ -84,7 +84,12 @@ enum GameResource {
     GAME_RES_COUNT
 };
 
-/* The chunk name of one resource, as the volume directory stores it. */
-extern const char *const game_resources[GAME_RES_COUNT];
+/**
+ * @brief The chunk name of one resource, as the volume directory stores it.
+ *
+ * @param id the resource
+ * @return the name, or NULL for an id out of range
+ */
+const char *game_resource_name(enum GameResource id);
 
 #endif /* HUMANSRE_GAME_RESOURCES_H */

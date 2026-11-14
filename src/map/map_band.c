@@ -40,7 +40,6 @@
  */
 uint8_t *_band_sheet; // apl\band.spr: 304 rows x 80 bytes
 
-uint16_t g_map_box_bottom; // [0x8AE]
 /**
  * @brief Write the masked four pixels of one page byte.
  *

@@ -510,7 +510,7 @@ uint8_t score_begin(uint32_t value)
     g_osys->memFree(_score_bit);
     _score_bit = NULL;
     _score_size = 0;
-    _score_bit = res_load_chunk(game_resources[GAME_RES_LBM_SCORE_BIT],
+    _score_bit = res_load_chunk(game_resource_name(GAME_RES_LBM_SCORE_BIT),
                                 &_score_size, NULL);
     uint8_t *page = video_page(0);
     /* The page is NOT cleared: check_highscore draws the card straight over
@@ -544,17 +544,19 @@ uint8_t score_begin(uint32_t value)
     }
     g_osys->memFree(_score_font);
     _score_font =
-        res_load_chunk(game_resources[GAME_RES_APL_TEXT_SPR], NULL, NULL);
+        res_load_chunk(game_resource_name(GAME_RES_APL_TEXT_SPR), NULL, NULL);
     font_publish(_score_font);
     g_osys->memFree(_score_digits);
-    _score_digits = res_load_chunk(game_resources[GAME_RES_APL_SCORE_SPR], NULL,
-                                   NULL); // 1000:4264
+    _score_digits =
+        res_load_chunk(game_resource_name(GAME_RES_APL_SCORE_SPR), NULL,
+                       NULL); // 1000:4264
     g_osys->memFree(_score_record);
-    _score_record = res_load_chunk(game_resources[GAME_RES_APL_RECORD_SPR],
+    _score_record = res_load_chunk(game_resource_name(GAME_RES_APL_RECORD_SPR),
                                    NULL, NULL); // 1000:4276
     g_osys->memFree(_score_num);
-    _score_num = res_load_chunk(game_resources[GAME_RES_APL_SCORENUM_SPR], NULL,
-                                NULL); // 1000:4269
+    _score_num =
+        res_load_chunk(game_resource_name(GAME_RES_APL_SCORENUM_SPR), NULL,
+                       NULL); // 1000:4269
 
     /* 1000:430E/431A draw_scorenum_three_passes: the elapsed time at
      * (0x50, 0xB5) and the best time at (0xF0, 0xB5), both row 181. */

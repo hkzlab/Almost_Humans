@@ -22,6 +22,7 @@
 #include "frontend.h"
 #include "gameflow.h"
 #include "level/level.h"
+#include "null/osys_null.h"
 #include "osystem.h"
 #include "res.h"
 #include "palette.h"
@@ -38,8 +39,6 @@
 
 #define SAVE_LEN  0x1800u
 #define SAVE_NAME "SAVEB"
-
-extern const OSystem g_osys_null;
 
 /**
  * @brief Store one little-endian 16-bit word.

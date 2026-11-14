@@ -10,7 +10,7 @@
 
 #include <stdint.h>
 
-#define ANI_NAME     game_resources[GAME_RES_ANM_ANI_FMT]
+#define ANI_NAME     game_resource_name(GAME_RES_ANM_ANI_FMT)
 #define PAGE_SIZE    VIDEO_PAGE_BYTES
 #define OBJ_SEG_SIZE 65536u // the original decodes objects into a 64K segment
 

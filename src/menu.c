@@ -87,13 +87,13 @@ void menu_draw(void)
 {
     uint8_t *page = g_osys ? g_osys->videoPage(0) : NULL;
     if (_phase == MENU_PAUSE)
-        textpage_draw(page, game_strings[g_game_language][GAME_STRING_MENU_PAUSE_BLOCK],
+        textpage_draw(page, game_string(GAME_STRING_MENU_PAUSE_BLOCK),
                       (int32_t)_row, 0u, 0);
     else if (_phase == MENU_GRID)
-        textpage_draw(page, game_strings[g_game_language][GAME_STRING_MENU_GRID_BLOCK],
+        textpage_draw(page, game_string(GAME_STRING_MENU_GRID_BLOCK),
                       (int32_t)_row, _col, 1);
     else if (_phase == MENU_TIMEOUT)
-        textpage_draw(page, game_strings[g_game_language][GAME_STRING_MENU_TIME_UP_BLOCK],
+        textpage_draw(page, game_string(GAME_STRING_MENU_TIME_UP_BLOCK),
                       (int32_t)_row, 0u, 0);
 }
 

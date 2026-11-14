@@ -24,6 +24,7 @@
 #include "gameflow.h"
 #include "level/level.h"
 #include "menu.h"
+#include "null/osys_null.h"
 #include "object/object.h"
 #include "osystem.h"
 #include "palette.h"
@@ -43,13 +44,6 @@
 
 #define SAVE_LEN  0x1800u
 #define SAVE_NAME "SAVEB"
-
-extern const uint8_t *osys_null_page(int32_t which);
-extern const uint8_t *osys_null_palette(void);
-extern uint32_t osys_null_audio_starts(void);
-extern uint32_t osys_null_audio_stops(void);
-
-extern const OSystem g_osys_null;
 
 /**
  * @brief Store one little-endian 16-bit word.

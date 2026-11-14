@@ -2,21 +2,13 @@
  *
  * Port-only: there is no input source, so only --ticks ends the loop.
  */
+#include "null/osys_null.h"
 #include "osystem.h"
 
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-extern const OSystem g_osys_null;
-
-/**
- * @brief Stop the loop after a tick count (the headless executable's --ticks).
- *
- * @param n the limit in ticks; 0 runs until the input asks to quit
- */
-extern void osys_null_set_tick_limit(uint32_t n);
 
 /**
  * @brief The headless executable: run the core with the null backend.

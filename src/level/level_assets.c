@@ -348,7 +348,8 @@ int32_t _level_assets_load(uint32_t style)
     _visuals_free();
 
     char name[32];
-    snprintf(name, sizeof name, game_resources[GAME_RES_DEFS_BD_FMT], style);
+    snprintf(name, sizeof name, game_resource_name(GAME_RES_DEFS_BD_FMT),
+             style);
     uint32_t bdSize = 0;
     uint16_t chk = 0;
     uint8_t *bd = res_load_chunk(name, &bdSize, &chk);
@@ -436,7 +437,8 @@ int32_t _level_assets_load(uint32_t style)
         return -1;
     }
 
-    snprintf(name, sizeof name, game_resources[GAME_RES_LEVELS_BS_FMT], style);
+    snprintf(name, sizeof name, game_resource_name(GAME_RES_LEVELS_BS_FMT),
+             style);
     _atlas = res_load_chunk(name, &bdSize, &chk);
     if (!_atlas || bdSize != 0x400u + ATLAS_TILES * 0x100u) {
         g_osys->memFree(bd);
@@ -455,7 +457,7 @@ int32_t _level_assets_load(uint32_t style)
     _level_bg_index = bgIdx;
 #endif
     if (bgIdx != 0u) {
-        snprintf(name, sizeof name, game_resources[GAME_RES_BACKS_BG_FMT],
+        snprintf(name, sizeof name, game_resource_name(GAME_RES_BACKS_BG_FMT),
                  bgIdx);
         _bg_image = res_load_chunk(name, &bdSize, &chk);
         if (!_bg_image || bdSize != WORLD_W * WORLD_H + 768u) {

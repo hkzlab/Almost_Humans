@@ -17,6 +17,7 @@
  * 0x438A instead). */
 #include "gameflow.h"
 #include "level/level.h"
+#include "null/osys_null.h"
 #include "osystem.h"
 #include "compat.h"
 
@@ -29,13 +30,6 @@ enum {
     FORCE_POLL = 8700u,
     SCRIPT_N = 9800u
 };
-
-extern void osys_null_input_script(const InputState *states, uint32_t n);
-extern const uint8_t *osys_null_palette(void);
-extern void osys_null_on_present(void (*fn)(uint32_t poll));
-extern uint32_t osys_null_audio_starts(void);
-
-extern const OSystem g_osys_null;
 
 static int32_t _outcome;
 static int32_t _grey_seen, _black_seen, _card_seen, _seen_card_after_black;

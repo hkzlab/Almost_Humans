@@ -7,8 +7,6 @@
 
 #include <stdint.h>
 
-extern uint16_t g_map_box_bottom; // [0x8AE]
-
 /**
  * @brief 1000:07E6: the five frame bands from band row `[0x8AE]`.
  *

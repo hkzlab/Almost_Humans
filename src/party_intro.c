@@ -572,20 +572,16 @@ void party_intro_set_values(uint16_t level, uint16_t need, uint16_t members,
     if (tribe) strncpy(_g_tribe, tribe, sizeof _g_tribe - 1u);
     /* the image's verbatim strings (202F:0x105F..; the digit fields are
      * fixed-width and the formatter rewrites them in place, 0x3F1B) */
-    strncpy(_s_all, game_strings[g_game_language][GAME_STRING_PARTY_COMING_UP],
+    strncpy(_s_all, game_string(GAME_STRING_PARTY_COMING_UP),
             sizeof _s_all - 1u);
-    strncpy(_s_need, game_strings[g_game_language][GAME_STRING_PARTY_NEED],
-            sizeof _s_need - 1u);
-    strncpy(_s_this, game_strings[g_game_language][GAME_STRING_PARTY_THIS_LEVEL],
+    strncpy(_s_need, game_string(GAME_STRING_PARTY_NEED), sizeof _s_need - 1u);
+    strncpy(_s_this, game_string(GAME_STRING_PARTY_THIS_LEVEL),
             sizeof _s_this - 1u);
-    strncpy(_s_has, game_strings[g_game_language][GAME_STRING_PARTY_HAS],
-            sizeof _s_has - 1u);
-    strncpy(_s_code, game_strings[g_game_language][GAME_STRING_PARTY_CODE],
-            sizeof _s_code - 1u);
-    strncpy(_s_score, game_strings[g_game_language][GAME_STRING_PARTY_SCORE],
+    strncpy(_s_has, game_string(GAME_STRING_PARTY_HAS), sizeof _s_has - 1u);
+    strncpy(_s_code, game_string(GAME_STRING_PARTY_CODE), sizeof _s_code - 1u);
+    strncpy(_s_score, game_string(GAME_STRING_PARTY_SCORE),
             sizeof _s_score - 1u);
-    strncpy(_s_fire, game_strings[g_game_language][GAME_STRING_PARTY_FIRE],
-            sizeof _s_fire - 1u);
+    strncpy(_s_fire, game_string(GAME_STRING_PARTY_FIRE), sizeof _s_fire - 1u);
 }
 
 void party_intro_set_game_over(uint8_t on) { _game_over_mode = on ? 1 : 0; }
@@ -653,7 +649,7 @@ uint8_t party_intro_start(void)
     _clear_canvas();
     _seed_slots_live(); // the DS:0xFA8's [live]
 
-    b = _load(game_resources[GAME_RES_APL_PARTY_SPR]); // 2570
+    b = _load(game_resource_name(GAME_RES_APL_PARTY_SPR)); // 2570
     if (!b) return 0;
     {
         uint8_t ok = (uint8_t)(_expand_nibbles(b, 0x570u, _sheet));
@@ -661,14 +657,14 @@ uint8_t party_intro_start(void)
         if (!ok) return 0;
     }
 
-    b = _load(game_resources[GAME_RES_APL_BIRDY_SPR]); // 257c
+    b = _load(game_resource_name(GAME_RES_APL_BIRDY_SPR)); // 257c
     if (!b) return 0;
     _rescale_rows(b);
     g_osys->memFree(b);
 
     {
         uint8_t d = (uint8_t)(_g_level & 7u) + 1u; // 2519: '1'+(lvl&7)
-        sprintf(name, game_resources[GAME_RES_LBM_PARTY_PAL_FMT], d);
+        sprintf(name, game_resource_name(GAME_RES_LBM_PARTY_PAL_FMT), d);
     }
     b = _load(name); // 2588
     if (!b) return 0;
@@ -676,12 +672,12 @@ uint8_t party_intro_start(void)
     memcpy(_workpal, palette_working(), 768u);
     g_osys->memFree(b);
 
-    b = _load(game_resources[GAME_RES_LBM_PARTY1_BIT]); // 259a
+    b = _load(game_resource_name(GAME_RES_LBM_PARTY1_BIT)); // 259a
     if (!b) return 0;
     g_osys->memFree(_bit_img);
     _bit_img = b;
 
-    b = _load(game_resources[GAME_RES_APL_TEXT_SPR]); // 25af
+    b = _load(game_resource_name(GAME_RES_APL_TEXT_SPR)); // 25af
     g_osys->memFree(_font_bytes);
     _font_bytes = b;
     if (b) {
@@ -697,7 +693,7 @@ uint8_t party_intro_start(void)
     /* 1000:2564-256d: play_tune("mus\party") / music_resume / timing_loop.
      * The original blocks inside the fade-in before the page bake; the port
      * holds in PH_MUSIC (party_intro_tick) instead. */
-    audio_play_tune(audio_tune_party);
+    audio_play_tune(audio_tune_name(AUDIO_TUNE_PARTY));
     audio_music_resume();
     audio_fade_in();
     _phase = PH_MUSIC;
@@ -775,8 +771,7 @@ uint8_t party_intro_tick(const InputState *in)
         case 0u: // 2600..2611
             _clear_canvas();
             *_put_number(
-                _s_all +
-                    game_strings_num_offset[g_game_language][GAME_STRING_PARTY_COMING_UP],
+                _s_all + game_string_num_offset(GAME_STRING_PARTY_COMING_UP),
                 _g_level) = '\0'; // 260e
             _draw_text_ramped(_s_all, 0xA0u, 0x14u);
             break;
@@ -784,8 +779,7 @@ uint8_t party_intro_tick(const InputState *in)
                                                 * " HUMANS TO COMPLETE" tail
                                                 * survives the patch        */
             (void)_put_number(
-                _s_need +
-                    game_strings_num_offset[g_game_language][GAME_STRING_PARTY_NEED],
+                _s_need + game_string_num_offset(GAME_STRING_PARTY_NEED),
                 _g_need);
             _draw_text_ramped(_s_need, 0xA0u, 0x28u);
             break;
@@ -795,11 +789,10 @@ uint8_t party_intro_tick(const InputState *in)
         case 3u: // 2652..268a
         {
             char *q = _append_str(
-                _put_number(
-                    _s_has +
-                        game_strings_num_offset[g_game_language][GAME_STRING_PARTY_HAS],
-                    _g_members),
-                game_strings[g_game_language][GAME_STRING_PARTY_MEMBERS_TAIL]); // 2660
+                _put_number(_s_has +
+                                game_string_num_offset(GAME_STRING_PARTY_HAS),
+                            _g_members),
+                game_string(GAME_STRING_PARTY_MEMBERS_TAIL)); // 2660
             if (_g_members == 1u) { // 266d..267a
                 q -= 3;
                 *q = '!';
@@ -840,10 +833,9 @@ uint8_t party_intro_tick(const InputState *in)
             _draw_text_ramped(_g_tribe, 0xA0u, 0x20u); // 26b3
             break;
         case 2u:
-            *_put_number(
-                _s_score +
-                    game_strings_num_offset[g_game_language][GAME_STRING_PARTY_SCORE],
-                _g_score) = '\0'; // 26d3
+            *_put_number(_s_score +
+                             game_string_num_offset(GAME_STRING_PARTY_SCORE),
+                         _g_score) = '\0'; // 26d3
             _draw_text_ramped(_s_score, 0xA0u, 0x34u);
             break;
         case 3u:
@@ -875,14 +867,14 @@ uint8_t party_intro_tick(const InputState *in)
                                                 * variant of the briefing  */
         if (_step == 0u) {
             _clear_canvas();
-            _draw_text_ramped(game_strings[g_game_language][GAME_STRING_PARTY_GAME_OVER],
-                              0xA0u, 0x14u);
-            _draw_text_ramped(game_strings[g_game_language][GAME_STRING_PARTY_TOO_SMALL],
-                              0xA0u, 0x28u);
-            _draw_text_ramped(game_strings[g_game_language][GAME_STRING_PARTY_IN_RACE],
-                              0xA0u, 0x34u);
-            _draw_text_ramped(game_strings[g_game_language][GAME_STRING_PARTY_TRY_AGAIN],
-                              0xA0u, 0x48u);
+            _draw_text_ramped(game_string(GAME_STRING_PARTY_GAME_OVER), 0xA0u,
+                              0x14u);
+            _draw_text_ramped(game_string(GAME_STRING_PARTY_TOO_SMALL), 0xA0u,
+                              0x28u);
+            _draw_text_ramped(game_string(GAME_STRING_PARTY_IN_RACE), 0xA0u,
+                              0x34u);
+            _draw_text_ramped(game_string(GAME_STRING_PARTY_TRY_AGAIN), 0xA0u,
+                              0x48u);
             _intro_anim(); /* 2b9c: the band redraws carry
                                             * the arena text to the display */
             _step = 1u;
