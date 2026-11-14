@@ -15,7 +15,7 @@
 #include "font.h"
 #include "frontend.h"
 #include "fs/posix/fs_posix.h"
-#include "level.h"
+#include "level/level.h"
 #include "arch_mem.h"
 #include "osystem.h"
 #include "palette.h"

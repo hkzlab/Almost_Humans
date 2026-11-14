@@ -17,7 +17,7 @@
  * argv[3] = optional PPM dump directory (the level page at t=0 and t=90,
  *           rendered with the installed DAC - for eyeballing/analysis).
  * Missing volumes = skip. */
-#include "level.h"
+#include "level/level.h"
 #include "object/object.h"
 #include "osystem.h"
 #include "palette.h"

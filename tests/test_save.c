@@ -21,7 +21,7 @@
 #include "font.h"
 #include "frontend.h"
 #include "gameflow.h"
-#include "level.h"
+#include "level/level.h"
 #include "osystem.h"
 #include "res.h"
 #include "palette.h"

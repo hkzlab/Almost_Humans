@@ -2,7 +2,7 @@
 #include "font.h"
 #include "gameflow.h"
 #include "hiscore.h"
-#include "level.h"
+#include "level/level.h"
 #include "object/object.h"
 #include "osystem.h"
 #include "palette.h"

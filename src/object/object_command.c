@@ -5,7 +5,7 @@
 #include "object_command.h"
 #include "object_core.h"
 #include "object_units.h"
-#include "level.h"
+#include "level/level.h"
 #include "byteorder.h"
 #include <string.h>
 

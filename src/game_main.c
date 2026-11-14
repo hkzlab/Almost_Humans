@@ -5,7 +5,7 @@
 #include "font.h"
 #include "frontend.h"
 #include "game_strings.h"
-#include "level.h"
+#include "level/level.h"
 #include "map.h"
 #include "menu.h"
 #include "object/object.h"
@@ -144,7 +144,7 @@ static const uint8_t _key_list[][2] = {
  * @param osys the backend interface
  * @return 0 on success, 1 when a shipped default failed to load
  */
-int32_t resources_init(const OSystem *osys)
+static int32_t resources_init(const OSystem *osys)
 {
     menu_init();
     uint8_t res_init_state = res_init() || video_init() || palette_init() ||

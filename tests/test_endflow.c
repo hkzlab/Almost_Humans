@@ -16,7 +16,7 @@
  * grey and black but NEVER the card (check_highscore's 0x41AE gate jumps to
  * 0x438A instead). */
 #include "gameflow.h"
-#include "level.h"
+#include "level/level.h"
 #include "osystem.h"
 #include "compat.h"
 

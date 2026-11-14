@@ -22,7 +22,7 @@
 #include "entity.h"
 #include "font.h"
 #include "gameflow.h"
-#include "level.h"
+#include "level/level.h"
 #include "menu.h"
 #include "object/object.h"
 #include "osystem.h"

@@ -54,7 +54,7 @@ int32_t script_init(void) { return 0; }
  * @param cues the cue script array
  * @param cueCount the cue count
  */
-void script_start(CueScript *s, const uint16_t *cues, uint16_t cueCount)
+static void script_start(CueScript *s, const uint16_t *cues, uint16_t cueCount)
 {
     memset(s, 0, sizeof *s);
     s->cues = cues;

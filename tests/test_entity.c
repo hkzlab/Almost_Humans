@@ -24,7 +24,7 @@
  * Missing volumes = skip.
  */
 #include "entity.h"
-#include "level.h"
+#include "level/level.h"
 #include "object/object.h"
 #include "osystem.h"
 #include "res.h"

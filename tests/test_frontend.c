@@ -22,7 +22,7 @@
 #include "audio.h"
 #include "font.h"
 #include "frontend.h"
-#include "level.h"
+#include "level/level.h"
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"

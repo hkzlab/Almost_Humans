@@ -7,7 +7,7 @@
 #include "object_sequence.h"
 #include "object_units.h"
 #include "entity.h"
-#include "level.h"
+#include "level/level.h"
 #include "statusbar.h"
 #include "byteorder.h"
 #include <string.h>

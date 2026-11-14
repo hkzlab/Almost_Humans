@@ -5,7 +5,7 @@
 #include "object_core.h"
 #include "object_sequence.h"
 #include "object_units.h"
-#include "level.h"
+#include "level/level.h"
 #include "palette.h"
 #include "statusbar.h"
 #include "byteorder.h"

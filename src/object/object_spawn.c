@@ -4,7 +4,7 @@
 
 #include "object_internal.h"
 #include "object_spawn.h"
-#include "level.h"
+#include "level/level.h"
 #include "byteorder.h"
 #include <string.h>
 

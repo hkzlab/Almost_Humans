@@ -98,7 +98,15 @@ set(HUMANSRE_CORE_SOURCES
     src/attract.c
     src/statusbar.c
     src/scene.c
-    src/level.c
+    src/level/level_load.c
+    src/level/level_assets.c
+    src/level/level_play.c
+    src/level/level_view.c
+    src/level/level_tribe.c
+    src/level/level_palette.c
+    src/level/level_loading.c
+    src/level/level_spark.c
+    src/level/level_disc.c
     src/map.c
     src/score.c
     src/hiscore.c

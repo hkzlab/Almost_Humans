@@ -13,7 +13,7 @@
  * argv[2] = the extracted-tree fixture root (the raw L*.BIN files).
  * Missing volumes = skip. */
 #include "audio.h"
-#include "level.h"
+#include "level/level.h"
 #include "object/object.h"
 #include "osystem.h"
 #include "res.h"

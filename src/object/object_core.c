@@ -7,7 +7,7 @@
 #include "object_core.h"
 #include "audio.h"
 #include "entity.h"
-#include "level.h"
+#include "level/level.h"
 #include "byteorder.h"
 #include <string.h>
 

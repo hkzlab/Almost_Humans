@@ -7,7 +7,7 @@
 #include "object_units.h"
 #include "object_walk.h"
 #include "entity.h"
-#include "level.h"
+#include "level/level.h"
 #include "byteorder.h"
 
 /* forward declarations */
