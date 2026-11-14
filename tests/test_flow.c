@@ -3133,6 +3133,40 @@ int main(int argc, char **argv)
                                    "(cell 641 = 0xC2)");
                             object_init();
                         }
+                        /* the 0x32B9 bg-log tick rewrites the same pair through
+                         * its entry's +8; an edge 0xA9 must address the buffer
+                         * tail, never past the caller's 640-byte map. */
+                        {
+                            static struct {
+                                uint8_t m[640];
+                                uint8_t canary[64];
+                            } s;
+                            uint8_t clean = 1u;
+                            uint8_t *r0;
+                            uint32_t k;
+
+                            memset(&s, 0, sizeof s);
+                            memset(s.canary, 0x5Au, sizeof s.canary);
+                            s.m[19u * 32u + 31u] = 0xA9u; // pair at 672/673
+                            object_init();
+                            (void)object_load_terrain_objects(s.m);
+                            object_world_tick();
+                            for (k = 0; k < sizeof s.canary; k++)
+                                if (s.canary[k] != 0x5Au) clean = 0u;
+                            _check(clean, "D-235: the bg tick's edge marks "
+                                          "stay in the buffer tail");
+                            r0 = object_slot(0);
+                            r0[0] = 0u;
+                            r0[1] = 0u;
+                            r0[2] = 0x44u;
+                            r0[3] = 0x01u; // y 0x144 -> cell 672
+                            _check(object_record_map_cell(0u) == 0xC2u,
+                                   "D-235: the bg tick marks cell 672");
+                            r0[0] = 8u;
+                            _check(object_record_map_cell(0u) == 0xC9u,
+                                   "D-235: the bg tick marks cell 673");
+                            object_init();
+                        }
                         /* 0xB7: two appended records, the only computed class
                      * (+6 = (count-6)<<8) and frame 0x116 / 0x11A */
                         {

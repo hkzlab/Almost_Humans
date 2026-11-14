@@ -42,7 +42,10 @@
 static struct {
     uint16_t x, y;
     uint8_t *dst; // +4: the first of the five A9 log records
-    uint8_t *mark; // +8: the map cell pair 1000:D5E4 rewrites
+    /* +8: the map cell pair 1000:D5E4 rewrites.  An edge 0xA9 (row 18 col 31,
+     * row 19) lands in the buffer's gap/second copy, so the pointer comes from
+     * `_obj_map_tail` there, not past the 640-byte map. */
+    uint8_t *mark;
 } _obj_bg[32];
 
 /* --- the claim: the entity bytecode's adjacent-object op (1000:3A6A) ---
@@ -2642,10 +2645,13 @@ static void _obj_append_row9(uint8_t *map, uint32_t col, uint32_t row)
         _obj_map_put(map, cell + OBJ_COLS + 2u, 0xC9u);
     }
     if (_obj_bg_count < sizeof _obj_bg / sizeof _obj_bg[0]) {
+        uint32_t mcell = (row + 1u) * OBJ_COLS + col + 1u;
+
         _obj_bg[_obj_bg_count].x = (uint16_t)(col * 16u);
         _obj_bg[_obj_bg_count].y = (uint16_t)(row * 16u + 1u);
         _obj_bg[_obj_bg_count].dst = firstRec;
-        _obj_bg[_obj_bg_count].mark = &map[(row + 1u) * OBJ_COLS + col + 1u];
+        _obj_bg[_obj_bg_count].mark =
+            mcell < 640u ? &map[mcell] : &_obj_map_tail[mcell - 640u];
         _obj_bg_count++; // [0x32B9]
     }
 }
