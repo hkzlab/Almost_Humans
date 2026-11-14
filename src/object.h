@@ -8,7 +8,8 @@
  *   collision_scan         1000:D860   the movers' last pass
  *
  * Deviations: D-101/D-137/D-177..D-182 (bounded reads, malformed-save edge
- * only), D-227 (TER attach: original bug fixed), D-233/D-236 (bounded writes).
+ * only), D-227 (TER attach: original bug fixed), D-270 (map edges: air, hard
+ * sides and a bottom floor), D-271 (the unreferenced class-0 write).
  */
 
 #ifndef HUMANSRE_OBJECT_H
@@ -534,19 +535,6 @@ uint16_t object_pend_off_for_probe(uint32_t i);
  */
 uint16_t object_pend_wait_for_probe(uint32_t i);
 #endif /* HUMANSRE_TEST_PROBES */
-
-#if defined(HUMANSRE_TEST_PROBES)
-/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
-/**
- * @brief Accessor: one byte of the out-of-range DS tail record
- * (0x5105..0x5114, objCmdEnter).
- *
- * @param off the offset
- * @return the byte
- */
-uint8_t object_ds_tail5105(uint32_t off);
-#endif /* HUMANSRE_TEST_PROBES */
-
 #if defined(HUMANSRE_TEST_PROBES)
 /* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**
@@ -635,17 +623,6 @@ void object_publish_bank(const uint8_t *bank, uint32_t size);
  * @return the live record count after the spawn
  */
 uint32_t object_load_terrain_objects(uint8_t *map);
-
-/**
- * @brief 1000:3138/0x3149: seed the buffer tail from a freshly loaded map.
- *
- * The [0x1FA0] buffer's 32-byte gap (zero) and second map copy, for the D-235
- * tail write/read.  Call after the map is copied and before
- * object_load_terrain_objects.
- *
- * @param map the 640-byte map (NULL clears the second copy too)
- */
-void object_map_tail_reset(const uint8_t *map);
 
 /**
  * @brief Accessor: the placed human count ([0x3E20]).

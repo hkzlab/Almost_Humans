@@ -41,11 +41,10 @@
  * tile handler (1000:5206); the settle's 1000:DF2C reads them. */
 static struct {
     uint16_t x, y;
-    uint8_t *dst; // +4: the first of the five A9 log records
-    /* +8: the map cell pair 1000:D5E4 rewrites.  An edge 0xA9 (row 18 col 31,
-     * row 19) lands in the buffer's gap/second copy, so the pointer comes from
-     * `_obj_map_tail` there, not past the 640-byte map. */
-    uint8_t *mark;
+    uint16_t dst; // +4: the first of the five A9 log records (slot index)
+    /* +8: the first map cell of the pair 1000:D5E4 rewrites.  0xFFFF means
+     * the pair is outside the map and the write is dropped (D-270). */
+    uint16_t mark;
 } _obj_bg[32];
 
 /* --- the claim: the entity bytecode's adjacent-object op (1000:3A6A) ---
@@ -476,17 +475,9 @@ static void _obj_class_byte_set(uint32_t b, uint8_t value)
     _obj_array[b - 0x17u] = value;
 }
 
-/* 1000:EEB8's class-0 record write.  `DEC DX` wraps to 0xFFFF, `MUL DL`
- * uses 0xFF, so the record base is 0x3F17 + 0x12*0xFF = 0x5105 and the
- * +8..+0xE writes land on 0x510D..0x5114.  No image instruction references
- * that range; the bytes are kept so the write is part of the state. */
-static uint8_t _obj_ds_tail5105[0x10]; // 0x5105..0x5114
-
-#if defined(HUMANSRE_TEST_PROBES)
-/* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
-uint8_t object_ds_tail5105(uint32_t off)
-{ return off < sizeof _obj_ds_tail5105 ? _obj_ds_tail5105[off] : 0u; }
-#endif /* HUMANSRE_TEST_PROBES */
+/* 1000:EEB8's class-0 record write.  `DEC DX` wraps to 0xFFFF and `MUL DL`
+ * uses 0xFF, so the original writes 0x510D..0x5114.  No image instruction
+ * reads that range, so the port drops the write (D-271). */
 
 /* The four shipped recipes (202F:0x19BA, 12 bytes each): [uses][behaviour]
  * then the sprite word and the four parameter words, re-armed to one use
@@ -1810,109 +1801,41 @@ int16_t object_class_matches(uint32_t want)
 int16_t object_type_equals(uint32_t type)
 { return rd_le_u16(_obj_actor() + 8u) == type ? -1 : 0; }
 
-/* DS:0x200B, the map copy's offset: the image word at `202F:1FA0` (`[0x1FA0]`),
- * read live as 0x200B in every session.  `1000:3138` copies the level record's
- * 640 map bytes there. */
-#define OBJ_MAP_DS_BASE 0x200Bu
-/* `1000:3146 ADD DI,0x20` / `1000:3149 REP MOVSB`: 640 map bytes, a 32-byte gap
- * the loader never writes, then a full second copy of the map. */
-#define OBJ_MAP_DS_GAP (OBJ_MAP_DS_BASE + 640u)
-#define OBJ_MAP_DS_END (OBJ_MAP_DS_BASE + 1312u)
-/** @brief The map buffer as `1000:3138` builds it: 640 map bytes, a **32-byte gap the
- * loader never writes** at `+0x280..+0x29F`, then a **full second copy of the
- * map at `+0x2A0`** (1000:3146 `ADD DI,0x20` / 1000:3149 `REP MOVSB`).  The
- * routines that probe a neighbour row (`1000:D9E8`'s `[DI-0x20]`/`[DI+0x20]`,
- * `1000:E2B5`, `1000:E039`) address that tail through this.
- *
- * The live first 640 bytes are `level_map()`; the tail is `_obj_map_tail`, seeded
- * at level load (gap zero, second copy = the load-time map).  The `0xA9`
- * handler is the only tail writer (`_obj_map_put`).  An address that wraps
- * below the copy reads the sparse prelude (D-269) and one past the second copy
- * returns 0 (D-233).
- */
-static uint8_t _obj_map_tail[32u + 640u];
-
-/** @brief Seed the tail: a zero gap and a copy of the load-time map (or zeros).
- *
- * @param map the 640-byte map, or NULL to clear both parts
- */
-void object_map_tail_reset(const uint8_t *map)
-{
-    memset(_obj_map_tail, 0, 32u);
-    if (map) memcpy(_obj_map_tail + 32u, map, 640u);
-    else memset(_obj_map_tail + 32u, 0, 640u);
-}
+/* The level map: `OBJ_COLS` x `OBJ_ROWS` cells of 16 px.  Reads outside it are
+ * air (tile 0); the original instead walks the live DS window below and past
+ * the copy (D-270). */
+#define OBJ_MAP_CELLS (OBJ_COLS * OBJ_ROWS)
+#define OBJ_MAP_W (OBJ_COLS * 16u)
+#define OBJ_MAP_H (OBJ_ROWS * 16u)
 
 /**
- * @brief The map buffer byte for an explicit 640-byte map (the spawn handlers get
- * the map they are loading, not necessarily `level_map()`).
+ * @brief The map byte for an explicit 640-byte map (the spawn handlers get the
+ * map they are loading, not necessarily `level_map()`).
  *
- * The original forms the address in 16 bits - `MOV SI,[0x1FA0]` then `ADD SI,CX`
- * twice (`1000:E2E8`, `1000:E1CB`) - so a cell above the map lands in the data
- * segment below the copy and a far one wraps through DS.  The port keeps the
- * 16-bit wrap and models `DS:0x1FA0..0x252A`; outside that window it returns 0
- * (D-233).
- *
- * Below the copy the original's bytes are, in order: `[0x1FA0]`/`[0x1FA2]`
- * (the map base twice, image words), the level-setup window `0x1FA4..0x1FCB`
- * (`level_map_pre`: the opacity flags, the row-block pointer and the rotation
- * table), and then image data - zeros and the dead `"levels\level01.map"`
- * string at `202F:1FD8..0x1FEA`.  The 32-byte zero pad `202F:1FEB..0x200A` is
- * what a probe one row above a row-0 point reads, so the tile above the top row
- * is empty, not a wall (D-269).
+ * `1000:E361`/`0xE2B5`/`0xE039` form the address as `[0x1FA0] + cell` with
+ * 16-bit arithmetic and no bound, so a cell outside the map reads the gap,
+ * the second map copy or the data segment below the copy.  The port keeps the
+ * 16-bit cell index but treats every address outside `0..639` as air: tile 0,
+ * which the page table maps to "no ground" (D-270).
  *
  * @param map the 640-byte map
- * @param idx the cell index, relative to the copy (0..+0x51F in play)
- * @return the map byte
+ * @param idx the cell index
+ * @return the map byte, or 0 outside the map
  */
 static uint32_t _obj_map_byte_at(const uint8_t *map, int32_t idx)
 {
-    static const char prelude[] = "levels\\level01.map";
-    uint16_t addr;
-    int32_t pre;
-
-    if (!map) return 0u;
-    addr = (uint16_t)(OBJ_MAP_DS_BASE + (uint16_t)idx);
-    if (addr < OBJ_MAP_DS_BASE) { // wrapped below the copy
-        if ((uint16_t)(addr - 0x1FA0u) < 4u) // [0x1FA0], the map base twice
-            return (OBJ_MAP_DS_BASE >> (8u * (addr & 1u))) & 0xFFu;
-        pre = level_map_pre(addr); // the level setup's bytes at 0x1FA4..
-        if (pre >= 0) return (uint32_t)pre;
-        if ((uint16_t)(addr - 0x1FD8u) < sizeof prelude) // the dead path string
-            return (uint8_t)prelude[addr - 0x1FD8u];
-        return 0u; // the zero pad, or below 0x1FA0 (D-233)
-    }
-    if (addr < OBJ_MAP_DS_GAP) return map[addr - OBJ_MAP_DS_BASE];
-    if (addr < OBJ_MAP_DS_END) return _obj_map_tail[addr - OBJ_MAP_DS_GAP];
-    return 0u; // past the second copy (D-233)
+    if (!map || idx < 0 || (uint32_t)idx >= OBJ_MAP_CELLS) return 0u;
+    return map[idx];
 }
 
-/* Read one byte of the live map buffer (the level map plus its tail). */
+/* Read one byte of the live map (outside it is air). */
 static uint32_t _obj_map_buffer_byte(int32_t idx)
 { return _obj_map_byte_at(level_map(), idx); }
-
-/**
- * @brief Write one byte of the map buffer: the live 640-byte map, then the
- * gap/second copy.  The two `0xA9` writers pass `cell + 0x21` / `cell + 0x22`
- * (`1000:51F9`), so row 19 reaches the gap/second copy (index 672 at most); the
- * `>= 1312` drop is unreachable.
- *
- * @param map the 640-byte map
- * @param idx the buffer index
- * @param value the byte
- */
-static void _obj_map_put(uint8_t *map, uint32_t idx, uint8_t value)
-{
-    if (!map) return;
-    if (idx < 640u) map[idx] = value;
-    else if (idx < 1312u) _obj_map_tail[idx - 640u] = value;
-}
 
 /** @brief 1000:E361: the map cell at (x + 8, y + 0xC).  Returns the cell's *index* so
  * the callers that read a neighbour (`1000:3600`'s `[DI+0x20]`, one map row
  * below) can address it.  `1000:E369` only aligns y; it does not test the index,
- * so the index runs onto the buffer's gap/second copy (see
- * `_obj_map_buffer_byte`).
+ * so the index may leave the map and read air (D-270).
  *
  * @param rec the record
  * @return the cell index
@@ -1979,8 +1902,9 @@ int16_t object_low_phase_match(void)
         uint8_t goal =
             map != NULL && _obj_map_buffer_byte((int32_t)cell) == 0xA8u;
 
-        /* 1000:3624: the original reads `[DI+0x20]` with no wrap, and for the
-         * last map row that is the buffer's 32-byte gap (0x00 = tile 0). */
+        /* 1000:3624: the original reads `[DI+0x20]` with no wrap; on the last
+         * map row that is outside the map, which the port reads as air
+         * (D-270). */
         if (!goal && map &&
             _obj_map_buffer_byte((int32_t)(cell + 0x20u)) == 0xA8u)
             goal = 1;
@@ -2483,7 +2407,7 @@ static void _obj_spawn_b7(const uint8_t *map, uint32_t col, uint32_t row)
         for (uint16_t k = 0; k < 4u && !variant; k++) {
             int64_t c = (int64_t)cell + left[k];
 
-            /* 1000:541D..0x5431: [SI-5..SI-2], no range test (D-233). */
+            /* 1000:541D..0x5431: [SI-5..SI-2], no range test (D-270). */
             if (_obj_map_byte_at(map, (int32_t)c) == 0xB6u) variant = 1;
         }
         for (uint16_t k = 0; k < 4u && !variant; k++) {
@@ -2549,7 +2473,8 @@ static uint32_t _obj_style_nudge(const uint8_t *map, uint32_t col, uint32_t row)
     uint8_t tile;
 
     if (!map) map = level_map();
-    if (level_style() != 6u || !map || cell + OBJ_COLS >= 640u) return 0u;
+    if (level_style() != 6u || !map || cell + OBJ_COLS >= OBJ_MAP_CELLS)
+        return 0u;
     tile = map[cell + OBJ_COLS];
     if (tile > 0x90u) return 0u;
     return (nudgeBits[tile >> 3] & (uint8_t)(1u << (7u - (tile & 7u)))) ? 3u
@@ -2615,8 +2540,7 @@ static void _obj_append_row9(uint8_t *map, uint32_t col, uint32_t row)
         { 0x10, 0x13, 0x33 }, { 0x16, 0x15, 0x34 }, { 0x1C, 0x16, 0x35 },
         { 0x23, 0x15, 0x36 }, { 0x29, 0x13, 0x37 },
     };
-    uint8_t first = (uint8_t)(_obj_live_count + 1u);
-    uint8_t *firstRec = _obj_array + first * OBJ_STRIDE;
+    uint16_t first = (uint16_t)(_obj_live_count + 1u);
 
     for (uint16_t i = 0; i < 5u; i++) {
         uint8_t *r;
@@ -2635,23 +2559,24 @@ static void _obj_append_row9(uint8_t *map, uint32_t col, uint32_t row)
      * for.  The handler's SI is one past the matched cell, so the pair lands at
      * (col+1, row+1) and (col+2, row+1) - live level 16 row 17 reads
      * 0x33 0xC2 0xC9 at cols 14..16 with the 0xA9 at col 14 (the 0x33 is the
-     * level's own tile, untouched).  The original writes both with no range
-     * test; at row 18 col 30 the second lands in the gap and at row 19 both do,
-     * so both go through the buffer tail (_obj_map_put). */
+     * level's own tile, untouched).  A write outside the map is dropped
+     * (D-270); no shipped level reaches one. */
     {
-        uint16_t cell = (uint16_t)(row * OBJ_COLS + col);
+        uint32_t cell = (uint32_t)row * OBJ_COLS + col;
 
-        _obj_map_put(map, cell + OBJ_COLS + 1u, 0xC2u);
-        _obj_map_put(map, cell + OBJ_COLS + 2u, 0xC9u);
+        if (map && cell + OBJ_COLS + 1u < OBJ_MAP_CELLS)
+            map[cell + OBJ_COLS + 1u] = 0xC2u;
+        if (map && cell + OBJ_COLS + 2u < OBJ_MAP_CELLS)
+            map[cell + OBJ_COLS + 2u] = 0xC9u;
     }
     if (_obj_bg_count < sizeof _obj_bg / sizeof _obj_bg[0]) {
         uint32_t mcell = (row + 1u) * OBJ_COLS + col + 1u;
 
         _obj_bg[_obj_bg_count].x = (uint16_t)(col * 16u);
         _obj_bg[_obj_bg_count].y = (uint16_t)(row * 16u + 1u);
-        _obj_bg[_obj_bg_count].dst = firstRec;
+        _obj_bg[_obj_bg_count].dst = first;
         _obj_bg[_obj_bg_count].mark =
-            mcell < 640u ? &map[mcell] : &_obj_map_tail[mcell - 640u];
+            mcell < OBJ_MAP_CELLS ? (uint16_t)mcell : 0xFFFFu;
         _obj_bg_count++; // [0x32B9]
     }
 }
@@ -3479,10 +3404,12 @@ static void _obj_bg_tick(void)
     uint8_t i;
 
     for (i = 0; i < _obj_bg_count; i++) {
-        uint8_t *r = _obj_bg[i].dst;
+        uint16_t dst = _obj_bg[i].dst;
+        uint8_t *r;
         uint8_t cx = 0, dx = 0, t = 0, k;
 
-        if (!r) continue;
+        if (dst >= OBJ_SLOTS) continue;
+        r = _obj_array + dst * OBJ_STRIDE;
         for (k = 0; k < 5u; k++, r += OBJ_STRIDE, t += 2u) {
             if (!(r[6] & 0x80u)) {
                 uint16_t y;
@@ -3495,9 +3422,17 @@ static void _obj_bg_tick(void)
             cx |= tbl[t];
             dx |= tbl[t + 1u];
         }
-        if (_obj_bg[i].mark) {
-            _obj_bg[i].mark[0] = tbl[0x0Au + cx]; // 1000:D638
-            _obj_bg[i].mark[1] = tbl[0x12u + dx]; // 1000:D641
+        {
+            uint16_t mark = _obj_bg[i].mark;
+            uint8_t *map = (uint8_t *)level_map();
+
+            /* An edge pair outside the map is dropped (D-270). */
+            if (mark != 0xFFFFu && map) {
+                if (mark < OBJ_MAP_CELLS)
+                    map[mark] = tbl[0x0Au + cx]; // 1000:D638
+                if (mark + 1u < OBJ_MAP_CELLS)
+                    map[mark + 1u] = tbl[0x12u + dx]; // 1000:D641
+            }
         }
     }
 }
@@ -3549,7 +3484,8 @@ static void _obj_walk_seq(uint8_t *r)
         uint8_t *map = (uint8_t *)level_map(); // the writable [0x1FA0] copy
 
         wr_le_u16(r + 8u, 2u);
-        if (map && rd_le_u16(r + 0xEu) < 640u) map[rd_le_u16(r + 0xEu)] = 0u;
+        if (map && rd_le_u16(r + 0xEu) < OBJ_MAP_CELLS)
+            map[rd_le_u16(r + 0xEu)] = 0u;
     }
 }
 
@@ -5037,14 +4973,14 @@ static void _obj_walk_marker(uint8_t *r)
                 wr_le_u16(r + 4u, f + 1u); // 1000:C562
             } else {
                 r[6] |= 0x80u; // 1000:C557
-                if (map && rd_le_u16(r + 8u) < 640u)
+                if (map && rd_le_u16(r + 8u) < OBJ_MAP_CELLS)
                     ((uint8_t *)map)[rd_le_u16(r + 8u)] = 0u;
             }
         } else if (r[6] & 0x80u) {
             r[6] = 0u; // 1000:C579: cleared, so the re-test below scans
         } else if (f != 0x26u) {
             wr_le_u16(r + 4u, f - 1u); // 1000:C570
-            if (map && rd_le_u16(r + 8u) < 640u)
+            if (map && rd_le_u16(r + 8u) < OBJ_MAP_CELLS)
                 ((uint8_t *)map)[rd_le_u16(r + 8u)] = 0xBBu;
         }
     }
@@ -6148,8 +6084,8 @@ int32_t object_stack_snap(uint8_t *actor)
 
 /** @brief 1000:E361 map_get, the law shared with _obj_map_cell: the map cell at
  * (x, y) is `map[2*(y & 0xFFF0) + (x >> 4)]`; `*sub` returns `x & 0xF`, the 0x92A0
- * sub-column the step test indexes.  No range test: the buffer continues with a
- * 32-byte gap and the whole map again (`_obj_map_buffer_byte`).
+ * sub-column the step test indexes.  The cell index may leave the map; every
+ * read outside `0..639` is air (D-270).
  *
  * @param x the x coordinate
  * @param y the y coordinate
@@ -6169,39 +6105,56 @@ static uint32_t _obj_map_at_abs(int32_t x, int32_t y, uint32_t *sub)
     return _obj_map_buffer_byte((int32_t)cell);
 }
 
-/* The 1000:E361 ground probe: the surface row under (x,y) and its cell. */
+/* The 1000:E361 ground probe: the surface row under (x,y) and its cell.  The
+ * sides are hard walls; below the map is a floor at OBJ_MAP_H (D-270). */
 static int32_t _obj_land_y(int32_t x, int32_t y, uint32_t *cellOut)
 {
+    int32_t row;
+
+    if (x < 0 || x >= (int32_t)OBJ_MAP_W) {
+        *cellOut = 0xFFFFu;
+        return -1; // side wall
+    }
+    if (y >= (int32_t)OBJ_MAP_H) {
+        *cellOut = 0xFFFFu;
+        return (int32_t)OBJ_MAP_H; // below the map: hard floor
+    }
     /* 1000:E361 does AND BX,0xFFF0 on the probe y, so every return below is
      * relative to the row start, not the raw probe line. */
-    int32_t row = y & ~0xF;
-    uint32_t sub, id = _obj_map_at_abs(x, row, &sub);
-    uint8_t b = (uint8_t)(level_page_byte(id, sub));
-
-    *cellOut = id;
-    if (!(b & 0x80u)) {
-        if (b != 0u) return row + (int32_t)(int8_t)b;
-        uint32_t above =
-            _obj_map_at_abs(x, row - 0x10, &sub); // 1000:E3BA, DI unmoved
-        b = (uint8_t)(level_page_byte(above, sub));
-        if (b & 0x80u) {
-            *cellOut = id; // 1000:E3CA: DI is still the point's cell
-            return row; // AX = 0
-        }
-        *cellOut = above;
-        return row - 0x10 + (int32_t)(int8_t)b;
-    }
+    row = y & ~0xF;
     {
-        uint32_t below =
-            _obj_map_at_abs(x, row + 0x10, &sub); // 1000:E3E7, DI unmoved
-        b = (uint8_t)(level_page_byte(below, sub));
-        if (b & 0x80u) {
-            *cellOut = id; // 1000:E3F1: DI is still the point's cell
-            return -1;
+        uint32_t sub, id = _obj_map_at_abs(x, row, &sub);
+        uint8_t b = (uint8_t)(level_page_byte(id, sub));
+
+        *cellOut = id;
+        if (!(b & 0x80u)) {
+            if (b != 0u) return row + (int32_t)(int8_t)b;
+            {
+                uint32_t above = _obj_map_at_abs(
+                    x, row - 0x10, &sub); // 1000:E3BA, DI unmoved
+
+                b = (uint8_t)(level_page_byte(above, sub));
+                if (b & 0x80u) {
+                    *cellOut = id; // 1000:E3CA: DI is still the point's cell
+                    return row; // AX = 0
+                }
+                *cellOut = above;
+                return row - 0x10 + (int32_t)(int8_t)b;
+            }
         }
-        *cellOut = below;
+        {
+            uint32_t below = _obj_map_at_abs(
+                x, row + 0x10, &sub); // 1000:E3E7, DI unmoved
+
+            b = (uint8_t)(level_page_byte(below, sub));
+            if (b & 0x80u) {
+                *cellOut = id; // 1000:E3F1: DI is still the point's cell
+                return -1;
+            }
+            *cellOut = below;
+        }
+        return row + 0x10 + (int32_t)(int8_t)b;
     }
-    return row + 0x10 + (int32_t)(int8_t)b;
 }
 
 #if defined(HUMANSRE_TEST_PROBES)
@@ -6266,8 +6219,11 @@ static uint32_t _obj_walk_test(const uint8_t *actor)
  */
 static void _obj_walk(uint8_t *actor, int32_t left)
 {
+    int32_t ax = (int32_t)(int16_t)rd_le_u16(actor + 0u);
     uint8_t lo = left ? 8u : 0u, hi = left ? 0x10u : 8u, f;
 
+    if (left ? ax <= 0 : ax + 16 >= (int32_t)OBJ_MAP_W)
+        return; // the sides are hard (D-270)
     _obj_sel_frame = left ? 2u : 0xEu;
     _obj_sel_type = 0x10u;
     if (_obj_walk_test(actor) != 0u) return; // blocked: no step
@@ -6375,7 +6331,11 @@ static int32_t _obj_bg_mark(const uint8_t *actor)
         /* 1000:DFE2/0xE00C: the table index is d, the offset from the aligned
          * window start (not foot_x - rx, which is d + 0x10). */
         bl = tbl[(uint32_t)d & 0x1Fu];
-        if (bl && _obj_bg[i].dst) _obj_bg[i].dst[bl] = 0xFFu;
+        if (bl) {
+            uint32_t at = (uint32_t)_obj_bg[i].dst * OBJ_STRIDE + (uint32_t)bl;
+
+            if (at < sizeof _obj_array) _obj_array[at] = 0xFFu;
+        }
         return -1;
     }
     return 0;
@@ -6412,6 +6372,8 @@ static void _obj_cmd_settle(uint8_t *actor)
     int32_t ax = x + 8, feet = y + 0x18, line = feet & ~0xF, bx, d;
     uint32_t sub, cell, b;
 
+    if (x < 0 || x >= (int32_t)OBJ_MAP_W)
+        return; // the sides are hard (D-270)
     if (!_obj_settle_gate(actor)) return;
     cell = _obj_map_at_abs(ax, line, &sub);
     if (cell == level_special_tile(0u) || cell == level_special_tile(1u))
@@ -6809,18 +6771,15 @@ static void _obj_cmd_enter(uint8_t *actor)
     idx = actor[7]; // 1000:EEB8: the 1-based class
     actor[7] = 0u;
     /* The class byte write is `AND [0x3E5E + idx], 0x3F` (idx 0 reaches
-     * 0x3E5E through the `DEC DX` wrap).  The record write converts the class
-     * with `DEC DX` / `MUL DL` and does no range test: for a class byte of 0
-     * the factor is 0xFFFF, `MUL DL` uses only 0xFF, and the writes land at
-     * 0x3F17 + 0x11EE = 0x5105 (+8), i.e. on 0x510D..0x5114. */
+     * 0x3E5E through the `DEC DX` wrap).  The original's record write for a
+     * class byte of 0 lands at 0x510D..0x5114, where nothing reads; the port
+     * drops it (D-271). */
     _obj_class_byte_set(idx,
                         _obj_class_byte_at(idx) & 0x3Fu); // 0x3E5F + idx - 1
-    if (idx == 0u) { // the reachable out-of-range case: record base 0x5105
-        rec = _obj_ds_tail5105;
-    } else if (8u + idx < OBJ_SLOTS) {
+    if (idx != 0u && 8u + idx < OBJ_SLOTS) {
         rec = _obj_array + (8u + idx) * OBJ_STRIDE; // 0x3F17 + 0x12*(idx-1)
     } else {
-        rec = NULL; // malformed class: the bound is D-101
+        rec = NULL; // no class, or a malformed one (D-101)
     }
     if (rec) {
         wr_le_u16(rec + 8u, 0xFFFFu); // 1000:EED5

@@ -3104,10 +3104,10 @@ int main(int argc, char **argv)
                                 m[4u * 32u + 3u] == 0xC2u &&
                                 m[4u * 32u + 4u] == 0xC9u,
                             "0xA9 marks the next two cells a row below as 0xC2/0xC9");
-                        /* D-235: the pair has no range test.  Row 18 col 30
-                         * puts the first cell at 639 (in the map) and the
-                         * second at 640 (the gap); row 19 puts both in the
-                         * gap, which the buffer tail holds. */
+                        /* D-270: the pair is written only inside the map.
+                         * Row 18 col 30 puts the first at 639 (in the map) and
+                         * the second at 640; row 19 puts both outside.  No
+                         * shipped level has an 0xA9 at those cells. */
                         {
                             static uint8_t m9[640];
                             uint8_t *r0;
@@ -3117,7 +3117,7 @@ int main(int argc, char **argv)
                             object_init();
                             (void)object_load_terrain_objects(m9);
                             _check(m9[639] == 0xC2u,
-                                   "D-235: the in-map row-below write at "
+                                   "D-270: the in-map row-below write at "
                                    "cell 639 lands");
                             memset(m9, 0, sizeof m9);
                             m9[19u * 32u + 0u] = 0xA9u;
@@ -3127,15 +3127,14 @@ int main(int argc, char **argv)
                             r0[0] = 8u;
                             r0[1] = 0u;
                             r0[2] = 0x34u;
-                            r0[3] = 0x01u; // cell 641 = the gap's first byte
-                            _check(object_record_map_cell(0u) == 0xC2u,
-                                   "D-235: a row-19 0xA9 writes the gap "
-                                   "(cell 641 = 0xC2)");
+                            r0[3] = 0x01u; // cell 641
+                            _check(object_record_map_cell(0u) == 0u,
+                                   "D-270: a row-19 0xA9 writes no gap");
                             object_init();
                         }
                         /* the 0x32B9 bg-log tick rewrites the same pair through
-                         * its entry's +8; an edge 0xA9 must address the buffer
-                         * tail, never past the caller's 640-byte map. */
+                         * its entry's +8; an edge 0xA9 must not write outside
+                         * the caller's 640-byte map. */
                         {
                             static struct {
                                 uint8_t m[640];
@@ -3153,18 +3152,18 @@ int main(int argc, char **argv)
                             object_world_tick();
                             for (k = 0; k < sizeof s.canary; k++)
                                 if (s.canary[k] != 0x5Au) clean = 0u;
-                            _check(clean, "D-235: the bg tick's edge marks "
-                                          "stay in the buffer tail");
+                            _check(clean, "D-270: the bg tick's edge marks "
+                                          "stay inside the map");
                             r0 = object_slot(0);
                             r0[0] = 0u;
                             r0[1] = 0u;
                             r0[2] = 0x44u;
                             r0[3] = 0x01u; // y 0x144 -> cell 672
-                            _check(object_record_map_cell(0u) == 0xC2u,
-                                   "D-235: the bg tick marks cell 672");
+                            _check(object_record_map_cell(0u) == 0u,
+                                   "D-270: the bg tick drops cell 672");
                             r0[0] = 8u;
-                            _check(object_record_map_cell(0u) == 0xC9u,
-                                   "D-235: the bg tick marks cell 673");
+                            _check(object_record_map_cell(0u) == 0u,
+                                   "D-270: the bg tick drops cell 673");
                             object_init();
                         }
                         /* 0xB7: two appended records, the only computed class
@@ -6073,23 +6072,12 @@ int main(int argc, char **argv)
                     break;
                 }
             }
-            _check(!met, "D-100: the last row's below-cell is the gap");
-            /* 1000:3149 copies the map again at +0x2A0.  The second copy is
-             * the LOAD-TIME map (the loader writes it once), so re-seed it to
-             * prove y = 0x144 reads that copy and not the live first 640. */
+            _check(!met, "D-270: the last row's below-cell is air");
+            /* a cell below the map is air, not a second copy of the map */
             r[2] = 0x44u;
             r[3] = 0x01u;
-            {
-                static uint8_t snap[640];
-
-                memset(snap, 0, sizeof snap);
-                snap[0] = 0x5Au;
-                object_map_tail_reset(snap);
-                _check(object_record_map_cell(0u) == 0x5Au,
-                       "D-100: the map's second copy is read (1000:3149)");
-                map[0] = 0x00u;
-                object_map_tail_reset(map);
-            }
+            _check(object_record_map_cell(0u) == 0u,
+                   "D-270: a cell below the map is air");
         }
     }
 
@@ -6338,15 +6326,8 @@ int main(int argc, char **argv)
                "the door vector 0 sets frame 0 / type 0");
         _check(object_last_sfx() == 3u, "the entry plays effect 3 (1000:EEF2)");
         _check(!object_action_latched(), "the entry releases the latch");
-        _check(object_ds_tail5105(8u) == 0xFFu &&
-                   object_ds_tail5105(9u) == 0xFFu &&
-                   object_ds_tail5105(10u) == 0u &&
-                   object_ds_tail5105(11u) == 0u &&
-                   object_ds_tail5105(12u) == 3u &&
-                   object_ds_tail5105(13u) == 0u &&
-                   object_ds_tail5105(14u) == 0xFBu &&
-                   object_ds_tail5105(15u) == 0xFFu,
-               "the class-0 door write lands at 0x510D..0x5114 (D-24)");
+        /* D-271: the original's class-0 write lands at 0x5105.., where nothing
+         * reads; the port drops it, so no state is kept. */
 
         /* the `0x6E76` door table's rows 1/2 (frames 0x8D/0x8E): the image's
          * y words are -7 and -9.  The class byte is 1, so the placed record is
@@ -8634,58 +8615,30 @@ int main(int argc, char **argv)
                    "D-269: a row-0 probe reads the image pad, not a wall");
         }
 
-        /* 6c2e. The prelude's other non-zero content: the dead
-         * `"levels\level01.map"` string at `202F:1FD8..0x1FEA`.  A probe whose
-         * row base is `0xFFE0` (y `-32..-17`) reads it as a tile id; here
-         * `x>>4 = 0x0E` lands on the `'e'` at `202F:1FD9`, whose page byte is 0
-         * (a surface) where id 0's is `0xFF` (solid) - so a zeroed prelude
-         * would report "blocked" (-1) instead of the row. */
+        /* 6c2e. The prelude is gone: the band above the map is air, not the
+         * level-setup bytes or the dead path string (D-270).  A probe two rows
+         * above the top has no ground in reach, so the landing probe reports
+         * -1 (no surface). */
         {
-            uint32_t cell = 0;
+            uint32_t cell = 0xFFu;
 
-            _check(object_land_y_for_probe(0xE0, -17, &cell) == -32 &&
-                       cell == 0x65u,
-                   "D-269: the prelude string byte reads as its own tile");
+            _check(object_land_y_for_probe(0xE0, -17, &cell) == -1 &&
+                       cell == 0u,
+                   "D-270: the band above the map is air");
         }
 
-        /* 6c2f. The level-setup part of the window, `0x1FA4..0x1FCB`.  The
-         * original's DS holds what `level_setup_screen` wrote, not the image's
-         * zeros: field J's first four bytes expanded into the 32 opacity flags
-         * (`1000:5137`, last from `draw_objects` `1000:4F7C`), the row-block
-         * pointer at `[0x1FC4]` (`1000:4E7E`) and field M's rotation table at
-         * `[0x1FC6]` (`1000:4EA1`).  Level 1 is style 3 (BD3), whose field J is
-         * `7E F8 00 3F ...` and whose table is `01 00 | 03 03 71 04`. */
-        _check(level_map_pre(0x1FA4) == 0x00 &&
-                   level_map_pre(0x1FAB) == 0x00 &&
-                   level_map_pre(0x1FAF) == 0xFF &&
-                   level_map_pre(0x1FB3) == 0xFF &&
-                   level_map_pre(0x1FB4) == 0x00 &&
-                   level_map_pre(0x1FC4) == 0xCA &&
-                   level_map_pre(0x1FC5) == 0x8D &&
-                   level_map_pre(0x1FC6) == 0x01 &&
-                   level_map_pre(0x1FC7) == 0x00 &&
-                   level_map_pre(0x1FC8) == 0x03 &&
-                   level_map_pre(0x1FC9) == 0x03 &&
-                   level_map_pre(0x1FCA) == 0x71 &&
-                   level_map_pre(0x1FCB) == 0x04,
-               "D-269: 0x1FA4..0x1FCB is the level setup's window");
-        _check(level_map_pre(0x1FEB) < 0 && level_map_pre(0x1FD8) < 0,
-               "D-269: the pad and the dead string are not setup's");
-
-        /* 6c30. The consequence: a behaviour-5 record whose projection is one
-         * row base above the map (`bx` -32..-17) probes `0x1FAB + (x>>4)`.
-         * On an opacity flag of 0xFF the original runs 1000:E27A (hidden,
-         * class byte 0); on a 0x00 flag - and on the row-0 pad - it does not. */
+        /* 6c30. The original's above-map opacity flags and pad no longer hide
+         * the record: with the window replaced by air, no case runs
+         * 1000:E27A. */
         {
             static const struct {
                 uint16_t x;
                 int16_t y;
-                uint8_t killed;
                 const char *what;
             } cases[3] = {
-                { 0x40u, -17, 1u, "D-269: a 0xFF opacity flag kills (1000:E27A)" },
-                { 0x00u, -17, 0u, "D-269: a 0x00 opacity flag does not" },
-                { 0x40u, -6, 0u, "D-269: the row-0 pad does not" },
+                { 0x40u, -17, "D-270: an above-map probe does not kill" },
+                { 0x00u, -17, "D-270: the left above-map probe does not kill" },
+                { 0x40u, -6, "D-270: the row-0 pad does not kill" },
             };
             uint32_t k;
 
@@ -8709,31 +8662,14 @@ int main(int argc, char **argv)
                 while ((object_frame_counter_probe() & 1u) == 0u)
                     object_tick(NULL);
                 object_update_list();
-                _check(cases[k].killed
-                           ? (r[6] == 0xFFu && object_slot_class(1u) == 0u)
-                           : (r[6] == 0x00u && object_slot_class(1u) == 5u),
+                _check(r[6] == 0x00u && object_slot_class(1u) == 5u,
                        cases[k].what);
             }
         }
     }
 
-    /* 6c31. Level 4 (style 2, BD2) is the reported level: its opacity flags
-     * start one byte later (`0x1FA5`), so the same 17-px probe reads 0x00 and
-     * the spear survives there - the D-269 behaviour is unchanged. */
-    if (level_load(3) == 0) {
-        _check(level_map_pre(0x1FA5) == 0xFF &&
-                   level_map_pre(0x1FAA) == 0xFF &&
-                   level_map_pre(0x1FAB) == 0x00 &&
-                   level_map_pre(0x1FC4) == 0x6A &&
-                   level_map_pre(0x1FC5) == 0x8F &&
-                   level_map_pre(0x1FC6) == 0x00 &&
-                   level_map_pre(0x1FC7) == 0x00,
-               "D-269: level 4's setup window is BD2's");
-    }
-
-    /* 6c32. D-233's remaining bound, pinned so it cannot drift silently: a
-     * record a row below the map reaches `0x290 + x>>4` (`DS:0x2537`), past
-     * the second copy, and the accessor returns 0. */
+    /* 6c32. D-270's bound, pinned so it cannot drift silently: a record a row
+     * below the map reads air. */
     if (level_load(0) == 0) {
         uint8_t *r = object_slot(0u);
 
@@ -8743,8 +8679,81 @@ int main(int argc, char **argv)
             r[2] = 0x90u; // y = 0x290: one row below the map
             r[3] = 0x02u;
             _check(object_record_map_cell(0u) == 0u,
-                   "D-233: a record below the map reads 0");
+                   "D-270: a record below the map reads air");
         }
+    }
+
+    /* 6c33. D-270's side and bottom rules: the map sides are hard and the
+     * bottom is a floor for placement probes. */
+    {
+        uint32_t cell = 0;
+
+        _check(object_land_y_for_probe(8, 320, &cell) == 320 && cell == 0xFFFFu,
+               "D-270: the map bottom is a floor");
+        _check(object_land_y_for_probe(-1, 0, &cell) == -1,
+               "D-270: the left side is hard");
+        _check(object_land_y_for_probe(512, 0, &cell) == -1,
+               "D-270: the right side is hard");
+    }
+
+    /* 6c34. A bottom-row spawn now lands on the floor instead of reading the
+     * original's second map copy. */
+    {
+        static uint8_t m[640];
+        uint8_t *sp, *cr;
+
+        memset(m, 0, sizeof m);
+        m[19u * 32u + 0u] = 0xABu;
+        m[19u * 32u + 1u] = 0xACu;
+        object_init();
+        (void)object_load_terrain_objects(m);
+        sp = object_slot(9u);
+        cr = object_slot(10u);
+        _check(sp && rd_le_u16(sp + 4u) == 0x0060u &&
+                   rd_le_u16(sp + 2u) == 304u,
+               "D-270: a bottom-row spear lands at y 304");
+        _check(cr && rd_le_u16(cr + 4u) == 0x0096u &&
+                   rd_le_u16(cr + 2u) == 304u,
+               "D-270: a bottom-row campfire lands at y 304");
+        object_init();
+    }
+
+    /* 6c35. A bottom-row plain hole still runs the type-3 coast and the
+     * bottom crash (type 0x16, frame 0x28, effect 4); the floor rule did not
+     * turn pits into safe landings. */
+    if (level_load(0) == 0) {
+        uint8_t *m = (uint8_t *)level_map();
+        uint8_t *r = object_slot(1u);
+        uint32_t i;
+
+        m[19u * 32u + 10u] = 0u;
+        m[18u * 32u + 10u] = 0u;
+        if (r) {
+            r[0] = 160u;
+            r[1] = 0u;
+            r[2] = 0x18u; // 280: feet line 304
+            r[3] = 0x01u;
+            r[4] = 0x10u;
+            r[5] = 0u;
+            r[6] = 0u;
+            r[7] = 0u;
+            r[8] = 3u; // type 3: the gravity tail
+            r[9] = 0u;
+            r[0xAu] = 1u;
+            r[0xBu] = 0u;
+            r[0xCu] = 0u;
+            r[0xDu] = 0u;
+            r[0xEu] = 0u;
+            r[0xFu] = 0u;
+            for (i = 0; i < 200u && rd_le_u16(r + 8u) != 0x0016u; i++)
+                object_row_pass();
+            _check(rd_le_u16(r + 8u) == 0x0016u &&
+                       rd_le_u16(r + 4u) == 0x0028u &&
+                       rd_le_u16(r + 0xAu) == 5u &&
+                       object_last_sfx() == 4u,
+                   "D-270: a bottom hole still crashes (1000:DB15)");
+        }
+        object_init();
     }
 
     if (_bad) {
