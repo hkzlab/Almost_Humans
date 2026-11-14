@@ -97,7 +97,9 @@ set(HUMANSRE_CORE_SOURCES
     src/font.c
     src/attract.c
     src/statusbar.c
-    src/scene.c
+    src/scene/scene_ani.c
+    src/scene/scene_play.c
+    src/scene/scene_boot.c
     src/level/level_load.c
     src/level/level_assets.c
     src/level/level_play.c
@@ -107,7 +109,10 @@ set(HUMANSRE_CORE_SOURCES
     src/level/level_loading.c
     src/level/level_spark.c
     src/level/level_disc.c
-    src/map.c
+    src/map/map_wheel.c
+    src/map/map_band.c
+    src/map/map_list.c
+    src/map/map_flow.c
     src/score.c
     src/hiscore.c
     src/game_strings.c

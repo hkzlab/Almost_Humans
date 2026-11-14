@@ -20,7 +20,7 @@
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
-#include "scene.h"
+#include "scene/scene.h"
 #include "video.h"
 
 #include "audio/adlib/sound_driver_adlib.h"

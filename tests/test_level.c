@@ -18,7 +18,7 @@
 #include "osystem.h"
 #include "res.h"
 #include "palette.h"
-#include "scene.h"
+#include "scene/scene.h"
 #include "video.h"
 #include "compat.h"
 #include "byteorder.h"

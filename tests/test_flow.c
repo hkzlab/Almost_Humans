@@ -16,7 +16,7 @@
 #include "gameflow.h"
 #include "hiscore.h"
 #include "level/level.h"
-#include "map.h"
+#include "map/map.h"
 #include "object/object.h"
 #include "osystem.h"
 #include "palette.h"
