@@ -18,6 +18,14 @@
  */
 uint8_t level_page_free(uint32_t id);
 
+/**
+ * @brief Release the tile atlas once the level's palette is built.
+ *
+ * Nothing reads it after `_level_palette_build`; the original loads
+ * `APL\SPRITES.DAT` over it in the same `[0x13A9]` scratch segment.
+ */
+void level_assets_release_atlas(void);
+
 /* The two level maps the walk reads: `0x92A0`'s page bytes (bit 7 = solid, the
  * low 7 bits the step, 1000:E389) and `[0x1FD6]`'s 16-word item records
  * (1000:F25F's occupancy bit). */
@@ -73,6 +81,13 @@ uint32_t level_item_byte(uint32_t id, uint32_t off);
  * @return the pointer, or NULL when unavailable
  */
 const uint8_t *level_bg_for_probe(void);
+
+/**
+ * @brief Whether the tile atlas is still resident.
+ *
+ * @return 1 while loaded, 0 after `level_assets_release_atlas`
+ */
+uint8_t level_atlas_live_for_probe(void);
 #endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief 1000:54A9's stamp y for the exit cell at (col, row): the handler's

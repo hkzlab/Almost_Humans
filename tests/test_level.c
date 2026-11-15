@@ -238,6 +238,14 @@ int main(int argc, char **argv)
             }
         }
     }
+    /* the tile atlas is released once the palette is built: nothing reads it
+     * after that (the original loads SPRITES.DAT over it in [0x13A9]) */
+    if (level_atlas_live_for_probe()) {
+        fprintf(stderr,
+                "FAIL the tile atlas is still resident after the load\n");
+        bad = 1;
+    }
+
     /* 3. the level id -> the file mapping: the level 10 loads LB.BIN and
      * the level 159 loads LP.BIN's last record. */
     if (level_load(10) != 0 || level_load(159) != 0) {

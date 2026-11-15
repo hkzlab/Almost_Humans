@@ -195,12 +195,9 @@ int32_t level_load(uint16_t levelId)
     textpage_publish_box(_box_spr && _box_size >= 0x900u ? _box_spr : NULL);
 
     /* load_level_assets (1000:3488): APL\SPRITES.DAT is the object sprite
-     * image (81744 = 0x13F50 bytes); the object pass draws from it. */
-    g_osys->memFree(_obj_bank);
-    _obj_bank = NULL;
-    _obj_bank = res_load_chunk(game_resource_name(GAME_RES_APL_SPRITES_DAT),
-                               &_obj_bank_size, NULL);
-    object_render_publish_bank(_obj_bank, _obj_bank_size);
+     * image (81744 = 0x13F50 bytes); the object pass draws from it.  It loads
+     * below the palette build, after the atlas release: the original loads it
+     * over the tile atlas in the same [0x13A9] scratch segment. */
 
     /* load_level_assets 1000:4F82: apl\rex.dat into the entity slot [0x13AD]
      * (the entity pass's bank, 1000:5823). */
@@ -268,6 +265,18 @@ int32_t level_load(uint16_t levelId)
         statusbar_start(time, members, required);
 
         _level_palette_build();
+
+        /* the atlas has no reader past the palette build; release it before
+         * SPRITES.DAT loads, as the original reuses its [0x13A9] segment */
+        level_assets_release_atlas();
+
+        /* load_level_assets (1000:3488): APL\SPRITES.DAT is the object sprite
+         * image (81744 = 0x13F50 bytes); the object pass draws from it. */
+        g_osys->memFree(_obj_bank);
+        _obj_bank = NULL;
+        _obj_bank = res_load_chunk(game_resource_name(GAME_RES_APL_SPRITES_DAT),
+                                   &_obj_bank_size, NULL);
+        object_render_publish_bank(_obj_bank, _obj_bank_size);
 
         /* level_fade_in runs after the party (level_run 30AB): level_begin
          * starts the chain once the play begins, not here. */

@@ -87,12 +87,20 @@ static uint8_t *_anim_table;
 static uint16_t _anim_count;
 
 /**
+ * @brief Release the tile atlas once the level's palette is built.
+ */
+void level_assets_release_atlas(void)
+{
+    g_osys->memFree(_atlas);
+    _atlas = NULL;
+}
+
+/**
  * @brief Release the loaded level's visual banks.
  */
 static void _visuals_free(void)
 {
-    g_osys->memFree(_atlas);
-    _atlas = NULL;
+    level_assets_release_atlas();
     g_osys->memFree(_bg_image);
     _bg_image = NULL;
     g_osys->memFree(_world);
@@ -545,6 +553,9 @@ void level_draw_bg_sprites(uint8_t *page, int32_t scrollX, int32_t scrollY)
 #if defined(HUMANSRE_TEST_PROBES)
 /* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 const uint8_t *level_bg_for_probe(void) { return _bg_image; }
+
+uint8_t level_atlas_live_for_probe(void) { return _atlas != NULL; }
+
 #endif /* HUMANSRE_TEST_PROBES */
 
 uint32_t level_anim_frames(void) { return _bd_anim_frames; }

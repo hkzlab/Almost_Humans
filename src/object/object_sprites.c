@@ -14,6 +14,9 @@
  *
  * One word per slot: bits 0..16 the SPRITES.DAT offset, 17..22 rows,
  * 23..27 ybias, 28..29 mode - decoded by object_sprite_at.
+ *
+ * Deviation: D-265 (the original builds this table at boot; the port
+ * precomputes it).
  */
 
 #include "object_internal.h"
