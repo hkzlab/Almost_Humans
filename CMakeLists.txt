@@ -17,11 +17,16 @@ set(HUMANSRE_PROJECT_TITLE "Almost Humans")
 add_compile_definitions(HUMANSRE_PROJECT_TITLE="${HUMANSRE_PROJECT_TITLE}"
                         HUMANSRE_VERSION="${PROJECT_VERSION}")
 
+# The module roots: the core, the arch ABI and the platform backends.
+set(HUMANSRE_CORE_DIR     ${CMAKE_CURRENT_SOURCE_DIR}/src/core)
+set(HUMANSRE_ARCH_DIR     ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+set(HUMANSRE_PLATFORM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/arch/platform)
+
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
-# The strict warnings, per toolchain spelling.  MSVC needs /utf-8 (the
-# sources carry UTF-8 text in their comments).
+# The strict warnings, per toolchain spelling: warnings are errors.  MSVC
+# needs /utf-8 so a non-ASCII byte in a string literal is not a hard error.
 function(humansre_warnings tgt)
     if(MSVC)
         target_compile_options(${tgt} PRIVATE /W4 /WX /utf-8)
@@ -88,66 +93,66 @@ endif()
 # The game core: pure C99, no port #ifdefs, no dependencies beyond the CRT.
 # It talks to the machine only through OSystem.
 set(HUMANSRE_CORE_SOURCES
-    src/game_main.c
+    src/core/game_main.c
     src/arch/osystem.c
-    src/res.c
-    src/game_resources.c
-    src/video.c
-    src/palette.c
-    src/font.c
-    src/attract.c
-    src/statusbar.c
-    src/scene/scene_ani.c
-    src/scene/scene_play.c
-    src/scene/scene_boot.c
-    src/level/level_load.c
-    src/level/level_assets.c
-    src/level/level_play.c
-    src/level/level_view.c
-    src/level/level_tribe.c
-    src/level/level_palette.c
-    src/level/level_loading.c
-    src/level/level_spark.c
-    src/level/level_disc.c
-    src/map/map_wheel.c
-    src/map/map_band.c
-    src/map/map_list.c
-    src/map/map_flow.c
-    src/score.c
-    src/hiscore.c
-    src/game_strings.c
-    src/entity.c
-    src/object/object_core.c
-    src/object/object_render.c
-    src/object/object_sprites.c
-    src/object/object_spawn.c
-    src/object/object_sequence.c
-    src/object/object_command.c
-    src/object/object_walk.c
-    src/object/object_units.c
-    src/script.c
-    src/audio.c
-    src/frontend.c
-    src/menu.c
-    src/textpage.c
-    src/save.c
-    src/party_intro.c
-    src/ver_detect.c
+    src/core/res.c
+    src/core/game_resources.c
+    src/core/video.c
+    src/core/palette.c
+    src/core/font.c
+    src/core/attract.c
+    src/core/statusbar.c
+    src/core/scene/scene_ani.c
+    src/core/scene/scene_play.c
+    src/core/scene/scene_boot.c
+    src/core/level/level_load.c
+    src/core/level/level_assets.c
+    src/core/level/level_play.c
+    src/core/level/level_view.c
+    src/core/level/level_tribe.c
+    src/core/level/level_palette.c
+    src/core/level/level_loading.c
+    src/core/level/level_spark.c
+    src/core/level/level_disc.c
+    src/core/map/map_wheel.c
+    src/core/map/map_band.c
+    src/core/map/map_list.c
+    src/core/map/map_flow.c
+    src/core/score.c
+    src/core/hiscore.c
+    src/core/game_strings.c
+    src/core/entity.c
+    src/core/object/object_core.c
+    src/core/object/object_render.c
+    src/core/object/object_sprites.c
+    src/core/object/object_spawn.c
+    src/core/object/object_sequence.c
+    src/core/object/object_command.c
+    src/core/object/object_walk.c
+    src/core/object/object_units.c
+    src/core/script.c
+    src/core/audio.c
+    src/core/frontend.c
+    src/core/menu.c
+    src/core/textpage.c
+    src/core/save.c
+    src/core/party_intro.c
+    src/core/ver_detect.c
 )
 
 # The shipping core: the test seams (the *_for_probe accessors and the
 # test-only accessors in src/*.h) are compiled out.
 add_library(core STATIC ${HUMANSRE_CORE_SOURCES})
-target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch
-                                      ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(core PUBLIC ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR}
+                                      ${HUMANSRE_CORE_DIR})
 humansre_warnings(core)
 
 # The test core: the same sources with HUMANSRE_TEST_PROBES, so the test
 # executables see the seam declarations and definitions.  No release binary
 # links this library; the seams cannot reach a shipped build.
 add_library(core_test STATIC ${HUMANSRE_CORE_SOURCES})
-target_include_directories(core_test PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch
-                                           ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(core_test PUBLIC ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR}
+                                           ${HUMANSRE_CORE_DIR})
 target_compile_definitions(core_test PRIVATE HUMANSRE_TEST_PROBES)
 humansre_warnings(core_test)
 
@@ -198,8 +203,8 @@ endif()
 
 # The headless tests: assert-based, no framework.
 humansre_test_executable(test_loop tests/test_loop.c
-    src/arch/null/OSystem.c)          # the null backend: the attract composes
-target_include_directories(test_loop PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+    src/arch/platform/null/OSystem.c)          # the null backend: the attract composes
+target_include_directories(test_loop PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(test_loop PRIVATE core_test fs_posix arch_mem)
 humansre_warnings(test_loop)
 humansre_add_test(NAME flow COMMAND test_loop)
@@ -207,15 +212,15 @@ humansre_add_test(NAME flow COMMAND test_loop)
 # The byteorder module's known-value check: the expected byte layouts are
 # absolute, so the same asserts prove both orders on a LE host and a BE host.
 humansre_test_executable(test_byteorder tests/test_byteorder.c)
-target_include_directories(test_byteorder PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(test_byteorder PRIVATE ${HUMANSRE_CORE_DIR})
 humansre_warnings(test_byteorder)
 humansre_add_test(NAME byteorder COMMAND test_byteorder)
 
 # The text table's structural invariants (no game data needed): the printf
 # markers, the in-place digit fields and the dialog line counts in every
 # language column.
-humansre_test_executable(test_game_strings tests/test_game_strings.c src/game_strings.c)
-target_include_directories(test_game_strings PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+humansre_test_executable(test_game_strings tests/test_game_strings.c src/core/game_strings.c)
+target_include_directories(test_game_strings PRIVATE ${HUMANSRE_CORE_DIR})
 humansre_warnings(test_game_strings)
 humansre_add_test(NAME game_strings COMMAND test_game_strings)
 
@@ -224,8 +229,8 @@ humansre_add_test(NAME game_strings COMMAND test_game_strings)
 set(HUMANS_VOLUMES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../binaries/volumes"
     CACHE PATH "Game data root with one directory per shipped language")
 humansre_test_executable(test_ver_detect tests/test_ver_detect.c
-    src/arch/null/OSystem.c)          # the null backend: the warning's destination
-target_include_directories(test_ver_detect PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+    src/arch/platform/null/OSystem.c)          # the null backend: the warning's destination
+target_include_directories(test_ver_detect PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(test_ver_detect PRIVATE core_test fs_posix arch_mem)
 humansre_warnings(test_ver_detect)
 humansre_add_test(NAME ver_detect COMMAND test_ver_detect ${HUMANS_VOLUMES_DIR})
@@ -248,8 +253,8 @@ if(NOT HUMANS_MT32_ROM_DIR)
     endif()
 endif()
 humansre_test_executable(test_res tests/test_res.c
-    src/arch/null/OSystem.c)
-target_include_directories(test_res PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+    src/arch/platform/null/OSystem.c)
+target_include_directories(test_res PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(test_res PRIVATE core_test fs_posix arch_mem)
 humansre_warnings(test_res)
 humansre_add_test(NAME res COMMAND test_res ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
@@ -257,14 +262,14 @@ humansre_add_test(NAME res COMMAND test_res ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR}
 # The party screen's bake-frame law test: the composed page = the extracted
 # .BIT verbatim (the layout law y=20+q / x=4n+p, closed 2026-10-29).
 humansre_test_executable(test_party tests/test_party.c
-    src/arch/null/OSystem.c)
-target_include_directories(test_party PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+    src/arch/platform/null/OSystem.c)
+target_include_directories(test_party PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(test_party PRIVATE core_test fs_posix arch_mem)
 humansre_warnings(test_party)
 humansre_add_test(NAME party COMMAND test_party ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
 humansre_test_executable(test_party_reset tests/test_party_reset.c
-    src/arch/null/OSystem.c)
-target_include_directories(test_party_reset PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+    src/arch/platform/null/OSystem.c)
+target_include_directories(test_party_reset PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(test_party_reset PRIVATE core_test fs_posix arch_mem)
 humansre_warnings(test_party_reset)
 humansre_add_test(NAME party_reset COMMAND test_party_reset ${HUMANS_DATA_DIR})
@@ -272,8 +277,8 @@ humansre_add_test(NAME party_reset COMMAND test_party_reset ${HUMANS_DATA_DIR})
 # The fade-ladder harness: the port's own DAC progression per tick against
 # the original's recorded hardware reads.
 humansre_test_executable(test_fadeladder tests/test_fadeladder.c
-    src/arch/null/OSystem.c)
-target_include_directories(test_fadeladder PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+    src/arch/platform/null/OSystem.c)
+target_include_directories(test_fadeladder PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(test_fadeladder PRIVATE core_test fs_posix arch_mem)
 humansre_warnings(test_fadeladder)
 humansre_add_test(NAME fadeladder COMMAND test_fadeladder ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
@@ -282,8 +287,8 @@ humansre_add_test(NAME fadeladder COMMAND test_fadeladder ${HUMANS_DATA_DIR} ${H
 # The scene player test: level 0 plays ANI00.ANI's 35 script entries onto
 # page 0; the final page must match the reference playback checksums.
 humansre_test_executable(test_scene tests/test_scene.c
-    src/arch/null/OSystem.c)          # the null backend's test hooks
-target_include_directories(test_scene PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+    src/arch/platform/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_scene PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(test_scene PRIVATE core_test fs_posix arch_mem)
 humansre_warnings(test_scene)
 humansre_add_test(NAME scene COMMAND test_scene ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
@@ -291,8 +296,8 @@ humansre_add_test(NAME scene COMMAND test_scene ${HUMANS_DATA_DIR} ${HUMANS_FIX_
 # The full-game_main smoke test: a scripted input sequence drives the flow
 # (attract -> menu -> level -> intro -> quit) under the null backend.
 humansre_test_executable(test_smoke tests/test_smoke.c
-    src/arch/null/OSystem.c)          # the null backend's test hooks
-target_include_directories(test_smoke PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+    src/arch/platform/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_smoke PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(test_smoke PRIVATE core_test fs_posix arch_mem)
 humansre_warnings(test_smoke)
 humansre_add_test(NAME smoke COMMAND test_smoke ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
@@ -300,8 +305,8 @@ humansre_add_test(NAME smoke COMMAND test_smoke ${HUMANS_DATA_DIR} ${HUMANS_FIX_
 # The level-end transition: draw_level_text's grey/gradient/black fades (D-27,
 # D-29) and check_highscore's outcome gate (D-28), driven through game_main.
 humansre_test_executable(test_endflow tests/test_endflow.c
-    src/arch/null/OSystem.c)          # the null backend's test hooks
-target_include_directories(test_endflow PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+    src/arch/platform/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_endflow PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(test_endflow PRIVATE core_test fs_posix arch_mem)
 humansre_warnings(test_endflow)
 humansre_add_test(NAME endflow_won COMMAND test_endflow ${HUMANS_DATA_DIR} 1)
@@ -311,8 +316,8 @@ humansre_add_test(NAME endflow_restart COMMAND test_endflow ${HUMANS_DATA_DIR} 2
 # The boot-intro test: load_intro_scene's display-list player over the
 # scrolled bac.bit background; the final page must match the reference.
 humansre_test_executable(test_boot tests/test_boot.c
-    src/arch/null/OSystem.c)          # the null backend's test hooks
-target_include_directories(test_boot PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+    src/arch/platform/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_boot PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(test_boot PRIVATE core_test fs_posix arch_mem)
 humansre_warnings(test_boot)
 humansre_add_test(NAME boot COMMAND test_boot ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
@@ -320,8 +325,8 @@ humansre_add_test(NAME boot COMMAND test_boot ${HUMANS_DATA_DIR} ${HUMANS_FIX_DI
 # D-245: [0x48A3] is a held-key level; a held Return must abort the logo to
 # the attract path instead of needing a second press.
 humansre_test_executable(test_boot_key tests/test_boot_key.c
-    src/arch/null/OSystem.c)          # the null backend's test hooks
-target_include_directories(test_boot_key PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+    src/arch/platform/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_boot_key PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(test_boot_key PRIVATE core_test fs_posix arch_mem)
 humansre_warnings(test_boot_key)
 humansre_add_test(NAME boot_key COMMAND test_boot_key ${HUMANS_DATA_DIR})
@@ -329,8 +334,8 @@ humansre_add_test(NAME boot_key COMMAND test_boot_key ${HUMANS_DATA_DIR})
 # D-246: the frame-0 transition flash must run over the rendered scene, not
 # the stale ITB card.
 humansre_test_executable(test_boot_flash tests/test_boot_flash.c
-    src/arch/null/OSystem.c)          # the null backend's test hooks
-target_include_directories(test_boot_flash PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+    src/arch/platform/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_boot_flash PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(test_boot_flash PRIVATE core_test fs_posix arch_mem)
 humansre_warnings(test_boot_flash)
 humansre_add_test(NAME boot_flash COMMAND test_boot_flash ${HUMANS_DATA_DIR})
@@ -338,8 +343,8 @@ humansre_add_test(NAME boot_flash COMMAND test_boot_flash ${HUMANS_DATA_DIR})
 # D-247: the INTRO.RSC scene's two held-key polls - c0c6 after the frame
 # wait (1000:b787) and c0af in the transition fade (1000:b863).
 humansre_test_executable(test_boot_scene_key tests/test_boot_scene_key.c
-    src/arch/null/OSystem.c)          # the null backend's test hooks
-target_include_directories(test_boot_scene_key PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+    src/arch/platform/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_boot_scene_key PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(test_boot_scene_key PRIVATE core_test fs_posix arch_mem)
 humansre_warnings(test_boot_scene_key)
 humansre_add_test(NAME boot_scene_key_trans COMMAND test_boot_scene_key ${HUMANS_DATA_DIR} trans)
@@ -348,8 +353,8 @@ humansre_add_test(NAME boot_scene_key_frame COMMAND test_boot_scene_key ${HUMANS
 # The level test: all 160 records from LEVELS\L*.BIN, the census + the
 # byte-exact maps vs the extracted files.
 humansre_test_executable(test_level tests/test_level.c
-    src/arch/null/OSystem.c)          # the null backend's test hooks
-target_include_directories(test_level PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+    src/arch/platform/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_level PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(test_level PRIVATE core_test fs_posix arch_mem)
 humansre_warnings(test_level)
 humansre_add_test(NAME level COMMAND test_level ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
@@ -358,8 +363,8 @@ humansre_add_test(NAME level COMMAND test_level ${HUMANS_DATA_DIR} ${HUMANS_FIX_
 # PANELN1/PANELN2/PANEL4 assets, the roll/slide arithmetic, the tribe counter,
 # the time-up, and the level_load + level_tick integration.
 humansre_test_executable(test_statusbar tests/test_statusbar.c
-    src/arch/null/OSystem.c)          # the null backend's test hooks
-target_include_directories(test_statusbar PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+    src/arch/platform/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_statusbar PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(test_statusbar PRIVATE core_test fs_posix arch_mem)
 humansre_warnings(test_statusbar)
 humansre_add_test(NAME statusbar COMMAND test_statusbar ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
@@ -368,8 +373,8 @@ humansre_add_test(NAME statusbar COMMAND test_statusbar ${HUMANS_DATA_DIR} ${HUM
 # 0xB4 join, the exact-flip walk over the baked waypoint words, and the
 # 160-level spawn census.
 humansre_test_executable(test_entity tests/test_entity.c
-    src/arch/null/OSystem.c)          # the null backend's test hooks
-target_include_directories(test_entity PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+    src/arch/platform/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_entity PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(test_entity PRIVATE core_test fs_posix arch_mem)
 humansre_warnings(test_entity)
 humansre_add_test(NAME entity COMMAND test_entity ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})
@@ -377,8 +382,8 @@ humansre_add_test(NAME entity COMMAND test_entity ${HUMANS_DATA_DIR} ${HUMANS_FI
 # The in-level pause menu + SAVE GAME: the dialog behaviour (202F:0x5BBC /
 # 0x5CD8), the writer's header and the read-back.
 humansre_test_executable(test_pause tests/test_pause.c
-    src/arch/null/OSystem.c)          # the null backend's test hooks
-target_include_directories(test_pause PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+    src/arch/platform/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_pause PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(test_pause PRIVATE core_test fs_posix arch_mem)
 humansre_warnings(test_pause)
 humansre_add_test(NAME pause COMMAND test_pause ${HUMANS_DATA_DIR})
@@ -386,8 +391,8 @@ humansre_add_test(NAME pause COMMAND test_pause ${HUMANS_DATA_DIR})
 # menu_flag_tick's win pan blocks input_dispatch_loop (1000:3540): a key
 # pressed during it (ESC here) is not seen until the pan returns.
 humansre_test_executable(test_pan_input tests/test_pan_input.c
-    src/arch/null/OSystem.c)          # the null backend: the input script
-target_include_directories(test_pan_input PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+    src/arch/platform/null/OSystem.c)          # the null backend: the input script
+target_include_directories(test_pan_input PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(test_pan_input PRIVATE core_test fs_posix arch_mem)
 humansre_warnings(test_pan_input)
 humansre_add_test(NAME pan_input COMMAND test_pan_input ${HUMANS_DATA_DIR})
@@ -395,8 +400,8 @@ humansre_add_test(NAME pan_input COMMAND test_pan_input ${HUMANS_DATA_DIR})
 # The save-game slot load (entry:004C): the room's RESTORE GAME counter
 # reaches save.c, the save's level/time/members replace the room's.
 humansre_test_executable(test_save tests/test_save.c
-    src/arch/null/OSystem.c)          # the null backend's test hooks
-target_include_directories(test_save PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+    src/arch/platform/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_save PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(test_save PRIVATE core_test fs_posix arch_mem)
 humansre_warnings(test_save)
 humansre_add_test(NAME save COMMAND test_save ${HUMANS_DATA_DIR})
@@ -411,8 +416,8 @@ endif()
 # The front-end room's option read side: walk to each board, press ACTION,
 # and assert the counter/badge pixels and each setting's consumer.
 humansre_test_executable(test_frontend tests/test_frontend.c
-    src/arch/null/OSystem.c)          # the null backend's test hooks
-target_include_directories(test_frontend PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+    src/arch/platform/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_frontend PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(test_frontend PRIVATE core_test fs_posix arch_mem)
 humansre_warnings(test_frontend)
 humansre_add_test(NAME frontend COMMAND test_frontend ${HUMANS_DATA_DIR})
@@ -422,8 +427,8 @@ humansre_add_test(NAME frontend COMMAND test_frontend ${HUMANS_DATA_DIR})
 set(HUMANS_REF_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../analysis/attract_scroll"
     CACHE PATH "reference dumps for the attract scroller (strip + frames)")
 humansre_test_executable(test_attract tests/test_attract.c
-    src/arch/null/OSystem.c)          # the null backend's test hooks
-target_include_directories(test_attract PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+    src/arch/platform/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_attract PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(test_attract PRIVATE core_test fs_posix arch_mem)
 humansre_warnings(test_attract)
 humansre_add_test(NAME attract COMMAND test_attract ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR} ${HUMANS_REF_DIR})
@@ -439,14 +444,14 @@ endif()
 # no-data port and as the original's deliberate "no disc" state.
 add_library(fs_null  src/arch/fs/null/fs_null.c)
 add_library(fs_posix src/arch/fs/posix/fs_posix.c)
-target_include_directories(fs_null  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_include_directories(fs_posix PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_include_directories(fs_null  PUBLIC ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
+target_include_directories(fs_posix PUBLIC ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 
 # The process heap (arch/mem.h): OSystem's memAlloc/memFree point at these
 # forwarders, and the arch modules call them directly.  It is the only
 # non-thirdparty place that calls the CRT allocator.
 add_library(arch_mem src/arch/arch_mem.c)
-target_include_directories(arch_mem PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_include_directories(arch_mem PUBLIC ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 
 # The sound-driver modules (audio/sound_driver.h): a port links the ones it
 # offers and selects one at run time.  adlib/sound_driver_adlib.c is
@@ -464,11 +469,11 @@ add_library(audio_beeper
     src/arch/audio/beeper/sound_driver_beeper.c
     src/arch/audio/beeper/thirdparty/pcspeaker_impulse.c)
 add_library(audio_null src/arch/audio/null/sound_driver_null.c)
-target_include_directories(audio_adlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_include_directories(audio_adlib PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_include_directories(audio_beeper PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-target_include_directories(audio_beeper PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_include_directories(audio_null PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_include_directories(audio_adlib PUBLIC ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
+target_include_directories(audio_adlib PRIVATE ${HUMANSRE_CORE_DIR})
+target_include_directories(audio_beeper PUBLIC ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
+target_include_directories(audio_beeper PRIVATE ${HUMANSRE_CORE_DIR})
+target_include_directories(audio_null PUBLIC ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(audio_adlib PRIVATE arch_mem)
 target_link_libraries(audio_beeper PRIVATE arch_mem)
 target_link_libraries(audio_null PRIVATE arch_mem)
@@ -486,8 +491,8 @@ find_library(MT32EMU_LIBRARY NAMES mt32emu)
 if(MT32EMU_INCLUDE_DIR AND MT32EMU_LIBRARY)
     set(HUMANSRE_MT32 TRUE)
     add_library(audio_mt32 src/arch/audio/mt32/sound_driver_mt32.c)
-    target_include_directories(audio_mt32 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
-    target_include_directories(audio_mt32 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
+    target_include_directories(audio_mt32 PUBLIC ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
+    target_include_directories(audio_mt32 PRIVATE ${HUMANSRE_CORE_DIR}
                                                   ${MT32EMU_INCLUDE_DIR})
     target_link_libraries(audio_mt32 PUBLIC ${MT32EMU_LIBRARY})
     target_link_libraries(audio_mt32 PRIVATE arch_mem)
@@ -501,7 +506,7 @@ endif()
 # music_resume/stop, the fade pair, driver_call and the 2-of-3 tick, with
 # rendered samples as the oracle.
 humansre_test_executable(test_audio_link tests/test_audio_link.c)
-target_include_directories(test_audio_link PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_include_directories(test_audio_link PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(test_audio_link PRIVATE core_test fs_posix audio_adlib)
 humansre_warnings(test_audio_link)
 humansre_test_asserts(test_audio_link)
@@ -512,7 +517,7 @@ humansre_add_test(NAME audio_link COMMAND test_audio_link ${HUMANS_DATA_DIR})
 # decay, the F-numbers and the instrument registers.
 humansre_test_executable(test_adlib_live tests/test_adlib_live.c
     src/arch/audio/adlib/thirdparty/opl3.c)
-target_include_directories(test_adlib_live PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_include_directories(test_adlib_live PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(test_adlib_live PRIVATE m arch_mem)
 humansre_warnings(test_adlib_live)
 humansre_test_asserts(test_adlib_live)
@@ -521,7 +526,7 @@ humansre_add_test(NAME adlib_live COMMAND test_adlib_live ${HUMANS_FIX_DIR}/HUMA
 # The AdLib driver module: a real .ALB through the INT 60h ABI, so the
 # sequencer decodes the image and the vendored OPL3 renders it.
 humansre_test_executable(test_adlib tests/test_adlib.c)
-target_include_directories(test_adlib PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_include_directories(test_adlib PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(test_adlib PRIVATE audio_adlib)
 humansre_warnings(test_adlib)
 humansre_test_asserts(test_adlib)
@@ -533,7 +538,7 @@ humansre_add_test(NAME adlib COMMAND test_adlib ${HUMANS_FIX_DIR})
 # state and the rendered pitch are both checked.
 humansre_test_executable(test_beeper tests/test_beeper.c
     src/arch/audio/beeper/thirdparty/pcspeaker_impulse.c)
-target_include_directories(test_beeper PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_include_directories(test_beeper PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(test_beeper PRIVATE core_test fs_posix arch_mem)
 if(NOT MSVC)
     target_link_libraries(test_beeper PRIVATE m)
@@ -545,7 +550,7 @@ humansre_add_test(NAME beeper COMMAND test_beeper ${HUMANS_FIX_DIR} ${HUMANS_DAT
 # The settable arch heap: OSystem's pair and the arch modules share it; a
 # counting pair must see both, and a driver's create/destroy must balance.
 humansre_test_executable(test_arch_mem tests/test_arch_mem.c)
-target_include_directories(test_arch_mem PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+target_include_directories(test_arch_mem PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(test_arch_mem PRIVATE arch_mem audio_adlib)
 humansre_warnings(test_arch_mem)
 humansre_test_asserts(test_arch_mem)
@@ -557,7 +562,7 @@ humansre_add_test(NAME arch_mem COMMAND test_arch_mem)
 # compatible pair, including MAME-style split images).
 if(HUMANSRE_MT32)
     humansre_test_executable(test_mt32 tests/test_mt32.c)
-    target_include_directories(test_mt32 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch ${MT32EMU_INCLUDE_DIR})
+    target_include_directories(test_mt32 PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR} ${MT32EMU_INCLUDE_DIR})
     target_link_libraries(test_mt32 PRIVATE ${MT32EMU_LIBRARY} arch_mem)
     humansre_warnings(test_mt32)
     humansre_add_test(NAME mt32 COMMAND test_mt32 ${HUMANS_FIX_DIR})
@@ -571,8 +576,8 @@ endif()
 # backend records counters no release build needs).
 if(HUMANSRE_BUILD_NULL)
     add_executable(humans-null
-        src/arch/null/OSystem.c
-        src/arch/null/main.c
+        src/arch/platform/null/OSystem.c
+        src/arch/platform/null/main.c
     )
     target_link_libraries(humans-null PRIVATE core fs_posix arch_mem)
     humansre_warnings(humans-null)
@@ -582,14 +587,14 @@ endif()
 find_package(SDL3 3.2 CONFIG QUIET)
 if(SDL3_FOUND)
     add_executable(humans-sdl3
-        src/arch/sdl3/OSystem.c
-        src/arch/sdl3/video.c
-        src/arch/sdl3/events.c
-        src/arch/sdl3/timer.c
-        src/arch/sdl3/audio.c
+        src/arch/platform/sdl3/OSystem.c
+        src/arch/platform/sdl3/video.c
+        src/arch/platform/sdl3/events.c
+        src/arch/platform/sdl3/timer.c
+        src/arch/platform/sdl3/audio.c
     )
     target_link_libraries(humans-sdl3 PRIVATE core fs_posix audio_adlib audio_beeper arch_mem SDL3::SDL3)
-    target_include_directories(humans-sdl3 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_include_directories(humans-sdl3 PRIVATE ${HUMANSRE_CORE_DIR})
     # The env-var probes (HUMANSRE_AUDIO_PROBE / HUMANSRE_RATE_PROBE) are
     # test-framework code too: a Debug configure keeps them for measuring,
     # a release/default one compiles them out.
@@ -607,8 +612,8 @@ endif()
 # post-level spine ([0x22]++/[0x26]-- -> the next level or COMPLETE), the
 # level-end hook ([0x138E]) and draw_level_text's two pages.
 humansre_test_executable(test_flow tests/test_flow.c
-    src/arch/null/OSystem.c)          # the null backend's test hooks
-target_include_directories(test_flow PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
+    src/arch/platform/null/OSystem.c)          # the null backend's test hooks
+target_include_directories(test_flow PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
 target_link_libraries(test_flow PRIVATE core_test fs_posix arch_mem)
 humansre_warnings(test_flow)
 humansre_add_test(NAME level_flow COMMAND test_flow ${HUMANS_DATA_DIR} ${HUMANS_FIX_DIR})

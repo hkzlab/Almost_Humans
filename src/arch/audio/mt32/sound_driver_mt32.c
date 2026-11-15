@@ -140,7 +140,7 @@ struct SoundDriver {
     size_t rom_size[MT32_ROMS_MAX];
     const char *rom_control[MT32_ROMS_MAX];
     const char *rom_pcm[MT32_ROMS_MAX];
-    unsigned rom_count;
+    uint32_t rom_count;
 };
 
 static char _rom_dir[1024];
@@ -242,7 +242,7 @@ static void _sysex(SoundDriver *drv, uint8_t a0, uint8_t a1, uint8_t a2,
     sum = (uint8_t)(sum + a0 + a1 + a2);
     for (i = 0; i < n; i++) buf[8u + i] = data[i];
     for (i = 0; i < n; i++) sum = (uint8_t)(sum + data[i]);
-    buf[8u + n] = (uint8_t)((0u - (unsigned)sum) & 0x7Fu);
+    buf[8u + n] = (uint8_t)((0u - (uint32_t)sum) & 0x7Fu);
     buf[8u + n + 1u] = 0xF7u;
     mt32emu_parse_stream(drv->ctx, buf, n + 10u);
 }
@@ -264,7 +264,7 @@ static void _send_master_volume(SoundDriver *drv)
  * @param drv the driver
  * @param channel the part (1..8)
  */
-static void _all_notes_off(SoundDriver *drv, unsigned channel)
+static void _all_notes_off(SoundDriver *drv, uint32_t channel)
 {
     uint8_t status = (uint8_t)(0xB0u + channel);
 
@@ -281,7 +281,7 @@ static void _all_notes_off(SoundDriver *drv, unsigned channel)
  * @param channel the part (1..8)
  * @param slot the slot holding the bend
  */
-static void _send_bend(SoundDriver *drv, unsigned channel, const Mt32Slot *slot)
+static void _send_bend(SoundDriver *drv, uint32_t channel, const Mt32Slot *slot)
 {
     _midi(drv, (uint8_t)(0xE0u + channel), (uint8_t)(slot->bend & 0x7Fu),
           (uint8_t)((slot->bend >> 7) & 0x7Fu));
@@ -293,7 +293,7 @@ static void _send_bend(SoundDriver *drv, unsigned channel, const Mt32Slot *slot)
  * @param slot the slot
  * @return the MIDI channel number (1..8)
  */
-static unsigned _channel(unsigned slot) { return slot + 1u; }
+static uint32_t _channel(uint32_t slot) { return slot + 1u; }
 
 /**
  * @brief Note on with the driver's preceding all-notes-off (0x0B7C).
@@ -302,10 +302,10 @@ static unsigned _channel(unsigned slot) { return slot + 1u; }
  * @param slot_no the slot
  * @param note the note (0 = skip)
  */
-static void _note_on(SoundDriver *drv, unsigned slot_no, uint8_t note)
+static void _note_on(SoundDriver *drv, uint32_t slot_no, uint8_t note)
 {
     Mt32Slot *s = &drv->slot[slot_no];
-    unsigned ch = _channel(slot_no);
+    uint32_t ch = _channel(slot_no);
 
     if (note == 0) return;
     if (s->bend != 0x2000u) {
@@ -324,7 +324,7 @@ static void _note_on(SoundDriver *drv, unsigned slot_no, uint8_t note)
  * @param slot_no the slot
  * @param note the note (0 = skip)
  */
-static void _note_on_extra(SoundDriver *drv, unsigned slot_no, uint8_t note)
+static void _note_on_extra(SoundDriver *drv, uint32_t slot_no, uint8_t note)
 {
     if (note == 0) return;
     _midi(drv, (uint8_t)(0x90u + _channel(slot_no)), note, 0x7Fu);
@@ -348,7 +348,7 @@ static uint16_t _period_of(uint8_t note)
  * @param drv the driver
  * @param slot_no the slot
  */
-static void _slide_setup(SoundDriver *drv, unsigned slot_no)
+static void _slide_setup(SoundDriver *drv, uint32_t slot_no)
 {
     Mt32Slot *s = &drv->slot[slot_no];
     uint16_t target = _period_of(s->note[0]);
@@ -372,7 +372,7 @@ static void _slide_setup(SoundDriver *drv, unsigned slot_no)
  * @param drv the driver
  * @param slot_no the slot
  */
-static void _slide_tick(SoundDriver *drv, unsigned slot_no)
+static void _slide_tick(SoundDriver *drv, uint32_t slot_no)
 {
     Mt32Slot *s = &drv->slot[slot_no];
     uint16_t step;
@@ -427,7 +427,7 @@ typedef struct Mt32Play {
  */
 static uint8_t _cc_volume(uint8_t volume)
 {
-    unsigned value = (unsigned)volume << 1;
+    uint32_t value = (uint32_t)volume << 1;
     return (uint8_t)(value > 0x7Fu ? 0x7Fu : value);
 }
 
@@ -442,7 +442,7 @@ static uint8_t _cc_volume(uint8_t volume)
  * @param p the play state
  * @param slot_no the slot
  */
-static void _tick_command(Mt32Play *p, unsigned slot_no)
+static void _tick_command(Mt32Play *p, uint32_t slot_no)
 {
     SoundDriver *drv = p->drv;
     Mt32Slot *s = &drv->slot[slot_no];
@@ -461,10 +461,10 @@ static void _tick_command(Mt32Play *p, unsigned slot_no)
     case 0x09: { // 0x0A29: volume delta, then CC 7 = volume * 2
         uint8_t high = (uint8_t)(s->param >> 4);
         uint8_t low = (uint8_t)(s->param & 0x0Fu);
-        unsigned ch = _channel(slot_no);
+        uint32_t ch = _channel(slot_no);
         uint8_t value;
         if (high != 0) {
-            unsigned next = (unsigned)s->volume + high;
+            uint32_t next = (uint32_t)s->volume + high;
             s->volume = (uint8_t)(next > 0x40u ? 0x40u : next);
         } else if (low > s->volume) {
             s->volume = 0;
@@ -487,7 +487,7 @@ static void _tick_command(Mt32Play *p, unsigned slot_no)
  * @param drv the driver
  * @param slot_no the slot
  */
-static void _cmd_all_notes_off(SoundDriver *drv, unsigned slot_no)
+static void _cmd_all_notes_off(SoundDriver *drv, uint32_t slot_no)
 {
     drv->slot[slot_no].command = 0;
     _midi(drv, (uint8_t)(0xB0u + _channel(slot_no)), 0x7Bu, 0x00u);
@@ -499,7 +499,7 @@ static void _cmd_all_notes_off(SoundDriver *drv, unsigned slot_no)
  * @param drv the driver
  * @param slot_no the slot
  */
-static void _cmd_pan(SoundDriver *drv, unsigned slot_no)
+static void _cmd_pan(SoundDriver *drv, uint32_t slot_no)
 {
     Mt32Slot *s = &drv->slot[slot_no];
     uint8_t panic = s->param;
@@ -526,7 +526,7 @@ static void _cmd_pan(SoundDriver *drv, unsigned slot_no)
  * @param drv the driver
  * @param slot_no the slot
  */
-static void _cmd_modulation(SoundDriver *drv, unsigned slot_no)
+static void _cmd_modulation(SoundDriver *drv, uint32_t slot_no)
 {
     uint8_t value = (uint8_t)((drv->slot[slot_no].note[3] & 0x0Fu) << 3);
     _midi(drv, (uint8_t)(0xB0u + _channel(slot_no)), 0x01u, value);
@@ -543,7 +543,7 @@ static void _cmd_modulation(SoundDriver *drv, unsigned slot_no)
  * @param slot_no the slot
  * @param nibbles true for command 8's two nibbles, false for command 7
  */
-static void _cmd_sysex_system(SoundDriver *drv, unsigned slot_no, int nibbles)
+static void _cmd_sysex_system(SoundDriver *drv, uint32_t slot_no, int nibbles)
 {
     Mt32Slot *s = &drv->slot[slot_no];
 
@@ -563,7 +563,7 @@ static void _cmd_sysex_system(SoundDriver *drv, unsigned slot_no, int nibbles)
  * @param p the play state
  * @param slot_no the slot
  */
-static void _note_command(Mt32Play *p, unsigned slot_no)
+static void _note_command(Mt32Play *p, uint32_t slot_no)
 {
     SoundDriver *drv = p->drv;
     Mt32Slot *s = &drv->slot[slot_no];
@@ -611,20 +611,21 @@ static void _note_command(Mt32Play *p, unsigned slot_no)
  * @param rec the record being stepped
  * @param slot_no the slot
  */
-static void _play_cell(SoundDriver *drv, Mt32Record *rec, unsigned slot_no)
+static void _play_cell(SoundDriver *drv, Mt32Record *rec, uint32_t slot_no)
 {
     Mt32Slot *s = &drv->slot[slot_no];
     Mt32Play p;
-    unsigned ch = _channel(slot_no);
+    uint32_t ch = _channel(slot_no);
 
     p.drv = drv;
     p.rec = rec;
 
     if (s->instrument != 0) {
-        int any_note = (s->note[0] | s->note[1] | s->note[2] | s->note[3]) != 0;
+        uint8_t any_note =
+            (s->note[0] | s->note[1] | s->note[2] | s->note[3]) != 0;
         drv->command_block[slot_no] = s->instrument;
         if (any_note) {
-            unsigned index = (unsigned)s->instrument - 1u;
+            uint32_t index = (uint32_t)s->instrument - 1u;
             uint8_t volume;
             if (index >= 64u) index = 63u;
             volume = drv->instruments[2u * index + 1u]; // header high byte
@@ -668,7 +669,7 @@ static void _play_cell(SoundDriver *drv, Mt32Record *rec, unsigned slot_no)
  * @param cls the 2-bit class
  * @return the payload byte count
  */
-static unsigned _class_size(unsigned cls)
+static uint32_t _class_size(uint32_t cls)
 {
     static const uint8_t size[4] = { 0, 2, 2, 7 };
     return size[cls & 3u];
@@ -682,8 +683,8 @@ static unsigned _class_size(unsigned cls)
  * @param cursor the tune cursor, advanced by the payload
  * @param cls the class
  */
-static void _store_cell(SoundDriver *drv, unsigned slot_no, uint32_t *cursor,
-                        unsigned cls)
+static void _store_cell(SoundDriver *drv, uint32_t slot_no, uint32_t *cursor,
+                        uint32_t cls)
 {
     Mt32Slot *s = &drv->slot[slot_no];
     uint32_t c = *cursor;
@@ -737,7 +738,7 @@ static void _decode_row(SoundDriver *drv, Mt32Record *rec)
     uint32_t post_mask;
     uint16_t mask;
     uint16_t original;
-    unsigned i;
+    uint32_t i;
 
     rec->row++;
     if (rec->order >= 0x7Fu) {
@@ -757,7 +758,7 @@ static void _decode_row(SoundDriver *drv, Mt32Record *rec)
     post_mask = cursor;
 
     for (i = 0; i < rec->tracks && i < MT32_SLOTS; i++) {
-        unsigned cls = (unsigned)(mask >> 14) & 3u;
+        uint32_t cls = (uint32_t)(mask >> 14) & 3u;
         mask = (uint16_t)(mask << 2);
         _store_cell(drv, rec->track_slot[i] & 7u, &cursor, cls);
     }
@@ -767,7 +768,7 @@ static void _decode_row(SoundDriver *drv, Mt32Record *rec)
     cursor = post_mask;
     mask = original;
     for (i = 0; i < drv->trailing; i++) {
-        cursor += _class_size((unsigned)(mask >> 14) & 3u);
+        cursor += _class_size((uint32_t)(mask >> 14) & 3u);
         mask = (uint16_t)(mask << 2);
     }
     rec->cursor = (uint16_t)(cursor - base);
@@ -781,7 +782,7 @@ static void _decode_row(SoundDriver *drv, Mt32Record *rec)
  */
 static void _play_row(SoundDriver *drv, Mt32Record *rec)
 {
-    unsigned i;
+    uint32_t i;
 
     for (i = 0; i < rec->tracks && i < MT32_SLOTS; i++)
         _play_cell(drv, rec, rec->track_slot[i] & 7u);
@@ -795,12 +796,12 @@ static void _play_row(SoundDriver *drv, Mt32Record *rec)
  */
 static void _release_record(SoundDriver *drv, Mt32Record *rec)
 {
-    unsigned i;
+    uint32_t i;
 
     if (!rec->active) return;
     rec->active = 0;
     for (i = 0; i < rec->tracks && i < MT32_SLOTS; i++) {
-        unsigned slot = rec->track_slot[i] & 7u;
+        uint32_t slot = rec->track_slot[i] & 7u;
         drv->slot_free[slot] = (uint8_t)slot;
         _all_notes_off(drv, _channel(slot));
     }
@@ -836,7 +837,7 @@ static void _end_of_pattern(SoundDriver *drv, Mt32Record *rec)
  */
 static void _step_record(SoundDriver *drv, Mt32Record *rec)
 {
-    unsigned i;
+    uint32_t i;
 
     if (!rec->active) return;
     rec->tick++;
@@ -866,7 +867,7 @@ static void _step_record(SoundDriver *drv, Mt32Record *rec)
  * @param index the instrument index (0-based), the timbre-memory number
  * @param block the byte offset of the 256-byte block in the tune
  */
-static void _send_timbre(SoundDriver *drv, unsigned index, uint32_t block)
+static void _send_timbre(SoundDriver *drv, uint32_t index, uint32_t block)
 {
     uint8_t common[8];
     uint8_t data[0x3A];
@@ -874,7 +875,7 @@ static void _send_timbre(SoundDriver *drv, unsigned index, uint32_t block)
     uint8_t lo = (uint8_t)((index * 8u) & 0x7Fu);
     uint8_t mid = (uint8_t)(index * 2u);
     uint8_t low_addr = 0x0Au;
-    unsigned i;
+    uint32_t i;
 
     for (i = 0; i < 8u; i++) common[i] = _u8(drv, block + i);
     if (common[0] == 0x20u) return;
@@ -888,7 +889,7 @@ static void _send_timbre(SoundDriver *drv, unsigned index, uint32_t block)
     low_addr = (uint8_t)(low_addr + 4u);
 
     for (i = 0; i < 4u; i++) {
-        unsigned j;
+        uint32_t j;
         for (j = 0; j < 0x3Au; j++)
             data[j] = _u8(drv, block + 0x16u + i * 0x3Au + j);
         _sysex(drv, 0x08u, mid, low_addr, data, 0x3Au);
@@ -907,8 +908,8 @@ static void _send_timbre(SoundDriver *drv, unsigned index, uint32_t block)
  */
 static void _init_timbres(SoundDriver *drv)
 {
-    unsigned block = 0;
-    unsigned i;
+    uint32_t block = 0;
+    uint32_t i;
 
     for (i = 0; i < 64u; i++) {
         if (drv->instruments[2u * i] == 0) continue;
@@ -930,7 +931,7 @@ static void _reset_voices(SoundDriver *drv)
      * from CS:0x0F0E (entry 7), then the image's trailing zero. */
     static const uint8_t system[9] = { 0x04, 0x04, 0x04, 0x04, 0x04,
                                        0x04, 0x04, 0x04, 0x00 };
-    unsigned i;
+    uint32_t i;
 
     _send_master_volume(drv);
     memset(drv->record, 0, sizeof(drv->record));
@@ -1039,13 +1040,13 @@ static void _load_rom_dir(SoundDriver *drv, const char *dir)
  * @param drv the driver
  * @return 1 when a control and a PCM ROM were accepted
  */
-static int _add_roms(SoundDriver *drv)
+static int32_t _add_roms(SoundDriver *drv)
 {
-    const unsigned pairs =
-        (unsigned)(sizeof(_rom_preference) / sizeof(_rom_preference[0]));
+    const uint32_t pairs =
+        (uint32_t)(sizeof(_rom_preference) / sizeof(_rom_preference[0]));
     mt32emu_rom_info info;
-    unsigned i;
-    unsigned j;
+    uint32_t i;
+    uint32_t j;
 
     for (i = 0; i < drv->rom_count; i++) {
         memset(&info, 0, sizeof(info));
@@ -1059,15 +1060,15 @@ static int _add_roms(SoundDriver *drv)
      * the directory.  This makes a multi-ROM set deterministic instead of
      * whichever file readdir happened to return last. */
     for (i = 0; i < pairs; i++) {
-        int c = -1;
-        int p = -1;
+        int32_t c = -1;
+        int32_t p = -1;
         for (j = 0; j < drv->rom_count; j++) {
             if (c < 0 && drv->rom_control[j] &&
                 strcmp(drv->rom_control[j], _rom_preference[i][0]) == 0)
-                c = (int)j;
+                c = (int32_t)j;
             if (p < 0 && drv->rom_pcm[j] &&
                 strcmp(drv->rom_pcm[j], _rom_preference[i][1]) == 0)
-                p = (int)j;
+                p = (int32_t)j;
         }
         if (c < 0 || p < 0) continue;
         (void)mt32emu_add_rom_data(drv->ctx, drv->rom[c], drv->rom_size[c],
@@ -1219,7 +1220,7 @@ static void _install_reset(SoundDriver *drv)
     static const uint8_t system[12] = { 0x00, 0x00, 0x00, 0x08, 0x08, 0x08,
                                         0x08, 0x00, 0x00, 0x00, 0x00, 0x00 };
     uint8_t zero = 0x00u;
-    unsigned i;
+    uint32_t i;
 
     _sysex(drv, 0x7Fu, 0x00u, 0x00u, &zero, 1u);
     for (i = 1; i <= 9u; i++) {
@@ -1259,7 +1260,7 @@ static SoundDriver *_mt32_create(uint32_t sampleRate)
 {
     mt32emu_report_handler_i report;
     SoundDriver *drv;
-    unsigned i;
+    uint32_t i;
 
     if (_rom_dir[0] == '\0') {
         fprintf(stderr, "audio(mt32): no ROM directory given\n");
@@ -1349,7 +1350,7 @@ static SoundDriver *_mt32_create(uint32_t sampleRate)
  */
 static void _mt32_destroy(SoundDriver *drv)
 {
-    unsigned i;
+    uint32_t i;
 
     if (!drv) return;
     mt32emu_close_synth(drv->ctx);
@@ -1397,9 +1398,9 @@ static const uint8_t *_mt32_command_block(SoundDriver *drv)
 static void _mt32_load_tune(SoundDriver *drv, const uint8_t *image,
                             uint32_t size)
 {
-    unsigned max_order = 0;
-    unsigned patterns;
-    unsigned i;
+    uint32_t max_order = 0;
+    uint32_t patterns;
+    uint32_t i;
 
     if (!drv || !drv->ready || !image || size < MT32_HEADER) return;
 
@@ -1447,11 +1448,11 @@ static void _mt32_load_tune(SoundDriver *drv, const uint8_t *image,
  * @param slots receives the allocated slot numbers
  * @return 1 on success, 0 when the slots are full
  */
-static int _alloc_record(SoundDriver *drv, unsigned tracks, uint8_t *slots)
+static int _alloc_record(SoundDriver *drv, uint32_t tracks, uint8_t *slots)
 {
     uint8_t scratch[MT32_SLOTS];
-    unsigned taken = 0;
-    unsigned i;
+    uint32_t taken = 0;
+    uint32_t i;
 
     if (tracks > MT32_SLOTS) tracks = MT32_SLOTS;
     memcpy(scratch, drv->slot_free, sizeof(scratch));
@@ -1480,8 +1481,8 @@ static uint16_t _mt32_start_event(SoundDriver *drv, uint16_t event)
 {
     Mt32Record *rec = NULL;
     uint32_t off;
-    unsigned tracks;
-    unsigned i;
+    uint32_t tracks;
+    uint32_t i;
 
     if (!drv || !drv->ready || !drv->tune) return 0xFFFFu;
     if (event >= 128u) return 0xFFFFu;
@@ -1531,7 +1532,7 @@ static void _mt32_release_event(SoundDriver *drv, uint16_t voice)
  */
 static void _mt32_tick(SoundDriver *drv)
 {
-    unsigned i;
+    uint32_t i;
 
     if (!drv || !drv->ready) return;
     for (i = 0; i < MT32_RECORDS; i++) _step_record(drv, &drv->record[i]);

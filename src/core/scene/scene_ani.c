@@ -10,7 +10,7 @@
  * [u16 bit buffer][LZW bits].  Object 0 is the script object.
  */
 
-#include "scene/scene_internal.h"
+#include "scene/scene_ani.h"
 
 #include "byteorder.h"
 #include "osystem.h"
@@ -18,6 +18,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 /** @brief AL expander: blit_background_data (1000:B2EB).
  *
@@ -95,6 +96,17 @@ void _scene_al_expand(const uint8_t *src, uint32_t src_size, uint8_t *dst,
         di += (uint32_t)(cl - 0x80);
         if (di > dst_size) di = dst_size;
     }
+}
+
+/** @brief Release one ANI object's buffers and clear it.
+ *
+ * @param a the ANI object
+ */
+void _ani_release(Ani *a)
+{
+    g_osys->memFree(a->image);
+    g_osys->memFree(a->entries);
+    memset(a, 0, sizeof *a);
 }
 
 /**

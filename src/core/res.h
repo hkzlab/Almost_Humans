@@ -67,6 +67,9 @@ uint8_t res_movie_disc(uint32_t idx);
  * every refill word (1000:91B9..91CE).  It is not a gate; the gate tested
  * against 0 is the scene object's (1000:B444).
  *
+ * Ownership: the caller owns the returned buffer and releases it with
+ * `g_osys->memFree`; the module keeps no copy.
+ *
  * @param name the name
  * @param sizeOut the output size
  * @param chkOut the output checksum

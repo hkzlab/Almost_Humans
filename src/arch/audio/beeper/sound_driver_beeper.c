@@ -160,9 +160,9 @@ static void _speaker_off(SoundDriver *drv)
  * @param slot the slot index
  * @param note the note byte, indexing the period table directly
  */
-static void _set_note_frequency(SoundDriver *drv, unsigned slot, uint8_t note)
+static void _set_note_frequency(SoundDriver *drv, uint32_t slot, uint8_t note)
 {
-    unsigned idx = note;
+    uint32_t idx = note;
 
     if (idx >= 84u) idx = 83u; // shortcut: the original reads past its table
     drv->slot_flag[slot] = 0xFFu;
@@ -178,7 +178,7 @@ static void _set_note_frequency(SoundDriver *drv, unsigned slot, uint8_t note)
  * @param drv the driver
  * @param slot the slot index
  */
-static void _switch_slot(SoundDriver *drv, unsigned slot)
+static void _switch_slot(SoundDriver *drv, uint32_t slot)
 {
     uint16_t divider = rd_le_u16(&drv->slot[slot][BEEP_DIVIDER]);
 
@@ -203,7 +203,7 @@ static void _switch_slot(SoundDriver *drv, unsigned slot)
  * @param rec the record being stepped
  * @param slot the slot index
  */
-static void _note_command(SoundDriver *drv, BeeperRecord *rec, unsigned slot)
+static void _note_command(SoundDriver *drv, BeeperRecord *rec, uint32_t slot)
 {
     uint8_t *v = drv->slot[slot];
 
@@ -244,7 +244,7 @@ static void _note_command(SoundDriver *drv, BeeperRecord *rec, unsigned slot)
  * @param drv the driver
  * @param slot the slot index
  */
-static void _tick_command(SoundDriver *drv, unsigned slot)
+static void _tick_command(SoundDriver *drv, uint32_t slot)
 {
     uint8_t *v = drv->slot[slot];
 
@@ -253,7 +253,7 @@ static void _tick_command(SoundDriver *drv, unsigned slot)
         uint8_t delta = v[BEEP_PARAM];
         uint8_t hi = (uint8_t)(delta >> 4);
         if (hi != 0) {
-            unsigned next = (unsigned)v[BEEP_VOLUME] + hi;
+            uint32_t next = (uint32_t)v[BEEP_VOLUME] + hi;
             v[BEEP_VOLUME] =
                 next >= BEEP_ROWS ? (uint8_t)BEEP_ROWS : (uint8_t)next;
         } else {
@@ -277,7 +277,7 @@ static void _tick_command(SoundDriver *drv, unsigned slot)
  * @param rec the record being stepped
  * @param slot the slot index
  */
-static void _play_cell(SoundDriver *drv, BeeperRecord *rec, unsigned slot)
+static void _play_cell(SoundDriver *drv, BeeperRecord *rec, uint32_t slot)
 {
     uint8_t *v = drv->slot[slot];
 
@@ -312,10 +312,10 @@ static void _play_cell(SoundDriver *drv, BeeperRecord *rec, unsigned slot)
  */
 static void _decode_row(SoundDriver *drv, BeeperRecord *rec)
 {
-    unsigned pattern;
+    uint32_t pattern;
     uint32_t base;
     uint32_t at;
-    unsigned i;
+    uint32_t i;
 
     if (rec->order >= 0x7Fu) { // shortcut: the order list is 0x7F bytes
         rec->row = BEEP_ROWS;
@@ -348,7 +348,7 @@ static void _decode_row(SoundDriver *drv, BeeperRecord *rec)
  */
 static void _play_row(SoundDriver *drv, BeeperRecord *rec)
 {
-    unsigned i;
+    uint32_t i;
 
     for (i = 0; i < rec->tracks; i++) _play_cell(drv, rec, rec->track_slot[i]);
 }
@@ -364,12 +364,12 @@ static void _play_row(SoundDriver *drv, BeeperRecord *rec)
  */
 static void _release_record(SoundDriver *drv, BeeperRecord *rec)
 {
-    unsigned i;
+    uint32_t i;
 
     if (!rec->active) return;
     rec->active = 0;
     for (i = 0; i < rec->tracks; i++) {
-        unsigned slot = rec->track_slot[i];
+        uint32_t slot = rec->track_slot[i];
         drv->slot_free[slot] = (uint8_t)slot;
         _speaker_off(drv);
     }
@@ -417,7 +417,7 @@ static void _row_end(SoundDriver *drv, BeeperRecord *rec)
  */
 static void _step_record(SoundDriver *drv, BeeperRecord *rec)
 {
-    unsigned i;
+    uint32_t i;
 
     if (!rec->active) return;
     rec->tick++;
@@ -446,7 +446,7 @@ static void _step_record(SoundDriver *drv, BeeperRecord *rec)
  */
 static void _beeper_tick(SoundDriver *drv)
 {
-    unsigned i;
+    uint32_t i;
     uint8_t active;
 
     if (!drv || !drv->ready) return;
@@ -529,7 +529,7 @@ static void _beeper_set_tempo(SoundDriver *drv, uint8_t tempo)
 
     if (!drv) return;
     if (tempo > 0x64u) tempo = 0x64u;
-    value = (uint8_t)((0xA3u * (unsigned)tempo) >> 8);
+    value = (uint8_t)((0xA3u * (uint32_t)tempo) >> 8);
     if (value != drv->tempo) drv->tempo = value; // 1E95:01FF is a RET
 }
 
@@ -556,13 +556,13 @@ static const uint8_t *_beeper_command_block(SoundDriver *drv)
 static void _beeper_load_tune(SoundDriver *drv, const uint8_t *image,
                               uint32_t size)
 {
-    unsigned max_order = 0;
-    unsigned patterns;
-    unsigned records;
+    uint32_t max_order = 0;
+    uint32_t patterns;
+    uint32_t records;
     uint32_t stream;
     uint32_t table;
     uint32_t sds;
-    unsigned i;
+    uint32_t i;
 
     if (!drv || !drv->ready || !image || size < BEEP_HEADER) return;
 
@@ -607,9 +607,9 @@ static void _beeper_load_tune(SoundDriver *drv, const uint8_t *image,
 static uint16_t _beeper_start_event(SoundDriver *drv, uint16_t event)
 {
     BeeperRecord *rec = NULL;
-    unsigned index;
-    unsigned tracks;
-    unsigned i;
+    uint32_t index;
+    uint32_t tracks;
+    uint32_t i;
     uint32_t off;
 
     if (!drv || !drv->ready || !drv->tune) return 0xFFFF;
@@ -628,7 +628,7 @@ static uint16_t _beeper_start_event(SoundDriver *drv, uint16_t event)
 
     memset(rec, 0, sizeof(*rec)); // 1E95:035B copies the zero template
     for (i = 0; i < tracks; i++) {
-        unsigned slot = 0;
+        uint32_t slot = 0;
         while (slot < BEEP_SLOTS && drv->slot_free[slot] == 0xFFu) slot++;
         if (slot == BEEP_SLOTS) {
             /* No free speaker slot: the original's failure path. */

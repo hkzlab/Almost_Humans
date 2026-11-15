@@ -23,7 +23,7 @@
  * counter), so the host refresh never enters it.  One flow step per tick
  * boundary; missed boundaries are dropped, never caught up.
  */
-#define GAME_TICK_HZ 70
+#define GAME_TICK_HZ 70u
 
 typedef enum GameFlow {
     FLOW_ATTRACT = 0, // game_loop 1000:131E: intro/attract mode

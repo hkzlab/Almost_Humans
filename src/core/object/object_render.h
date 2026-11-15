@@ -48,13 +48,13 @@ void object_render_blit_sprite(uint8_t *page, const uint8_t *src, uint32_t rows,
 
 
 /* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
+#if defined(HUMANSRE_TEST_PROBES)
 /**
  * @brief Accessor: one terrain slot.
  *
  * @param i the index
  * @return the slot, or NULL past the two
  */
-#if defined(HUMANSRE_TEST_PROBES)
 uint8_t *object_render_ter_slot_at(uint32_t i);
 #endif /* HUMANSRE_TEST_PROBES */
 
@@ -94,16 +94,17 @@ void object_render_camera_slots_tick(void);
 
 
 /* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
+#if defined(HUMANSRE_TEST_PROBES)
 /**
  * @brief Accessor: the frame slot count (the 0x11E sprite-table bound).
  *
  * @return the count
  */
-#if defined(HUMANSRE_TEST_PROBES)
 uint32_t object_render_frame_slots(void);
 #endif /* HUMANSRE_TEST_PROBES */
 
 
+#if defined(HUMANSRE_TEST_PROBES)
 /**
  * @brief one sprite-table entry, for the tests (the D-69 tail copies).
  *
@@ -111,7 +112,6 @@ uint32_t object_render_frame_slots(void);
  * @param off the offset
  * @param rows the row count
  */
-#if defined(HUMANSRE_TEST_PROBES)
 void object_render_frame_for_probe(uint32_t frame, uint32_t *off,
                                    uint32_t *rows);
 #endif /* HUMANSRE_TEST_PROBES */

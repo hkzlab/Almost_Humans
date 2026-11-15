@@ -24,7 +24,7 @@ static int32_t _tex_rows =
 static uint8_t _pages[2][VIDEO_PAGE_BYTES];
 static uint32_t _lut[256]; // the palette LUT, 6-bit expanded
 
-#define WINDOW_DEFAULT_WIDTH 920
+#define WINDOW_DEFAULT_WIDTH  960
 #define WINDOW_DEFAULT_HEIGHT 720
 
 /* The adjusted picture is 320x240: the 4:3 box the field is stretched into.
@@ -85,8 +85,8 @@ static void _vid_make_texture(int32_t rows)
 static void _vid_init_video(void)
 {
     if (!SDL_CreateWindowAndRenderer(
-            HUMANSRE_PROJECT_TITLE " " HUMANSRE_VERSION, WINDOW_DEFAULT_WIDTH, WINDOW_DEFAULT_HEIGHT,
-            SDL_WINDOW_RESIZABLE, &_win, &_ren))
+            HUMANSRE_PROJECT_TITLE " " HUMANSRE_VERSION, WINDOW_DEFAULT_WIDTH,
+            WINDOW_DEFAULT_HEIGHT, SDL_WINDOW_RESIZABLE, &_win, &_ren))
         SDL_Log("window: %s", SDL_GetError());
 
     /* No renderer vsync: the loop is paced by the tick gate (game_main's
@@ -136,7 +136,7 @@ static void _vid_present(int32_t which)
     const uint8_t *p = _pages[which & 1];
     const int32_t rows = _mode_rows();
     static uint32_t argb[VIDEO_PAGE_BYTES];
-    
+
     for (int32_t i = 0; i < (int32_t)VIDEO_PAGE_W * rows; i++)
         argb[i] = _lut[p[i]];
 

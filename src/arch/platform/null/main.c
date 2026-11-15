@@ -2,8 +2,8 @@
  *
  * Port-only: there is no input source, so only --ticks ends the loop.
  */
+#include "game_main.h"
 #include "null/osys_null.h"
-#include "osystem.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -20,7 +20,7 @@
 int main(int argc, char **argv)
 {
     uint32_t ticks = 0;
-    int i;
+    int32_t i;
 
     fprintf(stderr, "%s %s\n", HUMANSRE_PROJECT_TITLE, HUMANSRE_VERSION);
     for (i = 1; i < argc; i++) {

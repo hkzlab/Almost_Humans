@@ -9,11 +9,11 @@
  * argv[1] = the game data directory holding HUMANS.000/001/002.
  * argv[2] = the extracted-tree fixture root (expected bytes).
  * Missing volumes = skip. */
+#include "game_main.h"
 #include "gameflow.h"
 #include "menu.h"
 #include "null/osys_null.h"
 #include "object/object.h"
-#include "osystem.h"
 #include "statusbar.h"
 #include "compat.h"
 #include "byteorder.h"

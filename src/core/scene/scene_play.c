@@ -140,12 +140,7 @@ static int32_t _scene_key_held(void)
  */
 static void _scene_unload(void)
 {
-    g_osys->memFree(_ani.image);
-    _ani.image = NULL;
-    _ani.image_size = 0;
-    g_osys->memFree(_ani.entries);
-    _ani.entries = NULL;
-    _ani.n_entries = 0;
+    _ani_release(&_ani);
     g_osys->memFree(_script_buf);
     _script_buf = NULL;
     _indices = NULL;

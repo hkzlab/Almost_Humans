@@ -4,9 +4,10 @@
  * core's game_main.  Arguments: the resource directory, --audio, --mt32-roms
  * and --version.
  */
-#include "osystem.h"
 #include "arch_mem.h"
 #include "fs/posix/fs_posix.h"
+#include "game_main.h"
+#include "osystem.h"
 
 #include <SDL3/SDL.h>
 #include <stdint.h>
@@ -23,9 +24,9 @@
 #endif
 
 #ifdef HUMANSRE_HAVE_MT32
-#            define AVAILABLE_AUDIO_DRIVERS  "adlib|beeper|mt32"
+#    define AVAILABLE_AUDIO_DRIVERS "adlib|beeper|mt32"
 #else
-#            define AVAILABLE_AUDIO_DRIVERS  "adlib|beeper"
+#    define AVAILABLE_AUDIO_DRIVERS "adlib|beeper"
 #endif
 
 /** @brief Set the mode, scaling the 320x200 and 320x192 fields to fill 4:3.
@@ -221,7 +222,7 @@ typedef enum CliParseResult {
  */
 static CliParseResult _parse_args(int argc, char **argv, CliOptions *opts)
 {
-    int i;
+    int32_t i;
 
     opts->path = NULL;
     opts->audio = NULL;
@@ -253,8 +254,7 @@ static CliParseResult _parse_args(int argc, char **argv, CliOptions *opts)
         fprintf(stderr,
                 "USAGE: %s [--audio %s] [--mt32-roms <dir>] "
                 "[--version] /path/to/HUMANS/volumes\n",
-                argv[0],
-                AVAILABLE_AUDIO_DRIVERS);
+                argv[0], AVAILABLE_AUDIO_DRIVERS);
         return CLI_PARSE_ERROR;
     }
     return CLI_PARSE_CONTINUE;
@@ -290,7 +290,7 @@ static const char *_roms_absolute(const char *roms, char *buf, size_t size)
  * @param opts the parsed command line
  * @return 0 on success, 1 on an unknown or incomplete selection
  */
-static int _select_audio(const CliOptions *opts)
+static int32_t _select_audio(const CliOptions *opts)
 {
     switch (sdl3_audio_select(opts->audio, opts->roms)) {
     case 0: return 0;
@@ -298,11 +298,8 @@ static int _select_audio(const CliOptions *opts)
         fprintf(stderr, "--audio mt32 needs --mt32-roms <directory>\n");
         return 1;
     default:
-        fprintf(stderr,
-            "unknown audio driver '%s' (available: %s)\n",
-            opts->audio,
-            AVAILABLE_AUDIO_DRIVERS 
-        );
+        fprintf(stderr, "unknown audio driver '%s' (available: %s)\n",
+                opts->audio, AVAILABLE_AUDIO_DRIVERS);
 
         return 1;
     }

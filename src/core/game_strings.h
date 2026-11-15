@@ -94,9 +94,14 @@ enum GameString {
     GAME_STRING_COUNT
 };
 
-/* The active column: ver_detect_run() stores the language of the installed
- * volume set at boot; every consumer reads it through game_language(), so a
- * call site never names a language. */
+/**
+ * @brief The active language column.
+ *
+ * ver_detect_run() stores the language of the installed volume set at boot;
+ * every consumer reads it through here, so a call site never names a language.
+ *
+ * @return the active language
+ */
 enum GameLanguage game_language(void);
 
 /**
@@ -129,4 +134,4 @@ const char *game_string(enum GameString id);
  */
 uint8_t game_string_num_offset(enum GameString id);
 
-#endif
+#endif /* HUMANSRE_GAME_STRINGS_H */

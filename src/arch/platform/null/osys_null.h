@@ -1,6 +1,6 @@
 /* The null backend's test surface: the OSystem instance and the accessors the
  * headless tests read their evidence from.  Linked into humans-null and the
- * core_test executables only (port_structure.md §6).
+ * core_test executables only.
  */
 #ifndef HUMANSRE_OSYS_NULL_H
 #define HUMANSRE_OSYS_NULL_H

@@ -14,6 +14,7 @@
  *
  * argv[1] = the game data directory (the volumes + SAVET).  Missing volumes =
  * skip; a pre-existing SAVET is never clobbered. */
+#include "game_main.h"
 #include "frontend.h"
 #include "font.h"
 #include "level/level.h"

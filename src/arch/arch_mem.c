@@ -13,7 +13,4 @@ void arch_mem_set(void *(*alloc)(size_t size), void (*free_fn)(void *p))
 
 void *arch_mem_alloc(size_t size) { return _alloc(size); }
 
-void arch_mem_free(void *p)
-{
-    _free(p);
-}
+void arch_mem_free(void *p) { _free(p); }

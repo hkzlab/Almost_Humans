@@ -254,7 +254,7 @@ void statusbar_charge_bar(uint32_t v)
 }
 
 void statusbar_cycle_action(void)
-{ object_sequence_step_action_cell(); /* 1000:3941 */ }
+{ object_sequence_step_action_cell(); } // 1000:3941
 
 #if defined(HUMANSRE_TEST_PROBES)
 /* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */

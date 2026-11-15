@@ -24,12 +24,12 @@ static const char *const _tune_names[AUDIO_TUNE_COUNT] = {
 
 /* The fade-in's last step is 0x4A (1000:84CE), the fade-out's first is
  * 0x4B (1000:8364); both map to master volume 0x2F in the driver. */
-#define AUDIO_FADE_IN_LAST   0x4A
-#define AUDIO_FADE_OUT_FIRST 0x4B
+#define AUDIO_FADE_IN_LAST   0x4Au
+#define AUDIO_FADE_OUT_FIRST 0x4Bu
 /* The gate's direct write (1000:A5F7). */
-#define AUDIO_TEMPO_MAX 0x4B
+#define AUDIO_TEMPO_MAX 0x4Bu
 /* Two display periods per fade step (two wait_vsync calls, 1000:84BF/84C2). */
-#define AUDIO_FADE_TICKS 2
+#define AUDIO_FADE_TICKS 2u
 
 static uint8_t _music_active; // [0x40BB]: the music_resume latch
 static uint8_t _fade_latch; // [0x40BA]: the fade-in latch

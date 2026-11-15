@@ -37,24 +37,24 @@ typedef struct {
 void object_command_row_pass(void);
 
 
+#if defined(HUMANSRE_TEST_PROBES)
 /**
  * @brief Accessor: one pending event's offset (the 0x67FF step table).
  *
  * @param i the index
  * @return the offset
  */
-#if defined(HUMANSRE_TEST_PROBES)
 uint16_t object_command_anim_move_off_for_probe(uint32_t i);
 #endif /* HUMANSRE_TEST_PROBES */
 
 
+#if defined(HUMANSRE_TEST_PROBES)
 /**
  * @brief Accessor: one pending event's wait.
  *
  * @param i the index
  * @return the wait
  */
-#if defined(HUMANSRE_TEST_PROBES)
 uint16_t object_command_anim_move_wait_for_probe(uint32_t i);
 #endif /* HUMANSRE_TEST_PROBES */
 
@@ -88,34 +88,34 @@ int32_t object_command_run(uint8_t *actor, uint8_t input);
 
 
 /* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
+#if defined(HUMANSRE_TEST_PROBES)
 /** @brief Test seams for the two handler bodies (the row selector's one-shot gate
  * keeps 1000:E7C0 from being driven directly in the unit test).
  *
  * @param actor the object record
  */
-#if defined(HUMANSRE_TEST_PROBES)
 void object_command_stream_command(uint8_t *actor);
 #endif /* HUMANSRE_TEST_PROBES */
 
 
 /* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
+#if defined(HUMANSRE_TEST_PROBES)
 /**
  * @brief Test seam: clear the record's hold.
  *
  * @param actor the object record
  */
-#if defined(HUMANSRE_TEST_PROBES)
 void object_command_clear_countdown(uint8_t *actor);
 #endif /* HUMANSRE_TEST_PROBES */
 
 
 /* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
+#if defined(HUMANSRE_TEST_PROBES)
 /**
  * @brief Test seam: set the command timer.
  *
  * @param v the value
  */
-#if defined(HUMANSRE_TEST_PROBES)
 void object_command_set_command_timer(uint32_t v);
 #endif /* HUMANSRE_TEST_PROBES */
 
@@ -129,22 +129,22 @@ void object_command_animator_tick(void);
 
 
 /* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
+#if defined(HUMANSRE_TEST_PROBES)
 /**
  * @brief Accessor: one group record (0x6F22 entry).
  *
  * @param i the index
  * @return the record
  */
-#if defined(HUMANSRE_TEST_PROBES)
 uint8_t *object_command_group_at(uint32_t i);
 #endif /* HUMANSRE_TEST_PROBES */
 
 
 /* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
+#if defined(HUMANSRE_TEST_PROBES)
 /**
  * @brief Reset the animator's state.
  */
-#if defined(HUMANSRE_TEST_PROBES)
 void object_command_animator_reset(void);
 #endif /* HUMANSRE_TEST_PROBES */
 

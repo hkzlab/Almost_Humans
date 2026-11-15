@@ -19,7 +19,7 @@ static const uint8_t _advance[45] = { 7, 8, 8, 8,  7, 7, 8, 8, 3,   7, 8,  7,
  * game_loop prologue and the front-end later; _blit_glyph's only source). */
 static const uint8_t *_glyphs;
 
-static int _arena_warned;     // the overflow warning fires once
+static uint8_t _arena_warned;     // the overflow warning fires once
 
 int32_t font_init(void)
 {

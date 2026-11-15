@@ -664,7 +664,8 @@ uint8_t party_intro_start(void)
 
     {
         uint8_t d = (uint8_t)(_g_level & 7u) + 1u; // 2519: '1'+(lvl&7)
-        sprintf(name, game_resource_name(GAME_RES_LBM_PARTY_PAL_FMT), d);
+        snprintf(name, sizeof name,
+                 game_resource_name(GAME_RES_LBM_PARTY_PAL_FMT), d);
     }
     b = _load(name); // 2588
     if (!b) return 0;

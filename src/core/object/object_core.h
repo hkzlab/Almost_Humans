@@ -33,12 +33,12 @@ void object_core_set_marker_mode(uint8_t on);
 
 
 /* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
+#if defined(HUMANSRE_TEST_PROBES)
 /**
  * @brief Accessor: the marker mode flag ([0x6531]).
  *
  * @return 1 while the marker mode holds, 0 otherwise
  */
-#if defined(HUMANSRE_TEST_PROBES)
 uint8_t object_core_marker_mode(void);
 #endif /* HUMANSRE_TEST_PROBES */
 
@@ -61,23 +61,23 @@ uint8_t *object_core_slot(uint32_t i);
 
 
 /* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
+#if defined(HUMANSRE_TEST_PROBES)
 /**
  * @brief Accessor: the record slot count.
  *
  * @return the count
  */
-#if defined(HUMANSRE_TEST_PROBES)
 uint32_t object_core_slots(void);
 #endif /* HUMANSRE_TEST_PROBES */
 
 
 /* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
+#if defined(HUMANSRE_TEST_PROBES)
 /**
  * @brief Accessor: the frame counter ([0x4103]).
  *
  * @return the counter
  */
-#if defined(HUMANSRE_TEST_PROBES)
 uint16_t object_core_frame_counter_probe(void);
 #endif /* HUMANSRE_TEST_PROBES */
 
@@ -190,12 +190,12 @@ int16_t object_core_player(void);
 
 
 /* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
+#if defined(HUMANSRE_TEST_PROBES)
 /**
  * @brief Set the player record.
  *
  * @param slot the slot
  */
-#if defined(HUMANSRE_TEST_PROBES)
 void object_core_set_player(int16_t slot);
 #endif /* HUMANSRE_TEST_PROBES */
 
@@ -262,39 +262,40 @@ uint8_t object_core_slot_class(uint32_t slot);
 
 
 /* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
+#if defined(HUMANSRE_TEST_PROBES)
 /**
  * @brief Test seam: resolve a link offset (the +0xE/+0xC link encoding).
  *
  * @param off the offset
  * @return the pointer, or NULL when unavailable
  */
-#if defined(HUMANSRE_TEST_PROBES)
 uint8_t *object_core_link_for_probe(uint32_t off);
 #endif /* HUMANSRE_TEST_PROBES */
 
 
+#if defined(HUMANSRE_TEST_PROBES)
 /**
  * @brief Accessor: one span entry (the 0x6F92 span entry).
  *
  * @param i the index
  * @return the entry
  */
-#if defined(HUMANSRE_TEST_PROBES)
 uint8_t *object_core_span_at_for_probe(uint32_t i);
 #endif /* HUMANSRE_TEST_PROBES */
 
 
+#if defined(HUMANSRE_TEST_PROBES)
 /** @brief test seam: the stripe's seed row, which 1000:FC81 sets when it seeds a new
  * entry (`+6 == 0`, 1000:FD6C).
  *
  * @param i the index
  * @param top the top value
  */
-#if defined(HUMANSRE_TEST_PROBES)
 void object_core_span_seed_for_probe(uint32_t i, uint32_t top);
 #endif /* HUMANSRE_TEST_PROBES */
 
 
+#if defined(HUMANSRE_TEST_PROBES)
 /**
  * @brief Test seam: the landing probe.
  *
@@ -303,11 +304,11 @@ void object_core_span_seed_for_probe(uint32_t i, uint32_t top);
  * @param cellOut the output map cell
  * @return the landed y, or -1 when off the map
  */
-#if defined(HUMANSRE_TEST_PROBES)
 int32_t object_core_land_y_for_probe(int32_t x, int32_t y, uint32_t *cellOut);
 #endif /* HUMANSRE_TEST_PROBES */
 
 
+#if defined(HUMANSRE_TEST_PROBES)
 /** @brief 1000:FD7B: the span's +0x12 flag is 0xFFFF when d equals the entry's
  * frame, 0 below it and 1 above it.
  *
@@ -315,11 +316,11 @@ int32_t object_core_land_y_for_probe(int32_t x, int32_t y, uint32_t *cellOut);
  * @param frame the frame index
  * @return the span flag (0, 1 or 0xFFFF)
  */
-#if defined(HUMANSRE_TEST_PROBES)
 uint16_t object_core_span_flag_for_probe(int32_t d, uint32_t frame);
 #endif /* HUMANSRE_TEST_PROBES */
 
 
+#if defined(HUMANSRE_TEST_PROBES)
 /**
  * @brief Accessor: one recipe parameter.
  *
@@ -327,30 +328,29 @@ uint16_t object_core_span_flag_for_probe(int32_t d, uint32_t frame);
  * @param k the parameter index
  * @return the parameter
  */
-#if defined(HUMANSRE_TEST_PROBES)
 uint16_t object_core_recipe_param_for_probe(uint32_t recipe, uint32_t k);
 #endif /* HUMANSRE_TEST_PROBES */
 
 /* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
+#if defined(HUMANSRE_TEST_PROBES)
 /**
  * @brief Test seam: set [0x3E5E + slot] (the behaviour bytes).
  *
  * @param slot the slot
  * @param cls the class byte
  */
-#if defined(HUMANSRE_TEST_PROBES)
 void object_core_set_slot_class_for_probe(uint32_t slot, uint8_t cls);
 #endif /* HUMANSRE_TEST_PROBES */
 
 
 /* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
+#if defined(HUMANSRE_TEST_PROBES)
 /**
  * @brief Test seam: set one slot's class.
  *
  * @param slot the slot
  * @param cls the class byte
  */
-#if defined(HUMANSRE_TEST_PROBES)
 void object_core_set_slot_class(uint32_t slot, uint32_t cls);
 #endif /* HUMANSRE_TEST_PROBES */
 
@@ -401,13 +401,13 @@ uint8_t object_core_type_blocked(uint32_t type);
 
 
 /* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
+#if defined(HUMANSRE_TEST_PROBES)
 /**
  * @brief object_core_tick: one level frame for the object machine (the frame
  * counter + the claim).
  *
  * @param levelPal the level palette
  */
-#if defined(HUMANSRE_TEST_PROBES)
 void object_core_tick(const uint8_t *levelPal);
 #endif /* HUMANSRE_TEST_PROBES */
 
@@ -422,12 +422,12 @@ void object_core_world_tick(void);
 
 
 /* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
+#if defined(HUMANSRE_TEST_PROBES)
 /**
  * @brief Accessor: the world tick counter.
  *
  * @return the counter
  */
-#if defined(HUMANSRE_TEST_PROBES)
 uint32_t object_core_world_ticks_probe(void);
 #endif /* HUMANSRE_TEST_PROBES */
 

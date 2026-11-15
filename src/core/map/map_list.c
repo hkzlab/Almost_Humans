@@ -54,6 +54,7 @@ void map_draw_congrats(uint8_t *page)
             game_string((enum GameString)(GAME_STRING_MAP_CONGRATS_0 + i)),
             0xA0u, 0x19u + 0x10u * i, 0x20u);
 }
+
 void map_draw_rect(uint8_t *page, uint32_t x, uint32_t y, uint32_t w,
                    uint32_t h)
 {

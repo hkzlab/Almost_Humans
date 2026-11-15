@@ -116,6 +116,7 @@ void object_units_group_dissolve_at(uint32_t slot);
 
 
 /* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
+#if defined(HUMANSRE_TEST_PROBES)
 /** @brief Test seam: run `1000:F3ED` on `actor`.
  *
  * 1000:F3ED's gate, for the test: clears the mask, applies the 0x6EBE type
@@ -126,7 +127,6 @@ void object_units_group_dissolve_at(uint32_t slot);
  * @param actor the object record
  * @return 1 when the settle may run, 0 when a TER slot claimed the actor
  */
-#if defined(HUMANSRE_TEST_PROBES)
 uint8_t object_units_settle_gate_for_probe(uint8_t *actor);
 #endif /* HUMANSRE_TEST_PROBES */
 

@@ -43,12 +43,12 @@ uint8_t object_sequence_action_byte(uint32_t k);
 
 
 /* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
+#if defined(HUMANSRE_TEST_PROBES)
 /** @brief The resolved header pointer (SI) for the current raw id (image address, 0
  * outside 1..6).
  *
  * @return SI, or 0 outside 1..6
  */
-#if defined(HUMANSRE_TEST_PROBES)
 uint32_t object_sequence_action_program_si(void);
 #endif /* HUMANSRE_TEST_PROBES */
 
@@ -61,35 +61,35 @@ uint32_t object_sequence_action_program_si(void);
 void object_sequence_step_action_cell(void);
 
 
+#if defined(HUMANSRE_TEST_PROBES)
 /**
  * @brief The throw's 0x5BA4 word for one type (the test seam).
  *
  * @param type the type
  * @return the per-type dx value, or 0 when out of range
  */
-#if defined(HUMANSRE_TEST_PROBES)
 int32_t object_sequence_throw_dx_for_probe(uint32_t type);
 #endif /* HUMANSRE_TEST_PROBES */
 
 
 /* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
+#if defined(HUMANSRE_TEST_PROBES)
 /** @brief the 0x6EB6 read window, for the tests (D-160's closure): behaviour -> the
  * state byte `test_class_against_6eb6` compares against (DS:0x6EB6 window).
  *
  * @param beh the behaviour byte
  * @return the behaviour state
  */
-#if defined(HUMANSRE_TEST_PROBES)
 uint8_t object_sequence_beh_state_for_probe(uint32_t beh);
 #endif /* HUMANSRE_TEST_PROBES */
 
 
 /* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
+#if defined(HUMANSRE_TEST_PROBES)
 /** @brief Test seam: 1000:F2E0's per-candidate dissolve + conversion.
  *
  * @param actor the object record
  */
-#if defined(HUMANSRE_TEST_PROBES)
 void object_sequence_find_overlap_for_probe(uint8_t *actor);
 #endif /* HUMANSRE_TEST_PROBES */
 
@@ -274,12 +274,12 @@ void object_sequence_marker_tick(void);
 
 
 /* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
+#if defined(HUMANSRE_TEST_PROBES)
 /**
  * @brief Set the acting record.
  *
  * @param index the acting record's index
  */
-#if defined(HUMANSRE_TEST_PROBES)
 void object_sequence_set_action_entity(uint16_t index);
 #endif /* HUMANSRE_TEST_PROBES */
 
@@ -301,12 +301,12 @@ uint8_t object_sequence_action_pending(void);
 
 
 /* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
+#if defined(HUMANSRE_TEST_PROBES)
 /**
  * @brief [0x1988]: the program cursor byte (the pending action 5 writes it, 0x382D).
  *
  * @param cursor the cursor
  */
-#if defined(HUMANSRE_TEST_PROBES)
 void object_sequence_action_set_cursor(uint8_t cursor);
 #endif /* HUMANSRE_TEST_PROBES */
 

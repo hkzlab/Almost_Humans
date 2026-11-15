@@ -15,6 +15,7 @@
  * A won level must reach all three and then the card; a lost level must reach
  * grey and black but NEVER the card (check_highscore's 0x41AE gate jumps to
  * 0x438A instead). */
+#include "game_main.h"
 #include "gameflow.h"
 #include "level/level.h"
 #include "null/osys_null.h"

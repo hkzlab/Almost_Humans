@@ -91,7 +91,7 @@ static void SDLCALL _audio_callback(void *userdata, SDL_AudioStream *stream,
         }
 #if defined(HUMANSRE_TEST_PROBES)
         if (_probe) {
-            int k;
+            int32_t k;
             for (k = 0; k < n * 2; k++) {
                 int32_t v = chunk[k];
                 if (v < 0) v = -v;
@@ -177,7 +177,7 @@ int32_t sdl3_audio_select(const char *name, const char *roms)
         _driver_id = 0;
         return 0;
     }
-    
+
 #ifdef HUMANSRE_HAVE_MT32
     if (strcmp(name, "mt32") == 0) {
         if (!roms || !roms[0]) return -2;
@@ -190,7 +190,7 @@ int32_t sdl3_audio_select(const char *name, const char *roms)
         return 0;
     }
 #else
-    (void)roms; /* no MT-32 module built into this binary */
+    (void)roms; // no MT-32 module built into this binary
 #endif
     return -1;
 }

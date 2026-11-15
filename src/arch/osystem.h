@@ -36,38 +36,41 @@
  * event wins; a release leaves 0).  `joyBits`, `keyHeld` and `quit` stay set
  * while the condition holds. */
 typedef struct InputState {
-    uint8_t joyBits; /* [0x5ACE] control level: bit0 up, bit1 down, bit2 left,
-                      * bit3 right, bit7 action/fire.  The arrows and the
-                      * bound action key (Z in the shipped config) set it; a
-                      * real stick ORs into the same bits. */
-    uint8_t lastKey; /* this poll's make as the ISR's translated code:
-                      * uppercase letters; ESC 0x1B, Enter 0x0D, Backspace
-                      * 0x0E; 0 when no make is delivered or the make's code
-                      * is 0 (modifiers, E0-extended keys).  One-shot: the
-                      * event screens read and clear it (1000:AA4E/1000:AA50). */
-    uint8_t keyScan; /* PC set-1 scancode of this poll's make, for the keys
-                      * the backend maps by scancode: ESC 0x01, ',' 0x33,
-                      * '.' 0x34, SPACE 0x39, F1..F10 0x3B..0x44 (the key
-                      * list at DS:0x1989 binds all but F9); 0 for every
-                      * other make.  The list is matched by scancode
-                      * (scan_id_list 1000:386E), so lastKey cannot stand in
-                      * for it.  One-shot. */
-    uint8_t keyHeld; /* [0x48A3]'s level form: 1 while the key down now
-                      * translates nonzero, 0 after any release (1000:942F
-                      * clears it even if another key is still down).  The
-                      * readers that test "any key" without consuming make
-                      * use it (1000:B2BA, 1000:C0C6, attract_exit,
-                      * cd_file_op). */
-    uint8_t quit;    /* host quit request (window close, ^C, --ticks); sticky,
-                      * not a game input; the flow loop reads input.quit. */
+    /* [0x5ACE] control level: bit0 up, bit1 down, bit2 left, bit3 right,
+     * bit7 action/fire.  The arrows and the bound action key (Z in the shipped
+     * config) set it; a real stick ORs into the same bits. */
+    uint8_t joyBits;
+
+    /* This poll's make as the ISR's translated code: uppercase letters;
+     * ESC 0x1B, Enter 0x0D, Backspace 0x0E; 0 when no make is delivered or
+     * the make's code is 0 (modifiers, E0-extended keys).  One-shot: the
+     * event screens read and clear it (1000:AA4E/1000:AA50). */
+    uint8_t lastKey;
+
+    /* PC set-1 scancode of this poll's make, for the keys the backend maps by
+     * scancode: ESC 0x01, ',' 0x33, '.' 0x34, SPACE 0x39, F1..F10 0x3B..0x44
+     * (the key list at DS:0x1989 binds all but F9); 0 for every other make.
+     * The list is matched by scancode (scan_id_list 1000:386E), so lastKey
+     * cannot stand in for it.  One-shot. */
+    uint8_t keyScan;
+
+    /* [0x48A3]'s level form: 1 while the key down now translates nonzero, 0
+     * after any release (1000:942F clears it even if another key is still
+     * down).  The readers that test "any key" without consuming make use it
+     * (1000:B2BA, 1000:C0C6, attract_exit, cd_file_op). */
+    uint8_t keyHeld;
+
+    /* Host quit request (window close, ^C, --ticks); sticky, not a game
+     * input; the flow loop reads input.quit. */
+    uint8_t quit;
 } InputState;
 
-#define JOYBITS_UP    (1 << 0)
-#define JOYBITS_DOWN  (1 << 1)
-#define JOYBITS_LEFT  (1 << 2)
-#define JOYBITS_RIGHT (1 << 3)
+#define JOYBITS_UP    (1u << 0)
+#define JOYBITS_DOWN  (1u << 1)
+#define JOYBITS_LEFT  (1u << 2)
+#define JOYBITS_RIGHT (1u << 3)
 #define JOYBITS_DIRS  (JOYBITS_UP | JOYBITS_DOWN | JOYBITS_LEFT | JOYBITS_RIGHT)
-#define JOYBITS_FIRE  (1 << 7)
+#define JOYBITS_FIRE  (1u << 7)
 
 /* The fixed-tick callback: everything the original's INT 8 ISR body did, in
  * the same order (the tick counter, the palette-fade step, the pending page
@@ -184,16 +187,5 @@ extern const OSystem *g_osys;
  * @param osys the backend interface (fully populated)
  */
 void osys_bind(const OSystem *osys);
-
-/**
- * @brief The application entry: boot, then the foreground flow loop.
- *
- * Implemented by each arch/<port>/; the arch layer's main() picks one and
- * hands it to game_main().
- *
- * @param osys the backend interface
- * @return 0 when the quit request ends the loop
- */
-int32_t game_main(const OSystem *osys);
 
 #endif /* HUMANSRE_OSYSTEM_H */

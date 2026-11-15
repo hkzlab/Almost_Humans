@@ -258,7 +258,7 @@ static uint8_t _level(uint8_t velocity, uint8_t volume)
  * @param voice the channel / voice index
  * @param entry the F-number | (octave << 12) word
  */
-static void _set_frequency(SoundDriver *drv, unsigned voice, uint16_t entry)
+static void _set_frequency(SoundDriver *drv, uint32_t voice, uint16_t entry)
 {
     uint8_t hi;
     uint8_t lo;
@@ -280,7 +280,7 @@ static void _set_frequency(SoundDriver *drv, unsigned voice, uint16_t entry)
  * @param drv the driver
  * @param voice the voice index
  */
-static void _key_on(SoundDriver *drv, unsigned voice)
+static void _key_on(SoundDriver *drv, uint32_t voice)
 {
     if (voice < ADLIB_MELODIC) {
         uint8_t reg = (uint8_t)(0xB0u + voice);
@@ -297,7 +297,7 @@ static void _key_on(SoundDriver *drv, unsigned voice)
  * @param drv the driver
  * @param voice the voice index
  */
-static void _key_off(SoundDriver *drv, unsigned voice)
+static void _key_off(SoundDriver *drv, uint32_t voice)
 {
     if (voice < ADLIB_MELODIC) {
         uint8_t reg = (uint8_t)(0xB0u + voice);
@@ -317,7 +317,7 @@ static void _key_off(SoundDriver *drv, unsigned voice)
  * @param drv the driver
  * @param voice the voice index
  */
-static void _silence(SoundDriver *drv, unsigned voice)
+static void _silence(SoundDriver *drv, uint32_t voice)
 {
     uint8_t op;
 
@@ -344,7 +344,7 @@ static void _silence(SoundDriver *drv, unsigned voice)
 static void _apply_tempo(SoundDriver *drv)
 {
     uint8_t floor = (uint8_t)(0x3Fu - drv->tempo);
-    unsigned i;
+    uint32_t i;
 
     for (i = 0; i < ADLIB_VOICES; i++) {
         uint8_t reg = (uint8_t)(0x40u + _op_carrier[i]);
@@ -370,7 +370,7 @@ static void _apply_tempo(SoundDriver *drv)
  * @param waveform the 2-bit waveform select
  * @param feedback true when this call also writes reg 0xC0+voice
  */
-static void _apply_operator(SoundDriver *drv, unsigned voice, uint8_t op,
+static void _apply_operator(SoundDriver *drv, uint32_t voice, uint8_t op,
                             const uint8_t *desc, uint8_t level,
                             uint8_t waveform, uint8_t feedback)
 {
@@ -405,10 +405,10 @@ static void _apply_operator(SoundDriver *drv, unsigned voice, uint8_t op,
  * @param index the 0-based patch index
  * @param out the 30-byte destination
  */
-static void _build_patch(const SoundDriver *drv, unsigned index, uint8_t *out)
+static void _build_patch(const SoundDriver *drv, uint32_t index, uint8_t *out)
 {
     uint32_t off = drv->patch_base + index * 0x40u + 0x0Au;
-    unsigned i;
+    uint32_t i;
 
     for (i = 0; i < 30u; i++) out[i] = _tune_u8(drv, off + i);
 }
@@ -425,7 +425,7 @@ static void _build_patch(const SoundDriver *drv, unsigned index, uint8_t *out)
  * @param voice the voice index
  * @param index the 0-based patch index
  */
-static void _apply_instrument(SoundDriver *drv, unsigned voice, unsigned index)
+static void _apply_instrument(SoundDriver *drv, uint32_t voice, uint32_t index)
 {
     uint8_t patch[30];
     AdlibSlot *v;
@@ -462,7 +462,7 @@ static void _apply_instrument(SoundDriver *drv, unsigned voice, unsigned index)
  * @param voice the voice index
  * @param volume the requested volume 0..0x40
  */
-static void _set_volume(SoundDriver *drv, unsigned voice, uint8_t volume)
+static void _set_volume(SoundDriver *drv, uint32_t voice, uint8_t volume)
 {
     AdlibSlot *v = &drv->slot[voice];
     uint8_t atten;
@@ -485,7 +485,7 @@ static void _set_volume(SoundDriver *drv, unsigned voice, uint8_t volume)
  * @param drv the driver
  * @param voice the voice index
  */
-static void _slide_finish(SoundDriver *drv, unsigned voice)
+static void _slide_finish(SoundDriver *drv, uint32_t voice)
 {
     AdlibSlot *v = &drv->slot[voice];
     uint16_t entry = _note_entry(v->note_copy);
@@ -502,7 +502,7 @@ static void _slide_finish(SoundDriver *drv, unsigned voice)
  * @param drv the driver
  * @param voice the voice index
  */
-static void _slide_setup(SoundDriver *drv, unsigned voice)
+static void _slide_setup(SoundDriver *drv, uint32_t voice)
 {
     AdlibSlot *v = &drv->slot[voice];
     uint16_t target = _note_entry(v->note);
@@ -521,7 +521,7 @@ static void _slide_setup(SoundDriver *drv, unsigned voice)
  * @param voice the voice index
  * @param note the note number
  */
-static void _note_on(SoundDriver *drv, unsigned voice, uint8_t note)
+static void _note_on(SoundDriver *drv, uint32_t voice, uint8_t note)
 {
     AdlibSlot *v = &drv->slot[voice];
     uint16_t entry;
@@ -549,7 +549,7 @@ static void _note_on(SoundDriver *drv, unsigned voice, uint8_t note)
  * @param drv the driver
  * @param voice the voice index
  */
-static void _slide_tick(SoundDriver *drv, unsigned voice)
+static void _slide_tick(SoundDriver *drv, uint32_t voice)
 {
     AdlibSlot *v = &drv->slot[voice];
     uint16_t step;
@@ -604,7 +604,7 @@ static void _slide_tick(SoundDriver *drv, unsigned voice)
  * @param drv the driver
  * @param voice the voice index
  */
-static void _tick_command(SoundDriver *drv, unsigned voice)
+static void _tick_command(SoundDriver *drv, uint32_t voice)
 {
     AdlibSlot *v = &drv->slot[voice];
     uint16_t step;
@@ -695,7 +695,7 @@ static void _tick_command(SoundDriver *drv, unsigned voice)
  * @param rec the record being stepped (CS:0x135A)
  * @param voice the voice index
  */
-static void _note_command(SoundDriver *drv, AdlibRecord *rec, unsigned voice)
+static void _note_command(SoundDriver *drv, AdlibRecord *rec, uint32_t voice)
 {
     AdlibSlot *v = &drv->slot[voice];
 
@@ -732,12 +732,12 @@ static void _note_command(SoundDriver *drv, AdlibRecord *rec, unsigned voice)
  * @param rec the record being stepped
  * @param voice the voice index
  */
-static void _play_cell(SoundDriver *drv, AdlibRecord *rec, unsigned voice)
+static void _play_cell(SoundDriver *drv, AdlibRecord *rec, uint32_t voice)
 {
     AdlibSlot *v = &drv->slot[voice];
 
     if (v->instrument != 0 && v->note != 0) {
-        unsigned index = (unsigned)v->instrument - 1u;
+        uint32_t index = (uint32_t)v->instrument - 1u;
         uint8_t volume;
         /* The header holds 64 two-byte entries; the driver trusts the cell,
          * the port bounds it (D-261). */
@@ -751,7 +751,7 @@ static void _play_cell(SoundDriver *drv, AdlibRecord *rec, unsigned voice)
         _set_volume(drv, voice, volume);
         if (v->instrument != v->last_instrument) {
             v->last_instrument = v->instrument;
-            _apply_instrument(drv, voice, (unsigned)v->instrument - 1u);
+            _apply_instrument(drv, voice, (uint32_t)v->instrument - 1u);
         }
     }
 
@@ -772,7 +772,7 @@ static void _play_cell(SoundDriver *drv, AdlibRecord *rec, unsigned voice)
  * @param i the track index
  * @return the voice index
  */
-static unsigned _record_voice(const AdlibRecord *rec, unsigned i)
+static uint32_t _record_voice(const AdlibRecord *rec, uint32_t i)
 { return (rec->track_slot[i] & 0x07u); }
 
 /**
@@ -785,15 +785,15 @@ static unsigned _record_voice(const AdlibRecord *rec, unsigned i)
  */
 static void _tick_commands(SoundDriver *drv, AdlibRecord *rec)
 {
-    unsigned i;
+    uint32_t i;
 
     for (i = 0; i < rec->tracks && i < ADLIB_TRACKS; i++) {
-        unsigned voice = _record_voice(rec, i);
+        uint32_t voice = _record_voice(rec, i);
         AdlibSlot *v = &drv->slot[voice];
         if ((v->command | v->param) != 0) _tick_command(drv, voice);
     }
     for (i = 0; i < 5u; i++) {
-        unsigned voice = ADLIB_MELODIC + i;
+        uint32_t voice = ADLIB_MELODIC + i;
         AdlibSlot *v = &drv->slot[voice];
         if ((v->command | v->param) != 0) _tick_command(drv, voice);
     }
@@ -809,7 +809,7 @@ static void _tick_commands(SoundDriver *drv, AdlibRecord *rec)
  * @param mask the row mask; its MSB is this cell's bit
  * @return true when the cell was read
  */
-static uint8_t _read_cell(SoundDriver *drv, unsigned voice, uint32_t base,
+static uint8_t _read_cell(SoundDriver *drv, uint32_t voice, uint32_t base,
                           uint16_t *cursor, uint16_t mask)
 {
     AdlibSlot *v = &drv->slot[voice];
@@ -845,12 +845,12 @@ static uint8_t _read_cell(SoundDriver *drv, unsigned voice, uint32_t base,
  */
 static void _decode_row(SoundDriver *drv, AdlibRecord *rec)
 {
-    unsigned pattern;
+    uint32_t pattern;
     uint32_t base;
     uint16_t mask;
     uint16_t row_mask;
     uint16_t cells; // the post-mask cursor
-    unsigned i;
+    uint32_t i;
 
     if (rec->order >= 0x7Fu) {
         rec->row = ADLIB_ROWS; // the order list is 0x7F bytes
@@ -896,7 +896,7 @@ static void _decode_row(SoundDriver *drv, AdlibRecord *rec)
  */
 static void _play_row(SoundDriver *drv, AdlibRecord *rec)
 {
-    unsigned i;
+    uint32_t i;
 
     for (i = 0; i < rec->tracks && i < ADLIB_TRACKS; i++)
         _play_cell(drv, rec, _record_voice(rec, i));
@@ -911,12 +911,12 @@ static void _play_row(SoundDriver *drv, AdlibRecord *rec)
  */
 static void _release_record(SoundDriver *drv, AdlibRecord *rec)
 {
-    unsigned i;
+    uint32_t i;
 
     if (!rec->active) return;
     rec->active = 0;
     for (i = 0; i < rec->tracks && i < ADLIB_TRACKS; i++) {
-        unsigned slot = _record_voice(rec, i);
+        uint32_t slot = _record_voice(rec, i);
         drv->slot_free[slot] = (uint8_t)slot;
         _silence(drv, slot);
     }
@@ -985,7 +985,7 @@ static void _step_record(SoundDriver *drv, AdlibRecord *rec)
 static SoundDriver *_adlib_create(uint32_t sampleRate)
 {
     SoundDriver *drv = arch_mem_alloc(sizeof(*drv));
-    unsigned i;
+    uint32_t i;
 
     if (!drv) return NULL;
     memset(drv, 0, sizeof(*drv));
@@ -1025,7 +1025,7 @@ static void _adlib_set_tempo(SoundDriver *drv, uint8_t tempo)
 
     if (!drv) return;
     if (tempo > 0x64u) tempo = 0x64u;
-    value = (uint8_t)((0xA3u * (unsigned)tempo) >> 8);
+    value = (uint8_t)((0xA3u * (uint32_t)tempo) >> 8);
     if (value == drv->tempo) return;
     drv->tempo = value;
     _apply_tempo(drv);
@@ -1057,7 +1057,7 @@ static const uint8_t *_adlib_command_block(SoundDriver *drv)
  */
 static void _reset_voices(SoundDriver *drv)
 {
-    unsigned i;
+    uint32_t i;
 
     for (i = 0; i < ADLIB_VOICES; i++) {
         drv->slot[i].last_instrument = 0;
@@ -1075,14 +1075,14 @@ static void _reset_voices(SoundDriver *drv)
 static void _adlib_load_tune(SoundDriver *drv, const uint8_t *image,
                              uint32_t size)
 {
-    unsigned max_order = 0;
-    unsigned patterns;
-    unsigned records;
+    uint32_t max_order = 0;
+    uint32_t patterns;
+    uint32_t records;
     uint32_t stream;
     uint32_t table;
     uint32_t sds;
     uint32_t table_end;
-    unsigned i;
+    uint32_t i;
 
     if (!drv || !drv->ready || !image || size < ADLIB_HEADER) return;
 
@@ -1130,11 +1130,11 @@ static void _adlib_load_tune(SoundDriver *drv, const uint8_t *image,
  */
 static uint16_t _adlib_start_event(SoundDriver *drv, uint16_t event)
 {
-    unsigned index;
+    uint32_t index;
     AdlibRecord *rec = NULL;
     uint32_t off;
-    unsigned tracks;
-    unsigned i;
+    uint32_t tracks;
+    uint32_t i;
 
     if (!drv || !drv->ready || !drv->tune) return 0xFFFF;
     if (event >= drv->header[0x11Bu]) return 0xFFFF;
@@ -1159,15 +1159,15 @@ static uint16_t _adlib_start_event(SoundDriver *drv, uint16_t event)
     memset(drv->voice_volume, 0, sizeof(drv->voice_volume));
 
     for (i = 0; i < tracks; i++) {
-        unsigned slot;
+        uint32_t slot;
         for (slot = 0; slot < ADLIB_TRACKS; slot++)
             if (drv->slot_free[slot] != 0xFFu) break;
         if (slot == ADLIB_TRACKS) {
             /* The original's no-free-slot path (1E95:044F) is unreachable in
              * this title; give back what this call already took. */
-            unsigned j;
+            uint32_t j;
             for (j = 0; j < i; j++) {
-                unsigned taken = rec->track_slot[j];
+                uint32_t taken = rec->track_slot[j];
                 drv->slot_free[taken] = (uint8_t)taken;
                 _silence(drv, taken);
             }
@@ -1202,7 +1202,7 @@ static void _adlib_release_event(SoundDriver *drv, uint16_t voice)
  */
 static void _adlib_tick(SoundDriver *drv)
 {
-    unsigned i;
+    uint32_t i;
 
     if (!drv || !drv->ready) return;
     for (i = 0; i < ADLIB_RECORDS; i++) _step_record(drv, &drv->record[i]);

@@ -453,6 +453,7 @@ static void _map_name_draw(uint8_t *page, int32_t record)
         x += 9;
     }
 }
+
 void map_draw_name(uint8_t *page)
 {
     if (!page) return;
