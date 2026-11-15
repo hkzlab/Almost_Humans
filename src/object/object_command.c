@@ -178,8 +178,9 @@ const uint8_t _obj_anim_stream[] = {
  * (1000:E3F6), copied verbatim from the image (file offset = DS offset + 0x106F0):
  *  - _obj_cmd_key      the input bit (low nibble of [0x5ACE]) -> command byte: bit 7
  *                   = no handler, bit 6 = one-shot, low 6 bits = the command
- *                   number; the 4 bytes past the 12-byte table are the 0x6914
- *                   tail word the original reads for indexes 12..15, copied too;
+ *                   number; the original reads the 0x6914 tail word for indexes
+ *                   12..15, but `_obj_sequence_normalise_input` clears one of
+ *                   each opposing pair, so those indexes are unreachable (D-268);
  *  - _obj_cmd_rows     the per-type rows, 32 bytes each (two 16-byte halves, bit 7
  *                   of the input picks the second), ending exactly at 0x6DEA;
  *  - _obj_cmd_handlers the 57 handler addresses, index n = word at 0x6918+2(n-1).
@@ -197,9 +198,9 @@ static const uint16_t _obj_cmd_handlers[57] = {
 };
 
 
-static const uint8_t _obj_cmd_key[16] = {
-    0x48u, 0x00u, 0x04u, 0xFFu, 0x02u, 0x01u, 0x03u, 0xFFu,
-    0x06u, 0x07u, 0x05u, 0x00u, 0xC7u, 0xD9u, 0x00u, 0x00u,
+static const uint8_t _obj_cmd_key[12] = {
+    0x48u, 0x00u, 0x04u, 0xFFu, 0x02u, 0x01u,
+    0x03u, 0xFFu, 0x06u, 0x07u, 0x05u, 0x00u,
 };
 
 
@@ -497,7 +498,8 @@ ObjCommand object_command_select(uint8_t *rec, uint8_t input)
 {
     ObjCommand out;
     uint8_t v = _obj_sequence_normalise_input(input);
-    uint8_t cmd = _obj_cmd_key[v & JOYBITS_DIRS];
+    uint32_t key = v & JOYBITS_DIRS;
+    uint8_t cmd = key < sizeof _obj_cmd_key ? _obj_cmd_key[key] : 0x80u;
     const uint8_t *row;
     uint16_t type = rd_le_u16(rec + 8u); // [SI+8]
     uint8_t idx;

@@ -148,15 +148,17 @@ static const uint8_t _obj_beh_collide_prog[8] = { 0xFF, 0xFF, 0xFF, 0xFF,
 static const uint8_t _obj_beh_class_idx[8] = { 0xFF, 0xFF, 0xFF, 0xFF,
                                                0,    1,    1,    1 };
 
-/* 0x5BA4's words as the original's unbounded `word [0x5BA4 + 2*type]` sees
- * them.  Only types 0..2 are the real table; 3..11 run through the 0x5BAA
- * frame table and 12..0x21 through the pause text.  The game's type writers
- * stop at 0x21; a malformed save can exceed it (D-179). */
-static const uint16_t _obj_throw_dx_word[0x22] = {
-    0x0008, 0xFFF8, 0x0000, 0x0000, 0x0000, 0x6000, 0x969C, 0x0000, 0x0000,
-    0x0000, 0x0000, 0x0000, 0x5005, 0x454C, 0x5341, 0x2045, 0x4553, 0x454C,
-    0x5443, 0x5920, 0x554F, 0x2052, 0x504F, 0x4954, 0x4E4F, 0x0D0D, 0x4F43,
-    0x544E, 0x4E49, 0x4555, 0x5420, 0x4948, 0x2053, 0x454C,
+/* DS:0x5BA4, the throw's x offset by the actor's type (0 -> +8, 1 -> -8,
+ * 2 -> 0).  The original's `word [0x5BA4 + 2*type]` is unbounded, but the
+ * class path is gated to type 0xF or <= 2 (`1000:9C21..9C2B`) and the only
+ * type-0xF writer (the give, `1000:9D19`) pairs `+7` with a behaviour-4
+ * record, whose class-path handler is the drop (`1000:9D94`), not the throw -
+ * so the throw only ever reads these three words.  A type past 2 returns 0
+ * (D-179). */
+static const uint16_t _obj_throw_dx_word[3] = {
+    0x0008,
+    0xFFF8,
+    0x0000,
 };
 
 static const uint8_t _obj_drop_frame[8] = { 0x00, 0x00, 0x00, 0x00,
@@ -165,19 +167,15 @@ static const uint8_t _obj_drop_frame[8] = { 0x00, 0x00, 0x00, 0x00,
 
 /* DS:0x6EB6 - the per-behaviour *state* byte `test_class_against_6eb6`
  * (0xF2CF) gates on: `MOV BL,[BX+0x3E5E] / AND BL,0x3F / CMP AL,[BX+0x6EB6]`
- * with BX = the behaviour (0..0x3F).  The table proper is 21 bytes -
- * behaviours 5/6/7 -> 1/3/2, 8 -> 0x0F, 9 -> 0xFF, 10..15 -> 0xC2/0x1D/0xA0/
- * 0x00, and 16..20 -> 1 - and the original reads straight on into the next
- * tables (0x6ECB is `_obj_overlap_gate_run[8]`, then the 0/1 run that follows), so
- * the port keeps the whole 64-byte read window verbatim instead of bounding
- * the index (D-160). */
-static const uint8_t _obj_beh_state[0x40] = {
+ * with BX = 0..0x3F.  The table is 21 bytes - behaviours 5/6/7 -> 1/3/2,
+ * 8 -> 0x0F, 9 -> 0xFF, 10..12 -> 0xC2/0x1D/0xA0, 16..20 -> 1 - and the
+ * original reads on into the next tables for behaviours 21..0x3F (0x6ECB is
+ * `_obj_overlap_gate_run[8]`).  No writer stores a behaviour above 9 (the
+ * spawns write 0/1/2/3/5/8/9, the recipes 4/5/6/7; D-101), so the port bounds
+ * the index and returns 0 past the table (D-266). */
+static const uint8_t _obj_beh_state[21] = {
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01, 0x03, 0x02, 0x0F, 0xFF, 0xC2,
-    0x1D, 0xA0, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00,
-    0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x01,
-    0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x60, 0x9C, 0x96, 0xFE, 0xFE, 0xFF,
+    0x1D, 0xA0, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01, 0x01,
 };
 
 
@@ -218,14 +216,14 @@ static uint32_t _obj_sequence_program_id(void)
 
 #if defined(HUMANSRE_TEST_PROBES)
 int32_t object_sequence_throw_dx_for_probe(uint32_t type)
-{ return type < 0x22u ? (int16_t)_obj_throw_dx_word[type] : 0; }
+{ return type < 3u ? (int16_t)_obj_throw_dx_word[type] : 0; }
 #endif /* HUMANSRE_TEST_PROBES */
 
 
 /* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
 #if defined(HUMANSRE_TEST_PROBES)
 uint8_t object_sequence_beh_state_for_probe(uint32_t beh)
-{ return _obj_beh_state[beh & 0x3Fu]; }
+{ return beh < sizeof _obj_beh_state ? _obj_beh_state[beh & 0x3Fu] : 0u; }
 #endif /* HUMANSRE_TEST_PROBES */
 
 
@@ -770,10 +768,9 @@ static void _obj_sequence_class_throw(uint8_t *actor, uint8_t *found,
     _obj_sel_type = 0x10u; // 1000:9DDD: [0x423C]
     actor[7] = 0u; // 1000:9DF1
     *slot &= 0x7Fu;
-    wr_le_u16(
-        found + 0u,
-        (uint16_t)(rd_le_u16(actor + 0u) +
-                   (type < 0x22u ? (int16_t)_obj_throw_dx_word[type] : 0)));
+    wr_le_u16(found + 0u,
+              (uint16_t)(rd_le_u16(actor + 0u) +
+                         (type < 3u ? (int16_t)_obj_throw_dx_word[type] : 0)));
     wr_le_u16(found + 2u, (uint16_t)(rd_le_u16(actor + 2u) + 8u));
     wr_le_u16(found + 4u, beh < 8u ? _obj_drop_frame[beh] : 0u);
     wr_le_u16(found + 6u, 0u);
@@ -996,8 +993,11 @@ int32_t object_sequence_cycle_entity(int32_t step)
 int32_t _obj_sequence_state_is(uint8_t *actor, uint32_t state)
 {
     uint8_t b = actor[7u];
+    uint32_t beh;
+
     if (!b) return 0;
-    return (_obj_beh_state[_obj_core_class_byte_at(b) & 0x3Fu] == state);
+    beh = _obj_core_class_byte_at(b) & 0x3Fu;
+    return beh < sizeof _obj_beh_state && _obj_beh_state[beh] == state;
 }
 
 

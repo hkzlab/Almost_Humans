@@ -193,10 +193,13 @@ static const uint8_t *_obj_e_sprite, *_obj_h_sprites;
 uint8_t _obj_ter_slot[2][0x14];
 
 
-/* the index table at DS:0x2D7E (the caller's `+0xC` word goes through it) */
-static const uint8_t _obj_ter_index[20] = {
-    0x00, 0x01, 0x02, 0x03, 0x03, 0x02, 0x04, 0x05, 0x06, 0x07,
-    0x06, 0x05, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x92, 0x2D,
+/* the index table at DS:0x2D7E (the caller's `+0xC` word goes through it).
+ * The table is 16 bytes; the original reads the 0x2D92 follower pairs for
+ * indexes 16..19, which the port drops: the slots' index is 0 at spawn and the
+ * patrol moves it 0..11 (D-267). */
+static const uint8_t _obj_ter_index[16] = {
+    0x00, 0x01, 0x02, 0x03, 0x03, 0x02, 0x04, 0x05,
+    0x06, 0x07, 0x06, 0x05, 0x00, 0x00, 0x00, 0x00,
 };
 
 static const uint8_t *_obj_ter_bank;
@@ -712,7 +715,8 @@ void object_render_ter(uint8_t *page, int32_t scrollX, int32_t scrollY)
 
         if (rd_le_u16(e + 0x10u) & 0x8000u) continue; // 1000:587F
         index = rd_le_u16(e + 0xCu);
-        idx = index < sizeof _obj_ter_index ? _obj_ter_index[index] : 0u;
+        if (index >= sizeof _obj_ter_index) continue; // D-267
+        idx = _obj_ter_index[index];
         if (4u * idx + 4u > _obj_ter_size || 2u * idx + 0x32u > _obj_ter_size)
             continue;
         src = (uint32_t)rd_be_u16(_obj_ter_bank + 4u * idx + 2u) + 0x40u;

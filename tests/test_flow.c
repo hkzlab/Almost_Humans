@@ -1253,16 +1253,18 @@ int main(int argc, char **argv)
                "the spear's frame 0x60 and +8 = 0xFFFF");
         _check(object_core_slot_class(1u) == 5u,
                "its behaviour 5 lands in class slot 1");
-        /* D-161: the unbounded word[0x5BA4 + 2*type] read: the real entries
-         * 0..2, the 0x5BAA frame table 5/6, and type 0x0F in the pause text. */
-        _check(
-            object_sequence_throw_dx_for_probe(0u) == 8 &&
-                object_sequence_throw_dx_for_probe(1u) == -8 &&
-                object_sequence_throw_dx_for_probe(2u) == 0 &&
-                (uint32_t)object_sequence_throw_dx_for_probe(5u) == 0x6000u &&
-                (uint16_t)object_sequence_throw_dx_for_probe(6u) == 0x969Cu &&
-                object_sequence_throw_dx_for_probe(0x0Fu) == 0x2045,
-            "the throw reads the words past 0x5BA4 (D-161)");
+        /* D-179: word[0x5BA4 + 2*type] is gated to type 0xF or <= 2
+         * (1000:9C21..9C2B), and the only type-0xF writer pairs +7 with a
+         * behaviour-4 record, whose class-path handler is the drop, not the
+         * throw - so the throw only reads the three real words. */
+        _check(object_sequence_throw_dx_for_probe(0u) == 8 &&
+                   object_sequence_throw_dx_for_probe(1u) == -8 &&
+                   object_sequence_throw_dx_for_probe(2u) == 0 &&
+                   object_sequence_throw_dx_for_probe(3u) == 0 &&
+                   object_sequence_throw_dx_for_probe(5u) == 0 &&
+                   object_sequence_throw_dx_for_probe(6u) == 0 &&
+                   object_sequence_throw_dx_for_probe(0x0Fu) == 0,
+               "the throw reads only the 0x5BA4 real words (D-179)");
         /* D-162: the fourth recipe's params are 0/0/0xFFFF/0xFFFF. */
         _check(object_core_recipe_param_for_probe(3u, 0u) == 0u &&
                    object_core_recipe_param_for_probe(3u, 1u) == 0u &&
@@ -1321,11 +1323,11 @@ int main(int argc, char **argv)
                "op 4 sets the fixed state (frame 0xBB, type 0x17)");
         object_sequence_action_set_cursor(1u);
 
-        /* 6c2b. D-160 (closed 2026-11-04): the 0x6EB6 read window is 21
-         * entries in the image (behaviours 5/6/7 -> 1/3/2, 8 -> 0x0F, 9 ->
-         * 0xFF, 10..15 -> 0xC2/0x1D/0xA0/0, 16..20 -> 1) and the original
-         * reads straight on into the 0/1 tables after it (0x6ECB is
-         * objTypeOverlaps[8]), so the port keeps all 0x40 bytes. */
+        /* 6c2b. D-266: the 0x6EB6 table is 21 bytes in the image (behaviours
+         * 5/6/7 -> 1/3/2, 8 -> 0x0F, 9 -> 0xFF, 10..12 -> 0xC2/0x1D/0xA0,
+         * 16..20 -> 1).  Behaviours 21..0x3F return 0: the original reads on
+         * into objTypeOverlaps, but no writer stores a behaviour above 9
+         * (the spawn writers; D-101). */
         {
             static const uint8_t want[0x15] = {
                 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01, 0x03,
@@ -1340,15 +1342,15 @@ int main(int argc, char **argv)
             _check(object_sequence_beh_state_for_probe(8u) == 0x0Fu &&
                        object_sequence_beh_state_for_probe(16u) == 0x01u &&
                        object_sequence_beh_state_for_probe(20u) == 0x01u,
-                   "0x6EB6: behaviours 8 and 16..20 are in the window");
+                   "0x6EB6: behaviours 8 and 16..20 are in the table");
             _check(object_sequence_beh_state_for_probe(0x15u) == 0x00u &&
-                       object_sequence_beh_state_for_probe(0x16u) == 0x01u,
-                   "0x6EB6: the window continues into objTypeOverlaps[8..]");
+                       object_sequence_beh_state_for_probe(0x16u) == 0x00u,
+                   "0x6EB6: behaviours past the 21 entries return 0 (D-266)");
         }
         /* the same table through op 4 (1000:EFA1's `objStateIs(actor, 1)`):
          * behaviour 16's state is 1, so the pose is applied; behaviour 13's
-         * is 0, so it is not.  (Before D-160's fix both read past the 8-byte
-         * array into whatever followed.) */
+         * is 0, so it is not.  (D-160 replaced the old 8-byte array with the
+         * 21-entry table; D-266 bounds the index.) */
         object_core_set_slot_class(1u, 16u);
         actor[4] = 0x10;
         actor[5] = 0;
@@ -7206,6 +7208,20 @@ int main(int argc, char **argv)
                 }
             _check(inside != 0u && outside == 0u,
                    "an enabled slot draws the 32x24 cell at (x-0xC, y+yoff)");
+        }
+        /* D-267: the 0x2D7E table is 16 bytes; the original reads the
+         * 0x2D92 follower pairs past it, the port draws nothing */
+        s0[0x0C] = 16;
+        s0[0x0D] = 0;
+        memset(page, 0, sizeof page);
+        object_render_ter(page, 0, 0);
+        {
+            uint32_t nz = 0;
+
+            for (uint32_t i = 0; i < sizeof page; i++)
+                if (page[i]) nz++;
+            _check(nz == 0u,
+                   "a TER index past the 16-byte table draws nothing");
         }
         s0[0x10] = 0xFFu;
         s0[0x11] = 0xFFu; // back off
