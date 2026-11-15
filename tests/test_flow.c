@@ -5129,8 +5129,12 @@ int main(int argc, char **argv)
         }
     }
 
-    /* D-188: the 0x6EC3 gate's full DS window (the image's 0x5F-byte run,
-     * the live 0x6F22 pool and the 0x6F92 spans). */
+    /* D-272: the 0x6EC3 gate is the image's 40-byte type table.  Shipped play
+     * only stores types <= 0x22 in a static slot (the command machine
+     * 0..0x1E, the spawns 2/0x1D, the pickup 0x11, the collisions
+     * 0x16/0x1E/0x22) or the 0xFFFF marker; the original's read past the
+     * table (the 0x6EEB frame table, the 0x6F0D dispatch and the live
+     * 0x6F22/0x6F92 state) needs a save the game never writes. */
     {
         uint8_t *a, *c;
 
@@ -5138,27 +5142,20 @@ int main(int argc, char **argv)
         _check(object_core_type_blocked(2u) == 0 &&
                    object_core_type_blocked(3u) == 1 &&
                    object_core_type_blocked(8u) == 0 &&
+                   object_core_type_blocked(0x11u) == 0 &&
                    object_core_type_blocked(0x16u) == 1 &&
                    object_core_type_blocked(0x1Bu) == 1 &&
                    object_core_type_blocked(0x1Du) == 1 &&
                    object_core_type_blocked(0x1Eu) == 1 &&
                    object_core_type_blocked(0x21u) == 1 &&
-                   object_core_type_blocked(0x2Du) == 1,
-               "D-188: the image's 0x6EC3 run");
-        _check(object_core_type_blocked(0xC1u) == 1,
-               "D-188: the free register pool blocks a decoration type");
-        a = object_core_slot(0);
-        memset(a, 0, 0x12u);
-        _tf_wr16(a, 0u, 0u); // pool word 0's low byte = type 0x5F
-        _tf_wr16(a, 2u, 10u);
-        a[4] = 0x10u;
-        a[8] = 2u;
-        object_sequence_set_action_entity(0u);
-        object_sequence_action_set_program(1u);
-        object_sequence_action_set_cursor(2u);
-        object_sequence_action_run(); // op 1 registers it: pool byte 0x5F = 0
-        _check(object_core_type_blocked(0x5Fu) == 0,
-               "D-188: type 0x5F reads the live register pool byte");
+                   object_core_type_blocked(0x22u) == 0,
+               "D-272: the 0x6EC3 table reads the shipped types");
+        _check(object_core_type_blocked(0x28u) == 0 &&
+                   object_core_type_blocked(0x2Du) == 0 &&
+                   object_core_type_blocked(0x5Fu) == 0 &&
+                   object_core_type_blocked(0xC1u) == 0 &&
+                   object_core_type_blocked(0x100u) == 0,
+               "D-272: types past the 40-byte table are not blocked");
 
         /* an overlapping type-0x1D candidate is skipped, not converted */
         object_core_init();

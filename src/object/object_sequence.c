@@ -170,7 +170,7 @@ static const uint8_t _obj_drop_frame[8] = { 0x00, 0x00, 0x00, 0x00,
  * with BX = 0..0x3F.  The table is 21 bytes - behaviours 5/6/7 -> 1/3/2,
  * 8 -> 0x0F, 9 -> 0xFF, 10..12 -> 0xC2/0x1D/0xA0, 16..20 -> 1 - and the
  * original reads on into the next tables for behaviours 21..0x3F (0x6ECB is
- * `_obj_overlap_gate_run[8]`).  No writer stores a behaviour above 9 (the
+ * `_obj_overlap_gate[8]`).  No writer stores a behaviour above 9 (the
  * spawns write 0/1/2/3/5/8/9, the recipes 4/5/6/7; D-101), so the port bounds
  * the index and returns 0 past the table (D-266). */
 static const uint8_t _obj_beh_state[21] = {

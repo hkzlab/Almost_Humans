@@ -109,7 +109,7 @@ extern uint16_t _obj_frame;
  * decodes as blank. */
 ObjSprite object_sprite_at(uint32_t frame);
 extern uint8_t _obj_ter_slot[2][0x14];
-extern const uint8_t _obj_overlap_gate_run[0x5F];
+extern const uint8_t _obj_overlap_gate[0x28];
 extern uint16_t _obj_settled[OBJ_SLOTS][2];
 extern uint8_t _obj_marker_mode;
 extern uint16_t _obj_foot_x;

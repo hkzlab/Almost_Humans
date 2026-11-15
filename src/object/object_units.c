@@ -1769,6 +1769,16 @@ static void _obj_units_group_dissolve(uint8_t *e)
 }
 
 
+/* 0x6EEB: the placed item's frame by the found record's behaviour (the byte run
+ * at 0x6EC3 + 0x28).  Behaviours 0..9 are the shipped set (the spawns write
+ * 0/1/2/3/5/8/9, the recipes 4/5/6/7); the original reads on into the 0x6F0D
+ * dispatch for higher values, which needs a save the game never writes
+ * (D-272). */
+static const uint8_t _obj_stack_item_frame[10] = {
+    0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x60u, 0x9Cu, 0x96u, 0xFEu, 0xFEu,
+};
+
+
 /** @brief 1000:F4D9..0xF5BB: the `DL & 1` class-transfer tail of `0xF453`.  A
  * dissolved record with a class hands the carried live record back (or, for a
  * behaviour-4 slot, lifts the live projectile into the record), clears the
@@ -1802,14 +1812,12 @@ static void _obj_units_class_transfer(uint32_t recIndex)
         wr_le_u16(rec + 8u, (uint16_t)ax);
         wr_le_u16(rec + 0xAu, 0u);
     } else { // 1000:F54B: the found record becomes the placed item
-        /* the frame is `byte[0x6EEB + behaviour]`; 0x6EEB is the same run as
-         * 0x6EC3 + 0x28, so behaviours up to 0x36 are exact (5/6/7 drop
-         * 0x60/0x9C/0x96).  A malformed class above 0x36 would read the live
-         * register pool; the port stops there (D-180's malformed-save family). */
+        /* the frame is `byte[0x6EEB + behaviour]`; behaviours 0..9 are the
+         * shipped set and the later entries need a save the game never writes
+         * (D-272). */
         wr_le_u16(live + 0u, rd_le_u16(rec + 0u));
         wr_le_u16(live + 2u, (uint16_t)(rd_le_u16(rec + 2u) + 8u));
-        wr_le_u16(live + 4u,
-                  beh <= 0x36u ? _obj_overlap_gate_run[0x28u + beh] : 0u);
+        wr_le_u16(live + 4u, beh <= 9u ? _obj_stack_item_frame[beh] : 0u);
         wr_le_u16(live + 6u, 0u);
         wr_le_u16(live + 8u, 0xFFFFu);
         wr_le_u16(live + 0xAu, 0u);
