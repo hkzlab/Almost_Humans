@@ -1219,14 +1219,16 @@ static void _obj_command_turn(uint8_t *actor)
 
 
 /** @brief 1000:EFE4: the *leave* sequence - what 1000:EFD7 jumps to when the latch is
- * set (the enter sequence's counterpart, reached from the type-23/24 rows'
- * idle command).  It releases the latch, derives the animation index from the
- * frozen direction counter (`+0xE`, folded at 0x100 and divided by 16), sets a
- * three-frame hold, bumps the type by 2 and the frame by 1, nudges the record
- * 4 px (right and down for frame 0xBB, else left) and runs the fall machine
- * with the (0/0 | 8/1) landing pair.  When the record did not land (`+0x10`
- * still set) the nudged position stays; otherwise the position is restored and
- * the landing pair is written back.
+ * set (the release the type-23/24 rows' idle command runs).  It releases the
+ * latch, derives the animation index from the frozen direction counter
+ * (`+0xE`, folded at 0x1FF for values >= 0x100 - `SUB CX,0x1FF` / `NEG CX` at
+ * 1000:F013 - and divided by 16), sets a three-frame hold, bumps the type by 2
+ * and the frame by 1, nudges the record 4 px right and 4 px UP for frame 0xBB
+ * (`ADD word [SI],4` / `SUB word [SI+2],4` at 1000:F03A/F03C), else 4 px left
+ * and 4 px up, and runs the fall entry the `DI` switch selects (`0xF067` for
+ * frame 0xBB, otherwise `0xF078`, i.e. the (0/0) or (8/1) landing pair).  When
+ * the record did not land (`+0x10` still set) the nudged position stays;
+ * otherwise the position is restored and the landing pair is written back.
  *
  * @param actor the object record
  */

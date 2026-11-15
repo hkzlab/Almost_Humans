@@ -117,6 +117,10 @@ static uint32_t _tf_rd16(const uint8_t *r, uint32_t o)
 static void _tf_wr16(uint8_t *r, uint32_t o, uint32_t v)
 { wr_le_u16(r + o, (uint16_t)v); }
 
+static void _tf_leap_y(int32_t x, int32_t y, uint32_t *minx, uint32_t *apex,
+                       uint32_t *endType, uint32_t *endFrame, uint16_t *ys,
+                       uint32_t ylen);
+
 /** @brief D-86: one full-charge leap from (x, y) on the loaded level - 64 held frames
  * of the fire column (1000:EE07) then the release (1000:EFD7 -> 0xEFE4) - and
  * the leftmost x / smallest y it reaches before the leap state (type 0x1A)
@@ -131,6 +135,16 @@ static void _tf_wr16(uint8_t *r, uint32_t o, uint32_t v)
  */
 static void _tf_leap(int32_t x, int32_t y, uint32_t *minx, uint32_t *apex,
                      uint32_t *endType, uint32_t *endFrame)
+{
+    _tf_leap_y(x, y, minx, apex, endType, endFrame, NULL, 0u);
+}
+
+/** @brief `_tf_leap` plus the per-release-frame y trace, for the 202F:6EF3
+ * curve check.
+ */
+static void _tf_leap_y(int32_t x, int32_t y, uint32_t *minx, uint32_t *apex,
+                       uint32_t *endType, uint32_t *endFrame, uint16_t *ys,
+                       uint32_t ylen)
 {
     uint8_t *a;
 
@@ -159,6 +173,7 @@ static void _tf_leap(int32_t x, int32_t y, uint32_t *minx, uint32_t *apex,
     for (uint32_t t = 0; t < 40u; t++) {
         (void)object_command_run(a, 0x00u);
         object_core_tick(level_palette());
+        if (ys && t < ylen) ys[t] = (uint16_t)_tf_rd16(a, 2u);
         if (_tf_rd16(a, 0u) < *minx) *minx = _tf_rd16(a, 0u);
         if (_tf_rd16(a, 2u) < *apex) *apex = _tf_rd16(a, 2u);
         if (_tf_rd16(a, 8u) != 0x1Au) break;
@@ -8608,6 +8623,18 @@ int main(int argc, char **argv)
         _check(apex == 155u, "the leap's apex is y = 155 (D-85 live)");
         _check(ty == 1u && fr == 8u,
                "the leap lands standing, frame 8 / type 1 (D-85 live)");
+        /* 202F:6EF3's ten 0 bytes (0x6EFA..0x6F03) hold the record at the
+         * apex for ten release frames before the +1 ramp; the port carried
+         * seven until 2026-11-15, which dropped the descent three ticks
+         * early and moved the whole pond crossing. */
+        {
+            uint16_t ys[20];
+
+            memset(ys, 0, sizeof ys);
+            _tf_leap_y(467, 168, &minx, &apex, &ty, &fr, ys, 20u);
+            _check(ys[6] == 155u && ys[16] == 155u && ys[17] == 156u,
+                   "the leap holds its apex for 202F:6EF3's ten ticks");
+        }
         /* the water hole: row 19's tiles F0/F1/F2 span x 320..367 and the
          * walkable rim has a 16-px opening at x 336..351, so a leftward leap
          * from the right rim must clear the water and land on the far side.
