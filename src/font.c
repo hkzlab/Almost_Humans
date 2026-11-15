@@ -73,7 +73,7 @@ static void _arena_overflow(uint32_t capacity, uint32_t row, uint32_t col)
              "font: glyph at arena row %u col %u does not fit the %u-byte "
              "arena; dropped (reported once)",
              row, col, capacity);
-    if (g_osys && g_osys->warn) g_osys->warn(msg);
+    g_osys->warn(msg);
 }
 
 /** @brief _blit_glyph (1000:49FC) - one 16-row glyph into the arena.  `x` is the

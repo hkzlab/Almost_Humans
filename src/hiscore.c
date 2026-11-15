@@ -91,7 +91,6 @@ void hiscore_write(void)
 {
     FSSave *f;
 
-    if (!g_osys) return;
     hiscore_init();
     _hiscore_crypt();
     f = g_osys->fs->createNamed("HISCORES.HUM");

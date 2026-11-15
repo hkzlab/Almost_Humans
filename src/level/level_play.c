@@ -154,13 +154,13 @@ static void _render_world(void)
 
 void level_redraw_page(void)
 {
-    if (!_level_is_loaded() || !g_osys) return;
+    if (!_level_is_loaded()) return;
     _render_world();
 }
 
 void level_end_redraw_page(void)
 {
-    if (!_level_is_loaded() || !g_osys) return;
+    if (!_level_is_loaded()) return;
     if (level_view_y() > 0x78u) level_set_view(level_view_x(), 0x78u);
     _render_world();
 }
@@ -177,7 +177,7 @@ uint8_t level_tick(void)
      * presented until the 15 waits expire. */
     if (_level_exit_hold_step()) return 1;
 
-    if (!_level_world() || !g_osys) return 1;
+    if (!_level_world()) return 1;
 
     /* level_fade_in (1000:3334) - the chain: the fade-out waits for its
      * steps, then the eight update_world (1000:80AD) frames, then the final

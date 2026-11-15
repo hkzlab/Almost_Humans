@@ -98,7 +98,7 @@ static const int8_t _obj_fall_step[0x19] = {
     /* 202F:6EF3: -2 -2 -1×5, ten 0 bytes (0x6EFA..0x6F03), +1×5, +2 +2;
      * index 0x18 is the clamp entry the f71b `CMP AX,0x18` bypasses. */
     -2, -2, -1, -1, -1, -1, -1, 0, 0, 0, 0, 0, 0,
-    0,  0,  0,  0,  1,  1,  1,  1,  1,  2,  2,  0,
+    0,  0,  0,  0,  1,  1,  1,  1, 1, 2, 2, 0,
 };
 
 /* 0x6EF2..0x6F14: the feet-cell comparison byte, indexed by the *type* (the

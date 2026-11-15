@@ -135,9 +135,7 @@ static void _tf_leap_y(int32_t x, int32_t y, uint32_t *minx, uint32_t *apex,
  */
 static void _tf_leap(int32_t x, int32_t y, uint32_t *minx, uint32_t *apex,
                      uint32_t *endType, uint32_t *endFrame)
-{
-    _tf_leap_y(x, y, minx, apex, endType, endFrame, NULL, 0u);
-}
+{ _tf_leap_y(x, y, minx, apex, endType, endFrame, NULL, 0u); }
 
 /** @brief `_tf_leap` plus the per-release-frame y trace, for the 202F:6EF3
  * curve check.

@@ -294,7 +294,7 @@ void level_claim_frame(void)
 {
     uint8_t *page;
 
-    if (!_level_is_loaded() || !g_osys) return;
+    if (!_level_is_loaded()) return;
     page = g_osys->videoPage(0);
     if (!page) return;
     _level_spark_frame(); // 1000:3F4A / 1000:40CA's restore
