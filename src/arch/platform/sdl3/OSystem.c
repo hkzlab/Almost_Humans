@@ -91,7 +91,7 @@ typedef enum CliParseResult {
 /**
  * @brief Parse the command line into opts, printing its own diagnostics.
  *
- * --version prints the banner and asks main to exit; a bad command line
+ * --version prints the version and asks main to exit; a bad command line
  * prints USAGE.
  *
  * @param argc the argument count
@@ -108,7 +108,7 @@ static CliParseResult _parse_args(int argc, char **argv, CliOptions *opts)
     opts->roms = NULL;
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-v") == 0) {
-            printf("%s %s\n", HUMANSRE_PROJECT_TITLE, HUMANSRE_VERSION);
+            printf("%s\n", HUMANSRE_VERSION);
             return CLI_PARSE_VERSION;
         } else if (strcmp(argv[i], "--audio") == 0) {
             if (++i >= argc) {
@@ -209,6 +209,7 @@ int main(int argc, char **argv)
     case CLI_PARSE_VERSION: return 0;
     case CLI_PARSE_ERROR: return 1;
     }
+    printf("%s v%s\n", HUMANSRE_PROJECT_TITLE, HUMANSRE_VERSION);
     opts.roms = _roms_absolute(opts.roms, roms, sizeof(roms));
     if (_select_audio(&opts) != 0) return 1;
     if (chdir(opts.path) != 0) {
