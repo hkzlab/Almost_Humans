@@ -209,7 +209,7 @@ int main(int argc, char **argv)
     case CLI_PARSE_VERSION: return 0;
     case CLI_PARSE_ERROR: return 1;
     }
-    printf("%s v%s\n", HUMANSRE_PROJECT_TITLE, HUMANSRE_VERSION);
+    printf("%s %s\n", HUMANSRE_PROJECT_TITLE, HUMANSRE_VERSION);
     opts.roms = _roms_absolute(opts.roms, roms, sizeof(roms));
     if (_select_audio(&opts) != 0) return 1;
     if (chdir(opts.path) != 0) {
