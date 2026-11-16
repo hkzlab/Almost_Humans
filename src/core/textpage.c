@@ -41,23 +41,18 @@ static const uint8_t _marker_r[88] = {
 void textpage_publish_box(const uint8_t *bank) { _tp_box = bank; }
 
 /**
- * @brief One line's measure: the advance sum (draw_text's own walk).
+ * @brief One line's measure and end: the advance sum (draw_text's own walk).
  *
- * @param p the text cursor (in/out)
- * @param end the end pointer
+ * @param p the text cursor
+ * @param end the end pointer (the CR, or the NUL)
  * @return the line width
  */
 static uint32_t _line_advance(const char *p, const char **end)
 {
-    char buf[64];
-    uint8_t n = 0;
-    while (p[n] && p[n] != '\r' && p[n] != '\0' && n + 1 < sizeof buf) {
-        buf[n] = p[n];
-        n++;
-    }
-    buf[n] = 0;
-    *end = p + n;
-    return font_text_width(buf);
+    const char *q = p;
+    while (*q && *q != '\r') q++;
+    *end = q;
+    return font_text_width(p); // the same walk, stopping at the CR
 }
 
 /** @brief draw_scroll_text (1000:A08E): the max line advance -> [0x5BB2] (tiles),
