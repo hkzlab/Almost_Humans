@@ -86,7 +86,7 @@ static void _vid_make_texture(int32_t rows)
 static void _vid_init_video(void)
 {
     if (!SDL_CreateWindowAndRenderer(
-            HUMANSRE_PROJECT_TITLE " " HUMANSRE_VERSION, WINDOW_DEFAULT_WIDTH,
+            HUMANSRE_PROJECT_TITLE, WINDOW_DEFAULT_WIDTH,
             WINDOW_DEFAULT_HEIGHT, SDL_WINDOW_RESIZABLE, &_win, &_ren))
         SDL_Log("window: %s", SDL_GetError());
 

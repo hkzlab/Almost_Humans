@@ -106,6 +106,7 @@ static CliParseResult _parse_args(int argc, char **argv, CliOptions *opts)
     opts->path = NULL;
     opts->audio = NULL;
     opts->roms = NULL;
+
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-v") == 0) {
             printf("%s\n", HUMANSRE_VERSION);
@@ -129,6 +130,7 @@ static CliParseResult _parse_args(int argc, char **argv, CliOptions *opts)
             break;
         }
     }
+
     if (!opts->path) {
         fprintf(stderr,
                 "USAGE: %s [--audio %s] [--mt32-roms <dir>] "
@@ -136,6 +138,7 @@ static CliParseResult _parse_args(int argc, char **argv, CliOptions *opts)
                 argv[0], AVAILABLE_AUDIO_DRIVERS);
         return CLI_PARSE_ERROR;
     }
+    
     return CLI_PARSE_CONTINUE;
 }
 
@@ -205,10 +208,11 @@ int main(int argc, char **argv)
     char roms[1024];
 
     switch (_parse_args(argc, argv, &opts)) {
-    case CLI_PARSE_CONTINUE: break;
-    case CLI_PARSE_VERSION: return 0;
-    case CLI_PARSE_ERROR: return 1;
+        case CLI_PARSE_CONTINUE: break;
+        case CLI_PARSE_VERSION: return 0;
+        case CLI_PARSE_ERROR: return 1;
     }
+
     printf("%s %s\n", HUMANSRE_PROJECT_TITLE, HUMANSRE_VERSION);
     opts.roms = _roms_absolute(opts.roms, roms, sizeof(roms));
     if (_select_audio(&opts) != 0) return 1;
