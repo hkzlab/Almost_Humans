@@ -3,6 +3,7 @@
 
 #include "audio.h"
 #include "game_resources.h"
+#include "lzw.h"
 #include "osystem.h"
 #include "palette.h"
 #include "res.h"
@@ -115,9 +116,8 @@ static int32_t _boot_gt_show(uint32_t idx)
 {
     if (idx >= _boot_gt_entry_count) return 0;
     uint16_t chk = 0;
-    int32_t sz =
-        res_decode_lzw_mem(_boot_gt, _boot_gt_size, _boot_gt_entries[idx],
-                           _boot_obj, OBJ_SEG_SIZE, &chk);
+    int32_t sz = lzw_decode_mem(_boot_gt, _boot_gt_size, _boot_gt_entries[idx],
+                                _boot_obj, OBJ_SEG_SIZE, &chk);
     if (sz < 0 || chk != 0) return 0; // 1000:B444: skip
     _scene_al_expand(_boot_obj, (uint32_t)sz, video_page(0), VIDEO_PAGE_BYTES);
     return 1;
@@ -300,8 +300,8 @@ static void _boot_blit_record(const uint8_t *rsc, uint32_t rscSize,
         srcSize = listObjSize;
     } else {
         if (idx >= entryCount) return;
-        sz = res_decode_lzw_mem(rsc, rscSize, entries[idx], _obj_buf,
-                                OBJ_SEG_SIZE, &chk);
+        sz = lzw_decode_mem(rsc, rscSize, entries[idx], _obj_buf, OBJ_SEG_SIZE,
+                            &chk);
         if (sz < 0 || chk != 0) return; // 1000:B444: skip
         src = _obj_buf;
         srcSize = (uint32_t)sz;
@@ -534,8 +534,8 @@ static int32_t _boot_gt_pre(void)
     {
         uint16_t chk = 0;
         uint32_t off0 = rd_le_u32(_boot_gt);
-        int32_t sz = res_decode_lzw_mem(_boot_gt, _boot_gt_size, off0,
-                                        _boot_gt_list, OBJ_SEG_SIZE, &chk);
+        int32_t sz = lzw_decode_mem(_boot_gt, _boot_gt_size, off0,
+                                    _boot_gt_list, OBJ_SEG_SIZE, &chk);
         if (sz < 0 || chk != 0) {
             /* b3cc's b446->b2c4: the failed decode unwinds
              * play_scene_sequence - init_level_scene still runs the
@@ -616,9 +616,8 @@ static int32_t _boot_black(void)
      * the records start at object+2 ([0x6468] init 0x6FEA = 0x6FE8+2) */
     {
         uint16_t chk = 0;
-        int32_t sz =
-            res_decode_lzw_mem(_boot_rsc, _boot_rsc_size, _boot_entries[0],
-                               _boot_list_buf, OBJ_SEG_SIZE, &chk);
+        int32_t sz = lzw_decode_mem(_boot_rsc, _boot_rsc_size, _boot_entries[0],
+                                    _boot_list_buf, OBJ_SEG_SIZE, &chk);
         if (sz < 0 || chk != 0) {
             _boot_unload();
             _boot_phase = BOOT_DONE;

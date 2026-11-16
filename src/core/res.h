@@ -1,12 +1,12 @@
-/* Resource I/O: the volume directory, the block loop and the LZW decoder.
+/* Resource I/O: the volume directory and the block loop.
  *
  *   int63_load_resource    1000:8D63   the INT 63h entry
  *   resource_load          1000:9017   named-chunk load
  *   resource_decode_chunk  1000:9186   the block loop
- *   decode_bitstream       1000:91B9   the LZ machine
+ *   decode_bitstream       1000:91B9   the LZ machine - lzw.h/lzw.c
  *
- * Deviations: D-23 (corrupt decode may overrun), D-198 (zero block size
- * fails), D-263 (a truncated volume reads zeros).
+ * Deviations: D-198 (zero block size fails), D-263 (a truncated volume
+ * reads zeros).
  */
 
 #ifndef HUMANSRE_RES_H
@@ -76,25 +76,5 @@ uint8_t res_movie_disc(uint32_t idx);
  * @return the decoded buffer, or NULL on failure
  */
 uint8_t *res_load_chunk(const char *name, uint32_t *sizeOut, uint16_t *chkOut);
-
-/** @brief Decode one LZW object straight out of a memory buffer (an .ANI's
- * chunk image): [u16 decompressed_size][u16 checksum][u16 bit buffer][LZW
- * bits].
- *
- * Returns the decompressed size written to `out`, or -1 on failure.  *chkOut
- * mirrors the machine's final checksum accumulator (BP) - the scene-object
- * gate tests it against 0 (1000:B444).
- *
- * @param data the data buffer
- * @param data_size the data size
- * @param off the offset
- * @param out the output buffer
- * @param out_size the output size
- * @param chkOut the output checksum
- * @return the decoded size, or -1 on a bad object
- */
-int32_t res_decode_lzw_mem(const uint8_t *data, uint32_t data_size,
-                           uint32_t off, uint8_t *out, uint32_t out_size,
-                           uint16_t *chkOut);
 
 #endif /* HUMANSRE_RES_H */

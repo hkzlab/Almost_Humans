@@ -471,7 +471,7 @@ uint8_t scene_play_level_intro(uint16_t introIndex)
 }
 
 /** @brief One gametek group: place_scene_obj (1000:B3F9) decodes the object out of
- * the RSC's u32 table (the same machine as res_decode_lzw_mem - the b444
+ * the RSC's u32 table (the same machine as lzw_decode_mem - the b444
  * checksum gate) and the object's RLE stream expands over the whole page
  * (blit_background_data 1000:B2EB - _scene_al_expand is that machine,
  * validated through the level-intro scenes).

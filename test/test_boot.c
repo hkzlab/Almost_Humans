@@ -36,6 +36,7 @@
 #include "scene/scene.h"
 #include "video.h"
 #include "compat.h"
+#include "lzw.h"
 #include "byteorder.h"
 
 #include <stdint.h>
@@ -226,8 +227,8 @@ int main(int argc, char **argv)
             uint16_t chk = 0;
             uint32_t off0;
             memcpy(&off0, rsc, 4); // entry[0] = the list object's offset
-            int32_t sz = res_decode_lzw_mem(rsc, rsc_size, off0, list,
-                                            sizeof list, &chk);
+            int32_t sz =
+                lzw_decode_mem(rsc, rsc_size, off0, list, sizeof list, &chk);
             if (sz < 0 || chk != 0) {
                 fprintf(stderr,
                         "FAIL intro.rsc object 0 (the list) undecodable\n");
@@ -253,8 +254,8 @@ int main(int argc, char **argv)
                     uint32_t idx = (stored + 1u) & 0xFFFFu; // INC AX at b95d
                     uint32_t off;
                     memcpy(&off, rsc + idx * 4u, 4);
-                    int32_t osz = res_decode_lzw_mem(rsc, rsc_size, off, obj,
-                                                     sizeof obj, &chk);
+                    int32_t osz = lzw_decode_mem(rsc, rsc_size, off, obj,
+                                                 sizeof obj, &chk);
                     if (osz < 0 || chk != 0) {
                         fprintf(stderr, "FAIL object %u undecodable\n", idx);
                         bad = 1;

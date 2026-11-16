@@ -1,6 +1,7 @@
 #include "scene/scene_ani.h"
 
 #include "byteorder.h"
+#include "lzw.h"
 #include "osystem.h"
 #include "res.h"
 
@@ -143,8 +144,8 @@ int32_t _ani_decode_object(const Ani *a, uint32_t idx, uint8_t *out,
                            uint32_t out_size, uint16_t *chkOut)
 {
     if (idx >= a->n_entries) return -1;
-    return res_decode_lzw_mem(a->image, a->image_size, a->entries[idx], out,
-                              out_size, chkOut);
+    return lzw_decode_mem(a->image, a->image_size, a->entries[idx], out,
+                          out_size, chkOut);
 }
 #if defined(HUMANSRE_TEST_PROBES)
 /* Test probe (HUMANSRE_TEST_PROBES): built into the test executables only,

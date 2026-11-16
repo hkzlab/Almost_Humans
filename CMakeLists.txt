@@ -96,6 +96,7 @@ set(HUMANSRE_CORE_SOURCES
     src/core/game_main.c
     src/arch/osystem.c
     src/core/res.c
+    src/core/lzw.c
     src/core/game_resources.c
     src/core/video.c
     src/core/palette.c
