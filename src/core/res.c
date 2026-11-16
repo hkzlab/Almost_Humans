@@ -67,6 +67,11 @@ static int32_t _vol_read_at(VolReader *r, uint32_t at, uint8_t *dst, uint32_t n)
  */
 static uint16_t _vol_word(VolReader *r)
 {
+    /* The following seems quite ridiculous just to return
+     * two bytes, but the need a way to remain endianness
+     * agnostic. The compiler will take care of simplify
+     * things where this absurdity is not needed. Hopefully.
+     */
     uint8_t tmp[2];
     if (_vol_read_at(r, r->pos, tmp, 2)) return 0;
     r->pos += 2;
