@@ -5,11 +5,11 @@
  * markers, the in-place digit fields, the dialog line counts, and the two
  * columns whose seventh map line is their header string.
  */
+#include "game_strings.h"
+
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-
-#include "game_strings.h"
 
 static int failures;
 

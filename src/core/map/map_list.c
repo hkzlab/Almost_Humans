@@ -1,7 +1,3 @@
-/* The MAP screen's score pages: the top-ten list, its header frames and the
- * qualifying page (1000:021E/0518/0577/1251).
- */
-
 #include "map/map.h"
 #include "map/map_internal.h"
 

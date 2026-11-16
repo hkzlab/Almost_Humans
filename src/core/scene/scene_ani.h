@@ -1,5 +1,13 @@
 /* The .ANI/.RSC object decoder: the u32 table, the LZW objects and the AL
- * expander.
+ * expander (blit_background_data 1000:B2EB).
+ *
+ * The ANI chunk image is:
+ *   u32[0] = table_size_bytes (also entry[0])
+ *   u32[1..n-1] = byte offsets of blobs 1..n-1 into the image
+ *   blob k = [entry[k], entry[k+1])
+ *
+ * Each blob is an LZW object: [u16 decompressed_size][u16 checksum]
+ * [u16 bit buffer][LZW bits].  Object 0 is the script object.
  */
 #ifndef HUMANSRE_SCENE_ANI_H
 #define HUMANSRE_SCENE_ANI_H

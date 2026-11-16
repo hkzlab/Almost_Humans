@@ -408,7 +408,12 @@ void score_column(uint8_t *page, uint32_t value, int32_t x, int32_t y,
     }
 }
 
-void score_draw_columns(uint8_t *page)
+/** @brief 1000:4471 draw_score_columns: the level term, the time term and the
+ * running total.  Column x is the pixel origin; each digit is 16 px wide.
+ *
+ * @param page the page buffer
+ */
+static void _score_draw_columns(uint8_t *page)
 {
     score_column(page, _score_level_term, 0xE0, 0x10, 5u); // (0xE0, 0x10)
     score_column(page, _score_time_term, 0xE0, 0x42, 5u); // (0xE0, 0x42)
@@ -565,7 +570,7 @@ uint8_t score_begin(uint32_t value)
 
     /* 1000:4471: the three counter columns (the level term, the time term and
      * the running total) in SCORE.SPR's digits. */
-    score_draw_columns(page);
+    _score_draw_columns(page);
     /* The NEW RECORD stamp is apl\record.spr at row 176, px 128..191
      * (0x3CA0 = 176*88 + 32); blink_tick redraws it. */
 
@@ -596,7 +601,7 @@ uint8_t score_tick(const InputState *in)
 
             /* tick_score_counters (1000:475D): draw_score_columns, blink_tick,
              * then one 10-point step.  The drawing happens every frame. */
-            if (page) score_draw_columns(page);
+            if (page) _score_draw_columns(page);
             /* 1000:467A: the expiry toggles [0x1DC4] and runs the *new*
              * phase's handler - 1000:46A3 restores the cell (off), 1000:46FC
              * saves it and draws the sprite (on).  Both halves run. */

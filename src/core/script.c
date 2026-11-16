@@ -7,13 +7,13 @@
 #define SCRIPT_FRAME_TARGET 387u   // the live frame counter ran 0..386
 
 /* Cue commands (stored directly in the cue record, 1..7) */
-#define CUE_TRANSITION 1
-#define CUE_SCROLL_OFF 2
-#define CUE_SCROLL_ON  3
-#define CUE_SEEK       4
-#define CUE_QUIT       5
-#define CUE_SCROLL     6
-#define CUE_DWELL      7
+#define CUE_TRANSITION 1u
+#define CUE_SCROLL_OFF 2u
+#define CUE_SCROLL_ON  3u
+#define CUE_SEEK       4u
+#define CUE_QUIT       5u
+#define CUE_SCROLL     6u
+#define CUE_DWELL      7u
 
 /* --- intro cue list (verbatim from 202F:0x843C) ------------------------- */
 static const uint16_t _intro_cues[25u * 3u] = {

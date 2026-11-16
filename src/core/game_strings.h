@@ -95,16 +95,6 @@ enum GameString {
 };
 
 /**
- * @brief The active language column.
- *
- * ver_detect_run() stores the language of the installed volume set at boot;
- * every consumer reads it through here, so a call site never names a language.
- *
- * @return the active language
- */
-enum GameLanguage game_language(void);
-
-/**
  * @brief Select the text column.
  *
  * @param lang the language

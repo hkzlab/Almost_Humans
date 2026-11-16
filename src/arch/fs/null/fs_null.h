@@ -1,7 +1,8 @@
-/* The all-fail filesystem module's one exported symbol.
+/* The all-fail filesystem module: every open returns NULL.
  *
- * Kept for the day a target links it; no current target does, so nothing
- * includes this header yet.  Only an OSystem initializer would name it.
+ * Port-only reference for a no-data build; no current target links it.
+ * Callers treat NULL as "the volume is not available" and own the error path.
+ * Only an OSystem initializer would name the module.
  */
 #ifndef HUMANSRE_FS_NULL_H
 #define HUMANSRE_FS_NULL_H

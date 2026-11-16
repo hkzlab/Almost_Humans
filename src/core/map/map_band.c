@@ -1,7 +1,3 @@
-/* The MAP screen's band: BAND.SPR's box frame and its four-strip animation
- * (1000:12D3/07E6/0A72/09DA).
- */
-
 #include "map/map.h"
 #include "map/map_internal.h"
 

@@ -6,6 +6,7 @@
  * Deviation: D-03 (synthesised 70 Hz instead of the PIT/vsync chain).
  */
 #include "osystem.h"
+#include "sdl3/sdl3.h"
 
 #include <SDL3/SDL.h>
 #include <stdint.h>

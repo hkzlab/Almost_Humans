@@ -1,4 +1,4 @@
-/* tests/test_adlib_live.c - the module's state against the live ADLIB.DRV.
+/* test/test_adlib_live.c - the module's state against the live ADLIB.DRV.
  *
  * White-box: includes the driver module so it can read the private shadow and
  * voice records (the ABI exposes only the sound).  The expected values are a

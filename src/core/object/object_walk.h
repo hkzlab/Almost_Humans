@@ -1,4 +1,5 @@
-/* The behaviour walk
+/* The behaviour walk: the per-behaviour movers, the projectile and the
+ * stack-8 states.
  */
 
 #ifndef HUMANSRE_OBJECT_WALK_H

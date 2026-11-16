@@ -1,6 +1,3 @@
-/* The claim animation and the ACTION program machine.
- */
-
 #include "object_internal.h"
 #include "object_core.h"
 #include "object_sequence.h"

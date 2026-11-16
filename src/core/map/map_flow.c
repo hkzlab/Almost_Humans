@@ -1,7 +1,3 @@
-/* The MAP flow: menu_loop's phase machine, the fades and the key handling
- * (1000:012A..0x0650).
- */
-
 #include "map/map.h"
 #include "map/map_internal.h"
 
@@ -175,6 +171,12 @@ static void _map_build_fade(uint16_t first, uint16_t entries, uint16_t div,
                        targetOff);
 }
 
+/** @brief Clear the page and blit the loaded high.bit art into it.
+ *
+ * The art is clipped to one page when it is larger.
+ *
+ * @param page the page buffer
+ */
 static void _map_page_copy(uint8_t *page)
 {
     if (!page) return;

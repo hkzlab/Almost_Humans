@@ -9,7 +9,9 @@
 #include "audio.h"
 #include "audio/adlib/sound_driver_adlib.h"
 #include "audio/beeper/sound_driver_beeper.h"
+#include "fs/posix/fs_posix.h"
 #include "gameflow.h"
+#include "sdl3/sdl3.h"
 #ifdef HUMANSRE_HAVE_MT32
 #    include "audio/mt32/sound_driver_mt32.h"
 #endif
@@ -25,8 +27,8 @@
 /* 48 kHz: Nuked-OPL3 resamples from its 49716 Hz native rate in
  * OPL3_Generate, so the stream runs at the host rate with no extra work.
  * The beeper renders its PIT square at the same host rate. */
-#define SDL3_AUDIO_RATE 48000
-#define _CHUNK_FRAMES   1024
+#define SDL3_AUDIO_RATE 48000u
+#define _CHUNK_FRAMES   1024u
 
 static const SoundDriverModule *_module = &g_sound_driver_adlib;
 static const char *_module_name = "AdLib";
@@ -66,25 +68,27 @@ static int32_t _probe_peak;
 static void SDLCALL _audio_callback(void *userdata, SDL_AudioStream *stream,
                                     int additional, int total)
 {
-    int16_t chunk[_CHUNK_FRAMES * 2];
-    int frames;
+    int16_t chunk[_CHUNK_FRAMES * 2u];
+    uint32_t frames;
     (void)userdata;
     (void)total;
 
     if (!_driver || additional <= 0) return;
-    frames = additional / ((int)sizeof(int16_t) * 2);
+    frames = (uint32_t)additional / (uint32_t)(sizeof(int16_t) * 2);
     while (frames > 0) {
         /* frames until the next game tick, and the chunk cap */
-        int until = (int)((SDL3_AUDIO_RATE - _tick_acc + GAME_TICK_HZ - 1) /
-                          GAME_TICK_HZ);
-        int n = frames < until ? frames : until;
+        const uint32_t until =
+            (SDL3_AUDIO_RATE - _tick_acc + GAME_TICK_HZ - 1u) / GAME_TICK_HZ;
+        uint32_t n = frames < until ? frames : until;
         if (n > _CHUNK_FRAMES) n = _CHUNK_FRAMES;
         if (_lock) SDL_LockMutex(_lock);
-        _module->generate(_driver, chunk, (uint32_t)n);
+        _module->generate(_driver, chunk, n);
         if (_lock) SDL_UnlockMutex(_lock);
-        SDL_PutAudioStreamData(stream, chunk, n * (int)sizeof(int16_t) * 2);
+        /* the chunk cap bounds the byte count well inside int */
+        SDL_PutAudioStreamData(stream, chunk,
+                               (int)(n * 2u * (uint32_t)sizeof(int16_t)));
         frames -= n;
-        _tick_acc += (uint32_t)n * GAME_TICK_HZ;
+        _tick_acc += n * GAME_TICK_HZ;
         if (_tick_acc >= SDL3_AUDIO_RATE) {
             _tick_acc -= SDL3_AUDIO_RATE;
             audio_render_tick();
@@ -92,12 +96,12 @@ static void SDLCALL _audio_callback(void *userdata, SDL_AudioStream *stream,
 #if defined(HUMANSRE_TEST_PROBES)
         if (_probe) {
             int32_t k;
-            for (k = 0; k < n * 2; k++) {
+            for (k = 0; k < (int32_t)(n * 2u); k++) {
                 int32_t v = chunk[k];
                 if (v < 0) v = -v;
                 if (v > _probe_peak) _probe_peak = v;
             }
-            _probe_frames += (uint32_t)n;
+            _probe_frames += n;
             if (_probe_frames >= SDL3_AUDIO_RATE) {
                 SDL_Log("audio: 1 s rendered, peak %d", _probe_peak);
                 _probe_frames = 0;
@@ -181,7 +185,7 @@ int32_t sdl3_audio_select(const char *name, const char *roms)
 #ifdef HUMANSRE_HAVE_MT32
     if (strcmp(name, "mt32") == 0) {
         if (!roms || !roms[0]) return -2;
-        sound_driver_mt32_set_roms(roms);
+        sound_driver_mt32_set_roms(&g_fs_posix, roms);
         _module = &g_sound_driver_mt32;
         _module_name = "MT-32";
         /* [0x5AFE] = anything but 0/1 selects the MT-32 tune extension and

@@ -106,13 +106,6 @@ void score_stamp_draw(uint8_t *page, uint8_t on);
 void score_column(uint8_t *page, uint32_t value, int32_t x, int32_t y,
                   uint32_t digits);
 
-/** @brief 1000:4471 draw_score_columns: the level term, the time term and the running
- * total.  Column x is the pixel origin; each digit is 16 px wide.
- *
- * @param page the page buffer
- */
-void score_draw_columns(uint8_t *page);
-
 /** @brief 1000:4403 reblit_framebuffer_88's card pass: SCORE.BIT is a chunky 320x200
  * image (one byte per pixel); the four plane passes read `src[4j+p]` into
  * plane p at address j, i.e. pixel 4j+p = src[4j+p] - a plain 1:1 copy. A

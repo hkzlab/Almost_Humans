@@ -87,6 +87,6 @@ static inline int32_t compat_rmdir(const char *dir) { return rmdir(dir); }
 static inline char *compat_realpath(const char *path, char *resolved)
 { return realpath(path, resolved); }
 
-#endif
+#endif /* _WIN32 */
 
 #endif /* HUMANSRE_TEST_COMPAT_H */

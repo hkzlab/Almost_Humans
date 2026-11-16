@@ -47,22 +47,6 @@ void party_intro_set_values(uint16_t level, uint16_t need, uint16_t members,
                             uint16_t score, const char *tribe);
 
 /**
- * @brief Restore the intro's cue scripts from a save.
- *
- * @param bytes the byte buffer
- * @param len the length
- */
-void party_intro_seed_scripts(const uint8_t *bytes, uint32_t len);
-
-/**
- * @brief Restore the intro slots from the raw 128-byte save block (the 128 B at
- * DS:0xFA8).
- *
- * @param raw the raw save block
- */
-void party_intro_seed_slots(const uint8_t *raw);
-
-/**
  * @brief Load and start the party briefing screen; 1 = playing.
  *
  * @return 1 while the briefing is playing

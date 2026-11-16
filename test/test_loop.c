@@ -278,7 +278,7 @@ int main(void)
         bad |= _expect_state(s, FLOW_LEVEL, 0, "level holds");
     }
 
-    /* 7. the full-game_main smoke test: tests/test_smoke.c drives the
+    /* 7. the full-game_main smoke test: test/test_smoke.c drives the
      * flow through the null backend's scripted-input hook. */
 
     if (compat_chdir("..") == 0) (void)compat_rmdir(nodata);

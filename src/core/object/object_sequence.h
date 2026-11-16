@@ -1,4 +1,4 @@
-/* The claim animation and the action program
+/* The claim animation and the ACTION program machine.
  */
 
 #ifndef HUMANSRE_OBJECT_SEQUENCE_H

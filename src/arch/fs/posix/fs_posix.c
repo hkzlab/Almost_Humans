@@ -1,13 +1,9 @@
-/* The POSIX filesystem module: stdio over the extracted volume and save files.
- *
- * HUMANS.00N and SAVEA..SAVET in the game directory.  Format knowledge stays
- * in the core; this module only opens, sizes, reads and writes bytes.
- * Deviation: D-05 (POSIX files, no DOS drive or disc swap).
- */
 #include "fs/posix/fs_posix.h"
 
+#include <dirent.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 /**
  * @brief Open the volume directory for one disc.
@@ -108,12 +104,62 @@ static FSSave *_posix_open_named(const char *name);
  */
 static FSSave *_posix_create_named(const char *name);
 
-const FSModule g_fs_posix = { _posix_open_volume, _posix_close_volume,
-                              _posix_volume_size, _posix_read,
-                              _posix_open_save,   _posix_save_read,
-                              _posix_create_save, _posix_save_write,
-                              _posix_close_save,  _posix_open_named,
-                              _posix_create_named };
+/**
+ * @brief Open an asset file at an arbitrary path.
+ *
+ * @param path the path
+ * @return the handle, or NULL when unavailable
+ */
+static FSFile *_posix_open_file(const char *path);
+
+/**
+ * @brief The asset file's byte size.
+ *
+ * @param f the asset handle
+ * @return the size in bytes, 0 when unavailable
+ */
+static uint32_t _posix_file_size(FSFile *f);
+
+/**
+ * @brief Read n bytes from an asset file at an absolute offset.
+ *
+ * @param f the asset handle
+ * @param off the offset
+ * @param dst the destination buffer
+ * @param n the count
+ * @return the bytes read
+ */
+static uint32_t _posix_file_read(FSFile *f, uint32_t off, uint8_t *dst,
+                                 uint32_t n);
+
+/**
+ * @brief Close an asset file.
+ *
+ * @param f the asset handle
+ */
+static void _posix_close_file(FSFile *f);
+
+/**
+ * @brief List a directory's files as NUL-separated names.
+ *
+ * `readdir` order; the dot entries are skipped.  A name that does not fit the
+ * buffer ends the listing.
+ *
+ * @param dir the directory
+ * @param out the name buffer
+ * @param cap out's capacity
+ * @return the name count, -1 when the directory cannot be read
+ */
+static int32_t _posix_list_dir(const char *dir, char *out, uint32_t cap);
+
+const FSModule g_fs_posix = { _posix_open_volume,  _posix_close_volume,
+                              _posix_volume_size,  _posix_read,
+                              _posix_open_save,    _posix_save_read,
+                              _posix_create_save,  _posix_save_write,
+                              _posix_close_save,   _posix_open_named,
+                              _posix_create_named, _posix_open_file,
+                              _posix_file_size,    _posix_file_read,
+                              _posix_close_file,   _posix_list_dir };
 
 static FSVolume *_posix_open_volume(uint16_t disc)
 {
@@ -180,3 +226,45 @@ static FSSave *_posix_open_named(const char *name)
 
 static FSSave *_posix_create_named(const char *name)
 { return (FSSave *)fopen(name, "wb"); }
+
+static FSFile *_posix_open_file(const char *path)
+{ return (FSFile *)fopen(path, "rb"); }
+
+static uint32_t _posix_file_size(FSFile *f)
+{
+    if (fseek((FILE *)f, 0, SEEK_END)) return 0;
+    return (uint32_t)ftell((FILE *)f);
+}
+
+static uint32_t _posix_file_read(FSFile *f, uint32_t off, uint8_t *dst,
+                                 uint32_t n)
+{
+    if (fseek((FILE *)f, (long)off, SEEK_SET)) return 0;
+    return (uint32_t)fread(dst, 1, n, (FILE *)f);
+}
+
+static void _posix_close_file(FSFile *f)
+{
+    if (f) fclose((FILE *)f);
+}
+
+static int32_t _posix_list_dir(const char *dir, char *out, uint32_t cap)
+{
+    DIR *d = opendir(dir);
+    struct dirent *e;
+    uint32_t used = 0;
+    int32_t n = 0;
+
+    if (!d) return -1;
+    while ((e = readdir(d)) != NULL) {
+        uint32_t len = (uint32_t)strlen(e->d_name) + 1u;
+
+        if (e->d_name[0] == '.') continue;
+        if (used + len > cap) break;
+        memcpy(out + used, e->d_name, len);
+        used += len;
+        n++;
+    }
+    closedir(d);
+    return n;
+}

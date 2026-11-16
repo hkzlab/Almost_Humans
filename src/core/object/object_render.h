@@ -1,4 +1,5 @@
-/* The object and terrain renderers
+/* The object and terrain renderers: the sprite law, the class overlays, the
+ * record partition and the TER slots.
  */
 
 #ifndef HUMANSRE_OBJECT_RENDER_H

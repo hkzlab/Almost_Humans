@@ -692,6 +692,25 @@ static void _latch_escape(void)
     _phase = ATTRACT_ESCAPE;
 }
 
+/**
+ * @brief Release the attract's heap blocks (the effect images, the 192-KB
+ * credit strip and the published font).  The escape path calls it, and so does
+ * the session teardown.
+ */
+static void _attract_shutdown(void)
+{
+    _unload_img();
+    g_osys->memFree(_credtext);
+    _credtext = NULL;
+    _credtext_size = 0;
+    if (_text_spr) font_publish(NULL); // the glyph table dies with it
+    g_osys->memFree(_text_spr);
+    _text_spr = NULL;
+    g_osys->memFree(_e4strip);
+    _e4strip = NULL;
+    video_arena_release(); // the attract's [0xC9D] arena
+}
+
 uint8_t attract_tick(const InputState *in)
 {
     if (_phase == ATTRACT_DONE || _phase == ATTRACT_IDLE)
@@ -966,7 +985,7 @@ uint8_t attract_tick(const InputState *in)
     /* --- the escape: the longjmp 13B2's fade, waited without polling ---- */
     case ATTRACT_ESCAPE:
         if (palette_fade_active()) break; // 8b8b: wait_palette_fade_done
-        attract_shutdown();
+        _attract_shutdown();
         _phase = ATTRACT_DONE;
         break;
 
@@ -976,18 +995,4 @@ uint8_t attract_tick(const InputState *in)
 
     _compose_window();
     return _phase != ATTRACT_DONE;
-}
-
-void attract_shutdown(void)
-{
-    _unload_img();
-    g_osys->memFree(_credtext);
-    _credtext = NULL;
-    _credtext_size = 0;
-    if (_text_spr) font_publish(NULL); // the glyph table dies with it
-    g_osys->memFree(_text_spr);
-    _text_spr = NULL;
-    g_osys->memFree(_e4strip);
-    _e4strip = NULL;
-    video_arena_release(); // the attract's [0xC9D] arena
 }

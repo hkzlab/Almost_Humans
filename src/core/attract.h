@@ -13,7 +13,7 @@
 #include "osystem.h"
 
 /* The machine's phases - public for the flow tests (the cycle-order and
- * escape assertions in tests/test_loop.c). */
+ * escape assertions in test/test_loop.c). */
 typedef enum AttractPhase {
     ATTRACT_IDLE = 0,
     ATTRACT_E1_LOAD,
@@ -50,13 +50,6 @@ typedef enum AttractPhase {
  * @return 0 on success
  */
 int32_t attract_init(void);
-
-/**
- * @brief Release the attract's heap blocks (the effect images, the 192-KB
- * credit strip and the published font).  The escape path calls it, and so does
- * the session teardown.
- */
-void attract_shutdown(void);
 
 /**
  * @brief One attract tick; 1 = still playing.

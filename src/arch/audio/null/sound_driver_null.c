@@ -1,7 +1,3 @@
-/* The silent driver: logs every INT 60h command, no synth underneath.
- *
- * Port-only; built as `audio_null`, linked into no executable.
- */
 #include "audio/null/sound_driver_null.h"
 #include "arch_mem.h"
 

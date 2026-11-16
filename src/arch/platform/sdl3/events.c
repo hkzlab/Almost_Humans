@@ -6,6 +6,7 @@
  * code.
  */
 #include "osystem.h"
+#include "sdl3/sdl3.h"
 
 #include <SDL3/SDL.h>
 #include <stdint.h>

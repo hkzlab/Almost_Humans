@@ -3,6 +3,11 @@
  *   volume   openVolume / volumeRead / volumeSize / closeVolume
  *   save     openSave / saveRead / createSave / saveWrite / closeSave
  *   named    openNamed / createNamed        (HISCORES.HUM)
+ *   assets   openFile / fileSize / fileRead / closeFile / listDir
+ *
+ * `assets` is the port's own file discovery, not a DOS service: the MT-32 ROM
+ * images live in an arbitrary directory named on the command line, so the
+ * driver asks the module that owns the host's paths instead of calling stdio.
  *
  * The module owns the paths and stdio; the core owns the formats and the error
  * path.  A read returns the bytes read (< n = EOF or error), NULL = absent.
@@ -16,6 +21,12 @@
 
 typedef struct FSVolume FSVolume;
 typedef struct FSSave FSSave;
+typedef struct FSFile FSFile;
+
+/* The asset directory listing's buffer: NUL-separated file names, the count
+ * returned by listDir.  A ROM set is a handful of files, so one page is
+ * plenty; names past the buffer are dropped. */
+#define FS_DIR_LIST_BYTES 4096u
 
 typedef struct FSModule {
     FSVolume *(*openVolume)(uint16_t disc);
@@ -30,6 +41,16 @@ typedef struct FSModule {
     void (*closeSave)(FSSave *s);
     FSSave *(*openNamed)(const char *name);
     FSSave *(*createNamed)(const char *name);
+
+    /* The asset files: an arbitrary path, read whole or in part. */
+    FSFile *(*openFile)(const char *path);
+    uint32_t (*fileSize)(FSFile *f);
+    uint32_t (*fileRead)(FSFile *f, uint32_t off, uint8_t *dst, uint32_t n);
+    void (*closeFile)(FSFile *f);
+    /* A directory's entries, NUL-separated in `out` (the FS_DIR_LIST_BYTES
+     * contract).  Returns the name count, -1 unreadable.  The caller reads
+     * each one and skips the ones that fail, a subdirectory included. */
+    int32_t (*listDir)(const char *dir, char *out, uint32_t cap);
 } FSModule;
 
 /* Each module (fs/<name>/fs_<name>.c) exports its own `g_fs_<name>` and

@@ -1,4 +1,5 @@
-/* The stacks, the record dissolution and the row tails
+/* The stack and group verbs, the record dissolution and the row tails,
+ * including the fall machine.
  */
 
 #ifndef HUMANSRE_OBJECT_UNITS_H

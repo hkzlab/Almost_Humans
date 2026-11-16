@@ -1,4 +1,4 @@
-/* The command dispatch and its type rows
+/* The command dispatch, the type rows and their handler bodies.
  */
 
 #ifndef HUMANSRE_OBJECT_COMMAND_H

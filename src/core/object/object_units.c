@@ -1,7 +1,3 @@
-/* The stack and group verbs, the record dissolution and the row
- * tails, including the fall machine.
- */
-
 #include "object_internal.h"
 #include "object_core.h"
 #include "object_sequence.h"
@@ -1733,6 +1729,14 @@ static void _obj_units_group_clear_list(uint8_t *e)
 }
 
 
+/**
+ * @brief 1000:FA16: dissolve a group entry.
+ *
+ * The last member is released as a lone human (frame 0x10, type 2); the
+ * entry's five list words are then cleared.
+ *
+ * @param e the group entry
+ */
 static void _obj_units_group_dissolve(uint8_t *e)
 {
     uint8_t *bp;

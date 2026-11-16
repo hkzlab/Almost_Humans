@@ -19,12 +19,6 @@
 
 /* --- HISCORES.HUM (menu_loop 1000:012A) ------------------------------- */
 
-/** @brief the runtime table's first state.  `1000:069F` (the loader) has no
- * caller in the listing, so the shipped game always starts from the image's
- * own defaults at DS:0x38A and never reads HISCORES.HUM back.
- */
-void hiscore_init(void);
-
 #if defined(HUMANSRE_TEST_PROBES)
 /* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /**

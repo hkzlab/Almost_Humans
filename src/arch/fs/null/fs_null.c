@@ -1,8 +1,3 @@
-/* The all-fail filesystem module: every open returns NULL.
- *
- * Port-only reference for a no-data build; no current target links it.
- * Callers treat NULL as "the volume is not available" and own the error path.
- */
 #include "fs/null/fs_null.h"
 
 #include <stdint.h>
@@ -105,10 +100,56 @@ static FSSave *_null_open_named(const char *name);
  */
 static FSSave *_null_create_named(const char *name);
 
+/**
+ * @brief Open always fails.
+ *
+ * @param path the path
+ * @return NULL
+ */
+static FSFile *_null_open_file(const char *path);
+
+/**
+ * @brief No size.
+ *
+ * @param f the asset handle
+ * @return 0
+ */
+static uint32_t _null_file_size(FSFile *f);
+
+/**
+ * @brief Read fails.
+ *
+ * @param f the asset handle
+ * @param off the offset
+ * @param dst the destination buffer
+ * @param n the count
+ * @return 0
+ */
+static uint32_t _null_file_read(FSFile *f, uint32_t off, uint8_t *dst,
+                                uint32_t n);
+
+/**
+ * @brief Nothing to close.
+ *
+ * @param f the asset handle
+ */
+static void _null_close_file(FSFile *f);
+
+/**
+ * @brief No directory.
+ *
+ * @param dir the directory
+ * @param out the name buffer
+ * @param cap out's capacity
+ * @return -1
+ */
+static int32_t _null_list_dir(const char *dir, char *out, uint32_t cap);
+
 const FSModule g_fs_null = {
-    _null_open_volume, _null_close_volume, _null_volume_size, _null_read,
-    _null_open_save,   _null_save_read,    _null_create_save, _null_save_write,
-    _null_close_save,  _null_open_named,   _null_create_named
+    _null_open_volume, _null_close_volume, _null_volume_size,  _null_read,
+    _null_open_save,   _null_save_read,    _null_create_save,  _null_save_write,
+    _null_close_save,  _null_open_named,   _null_create_named, _null_open_file,
+    _null_file_size,   _null_file_read,    _null_close_file,   _null_list_dir
 };
 
 static FSVolume *_null_open_volume(uint16_t disc)
@@ -178,4 +219,36 @@ static FSSave *_null_create_named(const char *name)
 {
     (void)name;
     return NULL;
+}
+
+static FSFile *_null_open_file(const char *path)
+{
+    (void)path;
+    return NULL;
+}
+
+static uint32_t _null_file_size(FSFile *f)
+{
+    (void)f;
+    return 0;
+}
+
+static uint32_t _null_file_read(FSFile *f, uint32_t off, uint8_t *dst,
+                                uint32_t n)
+{
+    (void)f;
+    (void)off;
+    (void)dst;
+    (void)n;
+    return 0;
+}
+
+static void _null_close_file(FSFile *f) { (void)f; }
+
+static int32_t _null_list_dir(const char *dir, char *out, uint32_t cap)
+{
+    (void)dir;
+    (void)out;
+    (void)cap;
+    return -1;
 }

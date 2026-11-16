@@ -188,7 +188,7 @@ static inline uint16_t bo_be16(uint16_t v) { return v; }
  */
 static inline uint32_t bo_be32(uint32_t v) { return v; }
 
-#endif
+#endif /* BYTEORDER_HOST_LITTLE */
 
 /* --- reads ----------------------------------------------------------- */
 

@@ -1,7 +1,3 @@
-/* The level cutscene player: cd_file_op's ANI sequence, the panel and the
- * scene chain (1000:AFF8/B07B/B157/B263).
- */
-
 #include "scene/scene.h"
 #include "scene/scene_internal.h"
 

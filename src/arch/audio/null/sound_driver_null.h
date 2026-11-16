@@ -1,7 +1,8 @@
-/* The silent sound-driver module's one exported symbol.
+/* The silent driver: logs every INT 60h command, no synth underneath.
  *
- * Kept for a port that links it; no current target does, so nothing
- * includes this header yet.  Only an audio backend would name it.
+ * Port-only, kept for a port that links it; no current target does, so
+ * nothing includes this header yet.  Only an audio backend would name the
+ * module.
  */
 #ifndef HUMANSRE_SOUND_DRIVER_NULL_H
 #define HUMANSRE_SOUND_DRIVER_NULL_H

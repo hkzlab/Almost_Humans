@@ -1,7 +1,3 @@
-/* The level walk that turns map tiles into placed records, and the
- * 0xA9 log queue the settle rewrites.
- */
-
 #include "object_internal.h"
 #include "object_spawn.h"
 #include "level/level.h"

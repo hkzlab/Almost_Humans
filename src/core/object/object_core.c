@@ -1,7 +1,3 @@
-/* The placed-object array, its state, the level goal predicates, the
- * ground probes and the save ranges.
- */
-
 #include "object_internal.h"
 #include "object_command.h"
 #include "object_core.h"
@@ -526,7 +522,11 @@ int16_t object_core_map_cell_equals(uint32_t want)
 }
 
 
-static int16_t object_core_entities_finished(void)
+/** @brief -1 when every live entity's handler is 5 (the map's exit state).
+ *
+ * @return -1 when all handlers are 5, 0 otherwise
+ */
+static int16_t _object_core_entities_finished(void)
 {
     uint16_t n = entity_count();
 
@@ -586,7 +586,7 @@ int16_t object_core_test_dispatch(uint16_t mode)
     case 1: return object_core_none_type1d() == -1; // 1000:3640
     case 2: return object_core_class_matches(arg) == -1; // 1000:3659
     case 3: return object_core_type_equals(arg) == -1; // 1000:3678
-    case 4: return object_core_entities_finished() == -1; // 1000:3688
+    case 4: return _object_core_entities_finished() == -1; // 1000:3688
     case 5: return object_core_map_cell_equals(arg) == -1; // 1000:36AB
     default: return 0;
     }
@@ -1011,9 +1011,13 @@ void _obj_core_scan_point(uint8_t *actor, uint32_t xoff)
 void _obj_core_home_stance_set(void) { _obj_home_stance_flag = 0xFFu; }
 
 
+/**
+ * @brief The home-stance flag: the only reader of [0x6FE6].
+ *
+ * @return 1 when set, 0 otherwise
+ */
 uint8_t object_core_home_stance_flag(void)
 { return _obj_home_stance_flag != 0u; }
-
 
 uint8_t *_obj_core_link_record(uint32_t off)
 {

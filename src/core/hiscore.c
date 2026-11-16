@@ -80,7 +80,11 @@ void hiscore_reset(void)
 }
 #endif /* HUMANSRE_TEST_PROBES */
 
-void hiscore_init(void)
+/** @brief the runtime table's first state.  `1000:069F` (the loader) has no
+ * caller in the listing, so the shipped game always starts from the image's
+ * own defaults at DS:0x38A and never reads HISCORES.HUM back.
+ */
+static void _hiscore_init(void)
 {
     if (_hiscore_loaded) return;
     _hiscore_loaded = 1;
@@ -91,7 +95,7 @@ void hiscore_write(void)
 {
     FSSave *f;
 
-    hiscore_init();
+    _hiscore_init();
     _hiscore_crypt();
     f = g_osys->fs->createNamed("HISCORES.HUM");
     if (f) {
@@ -102,14 +106,14 @@ void hiscore_write(void)
 
 uint16_t hiscore_best(uint32_t level)
 {
-    hiscore_init();
+    _hiscore_init();
     if (level == 0u || level > HIS_LEVELS) return 0x0999u;
     return rd_le_u16(_hiscore_table + 2u * level);
 }
 
 void hiscore_set_best(uint32_t level, uint16_t value)
 {
-    hiscore_init();
+    _hiscore_init();
     if (level == 0u || level > HIS_LEVELS) return;
     wr_le_u16(_hiscore_table + 2u * level, value);
 }
@@ -125,7 +129,7 @@ uint32_t hiscore_score(uint32_t i)
 {
     const uint8_t *e;
 
-    hiscore_init();
+    _hiscore_init();
     if (i >= HIS_TOPN) return 0u;
     e = _hiscore_entry(i);
     return rd_le_u32(e);
@@ -133,7 +137,7 @@ uint32_t hiscore_score(uint32_t i)
 
 const char *hiscore_name(uint32_t i)
 {
-    hiscore_init();
+    _hiscore_init();
     return i < HIS_TOPN ? (const char *)_hiscore_entry(i) + 4 : "";
 }
 
@@ -157,7 +161,7 @@ int32_t hiscore_insert(uint32_t score, const char *name)
 {
     uint8_t pos = 0;
 
-    hiscore_init();
+    _hiscore_init();
     for (int16_t k = (int16_t)HIS_TOPN - 1; k >= 0; k--) {
         if (score < hiscore_score((uint32_t)k)) {
             pos = (uint8_t)((uint32_t)k + 1u);

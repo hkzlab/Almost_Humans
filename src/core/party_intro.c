@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define SCRIPT_COUNT 7
+#define SCRIPT_COUNT 7u
 
 /* === the 8-slot script machine ============================================== */
 struct Slot { // 16 B at [0x11fe]:0xFA8 + 0x10*i
@@ -79,11 +79,11 @@ static uint8_t *_bit_img; // the loaded lbm\party1.bit
 static uint8_t *_font_bytes; // [0x1e1c]: the published text.spr
 
 /* === the DS values the screen reads ========================================= */
-static uint16_t _g_level; // [0x1f41]
-static uint16_t _g_need; // [0x17fb]
-static uint16_t _g_members; // [0x11fc]
-static uint16_t _g_score; // [0x592]
-static char _g_tribe[16]; // 0x1189
+static uint16_t _level; // [0x1f41]
+static uint16_t _need; // [0x17fb]
+static uint16_t _members; // [0x11fc]
+static uint16_t _score; // [0x592]
+static char _tribe[16]; // 0x1189
 
 /* === the string table (verbatim templates; the digit _slots rewritten) =======
  * Sizes cover the widest of the five language columns (game_strings.h): the
@@ -139,7 +139,13 @@ static uint8_t _swap_next; // the 2bda's tail's next _phase
 static uint8_t _game_over_mode; // level_intro_screen 2739's variant
 static uint8_t _sw_phase = SW_FADEWAIT;
 
-void party_intro_seed_scripts(const uint8_t *bytes, uint32_t len)
+/**
+ * @brief Restore the intro's cue scripts from a save.
+ *
+ * @param bytes the byte buffer
+ * @param len the length
+ */
+static void _party_intro_seed_scripts(const uint8_t *bytes, uint32_t len)
 {
     /* the [live] pointer table: the DS offsets into the first body 0x1036 */
     uint32_t offs[SCRIPT_COUNT] = { 0x1036u, 0x103bu, 0x1044u, 0x1047u,
@@ -155,7 +161,13 @@ void party_intro_seed_scripts(const uint8_t *bytes, uint32_t len)
     }
 }
 
-void party_intro_seed_slots(const uint8_t *raw) // the 128 B at DS:0xFA8
+/**
+ * @brief Restore the intro slots from the raw 128-byte save block (the 128 B at
+ * DS:0xFA8).
+ *
+ * @param raw the raw save block
+ */
+static void _party_intro_seed_slots(const uint8_t *raw) // the 128 B at DS:0xFA8
 {
     if (!raw) {
         memset(_slots, 0, sizeof _slots);
@@ -178,8 +190,8 @@ void party_intro_seed_slots(const uint8_t *raw) // the 128 B at DS:0xFA8
  */
 static void _seed_slots_live(void)
 {
-    party_intro_seed_slots(_slots_file);
-    party_intro_seed_scripts(_scripts_file, sizeof _scripts_file);
+    _party_intro_seed_slots(_slots_file);
+    _party_intro_seed_scripts(_scripts_file, sizeof _scripts_file);
 }
 
 #if defined(HUMANSRE_TEST_PROBES)
@@ -564,12 +576,12 @@ static void _rescale_rows(const uint8_t *src)
 void party_intro_set_values(uint16_t level, uint16_t need, uint16_t members,
                             uint16_t score, const char *tribe)
 {
-    _g_level = level;
-    _g_need = need;
-    _g_members = members;
-    _g_score = score;
-    memset(_g_tribe, 0, sizeof _g_tribe);
-    if (tribe) strncpy(_g_tribe, tribe, sizeof _g_tribe - 1u);
+    _level = level;
+    _need = need;
+    _members = members;
+    _score = score;
+    memset(_tribe, 0, sizeof _tribe);
+    if (tribe) strncpy(_tribe, tribe, sizeof _tribe - 1u);
     /* the image's verbatim strings (202F:0x105F..; the digit fields are
      * fixed-width and the formatter rewrites them in place, 0x3F1B) */
     strncpy(_s_all, game_string(GAME_STRING_PARTY_COMING_UP),
@@ -588,7 +600,7 @@ void party_intro_set_game_over(uint8_t on) { _game_over_mode = on ? 1 : 0; }
 
 #if defined(HUMANSRE_TEST_PROBES)
 /* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
-uint16_t party_intro_score(void) { return _g_score; }
+uint16_t party_intro_score(void) { return _score; }
 #endif /* HUMANSRE_TEST_PROBES */
 
 /**
@@ -663,7 +675,7 @@ uint8_t party_intro_start(void)
     g_osys->memFree(b);
 
     {
-        uint8_t d = (uint8_t)(_g_level & 7u) + 1u; // 2519: '1'+(lvl&7)
+        uint8_t d = (uint8_t)(_level & 7u) + 1u; // 2519: '1'+(lvl&7)
         snprintf(name, sizeof name,
                  game_resource_name(GAME_RES_LBM_PARTY_PAL_FMT), d);
     }
@@ -773,7 +785,7 @@ uint8_t party_intro_tick(const InputState *in)
             _clear_canvas();
             *_put_number(
                 _s_all + game_string_num_offset(GAME_STRING_PARTY_COMING_UP),
-                _g_level) = '\0'; // 260e
+                _level) = '\0'; // 260e
             _draw_text_ramped(_s_all, 0xA0u, 0x14u);
             break;
         case 1u: /* 2623..263a: no NUL - the
@@ -781,7 +793,7 @@ uint8_t party_intro_tick(const InputState *in)
                                                 * survives the patch        */
             (void)_put_number(
                 _s_need + game_string_num_offset(GAME_STRING_PARTY_NEED),
-                _g_need);
+                _need);
             _draw_text_ramped(_s_need, 0xA0u, 0x28u);
             break;
         case 2u:
@@ -792,9 +804,9 @@ uint8_t party_intro_tick(const InputState *in)
             char *q = _append_str(
                 _put_number(_s_has +
                                 game_string_num_offset(GAME_STRING_PARTY_HAS),
-                            _g_members),
+                            _members),
                 game_string(GAME_STRING_PARTY_MEMBERS_TAIL)); // 2660
-            if (_g_members == 1u) { // 266d..267a
+            if (_members == 1u) { // 266d..267a
                 q -= 3;
                 *q = '!';
                 *(q + 1u) = '\0';
@@ -831,12 +843,12 @@ uint8_t party_intro_tick(const InputState *in)
             _draw_text_ramped(_s_code, 0xA0u, 0x14u); // 26a1
             break;
         case 1u:
-            _draw_text_ramped(_g_tribe, 0xA0u, 0x20u); // 26b3
+            _draw_text_ramped(_tribe, 0xA0u, 0x20u); // 26b3
             break;
         case 2u:
             *_put_number(_s_score +
                              game_string_num_offset(GAME_STRING_PARTY_SCORE),
-                         _g_score) = '\0'; // 26d3
+                         _score) = '\0'; // 26d3
             _draw_text_ramped(_s_score, 0xA0u, 0x34u);
             break;
         case 3u:

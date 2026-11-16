@@ -82,7 +82,8 @@ static int32_t _first_diff(const uint8_t *a, const uint8_t *b, uint32_t n)
 int main(int argc, char **argv)
 {
     const char *vol_dir = argc > 1 ? argv[1] : ".";
-    const char *ref_dir = argc > 3 ? argv[3] : "../analysis/attract_scroll";
+    const char *ref_dir =
+        argc > 3 ? argv[3] : "../analysis_artifacts/attract_scroll";
 
     /* D-134: 1000:0AEC builds the digits least-significant first and reverses
      * the whole buffer (0x0B3B); the low four digits are NOT exempt. */
@@ -129,7 +130,7 @@ int main(int argc, char **argv)
     if (!ref_strip || strip_size != 196608u || !ref_frames ||
         frames_size < 4u) {
         printf(
-            "skip: no reference dump at %s (run tools/attract_scroll_sim.py)\n",
+            "skip: no reference dump at %s (run tooling/attract_scroll_sim/attract_scroll_sim.py)\n",
             ref_dir);
         free(ref_strip);
         free(ref_frames);

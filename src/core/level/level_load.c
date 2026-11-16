@@ -21,7 +21,7 @@ static const uint8_t _rec_sig[SIG_LEN] = { 0x00, 0x20, 0x00, 0x14, 0x00, 0x00 };
 static LevelData _level_data_cur;
 /* The writable map the game plays on: 1000:3138 copies the record's 640 bytes
  * to [0x1FA0], and 1000:51F9 (the 0xA9 handler) marks two cells of it.  Keeping
- * the copy means the parsed record stays byte-exact (tests/test_level). */
+ * the copy means the parsed record stays byte-exact (test/test_level). */
 static uint8_t _level_map_copy[640];
 static uint8_t _level_loaded;
 static uint8_t *_box_spr;           // apl\box.spr (the dialog tiles)

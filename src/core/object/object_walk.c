@@ -1,7 +1,3 @@
-/* The behaviour walk: the per-behaviour movers, the projectile and
- * the stack-8 states.
- */
-
 #include "object_internal.h"
 #include "object_core.h"
 #include "object_units.h"

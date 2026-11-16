@@ -1,4 +1,5 @@
-/* The record array, its state, the goal predicates and the save ranges
+/* The placed-object array, its state, the level goal predicates, the ground
+ * probes and the save ranges.
  */
 
 #ifndef HUMANSRE_OBJECT_CORE_H

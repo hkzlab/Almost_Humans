@@ -20,13 +20,6 @@ extern const OSystem g_osys_null;
 extern void osys_null_set_tick_limit(uint32_t n);
 
 /**
- * @brief Drive N ticks by hand, for the content tests.
- *
- * @param n the tick count
- */
-extern void osys_null_run_ticks(uint32_t n);
-
-/**
  * @brief Inject the input state the next poll returns.
  *
  * @param in the input state
@@ -62,33 +55,12 @@ extern uint32_t osys_null_audio_installs(void);
 extern uint32_t osys_null_audio_loads(void);
 
 /**
- * @brief Accessor: the last loaded tune's byte size.
- *
- * @return the size
- */
-extern uint32_t osys_null_audio_tune_size(void);
-
-/**
  * @brief Accessor: the byte size of the i-th tune load.
  *
  * @param i the load index
  * @return the size, 0 when out of range
  */
 extern uint32_t osys_null_audio_load_size(uint32_t i);
-
-/**
- * @brief Accessor: the sound-effect command count.
- *
- * @return the count
- */
-extern uint32_t osys_null_audio_sfx_count(void);
-
-/**
- * @brief Accessor: the last sound-effect event id.
- *
- * @return the event id, 0xFFFF when none
- */
-extern uint16_t osys_null_audio_last_sfx(void);
 
 /**
  * @brief Accessor: the last master-volume byte (cmd 0x0A).
@@ -110,13 +82,6 @@ extern uint32_t osys_null_audio_ticks(void);
  * @return the last video mode set
  */
 extern VideoMode osys_null_video_mode(void);
-
-/**
- * @brief Accessor: the eventsPoll count, the smoke test's frame-dump clock.
- *
- * @return the eventsPoll call count
- */
-extern uint32_t osys_null_poll_count(void);
 
 /**
  * @brief Install the present hook.

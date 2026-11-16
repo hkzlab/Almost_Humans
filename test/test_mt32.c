@@ -1,4 +1,4 @@
-/* tests/test_mt32.c - the MT-32 driver module end to end.
+/* test/test_mt32.c - the MT-32 driver module end to end.
  *
  * White-box (the driver module is included) so the .RLD geometry can be
  * checked: every pattern decodes to 64 rows and
@@ -12,6 +12,7 @@
  */
 #include "audio/mt32/sound_driver_mt32.c"
 #include "audio/sound_driver.h"
+#include "fs/posix/fs_posix.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -97,7 +98,7 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    sound_driver_mt32_set_roms(roms);
+    sound_driver_mt32_set_roms(&g_fs_posix, roms);
     drv = g_sound_driver_mt32.create(48000);
     if (!drv) {
         fprintf(stderr, "FAIL: the MT-32 driver did not install\n");

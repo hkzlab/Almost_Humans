@@ -1,24 +1,3 @@
-/* The boot intro: boot_intro_sequence (1000:B590).
- *
- * Four stages in order:
- *   1. the Gametek logo (1000:BEE9/B211): GAMETEK.RSC's display list, one
- *      group per tick, the DAC faded to its palette, abortable by key
- *   2. the IDI card (1000:BD73): IDI.BIT, its own palette, 0x1a4 hold
- *   3. the FIRST card (1000:BD13): FIRST.BIT, bank by bank, 0x118 each
- *   4. the ITB card + the scene (1000:B63B)
- *
- * Stage 4 plays INTRO\INTRO.RSC over a scrolling INTRO\BAC.BIT, with the
- * tree/apple sprites riding the scroll.  Per tick: script_fire (202F:0x843C),
- * the scroll render (1000:B9F8, 184 rows in 92 pairs), the sprites
- * (1000:BAA5), the display-list group (1000:B955), then present and the frame
- * wait (D-248).  The quit cue (frame 385) ends it; a held key aborts after
- * every wait (1000:B787) and in the transition fade (1000:C0AF).
- *
- * The present (1000:BB05) shows pool rows 4-183 as visible rows 0-179 and
- * keeps the bar (rows 182-197, colours 0xE0-0xEF) below it.  The fades run
- * through palette.c's build/step machine (1000:8BFD).
- */
-
 #include "scene/scene.h"
 #include "scene/scene_internal.h"
 

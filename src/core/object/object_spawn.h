@@ -1,4 +1,5 @@
-/* The terrain spawn walk and the 0xa9 log queue
+/* The level walk that turns map tiles into placed records, and the 0xA9 log
+ * queue the settle rewrites.
  */
 
 #ifndef HUMANSRE_OBJECT_SPAWN_H

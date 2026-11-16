@@ -145,18 +145,15 @@ static VideoMode _mode_set; // the core's last videoSetMode
 static void (*_present_hook)(uint32_t poll);
 /* The null backend has no clock: the foreground loop itself is the tick
  * source (one tickSync call = one tick), so the scripted tests keep their
- * one-poll-per-tick timing.  osys_null_run_ticks drives the ISR body by hand
- * for the content tests and advances the same counter. */
+ * one-poll-per-tick timing. */
 static uint32_t _tick_counter; // [0x5AC8]
 static uint32_t _tick_limit; // 0 = forever: the tests' default
 /* The audio calls are counted: the MUSIC board's gate is the only
  * observable, and test_frontend asserts it. */
 static uint32_t _audio_starts, _audio_stops;
-static uint32_t _audio_installs, _audio_loads, _audio_sfx_count, _audio_ticks;
-static uint32_t _audio_tune_size;
-#define _AUDIO_LOADS_MAX 16
+static uint32_t _audio_installs, _audio_loads, _audio_ticks;
+#define _AUDIO_LOADS_MAX 16u
 static uint32_t _audio_load_size[_AUDIO_LOADS_MAX];
-static uint16_t _audio_last_sfx;
 static uint8_t _audio_tempo;
 
 const OSystem g_osys_null = {
@@ -228,7 +225,6 @@ static int32_t _null_audio_load(const uint8_t *image, uint32_t size)
     (void)image;
     if (_audio_loads < _AUDIO_LOADS_MAX) _audio_load_size[_audio_loads] = size;
     _audio_loads++;
-    _audio_tune_size = size;
     return 0;
 }
 
@@ -236,11 +232,7 @@ static void _null_audio_resume(void) { _audio_starts++; }
 
 static void _null_audio_stop(void) { _audio_stops++; }
 
-static void _null_audio_sfx(uint16_t id)
-{
-    _audio_sfx_count++;
-    _audio_last_sfx = id;
-}
+static void _null_audio_sfx(uint16_t id) { (void)id; }
 
 static void _null_audio_tempo(uint8_t cl) { _audio_tempo = cl; }
 
@@ -258,14 +250,6 @@ static void _null_fatal(const char *msg)
 
 void osys_null_set_tick_limit(uint32_t n) { _tick_limit = n; }
 
-void osys_null_run_ticks(uint32_t n)
-{
-    for (uint32_t i = 0; i < n && _the_tick; i++) {
-        _tick_counter++; // the ISR's INC [0x5AC8] (1000:8AA4)
-        _the_tick();
-    }
-}
-
 void osys_null_inject(const InputState *in) { _the_input = *in; }
 
 uint32_t osys_null_audio_starts(void) { return _audio_starts; }
@@ -276,23 +260,14 @@ uint32_t osys_null_audio_installs(void) { return _audio_installs; }
 
 uint32_t osys_null_audio_loads(void) { return _audio_loads; }
 
-uint32_t osys_null_audio_tune_size(void) { return _audio_tune_size; }
-
 uint32_t osys_null_audio_load_size(uint32_t i)
 { return i < _AUDIO_LOADS_MAX ? _audio_load_size[i] : 0u; }
-
-uint32_t osys_null_audio_sfx_count(void) { return _audio_sfx_count; }
-
-uint16_t osys_null_audio_last_sfx(void)
-{ return _audio_sfx_count ? _audio_last_sfx : 0xFFFFu; }
 
 uint8_t osys_null_audio_tempo(void) { return _audio_tempo; }
 
 uint32_t osys_null_audio_ticks(void) { return _audio_ticks; }
 
 VideoMode osys_null_video_mode(void) { return _mode_set; }
-
-uint32_t osys_null_poll_count(void) { return _poll_count; }
 
 void osys_null_on_present(void (*fn)(uint32_t poll)) { _present_hook = fn; }
 

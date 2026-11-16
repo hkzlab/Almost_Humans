@@ -1,18 +1,3 @@
-/* The MAP screen's letter wheel: apl\alpha.spr, rotate_spinner_cell, the
- * 30-cell ring and the typed name (1000:0705/0F93/0CBE).
- *
- * `menu_loop` loads `apl\alpha.spr` (`1000:01A2`, DS:0x793) into the scratch
- * and expands it with `expand_nibbles_4plane` (`1000:0705`) into a 64 KB,
- * four-plane buffer ([0x778]): 4096 source words per plane, each expanded to
- * four bytes, so a plane is 0x4000 bytes.  The expansion is a 4bpp bit
- * transpose: the word is rotated right by the plane number and its four
- * nibbles are written as four bytes (two from BL, two from BH).
- *
- * `rotate_spinner_cell` (`1000:0F93`) then places one of **30 letter cells**
- * on a ring; `init_display_lists` (`1000:0CBE`) draws the ring and the typed
- * name and keeps the double-buffered dirty list (`1000:0BB0` clears it).
- */
-
 #include "map/map.h"
 #include "map/map_internal.h"
 

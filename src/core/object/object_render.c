@@ -1,7 +1,3 @@
-/* The object and terrain renderers: the sprite law, the class
- * overlays, the record partition and the TER slots.
- */
-
 #include "object_internal.h"
 #include "object_core.h"
 #include "object_render.h"

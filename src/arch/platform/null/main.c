@@ -25,7 +25,7 @@ int main(int argc, char **argv)
     fprintf(stderr, "%s %s\n", HUMANSRE_PROJECT_TITLE, HUMANSRE_VERSION);
     for (i = 1; i < argc; i++) {
         char *end;
-        unsigned long n;
+        unsigned long n; // strtoul's own type
 
         if (strcmp(argv[i], "--ticks") != 0 || i + 1 >= argc) {
             fprintf(stderr, "USAGE: %s [--ticks N]\n", argv[0]);

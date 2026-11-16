@@ -1,6 +1,3 @@
-/* The command dispatch, the type rows and their handler bodies.
- */
-
 #include "object_internal.h"
 #include "object_command.h"
 #include "object_core.h"

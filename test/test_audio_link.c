@@ -1,4 +1,4 @@
-/* tests/test_audio_link.c - the core's audio state machine over the real
+/* test/test_audio_link.c - the core's audio state machine over the real
  * AdLib module.
  *
  * The wiring under test is the one the game uses: audio.c's play_tune /

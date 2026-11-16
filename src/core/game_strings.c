@@ -566,8 +566,6 @@ static const uint8_t _game_strings_num_offset[GAME_LANGUAGE_COUNT][GAME_STRING_C
     }
 };
 
-enum GameLanguage game_language(void) { return _language; }
-
 void game_language_set(enum GameLanguage lang)
 { _language = (uint32_t)lang < GAME_LANGUAGE_COUNT ? lang : GAME_LANGUAGE_EN; }
 

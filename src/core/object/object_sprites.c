@@ -1,27 +1,20 @@
+#include "object_internal.h"
+
+
 /* The object frame table: what each of the 286 drawable frames looks like.
  *
  * A record in the level stores a 16-bit frame number; this table turns it into
- * a sprite: where the bitmap starts inside APL\SPRITES.DAT, how many rows it
- * has, how far it is drawn above the record's y (ybias) and its draw mode
- * (1 = 16 px wide, 2 = 32 px wide; 0 and 3 draw nothing).
- *
- * It is big because the game has 262 used frames, each a hand-drawn bitmap in
- * a sprite bank: no rule computes a frame from its number, only the original's
- * six bank manifests do.  The original reads those at boot (apply_relocations,
- * 1000:569E); the port would have to carry them (3192 bytes) to build the same
- * table at run time, which is more than this 1144-byte table, so it is
- * precomputed by tools/sprite_frames.py.  Do not hand-edit it.
- *
- * One word per slot: bits 0..16 the SPRITES.DAT offset, 17..22 rows,
- * 23..27 ybias, 28..29 mode - decoded by object_sprite_at.
+ * a sprite (object_sprites.h has the word layout).  It is big because the game
+ * has 262 used frames, each a hand-drawn bitmap in a sprite bank: no rule
+ * computes a frame from its number, only the original's six bank manifests do.
+ * The original reads those at boot (apply_relocations, 1000:569E); the port
+ * would have to carry them (3192 bytes) to build the same table at run time,
+ * which is more than this 1144-byte table, so it is precomputed by
+ * tooling/sprite_frames/sprite_frames.py.  Do not hand-edit it.
  *
  * Deviation: D-265 (the original builds this table at boot; the port
  * precomputes it).
  */
-
-#include "object_internal.h"
-
-
 static const uint32_t _obj_sprite_words[OBJ_FRAME_SLOTS] = {
     /* 000 */ 0x10303080, 0x10303200, 0x10AE3380, 0x10AE34F0,
     /* 004 */ 0x10303660, 0x103037E0, 0x10AE3960, 0x10AE3AD0,

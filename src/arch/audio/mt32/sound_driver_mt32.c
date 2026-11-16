@@ -1,16 +1,3 @@
-/* MT32.DRV's replacement: the sequencer over mt32emu.
- *
- * Image-relative offsets (the driver is a CD resource):
- *   install   0x00DE   cmd 0     0x0178   cmd 1     0x0209   cmd 2  0x0792
- *   cmd 5     0x02A7   cmd 6     0x03FA   cmd 0x0A  0x01CD   cmd 0x0C 0x0236
- *   cmd 0x0E  0x01BB
- *
- * cmd 0x0A is master volume (DT1 10 00 16); cmd 2 is the only clock the game
- * uses.  cmd 1 re-runs the install reset and the voice reset; no game path
- * sends it.  MIDI goes through mt32emu's byte-stream parser; the ROM images
- * are read here.  The tune image is copied, not aliased.
- * Deviations: D-255 (bounded reads), D-256 (no MPU-401/INT 8/envelope).
- */
 #include "audio/mt32/sound_driver_mt32.h"
 #include "byteorder.h"
 #include "arch_mem.h"
@@ -20,12 +7,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-
-#ifdef _WIN32
-#    include <windows.h>
-#else
-#    include <dirent.h>
-#endif
 
 #define MT32_RECORDS  8u
 #define MT32_SLOTS    8u
@@ -143,10 +124,13 @@ struct SoundDriver {
     uint32_t rom_count;
 };
 
+/* The module the ROM directory is read through; set before create(). */
+static const FSModule *_fs;
 static char _rom_dir[1024];
 
-void sound_driver_mt32_set_roms(const char *path)
+void sound_driver_mt32_set_roms(const FSModule *fs, const char *path)
 {
+    _fs = fs;
     if (!path) {
         _rom_dir[0] = '\0';
         return;
@@ -941,7 +925,7 @@ static void _reset_voices(SoundDriver *drv)
 }
 
 /**
- * @brief Read one whole file into memory.
+ * @brief Read one whole file into memory through the filesystem module.
  *
  * @param path the file
  * @param size receives the byte count
@@ -949,76 +933,56 @@ static void _reset_voices(SoundDriver *drv)
  */
 static uint8_t *_read_file(const char *path, size_t *size)
 {
-    FILE *f = fopen(path, "rb");
-    long n;
+    FSFile *f = _fs->openFile(path);
+    uint32_t n;
     uint8_t *buf;
 
     if (!f) return NULL;
-    if (fseek(f, 0, SEEK_END) != 0) {
-        fclose(f);
+    n = _fs->fileSize(f);
+    if (n == 0) {
+        _fs->closeFile(f);
         return NULL;
     }
-    n = ftell(f);
-    if (n <= 0 || fseek(f, 0, SEEK_SET) != 0) {
-        fclose(f);
-        return NULL;
-    }
-    buf = arch_mem_alloc((size_t)n);
+    buf = arch_mem_alloc(n);
     if (!buf) {
-        fclose(f);
+        _fs->closeFile(f);
         return NULL;
     }
-    if (fread(buf, 1, (size_t)n, f) != (size_t)n) {
+    if (_fs->fileRead(f, 0, buf, n) != n) {
         arch_mem_free(buf);
-        fclose(f);
+        _fs->closeFile(f);
         return NULL;
     }
-    fclose(f);
-    *size = (size_t)n;
+    _fs->closeFile(f);
+    *size = n;
     return buf;
 }
 
 /**
  * @brief Read every regular file of a directory into the driver's ROM list.
  *
+ * The listing comes from the filesystem module, so the driver has no host
+ * path or directory API of its own.
+ *
  * @param drv the driver
  * @param dir the directory
  */
 static void _load_rom_dir(SoundDriver *drv, const char *dir)
 {
+    char names[FS_DIR_LIST_BYTES];
     char path[1200];
-#ifdef _WIN32
-    WIN32_FIND_DATAA fd;
-    HANDLE h;
-    char pattern[1200];
-    snprintf(pattern, sizeof(pattern), "%s\\*", dir);
-    h = FindFirstFileA(pattern, &fd);
-    if (h == INVALID_HANDLE_VALUE) return;
-    do {
+    int32_t count;
+    int32_t i;
+    const char *name = names;
+
+    if (!_fs) return;
+    count = _fs->listDir(dir, names, sizeof names);
+    for (i = 0; i < count; i++) {
         size_t size;
         uint8_t *buf;
-        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
-        snprintf(path, sizeof(path), "%s\\%s", dir, fd.cFileName);
-        buf = _read_file(path, &size);
-        if (!buf) continue;
-        if (drv->rom_count < MT32_ROMS_MAX) {
-            drv->rom[drv->rom_count] = buf;
-            drv->rom_size[drv->rom_count] = size;
-            drv->rom_count++;
-        } else {
-            arch_mem_free(buf);
-        }
-    } while (FindNextFileA(h, &fd));
-    FindClose(h);
-#else
-    DIR *d = opendir(dir);
-    struct dirent *e;
-    if (!d) return;
-    while ((e = readdir(d)) != NULL) {
-        size_t size;
-        uint8_t *buf;
-        if (e->d_name[0] == '.') continue;
-        snprintf(path, sizeof(path), "%s/%s", dir, e->d_name);
+
+        snprintf(path, sizeof(path), "%s/%s", dir, name);
+        name += strlen(name) + 1u;
         buf = _read_file(path, &size);
         if (!buf) continue;
         if (drv->rom_count < MT32_ROMS_MAX) {
@@ -1029,8 +993,6 @@ static void _load_rom_dir(SoundDriver *drv, const char *dir)
             arch_mem_free(buf);
         }
     }
-    closedir(d);
-#endif
 }
 
 /**
