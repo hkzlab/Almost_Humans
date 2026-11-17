@@ -218,6 +218,7 @@ static void _obj_walk_seq(uint8_t *r)
 static void _obj_walk_wander(uint8_t *r)
 {
     uint32_t ax, bx, cx, dx;
+    uint16_t mx, my;
 
     if (_obj_frame & 1u) return;
     ax = rd_le_u16(r + 0u);
@@ -243,7 +244,7 @@ static void _obj_walk_wander(uint8_t *r)
             dx = 3u;
             bx++;
             if (bx > 0x89u) bx = 0x86u;
-            if (ax > rd_le_u16(r + 0xAu)) {
+            if (ax <= rd_le_u16(r + 0xAu)) { // 0xCCFD JA skips the reset
                 bx = 0x82u;
                 cx = 0u;
             }
@@ -256,13 +257,17 @@ static void _obj_walk_wander(uint8_t *r)
     wr_le_u16(r + 0x10u, (uint16_t)dx);
     wr_le_u16(r + 8u, (uint16_t)cx);
     if (cx != 0u) return;
-    /* 1000:CC65: the (x-3, y-8) match against the eight fixed slots. */
+    /* 1000:CC65: the (x-3, y-8) match against the eight fixed slots.  The
+     * original reloads BX from [DI+2] at 1000:CC67, so the y is the record's
+     * own, not the frame the sub-handler returned. */
+    mx = (uint16_t)(ax - 3u);
+    my = (uint16_t)(rd_le_u16(r + 2u) - 8u);
     for (uint16_t i = 0; i < OBJ_STATIC; i++) {
         uint8_t *slot = _obj_array + i * OBJ_STRIDE;
         uint16_t type;
 
-        if ((uint32_t)(int16_t)(ax - 3) != rd_le_u16(slot + 0u)) continue;
-        if ((uint32_t)(int16_t)(bx - 8) != rd_le_u16(slot + 2u)) continue;
+        if (mx != rd_le_u16(slot + 0u)) continue;
+        if (my != rd_le_u16(slot + 2u)) continue;
         type = rd_le_u16(slot + 8u);
         if (type > 2u) return;
         if (rd_le_u16(r + 0xEu) == 0u) {

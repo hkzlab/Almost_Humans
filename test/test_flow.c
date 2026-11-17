@@ -3594,6 +3594,95 @@ int main(int argc, char **argv)
                         object_core_slot_class(2u) == 0u,
                     "D-229: behaviour 8's state-6 exit runs to 0x2E and frees the enemy");
             }
+            /* D-275: the behaviour-2 left leg walks down to +0xA before
+             * turning; 1000:CCFD's JA skips the reset only while
+             * x > [+0xA].  Runs last in the object block: the ticks it
+             * needs advance [0x4103], which the mover fixtures above
+             * observe. */
+            {
+                static uint8_t mw[640];
+                uint8_t *be;
+                uint32_t t;
+
+                memset(mw, 0, sizeof mw);
+                mw[1u * 32u + 1u] = 0xBEu; // x 16
+                mw[1u * 32u + 4u] = 0xBFu; // right end 64
+                object_core_init();
+                _check(object_spawn_load_terrain_objects(mw) == 9u &&
+                           object_core_slot_class(1u) == 2u,
+                       "D-275: the 0xBE wanderer is behaviour 2");
+                be = object_core_slot(9u);
+                _check(be && rd_le_u16(be + 0xA) == 16u &&
+                           rd_le_u16(be + 0xC) == 64u,
+                       "D-275: the walk window is 16..64");
+                /* Mid-leg with the divider at its expiry: one even frame
+                 * takes x 32 -> 31 and must keep state 1 because
+                 * 31 > +0xA. */
+                wr_le_u16(be + 0u, 32u);
+                wr_le_u16(be + 2u, 40u);
+                wr_le_u16(be + 4u, 0x82u);
+                wr_le_u16(be + 8u, 1u);
+                wr_le_u16(be + 0xEu, 1u);
+                wr_le_u16(be + 0x10u, 0u);
+                while ((object_core_frame_counter_probe() & 1u) != 0u)
+                    object_core_tick(NULL);
+                object_walk_update_list();
+                _check(rd_le_u16(be + 8u) == 1u && rd_le_u16(be + 0u) == 31u,
+                       "D-275: the left leg does not reset above +0xA");
+                object_core_tick(NULL);
+                /* It turns only at the +0xA endpoint. */
+                for (t = 0; t < 200u && rd_le_u16(be + 8u) == 1u; t++) {
+                    while ((object_core_frame_counter_probe() & 1u) != 0u)
+                        object_core_tick(NULL);
+                    object_walk_update_list();
+                    object_core_tick(NULL);
+                }
+                _check(rd_le_u16(be + 8u) == 0u &&
+                           (int16_t)rd_le_u16(be + 0u) <= 16,
+                       "D-275: the left leg turns at +0xA");
+            }
+            /* D-276: the state-0 contact matches the record's own y; the
+             * original reloads BX from [DI+2] at 1000:CC67. */
+            {
+                static uint8_t mw[640];
+                uint8_t *be, *slot;
+
+                memset(mw, 0, sizeof mw);
+                mw[1u * 32u + 1u] = 0xBEu;
+                mw[1u * 32u + 4u] = 0xBFu;
+                object_core_init();
+                (void)object_spawn_load_terrain_objects(mw);
+                be = object_core_slot(9u);
+                slot = object_core_slot(0u);
+                _check(be && slot, "D-276: the wanderer and a static slot");
+                while ((object_core_frame_counter_probe() & 1u) != 0u)
+                    object_core_tick(NULL);
+                /* One state-0 frame takes x 32 -> 33; the original then
+                 * matches (x-3, y-8) = (30, 32). */
+                wr_le_u16(be + 0u, 32u);
+                wr_le_u16(be + 2u, 40u);
+                wr_le_u16(be + 4u, 0x82u);
+                wr_le_u16(be + 8u, 0u);
+                wr_le_u16(be + 0xEu, 0u);
+                wr_le_u16(be + 0x10u, 0u);
+                /* The frame-based compare would use bx 0x83 - 8 = 123. */
+                wr_le_u16(slot + 0u, 30u);
+                wr_le_u16(slot + 2u, 32u);
+                wr_le_u16(slot + 4u, 0x1234u);
+                wr_le_u16(slot + 6u, 0u);
+                wr_le_u16(slot + 8u, 2u);
+                wr_le_u16(slot + 0xAu, 0x55u);
+                wr_le_u16(slot + 0xCu, 0x66u);
+                object_walk_update_list();
+                _check(rd_le_u16(be + 8u) == 2u && rd_le_u16(be + 0xEu) == 5u,
+                       "D-276: the contact stops the wanderer");
+                _check(rd_le_u16(slot + 8u) == 0x11u &&
+                           rd_le_u16(slot + 0xEu) == 0x1234u &&
+                           rd_le_u16(slot + 0x10u) == 2u &&
+                           rd_le_u16(slot + 0xAu) == 0u &&
+                           rd_le_u16(slot + 0xCu) == 0u,
+                       "D-276: the contact saves the slot's frame and type");
+            }
             object_render_publish_bank(NULL, 0u);
             free(bank);
         }
