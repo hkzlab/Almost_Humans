@@ -20,6 +20,23 @@ extern const OSystem g_osys_null;
 extern void osys_null_set_tick_limit(uint32_t n);
 
 /**
+ * @brief Select the view scale the core reads at video_init (--view).
+ *
+ * The tests call it before the module init pass to run the wide geometry
+ * headless.
+ *
+ * @param scale 1 (the default) or 2
+ */
+extern void osys_null_set_scale(int32_t scale);
+
+/**
+ * @brief Accessor: the field rows the last present carried.
+ *
+ * @return the rows
+ */
+extern uint32_t osys_null_field_rows(void);
+
+/**
  * @brief Inject the input state the next poll returns.
  *
  * @param in the input state

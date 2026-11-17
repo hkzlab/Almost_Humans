@@ -22,6 +22,13 @@
 static void _null_set_mode(VideoMode mode);
 
 /**
+ * @brief The null backend: the view scale the command line asked for.
+ *
+ * @return 1 or 2
+ */
+static int32_t _null_scale(void);
+
+/**
  * @brief The null backend: one of the two video pages.
  *
  * @param which the page selector
@@ -33,8 +40,9 @@ static uint8_t *_null_page(int32_t which);
  * @brief The null backend: run the present hook.
  *
  * @param which the page selector
+ * @param rows the field's row count
  */
-static void _null_present(int32_t which);
+static void _null_present(int32_t which, uint32_t rows);
 
 /**
  * @brief The null backend: record a palette range.
@@ -139,6 +147,8 @@ static InputState _the_input;    // injected input (idle by default)
 static const InputState *_script_states; // scripted input for smoke tests
 static uint32_t _script_n, _poll_count;
 static VideoMode _mode_set; // the core's last videoSetMode
+static uint32_t _field_rows; // the core's last present field
+static int32_t _view_scale = 1; // the view scale the core reads at video_init
 
 /* The frame-evidence dumps key on the poll count, which only the backend
  * knows (the smoke script is indexed by eventsPoll calls). */
@@ -157,22 +167,35 @@ static uint32_t _audio_load_size[_AUDIO_LOADS_MAX];
 static uint8_t _audio_tempo;
 
 const OSystem g_osys_null = {
-    _null_set_mode,     _null_page,          _null_present,
-    _null_set_palette,  _null_poll,          _null_timer_start,
-    _null_tick_sync,    _null_audio_install, _null_audio_load,
-    _null_audio_resume, _null_audio_stop,    _null_audio_sfx,
-    _null_audio_tempo,  _null_audio_tick,    _null_audio_driver_id,
-    _null_warn,         _null_fatal,         &g_fs_posix,
-    arch_mem_alloc,     arch_mem_free
+    _null_set_mode,        _null_page,         _null_present,
+    _null_set_palette,     _null_scale,        _null_poll,
+    _null_timer_start,     _null_tick_sync,    _null_audio_install,
+    _null_audio_load,      _null_audio_resume, _null_audio_stop,
+    _null_audio_sfx,       _null_audio_tempo,  _null_audio_tick,
+    _null_audio_driver_id, _null_warn,         _null_fatal,
+    &g_fs_posix,           arch_mem_alloc,     arch_mem_free
 };
 
 static void _null_set_mode(VideoMode mode) { _mode_set = mode; }
 
+static int32_t _null_scale(void) { return _view_scale; }
+
+void osys_null_set_scale(int32_t scale)
+{
+#if HUMANSRE_VIEW_SCALE > 1
+    _view_scale = scale == 2 ? 2 : 1;
+#else
+    (void)scale; // the classic build cannot double the viewport
+    _view_scale = 1;
+#endif
+}
+
 static uint8_t *_null_page(int32_t which) { return _pages[which & 1]; }
 
-static void _null_present(int32_t which)
+static void _null_present(int32_t which, uint32_t rows)
 {
     (void)which;
+    _field_rows = rows;
     if (_present_hook) _present_hook(_poll_count);
 }
 
@@ -268,6 +291,8 @@ uint8_t osys_null_audio_tempo(void) { return _audio_tempo; }
 uint32_t osys_null_audio_ticks(void) { return _audio_ticks; }
 
 VideoMode osys_null_video_mode(void) { return _mode_set; }
+
+uint32_t osys_null_field_rows(void) { return _field_rows; }
 
 void osys_null_on_present(void (*fn)(uint32_t poll)) { _present_hook = fn; }
 

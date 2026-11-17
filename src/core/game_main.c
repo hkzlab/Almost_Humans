@@ -753,7 +753,8 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
             else
                 snprintf(text, sizeof text, "%s",
                          game_string(GAME_STRING_GAMEFLOW_EXTINCT));
-            textpage_draw(osys->videoPage(0), text, -1, 0u, 0);
+            textpage_draw_level(osys->videoPage(0), video_page_w(),
+                                (uint32_t)video_scale(), text, -1, 0u, 0);
             if (input->lastKey || (input->joyBits & JOYBITS_FIRE)) {
                 /* scroll_map's exit 0xA0E1 re-renders the page twice:
                      * the caption box and its text are gone before the
@@ -827,7 +828,8 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
 #endif
         statusbar_set_active(0);
         level_tick();
-        textpage_draw(osys->videoPage(0), lv->goal, -1, 0u, 0);
+        textpage_draw_level(osys->videoPage(0), video_page_w(),
+                            (uint32_t)video_scale(), lv->goal, -1, 0u, 0);
         if (input->lastKey || (input->joyBits & JOYBITS_FIRE)) {
             _goal_page = 0;
 #if defined(HUMANSRE_TEST_PROBES)
@@ -1073,7 +1075,7 @@ int32_t game_main(const OSystem *osys)
     uint8_t quitRequested = 0;
     while (1) {
         if (!_game_frame(osys, &state, &last_tick, prev, &quitRequested)) break;
-        osys->videoPresent(0);
+        video_present_frame();
         prev = state;
     }
 

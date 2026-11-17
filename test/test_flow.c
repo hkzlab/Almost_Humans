@@ -294,12 +294,12 @@ int main(int argc, char **argv)
             textpage_publish_box(box);
             memset(page, 0, sizeof page);
             textpage_draw(page, "M", -1, 0u, 0);
-            _check(page[top * VIDEO_PAGE_W + left] != 0u,
+            _check(page[top * VIDEO_SCREEN_W + left] != 0u,
                    "the level text box's corner is at (left, top)");
-            _check(left > 0u && page[top * VIDEO_PAGE_W + left - 1u] == 0u,
+            _check(left > 0u && page[top * VIDEO_SCREEN_W + left - 1u] == 0u,
                    "the box does not bleed one pixel left of its corner");
             for (uint32_t x = 128u; x < 192u; x++)
-                if (page[(top + 15u) * VIDEO_PAGE_W + x]) ink++;
+                if (page[(top + 15u) * VIDEO_SCREEN_W + x]) ink++;
             _check(ink != 0u,
                    "the level text line draws at the box's top+15 row");
             textpage_publish_box(NULL);
@@ -325,7 +325,7 @@ int main(int argc, char **argv)
                 for (uint32_t x = 10u; x < 42u; x++) {
                     uint32_t want = spr[(x - 10u & 3u) * 256u + (y - 10u) * 8u +
                                         ((x - 10u) >> 2)];
-                    if (page[y * VIDEO_PAGE_W + x] != want) bad++;
+                    if (page[y * VIDEO_SCREEN_W + x] != want) bad++;
                 }
             _check(bad == 0u,
                    "object_render_blit_sprite's block stride is a word");
@@ -7991,7 +7991,7 @@ int main(int argc, char **argv)
                     for (uint32_t r = 4u; r < 14u; r++)
                         for (uint32_t x = 0x80u; x <= 0xC0u; x++)
                             if (disp[(0x14u + r) * 320u + x] & 0x20u) ink++;
-                    _check(hn == sizeof high && ink != 0u &&
+                    _check(hn >= VIDEO_SCREEN_BYTES && ink != 0u &&
                                disp[150u * 320u + 300u] ==
                                    high[150u * 320u + 300u],
                            "D-218: the header keeps high.bit and the title");

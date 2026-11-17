@@ -1,5 +1,6 @@
 #include "statusbar.h"
 #include "object/object.h"
+#include "video.h"
 #include "osystem.h"
 #include "res.h"
 #include "game_resources.h"
@@ -19,6 +20,45 @@
  * (152) over 48 ticks; crtc_set_scroll sets the line compare to 2*row-1. */
 static uint16_t _bar_split = 152u;
 
+#if HUMANSRE_VIEW_SCALE > 1
+/* The bar's own surface at scale 2: 320 x 40, one byte per pixel,
+ * bar-relative rows.  Every bar routine draws here at the original's scale;
+ * _bar_present() then copies it into the level surface - 1:1 for the loading
+ * screen, doubled for the 2x page (the bar keeps its size and placement and
+ * gains 2x the pixels).  The classic build does not compile the stage in: it
+ * draws straight into the page, as the original does. */
+static uint8_t _bar_img[VIDEO_SCREEN_W * BAR_ROWS];
+
+/* Where _bar_img goes.  NULL = the display page at the view scale; the
+ * level's loading screen points it at the 320x200 logical screen instead, so
+ * the bar is part of the screen the present doubles. */
+static uint8_t *_bar_dst;
+static uint32_t _bar_stride;
+static uint32_t _bar_rows;
+static uint32_t _bar_scale;
+static uint32_t _bar_top; // the resting top row, in destination pixels
+#endif
+
+void statusbar_set_surface(uint8_t *dst, uint32_t stride, uint32_t rows,
+                           uint32_t scale, uint32_t top)
+{
+#if HUMANSRE_VIEW_SCALE > 1
+    _bar_dst = dst;
+    _bar_stride = stride;
+    _bar_rows = rows;
+    _bar_scale = scale;
+    _bar_top = top;
+#else
+    /* the classic build owns no stage: the bar draws straight into page 0 */
+    (void)dst;
+    (void)stride;
+    (void)rows;
+    (void)scale;
+    (void)top;
+#endif
+}
+
+
 static uint8_t *_strip; // the four-plane panel _strip
 static uint8_t *_panel4; // LBM\PANEL4.BIT (the art + the palette)
 static uint32_t _p4_size; // its length: the charge bar reads 0x3EE0+
@@ -36,6 +76,7 @@ static uint8_t _active; // [0x5B12]: the bar's ticking gate
  * "do not compose".  draw_level_text (0x342B) parks it at 0xC9 for the level
  * end, and blit_bitmap_planes re-renders the world over those rows. */
 static uint8_t _bar_hidden;
+
 static uint8_t _time_up; // [0x5E44]: the countdown reached zero
 
 /* the countdown: values [0x5B19..1B], phases [0x5B1C/1E/20], slides
@@ -133,6 +174,87 @@ void statusbar_load_params(const uint8_t *in)
     _td_phase[1] = in[7];
 }
 
+/** @brief Copy the bar's 320x40 stage into the level surface at the reveal
+ * row, doubled when the surface is the 2x page. */
+static void _bar_present(void)
+{
+#if HUMANSRE_VIEW_SCALE > 1
+    uint8_t *dst = _bar_dst;
+    uint32_t stride = _bar_stride;
+    uint32_t rows = _bar_rows;
+    uint32_t s = _bar_scale;
+    uint32_t top = _bar_top;
+    int32_t reveal;
+
+    if (_bar_hidden) return;
+    if (!dst) {
+        dst = g_osys->videoPage(0);
+        stride = video_page_w();
+        rows = video_page_h();
+        s = (uint32_t)video_scale();
+        /* the field's bottom: 152 at scale 1, 320 at scale 2 */
+        if (!top) top = s == 1u ? BAR_FIRST_ROW : rows - BAR_ROWS * s;
+    }
+    if (!dst || !s) return;
+    /* the reveal slides the band up from below the field */
+    reveal = ((int32_t)_bar_split - (int32_t)BAR_FIRST_ROW) * (int32_t)s;
+    if ((int32_t)top + reveal < 0) return;
+    top = (uint32_t)((int32_t)top + reveal);
+    for (uint32_t r = 0; r < BAR_ROWS; r++) {
+        uint32_t row = top + r * s;
+        const uint8_t *src = _bar_img + r * VIDEO_SCREEN_W;
+
+        if (row >= rows) break;
+        for (uint32_t x = 0; x < VIDEO_SCREEN_W; x++) {
+            uint8_t v = src[x];
+
+            if (s == 1) {
+                dst[row * stride + x] = v;
+                continue;
+            }
+            dst[row * stride + 2u * x] = v;
+            dst[row * stride + 2u * x + 1u] = v;
+            dst[(row + 1u) * stride + 2u * x] = v;
+            dst[(row + 1u) * stride + 2u * x + 1u] = v;
+        }
+    }
+#endif
+}
+
+/** @brief The buffer the bar draws into, and its row mapping.
+ *
+ * Scale 2: the 320x40 stage at rows 0..39.  Scale 1: the display page
+ * directly, at the reveal row; the two are the original's single path.
+ */
+static uint8_t *_bar_canvas(void)
+{
+#if HUMANSRE_VIEW_SCALE > 1
+    return _bar_img;
+#else
+    return video_page(0); // the classic build draws straight into the page
+#endif
+}
+
+/** @brief The canvas row the bar's top line maps to. */
+static uint32_t _bar_top_row(void)
+{
+#if HUMANSRE_VIEW_SCALE > 1
+    return 0u;
+#else
+    return _bar_split;
+#endif
+}
+
+/** @brief The canvas's exclusive row limit (the bar clips to it). */
+static uint32_t _bar_limit_row(void)
+{
+#if HUMANSRE_VIEW_SCALE > 1
+    return BAR_ROWS;
+#else
+    return VIDEO_SCREEN_H; // the page; a reveal past the field clips itself
+#endif
+}
+
 int32_t statusbar_init(void) { return 0; }
 
 /**
@@ -147,7 +269,7 @@ static void _mark_row(uint8_t *page, uint32_t at, uint32_t x,
                       const uint8_t *src)
 {
     for (uint16_t j = 0; j < 8u; j++)
-        page[at * VIDEO_PAGE_W + x + j] = (uint8_t)(0xC0u | src[j]);
+        page[at * VIDEO_SCREEN_W + x + j] = (uint8_t)(0xC0u | src[j]);
 }
 
 /** @brief stamp_statusbar_plane_bits (1000:9846) + copy_8rows_2bytes_to_vga
@@ -165,8 +287,8 @@ static void _stamp_marks(uint8_t *page)
     for (uint16_t m = 0; m < 5u; m++) {
         uint16_t base = (uint16_t)(4u * (uint32_t)(ph[m] + _mark_bias[m]));
         for (uint16_t r = 0; r < 8u; r++) {
-            uint16_t at = _bar_split + 20u + r;
-            if (at >= VIDEO_PAGE_H_MODE13H) continue;
+            uint32_t at = _bar_top_row() + 20u + r; // bar row 20
+            if (at >= _bar_limit_row()) continue;
             _mark_row(page, at, _mark_x[m], _strip + base + 8u * r);
         }
     }
@@ -184,13 +306,14 @@ static void _stamp_marks(uint8_t *page)
 static void _draw_band(uint8_t *page)
 {
     for (uint16_t y = 0; y < BAR_ROWS; y++) {
-        uint16_t at = _bar_split + y;
-        uint8_t *dst;
+        uint32_t at = _bar_top_row() + y;
         const uint8_t *src = _panel4 + y * 320u;
+        uint8_t *dst;
 
-        if (at >= VIDEO_PAGE_H_MODE13H) continue;
-        dst = page + at * VIDEO_PAGE_W;
-        for (uint16_t x = 0; x < VIDEO_PAGE_W; x++)
+        if (at >= _bar_limit_row()) continue;
+        dst = page + at * VIDEO_SCREEN_W;
+
+        for (uint16_t x = 0; x < VIDEO_SCREEN_W; x++)
             dst[x] = (uint8_t)(0xC0u | src[x]);
     }
 }
@@ -199,10 +322,10 @@ void statusbar_charge_bar(uint32_t v)
 {
     static const uint8_t shade[10] = { 0xDF, 0xE0, 0xE1, 0xE2, 0xE3,
                                        0xE3, 0xE2, 0xE1, 0xE0, 0xDF };
-    uint8_t *page = g_osys->videoPage(0);
+    uint8_t *page = _bar_canvas();
     uint32_t i, r;
 
-    if (!page || !_panel4) return; // no bar art: nothing to draw
+    if (!_panel4) return; // no bar art: nothing to draw
     if (v < 0x100u) {
         uint16_t ax = (uint16_t)(0x60u + (v >> 1)); // 0x372E's `SHR AX,1`
         uint8_t col = (uint8_t)(ax >> 2), p = ax & 3u;
@@ -211,16 +334,17 @@ void statusbar_charge_bar(uint32_t v)
             uint16_t x = 4u * col + p;
 
             for (r = 0; r < 10u; r++) {
-                uint16_t y = (uint16_t)(_bar_split + 15u + r);
+                uint32_t y = _bar_top_row() + 15u + r; // bar row 15
 
-                if (x < VIDEO_PAGE_W && y < VIDEO_PAGE_H_MODE13H)
-                    page[y * VIDEO_PAGE_W + x] = shade[r];
+                if (x < VIDEO_SCREEN_W && y < _bar_limit_row())
+                    page[y * VIDEO_SCREEN_W + x] = shade[r];
             }
             if (++p == 4u) {
                 p = 0;
                 col++;
             }
         }
+        _bar_present();
         return;
     }
     {
@@ -236,20 +360,21 @@ void statusbar_charge_bar(uint32_t v)
             uint16_t x = 4u * col + p;
 
             for (r = 0; r < 15u; r++) {
-                uint16_t y = (uint16_t)(_bar_split + 10u + r);
+                uint32_t y = _bar_top_row() + 10u + r; // bar row 10
                 uint8_t a = _stage[src + r * 0x140u + i];
                 uint8_t b = _stage[src + r * 0x140u + i + 4u];
 
-                if (x < VIDEO_PAGE_W && y < VIDEO_PAGE_H_MODE13H)
-                    page[y * VIDEO_PAGE_W + x] = a;
-                if (x + 4u < VIDEO_PAGE_W && y < VIDEO_PAGE_H_MODE13H)
-                    page[y * VIDEO_PAGE_W + x + 4u] = b;
+                if (x < VIDEO_SCREEN_W && y < _bar_limit_row())
+                    page[y * VIDEO_SCREEN_W + x] = a;
+                if (x + 4u < VIDEO_SCREEN_W && y < _bar_limit_row())
+                    page[y * VIDEO_SCREEN_W + x + 4u] = b;
             }
             if (++p == 4u) {
                 p = 0;
                 col++;
             }
         }
+        _bar_present();
     }
 }
 
@@ -296,8 +421,8 @@ static void _frame_px(uint8_t *page, uint32_t x, uint32_t y, int32_t d,
 {
     uint32_t at;
     int32_t v;
-    if (x >= VIDEO_PAGE_W || y >= VIDEO_PAGE_H_MODE13H) return;
-    at = y * VIDEO_PAGE_W + x;
+    if (x >= VIDEO_SCREEN_W || y >= _bar_limit_row()) return;
+    at = y * VIDEO_SCREEN_W + x;
     if (mask) {
         page[at] = mask;
         return;
@@ -355,8 +480,8 @@ static void _draw_action_icon(uint8_t *page, uint32_t x, uint32_t y,
         for (uint16_t c = 0; c < 16u; c++) {
             uint8_t v = src[r * 16u + c];
             if (!v) continue;
-            if (x + c < VIDEO_PAGE_W && y + r < VIDEO_PAGE_H_MODE13H)
-                page[(y + r) * VIDEO_PAGE_W + x + c] = (uint8_t)(v + 0xC0u);
+            if (x + c < VIDEO_SCREEN_W && y + r < _bar_limit_row())
+                page[(y + r) * VIDEO_SCREEN_W + x + c] = (uint8_t)(v + 0xC0u);
         }
 }
 
@@ -377,9 +502,9 @@ static void _draw_actions(uint8_t *page)
     uint8_t cursor = object_sequence_action_byte(1u);
     uint16_t span = (uint16_t)((uint16_t)(count * 0x17u) +
                                (uint16_t)((uint8_t)(count - 1u) * 0x0Cu));
-    uint16_t ax = (uint16_t)(VIDEO_PAGE_W - span); // SUB 0x140 / NEG
+    uint16_t ax = (uint16_t)(VIDEO_SCREEN_W - span); // SUB 0x140 / NEG
     uint16_t x = (uint16_t)(ax >> 1); // AX is 16-bit and wraps below
-    uint16_t y = _bar_split + 5u;
+    uint32_t y = _bar_top_row() + 5u; // bar row 5
     uint16_t i = 0;
     uint16_t bp = count;
 
@@ -407,22 +532,23 @@ static void _draw_actions(uint8_t *page)
 static void _draw_band_slice(uint8_t *page)
 {
     for (uint16_t y = 0; y < BAR_ROWS; y++) {
-        uint16_t at = _bar_split + y;
+        uint32_t at = _bar_top_row() + y;
 
-        if (at >= VIDEO_PAGE_H_MODE13H) continue;
+        if (at >= _bar_limit_row()) continue;
         for (uint16_t x = 48u; x <= 271u; x++)
-            page[at * VIDEO_PAGE_W + x] =
+            page[at * VIDEO_SCREEN_W + x] =
                 (uint8_t)(0xC0u | _panel4[y * 320u + x]);
     }
 }
 
 void statusbar_charge_begin(void)
 {
-    uint8_t *page = g_osys->videoPage(0);
+    uint8_t *page = _bar_canvas();
 
-    if (!page || !_panel4) return;
+    if (!_panel4) return;
     _draw_band_slice(page);
-    _frame_box(page, 0x5Fu, _bar_split + 0x0Cu, 0x82u, 0x0Fu, NULL, 0u);
+    _frame_box(page, 0x5Fu, _bar_top_row() + 0x0Cu, 0x82u, 0x0Fu, NULL,
+               0u); // bar row 0x0C
     /* 1000:99D8's staging + the 0x9B7D trough: the second-half art at
      * 0x3EE0+len reads the staged trough, not clean panel4.  The staging
      * exists only for the charge that built it (the 0x99D8 frame);
@@ -432,17 +558,19 @@ void statusbar_charge_begin(void)
     for (uint16_t i = 0; i < STAGE_BYTES; i++)
         _stage[i] = (uint8_t)(0xC0u | _panel4[i]);
     _frame_box(_stage, 0x5Fu, 0x0Cu, 0x82u, 0x0Fu, NULL, 0u);
+    _bar_present();
 }
 
 void statusbar_charge_end(void)
 {
-    uint8_t *page = g_osys->videoPage(0);
+    uint8_t *page = _bar_canvas();
 
     g_osys->memFree(_stage);
     _stage = NULL;
-    if (!page || !_panel4) return;
+    if (!_panel4) return;
     _draw_band_slice(page);
     _draw_actions(page);
+    _bar_present();
 }
 
 /** @brief tick_state_machine_5b22 (1000:9767): the tribe counter.  The value
@@ -569,12 +697,11 @@ static void _clock_tick(void)
 
 void statusbar_tick(void)
 {
-    uint8_t *page;
+    uint8_t *page = _bar_canvas();
 
     if (_bar_hidden) return; // 1000:342B: [0x5B0A] = 0xC9, no split
     if (_bar_split > 152u) _bar_split--; // 1000:331E, one per display period
-    page = g_osys->videoPage(0);
-    if (!_strip || !_panel4 || !page) return;
+    if (!_strip || !_panel4) return;
 
     _draw_band(page);
     /* 1000:990A is not called inside the charge loop: the entry's 0x9A18
@@ -612,6 +739,7 @@ void statusbar_tick(void)
     }
 
     _stamp_marks(page);
+    _bar_present();
 }
 
 void statusbar_start(uint16_t packedTimeBcd, uint16_t tribeMembers,
@@ -708,7 +836,7 @@ void statusbar_set_active(uint8_t on) { _active = on ? 1 : 0; }
 /* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 void statusbar_set_split(uint16_t row)
 {
-    _bar_split = row > VIDEO_PAGE_H_MODE13H ? VIDEO_PAGE_H_MODE13H : row;
+    _bar_split = row > VIDEO_SCREEN_H ? VIDEO_SCREEN_H : row;
     _bar_hidden = 0; // an explicit split re-composes it
 }
 #endif /* HUMANSRE_TEST_PROBES */

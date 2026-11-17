@@ -1,8 +1,8 @@
 #include "object_internal.h"
 #include "object_core.h"
 #include "object_render.h"
-#include "osystem.h"
 #include "byteorder.h"
+#include "video.h"
 #include <string.h>
 
 /* forward declarations */
@@ -255,13 +255,13 @@ static void _blit_sprite(uint8_t *page, const uint8_t *src, uint32_t rows,
 
     for (uint16_t row = 0; row < rows; row++) {
         int32_t py = y + (int32_t)row;
-        if (py < 0 || py >= (int32_t)VIDEO_PAGE_H_MODE13H) continue;
+        if (py < 0 || py >= (int32_t)video_page_h()) continue;
         for (uint16_t col = 0; col < cols; col++) {
             uint8_t v = src[(col & 3u) * block + row * w + (col >> 2)];
             int32_t px = x + (int32_t)col;
             if (!v) continue;
-            if (px < 0 || px >= (int32_t)VIDEO_PAGE_W) continue;
-            page[(uint32_t)py * VIDEO_PAGE_W + (uint32_t)px] = v;
+            if (px < 0 || px >= (int32_t)video_page_w()) continue;
+            page[(uint32_t)py * video_page_w() + (uint32_t)px] = v;
         }
     }
 }
@@ -627,11 +627,12 @@ static void _obj_render_span_draw(uint8_t *page, int32_t scrollX,
             int32_t px = (int32_t)x - scrollX;
             int32_t py = row - scrollY;
 
-            if (py < 0 || py >= (int32_t)VIDEO_PAGE_H_MODE13H) continue;
-            if (px >= 0 && px < (int32_t)VIDEO_PAGE_W)
-                page[(uint32_t)py * VIDEO_PAGE_W + (uint32_t)px] = 0x18u;
-            if (px + 1 >= 0 && px + 1 < (int32_t)VIDEO_PAGE_W)
-                page[(uint32_t)py * VIDEO_PAGE_W + (uint32_t)(px + 1)] = 0x18u;
+            if (py < 0 || py >= (int32_t)video_page_h()) continue;
+            if (px >= 0 && px < (int32_t)video_page_w())
+                page[(uint32_t)py * video_page_w() + (uint32_t)px] = 0x18u;
+            if (px + 1 >= 0 && px + 1 < (int32_t)video_page_w())
+                page[(uint32_t)py * video_page_w() + (uint32_t)(px + 1)] =
+                    0x18u;
         }
     }
 }

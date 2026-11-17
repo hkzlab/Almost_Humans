@@ -48,6 +48,27 @@ void textpage_publish_box(const uint8_t *bank);
 void textpage_draw(uint8_t *page, const char *text, int32_t cursorRow,
                    uint32_t cursorCol, int32_t grid);
 
+/**
+ * @brief textpage_draw into a display page that may be doubled.
+ *
+ * The block is drawn at the original's scale into a scratch, then its box
+ * rectangle is copied into `page` at `scale` (1:1 at 1, doubled at 2).  The
+ * box is opaque over its own rectangle and every read (the outline) stays
+ * inside it, so the result is exactly textpage_draw's pixels - centred on the
+ * wider page because the whole rectangle's coordinates scale.
+ *
+ * @param page      8bpp display page, `stride` bytes per scanline
+ * @param stride    the destination row stride (video_page_w())
+ * @param scale     1 or 2 (the view scale)
+ * @param text      CR-separated, NUL-terminated block; not modified
+ * @param cursorRow 0-based option row for the marker pair; < 0 draws no markers
+ * @param cursorCol 0-based cell in that row (3 chars per cell); grid only
+ * @param grid      non-zero: markers bracket the number cell; 0: box edges
+ */
+void textpage_draw_level(uint8_t *page, uint32_t stride, uint32_t scale,
+                         const char *text, int32_t cursorRow,
+                         uint32_t cursorCol, int32_t grid);
+
 /** @brief One centred line whose glyph pixels are a solid palette index: it
  * writes, replacing whatever is underneath.
  *

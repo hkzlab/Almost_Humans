@@ -277,7 +277,7 @@ static void _flip_page(void) // 87f8
 static void _bake_page(const uint8_t *bit, uint32_t pagebase)
 {
     video_vram_blit(bit, UINT32_MAX, (uint16_t)(pagebase + 8u), 88u, 80u,
-                    VIDEO_PAGE_H_MODE13H);
+                    VIDEO_SCREEN_H);
 }
 
 /**
@@ -940,7 +940,7 @@ uint8_t party_intro_tick(const InputState *in)
 
     /* the compose (the attract's contract): the display page into the
      * flat 320x200 page 0 for videoPresent */
-    party_intro_compose(video_page(0));
+    party_intro_compose(video_screen());
 
     if (_phase == PH_DONE) return 0; // the screen exited
     return 1;
@@ -949,5 +949,5 @@ uint8_t party_intro_tick(const InputState *in)
 void party_intro_compose(uint8_t *pg)
 {
     video_vram_present(pg, (uint16_t)(_page_disp + 8u), 88u, 0u,
-                       VIDEO_PAGE_H_MODE13H);
+                       VIDEO_SCREEN_H);
 }

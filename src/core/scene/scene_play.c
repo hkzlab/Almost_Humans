@@ -181,7 +181,7 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
         uint32_t dailySize = 0;
         uint8_t *daily = res_load_chunk(
             game_resource_name(GAME_RES_LBM_DAILY_BIT), &dailySize, NULL);
-        uint8_t *page = video_page(0);
+        uint8_t *page = video_screen();
         if (!daily) {
             _scene_unload();
             return -1;
@@ -209,7 +209,7 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
     _scoops_buf = res_load_chunk(game_resource_name(GAME_RES_APL_SCOOPS_APL),
                                  &_scoops_size, NULL);
     if (_scoops_buf) {
-        uint8_t *page = video_page(0);
+        uint8_t *page = video_screen();
         uint32_t srcOff = 0x400u + (uint32_t)_scene_bg_table[index] * 0xE00u;
         if (srcOff + 0xE00u <= _scoops_size) {
             /* 1000:B1CF: 56 rows of 64 bytes at 0x8270 (= row 104, x 112 of
@@ -219,7 +219,7 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
              * thumbnail 64 px left per row. */
             const uint8_t *src = _scoops_buf + srcOff;
             for (uint16_t row = 0; row < 0x38u; row++) {
-                memcpy(page + 0x8270u + row * VIDEO_PAGE_W, src, 0x40u);
+                memcpy(page + 0x8270u + row * VIDEO_SCREEN_W, src, 0x40u);
                 src += 0x40u;
             }
         }
@@ -235,10 +235,10 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
             game_string(GAME_STRING_SCENE_HEADLINE_0 + index);
 
         if (headline[0])
-            textpage_draw_line_mask(video_page(0), headline, 0x41u, 0x10u);
+            textpage_draw_line_mask(video_screen(), headline, 0x41u, 0x10u);
     }
 
-    g_osys->videoPresent(0);
+    video_present_frame();
 
     /* 1000:B0DA: after the panel is drawn and flipped, its first 0x20 DAC
      * entries fade from the previous screen's palette to daily.bit's
@@ -256,6 +256,10 @@ uint8_t scene_play_level_intro(uint16_t introIndex)
     if (frontend_option(FRONTEND_OPT_ANIM) != 0u) return 0;
     if (introIndex == 0xFFu) return 0; // no cutscene for this level
 
+    /* the cutscene is a 320x200 screen: the mode's own field, so a run after
+     * a level (whose field is its whole page at scale 2) keeps the classic
+     * crop (D-274) */
+    video_set_field(0u);
     if (introIndex != _scene_level) { // (re)start on level change
         _scene_level = introIndex;
         if (_scene_start(introIndex, 1)) {
@@ -359,9 +363,9 @@ uint8_t scene_play_level_intro(uint16_t introIndex)
                     _scene_phase = SCENE_DONE;
                     return 0;
                 }
-                _scene_al_expand(_obj_buf, (uint32_t)sz, video_page(0),
+                _scene_al_expand(_obj_buf, (uint32_t)sz, video_screen(),
                                  PAGE_SIZE);
-                g_osys->videoPresent(0);
+                video_present_frame();
             }
             /* 1000:B263: now the DAC fades to the script object's palette at
              * 0x6FEA (= _script_buf+2): the whole 256 entries div 0x19 (or 4
@@ -394,9 +398,9 @@ uint8_t scene_play_level_intro(uint16_t introIndex)
                     _scene_phase = SCENE_CHAIN;
                     break;
                 }
-                _scene_al_expand(_obj_buf, (uint32_t)sz, video_page(0),
+                _scene_al_expand(_obj_buf, (uint32_t)sz, video_screen(),
                                  PAGE_SIZE);
-                g_osys->videoPresent(0);
+                video_present_frame();
                 _obj_wait =
                     _scene_fast ? 1u : 6u; // wait_flag_timeout 1000:B2D3
                 _obj_index++;

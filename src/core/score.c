@@ -16,7 +16,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#define SCORE_PAGE VIDEO_PAGE_BYTES
+#define SCORE_PAGE VIDEO_SCREEN_BYTES
 
 /* --- 1000:46FC / 0x4697 / 0x46A3: the NEW RECORD stamp -------------------
  *
@@ -325,8 +325,8 @@ void score_stamp_draw(uint8_t *page, uint8_t on)
                 uint8_t py = (uint8_t)(STAMP_ROW + r);
                 uint16_t px = u16(STAMP_COL * 4u + j);
 
-                if (py >= VIDEO_PAGE_H_MODE13H || px >= VIDEO_PAGE_W) continue;
-                page[py * VIDEO_PAGE_W + px] = _stamp_under[r * 64u + j];
+                if (py >= VIDEO_SCREEN_H || px >= VIDEO_SCREEN_W) continue;
+                page[py * VIDEO_SCREEN_W + px] = _stamp_under[r * 64u + j];
             }
         return;
     }
@@ -337,8 +337,8 @@ void score_stamp_draw(uint8_t *page, uint8_t on)
             uint16_t px = u16(STAMP_COL * 4u + j);
 
             _stamp_under[r * 64u + j] =
-                (py < VIDEO_PAGE_H_MODE13H && px < VIDEO_PAGE_W)
-                    ? page[py * VIDEO_PAGE_W + px]
+                (py < VIDEO_SCREEN_H && px < VIDEO_SCREEN_W)
+                    ? page[py * VIDEO_SCREEN_W + px]
                     : 0u;
         }
     /* 1000:46FC: apl\RECORD.SPR is chunky 64x24; the four passes read
@@ -350,9 +350,8 @@ void score_stamp_draw(uint8_t *page, uint8_t on)
             uint8_t py = (uint8_t)(STAMP_ROW + r);
             uint16_t px = u16(STAMP_COL * 4u + j);
 
-            if (!v || py >= VIDEO_PAGE_H_MODE13H || px >= VIDEO_PAGE_W)
-                continue;
-            page[py * VIDEO_PAGE_W + px] = (uint8_t)(v + 0xC0u);
+            if (!v || py >= VIDEO_SCREEN_H || px >= VIDEO_SCREEN_W) continue;
+            page[py * VIDEO_SCREEN_W + px] = (uint8_t)(v + 0xC0u);
         }
 }
 
@@ -389,9 +388,9 @@ static void _score_digit_block(uint8_t *page, uint32_t digit, int32_t x,
             int32_t dx = x + (int32_t)px;
             int32_t dy = y + (int32_t)r;
 
-            if (dx >= 0 && dx < (int32_t)VIDEO_PAGE_W && dy >= 0 &&
-                dy < (int32_t)VIDEO_PAGE_H_MODE13H)
-                page[(uint32_t)dy * VIDEO_PAGE_W + (uint32_t)dx] = v;
+            if (dx >= 0 && dx < (int32_t)VIDEO_SCREEN_W && dy >= 0 &&
+                dy < (int32_t)VIDEO_SCREEN_H)
+                page[(uint32_t)dy * VIDEO_SCREEN_W + (uint32_t)dx] = v;
         }
 }
 
@@ -459,18 +458,17 @@ static void _score_num_block(uint8_t *page, uint32_t digit, uint32_t bp,
     uint16_t row = (uint16_t)(off / 88u), col = off % 88u;
     uint16_t px = col * 4u; // one address = 4 px
 
-    if (!page || !_score_num || digit > 19u || row >= VIDEO_PAGE_H_MODE13H)
-        return;
+    if (!page || !_score_num || digit > 19u || row >= VIDEO_SCREEN_H) return;
     /* 1000:450F: 8 rows x 2 addresses.  Pass p takes src[slot + r*8 + p] and
      * src[slot + r*8 + 4 + p], so pixel x of the row is src[r*8 + x]: the
      * slot is a chunky 8x8 image, stored as v | 0xC0. */
     for (uint16_t r = 0; r < 8u; r++) {
         uint16_t y = row + r;
 
-        if (y >= VIDEO_PAGE_H_MODE13H) break;
+        if (y >= VIDEO_SCREEN_H) break;
         for (uint16_t x = 0; x < 8u; x++) {
-            if (px + x >= VIDEO_PAGE_W) continue;
-            page[y * VIDEO_PAGE_W + px + x] =
+            if (px + x >= VIDEO_SCREEN_W) continue;
+            page[y * VIDEO_SCREEN_W + px + x] =
                 (uint8_t)(_score_num[digit * 0x40u + bp + r * 8u + x] | 0xC0u);
         }
     }
@@ -488,15 +486,50 @@ void score_draw_num3(uint8_t *page, uint32_t ax, uint16_t value, uint32_t bx,
 
 void score_draw_card(uint8_t *page)
 {
-    if (!page || !_score_bit || _score_size < VIDEO_PAGE_BYTES) return;
+    if (!page || !_score_bit || _score_size < VIDEO_SCREEN_BYTES) return;
     /* 1000:4403: SI walks the chunky 320-byte row at stride 4 and DI is the
      * 4-px page group, so pixel 4j+p = src[4j+p] | 0xC0.  A zero byte is LEFT
      * ALONE (the level caption). */
-    for (uint16_t i = 0; i < VIDEO_PAGE_BYTES; i++) {
+    for (uint16_t i = 0; i < VIDEO_SCREEN_BYTES; i++) {
         uint8_t v = _score_bit[i];
 
         if (v) page[i] = (uint8_t)(v + 0xC0u);
     }
+}
+
+/** @brief Composite the 320x200 score screen onto the display page.
+ *
+ * The original's score card is drawn straight over the level's page with a
+ * zero source byte meaning "keep the level".  In the doubled view the level's
+ * page is native (640x400) while the card is a 320x200 overlay, so its
+ * non-zero pixels are written as 2x2 blocks over page 0 and the card's zeros
+ * keep the level.  At scale 1 this is a no-op: the screen *is* the page.
+ *
+ * @param scr the logical screen the card was drawn on
+ */
+static void _score_flush(uint8_t *scr)
+{
+#if HUMANSRE_VIEW_SCALE > 1
+    uint8_t *page;
+    uint32_t w, x, y;
+
+    if (!scr || video_scale() != 2) return;
+    page = video_page(0); // also marks the display page as the frame's surface
+    if (!page) return;
+    w = video_page_w();
+    for (y = 0; y < VIDEO_SCREEN_H; y++)
+        for (x = 0; x < VIDEO_SCREEN_W; x++) {
+            uint8_t v = scr[y * VIDEO_SCREEN_W + x];
+
+            if (!v) continue;
+            page[(2u * y) * w + 2u * x] = v;
+            page[(2u * y) * w + 2u * x + 1u] = v;
+            page[(2u * y + 1u) * w + 2u * x] = v;
+            page[(2u * y + 1u) * w + 2u * x + 1u] = v;
+        }
+#else
+    (void)scr;
+#endif
 }
 
 uint8_t score_begin(uint32_t value)
@@ -517,11 +550,22 @@ uint8_t score_begin(uint32_t value)
     _score_size = 0;
     _score_bit = res_load_chunk(game_resource_name(GAME_RES_LBM_SCORE_BIT),
                                 &_score_size, NULL);
-    uint8_t *page = video_page(0);
+    uint8_t *page;
+
+    /* The frozen level page is the card's background.  In the doubled view
+     * its world sits at the top of the field (the level's own framing), so
+     * centre it first: the score screen has no bar and no camera. */
+    level_center_page();
+    page = video_screen();
     /* The page is NOT cleared: check_highscore draws the card straight over
      * whatever the level's caption left on it (draw_level_text 0x33A3 ends
      * with the page drawn and the DAC faded to black), and
-     * reblit_framebuffer_88 skips a zero source byte. */
+     * reblit_framebuffer_88 skips a zero source byte.  In the doubled view the
+     * card is staged on the logical screen instead, which must start empty so
+     * its zero bytes composite as "keep the level". */
+#if HUMANSRE_VIEW_SCALE > 1
+    if (video_scale() > 1) memset(page, 0, VIDEO_SCREEN_BYTES);
+#endif
     /* 1000:4278..4284 or_region_c0 runs with ES = [0x1DDA] = APL\SCORE.SPR,
      * BP = 0, BX = 0x100 and CX = 0xA, i.e. it ORs 0xC0 over BX*CX = 0xA00
      * bytes = the sheet's ten 0x100-byte digit slots, not into the page.
@@ -571,6 +615,7 @@ uint8_t score_begin(uint32_t value)
     /* 1000:4471: the three counter columns (the level term, the time term and
      * the running total) in SCORE.SPR's digits. */
     _score_draw_columns(page);
+    _score_flush(page);
     /* The NEW RECORD stamp is apl\record.spr at row 176, px 128..191
      * (0x3CA0 = 176*88 + 32); blink_tick redraws it. */
 
@@ -596,7 +641,7 @@ uint8_t score_tick(const InputState *in)
             return 1;
         }
         {
-            uint8_t *page = video_page(0);
+            uint8_t *page = video_screen();
             uint8_t alive;
 
             /* tick_score_counters (1000:475D): draw_score_columns, blink_tick,
@@ -612,6 +657,7 @@ uint8_t score_tick(const InputState *in)
                 if (page && score_blink_on() != was)
                     score_stamp_draw(page, score_blink_on());
             }
+            _score_flush(page);
             alive = score_counters_run();
 
             /* check_highscore's loop: while ([0x1DC8] & 0x8000) == 0, and it

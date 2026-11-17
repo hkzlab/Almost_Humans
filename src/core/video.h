@@ -35,12 +35,76 @@ void video_arena_release(void);
 void video_tick(void);
 
 /**
- * @brief Accessor: one 320x200x8 display page.
+ * @brief Accessor: one display page (the active size, video_page_w() by
+ * video_page_h(), 8bpp).  Handing out page 0 marks the frame's surface as the
+ * display page rather than the logical screen.
  *
  * @param which the page selector (0 or 1)
  * @return the selected display page
  */
 uint8_t *video_page(int32_t which);
+
+/**
+ * @brief Accessor: the logical 320x200 screen the original draws on.
+ *
+ * Every screen that is not the level draws here.  At scale 1 it *is* page 0;
+ * at scale 2 it is a separate buffer that video_present_frame() expands into
+ * page 0, so those screens look exactly as they do at scale 1.  A
+ * HUMANSRE_VIEW_SCALE=1 build compiles the buffer out.
+ *
+ * @return the logical screen
+ */
+uint8_t *video_screen(void);
+
+/**
+ * @brief Accessor: the view scale, 1 (the original's framing) or 2.
+ *
+ * @return the scale
+ */
+int32_t video_scale(void);
+
+/**
+ * @brief Accessor: the display page's active width (320 or 640).
+ *
+ * @return the width in pixels
+ */
+uint32_t video_page_w(void);
+
+/**
+ * @brief Accessor: the display page's active height (200 or 400).
+ *
+ * @return the height in rows
+ */
+uint32_t video_page_h(void);
+
+/**
+ * @brief Present this frame: expand the logical screen into page 0 first when
+ * that was the surface drawn this frame (scale 2 only), then present page 0
+ * as the current field.
+ *
+ * At scale 1 it is the plain videoPresent(0) the original's CRTC flip is.
+ */
+void video_present_frame(void);
+
+/**
+ * @brief Set the field's scan-out rows for the current screen.
+ *
+ * Defaults to the mode's field (192 * scale in mode X, 200 * scale in mode
+ * 13h) and is reset by video_set_mode.  The level sets it to its own field
+ * (`level_field_rows()`): the whole 400-row page at scale 2, because its bar
+ * ends at the page's bottom.  A no-op in a HUMANSRE_VIEW_SCALE=1 build.
+ *
+ * @param rows the field rows
+ */
+void video_set_field(uint32_t rows);
+
+/**
+ * @brief Accessor: the field's scan-out rows for the current screen.
+ *
+ * @return the rows
+ */
+uint32_t video_field_rows(void);
+
 
 /**
  * @brief The four pixels at one A000 address.

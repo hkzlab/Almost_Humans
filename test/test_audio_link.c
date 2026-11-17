@@ -51,7 +51,13 @@ static uint8_t *_vpage(int32_t which)
     return page;
 }
 
-static void _vpresent(int32_t which) { (void)which; }
+static void _vpresent(int32_t which, uint32_t rows)
+{
+    (void)which;
+    (void)rows;
+}
+
+static int32_t _vscale(void) { return 1; }
 
 static void _vpalette(const uint8_t *p6, uint32_t first, uint32_t n)
 {
@@ -118,10 +124,10 @@ static void _fatal(const char *msg)
 }
 
 static const OSystem _osys = {
-    _vset,   _vpage, _vpresent,   _vpalette,      _poll,
-    _tstart, _tsync, _install,    _load,          _resume,
-    _stop,   _sfx,   _tempo,      _tick,          _driver_id,
-    _warn,   _fatal, &g_fs_posix, arch_mem_alloc, arch_mem_free
+    _vset,       _vpage,         _vpresent,    _vpalette,  _vscale, _poll,
+    _tstart,     _tsync,         _install,     _load,      _resume, _stop,
+    _sfx,        _tempo,         _tick,        _driver_id, _warn,   _fatal,
+    &g_fs_posix, arch_mem_alloc, arch_mem_free
 };
 
 /**

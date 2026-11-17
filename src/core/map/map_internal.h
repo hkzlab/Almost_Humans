@@ -10,7 +10,7 @@
 
 #include <stdint.h>
 
-#define MAP_PAGE VIDEO_PAGE_BYTES
+#define MAP_PAGE VIDEO_SCREEN_BYTES
 #define NAME_MAX 13u
 
 /* 1000:0CBE's display list at [0x596]: {target x,y, current x,y}. */

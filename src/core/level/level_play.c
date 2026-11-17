@@ -67,6 +67,10 @@ void level_begin(void)
      * puts it BEFORE the loading screen (level_video_init 1000:3083,
      * load_sprite_pal 1000:3086). */
     palette_build_fade(0u, 0x100u, 2u, _zero_pal); // 1000:32F4
+    /* the chain's fades draw the bar before the loading screen sets the
+     * mode, so the field is set here too (level_loading_begin repeats it
+     * after its mode set) */
+    video_set_field(level_field_rows());
     _start_phase = LVSTART_VIDEO_BASE;
 }
 
@@ -76,28 +80,30 @@ uint8_t level_starting(void)
 void level_note_input(const InputState *in)
 { _level_joy = in ? in->joyBits : 0u; }
 
-/** @brief The A000 window -> the page: one 320-pixel row per 88-address row.
- * The flat model makes a row's four pixel bytes contiguous, so each row is
- * a straight copy. */
+/** @brief The A000 window -> the page: one field-width pixel row per plane
+ * row.  The flat model makes a row's four pixel bytes contiguous, so each row
+ * is a straight copy. */
 void _level_page_present(void)
 {
-    uint8_t *page = g_osys->videoPage(0);
+    uint8_t *page = video_page(0);
+    uint32_t w = video_page_w();
+    uint32_t pitch = level_plane_pitch();
 
     if (!page) return;
-    for (uint16_t y = 0; y < VIDEO_PAGE_H_MODE13H; y++)
-        memcpy(page + y * VIDEO_PAGE_W, video_vram_group((uint16_t)(y * 88u)),
-               VIDEO_PAGE_W);
+    for (uint32_t y = 0; y < video_page_h(); y++)
+        memcpy(page + y * w, video_vram_group((uint16_t)(y * pitch)), w);
 }
 
 /* Bake the visible page back into the planar work buffer. */
 void _level_page_bake(void)
 {
-    const uint8_t *page = g_osys->videoPage(0);
+    const uint8_t *page = video_page(0);
+    uint32_t w = video_page_w();
+    uint32_t pitch = level_plane_pitch();
 
     if (!page) return;
-    for (uint16_t y = 0; y < VIDEO_PAGE_H_MODE13H; y++)
-        memcpy(video_vram_group((uint16_t)(y * 88u)), page + y * VIDEO_PAGE_W,
-               VIDEO_PAGE_W);
+    for (uint32_t y = 0; y < video_page_h(); y++)
+        memcpy(video_vram_group((uint16_t)(y * pitch)), page + y * w, w);
 }
 
 /** @brief The per-frame world pass: present_and_blit (1000:A0E1).
@@ -119,42 +125,46 @@ static void _render_world(void)
      * never scrolls.) */
     uint16_t vx = level_view_x(), vy = level_view_y();
     const uint8_t *world = _level_world();
+    uint32_t w = video_page_w();
+    uint32_t pitch = level_plane_pitch();
+    uint32_t margin = level_view_margin();
+    uint32_t cols = w - 2u * margin;
+    int32_t scrollX = level_view_scroll_x();
 
-    for (uint16_t y = 0; y < VIDEO_PAGE_H_MODE13H; y++) {
-        uint16_t wy = (uint16_t)(vy + y);
-        uint8_t *dst = video_vram_group((uint16_t)(y * 88u));
-        uint16_t n;
+    for (uint32_t y = 0; y < video_page_h(); y++) {
+        uint8_t *dst = video_vram_group((uint16_t)(y * pitch));
+        uint32_t wy = (uint32_t)vy + y;
 
-        if (wy >= WORLD_H || vx >= WORLD_W) {
-            memset(dst, 0, VIDEO_PAGE_W);
-            continue;
+        memset(dst, 0, w);
+        if (wy < WORLD_H && vx < WORLD_W) {
+            uint32_t n = WORLD_W - vx;
+
+            if (n > cols) n = cols;
+            memcpy(dst + margin, world + wy * WORLD_W + vx, n);
         }
-        n = (uint16_t)(WORLD_W - vx);
-        if (n > VIDEO_PAGE_W) n = VIDEO_PAGE_W;
-        memcpy(dst, world + wy * WORLD_W + vx, n);
-        if (n < VIDEO_PAGE_W) memset(dst + n, 0, VIDEO_PAGE_W - n);
     }
     _level_spark_frame();
-    uint8_t *page = g_osys->videoPage(0);
+    uint8_t *page = video_page(0);
     _level_page_present();
 
     /* the object pass (render_objects 1000:5D56): the placed records' base
      * sprites over the terrain, before the bar */
-    object_render(page, (int32_t)vx, (int32_t)vy);
+    object_render(page, scrollX, (int32_t)vy);
 
     /* the entity pass (render_objects 1000:5D56: 0x6421 then 0x5823) */
-    entity_render(page, (int32_t)vx, (int32_t)vy);
+    entity_render(page, scrollX, (int32_t)vy);
 
     /* update_object_list's tail: the two TER.DAT slots (1000:5C2F), off on
      * shipped data because 1000:4CAB disables them */
-    object_render_ter(page, (int32_t)vx, (int32_t)vy);
+    object_render_ter(page, scrollX, (int32_t)vy);
 
     /* render_objects' tail (1000:5F54): the 0xA9 background sprites */
-    level_draw_bg_sprites(page, (int32_t)vx, (int32_t)vy);
+    level_draw_bg_sprites(page, scrollX, (int32_t)vy);
 
     /* the bar over the _world rows (the original's band lives below the
      * 192-row visible window via the line compare; the flat page redraws
      * band + marks per tick instead) */
+    statusbar_set_surface(NULL, 0u, 0u, 0u, level_bar_row());
     statusbar_tick();
 }
 
@@ -164,10 +174,25 @@ void level_redraw_page(void)
     _render_world();
 }
 
+void level_center_page(void)
+{
+    uint8_t *page = video_page(0);
+    uint32_t w = video_page_w();
+    uint32_t h = video_page_h();
+    uint32_t pad = h > WORLD_H ? (h - WORLD_H) / 2u : 0u;
+
+    if (!page || !pad) return;
+    memmove(page + pad * w, page, WORLD_H * w);
+    memset(page, 0, pad * w);
+    memset(page + (pad + WORLD_H) * w, 0, (h - pad - WORLD_H) * w);
+}
+
 void level_end_redraw_page(void)
 {
     if (!_level_is_loaded()) return;
-    if (level_view_y() > 0x78u) level_set_view(level_view_x(), 0x78u);
+    if (level_view_y() > 0x78u)
+        level_set_view(level_view_x(),
+                       level_view_max_y() < 0x78u ? level_view_max_y() : 0x78u);
     _render_world();
 }
 
@@ -227,8 +252,17 @@ uint8_t level_tick(void)
              * one page, so its first WARMUP tick is that pre-draw. */
             /* 1000:3346/334C/334F: the display window's seeds - the eight
              * update_world frames run with the camera at (0x60,0x50), and
-             * 1000:5CB6 walks it onto the acting record at <=4 px a frame. */
-            level_set_view(0x60u, 0x50u);
+             * 1000:5CB6 walks it onto the acting record at <=4 px a frame.
+             * The seed is clamped to the pan range: at scale 2 the range is
+             * empty, so the view starts centred on the whole map and never
+             * moves (D-274). */
+            {
+                uint16_t sx = 0x60u, sy = 0x50u;
+
+                if (sx > level_view_max_x()) sx = level_view_max_x();
+                if (sy > level_view_max_y()) sy = level_view_max_y();
+                level_set_view(sx, sy);
+            }
             object_sequence_level_start_record(); // 1000:3355
             _world_updates = 1; // 1000:336C: [0xC] = 0xFF
             _render_world(); // 1000:4C28's pre-draw (one page)
@@ -301,6 +335,7 @@ uint8_t level_tick(void)
         _start_phase != LVSTART_PLAYING) {
         /* the bar is up from the mode reset onward (1000:952C/957B), so it is
          * redrawn here while the _world waits for its black frames */
+        statusbar_set_surface(NULL, 0u, 0u, 0u, level_bar_row());
         statusbar_tick();
         return 1;
     }
@@ -321,8 +356,7 @@ uint8_t level_tick(void)
              * the witchdoctor and the victim (frame 0x103, the surprised face)
              * sit on the black page and persist through the fades/blinks. */
             if (page) {
-                object_render_claim_draw_records(page, (int32_t)level_view_x(),
-                                                 (int32_t)level_view_y());
+                level_claim_draw_records(page);
                 _level_page_bake();
             }
         }

@@ -1,7 +1,6 @@
 #include "level/level.h"
 #include "level/level_internal.h"
 #include "object/object.h"
-#include "osystem.h"
 #include "statusbar.h"
 #include "video.h"
 
@@ -82,7 +81,8 @@ static uint8_t _spark_strip_on;
  */
 static void _spark_strip_save(int16_t ox, int16_t oy)
 {
-    int32_t vx = (int32_t)level_view_x(), vy = (int32_t)level_view_y();
+    int32_t vx = level_view_scroll_x();
+    int32_t vy = (int32_t)level_view_y();
 
     _spark_strip_x = ox;
     _spark_strip_y = oy;
@@ -92,10 +92,11 @@ static void _spark_strip_save(int16_t ox, int16_t oy)
             int32_t sx = _spark_strip_x - vx + (int32_t)col * 4;
             int32_t sy = _spark_strip_y - vy + (int32_t)row;
 
-            if (sx >= 0 && sx < (int32_t)VIDEO_PAGE_W && sy >= 0 &&
-                sy < (int32_t)VIDEO_PAGE_H_MODE13H) {
+            if (sx >= 0 && sx < (int32_t)video_page_w() && sy >= 0 &&
+                sy < (int32_t)video_page_h()) {
                 const uint8_t *px = video_vram_group(
-                    (uint16_t)((uint32_t)sy * 88u + ((uint32_t)sx >> 2)));
+                    (uint16_t)((uint32_t)sy * level_plane_pitch() +
+                               ((uint32_t)sx >> 2)));
 
                 memcpy(_spark_strip[row][col], px, 4u);
             } else {
@@ -109,7 +110,8 @@ static void _spark_strip_save(int16_t ox, int16_t oy)
  */
 static void _spark_strip_restore(void)
 {
-    int32_t vx = (int32_t)level_view_x(), vy = (int32_t)level_view_y();
+    int32_t vx = level_view_scroll_x();
+    int32_t vy = (int32_t)level_view_y();
 
     if (!_spark_strip_on) return;
     for (uint16_t row = 0; row < 0x40u; row++)
@@ -117,12 +119,13 @@ static void _spark_strip_restore(void)
             int32_t sx = _spark_strip_x - vx + (int32_t)col * 4;
             int32_t sy = _spark_strip_y - vy + (int32_t)row;
 
-            if (sx < 0 || sx >= (int32_t)VIDEO_PAGE_W || sy < 0 ||
-                sy >= (int32_t)VIDEO_PAGE_H_MODE13H)
+            if (sx < 0 || sx >= (int32_t)video_page_w() || sy < 0 ||
+                sy >= (int32_t)video_page_h())
                 continue;
-            memcpy(video_vram_group(
-                       (uint16_t)((uint32_t)sy * 88u + ((uint32_t)sx >> 2))),
-                   _spark_strip[row][col], 4u);
+            memcpy(
+                video_vram_group((uint16_t)((uint32_t)sy * level_plane_pitch() +
+                                            ((uint32_t)sx >> 2))),
+                _spark_strip[row][col], 4u);
         }
 }
 
@@ -252,7 +255,8 @@ static void _spark_step(void)
  */
 static void _spark_draw(void)
 {
-    int32_t vx = (int32_t)level_view_x(), vy = (int32_t)level_view_y();
+    int32_t vx = level_view_scroll_x();
+    int32_t vy = (int32_t)level_view_y();
 
     for (uint16_t i = 0; i < 0x58u; i++) {
         int32_t sx, sy;
@@ -261,11 +265,11 @@ static void _spark_draw(void)
         if (!_spark[i].live || _spark[i].value == 0u) continue;
         sx = (int32_t)_spark[i].x - vx;
         sy = (int32_t)_spark[i].y - vy;
-        if (sx < 0 || sx >= (int32_t)VIDEO_PAGE_W || sy < 0 ||
-            sy >= (int32_t)VIDEO_PAGE_H_MODE13H)
+        if (sx < 0 || sx >= (int32_t)video_page_w() || sy < 0 ||
+            sy >= (int32_t)video_page_h())
             continue;
         plane = (uint32_t)sx & 3u;
-        addr = (uint32_t)sy * 88u + ((uint32_t)sx >> 2);
+        addr = (uint32_t)sy * level_plane_pitch() + ((uint32_t)sx >> 2);
         /* 1000:3F9C MOV AL,[SI+1] / STOSB: the whole shade byte into the
          * plane selected by Map Mask 1 << (x & 3). */
         video_vram_group((uint16_t)addr)[plane] = _spark[i].value;
@@ -276,13 +280,22 @@ void level_claim_recolour(void)
 {
     uint8_t *page = video_page(0);
     uint8_t *vram = video_vram_group(0u);
+    uint32_t bytes = video_page_w() * video_page_h();
+    uint32_t addr_bytes = video_page_h() * level_plane_pitch() * 4u;
 
     if (!page) return;
-    for (uint16_t i = 0; i < VIDEO_PAGE_BYTES; i++)
+    for (uint32_t i = 0; i < bytes; i++)
         if (page[i] < 0x80u) page[i] = 0x1Eu;
-    /* the window's 200 rows x 88 addresses are contiguous flat pixels */
-    for (uint32_t i = 0; i < (uint32_t)VIDEO_PAGE_H_MODE13H * 88u * 4u; i++)
+    /* the window's rows x pitch addresses are contiguous flat pixels */
+    for (uint32_t i = 0; i < addr_bytes; i++)
         if (vram[i] < 0x80u) vram[i] = 0x1Eu;
+}
+
+void level_claim_draw_records(uint8_t *page)
+{
+    if (!page) return;
+    object_render_claim_draw_records(page, level_view_scroll_x(),
+                                     (int32_t)level_view_y());
 }
 
 void level_claim_frame(void)
@@ -290,13 +303,13 @@ void level_claim_frame(void)
     uint8_t *page;
 
     if (!_level_is_loaded()) return;
-    page = g_osys->videoPage(0);
+    page = video_page(0);
     if (!page) return;
     _level_spark_frame(); // 1000:3F4A / 1000:40CA's restore
     _level_page_present();
     if (object_sequence_claim_anim_active()) // 1000:40CA's two draw_object_entry
-        object_render_claim_draw_records(page, (int32_t)level_view_x(),
-                                         (int32_t)level_view_y());
+        level_claim_draw_records(page);
+    statusbar_set_surface(NULL, 0u, 0u, 0u, level_bar_row());
     statusbar_tick(); // the bar band: outside 1000:3D5E's page range
 }
 

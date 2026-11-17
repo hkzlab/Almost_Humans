@@ -10,7 +10,7 @@
 
 #include <stdint.h>
 
-#define PAGE_SIZE    VIDEO_PAGE_BYTES
+#define PAGE_SIZE    VIDEO_SCREEN_BYTES
 #define OBJ_SEG_SIZE 65536u // the original decodes objects into a 64K segment
 
 /* --- state shared between the players (defined in scene_play.c) ---------- */

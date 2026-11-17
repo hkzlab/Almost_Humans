@@ -94,13 +94,30 @@ typedef enum VideoMode {
     VIDEO_MODE_X = 1
 } VideoMode;
 
-/* The page videoPage() hands out: flat 8bpp, one byte per pixel.  The field a
- * mode scans out may be shorter (mode X); the page layout stays 320x200.
- * Stride == width because the page is 8bpp. */
-#define VIDEO_PAGE_W         320u
-#define VIDEO_PAGE_H_MODE13H 200u
-#define VIDEO_PAGE_H_MODEX   192u
-#define VIDEO_PAGE_BYTES     (VIDEO_PAGE_W * VIDEO_PAGE_H_MODE13H)
+/* The original's screen: flat 8bpp, one byte per pixel, 320x200.  Every
+ * resource that is one screen page is this size and every screen module
+ * draws on a surface this size.  The view scale never changes it. */
+#define VIDEO_SCREEN_W     320u
+#define VIDEO_SCREEN_H     200u
+#define VIDEO_SCREEN_BYTES (VIDEO_SCREEN_W * VIDEO_SCREEN_H)
+/* The level's field in mode X: the original scans out 192 of the 200 rows. */
+#define VIDEO_FIELD_H_MODEX 192u
+
+/* The level viewport scale compiled in: 2 includes the doubled view (the
+ * `--view wide` runtime switch, D-274), 1 compiles it out - the classic
+ * framing only, with 320x200 pages and none of the wide code.  The build sets
+ * it (CMake's HUMANSRE_VIEW_SCALE); 2 is the default for a standalone TU. */
+#ifndef HUMANSRE_VIEW_SCALE
+#    define HUMANSRE_VIEW_SCALE 2
+#endif
+
+/* The display page videoPage() hands out, allocated at the compiled maximum
+ * (VIDEO_SCREEN_W/H x HUMANSRE_VIEW_SCALE).  The active size is
+ * video_page_w()/h(); the field a mode scans out may be shorter (mode X).
+ * Stride == the active width because the page is 8bpp. */
+#define VIDEO_PAGE_MAX_W (VIDEO_SCREEN_W * HUMANSRE_VIEW_SCALE)
+#define VIDEO_PAGE_MAX_H (VIDEO_SCREEN_H * HUMANSRE_VIEW_SCALE)
+#define VIDEO_PAGE_BYTES (VIDEO_PAGE_MAX_W * VIDEO_PAGE_MAX_H)
 
 /* The tick-boundary gate, the core's only pacing source.
  *
@@ -125,9 +142,20 @@ typedef void (*TickSyncFn)(uint32_t *lastSeen);
 typedef struct OSystem {
     /* --- video ------------------------------------------------------- */
     void (*videoSetMode)(VideoMode mode); // every mode set (13h/X)
-    uint8_t *(*videoPage)(int32_t which); // which: 0 or 1; 320x200x8
-    void (*videoPresent)(int32_t which); // the CRTC-flip equivalent
+    uint8_t *(*videoPage)(int32_t which); // which: 0 or 1; the active page
+    /* The CRTC-flip equivalent: show `which` as a `rows`-row field.  `rows`
+     * is the current screen's scan-out height (the original's 192 for mode X
+     * and 200 for mode 13h, scaled by the view factor; the wide level's own
+     * frame is its whole page - see video_set_field).  The backend sizes its
+     * texture from it and rebuilds it only when the value changes. */
+    void (*videoPresent)(int32_t which, uint32_t rows);
     void (*videoSetPalette)(const uint8_t *p6, uint32_t first, uint32_t n);
+    /* The view scale the front end was asked for: 1 = the original's 320x200
+     * framing, 2 = the level viewport doubled.  Read once by video_init()
+     * and clamped to HUMANSRE_VIEW_SCALE; the core never switches it
+     * afterwards.  The backend owns where the value comes from (command
+     * line, config, the build's default). */
+    int32_t (*videoScale)(void);
 
     /* --- input ------------------------------------------------------- */
     void (*eventsPoll)(InputState *out);

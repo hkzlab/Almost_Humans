@@ -109,8 +109,8 @@ static void _glyph_px(uint8_t *page, uint32_t y, uint32_t x0, uint8_t bits,
         if (bits & (1u << k)) {
             uint16_t x = (uint16_t)(x0 + k);
 
-            if (x < VIDEO_PAGE_W) {
-                uint16_t at = (uint16_t)(y * VIDEO_PAGE_W + x);
+            if (x < VIDEO_SCREEN_W) {
+                uint16_t at = (uint16_t)(y * VIDEO_SCREEN_W + x);
 
                 if (or_into) page[at] |= ink;
                 else page[at] = ink;
@@ -148,7 +148,7 @@ static void _draw_line(uint8_t *page, const char *line, uint32_t centreX,
     font_draw_text_bounded(arena, TP_ARENA_BYTES, line, centreX, 0);
     for (uint16_t r = 0; r < 16u; r++) {
         uint32_t y = cellTop + r;
-        if (y >= VIDEO_PAGE_H_MODE13H) break;
+        if (y >= VIDEO_SCREEN_H) break;
         for (uint16_t c = 0; c < 80u; c++) {
             uint8_t bits = arena[r * 80u + c];
 
@@ -184,7 +184,8 @@ static void _blit_16px(uint8_t *page, uint32_t y, uint32_t x0,
         for (uint16_t p = 0; p < 4u; p++) {
             uint16_t x = (uint16_t)(x0 + k * 4u + p);
 
-            if (x < VIDEO_PAGE_W) page[y * VIDEO_PAGE_W + x] = row[p + 4u * k];
+            if (x < VIDEO_SCREEN_W)
+                page[y * VIDEO_SCREEN_W + x] = row[p + 4u * k];
         }
 }
 
@@ -201,7 +202,7 @@ static void _blit_box_tile(uint8_t *page, uint32_t x0, uint32_t y0,
 {
     for (uint16_t r = 0; r < 16u; r++) {
         uint32_t y = y0 + r;
-        if (y >= VIDEO_PAGE_H_MODE13H) continue;
+        if (y >= VIDEO_SCREEN_H) continue;
         _blit_16px(page, y, x0, tile + r * 16u);
     }
 }
@@ -218,7 +219,7 @@ static void _blit_4px(uint8_t *page, uint32_t y, uint32_t x0,
                       const uint8_t *src)
 {
     for (uint16_t p = 0; p < 4u; p++)
-        if (x0 + p < VIDEO_PAGE_W) page[y * VIDEO_PAGE_W + x0 + p] = src[p];
+        if (x0 + p < VIDEO_SCREEN_W) page[y * VIDEO_SCREEN_W + x0 + p] = src[p];
 }
 
 /**
@@ -234,7 +235,7 @@ static void _blit_marker(uint8_t *page, uint32_t x0, uint32_t y0,
 {
     for (uint16_t r = 0; r < 11u; r++) {
         uint32_t y = y0 + r;
-        if (y >= VIDEO_PAGE_H_MODE13H) continue;
+        if (y >= VIDEO_SCREEN_H) continue;
         for (uint16_t k = 0; k < 2u; k++)
             _blit_4px(page, y, x0 + k * 4u, pat + r * 8u + 4u * k);
     }
@@ -261,22 +262,22 @@ static void _draw_outline(uint8_t *page, uint32_t top, uint32_t left,
     uint16_t x0 = (uint16_t)(left), x1 = (uint16_t)(left + (tiles + 1u) * 16u);
     uint16_t y0 = (uint16_t)(top + 16u), y1 = (uint16_t)(y0 + lines * 16u);
 
-    if (x1 > VIDEO_PAGE_W) x1 = VIDEO_PAGE_W;
-    if (y1 > VIDEO_PAGE_H_MODE13H) y1 = VIDEO_PAGE_H_MODE13H;
+    if (x1 > VIDEO_SCREEN_W) x1 = VIDEO_SCREEN_W;
+    if (y1 > VIDEO_SCREEN_H) y1 = VIDEO_SCREEN_H;
     for (uint16_t y = y0; y < y1; y++)
         for (uint16_t x = x0; x < x1; x++) {
-            uint8_t v = page[y * VIDEO_PAGE_W + x];
+            uint8_t v = page[y * VIDEO_SCREEN_W + x];
             if (v < 0xF4u || v >= 0xFCu) continue;
-            if (y && page[(y - 1u) * VIDEO_PAGE_W + x] < 0xF4u)
-                page[(y - 1u) * VIDEO_PAGE_W + x] = 0;
-            if (y + 1u < VIDEO_PAGE_H_MODE13H &&
-                page[(y + 1u) * VIDEO_PAGE_W + x] < 0xF4u)
-                page[(y + 1u) * VIDEO_PAGE_W + x] = 0;
-            if (x && page[y * VIDEO_PAGE_W + x - 1u] < 0xF4u)
-                page[y * VIDEO_PAGE_W + x - 1u] = 0;
-            if (x + 1u < VIDEO_PAGE_W &&
-                page[y * VIDEO_PAGE_W + x + 1u] < 0xF4u)
-                page[y * VIDEO_PAGE_W + x + 1u] = 0;
+            if (y && page[(y - 1u) * VIDEO_SCREEN_W + x] < 0xF4u)
+                page[(y - 1u) * VIDEO_SCREEN_W + x] = 0;
+            if (y + 1u < VIDEO_SCREEN_H &&
+                page[(y + 1u) * VIDEO_SCREEN_W + x] < 0xF4u)
+                page[(y + 1u) * VIDEO_SCREEN_W + x] = 0;
+            if (x && page[y * VIDEO_SCREEN_W + x - 1u] < 0xF4u)
+                page[y * VIDEO_SCREEN_W + x - 1u] = 0;
+            if (x + 1u < VIDEO_SCREEN_W &&
+                page[y * VIDEO_SCREEN_W + x + 1u] < 0xF4u)
+                page[y * VIDEO_SCREEN_W + x + 1u] = 0;
         }
 }
 
@@ -360,4 +361,42 @@ void textpage_draw(uint8_t *page, const char *text, int32_t cursorRow,
             _blit_marker(page, left + 16u * tiles + 8u, y, _marker_r);
         }
     }
+}
+
+void textpage_draw_level(uint8_t *page, uint32_t stride, uint32_t scale,
+                         const char *text, int32_t cursorRow,
+                         uint32_t cursorCol, int32_t grid)
+{
+#if HUMANSRE_VIEW_SCALE > 1
+    static uint8_t scratch[VIDEO_SCREEN_BYTES];
+    uint32_t tiles, lines, left, top, w, h, x, y, s = scale ? scale : 1u;
+
+    if (!page || !text || !*text) return;
+    _scroll_text_measure(text, &tiles, &lines);
+    if (lines > 20u) return;
+    /* the same placement textpage_draw computes */
+    left = 160u - (tiles + 2u) * 8u;
+    top = 76u - (lines + 2u) * 8u;
+    w = (tiles + 2u) * 16u;
+    h = (lines + 2u) * 16u;
+
+    memset(scratch, 0, sizeof scratch);
+    textpage_draw(scratch, text, cursorRow, cursorCol, grid);
+
+    for (y = 0; y < h; y++)
+        for (x = 0; x < w; x++) {
+            uint8_t v = scratch[(top + y) * VIDEO_SCREEN_W + left + x];
+            uint32_t dx = (left + x) * s, dy = (top + y) * s;
+
+            if (dx + s > stride || dy + s > video_page_h()) continue;
+            for (uint32_t j = 0; j < s; j++)
+                for (uint32_t k = 0; k < s; k++)
+                    page[(dy + j) * stride + dx + k] = v;
+        }
+#else
+    /* the classic build draws straight into the page: no scratch, no scale */
+    (void)stride;
+    (void)scale;
+    textpage_draw(page, text, cursorRow, cursorCol, grid);
+#endif
 }

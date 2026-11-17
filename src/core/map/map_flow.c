@@ -202,7 +202,7 @@ static void _map_page_reset(uint8_t *page)
  */
 static void _map_redraw(void)
 {
-    uint8_t *page = video_page(0);
+    uint8_t *page = video_screen();
 
     if (!page) return;
     if (_map_phase == MAP_NAME || _map_phase == MAP_ENTER) map_draw_name(page);
@@ -246,7 +246,7 @@ uint8_t map_begin(void)
     res_set_disc(0u); // entry 0x151A [0xF7E]=0
     _map_high = res_load_chunk(game_resource_name(GAME_RES_LBM_HIGH_BIT),
                                &_map_high_size, NULL);
-    uint8_t *page = video_page(0);
+    uint8_t *page = video_screen();
     if (_map_high && _map_high_size >= MAP_PAGE + 768u)
         palette_load_working(_map_high + MAP_PAGE); // 1000:01C3/8D24
 
@@ -356,7 +356,7 @@ static uint8_t _map_col_from_angle(void)
  */
 static void _map_list_begin(void)
 {
-    uint8_t *page = video_page(0);
+    uint8_t *page = video_screen();
 
     _map_phase = MAP_LIST_HEADER;
     _map_list_step = 0u;
@@ -494,7 +494,7 @@ uint8_t map_tick(const InputState *in)
             _map_intro = 1u;
             return 1;
         case 1: {
-            uint8_t *page = video_page(0);
+            uint8_t *page = video_screen();
 
             if (palette_fade_active()) return 1;
             _map_page_copy(page); // 0x024B
@@ -507,7 +507,7 @@ uint8_t map_tick(const InputState *in)
             return 1;
         }
         case 2: {
-            uint8_t *page = video_page(0);
+            uint8_t *page = video_screen();
 
             map_draw_congrats(page); // 0x0251's second pass after the flip
 #if defined(HUMANSRE_TEST_PROBES)
@@ -549,7 +549,7 @@ uint8_t map_tick(const InputState *in)
             _map_trans = 3;
             return 1;
         case 3: {
-            uint8_t *page = video_page(0);
+            uint8_t *page = video_screen();
 
             if (palette_fade_active()) return 1;
             if (page) {

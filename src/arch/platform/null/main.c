@@ -15,6 +15,7 @@
  *
  * @param argc the argument count
  * @param argv the argument vector; --ticks N stops after N flow ticks,
+ *             --view classic|wide selects the level viewport,
  *             --version prints the version and exits
  * @return 0 on success, 2 on a bad command line
  */
@@ -31,8 +32,32 @@ int main(int argc, char **argv)
             printf("%s\n", HUMANSRE_VERSION);
             return 0;
         }
+        if (strcmp(argv[i], "--view") == 0) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "--view needs classic or wide\n");
+                return 2;
+            }
+            i++;
+            if (strcmp(argv[i], "wide") == 0) {
+#if HUMANSRE_VIEW_SCALE > 1
+                osys_null_set_scale(2);
+#else
+                fprintf(stderr, "--view wide: this build is classic only\n");
+                return 2;
+#endif
+            } else if (strcmp(argv[i], "classic") == 0) {
+                osys_null_set_scale(1);
+            } else {
+                fprintf(stderr, "unknown view '%s' (classic|wide)\n", argv[i]);
+                return 2;
+            }
+            continue;
+        }
         if (strcmp(argv[i], "--ticks") != 0 || i + 1 >= argc) {
-            fprintf(stderr, "USAGE: %s [--ticks N] [--version]\n", argv[0]);
+            fprintf(stderr,
+                    "USAGE: %s [--ticks N] [--view classic|wide] "
+                    "[--version]\n",
+                    argv[0]);
             return 2;
         }
         n = strtoul(argv[++i], &end, 10);

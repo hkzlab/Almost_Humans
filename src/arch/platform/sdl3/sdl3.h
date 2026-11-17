@@ -12,11 +12,28 @@
 
 #include <stdint.h>
 
-/** @brief Set the mode, scaling the 320x200 and 320x192 fields to fill 4:3.
+/**
+ * @brief Set the mode, scaling the active field to fill 4:3.
  *
  * @param mode the mode
  */
 void sdl3_video_set_mode(VideoMode mode);
+
+/**
+ * @brief Record the view scale the command line asked for (1 or 2).
+ *
+ * Called by main() before game_main; the texture is built from it.
+ *
+ * @param scale the scale
+ */
+void sdl3_video_set_scale(int32_t scale);
+
+/**
+ * @brief Accessor: the recorded view scale.
+ *
+ * @return the scale
+ */
+int32_t sdl3_video_scale(void);
 
 /**
  * @brief Accessor: one of the two display pages.
@@ -27,11 +44,12 @@ void sdl3_video_set_mode(VideoMode mode);
 uint8_t *sdl3_video_page(int32_t which);
 
 /**
- * @brief Present one page.
+ * @brief Present one page as a field of `rows` rows.
  *
  * @param which the page selector
+ * @param rows the field's row count
  */
-void sdl3_video_present(int32_t which);
+void sdl3_video_present(int32_t which, uint32_t rows);
 
 /**
  * @brief Upload a 6-bit palette range to the display.

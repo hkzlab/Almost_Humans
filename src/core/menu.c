@@ -86,15 +86,20 @@ void menu_open_time_up(void)
 void menu_draw(void)
 {
     uint8_t *page = g_osys ? g_osys->videoPage(0) : NULL;
+    uint32_t stride = video_page_w(), scale = (uint32_t)video_scale();
+
     if (_phase == MENU_PAUSE)
-        textpage_draw(page, game_string(GAME_STRING_MENU_PAUSE_BLOCK),
-                      (int32_t)_row, 0u, 0);
+        textpage_draw_level(page, stride, scale,
+                            game_string(GAME_STRING_MENU_PAUSE_BLOCK),
+                            (int32_t)_row, 0u, 0);
     else if (_phase == MENU_GRID)
-        textpage_draw(page, game_string(GAME_STRING_MENU_GRID_BLOCK),
-                      (int32_t)_row, _col, 1);
+        textpage_draw_level(page, stride, scale,
+                            game_string(GAME_STRING_MENU_GRID_BLOCK),
+                            (int32_t)_row, _col, 1);
     else if (_phase == MENU_TIMEOUT)
-        textpage_draw(page, game_string(GAME_STRING_MENU_TIME_UP_BLOCK),
-                      (int32_t)_row, 0u, 0);
+        textpage_draw_level(page, stride, scale,
+                            game_string(GAME_STRING_MENU_TIME_UP_BLOCK),
+                            (int32_t)_row, 0u, 0);
 }
 
 uint8_t menu_tick(const InputState *in)

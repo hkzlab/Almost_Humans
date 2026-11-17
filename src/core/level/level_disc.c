@@ -52,8 +52,8 @@ static uint8_t *_disk_font;
  */
 static void _disk_draw(uint16_t disc)
 {
-    uint8_t *page = video_page(0);
-    memset(page, 0, VIDEO_PAGE_BYTES);
+    uint8_t *page = video_screen();
+    memset(page, 0, VIDEO_SCREEN_BYTES);
 
     uint8_t *img = NULL;
     uint32_t isz = 0;
@@ -68,7 +68,7 @@ static void _disk_draw(uint16_t disc)
         if (isz >= 0x18u + 768u) memcpy(_disk_pal, img + 0x18, 768u);
         /* blit_sprite_to_page, 1000:2105: source byte 4g+p -> plane p of
          * destination byte g; each byte is 8 pixels, MSB left */
-        for (uint32_t g = 0; 4u * g + 3u < isz && g * 8u < VIDEO_PAGE_BYTES;
+        for (uint32_t g = 0; 4u * g + 3u < isz && g * 8u < VIDEO_SCREEN_BYTES;
              g++) {
             const uint8_t *q = img + 4u * g;
             for (uint16_t bit = 0; bit < 8u; bit++) {

@@ -68,6 +68,9 @@ static void level_loading_begin(void)
     /* level_video_init (1000:329d) calls reset_display_mode (1000:82c6)
      * before load_sprite_pal's screen: the level's 320x192 field */
     video_set_mode(VIDEO_MODE_X);
+    /* the level's own field: the whole page at scale 2 (its bar ends at the
+     * page's bottom), the original's 192 rows at scale 1 */
+    video_set_field(level_field_rows());
 
     /* 1000:1DCF..1E3F: dicon+0x18 -> 0x14D3 entries 0..0x7F, then the DAC
      * FADES to them (0x80 entries, div 0x19) before the frames run */
@@ -130,16 +133,20 @@ static void _load_draw_background(uint8_t *page)
     /* load_sprite_pal sets the vertical display scroll [0x2] := 0x32
      * (0x31F2), so every page-relative y loses 0x32: the card's source
      * DI=0x324E row 0x92 becomes 0x60, exactly above the 152-row bar. */
-    memset(page, 0, VIDEO_PAGE_BYTES);
+    memset(page, 0, VIDEO_SCREEN_BYTES);
     if (_load_dic && _load_dic_size >= 0x400u + 80u * 56u) {
         const uint8_t *src = _load_dic + 0x400u;
         for (uint16_t r = 0; r < 56u; r++) {
             uint8_t y = (uint8_t)(0x60u + r);
-            if (y >= VIDEO_PAGE_H_MODEX) break;
-            memcpy(page + y * VIDEO_PAGE_W + 0x78u, src + r * 80u, 80u);
+            if (y >= VIDEO_FIELD_H_MODEX) break;
+            memcpy(page + y * VIDEO_SCREEN_W + 0x78u, src + r * 80u, 80u);
         }
     }
     statusbar_set_active(0);
+    /* the loading screen is a 320x200 surface: the bar lands in it at the
+     * original's scale and the present doubles the whole screen */
+    statusbar_set_surface(video_screen(), VIDEO_SCREEN_W, VIDEO_SCREEN_H, 1u,
+                          level_bar_row_1x());
     statusbar_tick();
 }
 
@@ -158,8 +165,8 @@ static void _load_sprite(uint8_t *page, uint32_t off, int32_t x, int32_t y)
             int32_t px = x + (int32_t)c;
             uint8_t v = _loading_bank[off + r * 16u + c];
 
-            if (px < 0 || px >= (int32_t)VIDEO_PAGE_W || !v) continue;
-            page[(y + r) * VIDEO_PAGE_W + (uint32_t)px] = v;
+            if (px < 0 || px >= (int32_t)VIDEO_SCREEN_W || !v) continue;
+            page[(y + r) * VIDEO_SCREEN_W + (uint32_t)px] = v;
         }
 }
 
@@ -186,7 +193,7 @@ static void _load_draw_one(uint8_t *page, const uint8_t *list, uint16_t entries,
         if (x <= lo || x >= hi) continue; // the screen window
         uint32_t off = 0x400u + spr * 0x180u;
         if (off + 0x180u > _loading_size) continue; // the 0x25 sentinel
-        if (y < 0 || y + 24 > (int32_t)VIDEO_PAGE_H_MODE13H) continue;
+        if (y < 0 || y + 24 > (int32_t)VIDEO_SCREEN_H) continue;
         _load_sprite(page, off, x, y);
     }
 }
@@ -203,7 +210,7 @@ static void _load_draw_list(uint8_t *page)
     if (_load_phase == 2 && _load_walker_count)
         _load_draw_one(page, _load_walker_snap, _load_walker_count, 0x60 - 1,
                        0xD0 + 1, -0x32);
-    _load_draw_one(page, _load_list, _load_entries, -16, VIDEO_PAGE_W, -0x32);
+    _load_draw_one(page, _load_list, _load_entries, -16, VIDEO_SCREEN_W, -0x32);
 }
 
 void level_loading_tick(void)
@@ -211,7 +218,7 @@ void level_loading_tick(void)
     uint8_t *page;
 
     if (_load_phase != 1 && _load_phase != 2) return;
-    page = g_osys->videoPage(0);
+    page = video_screen();
 
     if (--_load_cx < 0) _load_cx = _load_reload;
     for (uint16_t e = 0; e < _load_entries; e++) {

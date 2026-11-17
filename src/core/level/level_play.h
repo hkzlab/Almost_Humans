@@ -66,4 +66,16 @@ void level_redraw_page(void);
  */
 void level_end_redraw_page(void);
 
+/**
+ * @brief Centre the composed page's world in the field.
+ *
+ * The world is drawn at the top of the doubled field (rows 0..319 of 400)
+ * because the level's own frame puts it there.  The score screen's background
+ * is this frozen page with no bar, so it is shifted down by the slack
+ * ((field - world) / 2, 40 rows at scale 2) and the padding is cleared -
+ * otherwise the greyed level sits at the top of the screen, not centred.
+ * A no-op at scale 1 and when the field is not taller than the world.
+ */
+void level_center_page(void);
+
 #endif /* HUMANSRE_LEVEL_PLAY_H */

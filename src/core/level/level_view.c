@@ -87,6 +87,9 @@ void level_follow_view(void)
                                         ? (uint32_t)_goal_follow_record
                                         : object_sequence_action_entity());
     int32_t x, y, tx, ty, dx, dy;
+    int32_t s = video_scale();
+    int32_t maxx = (int32_t)level_view_max_x();
+    int32_t maxy = (int32_t)level_view_max_y();
 
     if (!rec) return;
     x = rd_le_i16(rec);
@@ -98,10 +101,11 @@ void level_follow_view(void)
         x += ox;
         y += oy;
     }
-    tx = x - 0x88;
-    ty = y - 0x44;
-    tx = tx < 0 ? 0 : (tx > 0xC0 ? 0xC0 : tx);
-    ty = ty < 0 ? 0 : (ty > 0xA8 ? 0xA8 : ty);
+    /* the actor sits at the same fraction of the window at either scale */
+    tx = x - 0x88 * s;
+    ty = y - 0x44 * s;
+    tx = tx < 0 ? 0 : (tx > maxx ? maxx : tx);
+    ty = ty < 0 ? 0 : (ty > maxy ? maxy : ty);
     dx = tx - (int32_t)_view_x;
     dy = ty - (int32_t)_view_y;
     if (dx > 4) dx = 4;

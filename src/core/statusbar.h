@@ -46,6 +46,25 @@ void statusbar_start(uint16_t packedTimeBcd, uint16_t tribeMembers,
  */
 void statusbar_tick(void);
 
+/**
+ * @brief Point the bar at the surface it must land on.
+ *
+ * The bar draws at the original's 320x40 scale into its own stage and copies
+ * the result into `dst` at `_bar_split` (scaled).  NULL selects the display
+ * page at the view scale - the in-level default; the level's loading screen
+ * passes the 320x200 logical screen with a scale of 1 so the bar is part of
+ * the screen the present doubles.
+ *
+ * @param dst the destination surface, or NULL for page 0
+ * @param stride the destination row stride in bytes
+ * @param rows the destination's row count (the blit clips to it)
+ * @param scale 1 or 2 (the destination's pixel scale)
+ * @param top the bar's resting top row in destination pixels; 0 selects the
+ *            field's bottom (152 at scale 1, 320 at scale 2)
+ */
+void statusbar_set_surface(uint8_t *dst, uint32_t stride, uint32_t rows,
+                           uint32_t scale, uint32_t top);
+
 /** @brief The live +0xC0 palette bank's source (level_video_init 1000:32CD's copy
  * of _panel4's own palette): install at DAC entries 0xC0..0xFF.
  *

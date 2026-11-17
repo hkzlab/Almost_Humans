@@ -7,6 +7,7 @@
 #define HUMANSRE_LEVEL_INTERNAL_H
 
 #include "level/level.h"
+#include "video.h"
 
 #include <stdint.h>
 
@@ -22,6 +23,98 @@
 #define WORLD_W     512u
 #define WORLD_H     320u
 #define ATLAS_TILES 169u
+
+/** @brief The level's A000 row pitch, in address bytes.
+ *
+ * 88 = the original's 80 groups plus its 8-byte padding at scale 1; 160 (no
+ * padding) at scale 2, where the 640-wide field uses 64000 of the 65536
+ * addresses.
+ *
+ * @return the pitch
+ */
+static inline uint32_t level_plane_pitch(void)
+{ return video_scale() == 1 ? 88u : 160u; }
+
+/* The status bar's height: _panel4's top 40 rows, doubled with the field. */
+#define LEVEL_BAR_ROWS 40u
+
+/** @brief The level field's row count.
+ *
+ * 192 at scale 1, the original's mode-X field (the bar ends on row 191).  At
+ * scale 2 the whole 400-row page: the bar (80 rows) ends at the page's bottom
+ * and the 320-row world must fit above it, so the map is fully visible.
+ *
+ * @return the field rows
+ */
+static inline uint32_t level_field_rows(void)
+{ return video_scale() == 1 ? VIDEO_FIELD_H_MODEX : video_page_h(); }
+
+/** @brief The bar's resting top row in field pixels (152 at scale 1, 320 at
+ * scale 2 - the bottom of the field).
+ *
+ * @return the row
+ */
+static inline uint32_t level_bar_row(void)
+{ return level_field_rows() - LEVEL_BAR_ROWS * (uint32_t)video_scale(); }
+
+/** @brief The bar's resting top row in the original's 1x rows (152 or 160):
+ * the loading screen is a 1x surface, so its bar sits here.
+ *
+ * @return the row
+ */
+static inline uint32_t level_bar_row_1x(void)
+{ return level_bar_row() / (uint32_t)video_scale(); }
+
+/** @brief The camera's pan range on x: the world is 1:1 in the field, so at
+ * scale 2 the 640-wide field leaves none.
+ *
+ * @return the maximum view x
+ */
+static inline uint16_t level_view_max_x(void)
+{
+    int32_t m = (int32_t)WORLD_W - (int32_t)video_page_w();
+
+    return m < 0 ? 0u : (uint16_t)m;
+}
+
+/** @brief The camera's pan range on y: the world rows the field cannot show.
+ * At scale 2 the viewport is exactly the world's 320 rows, so the map is
+ * fully visible and the view never moves.
+ *
+ * @return the maximum view y
+ */
+static inline uint16_t level_view_max_y(void)
+{
+    int32_t m = (int32_t)WORLD_H - (int32_t)level_bar_row();
+
+    return m < 0 ? 0u : (uint16_t)m;
+}
+
+/** @brief The black margin either side of the 512-wide world in the viewport.
+ *
+ * Zero at scale 1 (the viewport is narrower than the world); at scale 2 the
+ * 640-wide field leaves 64 pixels each side of the world.
+ *
+ * @return the margin in pixels
+ */
+static inline uint32_t level_view_margin(void)
+{
+    uint32_t w = video_page_w();
+
+    return w > WORLD_W ? (w - WORLD_W) / 2u : 0u;
+}
+
+/** @brief The x the object and spark passes subtract: the view panned by the
+ * world's left margin (0 at scale 1, 64 at scale 2).
+ *
+ * Every pass that turns a world x into a page x uses this one value; taking
+ * `level_view_x()` alone puts the drawing in the black margin at scale 2.
+ *
+ * @return the scroll x
+ */
+static inline int32_t level_view_scroll_x(void)
+{ return (int32_t)level_view_x() - (int32_t)level_view_margin(); }
+
 
 /* level_fade_in (1000:3334) - the level's start chain.  The original blocks
  * in the foreground for each fade (wait_palette_fade_done) while the ISR
@@ -45,6 +138,17 @@ enum {
  * @return the record
  */
 const LevelData *_level_record(void);
+
+/**
+ * @brief Draw the claim's two records (the witchdoctor and the victim) on
+ * `page` at the view's scroll.
+ *
+ * The pan frames and the animated frames share this one entry so they cannot
+ * disagree about the margin.
+ *
+ * @param page the display page
+ */
+void level_claim_draw_records(uint8_t *page);
 
 /**
  * @brief Whether a level record is loaded.

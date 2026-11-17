@@ -56,15 +56,15 @@ void map_draw_rect(uint8_t *page, uint32_t x, uint32_t y, uint32_t w,
 {
     if (!page) return;
     for (uint16_t i = 0; i < w; i++) {
-        if (y < VIDEO_PAGE_H_MODE13H && x + i < VIDEO_PAGE_W)
-            page[y * VIDEO_PAGE_W + x + i] |= 0x40u;
-        if (y + h < VIDEO_PAGE_H_MODE13H && x + i < VIDEO_PAGE_W)
-            page[(y + h) * VIDEO_PAGE_W + x + i] |= 0x50u;
+        if (y < VIDEO_SCREEN_H && x + i < VIDEO_SCREEN_W)
+            page[y * VIDEO_SCREEN_W + x + i] |= 0x40u;
+        if (y + h < VIDEO_SCREEN_H && x + i < VIDEO_SCREEN_W)
+            page[(y + h) * VIDEO_SCREEN_W + x + i] |= 0x50u;
     }
     for (uint16_t i = 0; i < h; i++) {
-        if (y + i < VIDEO_PAGE_H_MODE13H && x < VIDEO_PAGE_W)
-            page[(y + i) * VIDEO_PAGE_W + x] |= 0x50u;
-        if (y + i < VIDEO_PAGE_H_MODE13H && x + w < VIDEO_PAGE_W)
-            page[(y + i) * VIDEO_PAGE_W + x + w] |= 0x40u;
+        if (y + i < VIDEO_SCREEN_H && x < VIDEO_SCREEN_W)
+            page[(y + i) * VIDEO_SCREEN_W + x] |= 0x50u;
+        if (y + i < VIDEO_SCREEN_H && x + w < VIDEO_SCREEN_W)
+            page[(y + i) * VIDEO_SCREEN_W + x + w] |= 0x40u;
     }
 }

@@ -65,7 +65,7 @@ static uint8_t *_boot_treetop; // intro\treetop.bit 140x113
 static uint8_t *_boot_treebot; // intro\treebot.bit 21x59
 static uint8_t *_boot_apple; // intro\apple.spr 16x16
 static uint8_t *_boot_words; // intro\words.bit - the bar's 1-bit text
-static uint8_t _boot_bar[16u * VIDEO_PAGE_W]; // the bar, rows 182-197
+static uint8_t _boot_bar[16u * VIDEO_SCREEN_W]; // the bar, rows 182-197
 static int8_t _boot_bar_arg = -1; // the transition the bar holds
 static uint8_t *_boot_rsc; // intro\intro.rsc - the display list
 static uint32_t _boot_rsc_size;
@@ -119,7 +119,8 @@ static int32_t _boot_gt_show(uint32_t idx)
     int32_t sz = lzw_decode_mem(_boot_gt, _boot_gt_size, _boot_gt_entries[idx],
                                 _boot_obj, OBJ_SEG_SIZE, &chk);
     if (sz < 0 || chk != 0) return 0; // 1000:B444: skip
-    _scene_al_expand(_boot_obj, (uint32_t)sz, video_page(0), VIDEO_PAGE_BYTES);
+    _scene_al_expand(_boot_obj, (uint32_t)sz, video_screen(),
+                     VIDEO_SCREEN_BYTES);
     return 1;
 }
 
@@ -134,12 +135,12 @@ static int32_t _boot_card_show(const char *name)
 {
     uint32_t size = 0;
     uint8_t *img = res_load_chunk(name, &size, NULL);
-    if (!img || size < VIDEO_PAGE_BYTES) {
+    if (!img || size < VIDEO_SCREEN_BYTES) {
         g_osys->memFree(img);
         return 0;
     }
-    memcpy(video_page(0), img, VIDEO_PAGE_BYTES);
-    palette_load_working(img + VIDEO_PAGE_BYTES);
+    memcpy(video_screen(), img, VIDEO_SCREEN_BYTES);
+    palette_load_working(img + VIDEO_SCREEN_BYTES);
     g_osys->memFree(img);
     return 1;
 }
@@ -210,8 +211,8 @@ static void _boot_blit_sprite(const uint8_t *spr, uint32_t width,
                               uint32_t pageYOff, uint8_t *page)
 {
     uint32_t x = (worldX - _boot_scroll_pos) & 0xFFFFu;
-    if (x >= VIDEO_PAGE_W) return; // CMP AX,0x140 / JC
-    uint32_t visible = VIDEO_PAGE_W - x;
+    if (x >= VIDEO_SCREEN_W) return; // CMP AX,0x140 / JC
+    uint32_t visible = VIDEO_SCREEN_W - x;
     if (visible > width) visible = width;
     uint8_t *dst = page + pageYOff + x;
     const uint8_t *src = spr;
@@ -220,7 +221,7 @@ static void _boot_blit_sprite(const uint8_t *spr, uint32_t width,
             uint8_t b = src[i];
             if (b) dst[i] = b; // 0 = transparent
         }
-        dst += VIDEO_PAGE_W; // the 320-byte row stride
+        dst += VIDEO_SCREEN_W; // the 320-byte row stride
         src += width; // the clipped part skipped
         if (dst + visible > page + PAGE_SIZE) return;
     }
@@ -241,14 +242,14 @@ static void _boot_scroll_render(uint8_t *page, const uint8_t *bac,
                                 uint32_t bacSize, uint32_t scroll,
                                 uint32_t destOff)
 {
-    uint16_t ax = scroll % VIDEO_PAGE_W;
+    uint16_t ax = scroll % VIDEO_SCREEN_W;
     uint32_t dx, bp, si, di = destOff;
     if (di != 0) {
-        dx = VIDEO_PAGE_W - di;
+        dx = VIDEO_SCREEN_W - di;
         bp = di;
         si = 0;
     } else {
-        dx = VIDEO_PAGE_W - ax;
+        dx = VIDEO_SCREEN_W - ax;
         bp = ax;
         si = ax;
     }
@@ -317,7 +318,7 @@ static void _boot_blit_record(const uint8_t *rsc, uint32_t rscSize,
             uint8_t b = so < bodySize ? body[so] : 0u; // past the object: 0
             if (b) page[di + i] = b; // 0 = transparent
         }
-        di += VIDEO_PAGE_W;
+        di += VIDEO_SCREEN_W;
         if (di >= PAGE_SIZE) return;
     }
 }
@@ -401,9 +402,9 @@ static uint32_t _boot_seek(const uint8_t *listBuf, uint32_t listSize,
 static void _boot_bar_draw(uint32_t arg)
 {
     for (uint16_t r = 0; r < 16u; r++) {
-        uint8_t *dst = _boot_bar + r * VIDEO_PAGE_W;
+        uint8_t *dst = _boot_bar + r * VIDEO_SCREEN_W;
         const uint8_t *src = _boot_words + arg * 600u + r * 40u;
-        for (uint16_t x = 0; x < VIDEO_PAGE_W; x++) {
+        for (uint16_t x = 0; x < VIDEO_SCREEN_W; x++) {
             uint8_t b = src[x / 8u];
             dst[x] = ((b >> (7u - (x % 8u))) & 1u) ? (uint8_t)(0xE0u + r) : 0u;
         }
@@ -423,10 +424,12 @@ static void _boot_bar_draw(uint32_t arg)
  */
 static void _boot_compose_present(uint8_t *page)
 {
-    memmove(page, page + 0x500u, 180u * VIDEO_PAGE_W); // pool rows 4-183
-    memset(page + 180u * VIDEO_PAGE_W, 0, 2u * VIDEO_PAGE_W); // rows 180-181
-    memcpy(page + 182u * VIDEO_PAGE_W, _boot_bar, 16u * VIDEO_PAGE_W);
-    memset(page + 198u * VIDEO_PAGE_W, 0, 2u * VIDEO_PAGE_W); // rows 198-199
+    memmove(page, page + 0x500u, 180u * VIDEO_SCREEN_W); // pool rows 4-183
+    memset(page + 180u * VIDEO_SCREEN_W, 0,
+           2u * VIDEO_SCREEN_W); // rows 180-181
+    memcpy(page + 182u * VIDEO_SCREEN_W, _boot_bar, 16u * VIDEO_SCREEN_W);
+    memset(page + 198u * VIDEO_SCREEN_W, 0,
+           2u * VIDEO_SCREEN_W); // rows 198-199
 }
 
 /** @brief update_scene (1000:B9B5): the scrolled bac over the pool rows 0-183
@@ -435,10 +438,10 @@ static void _boot_compose_present(uint8_t *page)
  */
 static void _boot_scene_render(void)
 {
-    uint8_t *page = video_page(0);
+    uint8_t *page = video_screen();
     _boot_scroll_render(page, _boot_bac, 0xE600u, _boot_scroll_pos, 0u);
     _boot_scroll_render(page, _boot_bac, 0xE600u, _boot_scroll_pos,
-                        VIDEO_PAGE_W - (_boot_scroll_pos % VIDEO_PAGE_W));
+                        VIDEO_SCREEN_W - (_boot_scroll_pos % VIDEO_SCREEN_W));
     _boot_blit_sprite(_boot_treetop, 140u, 113u, 0x5A2u, 0x140u, page);
     _boot_blit_sprite(_boot_treebot, 21u, 59u, 0x608u, 0x8E80u, page);
     if (_boot_frame < 331u) // the apple leaves at frame 331
@@ -637,9 +640,9 @@ static int32_t _boot_black(void)
     _boot_scene_render();
     (void)_boot_blit_group(_boot_list_buf, _boot_list_size, _boot_rsc,
                            _boot_rsc_size, _boot_entries, _boot_entry_count,
-                           _boot_obj, _boot_list_pos, video_page(0));
-    _boot_compose_present(video_page(0));
-    g_osys->videoPresent(0);
+                           _boot_obj, _boot_list_pos, video_screen());
+    _boot_compose_present(video_screen());
+    video_present_frame();
     _boot_list_pos = _boot_list_start; // b748
     script_intro_start(&_boot_script);
     _boot_phase = BOOT_FRAME;
@@ -711,7 +714,7 @@ static int32_t _boot_frame_step(void)
     /* blit_display_list: the group's overlays; the dwell counts down
      * per frame - when it expires, the next group + frame */
     {
-        uint8_t *page = video_page(0);
+        uint8_t *page = video_screen();
         uint32_t next = _boot_blit_group(
             _boot_list_buf, _boot_list_size, _boot_rsc, _boot_rsc_size,
             _boot_entries, _boot_entry_count, _boot_obj, _boot_list_pos, page);
@@ -725,8 +728,8 @@ static int32_t _boot_frame_step(void)
      * (deplanarise_bitmap), the bar (rows 182-197) and the black
      * margins composed in - the original's bar lives in the visible
      * page below every present, untouched until the next transition */
-    _boot_compose_present(video_page(0));
-    g_osys->videoPresent(0);
+    _boot_compose_present(video_screen());
+    video_present_frame();
     /* 1000:b780 waits `[0x5AC8] >= 2`; doubled only for this scene -
      * deviation D-248 (requested slowdown) */
     _boot_wait_ticks = 4u;
@@ -920,8 +923,8 @@ uint8_t scene_play_boot_intro(void)
          * bac's palette_load_6bit (b6bc, SI=0xE600) refills the working
          * palette before the dwell but the DAC keeps the card's colours
          * until the post-dwell fade - the port does the same. */
-        memcpy(video_page(0), _boot_itb, VIDEO_PAGE_BYTES);
-        palette_load_working(_boot_itb + VIDEO_PAGE_BYTES);
+        memcpy(video_screen(), _boot_itb, VIDEO_SCREEN_BYTES);
+        palette_load_working(_boot_itb + VIDEO_SCREEN_BYTES);
         g_osys->memFree(_boot_itb);
         _boot_itb = NULL;
         /* b68f-b69e: fade the DAC to the working palette (= the card's own
@@ -987,7 +990,7 @@ uint8_t scene_play_boot_intro(void)
         /* b866: the words' block expands into BOTH visible pages - the
          * port folds it into its one page via the compose */
         _boot_bar_draw(_boot_bar_arg);
-        _boot_compose_present(video_page(0));
+        _boot_compose_present(video_screen());
         _boot_trans_ticks = 0xAu; // b869: the 10-tick hold
         _boot_phase = BOOT_TRANS_HOLD;
         return 1;

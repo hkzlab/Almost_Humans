@@ -180,7 +180,7 @@ int main(int argc, char **argv)
                 for (uint32_t r = 0; r < 16u; r++)
                     for (uint32_t j = 0; j < 8u; j++) {
                         uint32_t px = x + j, sy = row + r;
-                        uint8_t want = flat[sy * VIDEO_PAGE_W + px];
+                        uint8_t want = flat[sy * VIDEO_SCREEN_W + px];
                         uint8_t got = video_vram_group(
                             (uint16_t)(base + sy * 80u + (px >> 2)))[px & 3u];
 
