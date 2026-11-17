@@ -6,6 +6,8 @@
  *   (b) the composed page's badge pixels are the next shipped sprite cell
  *       (byte-checked against CODEB1/CODEB2/RESTORE, the files the placer
  *       reads: a cell's opaque pixels must equal the page's);
+ *   (b2) a synthetic transparent cell: nonzero pixels are placed, zero
+ *       pixels leave the page untouched (the _page_cells rule);
  *   (c) the value reaches its consumer - LEVEL -> the record's time B and
  *       the 10-member tribe (entry 1000:009F / render_level_frame 1000:958C);
  *       MUSIC -> the frame web's gate (audio_music_gate 1000:A5E8) stopping
@@ -197,6 +199,37 @@ int main(int argc, char **argv)
     level_init();
     scene_init();
     frontend_init();
+
+    /* The transparent cell: _page_cells writes nonzero pixels only, and the
+     * flat 4*addr + p mapping must put them on the same page pixels the
+     * plane model did.  Row 0 src {1,0,2} -> x1=1, x2 keeps 0x5A, x3=2;
+     * row 1 src {0,3,0} -> x1/x3 keep, x2=3. */
+    {
+        static const uint8_t cell[6] = { 1u, 0u, 2u, 0u, 3u, 0u };
+        uint8_t *row0 = video_vram_group(0x3000u);
+        uint8_t *row1 = video_vram_group(0x30A0u);
+        int32_t tbad = 0;
+
+        for (uint16_t i = 0; i < 4u; i++) row0[i] = row1[i] = 0x5Au;
+        frontend_page_cells_for_probe(0x3000u, cell, 3u, 3u, 2u, 1u);
+        if (row0[0] != 0x5Au || row0[1] != 1u || row0[2] != 0x5Au ||
+            row0[3] != 2u)
+            tbad = 1;
+        if (row1[0] != 0x5Au || row1[1] != 0x5Au || row1[2] != 3u ||
+            row1[3] != 0x5Au)
+            tbad = 1;
+        if (tbad) {
+            fprintf(stderr,
+                    "FAIL transparent cell: row0 %02x %02x %02x %02x, "
+                    "row1 %02x %02x %02x %02x\n",
+                    row0[0], row0[1], row0[2], row0[3], row1[0], row1[1],
+                    row1[2], row1[3]);
+            bad = 1;
+        } else {
+            printf("ok transparent cell: nonzero pixels placed, zero pixels "
+                   "left alone\n");
+        }
+    }
 
     /* the shipped badge art (the same chunks the placer reads, from disc 0) */
     uint32_t cb1Size = 0, cb2Size = 0, rstSize = 0;

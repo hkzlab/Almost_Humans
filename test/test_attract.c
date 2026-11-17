@@ -9,6 +9,8 @@
  *
  * The run drives the attract with idle input from a fresh start into
  * effect 4 (effects 1, 3 and 2 play for real first), then checks:
+ *   - effect 2's wipe: one 8x16 chunk of page 1 lands on the plane model's
+ *     page pixels (the blit probe, run before the cycle starts);
  *   - the strip: all 192 KB vs e4_strip.bin, and rowsBuilt == 1579 - the
  *     fixture census (101 lines, one screenful);
  *   - the scroll: exactly 1379 ATTRACT_E4_SCROLL ticks (one strip row
@@ -158,6 +160,42 @@ int main(int argc, char **argv)
 
     InputState idle;
     memset(&idle, 0, sizeof idle);
+
+    /* 0. Effect 2's wipe: an 8x16 chunk of page 1 must land on the page
+     * pixels the plane model's per-pixel address gives.  Runs before the
+     * attract starts; effect 1 clears the A000 window at its load. */
+    {
+        uint8_t *flat = (uint8_t *)osys_null_page(1);
+        static const uint32_t xs[6] = { 0u, 1u, 3u, 4u, 316u, 319u };
+        static const uint32_t rows[5] = { 0u, 8u, 88u, 168u, 183u };
+        int32_t ebad = 0;
+
+        for (uint32_t i = 0; i < VIDEO_PAGE_BYTES; i++)
+            flat[i] = (uint8_t)(i * 7u + 3u);
+        for (uint32_t xi = 0; xi < 6u; xi++)
+            for (uint32_t ri = 0; ri < 5u; ri++) {
+                uint32_t x = xs[xi], row = rows[ri];
+                uint32_t base = attract_blit_strip8_for_probe(x, row);
+
+                for (uint32_t r = 0; r < 16u; r++)
+                    for (uint32_t j = 0; j < 8u; j++) {
+                        uint32_t px = x + j, sy = row + r;
+                        uint8_t want = flat[sy * VIDEO_PAGE_W + px];
+                        uint8_t got = video_vram_group(
+                            (uint16_t)(base + sy * 80u + (px >> 2)))[px & 3u];
+
+                        if (got != want) ebad++;
+                    }
+            }
+        if (ebad) {
+            fprintf(stderr,
+                    "FAIL effect 2: %d wipe pixels differ from the plane "
+                    "address\n",
+                    ebad);
+            return 1;
+        }
+        printf("ok e2: the wipe's 8x16 chunk is the plane model's pixels\n");
+    }
 
     /* 1. into effect 4: effects 1, 3 and 2 play for real (~12 k ticks) */
     uint32_t guard = 0;

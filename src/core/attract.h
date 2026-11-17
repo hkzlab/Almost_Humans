@@ -91,6 +91,15 @@ const uint8_t *attract_strip_for_probe(uint32_t *rowsBuilt);
  */
 void attract_format_decimal_for_probe(uint32_t v, char *out);
 
+/** @brief Effect 2's wipe probe: blit one 8x16 chunk of video_flat() into the
+ * draw page, i.e. one blit_sprite_planes call (1000:1795).
+ *
+ * @param x the x coordinate
+ * @param row the row
+ * @return the page base written (attract's [0x5AC4])
+ */
+uint16_t attract_blit_strip8_for_probe(uint32_t x, uint32_t row);
+
 #endif /* HUMANSRE_TEST_PROBES */
 
 #endif /* HUMANSRE_ATTRACT_H */

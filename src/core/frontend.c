@@ -173,6 +173,14 @@ static void _page_cells(uint32_t dst, const uint8_t *src, uint32_t srcStride,
         }
 }
 
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
+void frontend_page_cells_for_probe(uint32_t dst, const uint8_t *src,
+                                   uint32_t srcStride, uint32_t w, uint32_t h,
+                                   uint32_t dx)
+{ _page_cells(dst, src, srcStride, w, h, dx); }
+#endif /* HUMANSRE_TEST_PROBES */
+
 /**
  * @brief Patch a zero-transparent cell block into the loaded code2 image.
  *
@@ -594,13 +602,13 @@ static void _name_screen_enter(void)
         /* AF92's order is load-bearing: the stage strip first (rows 0..55),
          * then the character (band rows 13..39), then the main art (rows
          * 40..175, starting just below him). */
-        video_vram_planarise(_code2 + 0x15400u, _code2_size - 0x15400u, 0u,
-                             160u, 160u, 56u);
+        video_vram_blit(_code2 + 0x15400u, _code2_size - 0x15400u, 0u, 160u,
+                        160u, 56u);
         /* afcf: the character draw runs here, with [0x5AC4] held 0 - the
          * 0x820-band branch in _draw_character fires and the walked-in
          * human lands on the fixed band's hill (screen rows 149..175). */
         _draw_character();
-        video_vram_planarise(_code2, _code2_size, 0x2800u, 160u, 160u, 136u);
+        video_vram_blit(_code2, _code2_size, 0x2800u, 160u, 160u, 136u);
     }
     _draw_humans();
     _draw_name_line();
@@ -695,10 +703,10 @@ static void _do_load(void)
          * `1000:AEDB`'s row loop does; bytes past the chunk (the original's
          * uninitialised pool) are zeros.  The room's 320x192 field never
          * shows them. */
-        video_vram_planarise(_code2, _code2_size, 0u, 160u, 160u,
-                             VIDEO_PAGE_H_MODE13H);
-        video_vram_planarise(_code2, _code2_size, 0x7D00u, 160u, 160u,
-                             VIDEO_PAGE_H_MODE13H);
+        video_vram_blit(_code2, _code2_size, 0u, 160u, 160u,
+                        VIDEO_PAGE_H_MODE13H);
+        video_vram_blit(_code2, _code2_size, 0x7D00u, 160u, 160u,
+                        VIDEO_PAGE_H_MODE13H);
         /* the setup's 2-_frame loop (A5A1..A5DB): the full _frame - the
          * badges, the character, the name line - drawn on BOTH pages
          * before the fade, so the fade-in holds a complete static _frame

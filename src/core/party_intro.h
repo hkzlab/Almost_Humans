@@ -81,6 +81,14 @@ void party_intro_format_score(uint32_t v, char *out);
 void party_intro_compose(uint8_t *page320x200);
 
 #if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
+/** @brief Bake both pages from the loaded .BIT with no animation frame, so
+ * the bake law can be compared to the file verbatim.
+ */
+void party_intro_bake_for_probe(void);
+#endif /* HUMANSRE_TEST_PROBES */
+
+#if defined(HUMANSRE_TEST_PROBES)
 /* Test seam (HUMANSRE_TEST_PROBES): never part of a release build. */
 /** @brief the palette buffers, exposed for the fade-ladder harness: the port's
  * 0x4bbc/0x4d3c(+0x180)/0x1208 stand-ins (read-only diagnostics, see

@@ -9,10 +9,13 @@
  * Missing data = skip with a notice (test_res's contract).
  *
  * The drive: the values are level A's ([live] need 4 / members 12 / score 0
- * / DARWIN), res_set_disc(1), party_intro_set_values + start, then the
- * party_intro_tick's first compose window.  The check: the composed page vs
- * the extracted LBM/PARTY1.BIT rows byte-for-byte.
+ * / DARWIN), res_set_disc(1), party_intro_set_values + start, the blocking
+ * audio fade-in driven to its end, then one tick.  The check: a clean bake
+ * of both pages (the probe) vs the extracted LBM/PARTY1.BIT rows
+ * byte-for-byte, on the exported compose and on video_page(0).
  */
+#include "audio.h"
+#include "compat.h"
 #include "font.h"
 #include "gameflow.h"
 #include "null/osys_null.h"
@@ -95,13 +98,25 @@ int main(int argc, char **argv)
     uint8_t *bit, *page, *vgapage;
     uint32_t sz = 0;
 
-    /* the fixture: the extracted .BIT (the memset-free reference) */
+    /* the fixture: the extracted .BIT (the memset-free reference).  The tree
+     * is either flat (LBM/) or the per-disc extraction (HUMANS.001/LBM/). */
     snprintf(path, sizeof path, "%s/LBM/PARTY1.BIT", argv[2]);
     bit = _read_file(path, &sz);
+    if (!bit) {
+        snprintf(path, sizeof path, "%s/HUMANS.001/LBM/PARTY1.BIT", argv[2]);
+        bit = _read_file(path, &sz);
+    }
     if (!bit || sz < 64000u) {
         printf("PARTY: SKIP (no fixture at %s)\n", path);
         free(bit);
         return 0;
+    }
+
+    /* res opens HUMANS.00N from the working directory */
+    if (compat_chdir(argv[1])) {
+        perror(argv[1]);
+        free(bit);
+        return 1;
     }
 
     res_set_disc(1);                          // the level disc HUMANS.001
@@ -120,18 +135,36 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    /* one tick: the anim runs, the per-tick compose lands */
+    /* The bake waits for the blocking fade-in (1000:2564 timing_loop); the
+     * port's fade is per audio tick, so advance it before the first tick. */
+    {
+        uint32_t guard = 0;
+
+        while (audio_fade_busy() && ++guard < 1000u) audio_tick();
+        if (audio_fade_busy()) {
+            printf("PARTY: FAIL the audio fade-in never ended\n");
+            free(bit);
+            return 1;
+        }
+    }
+
+    /* one tick: the bake + anim run, the per-tick compose lands */
     {
         InputState in;
         memset(&in, 0, sizeof in);
         party_intro_tick(&in);
     }
 
+    /* the bake law without the first animation frame: both pages from the
+     * .BIT (the tick above already exercised the real PH_MUSIC bake). */
+    party_intro_bake_for_probe();
+
     /* the second compose: the module's own exported law compose */
     page = (uint8_t *)malloc(64000u);
     party_intro_compose(page);
 
     vgapage = video_page(0);
+    if (vgapage) party_intro_compose(vgapage); // the backend-page path too
 
     int64_t bitdiffs = 0, bankdiffs = 0;
     for (uint32_t y = 0; y < 200u; y++)
@@ -155,8 +188,15 @@ int main(int argc, char **argv)
         free(page);
         return 1;
     }
-    if (vgapage)
-        printf("PARTY: video_page(0) path diffs: %" PRId64 "\n", bankdiffs);
+    if (vgapage && bankdiffs != 0) {
+        printf("PARTY: FAIL the video_page(0) path differs in %" PRId64
+               " pixels\n",
+               bankdiffs);
+        free(bit);
+        free(page);
+        return 1;
+    }
+    printf("PARTY: video_page(0) path OK\n");
 
     /* D-18: the briefing's score is the live [0x592] low word, not 0. */
     score_set_total(0x1234u, 1u);
@@ -171,8 +211,10 @@ int main(int argc, char **argv)
     {
         char out[8];
         party_intro_format_score(party_intro_score(), out);
-        if (strcmp(out, "1234") != 0) {
-            printf("PARTY: FAIL the score digits are '%s'\n", out);
+        /* the formatter is 2B70's decimal one: 0x1234 prints 4660 */
+        if (strcmp(out, "4660") != 0) {
+            printf("PARTY: FAIL the score digits are '%s', want \"4660\"\n",
+                   out);
             free(bit);
             free(page);
             return 1;

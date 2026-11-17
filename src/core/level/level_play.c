@@ -76,17 +76,17 @@ uint8_t level_starting(void)
 void level_note_input(const InputState *in)
 { _level_joy = in ? in->joyBits : 0u; }
 
-/** @brief the flat model's four plane passes: the shared A000 model -> the page.
- * One byte per pixel, `4*address + plane = pixel`. */
+/** @brief The A000 window -> the page: one 320-pixel row per 88-address row.
+ * The flat model makes a row's four pixel bytes contiguous, so each row is
+ * a straight copy. */
 void _level_page_present(void)
 {
     uint8_t *page = g_osys->videoPage(0);
 
     if (!page) return;
     for (uint16_t y = 0; y < VIDEO_PAGE_H_MODE13H; y++)
-        for (uint16_t x = 0; x < VIDEO_PAGE_W; x++)
-            page[y * VIDEO_PAGE_W + x] =
-                video_vram_group((uint16_t)(y * 88u + (x >> 2)))[x & 3u];
+        memcpy(page + y * VIDEO_PAGE_W, video_vram_group((uint16_t)(y * 88u)),
+               VIDEO_PAGE_W);
 }
 
 /* Bake the visible page back into the planar work buffer. */
@@ -96,9 +96,8 @@ void _level_page_bake(void)
 
     if (!page) return;
     for (uint16_t y = 0; y < VIDEO_PAGE_H_MODE13H; y++)
-        for (uint16_t x = 0; x < VIDEO_PAGE_W; x++)
-            video_vram_group((uint16_t)(y * 88u + (x >> 2)))[x & 3u] =
-                page[y * VIDEO_PAGE_W + x];
+        memcpy(video_vram_group((uint16_t)(y * 88u)), page + y * VIDEO_PAGE_W,
+               VIDEO_PAGE_W);
 }
 
 /** @brief The per-frame world pass: present_and_blit (1000:A0E1).
@@ -121,13 +120,20 @@ static void _render_world(void)
     uint16_t vx = level_view_x(), vy = level_view_y();
     const uint8_t *world = _level_world();
 
-    for (uint16_t y = 0; y < VIDEO_PAGE_H_MODE13H; y++)
-        for (uint16_t x = 0; x < VIDEO_PAGE_W; x++) {
-            uint16_t wx = vx + x, wy = vy + y;
+    for (uint16_t y = 0; y < VIDEO_PAGE_H_MODE13H; y++) {
+        uint16_t wy = (uint16_t)(vy + y);
+        uint8_t *dst = video_vram_group((uint16_t)(y * 88u));
+        uint16_t n;
 
-            video_vram_group((uint16_t)(y * 88u + (x >> 2)))[x & 3u] =
-                (wx < WORLD_W && wy < WORLD_H) ? world[wy * WORLD_W + wx] : 0u;
+        if (wy >= WORLD_H || vx >= WORLD_W) {
+            memset(dst, 0, VIDEO_PAGE_W);
+            continue;
         }
+        n = (uint16_t)(WORLD_W - vx);
+        if (n > VIDEO_PAGE_W) n = VIDEO_PAGE_W;
+        memcpy(dst, world + wy * WORLD_W + vx, n);
+        if (n < VIDEO_PAGE_W) memset(dst + n, 0, VIDEO_PAGE_W - n);
+    }
     _level_spark_frame();
     uint8_t *page = g_osys->videoPage(0);
     _level_page_present();

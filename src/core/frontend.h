@@ -107,6 +107,21 @@ uint8_t frontend_name_screen_for_probe(void);
  */
 const char *frontend_name_for_probe(void);
 
+/**
+ * @brief Test probe: _page_cells' nonzero-transparent cell blit (the badges
+ * and the walkers), so the transparent pixels' no-write rule is checked.
+ *
+ * @param dst the page row base
+ * @param src the cell source
+ * @param stride the source row stride
+ * @param w the cell width
+ * @param h the cell height
+ * @param dx the destination x
+ */
+void frontend_page_cells_for_probe(uint32_t dst, const uint8_t *src,
+                                   uint32_t stride, uint32_t w, uint32_t h,
+                                   uint32_t dx);
+
 #endif /* HUMANSRE_TEST_PROBES */
 
 #endif /* HUMANSRE_FRONTEND_H */

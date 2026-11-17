@@ -97,11 +97,9 @@ static void _spark_strip_save(int16_t ox, int16_t oy)
                 const uint8_t *px = video_vram_group(
                     (uint16_t)((uint32_t)sy * 88u + ((uint32_t)sx >> 2)));
 
-                for (uint16_t p = 0; p < 4u; p++)
-                    _spark_strip[row][col][p] = px[p];
+                memcpy(_spark_strip[row][col], px, 4u);
             } else {
-                for (uint16_t p = 0; p < 4u; p++)
-                    _spark_strip[row][col][p] = 0u;
+                memset(_spark_strip[row][col], 0, 4u);
             }
         }
 }
@@ -122,13 +120,9 @@ static void _spark_strip_restore(void)
             if (sx < 0 || sx >= (int32_t)VIDEO_PAGE_W || sy < 0 ||
                 sy >= (int32_t)VIDEO_PAGE_H_MODE13H)
                 continue;
-            {
-                uint8_t *px = video_vram_group(
-                    (uint16_t)((uint32_t)sy * 88u + ((uint32_t)sx >> 2)));
-
-                for (uint16_t p = 0; p < 4u; p++)
-                    px[p] = _spark_strip[row][col][p];
-            }
+            memcpy(video_vram_group(
+                       (uint16_t)((uint32_t)sy * 88u + ((uint32_t)sx >> 2))),
+                   _spark_strip[row][col], 4u);
         }
 }
 
@@ -281,13 +275,14 @@ static void _spark_draw(void)
 void level_claim_recolour(void)
 {
     uint8_t *page = video_page(0);
+    uint8_t *vram = video_vram_group(0u);
 
     if (!page) return;
     for (uint16_t i = 0; i < VIDEO_PAGE_BYTES; i++)
         if (page[i] < 0x80u) page[i] = 0x1Eu;
-    for (uint16_t i = 0; i < VIDEO_PAGE_H_MODE13H * 88u; i++)
-        for (uint16_t p = 0; p < 4u; p++)
-            if (video_vram_group(i)[p] < 0x80u) video_vram_group(i)[p] = 0x1Eu;
+    /* the window's 200 rows x 88 addresses are contiguous flat pixels */
+    for (uint32_t i = 0; i < (uint32_t)VIDEO_PAGE_H_MODE13H * 88u * 4u; i++)
+        if (vram[i] < 0x80u) vram[i] = 0x1Eu;
 }
 
 void level_claim_frame(void)

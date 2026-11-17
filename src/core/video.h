@@ -1,4 +1,4 @@
-/* Video: the two flat pages and the shared A000 planar model.
+/* Video: the two flat pages and the shared A000 address model.
  *
  *   vga_set_mode_13h        1000:8300
  *   reset_display_mode      1000:82C6
@@ -43,13 +43,13 @@ void video_tick(void);
 uint8_t *video_page(int32_t which);
 
 /**
- * @brief The four plane bytes at one A000 address.
+ * @brief The four pixels at one A000 address.
  *
  * A000 is the original's 64-KB unchained byte-mode window: one address byte
- * is four pixels, one per plane.
+ * is four pixels, one per plane.  The port stores them flat, byte 4*addr + p.
  *
  * @param addr the address (0..0xFFFF)
- * @return the four plane bytes; plane p is the pixel at x = 4j + p
+ * @return the four pixels; plane p is the pixel at x = 4j + p
  */
 uint8_t *video_vram_group(uint16_t addr);
 
@@ -60,11 +60,12 @@ void video_vram_clear(void);
 
 /**
  * @brief blit_planar_to_vga (1000:888E), deplanarise_intro_page (1000:2ED7)
- * and blit_planar_strip (1000:AEAD): planarise chunky rows into A000.
+ * and blit_planar_strip (1000:AEAD): blit chunky rows into the A000 window.
  *
- * Row r lands at base + r*pitch; column c at that row's address byte c; plane
- * p is src[r*cols*4 + c*4 + p].  Bytes at or past `size` (a loaded chunk,
- * whose tail may be a palette) are written as zeros.
+ * Row r lands at base + r*pitch (addresses, 4 pixels each); group c is
+ * src[r*cols*4 + c*4 .. +3].  Bytes at or past `size` (a loaded chunk, whose
+ * tail may be a palette) are written as zeros.  Installs a resource image and
+ * copies a whole composed page between surfaces.
  *
  * @param src the chunky source
  * @param size the source's usable byte count
@@ -73,8 +74,8 @@ void video_vram_clear(void);
  * @param cols the 4-pixel groups per row
  * @param rows the row count
  */
-void video_vram_planarise(const uint8_t *src, uint32_t size, uint16_t base,
-                          uint16_t pitch, uint16_t cols, uint16_t rows);
+void video_vram_blit(const uint8_t *src, uint32_t size, uint16_t base,
+                     uint16_t pitch, uint16_t cols, uint16_t rows);
 
 /**
  * @brief VGA write mode 2 at one A000 address: plane p keeps the bits outside
@@ -107,7 +108,7 @@ void video_vram_present(uint8_t *page, uint16_t base, uint16_t pitch,
  *
  * It is the backend's page 1, which the port never presents: page 0 is the
  * display contract and page 1 is core scratch.  The attract composes its
- * chunky frame there before planarising it.
+ * chunky frame there before blitting it into A000.
  *
  * @return the scratch page
  */

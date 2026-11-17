@@ -276,8 +276,8 @@ static void _flip_page(void) // 87f8
  */
 static void _bake_page(const uint8_t *bit, uint32_t pagebase)
 {
-    video_vram_planarise(bit, UINT32_MAX, (uint16_t)(pagebase + 8u), 88u, 80u,
-                         VIDEO_PAGE_H_MODE13H);
+    video_vram_blit(bit, UINT32_MAX, (uint16_t)(pagebase + 8u), 88u, 80u,
+                    VIDEO_PAGE_H_MODE13H);
 }
 
 /**
@@ -723,6 +723,15 @@ static void _party_begin(void)
     _copy_palette(); // 25da (28d0)
     palette_build_fade(0u, 0x100u, 0x23u, _workpal); // 25dd
 }
+
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
+void party_intro_bake_for_probe(void)
+{
+    _bake_page(_bit_img, _page_draw);
+    _bake_page(_bit_img, _page_disp);
+}
+#endif /* HUMANSRE_TEST_PROBES */
 
 /* === the ticker =============================================================== */
 

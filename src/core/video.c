@@ -4,11 +4,12 @@
 #include <stdint.h>
 #include <string.h>
 
-/* shortcut: the A000 plane model is always recomposed in software; a backend
- * with native planar output would move it behind an optional module (D-04). */
+/* shortcut: the A000 model is always recomposed in software; a backend with
+ * native planar output would move it behind an optional module (D-04). */
 
-/* the A000 planar space: one address byte = four pixels, one per plane */
-static uint8_t _vram[65536][4];
+/* the A000 space, flat: pixel 4*addr + plane is one byte, so the four plane
+ * writes of one address are four contiguous bytes. */
+static uint8_t _vram[65536u * 4u];
 
 /* The shared text/scratch arena: 200 rows x 80 bytes.  The original carves
  * the same region twice - the attract's 16000-B arena ([0xC9D], game_loop
@@ -26,36 +27,54 @@ void video_tick(void) { /* the flip is the backend's videoPresent */ }
 
 uint8_t *video_page(int32_t which) { return g_osys->videoPage(which); }
 
-uint8_t *video_vram_group(uint16_t addr) { return _vram[addr]; }
+uint8_t *video_vram_group(uint16_t addr) { return &_vram[(uint32_t)addr * 4u]; }
 
 void video_vram_clear(void) { memset(_vram, 0, sizeof _vram); }
 
-void video_vram_planarise(const uint8_t *src, uint32_t size, uint16_t base,
-                          uint16_t pitch, uint16_t cols, uint16_t rows)
+/**
+ * @brief Copy or zero one row through the wrapping 64-KB address space.
+ *
+ * @param addr the row's first address
+ * @param src the source row, or NULL to zero
+ * @param bytes the byte count
+ */
+static void _vram_row(uint16_t addr, const uint8_t *src, uint32_t bytes)
+{
+    uint32_t d = (uint32_t)addr * 4u;
+    uint32_t first = (uint32_t)sizeof _vram - d;
+    uint32_t rest = 0u;
+
+    if (first > bytes) first = bytes;
+    else rest = bytes - first;
+    if (src) {
+        memcpy(&_vram[d], src, first);
+        if (rest) memcpy(_vram, src + first, rest);
+    } else {
+        memset(&_vram[d], 0, first);
+        if (rest) memset(_vram, 0, rest);
+    }
+}
+
+void video_vram_blit(const uint8_t *src, uint32_t size, uint16_t base,
+                     uint16_t pitch, uint16_t cols, uint16_t rows)
 {
     for (uint32_t r = 0; r < rows; r++) {
-        uint32_t a = base + r * pitch;
-        const uint8_t *s = src + r * cols * 4u;
+        uint32_t off = r * cols * 4u;
+        uint32_t n = (off < size) ? size - off : 0u;
+        uint16_t addr = (uint16_t)(base + r * pitch);
 
-        for (uint32_t c = 0; c < cols; c++) {
-            uint32_t off = r * cols * 4u + c * 4u;
-            uint8_t *p = _vram[(a + c) & 0xFFFFu]; // Model a potential wrap
-
-            if (off + 3u < size) {
-                p[0] = s[c * 4u];
-                p[1] = s[c * 4u + 1u];
-                p[2] = s[c * 4u + 2u];
-                p[3] = s[c * 4u + 3u];
-            } else {
-                p[0] = p[1] = p[2] = p[3] = 0u;
-            }
-        }
+        if (n > cols * 4u) n = cols * 4u;
+        n &= ~3u; // whole 4-pixel groups, the old per-group test's condition
+        if (n) _vram_row(addr, src + off, n);
+        if (n < cols * 4u)
+            _vram_row((uint16_t)(addr + (uint16_t)(n / 4u)), NULL,
+                      cols * 4u - n);
     }
 }
 
 void video_vram_wm2(uint16_t addr, uint8_t colour, uint8_t mask)
 {
-    uint8_t *px = _vram[addr];
+    uint8_t *px = &_vram[(uint32_t)addr * 4u];
     uint8_t keep = (uint8_t)~mask;
 
     for (uint16_t p = 0; p < 4u; p++) {
@@ -72,6 +91,7 @@ void video_vram_present(uint8_t *page, uint16_t base, uint16_t pitch,
     for (uint16_t y = 0; y < VIDEO_PAGE_H_MODE13H; y++) {
         uint8_t *d = page + y * VIDEO_PAGE_W;
         uint16_t row, pan;
+        uint32_t src, first;
 
         if (y < split) { // the panned page
             row = (uint16_t)(base + y * pitch);
@@ -80,11 +100,13 @@ void video_vram_present(uint8_t *page, uint16_t base, uint16_t pitch,
             row = (uint16_t)((y - split) * pitch);
             pan = 0u;
         }
-        for (uint16_t x = 0; x < VIDEO_PAGE_W; x++) {
-            uint16_t w = (uint16_t)(pan + x);
-
-            d[x] = _vram[(uint16_t)(row + (w >> 2))][w & 3u];
-        }
+        /* the window is 4*row + pan contiguous pixels, wrapping at 64K */
+        src = ((uint32_t)row * 4u + pan) & ((uint32_t)sizeof _vram - 1u);
+        first = (uint32_t)sizeof _vram - src;
+        if (first > VIDEO_PAGE_W) first = VIDEO_PAGE_W;
+        memcpy(d, &_vram[src], first);
+        if (first < VIDEO_PAGE_W)
+            memcpy(d + first, _vram, VIDEO_PAGE_W - first);
     }
 }
 

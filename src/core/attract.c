@@ -293,10 +293,11 @@ static void _blit_80x200(const uint8_t *ar)
     if (_colour1881 < 0x40u) _colour1881 = (uint8_t)(_colour1881 + 0x40u);
 }
 
-/** @brief blit_sprite_planes (1000:1795): an 8x16 chunk of video_flat() planarised
- * into A000 at _page_draw + row*80 + x/4, plane (x+j)&3.  The source/dest read
- * past a row's edge into the next row exactly as the original's flat
- * offsets do (the right-sweeping columns start at 319).
+/** @brief blit_sprite_planes (1000:1795): an 8x16 chunk of video_flat() into
+ * A000 at _page_draw + row*80 + x/4.  The flat model makes the eight pixels
+ * of a row one contiguous run, so each row is an 8-byte copy.  The source and
+ * destination read past a row's edge into the next row exactly as the
+ * original's flat offsets do (the right-sweeping columns start at 319).
  *
  * @param x the x coordinate
  * @param row the row
@@ -305,16 +306,24 @@ static void _blit_strip8(uint32_t x, uint32_t row)
 {
     const uint8_t *flat = video_flat();
 
-    for (uint16_t j = 0; j < 8u; j++) {
-        uint32_t px = x + j;
-        for (uint16_t r = 0; r < 16u; r++) {
-            uint16_t sy = (uint16_t)(row + r);
-            uint8_t v = flat[sy * VIDEO_PAGE_W + px];
-            video_vram_group(
-                (uint16_t)(_page_draw + sy * 80u + (px >> 2)))[px & 3u] = v;
-        }
+    for (uint16_t r = 0; r < 16u; r++) {
+        uint16_t sy = (uint16_t)(row + r);
+        const uint8_t *src = flat + sy * VIDEO_PAGE_W + x;
+        uint8_t *dst =
+            video_vram_group((uint16_t)(_page_draw + sy * 80u + (x >> 2)));
+
+        memcpy(dst + (x & 3u), src, 8u);
     }
 }
+
+#if defined(HUMANSRE_TEST_PROBES)
+/* Test probe (HUMANSRE_TEST_PROBES): never part of a release build. */
+uint16_t attract_blit_strip8_for_probe(uint32_t x, uint32_t row)
+{
+    _blit_strip8(x, row);
+    return _page_draw;
+}
+#endif /* HUMANSRE_TEST_PROBES */
 
 /** @brief _wipe_row (1000:1722): eleven 16-row chunks tiling rows 8..183,
  * alternating between the right-sweeping column (the arg_swap variant,
@@ -359,11 +368,11 @@ static int32_t _e1_load(void)
     }
 
     palette_load_working(_img_buf + VIDEO_PAGE_BYTES);
-    video_vram_planarise(_img_buf, UINT32_MAX, _page_draw, 80u, 80u,
-                         VIDEO_PAGE_H_MODE13H);
+    video_vram_blit(_img_buf, UINT32_MAX, _page_draw, 80u, 80u,
+                    VIDEO_PAGE_H_MODE13H);
     _flip_page(); // the image at 0 and
-    video_vram_planarise(_img_buf, UINT32_MAX, _page_draw, 80u, 80u,
-                         VIDEO_PAGE_H_MODE13H);
+    video_vram_blit(_img_buf, UINT32_MAX, _page_draw, 80u, 80u,
+                    VIDEO_PAGE_H_MODE13H);
     _flip_page(); // at 0x8000
 
     _page_draw = 0x3E80u; // 142F/1435: the blank
@@ -394,10 +403,10 @@ static int32_t _e3_load(void)
         return 0;
     }
 
-    video_vram_planarise(_img_buf, UINT32_MAX, 0x3E80u, 80u, 80u,
-                         VIDEO_PAGE_H_MODE13H); // the title: rows 200-400
-    video_vram_planarise(_img_buf + 48000u, UINT32_MAX, 0x6D60u, 80u, 80u,
-                         VIDEO_PAGE_H_MODE13H); // the promo: rows 350-550
+    video_vram_blit(_img_buf, UINT32_MAX, 0x3E80u, 80u, 80u,
+                    VIDEO_PAGE_H_MODE13H); // the title: rows 200-400
+    video_vram_blit(_img_buf + 48000u, UINT32_MAX, 0x6D60u, 80u, 80u,
+                    VIDEO_PAGE_H_MODE13H); // the promo: rows 350-550
     palette_load_working(_img_buf + 112000u);
     _wait_page(_d3b); // the stale [0xD3B]
     palette_build_fade(0u, 256u, 0x23u, palette_working());
@@ -442,11 +451,11 @@ static int32_t _e2_load(void)
                 (uint8_t)((77u * p[0] + 151u * p[1] + 28u * p[2]) >> 9);
         }
     }
-    video_vram_planarise(_img_buf, UINT32_MAX, _page_draw, 80u, 80u,
-                         VIDEO_PAGE_H_MODE13H);
+    video_vram_blit(_img_buf, UINT32_MAX, _page_draw, 80u, 80u,
+                    VIDEO_PAGE_H_MODE13H);
     _flip_page();
-    video_vram_planarise(_img_buf, UINT32_MAX, _page_draw, 80u, 80u,
-                         VIDEO_PAGE_H_MODE13H);
+    video_vram_blit(_img_buf, UINT32_MAX, _page_draw, 80u, 80u,
+                    VIDEO_PAGE_H_MODE13H);
     _flip_page();
 
     uint8_t *palBuf = res_load_chunk(
@@ -591,11 +600,11 @@ static int32_t _e4_load(void)
     }
 
     palette_load_working(_img_buf + VIDEO_PAGE_BYTES);
-    video_vram_planarise(_img_buf, UINT32_MAX, _page_draw, 80u, 80u,
-                         VIDEO_PAGE_H_MODE13H);
+    video_vram_blit(_img_buf, UINT32_MAX, _page_draw, 80u, 80u,
+                    VIDEO_PAGE_H_MODE13H);
     _flip_page();
-    video_vram_planarise(_img_buf, UINT32_MAX, _page_draw, 80u, 80u,
-                         VIDEO_PAGE_H_MODE13H);
+    video_vram_blit(_img_buf, UINT32_MAX, _page_draw, 80u, 80u,
+                    VIDEO_PAGE_H_MODE13H);
     _flip_page();
     palette_build_fade(0u, 256u, 0x1Eu, palette_working());
 
@@ -879,8 +888,8 @@ uint8_t attract_tick(const InputState *in)
         _wipe_row(_wipe_iter);
         _flip_page();
         if (++_wipe_iter < 79u) break;
-        video_vram_planarise(video_flat(), UINT32_MAX, _page_draw, 80u, 80u,
-                             VIDEO_PAGE_H_MODE13H); // 171c: the full present
+        video_vram_blit(video_flat(), UINT32_MAX, _page_draw, 80u, 80u,
+                        VIDEO_PAGE_H_MODE13H); // 171c: the full present
         _flip_page();
         _counter = 490u; // 164c/168a: the hold
         _phase = ATTRACT_E2_HOLD;

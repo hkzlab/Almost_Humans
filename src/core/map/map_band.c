@@ -5,6 +5,7 @@
 #include "width.h"
 
 #include <stdint.h>
+#include <string.h>
 
 /* --- the box frame: BAND.SPR, vga_write_masked_plane_copy, draw_box_edges --
  *
@@ -169,32 +170,19 @@ static uint8_t _map_b75, _map_b76, _map_b77, _map_b78, _map_b79, _map_b7b;
 static uint8_t _map_b7c, _map_b7d, _map_b7e, _map_b7f, _map_b81;
 static uint8_t _map_b86, _map_b87, _map_b88, _map_b89, _map_b8b;
 
-/** @brief 1000:12D3: de-interleave BAND.SPR's four plane bytes into the
- * staging page (plane p of byte address i is source[i*4+p]).
+/** @brief 1000:12D3: BAND.SPR's plane bytes into the staging page.
+ *
+ * Measured on the running game: the four bytes at one address are the four
+ * pixels' full 8-bit colours, pixel j = plane j, so the staging page decodes
+ * to BAND.SPR row-major byte for byte - a straight copy in the flat model.
  */
 void _map_stage_fill(void)
 {
     if (!_band_sheet) return;
-    for (uint16_t i = 0; i < MAP_STAGE_ADDRS; i++)
-        for (uint16_t p = 0; p < 4u; p++)
-            video_vram_group((uint16_t)(MAP_STAGE_BASE + i))[p] =
-                _band_sheet[(i * 4u + p) & 0xFFFFu];
+    memcpy(video_vram_group((uint16_t)MAP_STAGE_BASE), _band_sheet,
+           MAP_STAGE_ADDRS * 4u);
     _map_stage_ready = 1;
 }
-
-/** @brief the colour of pixel j of the staging page's byte address a.
- *
- * Measured on the running game: the four plane bytes at one address are the
- * four pixels' full 8-bit colours, pixel j = plane j; the page is a plain
- * 320-px row-major image whose 4-pixel groups are split across the planes.
- * The band staging page decodes to BAND.SPR row-major byte for byte.
- *
- * @param a the staging byte address
- * @param j the pixel within the 4-pixel group
- * @return the colour
- */
-static uint8_t _map_stage_pixel(uint32_t a, uint32_t j)
-{ return video_vram_group((uint16_t)(MAP_STAGE_BASE + a))[j & 3u]; }
 
 /** @brief 1000:0A72: one channel's 8-byte x 40-row strip from the staging page
  * at `phase*0x140` byte addresses into the page at `0x2DB8 + ch*8`.
@@ -217,8 +205,8 @@ static void _map_blit_strip(uint16_t phase, uint32_t ch, uint8_t *page)
 
             if (a >= MAP_STAGE_ADDRS) continue;
             if (da / 80u >= VIDEO_PAGE_H_MODE13H) continue;
-            for (uint16_t j = 0; j < 4u; j++)
-                page[px + j] = _map_stage_pixel(a, j);
+            memcpy(&page[px], video_vram_group((uint16_t)(MAP_STAGE_BASE + a)),
+                   4u);
         }
 }
 
