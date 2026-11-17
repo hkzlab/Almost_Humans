@@ -16,6 +16,7 @@
 #include "res.h"
 #include "palette.h"
 #include "scene/scene.h"
+#include "scene/scene_internal.h"
 #include "video.h"
 #include "compat.h"
 #include "byteorder.h"
@@ -642,6 +643,102 @@ int main(int argc, char **argv)
         free(daily);
     }
 
-    if (!bad) printf("scene tests: OK (7 checks)\n");
+    /* D-278 (closed 2026-11-17): a chained cutscene plays the NEXT scene.
+     * Level 6 ("MOOBLE") has intro 4; 202F:0x6293[4] = 8.  1000:B18B's chain
+     * advance skips the newspaper panel, and play_scene_sequence re-decodes
+     * the new .ANI's entry 0 (draw_scene_obj 1000:B3CC), so scene 8's
+     * prologue is expanded over scene 4's last frame.  The reference below
+     * is that playback replayed independently: scene 4's prologue and object
+     * loop over the panel, then scene 8's prologue.  The frame must appear,
+     * and the panel must not come back. */
+    {
+        static uint8_t obj[OBJ_SEG_SIZE];
+        static uint8_t s4[OBJ_SEG_SIZE];
+        static uint8_t s8[OBJ_SEG_SIZE];
+        static uint8_t panel[64000];
+        static uint8_t expected[64000];
+        Ani a4, a8;
+        uint16_t n4 = 0, n8 = 0, chk = 0;
+        const uint16_t *i4 = NULL, *i8 = NULL;
+        int32_t sz = -1, ok = 0;
+
+        memset(&a4, 0, sizeof a4);
+        memset(&a8, 0, sizeof a8);
+        res_set_disc(res_movie_disc(4)); // scenes 4 and 8 are both disc 2
+        if (_ani_load(&a4, 4) == 0 && _ani_load(&a8, 8) == 0) {
+            sz = _ani_decode_object(&a4, 0, s4, OBJ_SEG_SIZE, &chk);
+            if (sz > 0 && chk == 0) {
+                n4 = (uint16_t)(rd_le_u16(s4) + 1u);
+                i4 = (const uint16_t *)(s4 + 2 + 768);
+                if (2u + 768u + n4 * 2u <= (uint32_t)sz) {
+                    sz = _ani_decode_object(&a8, 0, s8, OBJ_SEG_SIZE, &chk);
+                    if (sz > 0 && chk == 0) {
+                        n8 = (uint16_t)(rd_le_u16(s8) + 1u);
+                        i8 = (const uint16_t *)(s8 + 2 + 768);
+                        ok = 2u + 768u + n8 * 2u <= (uint32_t)sz;
+                    }
+                }
+            }
+        }
+        if (!ok) {
+            fprintf(stderr, "FAIL D-278: ANI04/ANI08 entry 0 unreadable\n");
+            bad = 1;
+        } else {
+            scene_reset_intro();
+            if (scene_play_level_intro(4) != 1) {
+                fprintf(stderr, "FAIL D-278: scene 4 did not start\n");
+                bad = 1;
+            } else {
+                /* the panel the first call composed, then scene 4's
+                 * prologue + index list (a failed object ends the scene,
+                 * 1000:B3F9's abort) */
+                memcpy(panel, osys_null_page(0), sizeof panel);
+                memcpy(expected, panel, sizeof expected);
+                sz = _ani_decode_object(&a4, i4[0], obj, OBJ_SEG_SIZE, &chk);
+                if (sz > 0 && chk == 0)
+                    _scene_al_expand(obj, (uint32_t)sz, expected, PAGE_SIZE);
+                for (uint16_t k = 0; k < n4; k++) {
+                    sz = _ani_decode_object(&a4, i4[k], obj, OBJ_SEG_SIZE,
+                                            &chk);
+                    if (sz < 0 || chk != 0) break;
+                    _scene_al_expand(obj, (uint32_t)sz, expected, PAGE_SIZE);
+                }
+                /* scene 8's prologue over scene 4's last frame */
+                sz = _ani_decode_object(&a8, i8[0], obj, OBJ_SEG_SIZE, &chk);
+                if (sz < 0 || chk != 0) {
+                    fprintf(stderr, "FAIL D-278: ANI08 prologue decode\n");
+                    bad = 1;
+                } else {
+                    uint32_t saw = 0;
+
+                    _scene_al_expand(obj, (uint32_t)sz, expected, PAGE_SIZE);
+                    for (uint32_t t = 0; t < 4000u; t++) {
+                        palette_tick();
+                        audio_tick();
+                        if (scene_play_level_intro(4) != 1) break;
+                        if (memcmp(osys_null_page(0), expected,
+                                   sizeof expected) == 0) {
+                            saw = t + 1u;
+                            break;
+                        }
+                    }
+                    if (!saw) {
+                        fprintf(stderr, "FAIL D-278: scene 8's prologue never "
+                                        "appeared (chain 4 -> 8)\n");
+                        bad = 1;
+                    } else if (memcmp(osys_null_page(0), panel,
+                                      sizeof panel) == 0) {
+                        fprintf(stderr, "FAIL D-278: the newspaper panel came "
+                                        "back at tick %u\n", saw);
+                        bad = 1;
+                    }
+                }
+            }
+        }
+        _ani_release(&a4);
+        _ani_release(&a8);
+    }
+
+    if (!bad) printf("scene tests: OK (8 checks)\n");
     return bad;
 }

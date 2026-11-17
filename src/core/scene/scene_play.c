@@ -152,8 +152,30 @@ static void _scene_unload(void)
     memset(&_ani, 0, sizeof _ani);
 }
 
-/** @brief Load ANI<index>.ANI + the background assets, draw the background and
- * the palette onto page 0.
+/** @brief draw_scene_obj (1000:B3CC): decode the current .ANI's table entry 0
+ * into `_script_buf` and publish its play count, palette and index table.
+ *
+ * Every play_scene_sequence run does this, i.e. once per chained scene and
+ * not only on the level's first scene.
+ *
+ * @return 0 on success, -1 on a failed or short decode
+ */
+static int32_t _scene_script_decode(void)
+{
+    uint16_t chk = 0;
+    int32_t script_size =
+        _ani_decode_object(&_ani, 0, _script_buf, OBJ_SEG_SIZE, &chk);
+
+    if (script_size < 0 || chk != 0) return -1;
+    /* the script object: [u16 _plays-1][768 palette][_indices] */
+    _plays = (uint16_t)(rd_le_u16(_script_buf) + 1u);
+    if (2u + 768u + _plays * 2u > (uint32_t)script_size) return -1;
+    _indices = (const uint16_t *)(_script_buf + 2 + 768);
+    return 0;
+}
+
+/** @brief Load ANI<index>.ANI and its script object; on the chain's first
+ * scene also draw the newspaper panel and its palette onto page 0.
  *
  * @param index the intro scene index
  * @param initial non-zero on the chain's first scene (shows the panel)
@@ -175,6 +197,16 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
         _scene_unload();
         return -1;
     }
+
+    if (_scene_script_decode()) {
+        _scene_unload();
+        return -1;
+    }
+
+    /* 1000:B18B: a chain advance jumps straight to the dwell loop (B0FF), so
+     * the newspaper panel, its assets and its fades are the FIRST scene's
+     * alone; the new scene's frames expand over the previous page. */
+    if (!initial) return 0;
 
     /* lbm\daily.bit -> the page: [64000-byte screen][768-byte palette] */
     {
@@ -242,9 +274,8 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
 
     /* 1000:B0DA: after the panel is drawn and flipped, its first 0x20 DAC
      * entries fade from the previous screen's palette to daily.bit's
-     * (div 0x19); the 210-tick dwell starts only after that fade.  A chain
-     * advance (C57A) skips the panel and its fade. */
-    if (initial && _panel_pal_valid)
+     * (div 0x19); the 210-tick dwell starts only after that fade. */
+    if (_panel_pal_valid)
         palette_build_fade(0u, 0x20u, 0x19u, _panel_pal);
     return 0;
 }
@@ -275,22 +306,6 @@ uint8_t scene_play_level_intro(uint16_t introIndex)
         audio_music_resume();
         audio_fade_in();
 
-        /* the script object (entry 0): [u16 _plays-1][768 palette][_indices] */
-        uint16_t chk = 0;
-        int32_t script_size =
-            _ani_decode_object(&_ani, 0, _script_buf, OBJ_SEG_SIZE, &chk);
-        if (script_size < 0 || chk != 0) {
-            _scene_unload();
-            _scene_phase = SCENE_DONE;
-            return 0;
-        }
-        _plays = (uint16_t)(rd_le_u16(_script_buf) + 1u);
-        if (2u + 768u + _plays * 2u > (uint32_t)script_size) {
-            _scene_unload();
-            _scene_phase = SCENE_DONE;
-            return 0;
-        }
-        _indices = (const uint16_t *)(_script_buf + 2 + 768);
         /* the script object (entry 0) carries the cutscene's 768-byte
          * 6-bit palette at +2, but it belongs to the FRAMES: the panel is
          * shown in daily.bit's palette for the whole dwell and only then
@@ -451,21 +466,28 @@ uint8_t scene_play_level_intro(uint16_t introIndex)
             }
             if (--_chain_wait == 0) {
                 if (_chain_replay) {
-                    _obj_index = 0; // replay this scene
-                    _scene_phase = SCENE_PLAY;
+                    /* 1000:B189 -> B14D: even a self-replay calls
+                     * play_scene_sequence, which shows index 0 as its
+                     * prologue before the object loop. */
+                    _obj_index = 0;
+                    _scene_phase = SCENE_PANEL_OUT;
                 } else {
                     _scene_phase = SCENE_RESTART; // play the chained scene
                 }
             }
             return 1;
 
-        case SCENE_RESTART: // chain advance: no dwell
+        case SCENE_RESTART: // chain advance: no dwell, no panel
             if (_scene_start(_cur_scene, 0)) {
                 _scene_phase = SCENE_DONE;
                 return 0;
             }
-            _scene_phase = SCENE_PLAY;
+            /* 1000:B24B: play_scene_sequence's prologue decodes and shows
+             * index 0, then B263 fades the DAC to THIS scene's script
+             * palette - the first scene's SCENE_PANEL_OUT shape, without a
+             * panel to wait for. */
             _obj_index = 0;
+            _scene_phase = SCENE_PANEL_OUT;
             break;
 
         case SCENE_DONE:
