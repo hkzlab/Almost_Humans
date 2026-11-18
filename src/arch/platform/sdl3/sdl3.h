@@ -44,6 +44,14 @@ int32_t sdl3_video_scale(void);
 uint8_t *sdl3_video_page(int32_t which);
 
 /**
+ * @brief Toggle windowed <-> borderless desktop fullscreen.
+ *
+ * Host-only: bound to F11 and Alt+Enter by the events module, never to a game
+ * action.
+ */
+void sdl3_video_toggle_fullscreen(void);
+
+/**
  * @brief Present one page as a field of `rows` rows.
  *
  * @param which the page selector

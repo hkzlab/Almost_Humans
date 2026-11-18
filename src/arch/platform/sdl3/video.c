@@ -10,6 +10,7 @@
 #include "sdl3/sdl3.h"
 
 #include <SDL3/SDL.h>
+#include <stdbool.h>
 #include <stdint.h>
 #if defined(HUMANSRE_TEST_PROBES)
 #    include <stdlib.h> /* getenv: the present-rate probe */
@@ -201,6 +202,26 @@ void sdl3_video_set_palette(const uint8_t *p6, uint32_t first, uint32_t n)
         _lut[first + i] =
             0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
     }
+}
+
+/**
+ * @brief Toggle the window between windowed and desktop fullscreen.
+ *
+ * No fullscreen mode is ever set on the window, so SDL3 makes this borderless
+ * desktop fullscreen: the display mode is untouched.  The present re-reads the
+ * output size every frame, so the 4:3 fit follows on the next one.
+ */
+void sdl3_video_toggle_fullscreen(void)
+{
+    bool on;
+
+    if (!_win) return;
+    on = (SDL_GetWindowFlags(_win) & SDL_WINDOW_FULLSCREEN) != 0;
+    /* shortcut: the request is asynchronous on X11/Wayland, so one frame may
+     * still present at the old output size; call SDL_SyncWindow if that shows */
+    if (!SDL_SetWindowFullscreen(_win, !on))
+        SDL_Log("fullscreen: %s", SDL_GetError());
+    else SDL_Log("fullscreen: %s", on ? "windowed" : "desktop fullscreen");
 }
 
 uint8_t *sdl3_video_page(int32_t which) { return _vid_page(which); }

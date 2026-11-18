@@ -3,7 +3,8 @@
  * Arrows + the configured action key (default Z, [0x5B05]) set the joystick
  * bits; printable keys pass as ASCII; ESC/Enter/Backspace use the INT 9 codes
  * (poll_input 1000:8526, int9_keyboard_isr 1000:93A1).  A key-up clears the
- * code.
+ * code.  F11 and Alt+Enter are host-only: they toggle fullscreen and are
+ * swallowed before the game sees them.
  */
 #include "osystem.h"
 #include "sdl3/sdl3.h"
@@ -132,6 +133,15 @@ void sdl3_events_poll(InputState *out)
         switch (ev.type) {
         case SDL_EVENT_QUIT: _cur.quit = 1; break;
         case SDL_EVENT_KEY_DOWN:
+            /* Host-only, and swallowed before the game sees it: Alt+Enter
+             * must not reach the confirm action (0x0D).  Repeats ignored, or a
+             * held F11 would toggle at typematic rate. */
+            if (!ev.key.repeat && (ev.key.key == SDLK_F11 ||
+                                   (ev.key.key == SDLK_RETURN &&
+                                    (ev.key.mod & SDL_KMOD_ALT) != 0))) {
+                sdl3_video_toggle_fullscreen();
+                break;
+            }
             _set_joy_bits(ev.key.key, 1);
             _cur.lastKey = _key_code(ev.key.key);
             _cur.keyScan = _scan_code(ev.key.key);
