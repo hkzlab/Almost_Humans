@@ -99,6 +99,7 @@ static void _vid_init_video(void)
             HUMANSRE_PROJECT_TITLE, WINDOW_DEFAULT_WIDTH, WINDOW_DEFAULT_HEIGHT,
             SDL_WINDOW_RESIZABLE, &_win, &_ren))
         SDL_Log("window: %s", SDL_GetError());
+    else SDL_Log("video: %s renderer", SDL_GetRendererName(_ren));
 
     /* No renderer vsync: the loop is paced by the tick gate (game_main's
      * tickSync, the [0x5AC8] equivalent).  The original's foreground never
@@ -107,6 +108,8 @@ static void _vid_init_video(void)
 
     _vid_make_texture(_field_w(), (int32_t)VIDEO_SCREEN_H * _vid_scale);
     for (uint32_t i = 0; i < 256u; i++) _lut[i] = 0xFF000000u; // opaque black
+    /* the bars' colour, once: it persists across frames */
+    if (_ren) SDL_SetRenderDrawColor(_ren, 0, 0, 0, 255);
 #if defined(HUMANSRE_TEST_PROBES)
     _present_probe = getenv("HUMANSRE_RATE_PROBE") != NULL;
 #endif
@@ -133,6 +136,7 @@ static uint8_t *_vid_page(int32_t which) { return _pages[which & 1]; }
  * @brief Present one page through the palette LUT.
  *
  * @param which the page selector
+ * @param rows the field's row count
  */
 static void _vid_present(int32_t which, int32_t rows)
 {
@@ -149,7 +153,6 @@ static void _vid_present(int32_t which, int32_t rows)
     for (int32_t i = 0; i < w * rows; i++) argb[i] = _lut[p[i]];
 
     SDL_UpdateTexture(_tex, NULL, argb, (int)((uint32_t)w * 4u));
-    SDL_SetRenderDrawColor(_ren, 0, 0, 0, 255);
     SDL_RenderClear(_ren);
 
     /* Fit the 4:3 picture into whatever window size the user picked: as large

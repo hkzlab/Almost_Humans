@@ -2,7 +2,9 @@
  *
  * The equivalent of int8_timer_isr (1000:8A70) and the [0x5AC8] gate: one
  * tick per display period, never host-refresh-paced.  The thread sleeps to
- * the boundary with SDL_DelayPrecise (SDL's timer thread measured 63.5 Hz).
+ * the boundary with SDL_DelayPrecise (SDL's timer thread measured 63.5 Hz);
+ * the main thread parks on a condition signalled once per tick, so it wakes
+ * per tick instead of polling the counter every millisecond.
  * Deviation: D-03 (synthesised 70 Hz instead of the PIT/vsync chain).
  */
 #include "osystem.h"
@@ -21,6 +23,10 @@ static uint32_t _the_rate; // the probe's log target rate
 static Uint64 _tick_interval_ns;
 static SDL_AtomicInt _tick_count;        // [0x5AC8]
 static SDL_AtomicInt _running;
+/* The tick thread signals this after every tick, so the main thread sleeps
+ * until the boundary instead of polling the counter every 1 ms. */
+static SDL_Mutex *_tick_lock;
+static SDL_Condition *_tick_cond;
 
 #if defined(HUMANSRE_TEST_PROBES)
 /* Test probe (HUMANSRE_TEST_PROBES): HUMANSRE_RATE_PROBE set reports the
@@ -51,6 +57,13 @@ static void _fire_tick(void)
         }
     }
 #endif /* HUMANSRE_TEST_PROBES */
+
+    // The count is read under this lock by sdl3_tick_sync
+    if (_tick_lock && _tick_cond) {
+        SDL_LockMutex(_tick_lock);
+        SDL_SignalCondition(_tick_cond);
+        SDL_UnlockMutex(_tick_lock);
+    }
 }
 
 /**
@@ -94,6 +107,11 @@ void sdl3_timer_start(uint32_t ticksPerSec, TickFn tick)
     _probe_ticks = 0;
     _probe_window_start_ns = SDL_GetTicksNS();
 #endif
+    _tick_lock = SDL_CreateMutex();
+    _tick_cond = SDL_CreateCondition();
+    if (!_tick_lock || !_tick_cond)
+        SDL_Log("timer: no condition variable (%s); tick_sync polls",
+                SDL_GetError());
     SDL_SetAtomicInt(&_running, 1);
     /* the thread lives until process exit (the original's ISR is likewise
      * installed for the session; there is no timerStop in the interface) */
@@ -102,12 +120,20 @@ void sdl3_timer_start(uint32_t ticksPerSec, TickFn tick)
 
 void sdl3_tick_sync(uint32_t *lastSeen)
 {
-    while (1) {
-        int32_t now = SDL_GetAtomicInt(&_tick_count);
-        if ((uint32_t)now != *lastSeen) {
-            *lastSeen = (uint32_t)now;
-            return;
-        }
-        SDL_Delay(1); // the wait_vsync-and-abort spin, sleeping
+
+    if (!_tick_lock || !_tick_cond) {
+        // the allocation failed: the sleeping poll still paces correctly
+        while ((uint32_t)SDL_GetAtomicInt(&_tick_count) == *lastSeen)
+            SDL_Delay(1);
+        *lastSeen = (uint32_t)SDL_GetAtomicInt(&_tick_count);
+        return;
     }
+
+    // Mutexes got allocated correctly    
+    SDL_LockMutex(_tick_lock);
+    while ((uint32_t)SDL_GetAtomicInt(&_tick_count) == *lastSeen)
+        SDL_WaitCondition(_tick_cond, _tick_lock);
+    // a stalled main thread may have missed boundaries: take the latest count only
+    *lastSeen = (uint32_t)SDL_GetAtomicInt(&_tick_count);
+    SDL_UnlockMutex(_tick_lock);
 }
