@@ -59,6 +59,35 @@ static uint8_t *_read_file(const char *path, uint32_t *size)
     return buf;
 }
 
+/* Optional frame evidence (argv[4] = a directory): the composed 320x200 page
+ * and the DAC shadow, as PPM, at each attract screen. */
+static const char *_dump_dir;
+
+/**
+ * @brief Write the presented page and palette as a binary PPM.
+ *
+ * @param name the file stem
+ */
+static void _dump_ppm(const char *name)
+{
+    if (!_dump_dir) return;
+    char path[512];
+    snprintf(path, sizeof path, "%s/%s.ppm", _dump_dir, name);
+    FILE *f = fopen(path, "wb");
+    if (!f) return;
+    fprintf(f, "P6\n%u %u\n255\n", VIDEO_SCREEN_W, VIDEO_SCREEN_H);
+    const uint8_t *page = osys_null_page(0);
+    const uint8_t *pal = osys_null_palette();
+    for (uint32_t i = 0; i < VIDEO_SCREEN_BYTES; i++) {
+        uint32_t v = page[i];
+        uint8_t rgb[3] = { (uint8_t)(pal[v * 3u] << 2),
+                           (uint8_t)(pal[v * 3u + 1u] << 2),
+                           (uint8_t)(pal[v * 3u + 2u] << 2) };
+        fwrite(rgb, 1, 3, f);
+    }
+    fclose(f);
+}
+
 /**
  * @brief Return the first differing byte index, or -1 when equal.
  *
@@ -86,6 +115,7 @@ int main(int argc, char **argv)
     const char *vol_dir = argc > 1 ? argv[1] : ".";
     const char *ref_dir =
         argc > 3 ? argv[3] : "../analysis_artifacts/attract_scroll";
+    _dump_dir = argc > 4 ? argv[4] : NULL;
 
     /* D-134: 1000:0AEC builds the digits least-significant first and reverses
      * the whole buffer (0x0B3B); the low four digits are NOT exempt. */
@@ -198,10 +228,35 @@ int main(int argc, char **argv)
     }
 
     /* 1. into effect 4: effects 1, 3 and 2 play for real (~12 k ticks) */
-    uint32_t guard = 0;
+    uint32_t guard = 0, slide = 0, e2_hold = 0;
     while (attract_phase_for_probe() != ATTRACT_E4_FADEWAIT) {
+        uint32_t before = attract_phase_for_probe();
+        uint32_t ph;
+
         attract_tick(&idle);
         palette_tick();
+        ph = attract_phase_for_probe();
+        if (ph == ATTRACT_E1_HOLD && before != ATTRACT_E1_HOLD)
+            _dump_ppm("attract_e1_gameint");
+        if (ph == ATTRACT_E3_SLIDE) {
+            if (before != ATTRACT_E3_SLIDE) slide = 0;
+            /* the slide shows row `600 - slide` at the window top: 350 is
+             * the promo page, 200 the title page */
+            if (++slide == 251u)
+                _dump_ppm("attract_e3_promo");
+            else if (slide == 401u)
+                _dump_ppm("attract_e3_title");
+        }
+        if (ph == ATTRACT_E2_HOLD && before != ATTRACT_E2_HOLD) {
+            char name[64];
+            if (e2_hold == 0u)
+                snprintf(name, sizeof name, "attract_e2_top_ten_tribes");
+            else
+                snprintf(name, sizeof name, "attract_e2_times_%03u_%03u",
+                         (e2_hold - 1u) * 10u + 1u, e2_hold * 10u);
+            _dump_ppm(name);
+            e2_hold++;
+        }
         if (++guard > 60000u) {
             fprintf(stderr,
                     "FAIL: never reached effect 4 (tick %u, phase %u)\n", guard,
@@ -251,6 +306,11 @@ int main(int argc, char **argv)
             }
             if (ph != ATTRACT_E4_SCROLL) continue;   // still fading in
             /* this tick presented strip row `row` */
+            if (row == 0u || row == 300u || row == 688u || row == 1378u) {
+                char name[64];
+                snprintf(name, sizeof name, "attract_e4_r%u", row);
+                _dump_ppm(name);
+            }
             if (cursor + 4u <= end) {
                 uint32_t want;
                 memcpy(&want, cursor, 4);
