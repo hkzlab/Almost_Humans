@@ -9,9 +9,25 @@ a game you can still buy on [GOG](https://www.gog.com/en/game/the_humans_bundle)
 
 ## 🤖 Disclaimer 🤖
 
+## SDL3 port
+
+**TODO**
+
+### Playing
+
+**TODO**
+
+### Building
+
+**TODO**
+
 ## Credits
 
+**TODO**
+
 ## Tools
+
+**TODO**
 
 - Ghidra
 - ghidrassistMCP
