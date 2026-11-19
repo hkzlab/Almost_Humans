@@ -133,42 +133,42 @@ void level_disk_status_reset(void)
 uint8_t level_disk_status_tick(const InputState *in)
 {
     switch (_disk_phase) {
-    case DISK_MUSIC: // the timing_loop at 1000:204b
-        if (audio_fade_busy()) return 1;
-        _disk_draw(_disk_disc);
-        palette_build_fade(0u, 0x100u, 0x1Eu, _disk_pal); // 1000:2057
-        _disk_phase = DISK_FADE_IN;
-        return 1;
-    case DISK_FADE_IN:
-        if (palette_fade_active()) return 1;
-        _disk_phase = DISK_WAIT;
-        return 1;
-    case DISK_WAIT:
-        if (in->lastKey || (in->joyBits & JOYBITS_FIRE)) {
-            if (res_volume_present(_disk_disc)) {
-                palette_build_fade(0u, 0x100u, 0x1Eu, _disk_black);
-                _disk_phase = DISK_FADE_OUT;
-            }
-            /* else: still the wrong disc - stay on the prompt */
-        }
-        return 1;
-    case DISK_FADE_OUT:
-        if (palette_fade_active()) return 1;
-        _disk_phase = DISK_HOLD;
-        _disk_hold = 0x4Bu; // present_frames_75
-        audio_fade_out(); // 1000:20BE
-        return 1;
-    case DISK_HOLD:
-        if (_disk_hold > 0u) {
-            _disk_hold--;
+        case DISK_MUSIC: // the timing_loop at 1000:204b
+            if (audio_fade_busy()) return 1;
+            _disk_draw(_disk_disc);
+            palette_build_fade(0u, 0x100u, 0x1Eu, _disk_pal); // 1000:2057
+            _disk_phase = DISK_FADE_IN;
             return 1;
-        }
-        if (audio_fade_busy()) return 1; // 1000:20BE's blocking fade
-        _disk_phase = DISK_OFF;
-        g_osys->memFree(_disk_font);
-        _disk_font = NULL;
-        font_publish(NULL);
-        return 0;
-    default: return 0;
+        case DISK_FADE_IN:
+            if (palette_fade_active()) return 1;
+            _disk_phase = DISK_WAIT;
+            return 1;
+        case DISK_WAIT:
+            if (in->lastKey || (in->joyBits & JOYBITS_FIRE)) {
+                if (res_volume_present(_disk_disc)) {
+                    palette_build_fade(0u, 0x100u, 0x1Eu, _disk_black);
+                    _disk_phase = DISK_FADE_OUT;
+                }
+                /* else: still the wrong disc - stay on the prompt */
+            }
+            return 1;
+        case DISK_FADE_OUT:
+            if (palette_fade_active()) return 1;
+            _disk_phase = DISK_HOLD;
+            _disk_hold = 0x4Bu; // present_frames_75
+            audio_fade_out(); // 1000:20BE
+            return 1;
+        case DISK_HOLD:
+            if (_disk_hold > 0u) {
+                _disk_hold--;
+                return 1;
+            }
+            if (audio_fade_busy()) return 1; // 1000:20BE's blocking fade
+            _disk_phase = DISK_OFF;
+            g_osys->memFree(_disk_font);
+            _disk_font = NULL;
+            font_publish(NULL);
+            return 0;
+        default: return 0;
     }
 }

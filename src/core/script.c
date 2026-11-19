@@ -74,20 +74,20 @@ void script_fire(CueScript *s, uint16_t frame)
 
         s->cursor++;
         switch (cmd) {
-        case CUE_TRANSITION: s->transitionIdx = arg; break;
-        case CUE_SCROLL_OFF: s->scrollOn = 0; break;
-        case CUE_SCROLL_ON: s->scrollOn = 1; break;
-        case CUE_SEEK:
-            s->seekFrame = arg;
-            s->seekPending = 1;
-            s->frame = arg; // b92d: [0x6466] = arg, the scan continues
-            break;
-        case CUE_QUIT: s->quit = 1; break;
-        case CUE_SCROLL: s->scrollDelta = arg; break;
-        case CUE_DWELL:
-            s->groupDwell = arg;
-            s->dwellPending = 1; // b94e: [0x6460] = [0x6462] = arg
-            break;
+            case CUE_TRANSITION: s->transitionIdx = arg; break;
+            case CUE_SCROLL_OFF: s->scrollOn = 0; break;
+            case CUE_SCROLL_ON: s->scrollOn = 1; break;
+            case CUE_SEEK:
+                s->seekFrame = arg;
+                s->seekPending = 1;
+                s->frame = arg; // b92d: [0x6466] = arg, the scan continues
+                break;
+            case CUE_QUIT: s->quit = 1; break;
+            case CUE_SCROLL: s->scrollDelta = arg; break;
+            case CUE_DWELL:
+                s->groupDwell = arg;
+                s->dwellPending = 1; // b94e: [0x6460] = [0x6462] = arg
+                break;
         }
         if (s->quit) return;
     }

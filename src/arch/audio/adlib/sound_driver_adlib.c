@@ -600,79 +600,79 @@ static void _tick_command(SoundDriver *drv, uint32_t voice)
     uint16_t entry;
 
     switch (v->command & 0x1Fu) {
-    case 0x01: // 1E95:08AA: slide up by 2 * parameter, octave wrap at 0x2AE
-        step = (uint16_t)(2u * v->param);
-        fnum = (uint16_t)(v->fnum + step);
-        while (fnum >= ADLIB_FNUM_WRAP) {
-            fnum = (uint16_t)((fnum - ADLIB_FNUM_WRAP) + ADLIB_FNUM_FIRST);
-            v->octave++; // 8-bit, as the driver's INC DL
+        case 0x01: // 1E95:08AA: slide up by 2 * parameter, octave wrap at 0x2AE
+            step = (uint16_t)(2u * v->param);
+            fnum = (uint16_t)(v->fnum + step);
+            while (fnum >= ADLIB_FNUM_WRAP) {
+                fnum = (uint16_t)((fnum - ADLIB_FNUM_WRAP) + ADLIB_FNUM_FIRST);
+                v->octave++; // 8-bit, as the driver's INC DL
+            }
+            v->fnum = fnum;
+            entry = (uint16_t)(fnum | (v->octave << 12));
+            v->note_entry = entry;
+            _set_frequency(drv, voice, entry);
+            break;
+        case 0x02: // 1E95:08D4: slide down by 2 * parameter, wrap at 0x142
+            step = (uint16_t)(2u * v->param);
+            fnum = (uint16_t)(v->fnum - step);
+            while (fnum <= ADLIB_FNUM_LOW) {
+                /* 1E95:08E9 SUB 0x142 / NEG / ADD 0x28A: 0x28A + (0x142 - fnum) */
+                fnum = (uint16_t)(ADLIB_FNUM_TOP + (ADLIB_FNUM_LOW - fnum));
+                v->octave--; // 8-bit, as the driver's DEC DL
+            }
+            v->fnum = fnum;
+            entry = (uint16_t)(fnum | (v->octave << 12));
+            v->note_entry = entry;
+            _set_frequency(drv, voice, entry);
+            break;
+        case 0x03: // 1E95:0972: portamento toward the cached note entry
+            _slide_tick(drv, voice);
+            break;
+        case 0x0A: { /* 1E95:0874: volume delta; the high nibble adds, 0
+                      * subtracts the low nibble */
+            uint8_t delta = v->param;
+            uint16_t next;
+            if ((delta >> 4) != 0u) {
+                next = v->volume + (delta >> 4);
+                if (next > 0x40u) next = 0x40u;
+            } else {
+                next = v->volume - (delta & 0x0Fu);
+                if ((delta & 0x0Fu) > v->volume) next = 0u;
+            }
+            v->volume = (uint8_t)next;
+            _set_volume(drv, voice, (uint8_t)next);
+            break;
         }
-        v->fnum = fnum;
-        entry = (uint16_t)(fnum | (v->octave << 12));
-        v->note_entry = entry;
-        _set_frequency(drv, voice, entry);
-        break;
-    case 0x02: // 1E95:08D4: slide down by 2 * parameter, wrap at 0x142
-        step = (uint16_t)(2u * v->param);
-        fnum = (uint16_t)(v->fnum - step);
-        while (fnum <= ADLIB_FNUM_LOW) {
-            /* 1E95:08E9 SUB 0x142 / NEG / ADD 0x28A: 0x28A + (0x142 - fnum) */
-            fnum = (uint16_t)(ADLIB_FNUM_TOP + (ADLIB_FNUM_LOW - fnum));
-            v->octave--; // 8-bit, as the driver's DEC DL
-        }
-        v->fnum = fnum;
-        entry = (uint16_t)(fnum | (v->octave << 12));
-        v->note_entry = entry;
-        _set_frequency(drv, voice, entry);
-        break;
-    case 0x03: // 1E95:0972: portamento toward the cached note entry
-        _slide_tick(drv, voice);
-        break;
-    case 0x0A: { /* 1E95:0874: volume delta; the high nibble adds, 0
-                  * subtracts the low nibble */
-        uint8_t delta = v->param;
-        uint16_t next;
-        if ((delta >> 4) != 0u) {
-            next = v->volume + (delta >> 4);
-            if (next > 0x40u) next = 0x40u;
-        } else {
-            next = v->volume - (delta & 0x0Fu);
-            if ((delta & 0x0Fu) > v->volume) next = 0u;
-        }
-        v->volume = (uint8_t)next;
-        _set_volume(drv, voice, (uint8_t)next);
-        break;
-    }
-    /* 1E95:0813 / 1E95:0814 - no voice state changes. */
-    case 0x00:
-    case 0x04:
-    case 0x05:
-    case 0x06:
-    case 0x07:
-    case 0x08:
-    case 0x09:
-    case 0x0B:
-    case 0x0C:
-    case 0x0D:
-    case 0x0E:
-    case 0x0F:
-    case 0x10:
-    case 0x11:
-    case 0x12:
-    case 0x13:
-    case 0x14:
-    case 0x15:
-    case 0x16:
-    case 0x17:
-    case 0x18:
-    case 0x19:
-    case 0x1A:
-    case 0x1B:
-    case 0x1C:
-    case 0x1D:
-    case 0x1E:
-    case 0x1F:
-    default: break;
+        /* 1E95:0813 / 1E95:0814 - no voice state changes. */
+        case 0x00:
+        case 0x04:
+        case 0x05:
+        case 0x06:
+        case 0x07:
+        case 0x08:
+        case 0x09:
+        case 0x0B:
+        case 0x0C:
+        case 0x0D:
+        case 0x0E:
+        case 0x0F:
+        case 0x10:
+        case 0x11:
+        case 0x12:
+        case 0x13:
+        case 0x14:
+        case 0x15:
+        case 0x16:
+        case 0x17:
+        case 0x18:
+        case 0x19:
+        case 0x1A:
+        case 0x1B:
+        case 0x1C:
+        case 0x1D:
+        case 0x1E:
+        case 0x1F:
+        default: break;
     }
 }
 
@@ -688,28 +688,28 @@ static void _note_command(SoundDriver *drv, AdlibRecord *rec, uint32_t voice)
     AdlibSlot *v = &drv->slot[voice];
 
     switch (v->command & 0x1Fu) {
-    case 6: // 1E95:0900: note off
-        v->command = 0;
-        _key_off(drv, voice);
-        break;
-    case 0x0B: // 1E95:090F: jump to order parameter-1, advance next tick
-        rec->order = (uint8_t)(v->param - 1u);
-        rec->advance = (uint8_t)~rec->advance;
-        break;
-    case 0x0C: // 1E95:091F: volume = min(parameter, 0x40)
-        if (v->param > ADLIB_ROWS) v->param = ADLIB_ROWS;
-        _set_volume(drv, voice, v->param);
-        break;
-    case 0x0D: // 1E95:0907: advance to the next order on the next tick
-        rec->advance = (uint8_t)~rec->advance;
-        break;
-    case 0x0F: // 1E95:0932: ticks per row
-        if ((v->param & 0x1Fu) != 0) {
-            rec->tick = 0;
-            rec->ticks_per_row = (uint8_t)(v->param & 0x1Fu);
-        }
-        break;
-    default: break;
+        case 6: // 1E95:0900: note off
+            v->command = 0;
+            _key_off(drv, voice);
+            break;
+        case 0x0B: // 1E95:090F: jump to order parameter-1, advance next tick
+            rec->order = (uint8_t)(v->param - 1u);
+            rec->advance = (uint8_t)~rec->advance;
+            break;
+        case 0x0C: // 1E95:091F: volume = min(parameter, 0x40)
+            if (v->param > ADLIB_ROWS) v->param = ADLIB_ROWS;
+            _set_volume(drv, voice, v->param);
+            break;
+        case 0x0D: // 1E95:0907: advance to the next order on the next tick
+            rec->advance = (uint8_t)~rec->advance;
+            break;
+        case 0x0F: // 1E95:0932: ticks per row
+            if ((v->param & 0x1Fu) != 0) {
+                rec->tick = 0;
+                rec->ticks_per_row = (uint8_t)(v->param & 0x1Fu);
+            }
+            break;
+        default: break;
     }
 }
 

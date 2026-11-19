@@ -120,7 +120,6 @@ void sdl3_timer_start(uint32_t ticksPerSec, TickFn tick)
 
 void sdl3_tick_sync(uint32_t *lastSeen)
 {
-
     if (!_tick_lock || !_tick_cond) {
         // the allocation failed: the sleeping poll still paces correctly
         while ((uint32_t)SDL_GetAtomicInt(&_tick_count) == *lastSeen)
@@ -129,7 +128,7 @@ void sdl3_tick_sync(uint32_t *lastSeen)
         return;
     }
 
-    // Mutexes got allocated correctly    
+    // Mutexes got allocated correctly
     SDL_LockMutex(_tick_lock);
     while ((uint32_t)SDL_GetAtomicInt(&_tick_count) == *lastSeen)
         SDL_WaitCondition(_tick_cond, _tick_lock);

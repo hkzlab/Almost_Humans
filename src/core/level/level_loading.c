@@ -68,8 +68,8 @@ static void level_loading_begin(void)
     /* level_video_init (1000:329d) calls reset_display_mode (1000:82c6)
      * before load_sprite_pal's screen: the level's 320x192 field */
     video_set_mode(VIDEO_MODE_X);
-    /* the level's own field: the whole page at scale 2 (its bar ends at the
-     * page's bottom), the original's 192 rows at scale 1 */
+    /* the level's own field: the whole page in wide mode (its bar ends at the
+     * page's bottom), the original's 192 rows in classic mode */
     video_set_field(level_field_rows());
 
     /* 1000:1DCF..1E3F: dicon+0x18 -> 0x14D3 entries 0..0x7F, then the DAC

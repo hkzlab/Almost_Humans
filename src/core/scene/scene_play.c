@@ -275,8 +275,7 @@ static int32_t _scene_start(uint32_t index, int32_t initial)
     /* 1000:B0DA: after the panel is drawn and flipped, its first 0x20 DAC
      * entries fade from the previous screen's palette to daily.bit's
      * (div 0x19); the 210-tick dwell starts only after that fade. */
-    if (_panel_pal_valid)
-        palette_build_fade(0u, 0x20u, 0x19u, _panel_pal);
+    if (_panel_pal_valid) palette_build_fade(0u, 0x20u, 0x19u, _panel_pal);
     return 0;
 }
 
@@ -288,7 +287,7 @@ uint8_t scene_play_level_intro(uint16_t introIndex)
     if (introIndex == 0xFFu) return 0; // no cutscene for this level
 
     /* the cutscene is a 320x200 screen: the mode's own field, so a run after
-     * a level (whose field is its whole page at scale 2) keeps the classic
+     * a level (whose field is its whole page in wide mode) keeps the classic
      * crop (D-274) */
     video_set_field(0u);
     if (introIndex != _scene_level) { // (re)start on level change
@@ -321,177 +320,178 @@ uint8_t scene_play_level_intro(uint16_t introIndex)
 
     while (1) { // instant phases resolve within one tick
         switch (_scene_phase) {
-        case SCENE_MUSIC:
-            if (audio_fade_busy()) return 1;
-            if (_panel_pal_valid) {
-                _scene_phase = SCENE_PANEL_FADE;
-            } else {
-                _scene_phase = SCENE_DWELL;
-                _dwell_ticks = 210u;
-            }
-            break;
-
-        case SCENE_PANEL_FADE:
-            if (palette_fade_active()) return 1;
-            /* 1000:B0EC: the 210-tick count starts at 0 AFTER the fade
-             * returns, so this tick is not one of the 210 */
-            _dwell_ticks = 210u;
-            _scene_phase = SCENE_DWELL;
-            return 1;
-
-        case SCENE_DWELL:
-            if (keyHeld) _dwell_ticks = 0; // any key skips the remainder
-            if (_dwell_ticks > 0) {
-                --_dwell_ticks;
-                return 1;
-            }
-            if (keyHeld) {
-                _scene_quit_fade();
-                return 1;
-            }
-            /* 1000:B13D: the panel's first 0x20 entries fade back to
-             * [0x48BC] (black) over div 0x19; play_scene_sequence's own
-             * head (B248) waits for that fade before the prologue frame. */
-            palette_build_fade(0u, 0x20u, 0x19u, _scene_black_pal);
-            _scene_phase = SCENE_PANEL_OUT;
-            return 1;
-
-        case SCENE_QUIT_FADE:
-            /* 1000:B15A-B16C: the palette fade, then present_frames_75 (the
-             * deferred music_stop) before the function returns. */
-            if (palette_fade_active()) return 1;
-            if (audio_fade_busy()) return 1;
-            _scene_phase = SCENE_DONE;
-            return 0;
-
-        case SCENE_PANEL_OUT:
-            if (palette_fade_active()) return 1;
-            /* 1000:B24E..B260: the FIRST frame is decoded, drawn and flipped
-             * BEFORE the palette fade, so the fade happens over the frame and
-             * not over the panel (the loop then replays index 0).  A decode
-             * failure unwinds the whole player (B22C: JMP B2C4). */
-            {
-                uint16_t chk = 0;
-                int32_t sz = _ani_decode_object(&_ani, _indices[0], _obj_buf,
-                                                OBJ_SEG_SIZE, &chk);
-                if (sz < 0 || chk != 0) {
-                    _scene_phase = SCENE_DONE;
-                    return 0;
+            case SCENE_MUSIC:
+                if (audio_fade_busy()) return 1;
+                if (_panel_pal_valid) {
+                    _scene_phase = SCENE_PANEL_FADE;
+                } else {
+                    _scene_phase = SCENE_DWELL;
+                    _dwell_ticks = 210u;
                 }
-                _scene_al_expand(_obj_buf, (uint32_t)sz, video_screen(),
-                                 PAGE_SIZE);
-                video_present_frame();
-            }
-            /* 1000:B263: now the DAC fades to the script object's palette at
-             * 0x6FEA (= _script_buf+2): the whole 256 entries div 0x19 (or 4
-             * entries div 2 when [0x627C] is set - the instant path), then
-             * wait_palette_fade_done. */
-            _scene_palette_fade(_script_buf + 2);
-            _scene_phase = SCENE_PALFADE;
-            return 1;
-
-        case SCENE_PALFADE:
-            if (keyHeld) {
-                _scene_quit_fade();
-                return 1;
-            }
-            if (palette_fade_active()) return 1;
-            _scene_phase = SCENE_PLAY;
-            _obj_index = 0;
-            break; // play the first object now
-
-        case SCENE_PLAY:
-            if (_obj_index >= _plays) {
-                _scene_phase = SCENE_CHAIN;
                 break;
-            }
-            {
-                uint16_t chk = 0;
-                int32_t sz = _ani_decode_object(&_ani, _indices[_obj_index],
-                                                _obj_buf, OBJ_SEG_SIZE, &chk);
-                if (sz < 0 || chk != 0) { // place_scene_obj: JZ / abort
+
+            case SCENE_PANEL_FADE:
+                if (palette_fade_active()) return 1;
+                /* 1000:B0EC: the 210-tick count starts at 0 AFTER the fade
+                 * returns, so this tick is not one of the 210 */
+                _dwell_ticks = 210u;
+                _scene_phase = SCENE_DWELL;
+                return 1;
+
+            case SCENE_DWELL:
+                if (keyHeld) _dwell_ticks = 0; // any key skips the remainder
+                if (_dwell_ticks > 0) {
+                    --_dwell_ticks;
+                    return 1;
+                }
+                if (keyHeld) {
+                    _scene_quit_fade();
+                    return 1;
+                }
+                /* 1000:B13D: the panel's first 0x20 entries fade back to
+                 * [0x48BC] (black) over div 0x19; play_scene_sequence's own
+                 * head (B248) waits for that fade before the prologue frame. */
+                palette_build_fade(0u, 0x20u, 0x19u, _scene_black_pal);
+                _scene_phase = SCENE_PANEL_OUT;
+                return 1;
+
+            case SCENE_QUIT_FADE:
+                /* 1000:B15A-B16C: the palette fade, then present_frames_75 (the
+                 * deferred music_stop) before the function returns. */
+                if (palette_fade_active()) return 1;
+                if (audio_fade_busy()) return 1;
+                _scene_phase = SCENE_DONE;
+                return 0;
+
+            case SCENE_PANEL_OUT:
+                if (palette_fade_active()) return 1;
+                /* 1000:B24E..B260: the FIRST frame is decoded, drawn and flipped
+                 * BEFORE the palette fade, so the fade happens over the frame and
+                 * not over the panel (the loop then replays index 0).  A decode
+                 * failure unwinds the whole player (B22C: JMP B2C4). */
+                {
+                    uint16_t chk = 0;
+                    int32_t sz = _ani_decode_object(
+                        &_ani, _indices[0], _obj_buf, OBJ_SEG_SIZE, &chk);
+                    if (sz < 0 || chk != 0) {
+                        _scene_phase = SCENE_DONE;
+                        return 0;
+                    }
+                    _scene_al_expand(_obj_buf, (uint32_t)sz, video_screen(),
+                                     PAGE_SIZE);
+                    video_present_frame();
+                }
+                /* 1000:B263: now the DAC fades to the script object's palette at
+                 * 0x6FEA (= _script_buf+2): the whole 256 entries div 0x19 (or 4
+                 * entries div 2 when [0x627C] is set - the instant path), then
+                 * wait_palette_fade_done. */
+                _scene_palette_fade(_script_buf + 2);
+                _scene_phase = SCENE_PALFADE;
+                return 1;
+
+            case SCENE_PALFADE:
+                if (keyHeld) {
+                    _scene_quit_fade();
+                    return 1;
+                }
+                if (palette_fade_active()) return 1;
+                _scene_phase = SCENE_PLAY;
+                _obj_index = 0;
+                break; // play the first object now
+
+            case SCENE_PLAY:
+                if (_obj_index >= _plays) {
                     _scene_phase = SCENE_CHAIN;
                     break;
                 }
-                _scene_al_expand(_obj_buf, (uint32_t)sz, video_screen(),
-                                 PAGE_SIZE);
-                video_present_frame();
-                _obj_wait =
-                    _scene_fast ? 1u : 6u; // wait_flag_timeout 1000:B2D3
-                _obj_index++;
-                _scene_phase = SCENE_WAIT;
-                return 1;
-            }
-
-        case SCENE_WAIT:
-            if (keyHeld) {
-                _scene_quit_fade();
-                return 1;
-            }
-            if (--_obj_wait == 0) _scene_phase = SCENE_PLAY;
-            return 1;
-
-        case SCENE_CHAIN: {
-            uint8_t nxt = _scene_chain_table[_cur_scene];
-            if (keyHeld) {
-                _scene_quit_fade();
-                return 1;
-            }
-            /* 1000:B17E: `CMP BL,[BX+0x6293]` - a scene whose chain entry is
-             * itself waits 210 ticks (1000:B1A6: also the key/fire poll) and
-             * then replays from its first object (1000:B189 -> 0xB14D ->
-             * 0xB211).  That is the ending's "loop until ESC" and the intros'
-             * "runs until skipped".  A chain entry of 4 is the 8->4 tail
-             * loop, which waits and then _plays scene 4. */
-            _chain_replay = (nxt == _cur_scene) ? 1 : 0;
-            if (_chain_replay) {
-                _scene_phase = SCENE_CHAIN_WAIT;
-                _chain_wait = 210u;
-                return 1;
-            }
-            _cur_scene = nxt; // chain advance
-            if (nxt == 4u) { // 1000:B194: wait first
-                _scene_phase = SCENE_CHAIN_WAIT;
-                _chain_wait = 210u;
-                return 1;
-            }
-            _scene_phase = SCENE_RESTART;
-            break;
-        }
-
-        case SCENE_CHAIN_WAIT:
-            if (keyHeld) {
-                _scene_quit_fade();
-                return 1;
-            }
-            if (--_chain_wait == 0) {
-                if (_chain_replay) {
-                    /* 1000:B189 -> B14D: even a self-replay calls
-                     * play_scene_sequence, which shows index 0 as its
-                     * prologue before the object loop. */
-                    _obj_index = 0;
-                    _scene_phase = SCENE_PANEL_OUT;
-                } else {
-                    _scene_phase = SCENE_RESTART; // play the chained scene
+                {
+                    uint16_t chk = 0;
+                    int32_t sz =
+                        _ani_decode_object(&_ani, _indices[_obj_index],
+                                           _obj_buf, OBJ_SEG_SIZE, &chk);
+                    if (sz < 0 || chk != 0) { // place_scene_obj: JZ / abort
+                        _scene_phase = SCENE_CHAIN;
+                        break;
+                    }
+                    _scene_al_expand(_obj_buf, (uint32_t)sz, video_screen(),
+                                     PAGE_SIZE);
+                    video_present_frame();
+                    _obj_wait =
+                        _scene_fast ? 1u : 6u; // wait_flag_timeout 1000:B2D3
+                    _obj_index++;
+                    _scene_phase = SCENE_WAIT;
+                    return 1;
                 }
-            }
-            return 1;
 
-        case SCENE_RESTART: // chain advance: no dwell, no panel
-            if (_scene_start(_cur_scene, 0)) {
-                _scene_phase = SCENE_DONE;
-                return 0;
-            }
-            /* 1000:B24B: play_scene_sequence's prologue decodes and shows
-             * index 0, then B263 fades the DAC to THIS scene's script
-             * palette - the first scene's SCENE_PANEL_OUT shape, without a
-             * panel to wait for. */
-            _obj_index = 0;
-            _scene_phase = SCENE_PANEL_OUT;
-            break;
+            case SCENE_WAIT:
+                if (keyHeld) {
+                    _scene_quit_fade();
+                    return 1;
+                }
+                if (--_obj_wait == 0) _scene_phase = SCENE_PLAY;
+                return 1;
 
-        case SCENE_DONE:
-        case SCENE_IDLE: return 0;
+            case SCENE_CHAIN: {
+                uint8_t nxt = _scene_chain_table[_cur_scene];
+                if (keyHeld) {
+                    _scene_quit_fade();
+                    return 1;
+                }
+                /* 1000:B17E: `CMP BL,[BX+0x6293]` - a scene whose chain entry is
+                 * itself waits 210 ticks (1000:B1A6: also the key/fire poll) and
+                 * then replays from its first object (1000:B189 -> 0xB14D ->
+                 * 0xB211).  That is the ending's "loop until ESC" and the intros'
+                 * "runs until skipped".  A chain entry of 4 is the 8->4 tail
+                 * loop, which waits and then _plays scene 4. */
+                _chain_replay = (nxt == _cur_scene) ? 1 : 0;
+                if (_chain_replay) {
+                    _scene_phase = SCENE_CHAIN_WAIT;
+                    _chain_wait = 210u;
+                    return 1;
+                }
+                _cur_scene = nxt; // chain advance
+                if (nxt == 4u) { // 1000:B194: wait first
+                    _scene_phase = SCENE_CHAIN_WAIT;
+                    _chain_wait = 210u;
+                    return 1;
+                }
+                _scene_phase = SCENE_RESTART;
+                break;
+            }
+
+            case SCENE_CHAIN_WAIT:
+                if (keyHeld) {
+                    _scene_quit_fade();
+                    return 1;
+                }
+                if (--_chain_wait == 0) {
+                    if (_chain_replay) {
+                        /* 1000:B189 -> B14D: even a self-replay calls
+                         * play_scene_sequence, which shows index 0 as its
+                         * prologue before the object loop. */
+                        _obj_index = 0;
+                        _scene_phase = SCENE_PANEL_OUT;
+                    } else {
+                        _scene_phase = SCENE_RESTART; // play the chained scene
+                    }
+                }
+                return 1;
+
+            case SCENE_RESTART: // chain advance: no dwell, no panel
+                if (_scene_start(_cur_scene, 0)) {
+                    _scene_phase = SCENE_DONE;
+                    return 0;
+                }
+                /* 1000:B24B: play_scene_sequence's prologue decodes and shows
+                 * index 0, then B263 fades the DAC to THIS scene's script
+                 * palette - the first scene's SCENE_PANEL_OUT shape, without a
+                 * panel to wait for. */
+                _obj_index = 0;
+                _scene_phase = SCENE_PANEL_OUT;
+                break;
+
+            case SCENE_DONE:
+            case SCENE_IDLE: return 0;
         }
     }
 }

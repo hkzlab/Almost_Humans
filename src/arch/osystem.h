@@ -94,29 +94,37 @@ typedef enum VideoMode {
     VIDEO_MODE_X = 1
 } VideoMode;
 
+/* The viewport the front end asked for.  Distinct from VideoMode, which is
+ * the CRTC's scan-out mode: VIEWPORT_CLASSIC is the original's 320x200
+ * framing, VIEWPORT_WIDE the doubled level view (D-274). */
+typedef enum ViewportMode {
+    VIEWPORT_CLASSIC = 0,
+    VIEWPORT_WIDE = 1
+} ViewportMode;
+
 /* The original's screen: flat 8bpp, one byte per pixel, 320x200.  Every
  * resource that is one screen page is this size and every screen module
- * draws on a surface this size.  The view scale never changes it. */
+ * draws on a surface this size.  The viewport mode never changes it. */
 #define VIDEO_SCREEN_W     320u
 #define VIDEO_SCREEN_H     200u
 #define VIDEO_SCREEN_BYTES (VIDEO_SCREEN_W * VIDEO_SCREEN_H)
 /* The level's field in mode X: the original scans out 192 of the 200 rows. */
 #define VIDEO_FIELD_H_MODEX 192u
 
-/* The level viewport scale compiled in: 2 includes the doubled view (the
- * `--view wide` runtime switch, D-274), 1 compiles it out - the classic
- * framing only, with 320x200 pages and none of the wide code.  The build sets
- * it (CMake's HUMANSRE_VIEW_SCALE); 2 is the default for a standalone TU. */
-#ifndef HUMANSRE_VIEW_SCALE
-#    define HUMANSRE_VIEW_SCALE 2
+/* The wide viewport compiled in: 1 includes the doubled view (the `--view
+ * wide` runtime switch, D-274), 0 compiles it out - the classic framing only,
+ * with 320x200 pages and none of the wide code.  The build sets it (CMake's
+ * HUMANSRE_VIEWPORT_WIDE); 1 is the default for a standalone TU. */
+#ifndef HUMANSRE_VIEWPORT_WIDE
+#    define HUMANSRE_VIEWPORT_WIDE 1
 #endif
 
 /* The display page videoPage() hands out, allocated at the compiled maximum
- * (VIDEO_SCREEN_W/H x HUMANSRE_VIEW_SCALE).  The active size is
- * video_page_w()/h(); the field a mode scans out may be shorter (mode X).
- * Stride == the active width because the page is 8bpp. */
-#define VIDEO_PAGE_MAX_W (VIDEO_SCREEN_W * HUMANSRE_VIEW_SCALE)
-#define VIDEO_PAGE_MAX_H (VIDEO_SCREEN_H * HUMANSRE_VIEW_SCALE)
+ * (VIDEO_SCREEN_W/H x the 2x wide factor, or 1 when compiled out).  The
+ * active size is video_page_w()/h(); the field a mode scans out may be
+ * shorter (mode X).  Stride == the active width because the page is 8bpp. */
+#define VIDEO_PAGE_MAX_W (VIDEO_SCREEN_W * (HUMANSRE_VIEWPORT_WIDE + 1))
+#define VIDEO_PAGE_MAX_H (VIDEO_SCREEN_H * (HUMANSRE_VIEWPORT_WIDE + 1))
 #define VIDEO_PAGE_BYTES (VIDEO_PAGE_MAX_W * VIDEO_PAGE_MAX_H)
 
 /* The tick-boundary gate, the core's only pacing source.
@@ -150,12 +158,12 @@ typedef struct OSystem {
      * texture from it and rebuilds it only when the value changes. */
     void (*videoPresent)(int32_t which, uint32_t rows);
     void (*videoSetPalette)(const uint8_t *p6, uint32_t first, uint32_t n);
-    /* The view scale the front end was asked for: 1 = the original's 320x200
-     * framing, 2 = the level viewport doubled.  Read once by video_init()
-     * and clamped to HUMANSRE_VIEW_SCALE; the core never switches it
-     * afterwards.  The backend owns where the value comes from (command
-     * line, config, the build's default). */
-    int32_t (*videoScale)(void);
+    /* The viewport the front end was asked for: VIEWPORT_CLASSIC is the
+     * original's 320x200 framing, VIEWPORT_WIDE doubles the level viewport.
+     * Read once by video_init() and clamped to HUMANSRE_VIEWPORT_WIDE; the
+     * core never switches it afterwards.  The backend owns where the value
+     * comes from (command line, config, the build's default). */
+    ViewportMode (*viewportMode)(void);
 
     /* --- input ------------------------------------------------------- */
     void (*eventsPoll)(InputState *out);

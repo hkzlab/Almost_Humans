@@ -90,21 +90,17 @@ if(HUMANSRE_SANITIZE_IMPLICIT)
         PROPERTIES COMPILE_OPTIONS "-fno-sanitize=implicit-conversion")
 endif()
 
-# The level viewport scale compiled in: 2 includes the doubled view (the
-# `--view wide` runtime switch, D-274); 1 compiles it out - the classic
-# framing only, with 320x200 pages, no expand and no wide code (the ram/code
-# saving for constrained ports).  It is the default the sdl3 port and the
-# headless tools are built with; the sdl3 pair also builds a classic-only
-# binary against a scale-1 core for regression checks.
-set(HUMANSRE_VIEW_SCALE 2 CACHE STRING "Maximum level viewport scale compiled in (1 = classic only, 2 = also doubled)")
-set_property(CACHE HUMANSRE_VIEW_SCALE PROPERTY STRINGS 1 2)
-if(NOT HUMANSRE_VIEW_SCALE MATCHES "^[12]$")
-    message(FATAL_ERROR "HUMANSRE_VIEW_SCALE must be 1 or 2")
-endif()
-if(HUMANSRE_VIEW_SCALE EQUAL 1)
-    message(STATUS "view scale: 1 (classic only - the wide viewport is compiled out)")
+# The wide level viewport compiled in: ON includes the doubled view (the
+# `--view wide` runtime switch, D-274); OFF compiles it out - the classic
+# framing only, with 320x200 pages, no expand and none of the wide code (the
+# ram/code saving for constrained ports).  ON is the default the sdl3 port and
+# the headless tools are built with; the sdl3 pair also builds a classic-only
+# binary against an OFF core for regression checks.
+option(HUMANSRE_VIEWPORT_WIDE "Compile in the doubled (wide) level viewport" ON)
+if(HUMANSRE_VIEWPORT_WIDE)
+    message(STATUS "viewport: classic + wide (the level view doubled)")
 else()
-    message(STATUS "view scale: 2 (classic + the doubled level viewport)")
+    message(STATUS "viewport: classic only - the wide viewport is compiled out")
 endif()
 
 # The game core: pure C99, no port #ifdefs, no dependencies beyond the CRT.
@@ -158,15 +154,20 @@ set(HUMANSRE_CORE_SOURCES
     src/core/ver_detect.c
 )
 
-# One core library at a given view scale.  The scale is PUBLIC: every consumer
-# (the executables and the tests, which compile a backend themselves) must
-# agree on VIDEO_PAGE_BYTES, or the page buffers and the core would disagree.
-function(humansre_core_library name scale)
+# One core library at a given viewport build.  The setting is PUBLIC: every
+# consumer (the executables and the tests, which compile a backend themselves)
+# must agree on VIDEO_PAGE_BYTES, or the page buffers and the core would
+# disagree.
+function(humansre_core_library name wide)
     add_library(${name} STATIC ${HUMANSRE_CORE_SOURCES})
     target_include_directories(${name} PUBLIC ${HUMANSRE_ARCH_DIR}
                                              ${HUMANSRE_PLATFORM_DIR}
                                              ${HUMANSRE_CORE_DIR})
-    target_compile_definitions(${name} PUBLIC HUMANSRE_VIEW_SCALE=${scale})
+    if(wide)
+        target_compile_definitions(${name} PUBLIC HUMANSRE_VIEWPORT_WIDE=1)
+    else()
+        target_compile_definitions(${name} PUBLIC HUMANSRE_VIEWPORT_WIDE=0)
+    endif()
     humansre_warnings(${name})
     # The width audit: every implicit integer narrowing in the core must be an
     # explicit cast.  -Wno-sign-conversion keeps the many deliberate word/byte
@@ -178,18 +179,18 @@ endfunction()
 
 # The shipping core: the test seams (the *_for_probe accessors and the
 # test-only accessors in src/*.h) are compiled out.
-humansre_core_library(core ${HUMANSRE_VIEW_SCALE})
+humansre_core_library(core ${HUMANSRE_VIEWPORT_WIDE})
 
 # The test core: the same sources with HUMANSRE_TEST_PROBES, so the test
 # executables see the seam declarations and definitions.  No release binary
 # links this library; the seams cannot reach a shipped build.
-humansre_core_library(core_test ${HUMANSRE_VIEW_SCALE})
+humansre_core_library(core_test ${HUMANSRE_VIEWPORT_WIDE})
 target_compile_definitions(core_test PRIVATE HUMANSRE_TEST_PROBES)
 
 # The classic-only core for the sdl3 pair's regression binary: built only when
-# the configured scale is wider, so there are two genuinely different cores.
-if(HUMANSRE_VIEW_SCALE GREATER 1)
-    humansre_core_library(core_classic 1)
+# the configured viewport is wider, so there are two genuinely different cores.
+if(HUMANSRE_VIEWPORT_WIDE)
+    humansre_core_library(core_classic 0)
 endif()
 
 # The tests are development tooling: a single-config Release configure leaves
@@ -638,7 +639,7 @@ if(SDL3_FOUND)
     endif()
     humansre_warnings(humans-sdl3)
 
-    if(HUMANSRE_VIEW_SCALE GREATER 1)
+    if(HUMANSRE_VIEWPORT_WIDE)
         add_executable(humans-sdl3-classic ${HUMANSRE_SDL3_SOURCES})
         target_link_libraries(humans-sdl3-classic PRIVATE core_classic fs_posix audio_adlib audio_beeper arch_mem SDL3::SDL3)
         target_include_directories(humans-sdl3-classic PRIVATE ${HUMANSRE_CORE_DIR})
@@ -649,7 +650,7 @@ if(SDL3_FOUND)
         endif()
         humansre_warnings(humans-sdl3-classic)
     else()
-        message(STATUS "HUMANSRE_VIEW_SCALE=1 - humans-sdl3 is the classic build, no separate classic binary")
+        message(STATUS "HUMANSRE_VIEWPORT_WIDE=OFF - humans-sdl3 is the classic build, no separate classic binary")
     endif()
 else()
     message(STATUS "SDL3 not found - no SDL3 port in this build")
@@ -669,7 +670,7 @@ humansre_add_test(NAME level_flow COMMAND test_flow ${HUMANS_DATA_DIR} ${HUMANS_
 # expand, level 0's 640x400 framing (the world's 64-px margin, the bar at the
 # field's bottom), the loading screen, the front-end room's 192*scale field
 # and the witchdoctor's claim.  A classic-only build has no wide path to test.
-if(HUMANSRE_VIEW_SCALE GREATER 1)
+if(HUMANSRE_VIEWPORT_WIDE)
     humansre_test_executable(test_wide test/test_wide.c
         src/arch/platform/null/OSystem.c)
     target_include_directories(test_wide PRIVATE ${HUMANSRE_CORE_DIR} ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})

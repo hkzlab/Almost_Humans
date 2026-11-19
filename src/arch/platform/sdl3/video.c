@@ -17,7 +17,8 @@
 #endif
 
 static VideoMode _vid_mode = (VideoMode)-1;   // the core's last mode set
-static int32_t _vid_scale = 1;                // the view scale (1 or 2)
+static ViewportMode _vid_viewport =
+    VIEWPORT_CLASSIC; // the view the core was asked for
 
 static SDL_Window *_win;
 static SDL_Renderer *_ren;
@@ -35,23 +36,28 @@ static uint32_t _lut[256]; // the palette LUT, 6-bit expanded
  */
 #define VID_ADJUSTED_H 240
 
-void sdl3_video_set_scale(int32_t scale)
+void sdl3_video_set_viewport(ViewportMode mode)
 {
-#if HUMANSRE_VIEW_SCALE > 1
-    _vid_scale = scale == 2 ? 2 : 1;
+#if HUMANSRE_VIEWPORT_WIDE
+    _vid_viewport = mode == VIEWPORT_WIDE ? VIEWPORT_WIDE : VIEWPORT_CLASSIC;
 #else
-    (void)scale; // the classic build cannot double the viewport
-    _vid_scale = 1;
+    (void)mode; // the classic build cannot double the viewport
+    _vid_viewport = VIEWPORT_CLASSIC;
 #endif
 }
 
-int32_t sdl3_video_scale(void) { return _vid_scale; }
+ViewportMode sdl3_video_viewport_mode(void) { return _vid_viewport; }
 
-/** @brief The field's width: 320 at scale 1, 640 at scale 2.
+/** @brief The viewport's pixel factor: 1 in classic mode, 2 in wide mode. */
+static int32_t _vid_factor(void)
+{ return _vid_viewport == VIEWPORT_WIDE ? 2 : 1; }
+
+/** @brief The field's width: 320 in classic mode, 640 in wide mode.
  *
  * @return the width in pixels
  */
-static int32_t _field_w(void) { return (int32_t)VIDEO_SCREEN_W * _vid_scale; }
+static int32_t _field_w(void)
+{ return (int32_t)VIDEO_SCREEN_W * _vid_factor(); }
 #if defined(HUMANSRE_TEST_PROBES)
 /* Test probe (HUMANSRE_TEST_PROBES): HUMANSRE_RATE_PROBE also reports the
  * present rate.  Never part of a release build. */
@@ -106,7 +112,7 @@ static void _vid_init_video(void)
      * blocks on the display either - the CRTC flip is latched at vsync by
      * the ISR - so a 60 Hz host display must not drag the 70 Hz flow. */
 
-    _vid_make_texture(_field_w(), (int32_t)VIDEO_SCREEN_H * _vid_scale);
+    _vid_make_texture(_field_w(), (int32_t)VIDEO_SCREEN_H * _vid_factor());
     for (uint32_t i = 0; i < 256u; i++) _lut[i] = 0xFF000000u; // opaque black
     /* the bars' colour, once: it persists across frames */
     if (_ren) SDL_SetRenderDrawColor(_ren, 0, 0, 0, 255);
@@ -120,8 +126,9 @@ void sdl3_video_set_mode(VideoMode mode)
     if (!_win) _vid_init_video();
     if (mode == _vid_mode) return;
     _vid_mode = mode;
-    SDL_Log("video: mode switched to %s (view scale %d)",
-            mode == VIDEO_MODE_X ? "VGA mode X" : "VGA mode 13h", _vid_scale);
+    SDL_Log("video: mode switched to %s (view %s)",
+            mode == VIDEO_MODE_X ? "VGA mode X" : "VGA mode 13h",
+            _vid_viewport == VIEWPORT_WIDE ? "wide" : "classic");
 }
 
 /**
@@ -159,11 +166,12 @@ static void _vid_present(int32_t which, int32_t rows)
      * as fits, centred, black bars on the free axis.  Scaling the destination
      * rect (not drawing at native size) keeps the source pixel grid intact for
      * PIXELART sampling; the draw is in pixels, so no render scale is set. */
+    const int32_t vh = VID_ADJUSTED_H * _vid_factor();
+
     float scale = (float)outW / (float)w;
-    if (scale * (float)(VID_ADJUSTED_H * _vid_scale) > (float)outH)
-        scale = (float)outH / (float)(VID_ADJUSTED_H * _vid_scale);
+    if (scale * (float)vh > (float)outH) scale = (float)outH / (float)vh;
     const float dw = (float)w * scale;
-    const float dh = (float)(VID_ADJUSTED_H * _vid_scale) * scale;
+    const float dh = (float)vh * scale;
     const SDL_FRect dst = { ((float)outW - dw) / 2.0f,
                             ((float)outH - dh) / 2.0f, dw, dh };
     SDL_RenderTexture(_ren, _tex, NULL, &dst);

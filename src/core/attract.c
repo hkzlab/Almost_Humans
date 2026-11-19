@@ -642,11 +642,11 @@ static void _next_effect(void)
     /* the cycle boundary (13AB/13BE in the original) also sets the
      * write-only [0x1E7C]:=0x0A - see the note by the module state */
     switch (_phase) {
-    case ATTRACT_E1_OUT: _phase = ATTRACT_E3_LOAD; break;
-    case ATTRACT_E3_OUT: _phase = ATTRACT_E2_LOAD; break;
-    case ATTRACT_E2_OUT: _phase = ATTRACT_E4_LOAD; break;
-    case ATTRACT_E4_OUT: _phase = ATTRACT_E1_LOAD; break;
-    default: _phase = ATTRACT_E1_LOAD; break;
+        case ATTRACT_E1_OUT: _phase = ATTRACT_E3_LOAD; break;
+        case ATTRACT_E3_OUT: _phase = ATTRACT_E2_LOAD; break;
+        case ATTRACT_E2_OUT: _phase = ATTRACT_E4_LOAD; break;
+        case ATTRACT_E4_OUT: _phase = ATTRACT_E1_LOAD; break;
+        default: _phase = ATTRACT_E1_LOAD; break;
     }
     /* the next effect's LOAD runs on the following tick */
 }
@@ -716,280 +716,283 @@ uint8_t attract_tick(const InputState *in)
         _attract_restart(); // a new epoch: game_loop's prologue
 
     switch (_phase) {
-    /* --- effect 1: the gameint wipe (1000:1406) ------------------------ */
-    case ATTRACT_E1_LOAD:
-        if (!_e1_load()) {
-            /* the port-only skip path (see the header): consume the escape
-             * so the headless flow tests stay drivable */
-            if (_escape_test(in)) {
-                _latch_escape();
-                break;
-            }
-            _phase = ATTRACT_E3_LOAD;
-        } else {
-            _phase = ATTRACT_E1_FADEWAIT;
-        }
-        break;
-    case ATTRACT_E1_FADEWAIT: // fade_wait 145f
-        if (_escape_test(in)) {
-            _latch_escape();
-            break;
-        }
-        if (palette_fade_active()) break;
-        _phase = ATTRACT_E1_WIPE;
-        break;
-    case ATTRACT_E1_WIPE: { // the loop at 1462
-        _wipe_step();
-        uint16_t bx = u16(_wipe_pos * 80u);
-        if (_page_draw < 0x8000u) {
-            _page_draw = bx;
-            _page_disp = (uint16_t)(0x8000u + bx);
-        } else {
-            _page_draw = (uint16_t)(0x8000u + bx);
-            _page_disp = bx;
-        }
-        _flip_page();
-        if (_wipe_pos != 0u || _wipe_dir != 0) break; // 149c/14a4
-        _counter = 700u; // 14aa: fade_step_frames
-        _phase = ATTRACT_E1_HOLD;
-        break;
-    }
-    case ATTRACT_E1_HOLD: // fade_step_frames 14aa
-        if (_escape_test(in)) {
-            _latch_escape();
-            break;
-        }
-        if (--_counter != 0u) break;
-        palette_build_fade(0u, 256u, 0x1Eu, _ramp0); // 14b0: fade to black
-        _phase = ATTRACT_E1_OUT;
-        break;
-    case ATTRACT_E1_OUT: // fade_wait 14bf
-        if (_escape_test(in)) {
-            _latch_escape();
-            break;
-        }
-        if (palette_fade_active()) break;
-        _next_effect();
-        break;
-
-    /* --- effect 3: the PCTITLE scroller (1000:18CA) --------------------- */
-    case ATTRACT_E3_LOAD:
-        if (!_e3_load()) {
-            if (_escape_test(in)) {
-                _latch_escape();
-                break;
-            }
-            _phase = ATTRACT_E2_LOAD;
-        } else {
-            _phase = ATTRACT_E3_FADEWAIT;
-        }
-        break;
-    case ATTRACT_E3_FADEWAIT: // fade_wait 18e5
-        if (_escape_test(in)) {
-            _latch_escape();
-            break;
-        }
-        if (palette_fade_active()) break;
-        _d3b = 600u; // 1980
-        _phase = ATTRACT_E3_SLIDE;
-        break;
-    case ATTRACT_E3_SLIDE: // pctitle_slide_hold 1986
-        _wait_page(_d3b);
-        if (_local_key(in)) { // 198c: the skip poll
-            /* 19a9: the original sets [0xD3D]:=0xFF (the write-only
-             * skip flag) and returns - the hold follows, the slide is cut  */
-            _counter = 70u;
-            _phase = ATTRACT_E3_HOLD;
-            break;
-        }
-        if (--_d3b != 0u) break;
-        _phase = ATTRACT_E3_TAIL; // 19a1: the normal exit
-        break;
-    case ATTRACT_E3_TAIL:
-        _wait_page(_d3b); // 19a1: _d3b == 0
-        _counter = 70u; // 18eb: the 70-tick hold
-        _phase = ATTRACT_E3_HOLD;
-        break;
-    case ATTRACT_E3_HOLD: // fade_step_frames 18eb
-        if (_escape_test(in)) {
-            _latch_escape();
-            break;
-        }
-        if (--_counter != 0u) break;
-        palette_build_fade(0u, 256u, 0x23u, _ramp0); // 18f1: fade to black
-        _phase = ATTRACT_E3_OUT;
-        break;
-    case ATTRACT_E3_OUT: // JMP fade_wait 1900
-        if (_escape_test(in)) {
-            _latch_escape();
-            break;
-        }
-        if (palette_fade_active()) break;
-        _next_effect();
-        break;
-
-    /* --- effect 2: the hi-score + times screens (1000:1514) ------------- */
-    case ATTRACT_E2_LOAD:
-        if (!_e2_load()) {
-            if (_escape_test(in)) {
-                _latch_escape();
-                break;
-            }
-            _phase = ATTRACT_E4_LOAD;
-        } else {
-            _frame = 0u;
-            _phase = ATTRACT_E2_FADEWAIT;
-        }
-        break;
-    case ATTRACT_E2_FADEWAIT: // fade_wait 1581
-        if (_escape_test(in)) {
-            _latch_escape();
-            break;
-        }
-        if (palette_fade_active()) break;
-        _phase = ATTRACT_E2_FRAME;
-        break;
-    case ATTRACT_E2_FRAME: { // one intro_frame body
-        uint8_t *ar = video_arena();
-
-        memcpy(video_flat(), _img_buf, VIDEO_SCREEN_BYTES); // copy_page 18a4
-        memset(ar, 0, 16000u); // clear_screen_buf 1882
-        if (_frame == 0u) { // intro_frame_1 1625
-            font_draw_text(ar, game_string(GAME_STRING_ATTRACT_SCORE_HEADER),
-                           0xA0u, 4u);
-            _draw_score_block(ar);
-        } else { // intro_frame_2 1652
-            uint16_t base = (_frame - 1u) * 10u;
-            font_draw_text(ar, game_string(GAME_STRING_ATTRACT_TIMES_HEADER),
-                           0xA0u, 4u);
-            for (uint16_t r = 0; r < 10u; r++) {
-                uint8_t rec[2];
-
-                _fastest_time(base + r, rec);
-                _draw_times_row(ar, base + r, rec, 0x18u + r * 0x10u);
-            }
-        }
-        _blit_80x200(ar);
-        _wipe_iter = 0u;
-        _phase = ATTRACT_E2_WIPE;
-        break;
-    }
-    case ATTRACT_E2_WIPE: { // wipe_diagonal 16fa
-        _wipe_row(_wipe_iter);
-        _flip_page();
-        if (++_wipe_iter < 79u) break;
-        video_vram_blit(video_flat(), UINT32_MAX, _page_draw, 80u, 80u,
-                        VIDEO_SCREEN_H); // 171c: the full present
-        _flip_page();
-        _counter = 490u; // 164c/168a: the hold
-        _phase = ATTRACT_E2_HOLD;
-        break;
-    }
-    case ATTRACT_E2_HOLD: // fade_step_frames 164c/168a
-        if (_escape_test(in)) {
-            _latch_escape();
-            break;
-        }
-        if (--_counter != 0u) break;
-        if (++_frame <= 16u) {
-            _phase = ATTRACT_E2_FRAME;
-            break;
-        }
-        palette_build_fade(0u, 256u, 0x1Eu, _ramp0); // 159f: fade to black
-        _phase = ATTRACT_E2_OUT;
-        break;
-    case ATTRACT_E2_OUT: // JMP fade_wait 15ae
-        if (_escape_test(in)) {
-            _latch_escape();
-            break;
-        }
-        if (palette_fade_active()) break;
-        _next_effect();
-        break;
-
-    /* --- effect 4: the credits (1000:19AF) -------------------------------- */
-    case ATTRACT_E4_LOAD:
-        if (!_e4_load()) {
-            if (_escape_test(in)) {
-                _latch_escape();
-                break;
-            }
-            _phase = ATTRACT_E1_LOAD;
-        } else {
-            _phase = ATTRACT_E4_FADEWAIT;
-        }
-        break;
-    case ATTRACT_E4_FADEWAIT: // fade_wait 1a3c
-        if (_escape_test(in)) {
-            _latch_escape();
-            break;
-        }
-        if (palette_fade_active()) break;
-        _scroll_row = 0; // 1a3f: [0xD78] := 0
-        _phase = ATTRACT_E4_SCROLL;
-        break;
-    case ATTRACT_E4_SCROLL: // the loop at 1a45
-        /* _blit_scroll + its trailing one-tick spin + the JMP flip: one
-         * strip row per display period, the page pair alternating        */
-        _blit_scroll(_scroll_row);
-        _flip_page();
-        _scroll_row++;
-        if (_scroll_row == (uint16_t)(_rows_built - VIDEO_SCREEN_H)) {
-            /* 1a72: the terminator check; more _credtext -> the next
-             * screenful in the same instant (the clear + the fill + the
-             * fade_wait's one poll, the fade being done), then row 0 on
-             * the next tick.  The bound mirrors the original's heap-read
-             * past the buffer only for data without the 0xFF terminator,
-             * which the shipped file always has. */
-            uint8_t next = (_cred_cursor < _credtext_size)
-                               ? _credtext[_cred_cursor]
-                               : 0xFFu;
-            if (next != 0xFFu) {
-                _e4_fill();
+        /* --- effect 1: the gameint wipe (1000:1406) ------------------------ */
+        case ATTRACT_E1_LOAD:
+            if (!_e1_load()) {
+                /* the port-only skip path (see the header): consume the escape
+                 * so the headless flow tests stay drivable */
                 if (_escape_test(in)) {
                     _latch_escape();
                     break;
                 }
-                _scroll_row = 0;
+                _phase = ATTRACT_E3_LOAD;
+            } else {
+                _phase = ATTRACT_E1_FADEWAIT;
+            }
+            break;
+        case ATTRACT_E1_FADEWAIT: // fade_wait 145f
+            if (_escape_test(in)) {
+                _latch_escape();
                 break;
             }
-            /* 1a82: the tail - [0x1E7C]:=0x0A (write-only) */
-            palette_build_fade(0u, 256u, 0x1Eu, _ramp0);
-            _phase = ATTRACT_E4_OUT;
+            if (palette_fade_active()) break;
+            _phase = ATTRACT_E1_WIPE;
+            break;
+        case ATTRACT_E1_WIPE: { // the loop at 1462
+            _wipe_step();
+            uint16_t bx = u16(_wipe_pos * 80u);
+            if (_page_draw < 0x8000u) {
+                _page_draw = bx;
+                _page_disp = (uint16_t)(0x8000u + bx);
+            } else {
+                _page_draw = (uint16_t)(0x8000u + bx);
+                _page_disp = bx;
+            }
+            _flip_page();
+            if (_wipe_pos != 0u || _wipe_dir != 0) break; // 149c/14a4
+            _counter = 700u; // 14aa: fade_step_frames
+            _phase = ATTRACT_E1_HOLD;
             break;
         }
-        /* 1a58: the LOCAL poll - a key ends the effect via the tail
-         * ([0xD3D]:=0xFF, write-only); it is not the attract escape      */
-        if (_local_key(in)) {
-            palette_build_fade(0u, 256u, 0x1Eu, _ramp0);
-            _phase = ATTRACT_E4_OUT;
-        }
-        break;
-    case ATTRACT_E4_OUT: // fade_wait 1a96
-        if (_escape_test(in)) {
-            _latch_escape();
+        case ATTRACT_E1_HOLD: // fade_step_frames 14aa
+            if (_escape_test(in)) {
+                _latch_escape();
+                break;
+            }
+            if (--_counter != 0u) break;
+            palette_build_fade(0u, 256u, 0x1Eu, _ramp0); // 14b0: fade to black
+            _phase = ATTRACT_E1_OUT;
+            break;
+        case ATTRACT_E1_OUT: // fade_wait 14bf
+            if (_escape_test(in)) {
+                _latch_escape();
+                break;
+            }
+            if (palette_fade_active()) break;
+            _next_effect();
+            break;
+
+        /* --- effect 3: the PCTITLE scroller (1000:18CA) --------------------- */
+        case ATTRACT_E3_LOAD:
+            if (!_e3_load()) {
+                if (_escape_test(in)) {
+                    _latch_escape();
+                    break;
+                }
+                _phase = ATTRACT_E2_LOAD;
+            } else {
+                _phase = ATTRACT_E3_FADEWAIT;
+            }
+            break;
+        case ATTRACT_E3_FADEWAIT: // fade_wait 18e5
+            if (_escape_test(in)) {
+                _latch_escape();
+                break;
+            }
+            if (palette_fade_active()) break;
+            _d3b = 600u; // 1980
+            _phase = ATTRACT_E3_SLIDE;
+            break;
+        case ATTRACT_E3_SLIDE: // pctitle_slide_hold 1986
+            _wait_page(_d3b);
+            if (_local_key(in)) { // 198c: the skip poll
+                /* 19a9: the original sets [0xD3D]:=0xFF (the write-only
+                 * skip flag) and returns - the hold follows, the slide is cut  */
+                _counter = 70u;
+                _phase = ATTRACT_E3_HOLD;
+                break;
+            }
+            if (--_d3b != 0u) break;
+            _phase = ATTRACT_E3_TAIL; // 19a1: the normal exit
+            break;
+        case ATTRACT_E3_TAIL:
+            _wait_page(_d3b); // 19a1: _d3b == 0
+            _counter = 70u; // 18eb: the 70-tick hold
+            _phase = ATTRACT_E3_HOLD;
+            break;
+        case ATTRACT_E3_HOLD: // fade_step_frames 18eb
+            if (_escape_test(in)) {
+                _latch_escape();
+                break;
+            }
+            if (--_counter != 0u) break;
+            palette_build_fade(0u, 256u, 0x23u, _ramp0); // 18f1: fade to black
+            _phase = ATTRACT_E3_OUT;
+            break;
+        case ATTRACT_E3_OUT: // JMP fade_wait 1900
+            if (_escape_test(in)) {
+                _latch_escape();
+                break;
+            }
+            if (palette_fade_active()) break;
+            _next_effect();
+            break;
+
+        /* --- effect 2: the hi-score + times screens (1000:1514) ------------- */
+        case ATTRACT_E2_LOAD:
+            if (!_e2_load()) {
+                if (_escape_test(in)) {
+                    _latch_escape();
+                    break;
+                }
+                _phase = ATTRACT_E4_LOAD;
+            } else {
+                _frame = 0u;
+                _phase = ATTRACT_E2_FADEWAIT;
+            }
+            break;
+        case ATTRACT_E2_FADEWAIT: // fade_wait 1581
+            if (_escape_test(in)) {
+                _latch_escape();
+                break;
+            }
+            if (palette_fade_active()) break;
+            _phase = ATTRACT_E2_FRAME;
+            break;
+        case ATTRACT_E2_FRAME: { // one intro_frame body
+            uint8_t *ar = video_arena();
+
+            memcpy(video_flat(), _img_buf,
+                   VIDEO_SCREEN_BYTES); // copy_page 18a4
+            memset(ar, 0, 16000u); // clear_screen_buf 1882
+            if (_frame == 0u) { // intro_frame_1 1625
+                font_draw_text(ar,
+                               game_string(GAME_STRING_ATTRACT_SCORE_HEADER),
+                               0xA0u, 4u);
+                _draw_score_block(ar);
+            } else { // intro_frame_2 1652
+                uint16_t base = (_frame - 1u) * 10u;
+                font_draw_text(ar,
+                               game_string(GAME_STRING_ATTRACT_TIMES_HEADER),
+                               0xA0u, 4u);
+                for (uint16_t r = 0; r < 10u; r++) {
+                    uint8_t rec[2];
+
+                    _fastest_time(base + r, rec);
+                    _draw_times_row(ar, base + r, rec, 0x18u + r * 0x10u);
+                }
+            }
+            _blit_80x200(ar);
+            _wipe_iter = 0u;
+            _phase = ATTRACT_E2_WIPE;
             break;
         }
-        if (palette_fade_active()) break;
-        /* effect 4's work area and file: [0xD76] and [0xC9F] are dead once
-         * the credits have finished; the next cycle re-carves them */
-        g_osys->memFree(_e4strip);
-        _e4strip = NULL;
-        g_osys->memFree(_credtext);
-        _credtext = NULL;
-        _credtext_size = 0;
-        _next_effect(); // -> effect 1: the cycle
-        break;
+        case ATTRACT_E2_WIPE: { // wipe_diagonal 16fa
+            _wipe_row(_wipe_iter);
+            _flip_page();
+            if (++_wipe_iter < 79u) break;
+            video_vram_blit(video_flat(), UINT32_MAX, _page_draw, 80u, 80u,
+                            VIDEO_SCREEN_H); // 171c: the full present
+            _flip_page();
+            _counter = 490u; // 164c/168a: the hold
+            _phase = ATTRACT_E2_HOLD;
+            break;
+        }
+        case ATTRACT_E2_HOLD: // fade_step_frames 164c/168a
+            if (_escape_test(in)) {
+                _latch_escape();
+                break;
+            }
+            if (--_counter != 0u) break;
+            if (++_frame <= 16u) {
+                _phase = ATTRACT_E2_FRAME;
+                break;
+            }
+            palette_build_fade(0u, 256u, 0x1Eu, _ramp0); // 159f: fade to black
+            _phase = ATTRACT_E2_OUT;
+            break;
+        case ATTRACT_E2_OUT: // JMP fade_wait 15ae
+            if (_escape_test(in)) {
+                _latch_escape();
+                break;
+            }
+            if (palette_fade_active()) break;
+            _next_effect();
+            break;
 
-    /* --- the escape: the longjmp 13B2's fade, waited without polling ---- */
-    case ATTRACT_ESCAPE:
-        if (palette_fade_active()) break; // 8b8b: wait_palette_fade_done
-        _attract_shutdown();
-        _phase = ATTRACT_DONE;
-        break;
+        /* --- effect 4: the credits (1000:19AF) -------------------------------- */
+        case ATTRACT_E4_LOAD:
+            if (!_e4_load()) {
+                if (_escape_test(in)) {
+                    _latch_escape();
+                    break;
+                }
+                _phase = ATTRACT_E1_LOAD;
+            } else {
+                _phase = ATTRACT_E4_FADEWAIT;
+            }
+            break;
+        case ATTRACT_E4_FADEWAIT: // fade_wait 1a3c
+            if (_escape_test(in)) {
+                _latch_escape();
+                break;
+            }
+            if (palette_fade_active()) break;
+            _scroll_row = 0; // 1a3f: [0xD78] := 0
+            _phase = ATTRACT_E4_SCROLL;
+            break;
+        case ATTRACT_E4_SCROLL: // the loop at 1a45
+            /* _blit_scroll + its trailing one-tick spin + the JMP flip: one
+             * strip row per display period, the page pair alternating        */
+            _blit_scroll(_scroll_row);
+            _flip_page();
+            _scroll_row++;
+            if (_scroll_row == (uint16_t)(_rows_built - VIDEO_SCREEN_H)) {
+                /* 1a72: the terminator check; more _credtext -> the next
+                 * screenful in the same instant (the clear + the fill + the
+                 * fade_wait's one poll, the fade being done), then row 0 on
+                 * the next tick.  The bound mirrors the original's heap-read
+                 * past the buffer only for data without the 0xFF terminator,
+                 * which the shipped file always has. */
+                uint8_t next = (_cred_cursor < _credtext_size)
+                                   ? _credtext[_cred_cursor]
+                                   : 0xFFu;
+                if (next != 0xFFu) {
+                    _e4_fill();
+                    if (_escape_test(in)) {
+                        _latch_escape();
+                        break;
+                    }
+                    _scroll_row = 0;
+                    break;
+                }
+                /* 1a82: the tail - [0x1E7C]:=0x0A (write-only) */
+                palette_build_fade(0u, 256u, 0x1Eu, _ramp0);
+                _phase = ATTRACT_E4_OUT;
+                break;
+            }
+            /* 1a58: the LOCAL poll - a key ends the effect via the tail
+             * ([0xD3D]:=0xFF, write-only); it is not the attract escape      */
+            if (_local_key(in)) {
+                palette_build_fade(0u, 256u, 0x1Eu, _ramp0);
+                _phase = ATTRACT_E4_OUT;
+            }
+            break;
+        case ATTRACT_E4_OUT: // fade_wait 1a96
+            if (_escape_test(in)) {
+                _latch_escape();
+                break;
+            }
+            if (palette_fade_active()) break;
+            /* effect 4's work area and file: [0xD76] and [0xC9F] are dead once
+             * the credits have finished; the next cycle re-carves them */
+            g_osys->memFree(_e4strip);
+            _e4strip = NULL;
+            g_osys->memFree(_credtext);
+            _credtext = NULL;
+            _credtext_size = 0;
+            _next_effect(); // -> effect 1: the cycle
+            break;
 
-    case ATTRACT_DONE:
-    case ATTRACT_IDLE: break;
+        /* --- the escape: the longjmp 13B2's fade, waited without polling ---- */
+        case ATTRACT_ESCAPE:
+            if (palette_fade_active()) break; // 8b8b: wait_palette_fade_done
+            _attract_shutdown();
+            _phase = ATTRACT_DONE;
+            break;
+
+        case ATTRACT_DONE:
+        case ATTRACT_IDLE: break;
     }
 
     _compose_window();

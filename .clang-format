@@ -42,7 +42,7 @@ AlignConsecutiveAssignments: None
 AlignEscapedNewlines: Right
 ReflowComments: false
 
-IndentCaseLabels: false
+IndentCaseLabels: true
 IndentCaseBlocks: false
 IndentPPDirectives: AfterHash
 SpaceAfterCStyleCast: false

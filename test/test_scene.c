@@ -698,8 +698,8 @@ int main(int argc, char **argv)
                 if (sz > 0 && chk == 0)
                     _scene_al_expand(obj, (uint32_t)sz, expected, PAGE_SIZE);
                 for (uint16_t k = 0; k < n4; k++) {
-                    sz = _ani_decode_object(&a4, i4[k], obj, OBJ_SEG_SIZE,
-                                            &chk);
+                    sz =
+                        _ani_decode_object(&a4, i4[k], obj, OBJ_SEG_SIZE, &chk);
                     if (sz < 0 || chk != 0) break;
                     _scene_al_expand(obj, (uint32_t)sz, expected, PAGE_SIZE);
                 }
@@ -726,10 +726,12 @@ int main(int argc, char **argv)
                         fprintf(stderr, "FAIL D-278: scene 8's prologue never "
                                         "appeared (chain 4 -> 8)\n");
                         bad = 1;
-                    } else if (memcmp(osys_null_page(0), panel,
-                                      sizeof panel) == 0) {
-                        fprintf(stderr, "FAIL D-278: the newspaper panel came "
-                                        "back at tick %u\n", saw);
+                    } else if (memcmp(osys_null_page(0), panel, sizeof panel) ==
+                               0) {
+                        fprintf(stderr,
+                                "FAIL D-278: the newspaper panel came "
+                                "back at tick %u\n",
+                                saw);
                         bad = 1;
                     }
                 }

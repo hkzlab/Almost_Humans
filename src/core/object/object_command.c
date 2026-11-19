@@ -1390,79 +1390,87 @@ void object_command_set_command_timer(uint32_t v)
 static int32_t _obj_command_call(uint8_t *actor, uint16_t addr)
 {
     switch (addr) {
-    case 0xD9C7u: return 1; // the common tail: a bare RET
-    case 0xE4F8u: (void)object_command_step_down(actor); return 1;
-    case 0xE609u: (void)object_command_step_up(actor); return 1;
-    case 0xE72Au: _obj_command_idle_a(actor); return 1;
-    case 0xE790u: _obj_command_idle_b(actor); return 1;
-    case 0xE860u: (void)object_units_stack_step_off(actor); return 1;
-    case 0xE8DDu: (void)object_units_stack_leave(actor); return 1;
-    case 0xE963u: (void)object_units_stack_snap(actor); return 1;
-    case 0xE99Du: (void)object_units_stack_stand(actor); return 1;
-    case 0xE93Du: (void)object_command_selector_walk(actor, 0); return 1;
-    case 0xE952u: (void)object_command_selector_walk(actor, 1); return 1;
-    /* the rest of the rows' handlers (see the block above) */
-    case 0xE6FBu: _obj_command_walk(actor, 1); return 1;
-    case 0xE764u: _obj_command_walk(actor, 0); return 1;
-    case 0xEB78u: _obj_command_path_step(actor, 0); return 1;
-    case 0xEBA0u: _obj_command_path_step(actor, 1); return 1;
-    case 0xEBD0u: _obj_command_path_advance(actor); return 1;
-    case 0xDC1Fu:
-        _obj_command_type15_tail(actor);
-        return 1; // the type-15 rows' tail
-    /* the rows' tails (the +0xC word): 0xD9C7 is the bare RET above */
-    case 0xD9C8u: _obj_units_tail_frame_bound(actor, 0x112u); return 1;
-    case 0xD9CDu: _obj_units_tail_frame_bound(actor, 0x116u); return 1;
-    case 0xD9E8u: _obj_units_tail_type3(actor); return 1;
-    case 0xDB48u: _obj_units_tail_span_owner(actor, 0u, 0u, 0xABu); return 1;
-    case 0xDB61u: _obj_units_tail_span_owner(actor, 8u, 1u, 0xADu); return 1;
-    case 0xDD93u: _obj_units_tail_type16(actor); return 1;
-    case 0xDDDAu: _obj_units_tail_type29(actor); return 1;
-    case 0xE802u: _obj_units_tail_special_tile(actor, 4u, 0x16, 0); return 1;
-    case 0xE831u: _obj_units_tail_special_tile(actor, 5u, 0x18, 1); return 1;
-    case 0xEAACu: _obj_units_tail_type11(actor); return 1;
-    case 0xEAE6u: _obj_units_tail_type12(actor); return 1;
-    case 0xEB5Cu: _obj_units_tail_walk_countdown(actor, 1); return 1;
-    case 0xEB6Au: _obj_units_tail_walk_countdown(actor, 0); return 1;
-    case 0xECB7u: _obj_units_tail_type17(actor); return 1;
-    case 0xEF0Au: return 1; // a bare RET
-    case 0xEF0Bu: return 1; // a bare RET
-    case 0xF067u: _obj_command_fall(actor, 0, 0, 0x10u); return 1;
-    case 0xF078u: _obj_command_fall(actor, 8, 1, 0u); return 1;
-    case 0xF0C9u: _obj_units_tail_type33(actor); return 1;
-    case 0xDBCDu: _obj_units_tail_type28(actor); return 1;
-    case 0xDE7Eu: _obj_units_tail_type30(actor); return 1;
-    case 0xDED1u: _obj_units_tail_type34(actor); return 1;
-    case 0xEF66u: _obj_units_tail_type22(actor); return 1;
-    case 0xEA0Fu: _obj_command_ride(actor, 0xABu, 0xCu, 9u); return 1;
-    case 0xEA4Du: _obj_command_ride(actor, 0xADu, 2u, 0xAu); return 1;
-    case 0xEC99u:
-        _obj_command_walk(actor, 0);
-        _obj_command_neighbour_pass(actor, 0xDu, 0xCu, 0xA);
-        return 1;
-    case 0xECA8u:
-        _obj_command_walk(actor, 1);
-        _obj_command_neighbour_pass(actor, 3u, 0xCu, -0xA);
-        return 1;
-    case 0xED4Fu: _obj_command_frame_step(actor, 0x8Eu, 1); return 1;
-    case 0xED69u: _obj_command_frame_step(actor, 0x8Cu, 0); return 1;
-    case 0xED83u: _obj_command_frame_step(actor, 0x91u, 0); return 1;
-    case 0xED9Du: _obj_command_frame_step(actor, 0x93u, 1); return 1;
-    case 0xEDB7u: _obj_command_home_state(actor); return 1;
-    case 0xEE07u: _obj_command_turn(actor); return 1;
-    case 0xEE3Bu: _obj_command_enter(actor); return 1;
-    case 0xEFD1u: _obj_command_home_state(actor); return 1; // JMP 0xEDB7
-    case 0xEFD4u: _obj_command_turn(actor); return 1; // JMP 0xEE07
-    case 0xEFD7u: _obj_command_turn_idle(actor); return 1;
-    case 0xF08Du: _obj_command_place(actor, -8, 8, 1u); return 1;
-    case 0xF0A2u: _obj_command_place(actor, 0x18, 0, 0u); return 1;
-    case 0xF0B3u: _obj_command_stand(actor); return 1;
-    case 0xF0C3u: _obj_command_home_state(actor); return 1;
-    case 0xF0C6u: _obj_command_home_state(actor); return 1;
-    case 0xE7C0u: _obj_command_stream_timed(actor); return 1;
-    case 0xEBCAu: _obj_command_clear_countdown(actor); return 1;
-    case 0xEA0Eu: return 1; // bare RET
-    default: return 0;
+        case 0xD9C7u: return 1; // the common tail: a bare RET
+        case 0xE4F8u: (void)object_command_step_down(actor); return 1;
+        case 0xE609u: (void)object_command_step_up(actor); return 1;
+        case 0xE72Au: _obj_command_idle_a(actor); return 1;
+        case 0xE790u: _obj_command_idle_b(actor); return 1;
+        case 0xE860u: (void)object_units_stack_step_off(actor); return 1;
+        case 0xE8DDu: (void)object_units_stack_leave(actor); return 1;
+        case 0xE963u: (void)object_units_stack_snap(actor); return 1;
+        case 0xE99Du: (void)object_units_stack_stand(actor); return 1;
+        case 0xE93Du: (void)object_command_selector_walk(actor, 0); return 1;
+        case 0xE952u: (void)object_command_selector_walk(actor, 1); return 1;
+        /* the rest of the rows' handlers (see the block above) */
+        case 0xE6FBu: _obj_command_walk(actor, 1); return 1;
+        case 0xE764u: _obj_command_walk(actor, 0); return 1;
+        case 0xEB78u: _obj_command_path_step(actor, 0); return 1;
+        case 0xEBA0u: _obj_command_path_step(actor, 1); return 1;
+        case 0xEBD0u: _obj_command_path_advance(actor); return 1;
+        case 0xDC1Fu:
+            _obj_command_type15_tail(actor);
+            return 1; // the type-15 rows' tail
+        /* the rows' tails (the +0xC word): 0xD9C7 is the bare RET above */
+        case 0xD9C8u: _obj_units_tail_frame_bound(actor, 0x112u); return 1;
+        case 0xD9CDu: _obj_units_tail_frame_bound(actor, 0x116u); return 1;
+        case 0xD9E8u: _obj_units_tail_type3(actor); return 1;
+        case 0xDB48u:
+            _obj_units_tail_span_owner(actor, 0u, 0u, 0xABu);
+            return 1;
+        case 0xDB61u:
+            _obj_units_tail_span_owner(actor, 8u, 1u, 0xADu);
+            return 1;
+        case 0xDD93u: _obj_units_tail_type16(actor); return 1;
+        case 0xDDDAu: _obj_units_tail_type29(actor); return 1;
+        case 0xE802u:
+            _obj_units_tail_special_tile(actor, 4u, 0x16, 0);
+            return 1;
+        case 0xE831u:
+            _obj_units_tail_special_tile(actor, 5u, 0x18, 1);
+            return 1;
+        case 0xEAACu: _obj_units_tail_type11(actor); return 1;
+        case 0xEAE6u: _obj_units_tail_type12(actor); return 1;
+        case 0xEB5Cu: _obj_units_tail_walk_countdown(actor, 1); return 1;
+        case 0xEB6Au: _obj_units_tail_walk_countdown(actor, 0); return 1;
+        case 0xECB7u: _obj_units_tail_type17(actor); return 1;
+        case 0xEF0Au: return 1; // a bare RET
+        case 0xEF0Bu: return 1; // a bare RET
+        case 0xF067u: _obj_command_fall(actor, 0, 0, 0x10u); return 1;
+        case 0xF078u: _obj_command_fall(actor, 8, 1, 0u); return 1;
+        case 0xF0C9u: _obj_units_tail_type33(actor); return 1;
+        case 0xDBCDu: _obj_units_tail_type28(actor); return 1;
+        case 0xDE7Eu: _obj_units_tail_type30(actor); return 1;
+        case 0xDED1u: _obj_units_tail_type34(actor); return 1;
+        case 0xEF66u: _obj_units_tail_type22(actor); return 1;
+        case 0xEA0Fu: _obj_command_ride(actor, 0xABu, 0xCu, 9u); return 1;
+        case 0xEA4Du: _obj_command_ride(actor, 0xADu, 2u, 0xAu); return 1;
+        case 0xEC99u:
+            _obj_command_walk(actor, 0);
+            _obj_command_neighbour_pass(actor, 0xDu, 0xCu, 0xA);
+            return 1;
+        case 0xECA8u:
+            _obj_command_walk(actor, 1);
+            _obj_command_neighbour_pass(actor, 3u, 0xCu, -0xA);
+            return 1;
+        case 0xED4Fu: _obj_command_frame_step(actor, 0x8Eu, 1); return 1;
+        case 0xED69u: _obj_command_frame_step(actor, 0x8Cu, 0); return 1;
+        case 0xED83u: _obj_command_frame_step(actor, 0x91u, 0); return 1;
+        case 0xED9Du: _obj_command_frame_step(actor, 0x93u, 1); return 1;
+        case 0xEDB7u: _obj_command_home_state(actor); return 1;
+        case 0xEE07u: _obj_command_turn(actor); return 1;
+        case 0xEE3Bu: _obj_command_enter(actor); return 1;
+        case 0xEFD1u: _obj_command_home_state(actor); return 1; // JMP 0xEDB7
+        case 0xEFD4u: _obj_command_turn(actor); return 1; // JMP 0xEE07
+        case 0xEFD7u: _obj_command_turn_idle(actor); return 1;
+        case 0xF08Du: _obj_command_place(actor, -8, 8, 1u); return 1;
+        case 0xF0A2u: _obj_command_place(actor, 0x18, 0, 0u); return 1;
+        case 0xF0B3u: _obj_command_stand(actor); return 1;
+        case 0xF0C3u: _obj_command_home_state(actor); return 1;
+        case 0xF0C6u: _obj_command_home_state(actor); return 1;
+        case 0xE7C0u: _obj_command_stream_timed(actor); return 1;
+        case 0xEBCAu: _obj_command_clear_countdown(actor); return 1;
+        case 0xEA0Eu: return 1; // bare RET
+        default: return 0;
     }
 }
 

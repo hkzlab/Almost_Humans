@@ -86,7 +86,7 @@ void menu_open_time_up(void)
 void menu_draw(void)
 {
     uint8_t *page = g_osys ? g_osys->videoPage(0) : NULL;
-    uint32_t stride = video_page_w(), scale = (uint32_t)video_scale();
+    uint32_t stride = video_page_w(), scale = video_viewport_factor();
 
     if (_phase == MENU_PAUSE)
         textpage_draw_level(page, stride, scale,

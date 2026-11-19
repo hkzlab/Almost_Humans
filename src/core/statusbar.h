@@ -49,18 +49,18 @@ void statusbar_tick(void);
 /**
  * @brief Point the bar at the surface it must land on.
  *
- * The bar draws at the original's 320x40 scale into its own stage and copies
+ * The bar draws at the original's 320x40 size into its own stage and copies
  * the result into `dst` at `_bar_split` (scaled).  NULL selects the display
- * page at the view scale - the in-level default; the level's loading screen
- * passes the 320x200 logical screen with a scale of 1 so the bar is part of
- * the screen the present doubles.
+ * page at the current viewport - the in-level default; the level's loading
+ * screen passes the 320x200 logical screen with a scale of 1 so the bar is
+ * part of the screen the present doubles.
  *
  * @param dst the destination surface, or NULL for page 0
  * @param stride the destination row stride in bytes
  * @param rows the destination's row count (the blit clips to it)
  * @param scale 1 or 2 (the destination's pixel scale)
  * @param top the bar's resting top row in destination pixels; 0 selects the
- *            field's bottom (152 at scale 1, 320 at scale 2)
+ *            field's bottom (152 in classic mode, 320 in wide mode)
  */
 void statusbar_set_surface(uint8_t *dst, uint32_t stride, uint32_t rows,
                            uint32_t scale, uint32_t top);

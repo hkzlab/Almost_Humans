@@ -20,20 +20,20 @@
 void sdl3_video_set_mode(VideoMode mode);
 
 /**
- * @brief Record the view scale the command line asked for (1 or 2).
+ * @brief Record the viewport the command line asked for.
  *
  * Called by main() before game_main; the texture is built from it.
  *
- * @param scale the scale
+ * @param mode VIEWPORT_CLASSIC or VIEWPORT_WIDE
  */
-void sdl3_video_set_scale(int32_t scale);
+void sdl3_video_set_viewport(ViewportMode mode);
 
 /**
- * @brief Accessor: the recorded view scale.
+ * @brief Accessor: the recorded viewport mode.
  *
- * @return the scale
+ * @return the mode
  */
-int32_t sdl3_video_scale(void);
+ViewportMode sdl3_video_viewport_mode(void);
 
 /**
  * @brief Accessor: one of the two display pages.

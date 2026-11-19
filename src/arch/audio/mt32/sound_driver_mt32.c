@@ -433,35 +433,35 @@ static void _tick_command(Mt32Play *p, uint32_t slot_no)
 
     if ((uint8_t)(s->command | s->param) == 0) return;
     switch (s->command & 0x1Fu) {
-    case 0x01: // 0x0A82: bend += param * 0x20, then send
-        s->bend = (uint16_t)(s->bend + (uint16_t)(s->param << 5));
-        _send_bend(drv, _channel(slot_no), s);
-        break;
-    case 0x02: // 0x0AAE: bend -= param * 0x20, then send
-        s->bend = (uint16_t)(s->bend - (uint16_t)(s->param << 5));
-        _send_bend(drv, _channel(slot_no), s);
-        break;
-    case 0x03: /* 0x0C05: slide */ _slide_tick(drv, slot_no); break;
-    case 0x09: { // 0x0A29: volume delta, then CC 7 = volume * 2
-        uint8_t high = (uint8_t)(s->param >> 4);
-        uint8_t low = (uint8_t)(s->param & 0x0Fu);
-        uint32_t ch = _channel(slot_no);
-        uint8_t value;
-        if (high != 0) {
-            uint32_t next = (uint32_t)s->volume + high;
-            s->volume = (uint8_t)(next > 0x40u ? 0x40u : next);
-        } else if (low > s->volume) {
-            s->volume = 0;
-        } else {
-            s->volume = (uint8_t)(s->volume - low);
+        case 0x01: // 0x0A82: bend += param * 0x20, then send
+            s->bend = (uint16_t)(s->bend + (uint16_t)(s->param << 5));
+            _send_bend(drv, _channel(slot_no), s);
+            break;
+        case 0x02: // 0x0AAE: bend -= param * 0x20, then send
+            s->bend = (uint16_t)(s->bend - (uint16_t)(s->param << 5));
+            _send_bend(drv, _channel(slot_no), s);
+            break;
+        case 0x03: /* 0x0C05: slide */ _slide_tick(drv, slot_no); break;
+        case 0x09: { // 0x0A29: volume delta, then CC 7 = volume * 2
+            uint8_t high = (uint8_t)(s->param >> 4);
+            uint8_t low = (uint8_t)(s->param & 0x0Fu);
+            uint32_t ch = _channel(slot_no);
+            uint8_t value;
+            if (high != 0) {
+                uint32_t next = (uint32_t)s->volume + high;
+                s->volume = (uint8_t)(next > 0x40u ? 0x40u : next);
+            } else if (low > s->volume) {
+                s->volume = 0;
+            } else {
+                s->volume = (uint8_t)(s->volume - low);
+            }
+            value = s->volume;
+            if (drv->track_volume[ch] == value) return;
+            drv->track_volume[ch] = value;
+            _midi(drv, (uint8_t)(0xB0u + ch), 0x07u, _cc_volume(value));
+            break;
         }
-        value = s->volume;
-        if (drv->track_volume[ch] == value) return;
-        drv->track_volume[ch] = value;
-        _midi(drv, (uint8_t)(0xB0u + ch), 0x07u, _cc_volume(value));
-        break;
-    }
-    default: break;
+        default: break;
     }
 }
 
@@ -554,37 +554,39 @@ static void _note_command(Mt32Play *p, uint32_t slot_no)
     Mt32Record *rec = p->rec;
 
     switch (s->command & 0x1Fu) {
-    case 4: /* 0x0C70 modulation */ _cmd_modulation(drv, slot_no); break;
-    case 5: /* 0x0B04 pan */ _cmd_pan(drv, slot_no); break;
-    case 6: /* 0x0AC2 all notes off */ _cmd_all_notes_off(drv, slot_no); break;
-    case 7: /* 0x0AD7 sysex A */ _cmd_sysex_system(drv, slot_no, 0); break;
-    case 8: /* 0x0AE3 sysex B */ _cmd_sysex_system(drv, slot_no, 1); break;
-    case 0x0B: // 0x0B44 jump: order = param-1, advance <- NOT advance
-        rec->order = (uint8_t)(s->param - 1u);
-        rec->advance = (uint8_t)~rec->advance;
-        break;
-    case 0x0C: // 0x0B54 volume = min(param, 0x40), then CC 7
-        if (s->param >= 0x40u) s->param = 0x40u;
-        s->volume = s->param;
-        if (drv->track_volume[_channel(slot_no)] != s->volume) {
-            drv->track_volume[_channel(slot_no)] = s->volume;
-            _midi(drv, (uint8_t)(0xB0u + _channel(slot_no)), 0x07u,
-                  _cc_volume(s->volume));
-        }
-        break;
-    case 0x0D: // 0x0B3C advance <- NOT advance
-        rec->advance = (uint8_t)~rec->advance;
-        break;
-    case 0x0E: // 0x0891 mark the record finished
-        rec->finished = 0xFFu;
-        break;
-    case 0x0F: // 0x0B67 ticks per row, param & 0x1F, 0 ignored
-        if ((s->param & 0x1Fu) != 0) {
-            rec->tick = 0;
-            rec->ticks_per_row = (uint8_t)(s->param & 0x1Fu);
-        }
-        break;
-    default: break;
+        case 4: /* 0x0C70 modulation */ _cmd_modulation(drv, slot_no); break;
+        case 5: /* 0x0B04 pan */ _cmd_pan(drv, slot_no); break;
+        case 6: /* 0x0AC2 all notes off */
+            _cmd_all_notes_off(drv, slot_no);
+            break;
+        case 7: /* 0x0AD7 sysex A */ _cmd_sysex_system(drv, slot_no, 0); break;
+        case 8: /* 0x0AE3 sysex B */ _cmd_sysex_system(drv, slot_no, 1); break;
+        case 0x0B: // 0x0B44 jump: order = param-1, advance <- NOT advance
+            rec->order = (uint8_t)(s->param - 1u);
+            rec->advance = (uint8_t)~rec->advance;
+            break;
+        case 0x0C: // 0x0B54 volume = min(param, 0x40), then CC 7
+            if (s->param >= 0x40u) s->param = 0x40u;
+            s->volume = s->param;
+            if (drv->track_volume[_channel(slot_no)] != s->volume) {
+                drv->track_volume[_channel(slot_no)] = s->volume;
+                _midi(drv, (uint8_t)(0xB0u + _channel(slot_no)), 0x07u,
+                      _cc_volume(s->volume));
+            }
+            break;
+        case 0x0D: // 0x0B3C advance <- NOT advance
+            rec->advance = (uint8_t)~rec->advance;
+            break;
+        case 0x0E: // 0x0891 mark the record finished
+            rec->finished = 0xFFu;
+            break;
+        case 0x0F: // 0x0B67 ticks per row, param & 0x1F, 0 ignored
+            if ((s->param & 0x1Fu) != 0) {
+                rec->tick = 0;
+                rec->ticks_per_row = (uint8_t)(s->param & 0x1Fu);
+            }
+            break;
+        default: break;
     }
 }
 
@@ -674,37 +676,37 @@ static void _store_cell(SoundDriver *drv, uint32_t slot_no, uint32_t *cursor,
     uint32_t c = *cursor;
 
     switch (cls & 3u) {
-    case 0:
-        memset(s->note, 0, 4);
-        s->instrument = 0;
-        s->command = 0;
-        s->param = 0;
-        break;
-    case 1:
-        s->note[0] = s->note[1] = s->note[2] = s->note[3] = 0;
-        s->instrument = 0;
-        s->command = _u8(drv, c);
-        s->param = _u8(drv, c + 1u);
-        *cursor = c + 2u;
-        break;
-    case 2:
-        s->note[0] = _u8(drv, c);
-        s->note[1] = s->note[2] = s->note[3] = 0;
-        s->instrument = _u8(drv, c + 1u);
-        s->command = 0;
-        s->param = 0;
-        *cursor = c + 2u;
-        break;
-    default:
-        s->note[0] = _u8(drv, c);
-        s->note[1] = _u8(drv, c + 1u);
-        s->note[2] = _u8(drv, c + 2u);
-        s->note[3] = _u8(drv, c + 3u);
-        s->instrument = _u8(drv, c + 4u);
-        s->command = _u8(drv, c + 5u);
-        s->param = _u8(drv, c + 6u);
-        *cursor = c + 7u;
-        break;
+        case 0:
+            memset(s->note, 0, 4);
+            s->instrument = 0;
+            s->command = 0;
+            s->param = 0;
+            break;
+        case 1:
+            s->note[0] = s->note[1] = s->note[2] = s->note[3] = 0;
+            s->instrument = 0;
+            s->command = _u8(drv, c);
+            s->param = _u8(drv, c + 1u);
+            *cursor = c + 2u;
+            break;
+        case 2:
+            s->note[0] = _u8(drv, c);
+            s->note[1] = s->note[2] = s->note[3] = 0;
+            s->instrument = _u8(drv, c + 1u);
+            s->command = 0;
+            s->param = 0;
+            *cursor = c + 2u;
+            break;
+        default:
+            s->note[0] = _u8(drv, c);
+            s->note[1] = _u8(drv, c + 1u);
+            s->note[2] = _u8(drv, c + 2u);
+            s->note[3] = _u8(drv, c + 3u);
+            s->instrument = _u8(drv, c + 4u);
+            s->command = _u8(drv, c + 5u);
+            s->param = _u8(drv, c + 6u);
+            *cursor = c + 7u;
+            break;
     }
 }
 

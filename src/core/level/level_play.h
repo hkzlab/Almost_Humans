@@ -72,9 +72,9 @@ void level_end_redraw_page(void);
  * The world is drawn at the top of the doubled field (rows 0..319 of 400)
  * because the level's own frame puts it there.  The score screen's background
  * is this frozen page with no bar, so it is shifted down by the slack
- * ((field - world) / 2, 40 rows at scale 2) and the padding is cleared -
+ * ((field - world) / 2, 40 rows in wide mode) and the padding is cleared -
  * otherwise the greyed level sits at the top of the screen, not centred.
- * A no-op at scale 1 and when the field is not taller than the world.
+ * A no-op in classic mode and when the field is not taller than the world.
  */
 void level_center_page(void);
 

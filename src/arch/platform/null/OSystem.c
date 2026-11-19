@@ -22,11 +22,11 @@
 static void _null_set_mode(VideoMode mode);
 
 /**
- * @brief The null backend: the view scale the command line asked for.
+ * @brief The null backend: the viewport the command line asked for.
  *
- * @return 1 or 2
+ * @return VIEWPORT_CLASSIC or VIEWPORT_WIDE
  */
-static int32_t _null_scale(void);
+static ViewportMode _null_viewport_mode(void);
 
 /**
  * @brief The null backend: one of the two video pages.
@@ -148,7 +148,7 @@ static const InputState *_script_states; // scripted input for smoke tests
 static uint32_t _script_n, _poll_count;
 static VideoMode _mode_set; // the core's last videoSetMode
 static uint32_t _field_rows; // the core's last present field
-static int32_t _view_scale = 1; // the view scale the core reads at video_init
+static ViewportMode _view_viewport = VIEWPORT_CLASSIC; // read by video_init
 
 /* The frame-evidence dumps key on the poll count, which only the backend
  * knows (the smoke script is indexed by eventsPoll calls). */
@@ -167,26 +167,26 @@ static uint32_t _audio_load_size[_AUDIO_LOADS_MAX];
 static uint8_t _audio_tempo;
 
 const OSystem g_osys_null = {
-    _null_set_mode,        _null_page,         _null_present,
-    _null_set_palette,     _null_scale,        _null_poll,
-    _null_timer_start,     _null_tick_sync,    _null_audio_install,
-    _null_audio_load,      _null_audio_resume, _null_audio_stop,
-    _null_audio_sfx,       _null_audio_tempo,  _null_audio_tick,
-    _null_audio_driver_id, _null_warn,         _null_fatal,
-    &g_fs_posix,           arch_mem_alloc,     arch_mem_free
+    _null_set_mode,        _null_page,          _null_present,
+    _null_set_palette,     _null_viewport_mode, _null_poll,
+    _null_timer_start,     _null_tick_sync,     _null_audio_install,
+    _null_audio_load,      _null_audio_resume,  _null_audio_stop,
+    _null_audio_sfx,       _null_audio_tempo,   _null_audio_tick,
+    _null_audio_driver_id, _null_warn,          _null_fatal,
+    &g_fs_posix,           arch_mem_alloc,      arch_mem_free
 };
 
 static void _null_set_mode(VideoMode mode) { _mode_set = mode; }
 
-static int32_t _null_scale(void) { return _view_scale; }
+static ViewportMode _null_viewport_mode(void) { return _view_viewport; }
 
-void osys_null_set_scale(int32_t scale)
+void osys_null_set_viewport(ViewportMode mode)
 {
-#if HUMANSRE_VIEW_SCALE > 1
-    _view_scale = scale == 2 ? 2 : 1;
+#if HUMANSRE_VIEWPORT_WIDE
+    _view_viewport = mode == VIEWPORT_WIDE ? VIEWPORT_WIDE : VIEWPORT_CLASSIC;
 #else
-    (void)scale; // the classic build cannot double the viewport
-    _view_scale = 1;
+    (void)mode; // the classic build cannot double the viewport
+    _view_viewport = VIEWPORT_CLASSIC;
 #endif
 }
 

@@ -48,7 +48,7 @@ const OSystem g_osys_sdl3 = { sdl3_video_set_mode,
                               sdl3_video_page,
                               sdl3_video_present,
                               sdl3_video_set_palette,
-                              sdl3_video_scale,
+                              sdl3_video_viewport_mode,
                               sdl3_events_poll,
                               sdl3_timer_start,
                               sdl3_tick_sync,
@@ -80,7 +80,7 @@ typedef struct CliOptions {
     const char *path; // the game-volume directory (mandatory)
     const char *audio; // --audio driver name, NULL = AdLib
     const char *roms; // --mt32-roms directory, NULL = unset
-    int32_t scale; // --view: 1 classical framing, 2 the doubled viewport
+    ViewportMode viewport; // --view: classic framing or the doubled viewport
 } CliOptions;
 
 /* _parse_args's outcome. */
@@ -108,7 +108,9 @@ static CliParseResult _parse_args(int argc, char **argv, CliOptions *opts)
     opts->path = NULL;
     opts->audio = NULL;
     opts->roms = NULL;
-    opts->scale = HUMANSRE_VIEW_SCALE; // the build's view is the default
+    /* the original's framing unless --view wide, even in a build that carries
+     * the wide path */
+    opts->viewport = VIEWPORT_CLASSIC;
 
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-v") == 0) {
@@ -126,14 +128,14 @@ static CliParseResult _parse_args(int argc, char **argv, CliOptions *opts)
                 return CLI_PARSE_ERROR;
             }
             if (strcmp(argv[i], "wide") == 0) {
-#if HUMANSRE_VIEW_SCALE > 1
-                opts->scale = 2;
+#if HUMANSRE_VIEWPORT_WIDE
+                opts->viewport = VIEWPORT_WIDE;
 #else
                 fprintf(stderr, "--view wide: this build is classic only\n");
                 return CLI_PARSE_ERROR;
 #endif
             } else if (strcmp(argv[i], "classic") == 0) {
-                opts->scale = 1;
+                opts->viewport = VIEWPORT_CLASSIC;
             } else {
                 fprintf(stderr, "unknown view '%s' (classic|wide)\n", argv[i]);
                 return CLI_PARSE_ERROR;
@@ -197,15 +199,15 @@ static const char *_roms_absolute(const char *roms, char *buf, size_t size)
 static int32_t _select_audio(const CliOptions *opts)
 {
     switch (sdl3_audio_select(opts->audio, opts->roms)) {
-    case 0: return 0;
-    case -2:
-        fprintf(stderr, "--audio mt32 needs --mt32-roms <directory>\n");
-        return 1;
-    default:
-        fprintf(stderr, "unknown audio driver '%s' (available: %s)\n",
-                opts->audio, AVAILABLE_AUDIO_DRIVERS);
+        case 0: return 0;
+        case -2:
+            fprintf(stderr, "--audio mt32 needs --mt32-roms <directory>\n");
+            return 1;
+        default:
+            fprintf(stderr, "unknown audio driver '%s' (available: %s)\n",
+                    opts->audio, AVAILABLE_AUDIO_DRIVERS);
 
-        return 1;
+            return 1;
     }
 }
 
@@ -232,15 +234,18 @@ int main(int argc, char **argv)
     char roms[1024];
 
     switch (_parse_args(argc, argv, &opts)) {
-    case CLI_PARSE_CONTINUE: break;
-    case CLI_PARSE_VERSION: return 0;
-    case CLI_PARSE_ERROR: return 1;
+        case CLI_PARSE_CONTINUE: break;
+        case CLI_PARSE_VERSION: return 0;
+        case CLI_PARSE_ERROR: return 1;
     }
 
     printf("%s %s\n", HUMANSRE_PROJECT_TITLE, HUMANSRE_VERSION);
-    if (opts.scale != 1) printf("view: wide (level viewport doubled)\n");
-    sdl3_video_set_scale(opts.scale);
+
+    if (opts.viewport == VIEWPORT_WIDE)
+        printf("view: wide (level viewport doubled) *EXPERIMENTAL*\n");
+    sdl3_video_set_viewport(opts.viewport);
     opts.roms = _roms_absolute(opts.roms, roms, sizeof(roms));
+
     if (_select_audio(&opts) != 0) return 1;
     if (chdir(opts.path) != 0) {
         fprintf(stderr, "cannot chdir to '%s'\n", opts.path);

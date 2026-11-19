@@ -2932,9 +2932,9 @@ int main(int argc, char **argv)
                                "walk-up pushes onto the registered base");
                     }
                     /* 1000:E4B0: the dispatch runs the handler, not just selects it.
-                 * The movement states change the record's type, which skips the
-                 * tail (1000:E4CC); a row with no handler but a ported tail
-                 * reports the tail, and anything without a port says so. */
+                     * The movement states change the record's type, which skips the
+                     * tail (1000:E4CC); a row with no handler but a ported tail
+                     * reports the tail, and anything without a port says so. */
                     {
                         uint8_t *base, *a1;
 
@@ -2966,8 +2966,8 @@ int main(int argc, char **argv)
                         _check((rd_le_u16(a1 + 8)) != 2u,
                                "...whose type change skips the row's tail");
                         /* command 2 -> the type-2 row's index 6 (1000:E790, the
-                     * idle handler): frame 0x10/type 2 -> 0/0 with a 4-frame
-                     * countdown, a type change, so the tail is skipped */
+                         * idle handler): frame 0x10/type 2 -> 0/0 with a 4-frame
+                         * countdown, a type change, so the tail is skipped */
                         a1[8] = 2;
                         a1[9] = 0;
                         a1[4] = 0x10;
@@ -2993,8 +2993,8 @@ int main(int argc, char **argv)
                                 (rd_le_u16(a1 + 8)) == 1u,
                             "command 6 runs the other idle handler (frame 8 / type 1)");
                         /* every row's tail is ported now: drive each type's
-                     * command 0 (input 0x01) and require that none reports an
-                     * unported handler or tail. */
+                         * command 0 (input 0x01) and require that none reports an
+                         * unported handler or tail. */
                         {
                             uint32_t unported = 0;
 
@@ -3013,7 +3013,7 @@ int main(int argc, char **argv)
                                    "every one of the 35 rows runs to its tail");
                         }
                         /* D-16: type 2 command 8 (1000:E7C0) walks the timed
-                     * frame stream; the one-shot gate is cleared for the seam. */
+                         * frame stream; the one-shot gate is cleared for the seam. */
                         a1[8] = 2;
                         a1[9] = 0;
                         a1[4] = 0;
@@ -3035,8 +3035,8 @@ int main(int argc, char **argv)
                                    OBJ_CMD_UNPORTED,
                                "1000:EBCA is wired into the command table");
                         /* 1000:D6B2 phases 1/2: the pending-move table raises a
-                     * record's +4 tag 0x21 -> 0x22 for 0x28 ticks and puts it
-                     * back. */
+                         * record's +4 tag 0x21 -> 0x22 for 0x28 ticks and puts it
+                         * back. */
                         {
                             uint8_t *p = object_core_slot(1);
 
@@ -3056,11 +3056,11 @@ int main(int argc, char **argv)
                         }
 
                         /* 1000:D6B2 phase 3: three members on a group animate
-                     * their x with the length-3 count-0 offsets.  The list is
-                     * walked backwards from the terminator while the run is
-                     * read forwards (1000:D81D/D820), so the top member (27)
-                     * takes run[1] = -2, 26 takes run[2] = -1 and the owner
-                     * (25) takes run[3] = 0. */
+                         * their x with the length-3 count-0 offsets.  The list is
+                         * walked backwards from the terminator while the run is
+                         * read forwards (1000:D81D/D820), so the top member (27)
+                         * takes run[1] = -2, 26 takes run[2] = -1 and the owner
+                         * (25) takes run[3] = 0. */
                         {
                             uint8_t *g = object_command_group_at(7);
                             uint8_t *m0 = object_core_slot(25);
@@ -3072,7 +3072,7 @@ int main(int argc, char **argv)
                                 g[0] = 100;
                                 g[1] = 0; // group base x
                                 g[4] = 0x80; /* the 0xFF clear's
-                                                          * sentinel, dir 0 */
+                                              * sentinel, dir 0 */
                                 g[5] = 25;
                                 g[6] = 26;
                                 g[7] = 27;
@@ -3092,8 +3092,8 @@ int main(int argc, char **argv)
                                     "1000:D6B2: the top member takes -2, the "
                                     "owner 0");
                                 /* 1000:D813: the state byte keeps the 0xF0 mask -
-                             * the 0x80 the 0xFF clear leaves is the sentinel
-                             * the original's backward walk stops on */
+                                 * the 0x80 the 0xFF clear leaves is the sentinel
+                                 * the original's backward walk stops on */
                                 _check(
                                     (g[4] & 0x80u) != 0u,
                                     "1000:D813: the state byte keeps the 0x80");
@@ -3102,14 +3102,14 @@ int main(int argc, char **argv)
                             }
                         }
                         /* type 6's row has no handler for command 0, hook 0 and the
-                     * tail 1000:E860 (the step off) */
+                         * tail 1000:E860 (the step off) */
                         a1[8] = 6;
                         a1[9] = 0;
                         _check(
                             object_command_run(a1, 0x01u) == OBJ_CMD_TAIL,
                             "a row with only a ported tail reports the tail");
                         /* type 15's tail is 1000:DC1F, now ported: the command
-                     * runs its handler and reports the tail */
+                         * runs its handler and reports the tail */
                         a1[8] = 15;
                         a1[9] = 0;
                         _check(
@@ -3119,8 +3119,8 @@ int main(int argc, char **argv)
                             "type 15's command now reaches its tail (1000:DC1F)");
                     }
                     /* load_terrain_b's 0xF0..0xF2 tile: the shared decoration
-                 * handler (1000:556B) appends {x, y, frame, +8 = frame} with
-                 * behaviour 1 (frame 0xC1 / 0xC5 / 0xC9). */
+                     * handler (1000:556B) appends {x, y, frame, +8 = frame} with
+                     * behaviour 1 (frame 0xC1 / 0xC5 / 0xC9). */
                     {
                         static uint8_t m[640];
                         uint32_t n;
@@ -3144,8 +3144,8 @@ int main(int argc, char **argv)
                                "0xF2 appends frame 0xC9");
                     }
                     /* load_terrain_b's 0xA9 tile: 1000:51F9 appends the five
-                 * records from the 0x1EFE offset table at
-                 * (col*16 + dx, row*16 + 1 + dy), frames 0x33..0x37. */
+                     * records from the 0x1EFE offset table at
+                     * (col*16 + dx, row*16 + 1 + dy), frames 0x33..0x37. */
                     {
                         static uint8_t m[640];
 
@@ -3162,7 +3162,7 @@ int main(int argc, char **argv)
                         _check((rd_le_u16(object_core_slot(13) + 4)) == 0x37u,
                                "the fifth record is frame 0x37");
                         /* the handler's SI is one past the cell: live level 16 has
-                     * 0x33 C2 C9 at cols 14..16 (2026-11-02) */
+                         * 0x33 C2 C9 at cols 14..16 (2026-11-02) */
                         _check(
                             m[4u * 32u + 2u] == 0x00u &&
                                 m[4u * 32u + 3u] == 0xC2u &&
@@ -3231,7 +3231,7 @@ int main(int argc, char **argv)
                             object_core_init();
                         }
                         /* 0xB7: two appended records, the only computed class
-                     * (+6 = (count-6)<<8) and frame 0x116 / 0x11A */
+                         * (+6 = (count-6)<<8) and frame 0x116 / 0x11A */
                         {
                             static uint8_t m3[640], m4[640];
 
@@ -3303,7 +3303,7 @@ int main(int argc, char **argv)
                                     (rd_le_u16(object_core_slot(10) + 2)) == 0u,
                                 "0xBB appends 0x26, 0xC1 appends 0x100 at y-0x10");
                             /* 0xBE + 0xBF: the join writes the 0xBF tile's x into the
-                         * record 0xBE made (+0xC) */
+                             * record 0xBE made (+0xC) */
                             memset(m4, 0, sizeof m4);
                             m4[1u * 32u + 1u] = 0xBEu;
                             m4[1u * 32u + 4u] = 0xBFu;
@@ -3317,7 +3317,7 @@ int main(int argc, char **argv)
                                 "0xBF joins into 0xBE's record (+0xC = its x)");
                         }
                         /* 0xAC/0xAD/0xAE: one record each, then 1000:5639 snaps its
-                     * y to the terrain step at (x+8, y+0x10) */
+                         * y to the terrain step at (x+8, y+0x10) */
                         {
                             static uint8_t m2[640];
 
@@ -3337,7 +3337,7 @@ int main(int argc, char **argv)
                                            0x38u,
                                    "campfire 0x96, torch 0x9C, stone 0x38");
                             /* level 1 is style 1, so 1000:5662's +3 nudge must not
-                         * apply even with a marked neighbour below-left */
+                             * apply even with a marked neighbour below-left */
                             _check((rd_le_u16(object_core_slot(9) + 2)) !=
                                            (uint16_t)(16u + 3u) ||
                                        level_style() == 6u,
@@ -3352,8 +3352,8 @@ int main(int argc, char **argv)
                         }
                     }
                     /* The +0xA hook, 1000:D8BD (the terrain settle), on a special
-                 * tile: the settle returns before writing anything, so the only
-                 * change is the idle handler's, and the tail still runs. */
+                     * tile: the settle returns before writing anything, so the only
+                     * change is the idle handler's, and the tail still runs. */
                     {
                         const uint8_t *map = level_map();
                         uint32_t sp0 = level_special_tile(0u),
@@ -3385,8 +3385,8 @@ int main(int argc, char **argv)
                         a1[0xB] = 0;
                         object_sequence_set_action_entity(0u);
                         /* command 6 (input 0x04) -> 1000:E72A leaves the type at 2
-                     * (frame 0x10), so the hook runs; the feet are on a special
-                     * tile, which stops the settle before it writes anything */
+                         * (frame 0x10), so the hook runs; the feet are on a special
+                         * tile, which stops the settle before it writes anything */
                         _check(
                             object_command_run(a1, 0x04u) == OBJ_CMD_TAIL,
                             "the settle hook runs and the tail still follows");
@@ -5890,9 +5890,9 @@ int main(int argc, char **argv)
         memset(&k, 0, sizeof k);
         k.lastKey = 1;
         /* 8a-digit. 1000:462D's digit law: block `digit*256` of SCORE.SPR, 16 rows
-     * x 4 bytes per plane pass.  The pass restores DI but NOT SI, so pass p
-     * reads the slot's quarter p and the glyph is a 16x16 chunky image stored
-     * plane-major: pixel 4k+p = src[p*64 + r*4 + k], drawn 0xC0 | v. */
+         * x 4 bytes per plane pass.  The pass restores DI but NOT SI, so pass p
+         * reads the slot's quarter p and the glyph is a 16x16 chunky image stored
+         * plane-major: pixel 4k+p = src[p*64 + r*4 + k], drawn 0xC0 | v. */
         {
             static uint8_t page[VIDEO_PAGE_BYTES];
             static uint8_t page2[VIDEO_PAGE_BYTES];

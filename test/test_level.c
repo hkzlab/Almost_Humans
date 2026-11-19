@@ -158,19 +158,19 @@ int main(int argc, char **argv)
         }
         uint32_t slot;
         switch (d->introIndex) {
-        case 0x00u: slot = 0; break;
-        case 0x01u: slot = 1; break;
-        case 0x02u: slot = 2; break;
-        case 0x03u: slot = 3; break;
-        case 0x04u: slot = 4; break;
-        case 0x05u: slot = 5; break;
-        case 0x09u: slot = 6; break;
-        case 0xFFu: slot = 7; break;
-        default:
-            fprintf(stderr, "FAIL level %u: intro index %02x\n", id,
-                    d->introIndex);
-            bad = 1;
-            continue;
+            case 0x00u: slot = 0; break;
+            case 0x01u: slot = 1; break;
+            case 0x02u: slot = 2; break;
+            case 0x03u: slot = 3; break;
+            case 0x04u: slot = 4; break;
+            case 0x05u: slot = 5; break;
+            case 0x09u: slot = 6; break;
+            case 0xFFu: slot = 7; break;
+            default:
+                fprintf(stderr, "FAIL level %u: intro index %02x\n", id,
+                        d->introIndex);
+                bad = 1;
+                continue;
         }
         intro_hist[slot]++;
         style_hist[d->style - 1u]++;

@@ -59,7 +59,7 @@ void textpage_draw(uint8_t *page, const char *text, int32_t cursorRow,
  *
  * @param page      8bpp display page, `stride` bytes per scanline
  * @param stride    the destination row stride (video_page_w())
- * @param scale     1 or 2 (the view scale)
+ * @param scale     1 or 2 (the destination's pixel scale)
  * @param text      CR-separated, NUL-terminated block; not modified
  * @param cursorRow 0-based option row for the marker pair; < 0 draws no markers
  * @param cursorCol 0-based cell in that row (3 chars per cell); grid only

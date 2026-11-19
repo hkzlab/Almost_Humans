@@ -57,7 +57,7 @@ static void _vpresent(int32_t which, uint32_t rows)
     (void)rows;
 }
 
-static int32_t _vscale(void) { return 1; }
+static ViewportMode _viewport_mode(void) { return VIEWPORT_CLASSIC; }
 
 static void _vpalette(const uint8_t *p6, uint32_t first, uint32_t n)
 {
@@ -123,12 +123,13 @@ static void _fatal(const char *msg)
     exit(1);
 }
 
-static const OSystem _osys = {
-    _vset,       _vpage,         _vpresent,    _vpalette,  _vscale, _poll,
-    _tstart,     _tsync,         _install,     _load,      _resume, _stop,
-    _sfx,        _tempo,         _tick,        _driver_id, _warn,   _fatal,
-    &g_fs_posix, arch_mem_alloc, arch_mem_free
-};
+static const OSystem _osys = { _vset,       _vpage,         _vpresent,
+                               _vpalette,   _viewport_mode, _poll,
+                               _tstart,     _tsync,         _install,
+                               _load,       _resume,        _stop,
+                               _sfx,        _tempo,         _tick,
+                               _driver_id,  _warn,          _fatal,
+                               &g_fs_posix, arch_mem_alloc, arch_mem_free };
 
 /**
  * @brief Render some audio and return the largest absolute sample.

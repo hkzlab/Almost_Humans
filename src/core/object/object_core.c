@@ -582,13 +582,13 @@ int16_t object_core_test_dispatch(uint16_t mode)
     uint8_t arg = (uint8_t)((mode >> 8) & 0xFFu);
 
     switch (op) {
-    case 0: return object_core_low_phase_match() == -1; // 1000:3600
-    case 1: return object_core_none_type1d() == -1; // 1000:3640
-    case 2: return object_core_class_matches(arg) == -1; // 1000:3659
-    case 3: return object_core_type_equals(arg) == -1; // 1000:3678
-    case 4: return _object_core_entities_finished() == -1; // 1000:3688
-    case 5: return object_core_map_cell_equals(arg) == -1; // 1000:36AB
-    default: return 0;
+        case 0: return object_core_low_phase_match() == -1; // 1000:3600
+        case 1: return object_core_none_type1d() == -1; // 1000:3640
+        case 2: return object_core_class_matches(arg) == -1; // 1000:3659
+        case 3: return object_core_type_equals(arg) == -1; // 1000:3678
+        case 4: return _object_core_entities_finished() == -1; // 1000:3688
+        case 5: return object_core_map_cell_equals(arg) == -1; // 1000:36AB
+        default: return 0;
     }
 }
 

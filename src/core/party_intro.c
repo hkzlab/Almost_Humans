@@ -429,7 +429,7 @@ static void _draw_text_ramped(const char *s, uint32_t centreX, uint32_t row)
                                             * row param - CS:0x2DFE + row */
     if (_font_bytes) font_draw_text(video_arena(), s, centreX, row);
     _anim_entities(); /* 28e9: _slots + _marquee + flip -
-                                            * the arena glyph is NOT rendered */
+                       * the arena glyph is NOT rendered */
 }
 
 /** @brief 28d0 palette_copy_low_to_upper: 4 x 0x60 bytes .PAL[0..31] ->
@@ -632,7 +632,7 @@ uint8_t party_intro_start(void)
     uint8_t *b;
 
     video_set_mode(VIDEO_MODE_X); /* level_intro_screen 1000:2508 calls
-                                        * reset_display_mode (1000:82c6)  */
+                                   * reset_display_mode (1000:82c6)  */
     /* level_intro_screen is a self-contained blocking routine in the
      * original: every level re-enters it at 1000:2508.  The port's split
      * start/tick keeps the machine's statics, so a second briefing would
@@ -741,201 +741,202 @@ uint8_t party_intro_tick(const InputState *in)
     uint8_t anyk = (in->lastKey != 0u);
 
     switch (_phase) {
-    case PH_MUSIC: // 2564-256d's timing_loop: the bake waits for it
-        if (audio_fade_busy()) return 1;
-        _party_begin();
-        _phase = PH_FADEWAIT;
-        break;
+        case PH_MUSIC: // 2564-256d's timing_loop: the bake waits for it
+            if (audio_fade_busy()) return 1;
+            _party_begin();
+            _phase = PH_FADEWAIT;
+            break;
 
-    case PH_FADEWAIT:
-        _anim_entities();
-        if (!palette_fade_active()) {
-            _phase = _game_over_mode ? PH_GAMEOVER : PH_SET1;
-            _step = 0u;
-        }
-        break;
-
-    case PH_SWAPWAIT: /* 2bec..2c1c: the fade wait,
-                                                * THEN the tail (verbatim the
-                                                * order inside 2bda)         */
-        _anim_entities(); // 2bec's 28e9
-        if (_sw_phase == SW_FADEWAIT) {
-            if (!palette_fade_active()) _sw_phase = SW_TAIL; // 2bf2's JC out
-            break; // no tail before the fade ends
-        }
-        /* the 2bf4 tail: the mask reset + clear + band redraws, once */
-        memset(_ramp_tbl, 0xE0u,
-               sizeof _ramp_tbl); // 2bf4: the 0x96 fill
-        _clear_canvas(); // 2c01 (2af5)
-        _band_stamp(_page_draw);
-        _anim_entities();
-        _band_stamp(_page_draw);
-        _anim_entities();
-        if (_swap_next == PH_SET1) {
-            _phase = PH_SET1;
-            _step = 0u;
-        } else if (_swap_next == PH_SET2) {
-            _phase = PH_SET2;
-            _step = 0u;
-        } else { // the exit: 270e's tail
-            _clear_canvas(); // 270e (2af5)
-            {
-                static uint8_t black[768];
-                palette_build_fade(0u, 0x100u, 0x23u, black); // 2711
+        case PH_FADEWAIT:
+            _anim_entities();
+            if (!palette_fade_active()) {
+                _phase = _game_over_mode ? PH_GAMEOVER : PH_SET1;
+                _step = 0u;
             }
-            _phase = PH_EXITWAIT;
-        }
-        _sw_phase = SW_FADEWAIT; // the tail ran once
-        break;
+            break;
 
-    case PH_SET1: // 2600..268d
-        switch (_step) {
-        case 0u: // 2600..2611
-            _clear_canvas();
-            *_put_number(
-                _s_all + game_string_num_offset(GAME_STRING_PARTY_COMING_UP),
-                _level) = '\0'; // 260e
-            _draw_text_ramped(_s_all, 0xA0u, 0x14u);
-            break;
-        case 1u: /* 2623..263a: no NUL - the
-                                                * " HUMANS TO COMPLETE" tail
-                                                * survives the patch        */
-            (void)_put_number(
-                _s_need + game_string_num_offset(GAME_STRING_PARTY_NEED),
-                _need);
-            _draw_text_ramped(_s_need, 0xA0u, 0x28u);
-            break;
-        case 2u:
-            _draw_text_ramped(_s_this, 0xA0u, 0x34u); // 2640
-            break;
-        case 3u: // 2652..268a
-        {
-            char *q = _append_str(
-                _put_number(_s_has +
-                                game_string_num_offset(GAME_STRING_PARTY_HAS),
-                            _members),
-                game_string(GAME_STRING_PARTY_MEMBERS_TAIL)); // 2660
-            if (_members == 1u) { // 266d..267a
-                q -= 3;
-                *q = '!';
-                *(q + 1u) = '\0';
+        case PH_SWAPWAIT: /* 2bec..2c1c: the fade wait,
+                           * THEN the tail (verbatim the
+                           * order inside 2bda)         */
+            _anim_entities(); // 2bec's 28e9
+            if (_sw_phase == SW_FADEWAIT) {
+                if (!palette_fade_active())
+                    _sw_phase = SW_TAIL; // 2bf2's JC out
+                break; // no tail before the fade ends
             }
-        }
-            _draw_text_ramped(_s_has, 0xA0u, 0x48u);
+            /* the 2bf4 tail: the mask reset + clear + band redraws, once */
+            memset(_ramp_tbl, 0xE0u,
+                   sizeof _ramp_tbl); // 2bf4: the 0x96 fill
+            _clear_canvas(); // 2c01 (2af5)
+            _band_stamp(_page_draw);
+            _anim_entities();
+            _band_stamp(_page_draw);
+            _anim_entities();
+            if (_swap_next == PH_SET1) {
+                _phase = PH_SET1;
+                _step = 0u;
+            } else if (_swap_next == PH_SET2) {
+                _phase = PH_SET2;
+                _step = 0u;
+            } else { // the exit: 270e's tail
+                _clear_canvas(); // 270e (2af5)
+                {
+                    static uint8_t black[768];
+                    palette_build_fade(0u, 0x100u, 0x23u, black); // 2711
+                }
+                _phase = PH_EXITWAIT;
+            }
+            _sw_phase = SW_FADEWAIT; // the tail ran once
             break;
-        }
-        if (_step < 3u) _step++;
-        else {
-            _intro_anim();
-            _phase = PH_SET1_WAIT;
-            _wait_left = 0xC8u;
-            _key_caught = 0;
-        }
-        break;
 
-    case PH_SET1_WAIT: // 2693..2699
-        _anim_entities();
-        if (fire || anyk) {
-            _key_caught = 1;
-            _wait_left = 0u;
-        } else if (_wait_left) _wait_left--;
-        if (!_wait_left) {
-            if (_key_caught) _swap_begin((uint32_t)-1); // 270b
-            else _swap_begin(PH_SET2);
-        }
-        break;
-
-    case PH_SET2: // 269e..26f7
-        switch (_step) {
-        case 0u:
-            _clear_canvas(); // 269e (2af5)
-            _draw_text_ramped(_s_code, 0xA0u, 0x14u); // 26a1
+        case PH_SET1: // 2600..268d
+            switch (_step) {
+                case 0u: // 2600..2611
+                    _clear_canvas();
+                    *_put_number(_s_all + game_string_num_offset(
+                                              GAME_STRING_PARTY_COMING_UP),
+                                 _level) = '\0'; // 260e
+                    _draw_text_ramped(_s_all, 0xA0u, 0x14u);
+                    break;
+                case 1u: /* 2623..263a: no NUL - the
+                          * " HUMANS TO COMPLETE" tail
+                          * survives the patch        */
+                    (void)_put_number(_s_need + game_string_num_offset(
+                                                    GAME_STRING_PARTY_NEED),
+                                      _need);
+                    _draw_text_ramped(_s_need, 0xA0u, 0x28u);
+                    break;
+                case 2u:
+                    _draw_text_ramped(_s_this, 0xA0u, 0x34u); // 2640
+                    break;
+                case 3u: // 2652..268a
+                {
+                    char *q = _append_str(
+                        _put_number(_s_has + game_string_num_offset(
+                                                 GAME_STRING_PARTY_HAS),
+                                    _members),
+                        game_string(GAME_STRING_PARTY_MEMBERS_TAIL)); // 2660
+                    if (_members == 1u) { // 266d..267a
+                        q -= 3;
+                        *q = '!';
+                        *(q + 1u) = '\0';
+                    }
+                }
+                    _draw_text_ramped(_s_has, 0xA0u, 0x48u);
+                    break;
+            }
+            if (_step < 3u) _step++;
+            else {
+                _intro_anim();
+                _phase = PH_SET1_WAIT;
+                _wait_left = 0xC8u;
+                _key_caught = 0;
+            }
             break;
-        case 1u:
-            _draw_text_ramped(_tribe, 0xA0u, 0x20u); // 26b3
+
+        case PH_SET1_WAIT: // 2693..2699
+            _anim_entities();
+            if (fire || anyk) {
+                _key_caught = 1;
+                _wait_left = 0u;
+            } else if (_wait_left) _wait_left--;
+            if (!_wait_left) {
+                if (_key_caught) _swap_begin((uint32_t)-1); // 270b
+                else _swap_begin(PH_SET2);
+            }
             break;
-        case 2u:
-            *_put_number(_s_score +
-                             game_string_num_offset(GAME_STRING_PARTY_SCORE),
-                         _score) = '\0'; // 26d3
-            _draw_text_ramped(_s_score, 0xA0u, 0x34u);
+
+        case PH_SET2: // 269e..26f7
+            switch (_step) {
+                case 0u:
+                    _clear_canvas(); // 269e (2af5)
+                    _draw_text_ramped(_s_code, 0xA0u, 0x14u); // 26a1
+                    break;
+                case 1u:
+                    _draw_text_ramped(_tribe, 0xA0u, 0x20u); // 26b3
+                    break;
+                case 2u:
+                    *_put_number(_s_score + game_string_num_offset(
+                                                GAME_STRING_PARTY_SCORE),
+                                 _score) = '\0'; // 26d3
+                    _draw_text_ramped(_s_score, 0xA0u, 0x34u);
+                    break;
+                case 3u:
+                    _draw_text_ramped(_s_fire, 0xA0u, 0x48u); // 26e8
+                    break;
+            }
+            if (_step < 3u) _step++;
+            else {
+                _intro_anim();
+                _phase = PH_SET2_WAIT;
+                _wait_left = 0xC8u;
+                _key_caught = 0;
+            }
             break;
-        case 3u:
-            _draw_text_ramped(_s_fire, 0xA0u, 0x48u); // 26e8
+
+        case PH_SET2_WAIT:
+            _anim_entities();
+            if (fire || anyk) {
+                _key_caught = 1;
+                _wait_left = 0u;
+            } else if (_wait_left) _wait_left--;
+            if (!_wait_left) {
+                if (_key_caught) _swap_begin((uint32_t)-1); // 270b
+                else _swap_begin(PH_SET1);
+            }
             break;
-        }
-        if (_step < 3u) _step++;
-        else {
-            _intro_anim();
-            _phase = PH_SET2_WAIT;
-            _wait_left = 0xC8u;
-            _key_caught = 0;
-        }
-        break;
 
-    case PH_SET2_WAIT:
-        _anim_entities();
-        if (fire || anyk) {
-            _key_caught = 1;
-            _wait_left = 0u;
-        } else if (_wait_left) _wait_left--;
-        if (!_wait_left) {
-            if (_key_caught) _swap_begin((uint32_t)-1); // 270b
-            else _swap_begin(PH_SET1);
-        }
-        break;
+        case PH_GAMEOVER: /* 2739..27e9: the GAME OVER
+                           * variant of the briefing  */
+            if (_step == 0u) {
+                _clear_canvas();
+                _draw_text_ramped(game_string(GAME_STRING_PARTY_GAME_OVER),
+                                  0xA0u, 0x14u);
+                _draw_text_ramped(game_string(GAME_STRING_PARTY_TOO_SMALL),
+                                  0xA0u, 0x28u);
+                _draw_text_ramped(game_string(GAME_STRING_PARTY_IN_RACE), 0xA0u,
+                                  0x34u);
+                _draw_text_ramped(game_string(GAME_STRING_PARTY_TRY_AGAIN),
+                                  0xA0u, 0x48u);
+                _intro_anim(); /* 2b9c: the band redraws carry
+                                * the arena text to the display */
+                _step = 1u;
+            }
+            _anim_entities();
+            if (fire || anyk) _swap_begin((uint32_t)-1);
+            break;
 
-    case PH_GAMEOVER: /* 2739..27e9: the GAME OVER
-                                                * variant of the briefing  */
-        if (_step == 0u) {
-            _clear_canvas();
-            _draw_text_ramped(game_string(GAME_STRING_PARTY_GAME_OVER), 0xA0u,
-                              0x14u);
-            _draw_text_ramped(game_string(GAME_STRING_PARTY_TOO_SMALL), 0xA0u,
-                              0x28u);
-            _draw_text_ramped(game_string(GAME_STRING_PARTY_IN_RACE), 0xA0u,
-                              0x34u);
-            _draw_text_ramped(game_string(GAME_STRING_PARTY_TRY_AGAIN), 0xA0u,
-                              0x48u);
-            _intro_anim(); /* 2b9c: the band redraws carry
-                                            * the arena text to the display */
-            _step = 1u;
-        }
-        _anim_entities();
-        if (fire || anyk) _swap_begin((uint32_t)-1);
-        break;
+        case PH_EXITWAIT: // 2720: {28e9; 8b9a; JC}
+            _anim_entities();
+            if (!palette_fade_active()) {
+                _phase = PH_PRESENT;
+                _present_left = 0x4Bu;
+                audio_fade_out(); // 1000:2728 present_frames_75
+            }
+            break;
 
-    case PH_EXITWAIT: // 2720: {28e9; 8b9a; JC}
-        _anim_entities();
-        if (!palette_fade_active()) {
-            _phase = PH_PRESENT;
-            _present_left = 0x4Bu;
-            audio_fade_out(); // 1000:2728 present_frames_75
-        }
-        break;
+        case PH_PRESENT: // 2728 (835a), 272b
+            if (_present_left) _present_left--;
+            else if (audio_fade_busy()) return 1; // the original's 2x wait
+            else {
+                /* 1000:272B: the music_stop that ends present_frames_75. */
+                audio_music_stop();
+                _phase = PH_DONE;
+            }
+            break;
 
-    case PH_PRESENT: // 2728 (835a), 272b
-        if (_present_left) _present_left--;
-        else if (audio_fade_busy()) return 1; // the original's 2x wait
-        else {
-            /* 1000:272B: the music_stop that ends present_frames_75. */
-            audio_music_stop();
-            _phase = PH_DONE;
-        }
-        break;
-
-    case PH_DONE:
-    default:
-        /* the briefing's carve at [0x11fe] (1000:253f/2546) and the arena it
-         * draws through are dead once the screen has exited */
-        g_osys->memFree(_sheet);
-        _sheet = NULL;
-        g_osys->memFree(_strip);
-        _strip = NULL;
-        g_osys->memFree(_bit_img);
-        _bit_img = NULL;
-        video_arena_release();
-        break;
+        case PH_DONE:
+        default:
+            /* the briefing's carve at [0x11fe] (1000:253f/2546) and the arena it
+             * draws through are dead once the screen has exited */
+            g_osys->memFree(_sheet);
+            _sheet = NULL;
+            g_osys->memFree(_strip);
+            _strip = NULL;
+            g_osys->memFree(_bit_img);
+            _bit_img = NULL;
+            video_arena_release();
+            break;
     }
 
     /* the compose (the attract's contract): the display page into the

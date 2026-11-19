@@ -39,14 +39,14 @@ static uint32_t _hash_update(uint32_t h, const uint8_t *buf, uint32_t n)
 int32_t ver_detect_lang(uint32_t hash)
 {
     switch (hash) {
-    case VER_DETECT_EN_HASH: return GAME_LANGUAGE_EN;
-    case 0xD7713AFAu: return GAME_LANGUAGE_FRE;
-    case 0xA6F63422u: return GAME_LANGUAGE_GER;
-    case 0x5910D3A2u: return GAME_LANGUAGE_ITA;
-    case 0xD9AB8E78u: return GAME_LANGUAGE_SPA;
-    default:
-        /* An unknown volume set (a dump of another release?) */
-        return GAME_LANGUAGE_EN;
+        case VER_DETECT_EN_HASH: return GAME_LANGUAGE_EN;
+        case 0xD7713AFAu: return GAME_LANGUAGE_FRE;
+        case 0xA6F63422u: return GAME_LANGUAGE_GER;
+        case 0x5910D3A2u: return GAME_LANGUAGE_ITA;
+        case 0xD9AB8E78u: return GAME_LANGUAGE_SPA;
+        default:
+            /* An unknown volume set (a dump of another release?) */
+            return GAME_LANGUAGE_EN;
     }
 }
 

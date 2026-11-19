@@ -226,31 +226,31 @@ static void _obj_walk_wander(uint8_t *r)
     cx = rd_le_u16(r + 8u);
     dx = rd_le_u16(r + 0x10u);
     switch (cx) {
-    case 0: // 0xCCC0
-        ax++;
-        if (dx == 0u) {
-            dx = 3u;
-            bx++;
-            if (bx > 0x85u) bx = 0x82u;
-            if (ax >= rd_le_u16(r + 0xCu)) {
-                bx = 0x86u;
-                cx = 1u;
-            }
-        } else dx--;
-        break;
-    case 1: // 0xCCE3
-        ax--;
-        if (dx == 0u) {
-            dx = 3u;
-            bx++;
-            if (bx > 0x89u) bx = 0x86u;
-            if (ax <= rd_le_u16(r + 0xAu)) { // 0xCCFD JA skips the reset
-                bx = 0x82u;
-                cx = 0u;
-            }
-        } else dx--;
-        break;
-    default: bx = 0x8Au; break; // 0xCD06
+        case 0: // 0xCCC0
+            ax++;
+            if (dx == 0u) {
+                dx = 3u;
+                bx++;
+                if (bx > 0x85u) bx = 0x82u;
+                if (ax >= rd_le_u16(r + 0xCu)) {
+                    bx = 0x86u;
+                    cx = 1u;
+                }
+            } else dx--;
+            break;
+        case 1: // 0xCCE3
+            ax--;
+            if (dx == 0u) {
+                dx = 3u;
+                bx++;
+                if (bx > 0x89u) bx = 0x86u;
+                if (ax <= rd_le_u16(r + 0xAu)) { // 0xCCFD JA skips the reset
+                    bx = 0x82u;
+                    cx = 0u;
+                }
+            } else dx--;
+            break;
+        default: bx = 0x8Au; break; // 0xCD06
     }
     wr_le_u16(r + 0u, (uint16_t)ax);
     wr_le_u16(r + 4u, (uint16_t)bx);
@@ -630,10 +630,10 @@ static void _obj_walk_rope(uint8_t *r)
 
     if (!(rd_le_u16(r + 8u) & 0x8000u)) return; // 1000:CD33
     switch (rd_le_u16(r + 0xAu)) { // 0x6586 holds CD4A x3
-    case 0u:
-    case 1u:
-    case 2u: break;
-    default: return; // D-101: past the three-entry table
+        case 0u:
+        case 1u:
+        case 2u: break;
+        default: return; // D-101: past the three-entry table
     }
     if (_obj_frame & 1u) return; // 1000:CD4A: even frames
     f = rd_le_u16(r + 4u);
@@ -1100,42 +1100,42 @@ static void _obj_walk_stack8_land(uint8_t *r, uint32_t bx, int32_t ax,
 static void _obj_walk_stack(uint8_t *r, uint32_t idx)
 {
     switch (rd_le_u16(r + 0xAu)) {
-    case 0u:
-        _obj_walk_stack8_move(r, 0x11, 1, 0xE0u, 0xDCu);
-        _obj_walk_stack8_slots(r);
-        break;
-    case 1u:
-        _obj_walk_stack8_move(r, -1, -1, 0xD4u, 0xE8u);
-        _obj_walk_stack8_slots(r);
-        break;
-    case 2u:
-        _obj_walk_stack8_anim(r, 0x11Au);
-        _obj_walk_stack8_slots(r);
-        break;
-    case 3u:
-        _obj_walk_stack8_anim(r, 0x11Eu);
-        _obj_walk_stack8_slots(r);
-        break;
-    case 4u: _obj_walk_stack8_land(r, 0xDDu, 0xA, -3, idx); break;
-    case 5u: _obj_walk_stack8_land(r, 0xE9u, -0xA, -3, idx); break;
-    default: { // state 6, the exit
-        uint16_t s = rd_le_u16(r + 8u);
+        case 0u:
+            _obj_walk_stack8_move(r, 0x11, 1, 0xE0u, 0xDCu);
+            _obj_walk_stack8_slots(r);
+            break;
+        case 1u:
+            _obj_walk_stack8_move(r, -1, -1, 0xD4u, 0xE8u);
+            _obj_walk_stack8_slots(r);
+            break;
+        case 2u:
+            _obj_walk_stack8_anim(r, 0x11Au);
+            _obj_walk_stack8_slots(r);
+            break;
+        case 3u:
+            _obj_walk_stack8_anim(r, 0x11Eu);
+            _obj_walk_stack8_slots(r);
+            break;
+        case 4u: _obj_walk_stack8_land(r, 0xDDu, 0xA, -3, idx); break;
+        case 5u: _obj_walk_stack8_land(r, 0xE9u, -0xA, -3, idx); break;
+        default: { // state 6, the exit
+            uint16_t s = rd_le_u16(r + 8u);
 
-        s = (uint16_t)(s - 1u);
-        wr_le_u16(r + 8u, s);
-        if ((int16_t)s >= 0) break;
-        wr_le_u16(r + 8u, 3u);
-        {
-            uint16_t f = (uint16_t)(rd_le_u16(r + 4u) + 1u);
+            s = (uint16_t)(s - 1u);
+            wr_le_u16(r + 8u, s);
+            if ((int16_t)s >= 0) break;
+            wr_le_u16(r + 8u, 3u);
+            {
+                uint16_t f = (uint16_t)(rd_le_u16(r + 4u) + 1u);
 
-            wr_le_u16(r + 4u, f);
-            if (f == 0x2Eu) {
-                _obj_slot_class[idx - 8u] = 0u;
-                r[6] = 0xFFu;
+                wr_le_u16(r + 4u, f);
+                if (f == 0x2Eu) {
+                    _obj_slot_class[idx - 8u] = 0u;
+                    r[6] = 0xFFu;
+                }
             }
+            break;
         }
-        break;
-    }
     }
 }
 
@@ -1761,16 +1761,16 @@ void object_walk_update_list(void)
 
         _obj_act_class = &_obj_slot_class[i - 8u]; // [0x4244] - 1
         switch (beh) {
-        case 1u: _obj_walk_step1(r); break;
-        case 2u: _obj_walk_wander(r); break;
-        case 3u: _obj_walk_seq(r); break;
-        case 5u: _obj_walk_mover(r); break;
-        case 4u: _obj_walk_projectile(r, i); break;
-        case 6u: _obj_walk_torch(r); break;
-        case 7u: _obj_walk_rope(r); break;
-        case 8u: _obj_walk_stack(r, i); break;
-        case 9u: _obj_walk_marker(r); break;
-        default: break;
+            case 1u: _obj_walk_step1(r); break;
+            case 2u: _obj_walk_wander(r); break;
+            case 3u: _obj_walk_seq(r); break;
+            case 5u: _obj_walk_mover(r); break;
+            case 4u: _obj_walk_projectile(r, i); break;
+            case 6u: _obj_walk_torch(r); break;
+            case 7u: _obj_walk_rope(r); break;
+            case 8u: _obj_walk_stack(r, i); break;
+            case 9u: _obj_walk_marker(r); break;
+            default: break;
         }
     }
 }

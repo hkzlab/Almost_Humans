@@ -224,66 +224,66 @@ uint8_t level_tick(void)
                            : 0;
 
     switch (_start_phase) {
-    case LVSTART_IDLE: level_begin(); break;
-    case LVSTART_VIDEO_BASE:
-        if (!palette_fade_active()) {
-            /* 1000:3309: the `0xC0..0xFF` block to 0x1713, filled at 1000:32CA
-             * with panel4's palette (1000:4BBC) - the bar's colours. */
-            palette_build_fade(0xC0u, 0x40u, 2u, statusbar_palette());
-            _start_phase = LVSTART_VIDEO_BAR;
-        }
-        break;
-    case LVSTART_VIDEO_BAR:
-        if (!palette_fade_active())
-            _start_phase = LVSTART_LOADING; // 1000:3086 runs the loading
-        break;
-    case LVSTART_LOADING:
-        if (level_loading_screen()) break; // 1000:1DC0's screen is up
-        /* 1000:3334: the loading art fades to black (0..0xBF -> 0x48BC, div 0x19) */
-        palette_build_fade(0u, 0xC0u, 0x19u, _black_pal);
-        _start_phase = LVSTART_FADE_OUT;
-        break;
-    case LVSTART_FADE_OUT:
-        if (!palette_fade_active()) {
-            /* 1000:3334's order after the fade-out: the scroll seeds (set in
-             * the LOADING case above), slot 8's init, then 1000:4C28
-             * blit_bitmap_call - the _world drawn into BOTH pages (DI = 0x1200
-             * then 0x8100) before the eight update_world frames.  The port has
-             * one page, so its first WARMUP tick is that pre-draw. */
-            /* 1000:3346/334C/334F: the display window's seeds - the eight
-             * update_world frames run with the camera at (0x60,0x50), and
-             * 1000:5CB6 walks it onto the acting record at <=4 px a frame.
-             * The seed is clamped to the pan range: at scale 2 the range is
-             * empty, so the view starts centred on the whole map and never
-             * moves (D-274). */
-            {
-                uint16_t sx = 0x60u, sy = 0x50u;
-
-                if (sx > level_view_max_x()) sx = level_view_max_x();
-                if (sy > level_view_max_y()) sy = level_view_max_y();
-                level_set_view(sx, sy);
+        case LVSTART_IDLE: level_begin(); break;
+        case LVSTART_VIDEO_BASE:
+            if (!palette_fade_active()) {
+                /* 1000:3309: the `0xC0..0xFF` block to 0x1713, filled at 1000:32CA
+                 * with panel4's palette (1000:4BBC) - the bar's colours. */
+                palette_build_fade(0xC0u, 0x40u, 2u, statusbar_palette());
+                _start_phase = LVSTART_VIDEO_BAR;
             }
-            object_sequence_level_start_record(); // 1000:3355
-            _world_updates = 1; // 1000:336C: [0xC] = 0xFF
-            _render_world(); // 1000:4C28's pre-draw (one page)
-            _start_phase = LVSTART_WARMUP;
-            _warmup_left = 8u; // level_fade_in's LOOP CX=8
-        }
-        break;
-    case LVSTART_WARMUP:
-        doUpdate = 1; // 1000:3374's eight frames
-        if (--_warmup_left == 0u) {
-            palette_build_fade(0, 256, 0x32, level_palette());
-            _start_phase = LVSTART_FADE_IN;
-        }
-        break;
-    case LVSTART_FADE_IN:
-        if (!palette_fade_active()) {
-            _start_phase = LVSTART_PLAYING;
-            statusbar_set_active(1); // level_fade_in's [0x5B12]
-        }
-        break;
-    default: break;
+            break;
+        case LVSTART_VIDEO_BAR:
+            if (!palette_fade_active())
+                _start_phase = LVSTART_LOADING; // 1000:3086 runs the loading
+            break;
+        case LVSTART_LOADING:
+            if (level_loading_screen()) break; // 1000:1DC0's screen is up
+            /* 1000:3334: the loading art fades to black (0..0xBF -> 0x48BC, div 0x19) */
+            palette_build_fade(0u, 0xC0u, 0x19u, _black_pal);
+            _start_phase = LVSTART_FADE_OUT;
+            break;
+        case LVSTART_FADE_OUT:
+            if (!palette_fade_active()) {
+                /* 1000:3334's order after the fade-out: the scroll seeds (set in
+                 * the LOADING case above), slot 8's init, then 1000:4C28
+                 * blit_bitmap_call - the _world drawn into BOTH pages (DI = 0x1200
+                 * then 0x8100) before the eight update_world frames.  The port has
+                 * one page, so its first WARMUP tick is that pre-draw. */
+                /* 1000:3346/334C/334F: the display window's seeds - the eight
+                 * update_world frames run with the camera at (0x60,0x50), and
+                 * 1000:5CB6 walks it onto the acting record at <=4 px a frame.
+                 * The seed is clamped to the pan range: in wide mode the range is
+                 * empty, so the view starts centred on the whole map and never
+                 * moves (D-274). */
+                {
+                    uint16_t sx = 0x60u, sy = 0x50u;
+
+                    if (sx > level_view_max_x()) sx = level_view_max_x();
+                    if (sy > level_view_max_y()) sy = level_view_max_y();
+                    level_set_view(sx, sy);
+                }
+                object_sequence_level_start_record(); // 1000:3355
+                _world_updates = 1; // 1000:336C: [0xC] = 0xFF
+                _render_world(); // 1000:4C28's pre-draw (one page)
+                _start_phase = LVSTART_WARMUP;
+                _warmup_left = 8u; // level_fade_in's LOOP CX=8
+            }
+            break;
+        case LVSTART_WARMUP:
+            doUpdate = 1; // 1000:3374's eight frames
+            if (--_warmup_left == 0u) {
+                palette_build_fade(0, 256, 0x32, level_palette());
+                _start_phase = LVSTART_FADE_IN;
+            }
+            break;
+        case LVSTART_FADE_IN:
+            if (!palette_fade_active()) {
+                _start_phase = LVSTART_PLAYING;
+                statusbar_set_active(1); // level_fade_in's [0x5B12]
+            }
+            break;
+        default: break;
     }
 
     _level_palette_rotate();

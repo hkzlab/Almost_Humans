@@ -47,21 +47,31 @@ uint8_t *video_page(int32_t which);
 /**
  * @brief Accessor: the logical 320x200 screen the original draws on.
  *
- * Every screen that is not the level draws here.  At scale 1 it *is* page 0;
- * at scale 2 it is a separate buffer that video_present_frame() expands into
- * page 0, so those screens look exactly as they do at scale 1.  A
- * HUMANSRE_VIEW_SCALE=1 build compiles the buffer out.
+ * Every screen that is not the level draws here.  In classic mode it *is*
+ * page 0; in wide mode it is a separate buffer that video_present_frame()
+ * expands into page 0, so those screens look exactly as they do in classic
+ * mode.  A HUMANSRE_VIEWPORT_WIDE=0 build compiles the buffer out.
  *
  * @return the logical screen
  */
 uint8_t *video_screen(void);
 
 /**
- * @brief Accessor: the view scale, 1 (the original's framing) or 2.
+ * @brief Accessor: the viewport mode, classic framing or the doubled view.
  *
- * @return the scale
+ * @return the mode
  */
-int32_t video_scale(void);
+ViewportMode video_viewport_mode(void);
+
+/**
+ * @brief Accessor: the pixel factor the current viewport applies.
+ *
+ * The mode itself is the enum; this is only its multiplier, for the geometry
+ * that doubles in wide mode.
+ *
+ * @return 1 in classic mode, 2 in wide mode
+ */
+uint32_t video_viewport_factor(void);
 
 /**
  * @brief Accessor: the display page's active width (320 or 640).
@@ -79,20 +89,21 @@ uint32_t video_page_h(void);
 
 /**
  * @brief Present this frame: expand the logical screen into page 0 first when
- * that was the surface drawn this frame (scale 2 only), then present page 0
+ * that was the surface drawn this frame (wide mode only), then present page 0
  * as the current field.
  *
- * At scale 1 it is the plain videoPresent(0) the original's CRTC flip is.
+ * In classic mode it is the plain videoPresent(0) the original's CRTC flip is.
  */
 void video_present_frame(void);
 
 /**
  * @brief Set the field's scan-out rows for the current screen.
  *
- * Defaults to the mode's field (192 * scale in mode X, 200 * scale in mode
- * 13h) and is reset by video_set_mode.  The level sets it to its own field
- * (`level_field_rows()`): the whole 400-row page at scale 2, because its bar
- * ends at the page's bottom.  A no-op in a HUMANSRE_VIEW_SCALE=1 build.
+ * Defaults to the mode's field (192 rows in mode X, 200 in mode 13h, doubled
+ * in wide mode) and is reset by video_set_mode.  The level sets it to its own
+ * field (`level_field_rows()`): the whole 400-row page in wide mode, because
+ * its bar ends at the page's bottom.  A no-op in a HUMANSRE_VIEWPORT_WIDE=0
+ * build.
  *
  * @param rows the field rows
  */

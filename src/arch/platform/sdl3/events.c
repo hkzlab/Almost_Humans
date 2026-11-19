@@ -25,17 +25,17 @@ static void _set_joy_bits(SDL_Keycode k, uint8_t down)
 {
     uint32_t mask;
     switch (k) {
-    case SDLK_UP: mask = JOYBITS_UP; break;
-    case SDLK_DOWN: mask = JOYBITS_DOWN; break;
-    case SDLK_LEFT: mask = JOYBITS_LEFT; break;
-    case SDLK_RIGHT: mask = JOYBITS_RIGHT; break;
-    case SDLK_Z:
-        /* The configured action key ([0x5B05] = scancode 0x2C = Z).  Only
-         * this key sets the action bit: an Enter mapping here made the
-         * attract's action-bit escape fire on Enter. */
-        mask = JOYBITS_FIRE;
-        break;
-    default: return;
+        case SDLK_UP: mask = JOYBITS_UP; break;
+        case SDLK_DOWN: mask = JOYBITS_DOWN; break;
+        case SDLK_LEFT: mask = JOYBITS_LEFT; break;
+        case SDLK_RIGHT: mask = JOYBITS_RIGHT; break;
+        case SDLK_Z:
+            /* The configured action key ([0x5B05] = scancode 0x2C = Z).  Only
+             * this key sets the action bit: an Enter mapping here made the
+             * attract's action-bit escape fire on Enter. */
+            mask = JOYBITS_FIRE;
+            break;
+        default: return;
     }
     if (down) _cur.joyBits |= mask;
     else _cur.joyBits &= (uint8_t)~mask;
@@ -53,21 +53,21 @@ static void _set_joy_bits(SDL_Keycode k, uint8_t down)
 static uint8_t _scan_code(SDL_Keycode k)
 {
     switch (k) {
-    case SDLK_ESCAPE: return 0x01u;
-    case SDLK_COMMA: return 0x33u;
-    case SDLK_PERIOD: return 0x34u;
-    case SDLK_SPACE: return 0x39u;
-    case SDLK_F1: return 0x3Bu;
-    case SDLK_F2: return 0x3Cu;
-    case SDLK_F3: return 0x3Du;
-    case SDLK_F4: return 0x3Eu;
-    case SDLK_F5: return 0x3Fu;
-    case SDLK_F6: return 0x40u;
-    case SDLK_F7: return 0x41u;
-    case SDLK_F8: return 0x42u;
-    case SDLK_F9: return 0x43u;
-    case SDLK_F10: return 0x44u;
-    default: break;
+        case SDLK_ESCAPE: return 0x01u;
+        case SDLK_COMMA: return 0x33u;
+        case SDLK_PERIOD: return 0x34u;
+        case SDLK_SPACE: return 0x39u;
+        case SDLK_F1: return 0x3Bu;
+        case SDLK_F2: return 0x3Cu;
+        case SDLK_F3: return 0x3Du;
+        case SDLK_F4: return 0x3Eu;
+        case SDLK_F5: return 0x3Fu;
+        case SDLK_F6: return 0x40u;
+        case SDLK_F7: return 0x41u;
+        case SDLK_F8: return 0x42u;
+        case SDLK_F9: return 0x43u;
+        case SDLK_F10: return 0x44u;
+        default: break;
     }
     return 0u;
 }
@@ -81,11 +81,11 @@ static uint8_t _scan_code(SDL_Keycode k)
 static uint8_t _key_code(SDL_Keycode k)
 {
     switch (k) {
-    case SDLK_ESCAPE: return 0x1Bu;   // ESC - the 0x5F11 table's key
-    case SDLK_BACKSPACE: return 0x0Eu;   // the erase action's key
-    case SDLK_RETURN:
-    case SDLK_KP_ENTER: return 0x0Du;   // the confirm action's key
-    default: break;
+        case SDLK_ESCAPE: return 0x1Bu;   // ESC - the 0x5F11 table's key
+        case SDLK_BACKSPACE: return 0x0Eu;   // the erase action's key
+        case SDLK_RETURN:
+        case SDLK_KP_ENTER: return 0x0Du;   // the confirm action's key
+        default: break;
     }
     /* the ISR's XLAT table (0x4260) delivers letters UPPERCASE ('a' -> 0x41,
      * input row) - the name screen's dispatch expects those */
@@ -107,22 +107,22 @@ static uint8_t _key_code(SDL_Keycode k)
 static uint8_t _key_sets_held(SDL_Keycode k)
 {
     switch (k) {
-    case SDLK_UNKNOWN:
-    case SDLK_TAB:
-    case SDLK_GRAVE:
-    case SDLK_LCTRL:
-    case SDLK_RCTRL:
-    case SDLK_LSHIFT:
-    case SDLK_RSHIFT:
-    case SDLK_LALT:
-    case SDLK_RALT:
-    case SDLK_LGUI:
-    case SDLK_RGUI:
-    case SDLK_PRINTSCREEN:
-    case SDLK_SYSREQ:
-    case SDLK_F11:
-    case SDLK_F12: return 0;
-    default: return 1;
+        case SDLK_UNKNOWN:
+        case SDLK_TAB:
+        case SDLK_GRAVE:
+        case SDLK_LCTRL:
+        case SDLK_RCTRL:
+        case SDLK_LSHIFT:
+        case SDLK_RSHIFT:
+        case SDLK_LALT:
+        case SDLK_RALT:
+        case SDLK_LGUI:
+        case SDLK_RGUI:
+        case SDLK_PRINTSCREEN:
+        case SDLK_SYSREQ:
+        case SDLK_F11:
+        case SDLK_F12: return 0;
+        default: return 1;
     }
 }
 
@@ -131,33 +131,33 @@ void sdl3_events_poll(InputState *out)
     SDL_Event ev;
     while (SDL_PollEvent(&ev)) {
         switch (ev.type) {
-        case SDL_EVENT_QUIT: _cur.quit = 1; break;
-        case SDL_EVENT_KEY_DOWN:
-            /* Host-only, and swallowed before the game sees it: Alt+Enter
-             * must not reach the confirm action (0x0D).  Repeats ignored, or a
-             * held F11 would toggle at typematic rate. */
-            if (!ev.key.repeat && (ev.key.key == SDLK_F11 ||
-                                   (ev.key.key == SDLK_RETURN &&
-                                    (ev.key.mod & SDL_KMOD_ALT) != 0))) {
-                sdl3_video_toggle_fullscreen();
+            case SDL_EVENT_QUIT: _cur.quit = 1; break;
+            case SDL_EVENT_KEY_DOWN:
+                /* Host-only, and swallowed before the game sees it: Alt+Enter
+                 * must not reach the confirm action (0x0D).  Repeats ignored, or a
+                 * held F11 would toggle at typematic rate. */
+                if (!ev.key.repeat && (ev.key.key == SDLK_F11 ||
+                                       (ev.key.key == SDLK_RETURN &&
+                                        (ev.key.mod & SDL_KMOD_ALT) != 0))) {
+                    sdl3_video_toggle_fullscreen();
+                    break;
+                }
+                _set_joy_bits(ev.key.key, 1);
+                _cur.lastKey = _key_code(ev.key.key);
+                _cur.keyScan = _scan_code(ev.key.key);
+                _cur.keyHeld = _key_sets_held(ev.key.key);
                 break;
-            }
-            _set_joy_bits(ev.key.key, 1);
-            _cur.lastKey = _key_code(ev.key.key);
-            _cur.keyScan = _scan_code(ev.key.key);
-            _cur.keyHeld = _key_sets_held(ev.key.key);
-            break;
-        case SDL_EVENT_KEY_UP:
-            /* the ISR's 942F: EVERY key-up clears the flag - a tapped
-             * key must not linger as "held" (the stub-era code re-set
-             * the code on release, which made one ENTER tap cascade:
-             * abort the boot intro AND immediately escape the attract) */
-            _set_joy_bits(ev.key.key, 0);
-            _cur.lastKey = 0u;
-            _cur.keyScan = 0u;
-            _cur.keyHeld = 0u;
-            break;
-        default: break;
+            case SDL_EVENT_KEY_UP:
+                /* the ISR's 942F: EVERY key-up clears the flag - a tapped
+                 * key must not linger as "held" (the stub-era code re-set
+                 * the code on release, which made one ENTER tap cascade:
+                 * abort the boot intro AND immediately escape the attract) */
+                _set_joy_bits(ev.key.key, 0);
+                _cur.lastKey = 0u;
+                _cur.keyScan = 0u;
+                _cur.keyHeld = 0u;
+                break;
+            default: break;
         }
     }
     *out = _cur;

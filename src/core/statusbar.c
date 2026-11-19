@@ -20,16 +20,16 @@
  * (152) over 48 ticks; crtc_set_scroll sets the line compare to 2*row-1. */
 static uint16_t _bar_split = 152u;
 
-#if HUMANSRE_VIEW_SCALE > 1
-/* The bar's own surface at scale 2: 320 x 40, one byte per pixel,
- * bar-relative rows.  Every bar routine draws here at the original's scale;
+#if HUMANSRE_VIEWPORT_WIDE
+/* The bar's own surface in wide mode: 320 x 40, one byte per pixel,
+ * bar-relative rows.  Every bar routine draws here at the original's size;
  * _bar_present() then copies it into the level surface - 1:1 for the loading
  * screen, doubled for the 2x page (the bar keeps its size and placement and
  * gains 2x the pixels).  The classic build does not compile the stage in: it
  * draws straight into the page, as the original does. */
 static uint8_t _bar_img[VIDEO_SCREEN_W * BAR_ROWS];
 
-/* Where _bar_img goes.  NULL = the display page at the view scale; the
+/* Where _bar_img goes.  NULL = the display page at the current viewport; the
  * level's loading screen points it at the 320x200 logical screen instead, so
  * the bar is part of the screen the present doubles. */
 static uint8_t *_bar_dst;
@@ -42,7 +42,7 @@ static uint32_t _bar_top; // the resting top row, in destination pixels
 void statusbar_set_surface(uint8_t *dst, uint32_t stride, uint32_t rows,
                            uint32_t scale, uint32_t top)
 {
-#if HUMANSRE_VIEW_SCALE > 1
+#if HUMANSRE_VIEWPORT_WIDE
     _bar_dst = dst;
     _bar_stride = stride;
     _bar_rows = rows;
@@ -178,7 +178,7 @@ void statusbar_load_params(const uint8_t *in)
  * row, doubled when the surface is the 2x page. */
 static void _bar_present(void)
 {
-#if HUMANSRE_VIEW_SCALE > 1
+#if HUMANSRE_VIEWPORT_WIDE
     uint8_t *dst = _bar_dst;
     uint32_t stride = _bar_stride;
     uint32_t rows = _bar_rows;
@@ -191,8 +191,8 @@ static void _bar_present(void)
         dst = g_osys->videoPage(0);
         stride = video_page_w();
         rows = video_page_h();
-        s = (uint32_t)video_scale();
-        /* the field's bottom: 152 at scale 1, 320 at scale 2 */
+        s = video_viewport_factor();
+        /* the field's bottom: 152 in classic mode, 320 in wide mode */
         if (!top) top = s == 1u ? BAR_FIRST_ROW : rows - BAR_ROWS * s;
     }
     if (!dst || !s) return;
@@ -228,7 +228,7 @@ static void _bar_present(void)
  */
 static uint8_t *_bar_canvas(void)
 {
-#if HUMANSRE_VIEW_SCALE > 1
+#if HUMANSRE_VIEWPORT_WIDE
     return _bar_img;
 #else
     return video_page(0); // the classic build draws straight into the page
@@ -238,7 +238,7 @@ static uint8_t *_bar_canvas(void)
 /** @brief The canvas row the bar's top line maps to. */
 static uint32_t _bar_top_row(void)
 {
-#if HUMANSRE_VIEW_SCALE > 1
+#if HUMANSRE_VIEWPORT_WIDE
     return 0u;
 #else
     return _bar_split;
@@ -248,7 +248,7 @@ static uint32_t _bar_top_row(void)
 /** @brief The canvas's exclusive row limit (the bar clips to it). */
 static uint32_t _bar_limit_row(void)
 {
-#if HUMANSRE_VIEW_SCALE > 1
+#if HUMANSRE_VIEWPORT_WIDE
     return BAR_ROWS;
 #else
     return VIDEO_SCREEN_H; // the page; a reveal past the field clips itself
@@ -585,63 +585,63 @@ static void _tribe_count_tick(void)
     uint16_t both = rd_le_u16(_td);
 
     switch (_tc_state) {
-    case 0: return;
-    case 2:
-        if (_tc_slide[1]) {
-            _td_phase[1] = (uint16_t)(_td_phase[1] - 2u);
-            _tc_slide[1]--;
-        }
-        if (_tc_slide[0]) {
-            _td_phase[0] = (uint16_t)(_td_phase[0] - 2u);
-            _tc_slide[0]--;
-        }
-        if (!(_tc_slide[0] | _tc_slide[1])) _tc_state = 0;
-        return;
-    case 3:
-        if (_tc_slide[1]) {
-            _td_phase[1] = (uint16_t)(_td_phase[1] + 2u);
-            _tc_slide[1]--;
-        }
-        if (_tc_slide[0]) {
-            _td_phase[0] = (uint16_t)(_td_phase[0] + 2u);
-            _tc_slide[0]--;
-        }
-        if (!(_tc_slide[0] | _tc_slide[1])) _tc_state = 0;
-        return;
-    case 1:
-        if (both == 0x0909u) {
-            _tc_state = 0;
+        case 0: return;
+        case 2:
+            if (_tc_slide[1]) {
+                _td_phase[1] = (uint16_t)(_td_phase[1] - 2u);
+                _tc_slide[1]--;
+            }
+            if (_tc_slide[0]) {
+                _td_phase[0] = (uint16_t)(_td_phase[0] - 2u);
+                _tc_slide[0]--;
+            }
+            if (!(_tc_slide[0] | _tc_slide[1])) _tc_state = 0;
             return;
-        } // 99: capped
-        _tc_state = 3;
-        _tc_slide[1] = 8;
-        if (_td[1]++ == 9) {
-            _td[1] = 0;
-            _td_phase[1] = 0; // roll up from the blank
-            _tc_slide[0] = 8;
-            if (_td[0]++ == 9) {
+        case 3:
+            if (_tc_slide[1]) {
+                _td_phase[1] = (uint16_t)(_td_phase[1] + 2u);
+                _tc_slide[1]--;
+            }
+            if (_tc_slide[0]) {
+                _td_phase[0] = (uint16_t)(_td_phase[0] + 2u);
+                _tc_slide[0]--;
+            }
+            if (!(_tc_slide[0] | _tc_slide[1])) _tc_state = 0;
+            return;
+        case 1:
+            if (both == 0x0909u) {
                 _tc_state = 0;
-                _tc_slide[0] = 0;
+                return;
+            } // 99: capped
+            _tc_state = 3;
+            _tc_slide[1] = 8;
+            if (_td[1]++ == 9) {
+                _td[1] = 0;
+                _td_phase[1] = 0; // roll up from the blank
+                _tc_slide[0] = 8;
+                if (_td[0]++ == 9) {
+                    _tc_state = 0;
+                    _tc_slide[0] = 0;
+                }
             }
-        }
-        return;
-    default: // 0xFF: the roll down
-        if (both == 0) {
-            _tc_state = 0;
             return;
-        }
-        _tc_state = 2;
-        _tc_slide[1] = 8;
-        if (_td[1]-- == 0) {
-            _td[1] = 9;
-            _td_phase[1] = 0xB0; // slide down from cell 11
-            _tc_slide[0] = 8;
-            if (_td[0]-- == 0) {
-                _tc_state = 0; // 00: stop
-                _tc_slide[0] = 0;
+        default: // 0xFF: the roll down
+            if (both == 0) {
+                _tc_state = 0;
+                return;
             }
-        }
-        return;
+            _tc_state = 2;
+            _tc_slide[1] = 8;
+            if (_td[1]-- == 0) {
+                _td[1] = 9;
+                _td_phase[1] = 0xB0; // slide down from cell 11
+                _tc_slide[0] = 8;
+                if (_td[0]-- == 0) {
+                    _tc_state = 0; // 00: stop
+                    _tc_slide[0] = 0;
+                }
+            }
+            return;
     }
 }
 

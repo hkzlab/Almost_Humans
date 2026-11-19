@@ -352,138 +352,139 @@ void object_sequence_claim_tick(const uint8_t *levelPal)
                         : NULL;
 
     switch (_claim_phase) {
-    case CLAIM_OFF: return;
-    case CLAIM_TO_RED: // 1000:3B56
-        if (palette_fade_active()) return;
-        _claim_phase = CLAIM_RED_BACK;
-        palette_build_fade(1u, 0x7Fu, 0x1Eu, levelPal + 3u); // 1000:3B68
-        break;
-    case CLAIM_RED_BACK: // 1000:3B68
-        if (palette_fade_active()) return;
-        _claim_phase = CLAIM_TO_WHITE;
-        palette_build_fade(1u, 0x7Fu, 5u, _claim_white + 3u); // 1000:3B82
-        break;
-    case CLAIM_TO_WHITE: // 1000:3B91: 1000:3D04
-        if (palette_fade_active()) return;
-        _claim_timer = 0u;
-        _claim_phase = CLAIM_PAN; // two frames
-        break;
-    case CLAIM_PAN: // 1000:3D04, two frames
-        /* 1000:3D04 presents the world twice (5810, 5d56, 3d5e); on the first
-         * pass 1000:3D41 hands min(player, claimed) to 1000:3DC0, which SAVES a
-         * 64x18-byte page strip at that point to A000:0xF000 - a scratch save
-         * for the sequence, not a scroll: no [0x0]/[0x2] write exists anywhere
-         * in it.  The camera stays where the follower left it (frozen above). */
-        if (++_claim_timer < 2u) break;
-        _claim_timer = 0u;
-        _claim_phase = CLAIM_WHITE_BACK;
-        palette_build_fade(1u, 0x7Fu, 0x19u, levelPal + 3u); // 1000:3B97
-        break;
-    case CLAIM_WHITE_BACK: // 1000:3BA9
-        if (palette_fade_active()) return;
-        _claim_timer = 0u;
-        _claim_phase = CLAIM_FRAME;
-        break;
-    case CLAIM_FRAME:
-        if (++_claim_timer <= 1u) break; // 1000:3BA9's 0x9F56
-        _claim_timer = 0u;
-        _claim_phase = CLAIM_BLINK_WHITE;
-        palette_build_fade(0x80u, 0x40u, _claim_blinks,
-                           _claim_white); // 1000:3BB3
-        break;
-    case CLAIM_BLINK_WHITE: // 1000:3BB3
-        if (palette_fade_active()) return;
-        _claim_phase = CLAIM_BLINK_LEVEL;
-        palette_build_fade(0x80u, 0x40u, _claim_blinks,
-                           levelPal + 0x80u * 3u); // 1000:3BC3
-        break;
-    case CLAIM_BLINK_LEVEL: // 1000:3BC3
-        if (palette_fade_active()) return;
-        if (--_claim_blinks == 0u) {
-            _claim_timer = 0u;
-            _claim_phase = CLAIM_ANIM;
+        case CLAIM_OFF: return;
+        case CLAIM_TO_RED: // 1000:3B56
+            if (palette_fade_active()) return;
+            _claim_phase = CLAIM_RED_BACK;
+            palette_build_fade(1u, 0x7Fu, 0x1Eu, levelPal + 3u); // 1000:3B68
             break;
-        }
-        _claim_phase = CLAIM_BLINK_WHITE;
-        palette_build_fade(0x80u, 0x40u, _claim_blinks, _claim_white);
-        break;
-    case CLAIM_ANIM: // 1000:3BD6..1000:3BF6
-        if (++_claim_timer % 9u == 0u) // the 1000:3BE9 frame++
-            wr_le_u16(nrec + 4u, (uint16_t)(rd_le_u16(nrec + 4u) + 1u));
-        if (_claim_timer < 56u) break;
-        _claim_timer = 0u;
-        /* 1000:3BF9..1000:3C64: the append from the stashed fields.  The live record is
-         * `0x3F17 + 0x12*([0x3E73]-8)` (port index count+1) and its class
-         * `[0x3E5F + count-8]` = `[0x3E5E + count-7]` (count-7 here), i.e.
-         * class c <-> live index 8+c. */
-        if (_obj_live_count + 1u < OBJ_SLOTS) {
-            uint8_t *nr = _obj_array + (_obj_live_count + 1u) * OBJ_STRIDE;
-            wr_le_u16(nr + 0u, rd_le_u16(nrec + 0u));
-            wr_le_u16(nr + 2u, (uint16_t)(rd_le_u16(nrec + 2u) + 9u));
-            wr_le_u16(nr + 4u, _claim_sprite);
-            wr_le_u16(nr + 6u, 0u);
-            wr_le_u16(nr + 8u, _claim_params[0]);
-            wr_le_u16(nr + 0xAu, _claim_params[1]);
-            wr_le_u16(nr + 0xCu, _claim_params[2]);
-            wr_le_u16(nr + 0xEu, _claim_params[3]);
-            _obj_slot_class[_obj_live_count - 7u] = _claim_behav;
-            _obj_live_count++;
-            /* 1000:3C70 calls init_dirty_cell_list (1000:3E73), whose tail
-             * hands (x - 0x20, y - 0x20) of the appended record to 1000:3DC0:
-             * the same strip save, at the new record.  It does not move the
-             * window either; the 0x48BC cell list it builds is the redraw list
-             * this flat compose replaces. */
-            {
-                /* 1000:3E73's other half: the shade table from the recipe's
-                 * sprite, and the list starts around the appended record. */
-                uint8_t shade[16 * 16];
-
-                _obj_render_build_shade(_claim_sprite, shade);
-                level_spark_begin(rd_le_u16(nr + 0u), rd_le_u16(nr + 2u),
-                                  shade);
+        case CLAIM_RED_BACK: // 1000:3B68
+            if (palette_fade_active()) return;
+            _claim_phase = CLAIM_TO_WHITE;
+            palette_build_fade(1u, 0x7Fu, 5u, _claim_white + 3u); // 1000:3B82
+            break;
+        case CLAIM_TO_WHITE: // 1000:3B91: 1000:3D04
+            if (palette_fade_active()) return;
+            _claim_timer = 0u;
+            _claim_phase = CLAIM_PAN; // two frames
+            break;
+        case CLAIM_PAN: // 1000:3D04, two frames
+            /* 1000:3D04 presents the world twice (5810, 5d56, 3d5e); on the first
+             * pass 1000:3D41 hands min(player, claimed) to 1000:3DC0, which SAVES a
+             * 64x18-byte page strip at that point to A000:0xF000 - a scratch save
+             * for the sequence, not a scroll: no [0x0]/[0x2] write exists anywhere
+             * in it.  The camera stays where the follower left it (frozen above). */
+            if (++_claim_timer < 2u) break;
+            _claim_timer = 0u;
+            _claim_phase = CLAIM_WHITE_BACK;
+            palette_build_fade(1u, 0x7Fu, 0x19u, levelPal + 3u); // 1000:3B97
+            break;
+        case CLAIM_WHITE_BACK: // 1000:3BA9
+            if (palette_fade_active()) return;
+            _claim_timer = 0u;
+            _claim_phase = CLAIM_FRAME;
+            break;
+        case CLAIM_FRAME:
+            if (++_claim_timer <= 1u) break; // 1000:3BA9's 0x9F56
+            _claim_timer = 0u;
+            _claim_phase = CLAIM_BLINK_WHITE;
+            palette_build_fade(0x80u, 0x40u, _claim_blinks,
+                               _claim_white); // 1000:3BB3
+            break;
+        case CLAIM_BLINK_WHITE: // 1000:3BB3
+            if (palette_fade_active()) return;
+            _claim_phase = CLAIM_BLINK_LEVEL;
+            palette_build_fade(0x80u, 0x40u, _claim_blinks,
+                               levelPal + 0x80u * 3u); // 1000:3BC3
+            break;
+        case CLAIM_BLINK_LEVEL: // 1000:3BC3
+            if (palette_fade_active()) return;
+            if (--_claim_blinks == 0u) {
+                _claim_timer = 0u;
+                _claim_phase = CLAIM_ANIM;
+                break;
             }
-        }
-        _claim_phase = CLAIM_REVEAL;
-        break;
-    case CLAIM_REVEAL: // 1000:3C73: the blocking dirty-cell flush
-        /* 1000:3C73 CALL 3F4A / 1000:3C76 TEST [0x1B02] / JZ 3C73: the reveal
-         * finishes before the 41-frame hold.  level_claim_frame advances the
-         * spark once per presented frame (3F4A's restore/step/draw/flip). */
-        if (level_spark_active()) return;
-        _claim_timer = 0u;
-        _claim_phase = CLAIM_HOLD;
-        break;
-    case CLAIM_HOLD: // 1000:3C7D: 0x28+1
-        if (++_claim_timer < 41u) break;
-        _claim_timer = 0u;
-        _claim_phase = CLAIM_WHITE_OUT;
-        palette_build_fade(1u, 0xBFu, 5u, _claim_white + 3u); // 1000:3C90
-        break;
-    case CLAIM_WHITE_OUT: // 1000:3C88
-        if (palette_fade_active()) return;
-        _claim_timer = 0u;
-        _claim_phase = CLAIM_FRAME2;
-        break;
-    case CLAIM_FRAME2: // 1000:3C9F
-        if (++_claim_timer <= 1u) break; // one 0x9F56
-        _claim_timer = 0u;
-        wr_le_u16(nrec + 6u, 0xFFFFu); // 50A6: removed
-        statusbar_set_active(1); // 50B0: [0x5B12]
-        _claim_phase = CLAIM_FLIP;
-        break;
-    case CLAIM_FLIP: // 1000:3CB5: LOOP CX=2
-        if (_claim_timer == 0u) level_set_updates(1); // 1000:3CAB: [0xC] = 0xFF
-        if (++_claim_timer < 2u) break;
-        _claim_timer = 0u;
-        _claim_phase = CLAIM_SETTLE;
-        palette_build_fade(1u, 0xBFu, 0x28u, levelPal + 3u); // 50DE
-        break;
-    case CLAIM_SETTLE: // 1000:3CDE
-        if (palette_fade_active()) return;
-        _claim_phase = CLAIM_OFF;
-        _claim_neighbour = -1;
-        break;
-    default: _claim_phase = CLAIM_OFF; break;
+            _claim_phase = CLAIM_BLINK_WHITE;
+            palette_build_fade(0x80u, 0x40u, _claim_blinks, _claim_white);
+            break;
+        case CLAIM_ANIM: // 1000:3BD6..1000:3BF6
+            if (++_claim_timer % 9u == 0u) // the 1000:3BE9 frame++
+                wr_le_u16(nrec + 4u, (uint16_t)(rd_le_u16(nrec + 4u) + 1u));
+            if (_claim_timer < 56u) break;
+            _claim_timer = 0u;
+            /* 1000:3BF9..1000:3C64: the append from the stashed fields.  The live record is
+             * `0x3F17 + 0x12*([0x3E73]-8)` (port index count+1) and its class
+             * `[0x3E5F + count-8]` = `[0x3E5E + count-7]` (count-7 here), i.e.
+             * class c <-> live index 8+c. */
+            if (_obj_live_count + 1u < OBJ_SLOTS) {
+                uint8_t *nr = _obj_array + (_obj_live_count + 1u) * OBJ_STRIDE;
+                wr_le_u16(nr + 0u, rd_le_u16(nrec + 0u));
+                wr_le_u16(nr + 2u, (uint16_t)(rd_le_u16(nrec + 2u) + 9u));
+                wr_le_u16(nr + 4u, _claim_sprite);
+                wr_le_u16(nr + 6u, 0u);
+                wr_le_u16(nr + 8u, _claim_params[0]);
+                wr_le_u16(nr + 0xAu, _claim_params[1]);
+                wr_le_u16(nr + 0xCu, _claim_params[2]);
+                wr_le_u16(nr + 0xEu, _claim_params[3]);
+                _obj_slot_class[_obj_live_count - 7u] = _claim_behav;
+                _obj_live_count++;
+                /* 1000:3C70 calls init_dirty_cell_list (1000:3E73), whose tail
+                 * hands (x - 0x20, y - 0x20) of the appended record to 1000:3DC0:
+                 * the same strip save, at the new record.  It does not move the
+                 * window either; the 0x48BC cell list it builds is the redraw list
+                 * this flat compose replaces. */
+                {
+                    /* 1000:3E73's other half: the shade table from the recipe's
+                     * sprite, and the list starts around the appended record. */
+                    uint8_t shade[16 * 16];
+
+                    _obj_render_build_shade(_claim_sprite, shade);
+                    level_spark_begin(rd_le_u16(nr + 0u), rd_le_u16(nr + 2u),
+                                      shade);
+                }
+            }
+            _claim_phase = CLAIM_REVEAL;
+            break;
+        case CLAIM_REVEAL: // 1000:3C73: the blocking dirty-cell flush
+            /* 1000:3C73 CALL 3F4A / 1000:3C76 TEST [0x1B02] / JZ 3C73: the reveal
+             * finishes before the 41-frame hold.  level_claim_frame advances the
+             * spark once per presented frame (3F4A's restore/step/draw/flip). */
+            if (level_spark_active()) return;
+            _claim_timer = 0u;
+            _claim_phase = CLAIM_HOLD;
+            break;
+        case CLAIM_HOLD: // 1000:3C7D: 0x28+1
+            if (++_claim_timer < 41u) break;
+            _claim_timer = 0u;
+            _claim_phase = CLAIM_WHITE_OUT;
+            palette_build_fade(1u, 0xBFu, 5u, _claim_white + 3u); // 1000:3C90
+            break;
+        case CLAIM_WHITE_OUT: // 1000:3C88
+            if (palette_fade_active()) return;
+            _claim_timer = 0u;
+            _claim_phase = CLAIM_FRAME2;
+            break;
+        case CLAIM_FRAME2: // 1000:3C9F
+            if (++_claim_timer <= 1u) break; // one 0x9F56
+            _claim_timer = 0u;
+            wr_le_u16(nrec + 6u, 0xFFFFu); // 50A6: removed
+            statusbar_set_active(1); // 50B0: [0x5B12]
+            _claim_phase = CLAIM_FLIP;
+            break;
+        case CLAIM_FLIP: // 1000:3CB5: LOOP CX=2
+            if (_claim_timer == 0u)
+                level_set_updates(1); // 1000:3CAB: [0xC] = 0xFF
+            if (++_claim_timer < 2u) break;
+            _claim_timer = 0u;
+            _claim_phase = CLAIM_SETTLE;
+            palette_build_fade(1u, 0xBFu, 0x28u, levelPal + 3u); // 50DE
+            break;
+        case CLAIM_SETTLE: // 1000:3CDE
+            if (palette_fade_active()) return;
+            _claim_phase = CLAIM_OFF;
+            _claim_neighbour = -1;
+            break;
+        default: _claim_phase = CLAIM_OFF; break;
     }
 }
 
@@ -1232,18 +1233,18 @@ void object_sequence_pending_run(void)
     if (code == (uint32_t)_obj_last_result) return;
     _obj_last_result = code; // 1000:34D5
     switch (code) {
-    case 1u: // 1000:36C7: the lock arm clears the dispatch word (0x36CD)
-        _obj_last_result = 0u;
-        break;
-    case 4u: _obj_charging = 1; break; // 1000:36DB
-    case 5u: { // 1000:382D
-        uint8_t *p = _obj_core_program_slot(_obj_sequence_program_id());
+        case 1u: // 1000:36C7: the lock arm clears the dispatch word (0x36CD)
+            _obj_last_result = 0u;
+            break;
+        case 4u: _obj_charging = 1; break; // 1000:36DB
+        case 5u: { // 1000:382D
+            uint8_t *p = _obj_core_program_slot(_obj_sequence_program_id());
 
-        if (p) p[1] = _obj_cursor; // D-186
-        _obj_last_result = 0u; // 1000:3839: MOV word [0x1979],0
-        break;
-    }
-    default: break; // 1000:36C7/36D7/36DA/3843
+            if (p) p[1] = _obj_cursor; // D-186
+            _obj_last_result = 0u; // 1000:3839: MOV word [0x1979],0
+            break;
+        }
+        default: break; // 1000:36C7/36D7/36DA/3843
     }
 }
 
@@ -1289,79 +1290,81 @@ void object_sequence_action_run(void)
         object_sequence_action_byte(1u + object_sequence_action_byte(1u));
 
     switch (op) {
-    case OP_REGISTER: _obj_sequence_op_register(actor); break;
-    case OP_COLLIDE_A:
-    case OP_COLLIDE_B: _obj_sequence_op_collide(actor); break;
-    case OP_SETFRAME: _obj_sequence_op_set_frame(actor); break;
-    /* 0x39E4: the player claims recipe 2; the others (type 0/1, i.e. walking)
-     * run the ignite. */
-    case OP_CLAIM_OR_TYPE:
-        if (_obj_player >= 0 && actor == _obj_array + _obj_player * OBJ_STRIDE)
-            (void)object_sequence_claim_begin(2u, (int32_t)_obj_entity);
-        else if (rd_le_u16(actor + 8u) < 2u) // 1000:39F3 CMP AX,2 / JNC
-            _obj_sequence_op_mark_walk(actor,
-                                       rd_le_u16(actor + 8u) ? 0u : 0x10u);
-        break;
-    case OP_CLAIM3:
-        (void)object_sequence_claim_begin(3u, (int32_t)_obj_entity);
-        break;
-    case OP_CLAIM0:
-        (void)object_sequence_claim_begin(0u, (int32_t)_obj_entity);
-        break;
-    case OP_CLAIM1:
-        (void)object_sequence_claim_begin(1u, (int32_t)_obj_entity);
-        break;
-    case OP_TYPE_A: // 0x3A05 -> 0xEFA1 / 0xEFB9
-        if (rd_le_u16(actor + 8u) < 2u) // 1000:3A08 CMP AX,2 / JNC
-            _obj_sequence_op_set_state(actor, rd_le_u16(actor + 8u) ? 1u : 0u);
-        break;
-    case OP_RESET: // 0x39CC -> 0xEA71
-        _obj_sequence_op_reset_span();
-        break;
-    case OP_SELECT: // 0x3A1A -> 0xECFE
-        /* 0xECFE: needs a class, then page_offset_to_ptr (0xF123) on the map
-         * cell under the record and on the cell one to the right (type 0) or
-         * left; only when both are free does it set type 0x12/frame 0x8C
-         * (type 0) or type 0x14/frame 0x91.  `1000:ED1D..0xED3E` forms
-         * `DI = [0x1FA0] + 2*(y & 0xFFF0) + (x >> 4)` and takes the
-         * neighbour as `DI +/- 1`, with no range test - the map buffer's gap
-         * and second copy are legitimate.  The original's single exit
-         * (1000:ED49) clears the sequence latch [0x6F1D] on every path and
-         * nothing in the body reads it, so the clear is done here. */
-        _obj_sequence_active = 0;
-        {
-            uint16_t t = rd_le_u16(actor + 8u);
-            int32_t step = (t == 0u) ? 1 : -1;
-            uint16_t frame = (t == 0u) ? 0x8Cu : 0x91u;
-            const uint8_t *map = level_map();
-            int32_t cell =
-                (int32_t)(uint16_t)(2u * ((uint32_t)rd_le_u16(actor + 2u) &
-                                          0xFFF0u)) +
-                (int32_t)((uint32_t)rd_le_u16(actor + 0u) >> 4);
-            int32_t next = cell + step;
+        case OP_REGISTER: _obj_sequence_op_register(actor); break;
+        case OP_COLLIDE_A:
+        case OP_COLLIDE_B: _obj_sequence_op_collide(actor); break;
+        case OP_SETFRAME: _obj_sequence_op_set_frame(actor); break;
+        /* 0x39E4: the player claims recipe 2; the others (type 0/1, i.e. walking)
+         * run the ignite. */
+        case OP_CLAIM_OR_TYPE:
+            if (_obj_player >= 0 &&
+                actor == _obj_array + _obj_player * OBJ_STRIDE)
+                (void)object_sequence_claim_begin(2u, (int32_t)_obj_entity);
+            else if (rd_le_u16(actor + 8u) < 2u) // 1000:39F3 CMP AX,2 / JNC
+                _obj_sequence_op_mark_walk(actor,
+                                           rd_le_u16(actor + 8u) ? 0u : 0x10u);
+            break;
+        case OP_CLAIM3:
+            (void)object_sequence_claim_begin(3u, (int32_t)_obj_entity);
+            break;
+        case OP_CLAIM0:
+            (void)object_sequence_claim_begin(0u, (int32_t)_obj_entity);
+            break;
+        case OP_CLAIM1:
+            (void)object_sequence_claim_begin(1u, (int32_t)_obj_entity);
+            break;
+        case OP_TYPE_A: // 0x3A05 -> 0xEFA1 / 0xEFB9
+            if (rd_le_u16(actor + 8u) < 2u) // 1000:3A08 CMP AX,2 / JNC
+                _obj_sequence_op_set_state(actor,
+                                           rd_le_u16(actor + 8u) ? 1u : 0u);
+            break;
+        case OP_RESET: // 0x39CC -> 0xEA71
+            _obj_sequence_op_reset_span();
+            break;
+        case OP_SELECT: // 0x3A1A -> 0xECFE
+            /* 0xECFE: needs a class, then page_offset_to_ptr (0xF123) on the map
+             * cell under the record and on the cell one to the right (type 0) or
+             * left; only when both are free does it set type 0x12/frame 0x8C
+             * (type 0) or type 0x14/frame 0x91.  `1000:ED1D..0xED3E` forms
+             * `DI = [0x1FA0] + 2*(y & 0xFFF0) + (x >> 4)` and takes the
+             * neighbour as `DI +/- 1`, with no range test - the map buffer's gap
+             * and second copy are legitimate.  The original's single exit
+             * (1000:ED49) clears the sequence latch [0x6F1D] on every path and
+             * nothing in the body reads it, so the clear is done here. */
+            _obj_sequence_active = 0;
+            {
+                uint16_t t = rd_le_u16(actor + 8u);
+                int32_t step = (t == 0u) ? 1 : -1;
+                uint16_t frame = (t == 0u) ? 0x8Cu : 0x91u;
+                const uint8_t *map = level_map();
+                int32_t cell =
+                    (int32_t)(uint16_t)(2u * ((uint32_t)rd_le_u16(actor + 2u) &
+                                              0xFFF0u)) +
+                    (int32_t)((uint32_t)rd_le_u16(actor + 0u) >> 4);
+                int32_t next = cell + step;
 
-            if (!actor[7u] || t >= 2u || !map) break; // 1000:3A1D CMP/JNC
-            if (!level_page_free(_obj_core_map_buffer_byte(cell))) break;
-            if (!level_page_free(_obj_core_map_buffer_byte(next))) break;
-            wr_le_u16(actor + 8u, (uint16_t)((t == 0u) ? 0x12u : 0x14u));
-            wr_le_u16(actor + 4u, frame);
-        }
-        break;
-    case OP_TYPE_B: // 0x39CF -> 0xEA0F / 0xEA4D
-        /* 1000:39CF: `CMP AX,2 / JNC` then BP = 0xEA0F for type 0 and
-         * 0xEA4D otherwise - the two ride bodies, `cmd_ride_ab` /
-         * `cmd_ride_ad`, already ported as `_obj_command_ride` (the same bodies
-         * the type rows reach as command 8). */
-        {
-            uint16_t t = rd_le_u16(actor + 8u);
-
-            if (t < 2u) { // 1000:39D2 CMP AX,2 / JNC
-                if (t == 0u)
-                    _obj_command_ride(actor, 0xABu, 0xCu, 9u); // 1000:EA0F
-                else _obj_command_ride(actor, 0xADu, 2u, 0xAu); // 1000:EA4D
+                if (!actor[7u] || t >= 2u || !map) break; // 1000:3A1D CMP/JNC
+                if (!level_page_free(_obj_core_map_buffer_byte(cell))) break;
+                if (!level_page_free(_obj_core_map_buffer_byte(next))) break;
+                wr_le_u16(actor + 8u, (uint16_t)((t == 0u) ? 0x12u : 0x14u));
+                wr_le_u16(actor + 4u, frame);
             }
-        }
-        break;
-    default: break;
+            break;
+        case OP_TYPE_B: // 0x39CF -> 0xEA0F / 0xEA4D
+            /* 1000:39CF: `CMP AX,2 / JNC` then BP = 0xEA0F for type 0 and
+             * 0xEA4D otherwise - the two ride bodies, `cmd_ride_ab` /
+             * `cmd_ride_ad`, already ported as `_obj_command_ride` (the same bodies
+             * the type rows reach as command 8). */
+            {
+                uint16_t t = rd_le_u16(actor + 8u);
+
+                if (t < 2u) { // 1000:39D2 CMP AX,2 / JNC
+                    if (t == 0u)
+                        _obj_command_ride(actor, 0xABu, 0xCu, 9u); // 1000:EA0F
+                    else _obj_command_ride(actor, 0xADu, 2u, 0xAu); // 1000:EA4D
+                }
+            }
+            break;
+        default: break;
     }
 }

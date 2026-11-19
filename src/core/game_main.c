@@ -204,18 +204,18 @@ static uint8_t _key_wait_step(const InputState *in)
     uint8_t down = in->keyHeld != 0u || in->lastKey != 0u || in->keyScan != 0u;
 
     switch (_key_wait_stage) {
-    case 1:
-        if (!down) _key_wait_stage = 2;
-        break;
-    case 2:
-        if (down) _key_wait_stage = 3;
-        break;
-    default:
-        if (!down) {
-            statusbar_set_active(1); // 1000:396E
-            _key_wait_stage = 0;
-        }
-        break;
+        case 1:
+            if (!down) _key_wait_stage = 2;
+            break;
+        case 2:
+            if (down) _key_wait_stage = 3;
+            break;
+        default:
+            if (!down) {
+                statusbar_set_active(1); // 1000:396E
+                _key_wait_stage = 0;
+            }
+            break;
     }
     return 1;
 }
@@ -356,22 +356,22 @@ static GameFlow _room_enter(void)
 GameFlow gameflow_pause_action(int16_t choice, uint8_t *quit)
 {
     switch (choice) {
-    case 0: /* continue            */ break;
-    case 1: /* restart this level  */ _level_restart(); break;
-    case 2: // restart this game
-        /* 1000:390F..1000:3923: [0x138E] = 0 (lost), [0x1809] = 0xFF and
-         * [0x1979] = 2.  State 2 of the pending table (0x197B) is
-         * 1000:36D7 (returns 0), so the play loop exits through the
-         * "YOUR TRIBE IS EXTINCT!!" caption and its fades; the entry
-         * machine's [0x1809] arm (1000:00C9 -> 1000:002B) then restarts. */
-        level_set_end(0);
-        _restart_game = 1;
-        break;
-    case 3: // save game
-        (void)save_write_slot(menu_slot(), _level_current + 1u,
-                              statusbar_time_word(), level_tribe_members());
-        break;
-    case 4: /* quit this game      */ *quit = 1; break;
+        case 0: /* continue            */ break;
+        case 1: /* restart this level  */ _level_restart(); break;
+        case 2: // restart this game
+            /* 1000:390F..1000:3923: [0x138E] = 0 (lost), [0x1809] = 0xFF and
+             * [0x1979] = 2.  State 2 of the pending table (0x197B) is
+             * 1000:36D7 (returns 0), so the play loop exits through the
+             * "YOUR TRIBE IS EXTINCT!!" caption and its fades; the entry
+             * machine's [0x1809] arm (1000:00C9 -> 1000:002B) then restarts. */
+            level_set_end(0);
+            _restart_game = 1;
+            break;
+        case 3: // save game
+            (void)save_write_slot(menu_slot(), _level_current + 1u,
+                                  statusbar_time_word(), level_tribe_members());
+            break;
+        case 4: /* quit this game      */ *quit = 1; break;
     }
     return FLOW_LEVEL;
 }
@@ -389,22 +389,22 @@ uint8_t gameflow_key_list(const InputState *in)
         if (_key_list[i][0] != in->keyScan) continue;
         if (!(id & 0x80u) && !level_updates()) return 0; // 1000:38AD
         switch (id & 0x7Fu) {
-        case 1: // F1..F8
-            (void)object_sequence_select_by_index((uint32_t)in->keyScan -
-                                                  0x3Bu);
-            return 1; // 1000:38C3
-        case 2: (void)object_sequence_cycle_entity(-1); return 1; // ','
-        case 3: (void)object_sequence_cycle_entity(1); return 1; // '.'
-        case 4: // ESC
-            if (!menu_active() && !level_ended())
-                menu_open_pause(); // 1000:38EA
-            return 1;
-        case 8: (void)object_sequence_space_action(); return 1; // SPACE
-        case 9: // F10
-            statusbar_set_active(0); // 1000:3954
-            _key_wait_stage = 1;
-            return 1;
-        default: return 0;
+            case 1: // F1..F8
+                (void)object_sequence_select_by_index((uint32_t)in->keyScan -
+                                                      0x3Bu);
+                return 1; // 1000:38C3
+            case 2: (void)object_sequence_cycle_entity(-1); return 1; // ','
+            case 3: (void)object_sequence_cycle_entity(1); return 1; // '.'
+            case 4: // ESC
+                if (!menu_active() && !level_ended())
+                    menu_open_pause(); // 1000:38EA
+                return 1;
+            case 8: (void)object_sequence_space_action(); return 1; // SPACE
+            case 9: // F10
+                statusbar_set_active(0); // 1000:3954
+                _key_wait_stage = 1;
+                return 1;
+            default: return 0;
         }
     }
     return 0;
@@ -413,15 +413,15 @@ uint8_t gameflow_key_list(const InputState *in)
 GameFlow gameflow_time_up_action(int16_t choice, uint8_t *quit)
 {
     switch (choice) {
-    case 0: _level_restart(); break;
-    case 1:
-        /* 1000:3510/1000:3515: [0x138E] = 0, [0x1809] = 0xFF (DEC AX keeps
-         * the restart arm) - the same lost-level caption + fades as the
-         * pause menu's result 2. */
-        level_set_end(0);
-        _restart_game = 1;
-        break;
-    case 2: *quit = 1; break;
+        case 0: _level_restart(); break;
+        case 1:
+            /* 1000:3510/1000:3515: [0x138E] = 0, [0x1809] = 0xFF (DEC AX keeps
+             * the restart arm) - the same lost-level caption + fades as the
+             * pause menu's result 2. */
+            level_set_end(0);
+            _restart_game = 1;
+            break;
+        case 2: *quit = 1; break;
     }
     return FLOW_LEVEL;
 }
@@ -452,76 +452,76 @@ uint16_t gameflow_level_current(void) { return _level_current; }
 GameFlow gameflow_step(GameFlow state, const InputState *input)
 {
     switch (state) {
-    case FLOW_ATTRACT:
-        /* game_loop 1000:131E never returns normally - the boot intro
-         * (played via scene_play_boot_intro, game_main's hook above) hands
-         * into the four-effect cycle, whose only exit is attract_exit
-         * 1000:13E9: the action key or any held key -> the 13B2 escape,
-         * whose final fade completes inside attract_tick.  Done = the
-         * hand-off to the front-end room (the original's entry LAB_002B).
+        case FLOW_ATTRACT:
+            /* game_loop 1000:131E never returns normally - the boot intro
+             * (played via scene_play_boot_intro, game_main's hook above) hands
+             * into the four-effect cycle, whose only exit is attract_exit
+             * 1000:13E9: the action key or any held key -> the 13B2 escape,
+             * whose final fade completes inside attract_tick.  Done = the
+             * hand-off to the front-end room (the original's entry LAB_002B).
          */
-        if (attract_tick(input)) return FLOW_ATTRACT;
-        /* attract_exit 1000:13E9 -> the 13B2 escape -> RET to entry LAB_002B:
-         * the room's setup runs again.  Without this the front-end keeps the
-         * previous exit phase and hands straight back to the party/level
-         * (the ending -> attract -> exit path showed exactly that). */
-        return _room_enter();
+            if (attract_tick(input)) return FLOW_ATTRACT;
+            /* attract_exit 1000:13E9 -> the 13B2 escape -> RET to entry LAB_002B:
+             * the room's setup runs again.  Without this the front-end keeps the
+             * previous exit phase and hands straight back to the party/level
+             * (the ending -> attract -> exit path showed exactly that). */
+            return _room_enter();
 
-    case FLOW_MENU:
-        if (_room_disc_pending) {
-            res_set_disc(0u); // entry 002B: [0xF7E]=0
-            if (!_room_disc_up) _room_disc_up = level_disk_status_begin(0u);
-            if (_room_disc_up) {
-                if (level_disk_status_tick(input)) return FLOW_MENU;
-                _room_disc_up = 0;
+        case FLOW_MENU:
+            if (_room_disc_pending) {
+                res_set_disc(0u); // entry 002B: [0xF7E]=0
+                if (!_room_disc_up) _room_disc_up = level_disk_status_begin(0u);
+                if (_room_disc_up) {
+                    if (level_disk_status_tick(input)) return FLOW_MENU;
+                    _room_disc_up = 0;
+                }
+                _room_disc_pending = 0;
+                /* 1000:0039-0042: play_tune(title) / music_resume / timing_loop
+                 * before setup_offscreen_buffers (1000:0048). */
+                _audio_title_cycle();
+                _menu_fade = 1;
             }
-            _room_disc_pending = 0;
-            /* 1000:0039-0042: play_tune(title) / music_resume / timing_loop
-             * before setup_offscreen_buffers (1000:0048). */
-            _audio_title_cycle();
-            _menu_fade = 1;
-        }
-        if (_menu_fade) {
-            if (audio_fade_busy()) return FLOW_MENU; // timing_loop
-            _menu_fade = 0;
-            frontend_restart(); // 1000:0048
-        }
-        /* The front-end room (the walkable level-select): frontend_tick
-         * runs the original's per-frame web - the walk on the rails, the
-         * action key's option cycles, the name/code screen's key table.
-         * The room's exits are the walk off the right edge (x=0x280) or
-         * Enter with a codes.bin match; both fade out and hand the level
-         * to the flow (entry's PUSH AX at 004B / POP AX at 00BA move
-         * [0x5F09] into [0x22] - the level counter here).  ESC stays in
-         * the room and clears the typed name. */
-        if (frontend_tick(input)) return FLOW_MENU;
-        _level_current = frontend_selected_level() - 1u;
-        /* entry:004C: the room's RESTORE GAME counter ([0x5E6F], carried
-         * out in BL by the walk-out exit) loads the slot.  A hit pushes the
-         * save's +0x00 level through the entry stack to [0x22] - it
-         * OVERRIDES the room's code match - and the header seeds
-         * level_load's time/members.  Slot 0 (GAME OFF) resets the state;
-         * the 1..160 bound only rejects a corrupt saved id. */
-        if (save_load_slot(frontend_option(FRONTEND_OPT_GAME))) {
-            uint16_t lv = save_level();
-            if (lv >= 1u && lv <= 160u) _level_current = lv - 1u;
-        }
-        /* entry 1000:009C..0x00B1, after the slot load and before the level
-         * walk: [0x11FC] := 12/10/8 by the LEVEL board.  This is the only
-         * place the count is seeded; a next level and a RESTART THIS LEVEL
-         * keep the carried value (a save's +0x0B still overrides it in
-         * level_load). */
-        level_seed_tribe();
-        return FLOW_LEVEL;
+            if (_menu_fade) {
+                if (audio_fade_busy()) return FLOW_MENU; // timing_loop
+                _menu_fade = 0;
+                frontend_restart(); // 1000:0048
+            }
+            /* The front-end room (the walkable level-select): frontend_tick
+             * runs the original's per-frame web - the walk on the rails, the
+             * action key's option cycles, the name/code screen's key table.
+             * The room's exits are the walk off the right edge (x=0x280) or
+             * Enter with a codes.bin match; both fade out and hand the level
+             * to the flow (entry's PUSH AX at 004B / POP AX at 00BA move
+             * [0x5F09] into [0x22] - the level counter here).  ESC stays in
+             * the room and clears the typed name. */
+            if (frontend_tick(input)) return FLOW_MENU;
+            _level_current = frontend_selected_level() - 1u;
+            /* entry:004C: the room's RESTORE GAME counter ([0x5E6F], carried
+             * out in BL by the walk-out exit) loads the slot.  A hit pushes the
+             * save's +0x00 level through the entry stack to [0x22] - it
+             * OVERRIDES the room's code match - and the header seeds
+             * level_load's time/members.  Slot 0 (GAME OFF) resets the state;
+             * the 1..160 bound only rejects a corrupt saved id. */
+            if (save_load_slot(frontend_option(FRONTEND_OPT_GAME))) {
+                uint16_t lv = save_level();
+                if (lv >= 1u && lv <= 160u) _level_current = lv - 1u;
+            }
+            /* entry 1000:009C..0x00B1, after the slot load and before the level
+             * walk: [0x11FC] := 12/10/8 by the LEVEL board.  This is the only
+             * place the count is seeded; a next level and a RESTART THIS LEVEL
+             * keep the carried value (a save's +0x0B still overrides it in
+             * level_load). */
+            level_seed_tribe();
+            return FLOW_LEVEL;
 
-    case FLOW_LEVEL:
-        /* The level spine and the party pre-screen both live in game_main's
-         * main-loop FLOW_LEVEL branch (the load + the tick gate are there). */
-        return FLOW_LEVEL;
+        case FLOW_LEVEL:
+            /* The level spine and the party pre-screen both live in game_main's
+             * main-loop FLOW_LEVEL branch (the load + the tick gate are there). */
+            return FLOW_LEVEL;
 
-    case FLOW_ENDING:
-        /* handled by game_main (the ending scene, the disc probe, the MAP) */
-        return FLOW_ENDING;
+        case FLOW_ENDING:
+            /* handled by game_main (the ending scene, the disc probe, the MAP) */
+            return FLOW_ENDING;
     }
     return state;
 }
@@ -588,12 +588,12 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
                                 GameFlow prev, uint8_t *quit_requested)
 {
     /* 1000:35AF's restart prologue blocks on the fade to black before
-         * level_start re-enters; hold the whole branch while it runs. */
+     * level_start re-enters; hold the whole branch while it runs. */
     if (gameflow_restart_fade_tick()) return 1;
     /* entering the level (entry 14CD): draw_status_indicator's disc
-         * probe, then level_run's header/map load and the party's
-         * fresh-load screen (307A).  The .ANI newspaper is NOT here: it
-         * is cd_file_op at entry 00FF, after the level. */
+     * probe, then level_run's header/map load and the party's
+     * fresh-load screen (307A).  The .ANI newspaper is NOT here: it
+     * is cd_file_op at entry 00FF, after the level. */
     uint8_t entered = 0;
     if (prev != FLOW_LEVEL || _level_reload) {
         _level_reload = 0;
@@ -610,7 +610,7 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
         _level_start_fade = 0; // level_start 1000:303A starts it below
     }
     /* entry 14CD: draw_status_indicator (1000:1FEF) before level_run;
-         * only a missing volume draws the prompt. */
+     * only a missing volume draws the prompt. */
     if (!_disk_checked) {
         if (!_disk_up) _disk_up = level_disk_status_begin(1u);
         if (_disk_up) {
@@ -637,16 +637,16 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
         entered = 1;
         if (level_load(_level_current) == 0) {
             /* load_terrain_b (1000:5168): the level's own map
-                 * spawns/joins the entities, once per load */
+             * spawns/joins the entities, once per load */
             const LevelData *ld = level_data();
             entity_spawn_from_map(level_map(), ld->style, ld->entityLife);
             /* entry:004C / load_level_record_a+_b: the save's *state
-                 * ranges replace the level's fresh spawn. */
+             * ranges replace the level's fresh spawn. */
             if (save_present()) save_restore_state();
             /* level_run 3060/3062: a tribe smaller than the level
-                 * needs - party_intro_set_game_over plays the briefing's
-                 * GAME OVER variant - and the level is skipped by the
-                 * entry *state machine's next-level arm. */
+             * needs - party_intro_set_game_over plays the briefing's
+             * GAME OVER variant - and the level is skipped by the
+             * entry *state machine's next-level arm. */
             _level_skipped =
                 gameflow_tribe_too_small(level_required(), level_members());
         }
@@ -657,16 +657,16 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
     const LevelData *lv = level_data();
     if (lv && !_party_tried) {
         /* level_run's values: the level number ([0x1F41], 1-based), the
-             * need ([0x17FB]), the tribe ([0x11FC] = 12/10/8 by the LEVEL
-             * board, or the save's +0x0B), the score ([0x592]) and the
-             * briefing's code line ([0x1189], the level record's author).
-             * A no-data run skips (start returns 0). */
+         * need ([0x17FB]), the tribe ([0x11FC] = 12/10/8 by the LEVEL
+         * board, or the save's +0x0B), the score ([0x592]) and the
+         * briefing's code line ([0x1189], the level record's author).
+         * A no-data run skips (start returns 0). */
         _party_tried = 1;
         /* level_run 3073: [0x34] != 0 takes the JNZ 307D path and
-             * skips the fresh-load party screen entirely. */
+         * skips the fresh-load party screen entirely. */
         if (!save_present()) {
             /* [0x17FB] is the map's 0xAA count, NOT the record's
-                 * goal-count byte; the score is [0x592]. */
+             * goal-count byte; the score is [0x592]. */
             party_intro_set_game_over(_level_skipped);
             party_intro_set_values(
                 _level_current + 1u, level_required(), level_tribe_members(),
@@ -675,7 +675,7 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
         }
     }
     /* level_run 30B4: [0x34] := 0 once the level has started; a
-         * later restart then takes the LEVEL board's time. */
+     * later restart then takes the LEVEL board's time. */
     if (entered) save_consume();
     if (!_party_playing && _level_music_done == 0 && lv) {
         _level_music_done = 1;
@@ -707,7 +707,7 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
         }
     } else if (_post_scene) {
         /* entry 1000:00FF: cd_file_op([0x17EF]) - the newspaper for
-             * the level just finished, after check_highscore. */
+         * the level just finished, after check_highscore. */
         if (scene_play_level_intro(_post_scene_idx)) return 1;
         _post_scene = 0;
         *state = gameflow_after_level(&_level_current);
@@ -719,28 +719,28 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
         }
     } else if (_level_skipped) {
         /* level_run 3065 + entry 1000:00DC: [0x1809] takes the
-             * restart-game path (1000:002B: [0xF7E]=0, [0x34]=0, the
-             * room), not the next level */
+         * restart-game path (1000:002B: [0xF7E]=0, [0x34]=0, the
+         * room), not the next level */
         frontend_restart();
         save_load_slot(0u);
         *state = FLOW_MENU;
         _level_reload = 0;
     } else if (level_loading_screen()) {
         /* load_sprite_pal (1000:1DC0): the LOADING screen, between
-             * the party and the level's fade-in (a skipped level never
-             * reaches it - level_run 3065 returns first) */
+         * the party and the level's fade-in (a skipped level never
+         * reaches it - level_run 3065 returns first) */
         level_loading_tick();
     } else if (_end_page_up) {
         /* draw_level_text (1000:33A3).  [0x138E] selects "WELL DONE!
-             * YOU FINISHED LEVEL nnn" or "YOUR TRIBE IS EXTINCT!!" and the
-             * box waits for a key or ACTION; then the palette chain runs
-             * (0x33E2 seal + gradient, 0x33FD fade 0..0xBF div 0x1E with
-             * a wait, 0x340F 0x23-frame hold, 0x3419 fade 0x100 to black
-             * div 0x28), the bar is parked (0x342B) and the world is
-             * re-rendered (0x344C).  check_highscore (0x41AE) then draws
-             * the card, but only when [0x138E] != 0; a lost level jumps to
-             * 0x438A and never opens it.  entry's post-level step (the
-             * newspaper, the ending, or the next level) follows. */
+         * YOU FINISHED LEVEL nnn" or "YOUR TRIBE IS EXTINCT!!" and the
+         * box waits for a key or ACTION; then the palette chain runs
+         * (0x33E2 seal + gradient, 0x33FD fade 0..0xBF div 0x1E with
+         * a wait, 0x340F 0x23-frame hold, 0x3419 fade 0x100 to black
+         * div 0x28), the bar is parked (0x342B) and the world is
+         * re-rendered (0x344C).  check_highscore (0x41AE) then draws
+         * the card, but only when [0x138E] != 0; a lost level jumps to
+         * 0x438A and never opens it.  entry's post-level step (the
+         * newspaper, the ending, or the next level) follows. */
         if (_end_phase == END_CAPTION) {
             char text[48]; /* the widest column: FRE's two-line caption
                             * is 42 bytes with a three-digit level */
@@ -754,15 +754,15 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
                 snprintf(text, sizeof text, "%s",
                          game_string(GAME_STRING_GAMEFLOW_EXTINCT));
             textpage_draw_level(osys->videoPage(0), video_page_w(),
-                                (uint32_t)video_scale(), text, -1, 0u, 0);
+                                video_viewport_factor(), text, -1, 0u, 0);
             if (input->lastKey || (input->joyBits & JOYBITS_FIRE)) {
                 /* scroll_map's exit 0xA0E1 re-renders the page twice:
-                     * the caption box and its text are gone before the
-                     * fades start (the original's grey/gradient frames
-                     * show only the world). */
+                 * the caption box and its text are gone before the
+                 * fades start (the original's grey/gradient frames
+                 * show only the world). */
                 level_redraw_page();
                 /* 0x33E2/0x33F2: seal the level palette to grey and
-                     * load the shipped gradient into 0x80..0xBF. */
+                 * load the shipped gradient into 0x80..0xBF. */
                 level_end_palette();
                 /* 0x33FD: fade the DAC's 0..0xBF to that palette. */
                 palette_build_fade(0u, 0xC0u, 0x1Eu, level_palette());
@@ -806,19 +806,19 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
         }
     } else if (level_starting()) {
         /* level_fade_in (1000:3334): after the party and the intro,
-             * before the first play frame - the foreground blocks on the
-             * fades, so the goal page and the play loop wait here. */
+         * before the first play frame - the foreground blocks on the
+         * fades, so the goal page and the play loop wait here. */
         level_begin();
         level_tick();
         return 1;
     } else if (_goal_page && lv) {
         /* scroll_map (1000:9E51): two rendered frames, the box, then
-             * a loop that only runs 1000:8B56 + 1000:8526 (poll_input)
-             * and tests [0x48A3]/the fire bit - **no update_world**, so
-             * the world is frozen and the direction keys cannot move
-             * anyone.  The port freezes the [0xC] gate (level_tick still
-             * renders and keeps the ISR's palette rotation running, so
-             * the box is redrawn over each frame). */
+         * a loop that only runs 1000:8B56 + 1000:8526 (poll_input)
+         * and tests [0x48A3]/the fire bit - **no update_world**, so
+         * the world is frozen and the direction keys cannot move
+         * anyone.  The port freezes the [0xC] gate (level_tick still
+         * renders and keeps the ISR's palette rotation running, so
+         * the box is redrawn over each frame). */
         if (!_goal_froze_updates) {
             _goal_froze_updates = level_updates();
             level_set_updates(0);
@@ -829,7 +829,7 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
         statusbar_set_active(0);
         level_tick();
         textpage_draw_level(osys->videoPage(0), video_page_w(),
-                            (uint32_t)video_scale(), lv->goal, -1, 0u, 0);
+                            video_viewport_factor(), lv->goal, -1, 0u, 0);
         if (input->lastKey || (input->joyBits & JOYBITS_FIRE)) {
             _goal_page = 0;
 #if defined(HUMANSRE_TEST_PROBES)
@@ -841,10 +841,10 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
         }
     } else {
         /* input_dispatch_loop (1000:349E): the pause gate (3523)
-             * then the world.  With a dialog up (A167) only the frozen
-             * frame is redrawn: menu_open_* clears the world gate, so
-             * update_world (marker, entity and object animations) stops;
-             * the countdown is suspended too (D-232). */
+         * then the world.  With a dialog up (A167) only the frozen
+         * frame is redrawn: menu_open_* clears the world gate, so
+         * update_world (marker, entity and object animations) stops;
+         * the countdown is suspended too (D-232). */
         if (gameflow_key_wait_active()) { // 1000:3954 blocks the world
             (void)gameflow_key_list(input);
             return 1;
@@ -859,22 +859,22 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
             menu_open_time_up();
         }
         /* ACTION with no direction held runs the acting record's
-             * ACTION program (pause_toggle 1000:3523 -> script_op_dispatch
-             * 1000:3979); a dialog blocks it through [0x6F1D].  The
-             * pause block (202F:0x5BBC) is scan_id_list's ESC event (id
-             * 4 -> 1000:38EA), not ACTION. */
+         * ACTION program (pause_toggle 1000:3523 -> script_op_dispatch
+         * 1000:3979); a dialog blocks it through [0x6F1D].  The
+         * pause block (202F:0x5BBC) is scan_id_list's ESC event (id
+         * 4 -> 1000:38EA), not ACTION. */
         /* pause_toggle (0x3523): a fresh fire press with no direction
-             * runs the ACTION program.  [0x42F0] is never set in the image,
-             * so the 0xE3F9 ACTION edge is dead and the same frame's
-             * command dispatch still sees the fire half of the row. */
+         * runs the ACTION program.  [0x42F0] is never set in the image,
+         * so the 0xE3F9 ACTION edge is dead and the same frame's
+         * command dispatch still sees the fire half of the row. */
         uint8_t pressed = rawFire && !object_core_action_latched() &&
                           !object_sequence_charge_active();
 
         /* the original's order (1000:34B5 -> 0x34BD): update_world
-             * runs first - the record command dispatch inside it sees the
-             * press (the type row's fire half selects the turn) - and
-             * pause_toggle runs after it.  The event-4 loop blocks
-             * pause_toggle until it ends (1000:36DB). */
+         * runs first - the record command dispatch inside it sees the
+         * press (the type row's fire half selects the turn) - and
+         * pause_toggle runs after it.  The event-4 loop blocks
+         * pause_toggle until it ends (1000:36DB). */
         level_tick(); // 1000:34B5 update_world
         /* 1000:3540's blocking loop: while the pan runs, the rest of
          * input_dispatch_loop waits - pause_toggle (34BD), scan_id_list
@@ -884,28 +884,28 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
             !(input->joyBits & JOYBITS_DIRS))
             object_sequence_action_run(); // 1000:34BD pause_toggle
         /* the latch is not assigned here: object_sequence_action_run sets it
-             * (1000:3538) and the release above clears it (1000:85A9). */
+         * (1000:3538) and the release above clears it (1000:85A9). */
         if (!pan && level_end_holding()) {
             /* 1000:34E6: the play loop's exit hold - the end sound
-                 * (0x83B7, AX = 0xC) and 15 vsyncs (0x8B56) on the frozen
-                 * world, then draw_level_text's chain.  The JS 34BB follows
-                 * object_core_test_dispatch, so the pan defers it too. */
+             * (0x83B7, AX = 0xC) and 15 vsyncs (0x8B56) on the frozen
+             * world, then draw_level_text's chain.  The JS 34BB follows
+             * object_core_test_dispatch, so the pan defers it too. */
             statusbar_set_active(0); // [0x5B12] = 0: the clock stops
             return 1;
         }
         if (!pan && level_ended()) {
             /* object_core_test_dispatch returned negative (1000:35D6):
-                 * the play loop is over; [0x138E] keeps its outcome */
+             * the play loop is over; [0x138E] keeps its outcome */
             _end_page_up = 1;
             _end_phase = END_CAPTION; // draw_level_text's chain
             statusbar_set_active(0); // [0x5B12] = 0: the clock stops
         }
         /* scan_id_list (1000:386E) runs after update_world and before
-             * the pending-event table, once the pan has returned. */
+         * the pending-event table, once the pan has returned. */
         if (!pan && !menu_active() && !level_ended() &&
             !object_sequence_charge_active())
             (void)gameflow_key_list(input); /* scan_id_list is blocked by
-                                              * the event-4 loop (1000:36DB) */
+                                             * the event-4 loop (1000:36DB) */
         if (menu_active()) {
             if (!menu_tick(input)) {
                 uint8_t wasTimeUp = menu_time_up();
@@ -919,12 +919,12 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
             }
         }
         /* 1000:34C3: the [0x1979] dispatch, after scan_id_list and
-             * pause_toggle (both of which may have armed a code); event
-             * 4's charge loop then takes its per-frame share (1000:3702)
-             * with the world frame already updated.  A negative
-             * object_core_test_dispatch (level_ended) leaves the play loop
-             * before the dispatch (JS 0x34E6), and a running pan defers
-             * both until 1000:3540 returns. */
+         * pause_toggle (both of which may have armed a code); event
+         * 4's charge loop then takes its per-frame share (1000:3702)
+         * with the world frame already updated.  A negative
+         * object_core_test_dispatch (level_ended) leaves the play loop
+         * before the dispatch (JS 0x34E6), and a running pan defers
+         * both until 1000:3540 returns. */
         if (!pan && !level_ended()) {
             object_sequence_pending_run();
             (void)object_sequence_charge_tick();
@@ -945,7 +945,7 @@ static int8_t _flow_level_frame(const OSystem *osys, GameFlow *state,
 static uint8_t _flow_ending_frame(GameFlow *state, const InputState *input)
 {
     /* entry 150C/1512: cd_file_op(6 lost / 7 won), then
-         * draw_status_indicator([0xF7E]=0) and menu_loop (the MAP) */
+     * draw_status_indicator([0xF7E]=0) and menu_loop (the MAP) */
     if (_end_phase == 0) {
         scene_reset_intro();
         _end_phase = 1;
@@ -991,8 +991,8 @@ static uint8_t _game_frame(const OSystem *osys, GameFlow *state,
                            uint8_t *quit_requested)
 {
     /* the tick gate: one flow step per tick boundary, exactly like the
-         * original's foreground spinning on the ISR counter [0x5AC8].  The
-         * host display's refresh rate must not pace this loop. */
+     * original's foreground spinning on the ISR counter [0x5AC8].  The
+     * host display's refresh rate must not pace this loop. */
     osys->tickSync(last_tick);
 
     InputState input;
@@ -1001,10 +1001,10 @@ static uint8_t _game_frame(const OSystem *osys, GameFlow *state,
     osys->eventsPoll(&input);
     rawFire = (input.joyBits & JOYBITS_FIRE) != 0;
     /* 1000:8598-0x85AE (poll_input's tail): while [0x13A4] is set the
-         * fire bit is masked out of [0x5ACE]; the release clears the latch
-         * (1000:85A9).  One flag, owned by object.c.  The event-4 charge is a
-         * blocking loop in the original and never polls, so its update_world
-         * keeps the press frame's fire; do not mask it here. */
+     * fire bit is masked out of [0x5ACE]; the release clears the latch
+     * (1000:85A9).  One flag, owned by object.c.  The event-4 charge is a
+     * blocking loop in the original and never polls, so its update_world
+     * keeps the press frame's fire; do not mask it here. */
     if (object_core_action_latched() && !object_sequence_charge_active()) {
         if (rawFire) input.joyBits &= (uint8_t)JOYBITS_DIRS;
         else object_core_set_action_latched(0);
@@ -1014,8 +1014,8 @@ static uint8_t _game_frame(const OSystem *osys, GameFlow *state,
     if (input.quit) return 0;
 
     /* the attract phase plays the boot intro first (the original's
-         * boot chain runs once at power-on); then gameflow_step runs the
-         * real attract cycle - game_loop's four effects - until the exit */
+     * boot chain runs once at power-on); then gameflow_step runs the
+     * real attract cycle - game_loop's four effects - until the exit */
     if (*state == FLOW_ATTRACT && scene_play_boot_intro())
         return 1; // the intro's rendered frame
     /* entry 0x001C's timing_loop: the attract waits for the title fade */
@@ -1034,8 +1034,8 @@ static uint8_t _game_frame(const OSystem *osys, GameFlow *state,
     if (*state == FLOW_ENDING) return _flow_ending_frame(state, &input);
 
     /* the intro/level draw into page 0; the CRTC-flip equivalent shows
-         * the drawn page (the in-level page flip lands with the level
-         * rendering) */
+     * the drawn page (the in-level page flip lands with the level
+     * rendering) */
     return 1;
 }
 

@@ -68,12 +68,12 @@ static uint16_t _score_total_lo, _score_total_hi;       // [0x592]/[0x594]
 static uint16_t _score_shown_lo, _score_shown_hi; // [0x1DD2]/[0x1DD4]
 static uint16_t _score_delay; // [0x1DC6]
 static uint16_t _score_screen_timer; /* [0x1DC8]: 0x15E, the screen's
-                                                   * own countdown - exits when the
-                                                   * sign bit sets */
+                                      * own countdown - exits when the
+                                      * sign bit sets */
 static uint16_t _score_best_time; // [0x1E88]
 static uint8_t _score_is_record; // [0x1DD6]
 static uint8_t _score_blink = 0x00; /* [0x1DD7]: the image's 0, toggles on the
-                                       * first decrement's borrow */
+                                     * first decrement's borrow */
 static uint8_t _score_blink_phase; // [0x1DC4]: the RECORD's on/off
 
 static uint8_t *_score_bit;
@@ -503,17 +503,17 @@ void score_draw_card(uint8_t *page)
  * zero source byte meaning "keep the level".  In the doubled view the level's
  * page is native (640x400) while the card is a 320x200 overlay, so its
  * non-zero pixels are written as 2x2 blocks over page 0 and the card's zeros
- * keep the level.  At scale 1 this is a no-op: the screen *is* the page.
+ * keep the level.  In classic mode this is a no-op: the screen *is* the page.
  *
  * @param scr the logical screen the card was drawn on
  */
 static void _score_flush(uint8_t *scr)
 {
-#if HUMANSRE_VIEW_SCALE > 1
+#if HUMANSRE_VIEWPORT_WIDE
     uint8_t *page;
     uint32_t w, x, y;
 
-    if (!scr || video_scale() != 2) return;
+    if (!scr || video_viewport_mode() != VIEWPORT_WIDE) return;
     page = video_page(0); // also marks the display page as the frame's surface
     if (!page) return;
     w = video_page_w();
@@ -563,8 +563,9 @@ uint8_t score_begin(uint32_t value)
      * reblit_framebuffer_88 skips a zero source byte.  In the doubled view the
      * card is staged on the logical screen instead, which must start empty so
      * its zero bytes composite as "keep the level". */
-#if HUMANSRE_VIEW_SCALE > 1
-    if (video_scale() > 1) memset(page, 0, VIDEO_SCREEN_BYTES);
+#if HUMANSRE_VIEWPORT_WIDE
+    if (video_viewport_mode() == VIEWPORT_WIDE)
+        memset(page, 0, VIDEO_SCREEN_BYTES);
 #endif
     /* 1000:4278..4284 or_region_c0 runs with ES = [0x1DDA] = APL\SCORE.SPR,
      * BP = 0, BX = 0x100 and CX = 0xA, i.e. it ORs 0xC0 over BX*CX = 0xA00
@@ -628,73 +629,73 @@ uint8_t score_tick(const InputState *in)
 {
     static const uint8_t black[768];
     switch (_score_phase) {
-    case SCORE_WAIT:
-        /* The port's caller hands in the same InputState that dismissed the end
-         * page, so the first tick skips the key test; the original calls
-         * poll_input inside its loop and so never sees that key. */
-        if (_score_arm_fade) { // 1000:4333's wait_palette_fade_done
-            if (palette_fade_active()) return 1;
-            _score_arm_fade = 0;
-        }
-        if (!_score_armed) {
-            _score_armed = 1;
-            return 1;
-        }
-        {
-            uint8_t *page = video_screen();
-            uint8_t alive;
-
-            /* tick_score_counters (1000:475D): draw_score_columns, blink_tick,
-             * then one 10-point step.  The drawing happens every frame. */
-            if (page) _score_draw_columns(page);
-            /* 1000:467A: the expiry toggles [0x1DC4] and runs the *new*
-             * phase's handler - 1000:46A3 restores the cell (off), 1000:46FC
-             * saves it and draws the sprite (on).  Both halves run. */
+        case SCORE_WAIT:
+            /* The port's caller hands in the same InputState that dismissed the end
+             * page, so the first tick skips the key test; the original calls
+             * poll_input inside its loop and so never sees that key. */
+            if (_score_arm_fade) { // 1000:4333's wait_palette_fade_done
+                if (palette_fade_active()) return 1;
+                _score_arm_fade = 0;
+            }
+            if (!_score_armed) {
+                _score_armed = 1;
+                return 1;
+            }
             {
-                uint8_t was = score_blink_on();
+                uint8_t *page = video_screen();
+                uint8_t alive;
 
-                (void)score_blink_tick();
-                if (page && score_blink_on() != was)
-                    score_stamp_draw(page, score_blink_on());
-            }
-            _score_flush(page);
-            alive = score_counters_run();
+                /* tick_score_counters (1000:475D): draw_score_columns, blink_tick,
+                 * then one 10-point step.  The drawing happens every frame. */
+                if (page) _score_draw_columns(page);
+                /* 1000:467A: the expiry toggles [0x1DC4] and runs the *new*
+                 * phase's handler - 1000:46A3 restores the cell (off), 1000:46FC
+                 * saves it and draws the sprite (on).  Both halves run. */
+                {
+                    uint8_t was = score_blink_on();
 
-            /* check_highscore's loop: while ([0x1DC8] & 0x8000) == 0, and it
-             * also breaks on the fire bit ([0x5ACE] & 0x80) or [0x48A3].  The
-             * screen ends by itself after 0x15E ticks. */
-            if (!alive || in->lastKey || (in->joyBits & JOYBITS_FIRE)) {
-                palette_build_fade(0u, 0x100u, 0x23u, black); // 1000:438A
-                _score_phase = SCORE_FADE;
+                    (void)score_blink_tick();
+                    if (page && score_blink_on() != was)
+                        score_stamp_draw(page, score_blink_on());
+                }
+                _score_flush(page);
+                alive = score_counters_run();
+
+                /* check_highscore's loop: while ([0x1DC8] & 0x8000) == 0, and it
+                 * also breaks on the fire bit ([0x5ACE] & 0x80) or [0x48A3].  The
+                 * screen ends by itself after 0x15E ticks. */
+                if (!alive || in->lastKey || (in->joyBits & JOYBITS_FIRE)) {
+                    palette_build_fade(0u, 0x100u, 0x23u, black); // 1000:438A
+                    _score_phase = SCORE_FADE;
+                }
             }
-        }
-        return 1;
-    case SCORE_FADE:
-        if (palette_fade_active()) return 1;
-        _score_phase = SCORE_HOLD;
-        _score_hold = 0x4Bu; // present_frames_75
-        return 1;
-    case SCORE_HOLD:
-        if (_score_hold > 0u) {
-            _score_hold--;
             return 1;
-        }
-        _score_phase = SCORE_OFF;
-        /* 1000:439F's tail: [0x4105] = 0 and [0x1DC4] = 0 - the stamp's phase
-         * is cleared as the mode goes back to 13h. */
-        _score_blink_phase = 0;
-        g_osys->memFree(_score_bit);
-        _score_bit = NULL;
-        _score_size = 0;
-        g_osys->memFree(_score_font);
-        _score_font = NULL;
-        g_osys->memFree(_score_record);
-        _score_record = NULL;
-        g_osys->memFree(_score_num);
-        _score_num = NULL;
-        font_publish(NULL);
-        video_arena_release(); // the card's [0x1E20] text arena
-        return 0;
-    default: return 0;
+        case SCORE_FADE:
+            if (palette_fade_active()) return 1;
+            _score_phase = SCORE_HOLD;
+            _score_hold = 0x4Bu; // present_frames_75
+            return 1;
+        case SCORE_HOLD:
+            if (_score_hold > 0u) {
+                _score_hold--;
+                return 1;
+            }
+            _score_phase = SCORE_OFF;
+            /* 1000:439F's tail: [0x4105] = 0 and [0x1DC4] = 0 - the stamp's phase
+             * is cleared as the mode goes back to 13h. */
+            _score_blink_phase = 0;
+            g_osys->memFree(_score_bit);
+            _score_bit = NULL;
+            _score_size = 0;
+            g_osys->memFree(_score_font);
+            _score_font = NULL;
+            g_osys->memFree(_score_record);
+            _score_record = NULL;
+            g_osys->memFree(_score_num);
+            _score_num = NULL;
+            font_publish(NULL);
+            video_arena_release(); // the card's [0x1E20] text arena
+            return 0;
+        default: return 0;
     }
 }

@@ -89,13 +89,13 @@ static int32_t _metrics_and_expand(void)
     uint8_t *scr;
     uint32_t x, y;
 
-    osys_null_set_scale(2);
+    osys_null_set_viewport(VIEWPORT_WIDE);
     video_init();
-    if (video_scale() != 2 || video_page_w() != 640u ||
+    if (video_viewport_mode() != VIEWPORT_WIDE || video_page_w() != 640u ||
         video_page_h() != 400u) {
-        fprintf(stderr, "FAIL wide: page is %ux%u (scale %d)\n",
+        fprintf(stderr, "FAIL wide: page is %ux%u (view %d)\n",
                 (unsigned)video_page_w(), (unsigned)video_page_h(),
-                video_scale());
+                (int)video_viewport_mode());
         return 1;
     }
     /* fetch page 0 first: handing it out marks the display page as the
@@ -130,10 +130,10 @@ static int32_t _metrics_and_expand(void)
     }
 
     /* classic: the same accessors, and the screen is page 0 itself */
-    osys_null_set_scale(1);
+    osys_null_set_viewport(VIEWPORT_CLASSIC);
     video_init();
-    if (video_scale() != 1 || video_page_w() != VIDEO_SCREEN_W ||
-        video_page_h() != VIDEO_SCREEN_H ||
+    if (video_viewport_mode() != VIEWPORT_CLASSIC ||
+        video_page_w() != VIDEO_SCREEN_W || video_page_h() != VIDEO_SCREEN_H ||
         video_screen() != osys_null_page(0)) {
         fprintf(stderr, "FAIL classic: the metrics or the screen changed\n");
         bad = 1;
@@ -364,7 +364,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    osys_null_set_scale(2);
+    osys_null_set_viewport(VIEWPORT_WIDE);
     res_init();
     video_init();
     palette_init();

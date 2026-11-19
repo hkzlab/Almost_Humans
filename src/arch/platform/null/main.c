@@ -39,14 +39,14 @@ int main(int argc, char **argv)
             }
             i++;
             if (strcmp(argv[i], "wide") == 0) {
-#if HUMANSRE_VIEW_SCALE > 1
-                osys_null_set_scale(2);
+#if HUMANSRE_VIEWPORT_WIDE
+                osys_null_set_viewport(VIEWPORT_WIDE);
 #else
                 fprintf(stderr, "--view wide: this build is classic only\n");
                 return 2;
 #endif
             } else if (strcmp(argv[i], "classic") == 0) {
-                osys_null_set_scale(1);
+                osys_null_set_viewport(VIEWPORT_CLASSIC);
             } else {
                 fprintf(stderr, "unknown view '%s' (classic|wide)\n", argv[i]);
                 return 2;

@@ -196,30 +196,30 @@ static void _note_command(SoundDriver *drv, BeeperRecord *rec, uint32_t slot)
     uint8_t *v = drv->slot[slot];
 
     switch (v[BEEP_COMMAND] & 0x1Fu) {
-    case 6: // 1E95:0779: note off
-        v[BEEP_COMMAND] = 0;
-        drv->slot_flag[slot] = 0;
-        break;
-    case 0x0B: // 1E95:0788: jump to order param-1, advance next tick
-        rec->order = (uint8_t)(v[BEEP_PARAM] - 1u);
-        rec->advance = (uint8_t)~rec->advance;
-        break;
-    case 0x0C: // 1E95:0798: volume = min(param, 0x40), never applied
-        if (v[BEEP_PARAM] > BEEP_ROWS) v[BEEP_PARAM] = BEEP_ROWS;
-        v[BEEP_VOLUME] = v[BEEP_PARAM];
-        break;
-    case 0x0D: // 1E95:0780: advance to the next order next tick
-        rec->advance = (uint8_t)~rec->advance;
-        break;
-    case 0x0F: // 1E95:07AA: ticks per row, param & 0x1F (0 = no change)
-        if ((v[BEEP_PARAM] & 0x1Fu) != 0) {
-            rec->tick = 0;
-            rec->ticks_per_row = (uint8_t)(v[BEEP_PARAM] & 0x1Fu);
-            drv->mux_period = rec->ticks_per_row;
-            drv->mux_half = (uint8_t)(rec->ticks_per_row >> 1);
-        }
-        break;
-    default: break; // 1E95:0740/07C9: RET
+        case 6: // 1E95:0779: note off
+            v[BEEP_COMMAND] = 0;
+            drv->slot_flag[slot] = 0;
+            break;
+        case 0x0B: // 1E95:0788: jump to order param-1, advance next tick
+            rec->order = (uint8_t)(v[BEEP_PARAM] - 1u);
+            rec->advance = (uint8_t)~rec->advance;
+            break;
+        case 0x0C: // 1E95:0798: volume = min(param, 0x40), never applied
+            if (v[BEEP_PARAM] > BEEP_ROWS) v[BEEP_PARAM] = BEEP_ROWS;
+            v[BEEP_VOLUME] = v[BEEP_PARAM];
+            break;
+        case 0x0D: // 1E95:0780: advance to the next order next tick
+            rec->advance = (uint8_t)~rec->advance;
+            break;
+        case 0x0F: // 1E95:07AA: ticks per row, param & 0x1F (0 = no change)
+            if ((v[BEEP_PARAM] & 0x1Fu) != 0) {
+                rec->tick = 0;
+                rec->ticks_per_row = (uint8_t)(v[BEEP_PARAM] & 0x1Fu);
+                drv->mux_period = rec->ticks_per_row;
+                drv->mux_half = (uint8_t)(rec->ticks_per_row >> 1);
+            }
+            break;
+        default: break; // 1E95:0740/07C9: RET
     }
 }
 
@@ -237,21 +237,21 @@ static void _tick_command(SoundDriver *drv, uint32_t slot)
     uint8_t *v = drv->slot[slot];
 
     switch (v[BEEP_COMMAND] & 0x1Fu) {
-    case 0x0A: { // 1E95:0742: high nibble adds, low nibble subtracts
-        uint8_t delta = v[BEEP_PARAM];
-        uint8_t hi = (uint8_t)(delta >> 4);
-        if (hi != 0) {
-            uint32_t next = (uint32_t)v[BEEP_VOLUME] + hi;
-            v[BEEP_VOLUME] =
-                next >= BEEP_ROWS ? (uint8_t)BEEP_ROWS : (uint8_t)next;
-        } else {
-            uint8_t lo = (uint8_t)(delta & 0x0Fu);
-            v[BEEP_VOLUME] =
-                v[BEEP_VOLUME] >= lo ? (uint8_t)(v[BEEP_VOLUME] - lo) : 0;
+        case 0x0A: { // 1E95:0742: high nibble adds, low nibble subtracts
+            uint8_t delta = v[BEEP_PARAM];
+            uint8_t hi = (uint8_t)(delta >> 4);
+            if (hi != 0) {
+                uint32_t next = (uint32_t)v[BEEP_VOLUME] + hi;
+                v[BEEP_VOLUME] =
+                    next >= BEEP_ROWS ? (uint8_t)BEEP_ROWS : (uint8_t)next;
+            } else {
+                uint8_t lo = (uint8_t)(delta & 0x0Fu);
+                v[BEEP_VOLUME] =
+                    v[BEEP_VOLUME] >= lo ? (uint8_t)(v[BEEP_VOLUME] - lo) : 0;
+            }
+            break;
         }
-        break;
-    }
-    default: break;
+        default: break;
     }
 }
 

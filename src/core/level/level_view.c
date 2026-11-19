@@ -87,7 +87,7 @@ void level_follow_view(void)
                                         ? (uint32_t)_goal_follow_record
                                         : object_sequence_action_entity());
     int32_t x, y, tx, ty, dx, dy;
-    int32_t s = video_scale();
+    int32_t s = (int32_t)video_viewport_factor();
     int32_t maxx = (int32_t)level_view_max_x();
     int32_t maxy = (int32_t)level_view_max_y();
 
@@ -101,7 +101,7 @@ void level_follow_view(void)
         x += ox;
         y += oy;
     }
-    /* the actor sits at the same fraction of the window at either scale */
+    /* the actor sits at the same fraction of the window in either viewport */
     tx = x - 0x88 * s;
     ty = y - 0x44 * s;
     tx = tx < 0 ? 0 : (tx > maxx ? maxx : tx);
@@ -199,26 +199,26 @@ void _level_goal_pan_tick(void)
 void _level_goal_pan_after(void)
 {
     switch (_goal_pan_state) {
-    case GOALPAN_TRACK: // 1000:3576: the view stopped moving
-        if (_view_x == _goal_pan_view_x && _view_y == _goal_pan_view_y) {
-            _goal_pan_state = GOALPAN_HOLD;
-            _goal_pan_left = 0x23u;
-        }
-        break;
-    case GOALPAN_HOLD: // 1000:3582's LOOP CX = 0x23
-        if (--_goal_pan_left == 0u) {
-            object_core_set_marker_mode(1); // 1000:358C
-            _goal_pan_state = GOALPAN_TAIL;
-            _goal_pan_left = 0x1Eu;
-        }
-        break;
-    case GOALPAN_TAIL: // 1000:3591's LOOP CX = 0x1E
-        if (--_goal_pan_left == 0u) {
-            _goal_follow_record = -1; // 1000:359B
-            _goal_pan_state = GOALPAN_DONE;
-        }
-        break;
-    default: break;
+        case GOALPAN_TRACK: // 1000:3576: the view stopped moving
+            if (_view_x == _goal_pan_view_x && _view_y == _goal_pan_view_y) {
+                _goal_pan_state = GOALPAN_HOLD;
+                _goal_pan_left = 0x23u;
+            }
+            break;
+        case GOALPAN_HOLD: // 1000:3582's LOOP CX = 0x23
+            if (--_goal_pan_left == 0u) {
+                object_core_set_marker_mode(1); // 1000:358C
+                _goal_pan_state = GOALPAN_TAIL;
+                _goal_pan_left = 0x1Eu;
+            }
+            break;
+        case GOALPAN_TAIL: // 1000:3591's LOOP CX = 0x1E
+            if (--_goal_pan_left == 0u) {
+                _goal_follow_record = -1; // 1000:359B
+                _goal_pan_state = GOALPAN_DONE;
+            }
+            break;
+        default: break;
     }
 }
 

@@ -367,7 +367,7 @@ void textpage_draw_level(uint8_t *page, uint32_t stride, uint32_t scale,
                          const char *text, int32_t cursorRow,
                          uint32_t cursorCol, int32_t grid)
 {
-#if HUMANSRE_VIEW_SCALE > 1
+#if HUMANSRE_VIEWPORT_WIDE
     static uint8_t scratch[VIDEO_SCREEN_BYTES];
     uint32_t tiles, lines, left, top, w, h, x, y, s = scale ? scale : 1u;
 

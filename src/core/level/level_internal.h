@@ -26,36 +26,40 @@
 
 /** @brief The level's A000 row pitch, in address bytes.
  *
- * 88 = the original's 80 groups plus its 8-byte padding at scale 1; 160 (no
- * padding) at scale 2, where the 640-wide field uses 64000 of the 65536
+ * 88 = the original's 80 groups plus its 8-byte padding in classic mode; 160
+ * (no padding) in wide mode, where the 640-wide field uses 64000 of the 65536
  * addresses.
  *
  * @return the pitch
  */
 static inline uint32_t level_plane_pitch(void)
-{ return video_scale() == 1 ? 88u : 160u; }
+{ return video_viewport_factor() == 1u ? 88u : 160u; }
 
 /* The status bar's height: _panel4's top 40 rows, doubled with the field. */
 #define LEVEL_BAR_ROWS 40u
 
 /** @brief The level field's row count.
  *
- * 192 at scale 1, the original's mode-X field (the bar ends on row 191).  At
- * scale 2 the whole 400-row page: the bar (80 rows) ends at the page's bottom
- * and the 320-row world must fit above it, so the map is fully visible.
+ * 192 in classic mode, the original's mode-X field (the bar ends on row 191).
+ * In wide mode the whole 400-row page: the bar (80 rows) ends at the page's
+ * bottom and the 320-row world must fit above it, so the map is fully
+ * visible.
  *
  * @return the field rows
  */
 static inline uint32_t level_field_rows(void)
-{ return video_scale() == 1 ? VIDEO_FIELD_H_MODEX : video_page_h(); }
+{
+    return video_viewport_mode() == VIEWPORT_CLASSIC ? VIDEO_FIELD_H_MODEX
+                                                     : video_page_h();
+}
 
-/** @brief The bar's resting top row in field pixels (152 at scale 1, 320 at
- * scale 2 - the bottom of the field).
+/** @brief The bar's resting top row in field pixels (152 in classic mode, 320
+ * in wide mode - the bottom of the field).
  *
  * @return the row
  */
 static inline uint32_t level_bar_row(void)
-{ return level_field_rows() - LEVEL_BAR_ROWS * (uint32_t)video_scale(); }
+{ return level_field_rows() - LEVEL_BAR_ROWS * video_viewport_factor(); }
 
 /** @brief The bar's resting top row in the original's 1x rows (152 or 160):
  * the loading screen is a 1x surface, so its bar sits here.
@@ -63,10 +67,10 @@ static inline uint32_t level_bar_row(void)
  * @return the row
  */
 static inline uint32_t level_bar_row_1x(void)
-{ return level_bar_row() / (uint32_t)video_scale(); }
+{ return level_bar_row() / video_viewport_factor(); }
 
-/** @brief The camera's pan range on x: the world is 1:1 in the field, so at
- * scale 2 the 640-wide field leaves none.
+/** @brief The camera's pan range on x: the world is 1:1 in the field, so in
+ * wide mode the 640-wide field leaves none.
  *
  * @return the maximum view x
  */
@@ -78,7 +82,7 @@ static inline uint16_t level_view_max_x(void)
 }
 
 /** @brief The camera's pan range on y: the world rows the field cannot show.
- * At scale 2 the viewport is exactly the world's 320 rows, so the map is
+ * In wide mode the viewport is exactly the world's 320 rows, so the map is
  * fully visible and the view never moves.
  *
  * @return the maximum view y
@@ -92,8 +96,8 @@ static inline uint16_t level_view_max_y(void)
 
 /** @brief The black margin either side of the 512-wide world in the viewport.
  *
- * Zero at scale 1 (the viewport is narrower than the world); at scale 2 the
- * 640-wide field leaves 64 pixels each side of the world.
+ * Zero in classic mode (the viewport is narrower than the world); in wide mode
+ * the 640-wide field leaves 64 pixels each side of the world.
  *
  * @return the margin in pixels
  */
@@ -105,10 +109,10 @@ static inline uint32_t level_view_margin(void)
 }
 
 /** @brief The x the object and spark passes subtract: the view panned by the
- * world's left margin (0 at scale 1, 64 at scale 2).
+ * world's left margin (0 in classic mode, 64 in wide mode).
  *
  * Every pass that turns a world x into a page x uses this one value; taking
- * `level_view_x()` alone puts the drawing in the black margin at scale 2.
+ * `level_view_x()` alone puts the drawing in the black margin in wide mode.
  *
  * @return the scroll x
  */

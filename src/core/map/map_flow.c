@@ -35,7 +35,7 @@ static uint32_t _map_high_size;
 static uint8_t *_map_font;
 static uint8_t _map_up;
 static uint8_t _map_armed;  /* the first tick ignores the key that skipped the
-                           * ending cutscene */
+                             * ending cutscene */
 static uint8_t _map_phase;
 static uint8_t _map_name_len;
 static uint8_t _map_col;
@@ -483,45 +483,45 @@ uint8_t map_tick(const InputState *in)
          * fade (built in map_begin), 0x8C animates, the 0x20..0x3F fade to
          * black, high.bit again, the text twice, then the 0..0x3F fade in. */
         switch (_map_intro) {
-        case 0:
-            /* 1000:0233: 0x8C palette_animate frames, one present per tick.
-             * The 0x0224 fade (0x10..0x1F) steps inside them, so the band
-             * strips fade in while the stone table is still black. */
-            _map_intro_frames++;
-            if (_map_intro_frames < 0x8Cu) return 1;
-            _map_build_fade_to(0x20u, 0x20u, 2u, _map_black,
-                               0xFFFFu); // 0x0239
-            _map_intro = 1u;
-            return 1;
-        case 1: {
-            uint8_t *page = video_screen();
+            case 0:
+                /* 1000:0233: 0x8C palette_animate frames, one present per tick.
+                 * The 0x0224 fade (0x10..0x1F) steps inside them, so the band
+                 * strips fade in while the stone table is still black. */
+                _map_intro_frames++;
+                if (_map_intro_frames < 0x8Cu) return 1;
+                _map_build_fade_to(0x20u, 0x20u, 2u, _map_black,
+                                   0xFFFFu); // 0x0239
+                _map_intro = 1u;
+                return 1;
+            case 1: {
+                uint8_t *page = video_screen();
 
-            if (palette_fade_active()) return 1;
-            _map_page_copy(page); // 0x024B
-            _map_draw_strips(page); // the display strips survive the copy
-            map_draw_congrats(page); // 0x024E, first pass
+                if (palette_fade_active()) return 1;
+                _map_page_copy(page); // 0x024B
+                _map_draw_strips(page); // the display strips survive the copy
+                map_draw_congrats(page); // 0x024E, first pass
 #if defined(HUMANSRE_TEST_PROBES)
-            _map_congrats_draws = 1u;
+                _map_congrats_draws = 1u;
 #endif
-            _map_intro = 2u;
-            return 1;
-        }
-        case 2: {
-            uint8_t *page = video_screen();
+                _map_intro = 2u;
+                return 1;
+            }
+            case 2: {
+                uint8_t *page = video_screen();
 
-            map_draw_congrats(page); // 0x0251's second pass after the flip
+                map_draw_congrats(page); // 0x0251's second pass after the flip
 #if defined(HUMANSRE_TEST_PROBES)
-            _map_congrats_draws = 2u;
+                _map_congrats_draws = 2u;
 #endif
-            _map_build_fade(0u, 0x40u, 0x28u, 0u); // 0x0273
-            _map_intro = 3u;
-            return 1;
-        }
-        case 3:
-            if (palette_fade_active()) return 1;
-            _map_intro = MAP_INTRO_WAIT;
-            return 1;
-        default: break;
+                _map_build_fade(0u, 0x40u, 0x28u, 0u); // 0x0273
+                _map_intro = 3u;
+                return 1;
+            }
+            case 3:
+                if (palette_fade_active()) return 1;
+                _map_intro = MAP_INTRO_WAIT;
+                return 1;
+            default: break;
         }
         if (in->lastKey || (in->joyBits & JOYBITS_FIRE)) {
             _map_phase = MAP_NAME_FADE; // 1000:0285: the key wait
@@ -533,63 +533,64 @@ uint8_t map_tick(const InputState *in)
         /* The order is 1000:028C..030A: wait the congrats fade, then three
          * fades, the HIGH.BIT re-copy + two rectangles, then two more fades. */
         switch (_map_trans) {
-        case 0:
-            if (palette_fade_active()) return 1;
-            _map_build_fade(0x80u, 0x80u, 2u, 0x180u); // 1000:028F
-            _map_trans = 1;
-            return 1;
-        case 1:
-            if (palette_fade_active()) return 1;
-            _map_build_fade(0x20u, 0x20u, 0x1Eu, 0x120u); // 1000:02A1
-            _map_trans = 2;
-            return 1;
-        case 2:
-            if (palette_fade_active()) return 1;
-            _map_build_fade(0x40u, 0x20u, 2u, 0x120u); // 1000:02B3
-            _map_trans = 3;
-            return 1;
-        case 3: {
-            uint8_t *page = video_screen();
+            case 0:
+                if (palette_fade_active()) return 1;
+                _map_build_fade(0x80u, 0x80u, 2u, 0x180u); // 1000:028F
+                _map_trans = 1;
+                return 1;
+            case 1:
+                if (palette_fade_active()) return 1;
+                _map_build_fade(0x20u, 0x20u, 0x1Eu, 0x120u); // 1000:02A1
+                _map_trans = 2;
+                return 1;
+            case 2:
+                if (palette_fade_active()) return 1;
+                _map_build_fade(0x40u, 0x20u, 2u, 0x120u); // 1000:02B3
+                _map_trans = 3;
+                return 1;
+            case 3: {
+                uint8_t *page = video_screen();
 
-            if (palette_fade_active()) return 1;
-            if (page) {
-                _map_page_reset(page); // 1000:02C5
-                map_draw_rect(page, 0x95u, 9u, 0xFu, 0xFu); // 1000:02C8
-                map_draw_rect(page, 0x60u, 0x45u, 0x77u, 0xFu); // 1000:02D7
+                if (palette_fade_active()) return 1;
+                if (page) {
+                    _map_page_reset(page); // 1000:02C5
+                    map_draw_rect(page, 0x95u, 9u, 0xFu, 0xFu); // 1000:02C8
+                    map_draw_rect(page, 0x60u, 0x45u, 0x77u,
+                                  0xFu); // 1000:02D7
+                }
+                _map_build_fade(0x40u, 0x20u, 0x1Eu, 0xC0u); // 1000:02E9
+                _map_trans = 4;
+                return 1;
             }
-            _map_build_fade(0x40u, 0x20u, 0x1Eu, 0xC0u); // 1000:02E9
-            _map_trans = 4;
-            return 1;
-        }
-        case 4:
-            if (palette_fade_active()) return 1;
-            /* 1000:02FB/030A: the last fade starts and the ring goes up
-             * without waiting for it ([0x5AC8] = 0x23 and the entry spin). */
-            _map_build_fade(0x20u, 0x20u, 0x46u, 0x60u);
-            _map_trans = 6;
-            _map_phase = MAP_NAME;
-            _map_fire_wait = 0x23u; // 1000:030A: [0x5AC8] := 0x23
-            _map_angle = 0x10Eu; // 1000:0310
-            _map_angle_step = 0x12u; // 1000:0316
-            _map_spin = 23; // 20 stepped draws + the three 0x0330 draws
-            _map_col = 0u;
-            _map_move_steps = 0;
-            _map_move_hold = 0;
-            _map_fire_lock = 0;
-            _map_pending_key = 0;
-            _map_dirty_reset();
-            return 1;
-        default:
-            _map_phase = MAP_NAME;
-            _map_fire_wait = 0x23u;
-            _map_angle = 0x10Eu;
-            _map_angle_step = 0x12u;
-            _map_spin = 23;
-            _map_move_steps = 0;
-            _map_move_hold = 0;
-            _map_fire_lock = 0;
-            _map_pending_key = 0;
-            return 1;
+            case 4:
+                if (palette_fade_active()) return 1;
+                /* 1000:02FB/030A: the last fade starts and the ring goes up
+                 * without waiting for it ([0x5AC8] = 0x23 and the entry spin). */
+                _map_build_fade(0x20u, 0x20u, 0x46u, 0x60u);
+                _map_trans = 6;
+                _map_phase = MAP_NAME;
+                _map_fire_wait = 0x23u; // 1000:030A: [0x5AC8] := 0x23
+                _map_angle = 0x10Eu; // 1000:0310
+                _map_angle_step = 0x12u; // 1000:0316
+                _map_spin = 23; // 20 stepped draws + the three 0x0330 draws
+                _map_col = 0u;
+                _map_move_steps = 0;
+                _map_move_hold = 0;
+                _map_fire_lock = 0;
+                _map_pending_key = 0;
+                _map_dirty_reset();
+                return 1;
+            default:
+                _map_phase = MAP_NAME;
+                _map_fire_wait = 0x23u;
+                _map_angle = 0x10Eu;
+                _map_angle_step = 0x12u;
+                _map_spin = 23;
+                _map_move_steps = 0;
+                _map_move_hold = 0;
+                _map_fire_lock = 0;
+                _map_pending_key = 0;
+                return 1;
         }
     }
 

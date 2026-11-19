@@ -198,15 +198,16 @@ static void _spawn_tile_pair(uint32_t pair, uint8_t tile, const uint8_t *map,
 
             if (map[idx] != tile) continue;
             switch (pair) {
-            case TILE_HANDLER_APPEND:
-                _entity_append(map, MAP_COLS * MAP_ROWS, idx, cx, dx, lifeSeed);
-                break;
-            case TILE_HANDLER_FIND:
-                _entity_find(map, MAP_COLS * MAP_ROWS, idx, cx, dx);
-                break;
-            default:
-                /* the placed-object spawners: with object.c */
-                break;
+                case TILE_HANDLER_APPEND:
+                    _entity_append(map, MAP_COLS * MAP_ROWS, idx, cx, dx,
+                                   lifeSeed);
+                    break;
+                case TILE_HANDLER_FIND:
+                    _entity_find(map, MAP_COLS * MAP_ROWS, idx, cx, dx);
+                    break;
+                default:
+                    /* the placed-object spawners: with object.c */
+                    break;
             }
         }
     }
@@ -482,34 +483,34 @@ void entity_tick(void)
          * compare/primary/step triple: handler 0 steps +1 px toward x1,
          * handler 1 steps -1 px toward x0. */
         switch (ep->handler) {
-        case 0u: // 1000:C96C: DX = CX
-            _entity_tail(ep, 2u, 0u, ep->x1);
-            break;
-        case 1u: // 1000:C973: DX = BX
-            _entity_tail(ep, 3u, 2u, ep->x0);
-            break;
-        case 2u: // 1000:C97A: base 1, target 0x1A
-            _sel_secondary = 1u;
-            _sel_primary = 0x1Au;
-            _entity_carry_anim(ep);
-            break;
-        case 3u: // 1000:C989: base 0, target 0xC
-            _sel_secondary = 0u;
-            _sel_primary = 0x0Cu;
-            _entity_carry_anim(ep);
-            break;
-        case 4u: // 1000:C998: the hold ran out
-            ep->hold = (uint16_t)(ep->hold - 1u);
-            if ((int16_t)ep->hold < 0) { // C99D/C9A1
-                ep->waypoint++; // C9A6: INC word [record+0xC]
-                ep->handler = 5u; // C9AD
-                object_core_driver_call(0x0Cu); // C9B2
-                score_add_level_term(0x7D0u); // C9B9
-            }
-            break;
-        default:
-            /* 1000:C9C0: handler 5 is a bare RET. */
-            break;
+            case 0u: // 1000:C96C: DX = CX
+                _entity_tail(ep, 2u, 0u, ep->x1);
+                break;
+            case 1u: // 1000:C973: DX = BX
+                _entity_tail(ep, 3u, 2u, ep->x0);
+                break;
+            case 2u: // 1000:C97A: base 1, target 0x1A
+                _sel_secondary = 1u;
+                _sel_primary = 0x1Au;
+                _entity_carry_anim(ep);
+                break;
+            case 3u: // 1000:C989: base 0, target 0xC
+                _sel_secondary = 0u;
+                _sel_primary = 0x0Cu;
+                _entity_carry_anim(ep);
+                break;
+            case 4u: // 1000:C998: the hold ran out
+                ep->hold = (uint16_t)(ep->hold - 1u);
+                if ((int16_t)ep->hold < 0) { // C99D/C9A1
+                    ep->waypoint++; // C9A6: INC word [record+0xC]
+                    ep->handler = 5u; // C9AD
+                    object_core_driver_call(0x0Cu); // C9B2
+                    score_add_level_term(0x7D0u); // C9B9
+                }
+                break;
+            default:
+                /* 1000:C9C0: handler 5 is a bare RET. */
+                break;
         }
     }
 }

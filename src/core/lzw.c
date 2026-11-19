@@ -75,9 +75,9 @@ static void _lz_literals(LzState *s, uint32_t n)
             s->under = 1;
             return;
         } /* b4fd: DI == -1 -> END:
-                        * the store is skipped but the read's XOR stays in
-                        * BP - the aborted decode fails the checksum (the
-                        * game's b446 unwind) */
+           * the store is skipped but the read's XOR stays in
+           * BP - the aborted decode fails the checksum (the
+           * game's b446 unwind) */
         s->out[--s->p] = byte;
     }
 }

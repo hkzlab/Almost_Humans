@@ -21,39 +21,40 @@ static uint8_t _vram[65536u * 4u];
 #define ARENA_BYTES 16000u
 static uint8_t *_arena;
 
-#if HUMANSRE_VIEW_SCALE > 1
-/* The view scale: 1 = the original's 320x200 framing, 2 = the doubled level
- * viewport.  Read once from the backend in video_init, clamped to the
- * compiled maximum. */
-static int32_t _scale = 1;
-/* The logical 320x200 screen, used at scale 2 (at scale 1 video_screen()
- * hands out page 0 itself, so nothing is copied and the buffer is not
- * compiled in). */
+#if HUMANSRE_VIEWPORT_WIDE
+/* The viewport mode: VIEWPORT_CLASSIC is the original's 320x200 framing,
+ * VIEWPORT_WIDE the doubled level viewport.  Read once from the backend in
+ * video_init, clamped to the compiled maximum. */
+static ViewportMode _viewport = VIEWPORT_CLASSIC;
+/* The logical 320x200 screen, used in wide mode (in classic mode
+ * video_screen() hands out page 0 itself, so nothing is copied and the buffer
+ * is not compiled in). */
 static uint8_t _screen[VIDEO_SCREEN_BYTES];
 /* The surface of the frame being drawn: 1 = the logical screen, so
  * video_present_frame must expand it. */
 static uint8_t _screen_active;
 #endif
 /* The current video mode and the field's scan-out rows: the mode's default,
- * or the current screen's own (the level's whole page at scale 2). */
+ * or the current screen's own (the level's whole page in wide mode). */
 static VideoMode _mode = VIDEO_MODE_13H;
 static uint32_t _field_rows;
 
-/** @brief The mode's own field height, doubled by the view factor. */
+/** @brief The mode's own field height, doubled by the viewport factor. */
 static uint32_t _field_default(void)
 {
     return (uint32_t)(_mode == VIDEO_MODE_X ? VIDEO_FIELD_H_MODEX
                                             : VIDEO_SCREEN_H) *
-           (uint32_t)video_scale();
+           video_viewport_factor();
 }
 
 int32_t video_init(void)
 {
-#if HUMANSRE_VIEW_SCALE > 1
-    _scale = g_osys->videoScale() == 2 ? 2 : 1;
+#if HUMANSRE_VIEWPORT_WIDE
+    _viewport = g_osys->viewportMode() == VIEWPORT_WIDE ? VIEWPORT_WIDE
+                                                        : VIEWPORT_CLASSIC;
     _screen_active = 0;
 #else
-    (void)g_osys->videoScale(); // the classic build always frames 320x200
+    (void)g_osys->viewportMode(); // the classic build always frames 320x200
 #endif
     _mode = VIDEO_MODE_13H; // until the first mode set
     _field_rows = _field_default();
@@ -62,22 +63,25 @@ int32_t video_init(void)
 
 void video_tick(void) { /* the flip is the backend's videoPresent */ }
 
-int32_t video_scale(void)
+ViewportMode video_viewport_mode(void)
 {
-#if HUMANSRE_VIEW_SCALE > 1
-    return _scale;
+#if HUMANSRE_VIEWPORT_WIDE
+    return _viewport;
 #else
-    return 1;
+    return VIEWPORT_CLASSIC;
 #endif
 }
 
-uint32_t video_page_w(void) { return VIDEO_SCREEN_W * (uint32_t)video_scale(); }
+uint32_t video_viewport_factor(void)
+{ return video_viewport_mode() == VIEWPORT_WIDE ? 2u : 1u; }
 
-uint32_t video_page_h(void) { return VIDEO_SCREEN_H * (uint32_t)video_scale(); }
+uint32_t video_page_w(void) { return VIDEO_SCREEN_W * video_viewport_factor(); }
+
+uint32_t video_page_h(void) { return VIDEO_SCREEN_H * video_viewport_factor(); }
 
 uint8_t *video_page(int32_t which)
 {
-#if HUMANSRE_VIEW_SCALE > 1
+#if HUMANSRE_VIEWPORT_WIDE
     if (which == 0) _screen_active = 0;
 #endif
     return g_osys->videoPage(which);
@@ -85,8 +89,8 @@ uint8_t *video_page(int32_t which)
 
 uint8_t *video_screen(void)
 {
-#if HUMANSRE_VIEW_SCALE > 1
-    if (_scale == 1) return g_osys->videoPage(0);
+#if HUMANSRE_VIEWPORT_WIDE
+    if (_viewport == VIEWPORT_CLASSIC) return g_osys->videoPage(0);
     _screen_active = 1;
     return _screen;
 #else
@@ -95,13 +99,13 @@ uint8_t *video_screen(void)
 #endif
 }
 
-#if HUMANSRE_VIEW_SCALE > 1
-/** @brief Expand the logical screen into page 0 by the view scale. */
+#if HUMANSRE_VIEWPORT_WIDE
+/** @brief Expand the logical screen into page 0 by the viewport factor. */
 static void _screen_expand(void)
 {
     uint8_t *page = g_osys->videoPage(0);
     uint32_t w = video_page_w();
-    uint32_t s = (uint32_t)_scale;
+    uint32_t s = video_viewport_factor();
 
     if (!page) return;
     for (uint32_t y = 0; y < VIDEO_SCREEN_H; y++) {
@@ -122,8 +126,8 @@ static void _screen_expand(void)
 
 void video_present_frame(void)
 {
-#if HUMANSRE_VIEW_SCALE > 1
-    if (_scale > 1 && _screen_active) _screen_expand();
+#if HUMANSRE_VIEWPORT_WIDE
+    if (_viewport == VIEWPORT_WIDE && _screen_active) _screen_expand();
     _screen_active = 0;
 #endif
     g_osys->videoPresent(0, _field_rows);
@@ -131,7 +135,7 @@ void video_present_frame(void)
 
 void video_set_field(uint32_t rows)
 {
-#if HUMANSRE_VIEW_SCALE > 1
+#if HUMANSRE_VIEWPORT_WIDE
     _field_rows = rows ? rows : _field_default();
 #else
     (void)rows; // the classic field is always the mode's
@@ -244,10 +248,10 @@ void video_arena_release(void)
 void video_set_mode(VideoMode mode)
 {
     /* The original's field: 192 rows in mode X, 200 in mode 13h, doubled by
-     * the view factor.  A screen with a different field (the level) calls
+     * the viewport factor.  A screen with a different field (the level) calls
      * video_set_field after its mode set. */
     _field_rows =
         (mode == VIDEO_MODE_X ? VIDEO_FIELD_H_MODEX : VIDEO_SCREEN_H) *
-        (uint32_t)video_scale();
+        video_viewport_factor();
     g_osys->videoSetMode(mode);
 }

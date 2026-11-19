@@ -77,7 +77,7 @@ static uint16_t _pub_x, _pub_y; // [0x5F05]/[0x5F07]: the walk origin
 static char _name_buf[15]; // 0x61E0: 14 chars + the 0x61EE NUL
 static uint16_t _code_index; // [0x5F09]: the matched code's index
 static uint8_t _opt_counter[4]; /* the structs' +7 byte (0x5E5B..0x5E79)
-                                  * = FRONTEND_OPT_*; persists for the run */
+                                 * = FRONTEND_OPT_*; persists for the run */
 static uint8_t _fire_latch; // the action key's held-spin
 static uint16_t _slot_cnt; // [0x619F]: the anim countdown (5)
 static uint16_t _slot; // [0x61A1]: the anim _slot (parked 0x12)
@@ -91,7 +91,7 @@ static uint32_t _codeb1_size, _codeb2_size, _restore_size;
 static const uint8_t _ramp0[768]; // the 0x48BC ramp: zeroed = black
 static uint16_t _split_row =
     VIDEO_SCREEN_H; /** [0x5B0A]: the CRTC split (0x88 on the
-                                   * name screen - the fixed band below) */
+                     * name screen - the fixed band below) */
 
 int32_t frontend_init(void) { return 0; }
 
@@ -633,7 +633,7 @@ static void _start_exit(void)
 static void _do_load(void)
 {
     video_set_mode(VIDEO_MODE_X); /* frontend_room_setup: reset_display_mode
-                                        * (1000:82c6) - the 320x192 field   */
+                                   * (1000:82c6) - the 320x192 field   */
     /* frontend_room_setup's buffers: one set per room entry, so the previous
      * room's releases before the new loads (1000:A48E's ladder) */
     g_osys->memFree(_code2);
@@ -728,90 +728,91 @@ static void _do_load(void)
 uint8_t frontend_tick(const InputState *in)
 {
     switch (_phase) {
-    case FE_IDLE:
-        _phase = FE_LOAD;
-        /* fall through: the load takes this first tick */
-    case FE_LOAD: _do_load(); return 1;
-    case FE_FADEIN:
-        _compose(1);
-        if (!palette_fade_active()) _phase = FE_ROOM;
-        return 1;
-    case FE_ROOM: {
-        /* the _frame web's head (1000:A5E8): the MUSIC board's counter
-         * [0x5E5B] stops the music when non-zero, resumes it when zero */
-        audio_music_gate(frontend_option(FRONTEND_OPT_MUSIC));
+        case FE_IDLE:
+            _phase = FE_LOAD;
+            /* fall through: the load takes this first tick */
+        case FE_LOAD: _do_load(); return 1;
+        case FE_FADEIN:
+            _compose(1);
+            if (!palette_fade_active()) _phase = FE_ROOM;
+            return 1;
+        case FE_ROOM: {
+            /* the _frame web's head (1000:A5E8): the MUSIC board's counter
+             * [0x5E5B] stops the music when non-zero, resumes it when zero */
+            audio_music_gate(frontend_option(FRONTEND_OPT_MUSIC));
 
-        if ((in->joyBits & JOYBITS_FIRE) && (_walk_state & 0x8000u) &&
-            !_fire_latch) {
-            _cycle_option();
-            _fire_latch = 1;
-        }
-        if (!(in->joyBits & JOYBITS_FIRE)) _fire_latch = 0;
+            if ((in->joyBits & JOYBITS_FIRE) && (_walk_state & 0x8000u) &&
+                !_fire_latch) {
+                _cycle_option();
+                _fire_latch = 1;
+            }
+            if (!(in->joyBits & JOYBITS_FIRE)) _fire_latch = 0;
 
-        _set_scroll();
-        _draw_option_sprites(); // place_4_sprites_to_vga (A684)
-        _draw_character();
-        _draw_name_line();
-        _anim_frame(); /* the walk loop's acb9: keeps the
-                                         * board-stack's middle pair in A000
-                                         * (the event loop's idle) */
-        _draw_humans();
-        _room_walk(in);
-        _compose(1);
+            _set_scroll();
+            _draw_option_sprites(); // place_4_sprites_to_vga (A684)
+            _draw_character();
+            _draw_name_line();
+            _anim_frame(); /* the walk loop's acb9: keeps the
+                            * board-stack's middle pair in A000
+                            * (the event loop's idle) */
+            _draw_humans();
+            _room_walk(in);
+            _compose(1);
 
-        /* the tail's x-dispatch (A890..) */
-        if (_char_x == 0x280u) {
-            (void)_code_match(); // the right-edge exit ignores it
-            _start_exit();
-        } else if (_char_x == 0x108u) {
-            if (_scroll != 0u) _phase = FE_PAN; // the pan-out first
-            else _name_screen_enter();
-        }
-        return 1;
-    }
-    case FE_PAN:
-        /* the event loop's head (AA2C..): the _scroll runs down to 0 */
-        if (_scroll == 0u) {
-            _name_screen_enter();
+            /* the tail's x-dispatch (A890..) */
+            if (_char_x == 0x280u) {
+                (void)_code_match(); // the right-edge exit ignores it
+                _start_exit();
+            } else if (_char_x == 0x108u) {
+                if (_scroll != 0u) _phase = FE_PAN; // the pan-out first
+                else _name_screen_enter();
+            }
             return 1;
         }
-        _scroll = (uint16_t)(_scroll - 1u);
-        _draw_character();
-        _compose(1);
-        return 1;
-    case FE_NAME:
-        _anim_frame();
-        _draw_humans(); // the fixed band's two walkers
-        _draw_name_line();
-        _compose(0); // the name screen is single-buffered
-        if (in->lastKey) {
-            uint8_t k = in->lastKey;
-            /* AA4E/AA50: the event loop reads AND clears [0x48A3] - one
-             * consume per key event; a held key re-fires only via the
-             * (BIOS/SDL) typematic repeat. Without the clear one backspace
-             * tap spans several ticks and erases the whole name. */
-            ((InputState *)in)->lastKey = 0u;
-            if ((k >= 'A' && k <= 'Z') || (k >= '0' && k <= '9') || k == ' ') {
-                _name_addchar(k);
-            } else if (k == 0x1Bu) { // ESC: clear the name, no exit
-                memset(_name_buf, 0, sizeof _name_buf);
-                _draw_name_line();
-            } else if (k == 0x0Du) { // Enter: the match gates the exit
-                if (_code_match()) _start_exit();
-            } else if (k == 0x0Eu) {
-                _name_erase();
+        case FE_PAN:
+            /* the event loop's head (AA2C..): the _scroll runs down to 0 */
+            if (_scroll == 0u) {
+                _name_screen_enter();
+                return 1;
             }
-        }
-        return 1;
-    case FE_EXITFADE:
-        /* Keep the name screen's page (0x2800): it is single-buffered, so
-         * the fade composes with no swap. */
-        _compose(0);
-        if (!palette_fade_active()) {
-            video_arena_release(); // the room's [0x1E20] text arena
-            return 0; // the room has exited
-        }
-        return 1;
+            _scroll = (uint16_t)(_scroll - 1u);
+            _draw_character();
+            _compose(1);
+            return 1;
+        case FE_NAME:
+            _anim_frame();
+            _draw_humans(); // the fixed band's two walkers
+            _draw_name_line();
+            _compose(0); // the name screen is single-buffered
+            if (in->lastKey) {
+                uint8_t k = in->lastKey;
+                /* AA4E/AA50: the event loop reads AND clears [0x48A3] - one
+                 * consume per key event; a held key re-fires only via the
+                 * (BIOS/SDL) typematic repeat. Without the clear one backspace
+                 * tap spans several ticks and erases the whole name. */
+                ((InputState *)in)->lastKey = 0u;
+                if ((k >= 'A' && k <= 'Z') || (k >= '0' && k <= '9') ||
+                    k == ' ') {
+                    _name_addchar(k);
+                } else if (k == 0x1Bu) { // ESC: clear the name, no exit
+                    memset(_name_buf, 0, sizeof _name_buf);
+                    _draw_name_line();
+                } else if (k == 0x0Du) { // Enter: the match gates the exit
+                    if (_code_match()) _start_exit();
+                } else if (k == 0x0Eu) {
+                    _name_erase();
+                }
+            }
+            return 1;
+        case FE_EXITFADE:
+            /* Keep the name screen's page (0x2800): it is single-buffered, so
+             * the fade composes with no swap. */
+            _compose(0);
+            if (!palette_fade_active()) {
+                video_arena_release(); // the room's [0x1E20] text arena
+                return 0; // the room has exited
+            }
+            return 1;
     }
     return 1;
 }
