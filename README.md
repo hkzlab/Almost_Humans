@@ -60,7 +60,7 @@ humans-sdl3 [--audio adlib|beeper|mt32] [--mt32-roms <dir>]
 - `--audio mt32` needs libmt32emu and `--mt32-roms`; a build without
   libmt32emu accepts only `adlib` and `beeper`.
 - `--mt32-roms` relative or absolute path to the MT32 roms.
-- `--view wide` experimental mode that doubles the level viewport, making the level fully visible (a build configured with `-DHUMANSRE_VIEWPORT_WIDE=OFF` rejects it).
+- `--view wide` experimental mode that [doubles the level viewport](pics/almost_humans_wide_mode.png), making the level fully visible (a build configured with `-DHUMANSRE_VIEWPORT_WIDE=OFF` rejects it).
 
 Note that the PC speaker driver was not available in the configuration of the original game, and most tunes are missing from the game. I've nonetheless added it as a curiosity.
 
