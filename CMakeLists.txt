@@ -1,18 +1,15 @@
 cmake_minimum_required(VERSION 3.24)
 
-# The toolchain: clang stays the default wherever it is on PATH (the Linux
-# build, and the msys64 clangarm64 one on Windows/ARM64); an explicit
-# -DCMAKE_C_COMPILER or $CC always wins, and a configure with neither falls
-# back to CMake's own detection (MSVC on Windows without clang).
+# The toolchain
 if(NOT DEFINED CMAKE_C_COMPILER AND NOT DEFINED ENV{CC})
     find_program(HUMANSRE_CLANG clang)
     if(HUMANSRE_CLANG)
         set(CMAKE_C_COMPILER "${HUMANSRE_CLANG}")
     endif()
 endif()
-project(HumansRE VERSION 1.0.0 LANGUAGES C)
 
-# The port's title and version, printed by each arch's main() at startup.
+# The port's title and version
+project(HumansRE VERSION 1.0.0 LANGUAGES C)
 set(HUMANSRE_PROJECT_TITLE "Almost Humans")
 add_compile_definitions(HUMANSRE_PROJECT_TITLE="${HUMANSRE_PROJECT_TITLE}"
                         HUMANSRE_VERSION="${PROJECT_VERSION}")
@@ -22,14 +19,14 @@ set(HUMANSRE_CORE_DIR     ${CMAKE_CURRENT_SOURCE_DIR}/src/core)
 set(HUMANSRE_ARCH_DIR     ${CMAKE_CURRENT_SOURCE_DIR}/src/arch)
 set(HUMANSRE_PLATFORM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/arch/platform)
 
+# Enforce C99
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
-# The strict warnings, per toolchain spelling: warnings are errors.  MSVC
-# needs /utf-8 so a non-ASCII byte in a string literal is not a hard error.
+# Strictness: warnings as errors
 function(humansre_warnings tgt)
     if(MSVC)
-        target_compile_options(${tgt} PRIVATE /W4 /WX /utf-8)
+        target_compile_options(${tgt} PRIVATE /W4 /WX /utf-8) # TODO: Need to verify this is working...
     else()
         target_compile_options(${tgt} PRIVATE -Wall -Wextra -Werror)
     endif()
@@ -48,11 +45,8 @@ endfunction()
 
 # The unused-include audit: with this ON, clang-tidy's include-cleaner fails
 # the build on every #include whose declarations the file never uses.  On by
-# default wherever clang-tidy is on PATH (a machine without it still builds;
-# -DHUMANSRE_UNUSED_INCLUDES=OFF skips the tidy pass).  Only the unused half
-# runs - the missing-include half would demand one header per symbol, which
-# contradicts the umbrella headers the projects ship (SDL3/SDL.h, mt32emu.h);
-# those two are ignored so the convention does not read as an unused include.
+# default wherever clang-tidy is on PATH
+# -DHUMANSRE_UNUSED_INCLUDES=OFF skips the tidy pass
 find_program(HUMANSRE_CLANG_TIDY NAMES clang-tidy)
 if(HUMANSRE_CLANG_TIDY)
     set(HUMANSRE_UNUSED_INCLUDES_DEFAULT ON)
@@ -69,17 +63,16 @@ if(HUMANSRE_UNUSED_INCLUDES)
         "--checks=-*,misc-include-cleaner"
         "--config={CheckOptions: {misc-include-cleaner.MissingIncludes: false, misc-include-cleaner.IgnoreHeaders: '(SDL3/SDL[.]h$|mt32emu[.]h$)'}}"
         "--warnings-as-errors=misc-include-cleaner")
-    # the vendored emulators keep their upstream #include set (CMake >= 3.27)
+    # Skip linting for third party code (changing anything would make it harder to pull in changes)
+    # the pcspeaker code is actually adapted and can be linted
     set_source_files_properties(
         src/arch/audio/adlib/thirdparty/opl3.c
-        src/arch/audio/beeper/thirdparty/pcspeaker_impulse.c
         PROPERTIES SKIP_LINTING TRUE)
 endif()
 
 # The narrowing audit: with this ON, every implicit
-# integer truncation or sign change aborts the program at the site, so the test
-# suite proves the narrowed locals never silently wrap.  The third-party OPL3
-# emulator keeps its intentional 16-bit sample conversions (excluded below).
+# integer truncation or sign change aborts the program at the site.
+# The test suite checks for this.
 option(HUMANSRE_SANITIZE_IMPLICIT "Abort on implicit integer conversions" OFF)
 if(HUMANSRE_SANITIZE_IMPLICIT)
     add_compile_options(-fsanitize=implicit-conversion
@@ -91,11 +84,7 @@ if(HUMANSRE_SANITIZE_IMPLICIT)
 endif()
 
 # The wide level viewport compiled in: ON includes the doubled view (the
-# `--view wide` runtime switch, D-274); OFF compiles it out - the classic
-# framing only, with 320x200 pages, no expand and none of the wide code (the
-# ram/code saving for constrained ports).  ON is the default the sdl3 port and
-# the headless tools are built with; the sdl3 pair also builds a classic-only
-# binary against an OFF core for regression checks.
+# `--view wide` runtime switch, D-274); OFF compiles it out 
 option(HUMANSRE_VIEWPORT_WIDE "Compile in the doubled (wide) level viewport" ON)
 if(HUMANSRE_VIEWPORT_WIDE)
     message(STATUS "viewport: classic + wide (the level view doubled)")
@@ -103,8 +92,7 @@ else()
     message(STATUS "viewport: classic only - the wide viewport is compiled out")
 endif()
 
-# The game core: pure C99, no port #ifdefs, no dependencies beyond the CRT.
-# It talks to the machine only through OSystem.
+# The game core: pure C99
 set(HUMANSRE_CORE_SOURCES
     src/core/game_main.c
     src/arch/osystem.c
@@ -154,10 +142,7 @@ set(HUMANSRE_CORE_SOURCES
     src/core/ver_detect.c
 )
 
-# One core library at a given viewport build.  The setting is PUBLIC: every
-# consumer (the executables and the tests, which compile a backend themselves)
-# must agree on VIDEO_PAGE_BYTES, or the page buffers and the core would
-# disagree.
+# One core library at a given viewport build
 function(humansre_core_library name wide)
     add_library(${name} STATIC ${HUMANSRE_CORE_SOURCES})
     target_include_directories(${name} PUBLIC ${HUMANSRE_ARCH_DIR}
@@ -169,9 +154,8 @@ function(humansre_core_library name wide)
         target_compile_definitions(${name} PUBLIC HUMANSRE_VIEWPORT_WIDE=0)
     endif()
     humansre_warnings(${name})
-    # The width audit: every implicit integer narrowing in the core must be an
-    # explicit cast.  -Wno-sign-conversion keeps the many deliberate word/byte
-    # sign tests out of the noise.
+    
+    # Every implicit integer narrowing in the core must be an explicit cast.
     if(NOT MSVC)
         target_compile_options(${name} PRIVATE -Wconversion -Wno-sign-conversion)
     endif()
@@ -229,6 +213,8 @@ endfunction()
 if(NOT HUMANSRE_BUILD_TESTS)
     set_target_properties(core_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
 endif()
+
+############ TESTS #############
 
 # The headless tests: assert-based, no framework.
 humansre_test_executable(test_loop test/test_loop.c
