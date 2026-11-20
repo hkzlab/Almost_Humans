@@ -39,12 +39,6 @@ level map (`OutputAmplitude`), and the 8254 mode-3 transition scheduler
   Butterworth high-pass at 120 Hz and a 3rd-order Butterworth low-pass at
   4300 Hz.  The port applies the same sections to the model output, so the
   steady-note harmonic series matches the live DOSBox capture.
-* The installed DOSBox 0.85.1 reference was built from an older 32 kHz
-  impulse model (`InitializeImpulseLUT`/`AddPITOutput`); this adaptation uses
-  the current 48 kHz source at the URL above.  The window (3.125 ms) and
-  cutoff (14.5 kHz) are the same in both, so the steady-state spectrum
-  matches; only the attack/edge transient can differ by a sample's worth of
-  model rate.
 * A zero PIT count is treated as the 65536 reload for the high half as well
   (upstream uses the raw `count` there).
 
