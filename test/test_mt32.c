@@ -10,6 +10,10 @@
  *
  *   HUMANS_MT32_ROMS=/path/to/roms ctest -R mt32
  */
+#include "audio/mt32/mt32_internal.h"
+#include "audio/mt32/mt32_synth.c"
+#include "audio/mt32/mt32_seq.c"
+#include "audio/mt32/mt32_rom.c"
 #include "audio/mt32/sound_driver_mt32.c"
 #include "audio/sound_driver.h"
 #include "fs/posix/fs_posix.h"

@@ -17,6 +17,9 @@
  * Usage: test_beeper <extracted-resources-dir>  (the dir holding
  * HUMANS.000/MUS/TITLE.BEP)
  */
+#include "audio/beeper/beeper_internal.h"
+#include "audio/beeper/beeper_speaker.c"
+#include "audio/beeper/beeper_seq.c"
 #include "audio/beeper/sound_driver_beeper.c"
 
 #include "audio.h"

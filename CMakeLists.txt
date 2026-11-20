@@ -201,9 +201,13 @@ target_include_directories(arch_mem PUBLIC ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATF
 # audio_null module is intentionally blank and linked into no executable.
 add_library(audio_adlib
     src/arch/audio/adlib/sound_driver_adlib.c
+    src/arch/audio/adlib/adlib_opl.c
+    src/arch/audio/adlib/adlib_seq.c
     src/arch/audio/adlib/thirdparty/opl3.c)
 add_library(audio_beeper
     src/arch/audio/beeper/sound_driver_beeper.c
+    src/arch/audio/beeper/beeper_speaker.c
+    src/arch/audio/beeper/beeper_seq.c
     src/arch/audio/beeper/thirdparty/pcspeaker_impulse.c)
 add_library(audio_null src/arch/audio/null/sound_driver_null.c)
 target_include_directories(audio_adlib PUBLIC ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
@@ -225,7 +229,11 @@ find_path(MT32EMU_INCLUDE_DIR mt32emu.h)
 find_library(MT32EMU_LIBRARY NAMES mt32emu)
 if(MT32EMU_INCLUDE_DIR AND MT32EMU_LIBRARY)
     set(HUMANSRE_MT32 TRUE)
-    add_library(audio_mt32 src/arch/audio/mt32/sound_driver_mt32.c)
+    add_library(audio_mt32
+        src/arch/audio/mt32/sound_driver_mt32.c
+        src/arch/audio/mt32/mt32_synth.c
+        src/arch/audio/mt32/mt32_seq.c
+        src/arch/audio/mt32/mt32_rom.c)
     target_include_directories(audio_mt32 PUBLIC ${HUMANSRE_ARCH_DIR} ${HUMANSRE_PLATFORM_DIR})
     target_include_directories(audio_mt32 PRIVATE ${HUMANSRE_CORE_DIR}
                                                   ${MT32EMU_INCLUDE_DIR})

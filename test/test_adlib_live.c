@@ -13,6 +13,9 @@
  *
  * Usage: test_adlib_live <path to TITLE.ALB>
  */
+#include "audio/adlib/adlib_internal.h"
+#include "audio/adlib/adlib_opl.c"
+#include "audio/adlib/adlib_seq.c"
 #include "audio/adlib/sound_driver_adlib.c"
 #include "audio/sound_driver.h"
 #include "test_support.h"
@@ -87,11 +90,11 @@ static void test_adlib_live(void)
         SoundDriver *note = _adlib_create(48000);
 
         TEST_ASSERT_TRUE(note != NULL);
-        _note_on(note, 0, 12);
+        _adlib_note_on(note, 0, 12);
         TEST_ASSERT_TRUE(note->slot[0].note_entry == 0x0157);
         TEST_ASSERT_TRUE(
             (note->shadow[0xA0] | ((note->shadow[0xB0] & 3u) << 8)) == 0x0157);
-        _note_on(note, 0, 7); // HUMFX's note: fnum 0, block 0
+        _adlib_note_on(note, 0, 7); // HUMFX's note: fnum 0, block 0
         TEST_ASSERT_TRUE(note->slot[0].note_entry == 0x0000);
         TEST_ASSERT_TRUE(note->shadow[0xA0] == 0x00);
         /* key-on, block 0 */
