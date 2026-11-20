@@ -41,7 +41,7 @@ The only mandatory argument is the game-volume directory: the one holding
 You can use any language provided in the GOG's CD version: they should all be supported.
 
 ```sh
-./build/humans-sdl3 /path/to/The\ Humans/volumes
+./humans-sdl3 /path/to/The\ Humans/volumes
 ```
 
 ```
@@ -59,10 +59,8 @@ humans-sdl3 [--audio adlib|beeper|mt32] [--mt32-roms <dir>]
 
 - `--audio mt32` needs libmt32emu and `--mt32-roms`; a build without
   libmt32emu accepts only `adlib` and `beeper`.
-- `--mt32-roms` is resolved from the launch directory, before the
-  executable changes into the volume directory.
-- `--view wide` is experimental and doubles the level viewport; a build
-  configured with `-DHUMANSRE_VIEWPORT_WIDE=OFF` rejects it.
+- `--mt32-roms` relative or absolute path to the MT32 roms.
+- `--view wide` experimental mode that doubles the level viewport, making the level fully visible (a build configured with `-DHUMANSRE_VIEWPORT_WIDE=OFF` rejects it).
 
 Note that the PC speaker driver was not available in the configuration of the original game, and most tunes are missing from the game. I've nonetheless added it as a curiosity.
 
@@ -116,12 +114,13 @@ Useful options: `-DHUMANSRE_VIEWPORT_WIDE=OFF` drops the doubled (wide) level vi
 
 #### Test suite
 
-To run the test suite (add `-DHUMANSRE_BUILD_TESTS=ON` to the configure step, or use a `Debug`
-build; some tests skip when the game data or the MT-32 ROMs are absent):
+To run the test suite (add `-DHUMANSRE_BUILD_TESTS=ON` to the configure step, or use a `Debug` build):
 
 ```sh
 ctest --test-dir build --output-on-failure -j 8
 ```
+
+Some tests skip when the game data or the MT-32 ROMs are absent.
 
 ### TODO
 
