@@ -35,11 +35,46 @@ But I respect and understand the choice of people wishing to steer clear of code
 
 ## SDL3 port 
 
-**TODO**
+The only mandatory argument is the game-volume directory: the one holding
+`HUMANS.000`, `HUMANS.001` and `HUMANS.002`.
 
-### Playing
+You can use any language provided in the GOG's CD version: they should all be supported.
 
-**TODO**
+```sh
+./build/humans-sdl3 /path/to/The\ Humans/volumes
+```
+
+```
+humans-sdl3 [--audio adlib|beeper|mt32] [--mt32-roms <dir>]
+            [--view classic|wide] [--version] <volume-dir>
+```
+
+| option                 | meaning                                      |
+| ---------------------- | -------------------------------------------- |
+| `<volume-dir>`         | mandatory; holds `HUMANS.000/001/002`        |
+| `--audio <driver>`     | `adlib` (default), `beeper` or `mt32`        |
+| `--mt32-roms <dir>`    | ROM images for `--audio mt32`                |
+| `--view classic\|wide` | level framing: `classic` (default) or `wide` |
+| `--version`, `-v`      | print the version and exit                   |
+
+- `--audio mt32` needs libmt32emu and `--mt32-roms`; a build without
+  libmt32emu accepts only `adlib` and `beeper`.
+- `--mt32-roms` is resolved from the launch directory, before the
+  executable changes into the volume directory.
+- `--view wide` is experimental and doubles the level viewport; a build
+  configured with `-DHUMANSRE_VIEWPORT_WIDE=OFF` rejects it.
+
+Note that the PC speaker driver was not available in the configuration of the original game, and most tunes are missing from the game. I've nonetheless added it as a curiosity.
+
+### Keys
+
+| Key / combination | function                   |
+| ----------------- | -------------------------- |
+| Function keys     | Switch the selected Human  |
+| Arrow keys        | Move the selected Human    |
+| Spacebar          | Switch the selected action |
+| Z                 | Action key                 |
+| F11 / Alt-Return  | Full-screen                |
 
 ### Building
 
@@ -50,7 +85,7 @@ Dependencies:
 | CMake        | 3.24 or newer | the build itself |
 | C compiler   | clang or gcc  | the build itself |
 | SDL3         | 3.2 or newer  | humans-sdl3      |
-| libmt32emu   | optional      | --audio mt32     |
+| libmt32emu   | optional      | MT32 driver      |
 | clang-tidy   | optional      | include audit    |
 
 Built and tested with clang 23.1.5 and gcc 16.2.1 (on Fedora 45), [SDL3](https://github.com/libsdl-org/SDL) 3.4.20 and [libmt32emu](https://github.com/munt/mt32emu) 2.7.2 
@@ -90,7 +125,7 @@ ctest --test-dir build --output-on-failure -j 8
 
 ### TODO
 
-- Full test playthrough
+- [Test all levels](tested_levels.md)
 - Improve extended viewport mode (background graphics?)
 - Additional video modes (e.g. no aspect ratio correction)
 - Controller support
