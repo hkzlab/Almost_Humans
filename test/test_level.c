@@ -23,6 +23,7 @@
 #include "video.h"
 #include "compat.h"
 #include "byteorder.h"
+#include "test_support.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -91,37 +92,26 @@ static int32_t _load_fixture(const char *fix_dir, uint32_t fileIdx)
 
 /**
  * @brief Run the level load and play tests.
- *
- * @param argc the argument count
- * @param argv the argument vector
- * @return 0 on success, 1 on failure
  */
-int main(int argc, char **argv)
+static void test_level(void)
 {
-    const char *vol_dir = argc > 1 ? argv[1] : ".";
-    const char *fix_dir = argc > 2 ? argv[2] : vol_dir;
+    const char *vol_dir = _test_argc > 1 ? _test_argv[1] : ".";
+    const char *fix_dir = _test_argc > 2 ? _test_argv[2] : vol_dir;
 
     char path[512];
     snprintf(path, sizeof path, "%s/HUMANS.001", vol_dir);
     FILE *f = fopen(path, "rb");
-    if (!f) {
-        printf("skip: no volume files at %s (fixture data absent)\n", vol_dir);
-        return 0;
-    }
+    if (!f)
+        TEST_SKIPF("skip: no volume files at %s (fixture data absent)",
+                   vol_dir);
     fclose(f);
 
-    if (compat_chdir(vol_dir)) {
-        perror(vol_dir);
-        return 1;
-    }
+    if (compat_chdir(vol_dir)) TEST_FAILF("cannot enter %s", vol_dir);
 
     char fix_abs[512];
-    if (!compat_realpath(fix_dir, fix_abs)) {
-        fprintf(stderr, "FAIL fixture tree %s unreadable\n", fix_dir);
-        return 1;
-    }
+    if (!compat_realpath(fix_dir, fix_abs))
+        TEST_FAILF("fixture tree %s unreadable", fix_dir);
 
-    int32_t bad = 0;
     osys_bind(&g_osys_null);
     res_init();
     scene_init();
@@ -134,28 +124,16 @@ int main(int argc, char **argv)
     uint32_t intro_hist[8] = { 0 };   // 00,01,02,03,04,05,09,FF
     uint32_t style_hist[6] = { 0 };
     for (uint32_t id = 0; id < 160u; id++) {
-        if (level_load(id) != 0) {
-            fprintf(stderr, "FAIL level %u: load failed\n", id);
-            return 1;
-        }
+        if (level_load(id) != 0) TEST_FAILF("level %u: load failed", id);
         const LevelData *d = level_data();
-        if (d->style < 1u || d->style > 6u) {
-            fprintf(stderr, "FAIL level %u: style %u\n", id, d->style);
-            bad = 1;
-        }
-        if (d->goalCount < 1u || d->goalCount > 3u) {
-            fprintf(stderr, "FAIL level %u: goal count %u\n", id, d->goalCount);
-            bad = 1;
-        }
-        if (d->unused06 != 0u) {
-            fprintf(stderr, "FAIL level %u: +0x06 = %02x\n", id, d->unused06);
-            bad = 1;
-        }
-        if ((d->timeA >> 8) < 2u || (d->timeA >> 8) > 9u) {
-            fprintf(stderr, "FAIL level %u: time A minutes %u\n", id,
-                    d->timeA >> 8);
-            bad = 1;
-        }
+        if (d->style < 1u || d->style > 6u)
+            TEST_FAILF("level %u: style %u", id, d->style);
+        if (d->goalCount < 1u || d->goalCount > 3u)
+            TEST_FAILF("level %u: goal count %u", id, d->goalCount);
+        if (d->unused06 != 0u)
+            TEST_FAILF("level %u: +0x06 = %02x", id, d->unused06);
+        if ((d->timeA >> 8) < 2u || (d->timeA >> 8) > 9u)
+            TEST_FAILF("level %u: time A minutes %u", id, d->timeA >> 8);
         uint32_t slot;
         switch (d->introIndex) {
             case 0x00u: slot = 0; break;
@@ -167,9 +145,7 @@ int main(int argc, char **argv)
             case 0x09u: slot = 6; break;
             case 0xFFu: slot = 7; break;
             default:
-                fprintf(stderr, "FAIL level %u: intro index %02x\n", id,
-                        d->introIndex);
-                bad = 1;
+                TEST_FAILF("level %u: intro index %02x", id, d->introIndex);
                 continue;
         }
         intro_hist[slot]++;
@@ -178,20 +154,14 @@ int main(int argc, char **argv)
     {
         static const uint32_t want_intro[8] = { 1, 4, 1, 3, 1, 1, 3, 146 };
         static const uint32_t want_style[6] = { 26, 26, 27, 28, 26, 27 };
-        for (uint32_t i = 0; i < 8u; i++) {
-            if (intro_hist[i] != want_intro[i]) {
-                fprintf(stderr, "FAIL intro hist [%u]: %u, want %u\n", i,
-                        intro_hist[i], want_intro[i]);
-                bad = 1;
-            }
-        }
-        for (uint32_t i = 0; i < 6u; i++) {
-            if (style_hist[i] != want_style[i]) {
-                fprintf(stderr, "FAIL style hist [%u]: %u, want %u\n", i,
-                        style_hist[i], want_style[i]);
-                bad = 1;
-            }
-        }
+        for (uint32_t i = 0; i < 8u; i++)
+            if (intro_hist[i] != want_intro[i])
+                TEST_FAILF("intro hist [%u]: %u, want %u", i, intro_hist[i],
+                           want_intro[i]);
+        for (uint32_t i = 0; i < 6u; i++)
+            if (style_hist[i] != want_style[i])
+                TEST_FAILF("style hist [%u]: %u, want %u", i, style_hist[i],
+                           want_style[i]);
     }
 
     /* 2. per file: the parsed maps + the headers are byte-exact against
@@ -199,20 +169,15 @@ int main(int argc, char **argv)
      * (the record 0 starts at the file offset 0; the map offset = 13 +
      * len(goal)+1 + len(author)+1 + 8). */
     for (uint32_t fileIdx = 0; fileIdx < 10u; fileIdx++) {
-        if (_load_fixture(fix_abs, fileIdx) != 0) {
-            fprintf(stderr, "FAIL L%c.BIN fixture unreadable\n", 'A' + fileIdx);
-            bad = 1;
-            continue;
-        }
+        if (_load_fixture(fix_abs, fileIdx) != 0)
+            TEST_FAILF("L%c.BIN fixture unreadable", 'A' + fileIdx);
         for (uint32_t rec = 0; rec < 10u; rec++) {
             uint32_t id = fileIdx * 10u + rec;
             level_load(id);
             const LevelData *d = level_data();
             uint32_t mapOff = d->mapFileOff;
-            if (memcmp(d->map, _file_image + mapOff, 640u) != 0) {
-                fprintf(stderr, "FAIL level %u: map bytes\n", id);
-                bad = 1;
-            }
+            if (memcmp(d->map, _file_image + mapOff, 640u) != 0)
+                TEST_FAILF("level %u: map bytes", id);
             if (rec == 0) {
                 /* the file's first record starts at the offset 0: the
                  * re-packed header must match the file's first 13 bytes */
@@ -230,32 +195,21 @@ int main(int argc, char **argv)
                 hdr[10] = (uint8_t)(d->timeB >> 8);
                 hdr[11] = (uint8_t)(d->timeC & 0xFFu);
                 hdr[12] = (uint8_t)(d->timeC >> 8);
-                if (memcmp(hdr, _file_image, 13u) != 0) {
-                    fprintf(stderr, "FAIL L%c.BIN: header bytes\n",
-                            'A' + fileIdx);
-                    bad = 1;
-                }
+                if (memcmp(hdr, _file_image, 13u) != 0)
+                    TEST_FAILF("L%c.BIN: header bytes", 'A' + fileIdx);
             }
         }
     }
     /* the tile atlas is released once the palette is built: nothing reads it
      * after that (the original loads SPRITES.DAT over it in [0x13A9]) */
-    if (level_atlas_live_for_probe()) {
-        fprintf(stderr,
-                "FAIL the tile atlas is still resident after the load\n");
-        bad = 1;
-    }
+    if (level_atlas_live_for_probe())
+        TEST_FAILF("the tile atlas is still resident after the load");
 
     /* 3. the level id -> the file mapping: the level 10 loads LB.BIN and
      * the level 159 loads LP.BIN's last record. */
-    if (level_load(10) != 0 || level_load(159) != 0) {
-        fprintf(stderr, "FAIL the level 10/159 loads\n");
-        bad = 1;
-    }
-    if (level_load(160u) == 0) {
-        fprintf(stderr, "FAIL level 160 must be out of range\n");
-        bad = 1;
-    }
+    if (level_load(10) != 0 || level_load(159) != 0)
+        TEST_FAILF("the level 10/159 loads");
+    if (level_load(160u) == 0) TEST_FAILF("level 160 must be out of range");
 
     /* 4. the level render (level 0: style 3 -> BD3 field L=4 -> BG4.RAW):
      * the composite 320x200 viewport on page 0 (the BG's pixels biased into
@@ -271,8 +225,7 @@ int main(int argc, char **argv)
      * against the four fixtures. */
     {
         if (level_load(0) != 0) {
-            fprintf(stderr, "FAIL level 0 reload\n");
-            bad = 1;
+            TEST_FAILF("level 0 reload");
         } else {
             /* D-257: level_video_init's reset_display_mode (1000:32D6)
              * clears the whole A000 window (clear_vram 1000:833A) BEFORE
@@ -293,13 +246,10 @@ int main(int argc, char **argv)
                     if (p0[k]) nz0++;
                     if (p1[k]) nz1++;
                 }
-                if (nz0 || nz1) {
-                    fprintf(stderr,
-                            "FAIL D-257: level_begin left the page(s) "
-                            "uncleared (%u/%u stale bytes)\n",
-                            nz0, nz1);
-                    bad = 1;
-                }
+                if (nz0 || nz1)
+                    TEST_FAILF("D-257: level_begin left the page(s) "
+                               "uncleared (%u/%u stale bytes)",
+                               nz0, nz1);
             }
             /* The fade the user sees, measured through the null arch's DAC
              * shadow: level_fade_in (1000:3334) fades entries 0..0xBF to black
@@ -385,20 +335,12 @@ int main(int argc, char **argv)
                     barLit = 1;
                     break;
                 }
-            if (!haveBlack) {
-                fprintf(stderr,
-                        "FAIL the fade-out never brought 0..0xBF to black\n");
-                bad = 1;
-            }
-            if (!barStable) {
-                fprintf(stderr,
-                        "FAIL 0xC0..0xFF changed during the fade-out\n");
-                bad = 1;
-            }
-            if (!barLit) {
-                fprintf(stderr, "FAIL the bar's palette block went dark\n");
-                bad = 1;
-            }
+            if (!haveBlack)
+                TEST_FAILF("the fade-out never brought 0..0xBF to "
+                           "black");
+            if (!barStable)
+                TEST_FAILF("0xC0..0xFF changed during the fade-out");
+            if (!barLit) TEST_FAILF("the bar's palette block went dark");
             /* The page's bar rows are the play frame's business (the page
              * checksum below pins them); the fade-out itself is a DAC effect,
              * so the split checked here is the palette's: 0..0xBF to black,
@@ -441,10 +383,8 @@ int main(int argc, char **argv)
              * status bar is live once the backend is bound, so level_fade_in's
              * reveal draws panel4's band into rows 152..191 and the pin
              * includes it.  This run pins sum 7177588. */
-            if (sum != 7177588u || nz != 64000u) {
-                fprintf(stderr, "FAIL level 0 page: sum %u nz %u\n", sum, nz);
-                bad = 1;
-            }
+            if (sum != 7177588u || nz != 64000u)
+                TEST_FAILF("level 0 page: sum %u nz %u", sum, nz);
 
             /* The terrain page table (draw_terrain2 1000:505C) is built
              * from the atlas and the J block's second opacity mask.  This
@@ -458,10 +398,8 @@ int main(int argc, char **argv)
                         h ^= level_page_byte(id, c);
                         h *= 16777619u;
                     }
-                if (h != 0x26a3598fu) {
-                    fprintf(stderr, "FAIL the 0x92A0 page table: %08x\n", h);
-                    bad = 1;
-                }
+                if (h != 0x26a3598fu)
+                    TEST_FAILF("the 0x92A0 page table: %08x", h);
             }
 
             /* The item records (draw_objects 1000:558B): field B ships
@@ -480,10 +418,8 @@ int main(int argc, char **argv)
                         h = (h ^ (w & 0xFFu)) * 16777619u;
                         h = (h ^ (w >> 8)) * 16777619u;
                     }
-                if (h != 0x27279109u) {
-                    fprintf(stderr, "FAIL the 0x1FD6 item masks: %08x\n", h);
-                    bad = 1;
-                }
+                if (h != 0x27279109u)
+                    TEST_FAILF("the 0x1FD6 item masks: %08x", h);
             }
             for (uint32_t i = 0; i < 200u && palette_fade_active(); i++) {
                 palette_tick();                 // level_fade_in
@@ -502,8 +438,7 @@ int main(int argc, char **argv)
             uint8_t *di =
                 _read_fixture(fix_abs, "HUMANS.001/BACKS/DICON.APL", &n);
             if (!sp || !bs || !bg || !p4 || !di) {
-                fprintf(stderr, "FAIL palette fixtures unreadable\n");
-                bad = 1;
+                TEST_FAILF("palette fixtures unreadable");
             } else {
                 const uint8_t *want[6] = {
                     di + 0x18,    sp + 0x1B, bs + 0x18,
@@ -514,14 +449,10 @@ int main(int argc, char **argv)
                 for (uint32_t r = 0; r < 6u; r++)
                     for (uint32_t i = 0; i < len[r]; i++) {
                         uint8_t w = want[r] ? want[r][i] : 0u;
-                        if (pal[off[r] + i] != w) {
-                            fprintf(stderr,
-                                    "FAIL palette 0x%X: got %02x want "
-                                    "%02x\n",
-                                    off[r] + i, pal[off[r] + i], w);
-                            bad = 1;
-                            break;
-                        }
+                        if (pal[off[r] + i] != w)
+                            TEST_FAILF("palette 0x%X: got %02x want "
+                                       "%02x",
+                                       off[r] + i, pal[off[r] + i], w);
                     }
             }
             free(sp);
@@ -552,13 +483,10 @@ int main(int argc, char **argv)
                     int32_t x1 = (int32_t)(int16_t)(rd_le_u16(m + 0));
                     uint32_t ty = (uint32_t)(rd_le_u16(m + 8));
 
-                    if (x1 < x0 + 4 || ty > 2u) {
-                        fprintf(stderr,
-                                "FAIL the record did not walk: "
-                                "x %d -> %d, type %u\n",
-                                x0, x1, ty);
-                        bad = 1;
-                    }
+                    if (x1 < x0 + 4 || ty > 2u)
+                        TEST_FAILF("the record did not walk: "
+                                   "x %d -> %d, type %u",
+                                   x0, x1, ty);
                 }
                 memset(&in, 0, sizeof in);
                 level_note_input(&in);
@@ -592,11 +520,9 @@ int main(int argc, char **argv)
                                 before[(y + 8u) * 320u + x + 16u])
                                 diffs++;
                         }
-                    if (sample == 0u || diffs != 0u) {
-                        fprintf(stderr, "FAIL the view scroll: %u/%u differ\n",
-                                diffs, sample);
-                        bad = 1;
-                    }
+                    if (sample == 0u || diffs != 0u)
+                        TEST_FAILF("the view scroll: %u/%u differ", diffs,
+                                   sample);
                 }
                 level_set_view(0u, 0u);
                 level_tick();
@@ -616,13 +542,10 @@ int main(int argc, char **argv)
                 const uint8_t *now = osys_null_palette();
                 for (uint32_t i = 0; i < 4u; i++)
                     if (memcmp(now + (0x71u + i) * 3u, before[(i + 3u) % 4u],
-                               3) != 0) {
-                        fprintf(stderr,
-                                "FAIL palette rotation: entry 0x71+%u "
-                                "did not take its predecessor\n",
-                                i);
-                        bad = 1;
-                    }
+                               3) != 0)
+                        TEST_FAILF("palette rotation: entry 0x71+%u "
+                                   "did not take its predecessor",
+                                   i);
             }
         }
     }
@@ -630,8 +553,7 @@ int main(int argc, char **argv)
     /* A style with an empty field M (level 3 -> style 2) has no rotation:
      * eight ticks leave its palette's 0x71..0x74 alone. */
     if (level_load(3) != 0) {
-        fprintf(stderr, "FAIL level 3 reload for the empty table\n");
-        bad = 1;
+        TEST_FAILF("level 3 reload for the empty table");
     } else {
         level_begin();                             // its own start chain
         for (uint32_t i = 0; i < 400u && level_starting(); i++) {
@@ -644,11 +566,8 @@ int main(int argc, char **argv)
         uint8_t before[12];
         memcpy(before, pal + 0x71u * 3u, 12);
         for (uint32_t t = 0; t < 8u; t++) level_tick();
-        if (memcmp(osys_null_palette() + 0x71u * 3u, before, 12) != 0) {
-            fprintf(stderr,
-                    "FAIL level 3 (empty field M) rotated its palette\n");
-            bad = 1;
-        }
+        if (memcmp(osys_null_palette() + 0x71u * 3u, before, 12) != 0)
+            TEST_FAILF("level 3 (empty field M) rotated its palette");
     }
 
     /* D-163: the claim sequence never calls update_world, even after
@@ -676,17 +595,13 @@ int main(int argc, char **argv)
         n[6] = 0x00;
         n[8] = 0x02;
         if (object_sequence_claim_begin(0u, 0) != 3) {
-            fprintf(stderr, "FAIL the D-163 claim did not start\n");
-            bad = 1;
+            TEST_FAILF("the D-163 claim did not start");
         } else {
             level_set_updates(1); // 1000:3CAB's [0xC] = 0xFF
             ticks = object_core_world_ticks_probe();
             for (uint32_t t = 0; t < 4u; t++) level_tick();
-            if (object_core_world_ticks_probe() != ticks) {
-                fprintf(stderr,
-                        "FAIL update_world ran during a claim (D-163)\n");
-                bad = 1;
-            }
+            if (object_core_world_ticks_probe() != ticks)
+                TEST_FAILF("update_world ran during a claim (D-163)");
             for (uint32_t t = 0; t < 20000u && object_sequence_claim_active();
                  t++) {
                 level_tick();
@@ -705,32 +620,22 @@ int main(int argc, char **argv)
      * was published ahead of the spawn pass the map lookup returned NULL and
      * the snap was skipped (y stayed 176). */
     if (level_load(15) != 0) {
-        fprintf(stderr, "FAIL level 15 reload for the torch\n");
-        bad = 1;
+        TEST_FAILF("level 15 reload for the torch");
     } else {
         int32_t found = 0;
 
-        if (level_data()->style != 6u) {
-            fprintf(stderr, "FAIL level 15 is not style 6\n");
-            bad = 1;
-        }
+        if (level_data()->style != 6u) TEST_FAILF("level 15 is not style 6");
         for (uint32_t i = 0; i < object_core_slots(); i++) {
             uint8_t *r = object_core_slot(i);
 
             if (!r) continue;
             if ((rd_le_u16(r + 4)) != 0x9Cu) continue;
             found = 1;
-            if ((rd_le_u16(r + 0)) != 272u || (rd_le_u16(r + 2)) != 177u) {
-                fprintf(stderr,
-                        "FAIL the torch is at x=%u y=%u, want 272/177\n",
-                        rd_le_u16(r + 0), rd_le_u16(r + 2));
-                bad = 1;
-            }
+            if ((rd_le_u16(r + 0)) != 272u || (rd_le_u16(r + 2)) != 177u)
+                TEST_FAILF("the torch is at x=%u y=%u, want 272/177",
+                           rd_le_u16(r + 0), rd_le_u16(r + 2));
         }
-        if (!found) {
-            fprintf(stderr, "FAIL level 15 has no torch record\n");
-            bad = 1;
-        }
+        if (!found) TEST_FAILF("level 15 has no torch record");
     }
 
     /* --- D-89: the static records' per-frame row pass (1000:D860) ---------
@@ -753,18 +658,13 @@ int main(int argc, char **argv)
             const uint8_t *r = object_core_slot(i);
             uint32_t y = (uint32_t)(rd_le_u16(r + 2));
 
-            if (y != wantY[i]) {
-                fprintf(stderr, "FAIL D-89: record %u y = %u, want %u\n", i, y,
-                        wantY[i]);
-                bad = 1;
-            }
+            if (y != wantY[i])
+                TEST_FAILF("D-89: record %u y = %u, want %u", i, y, wantY[i]);
         }
         for (uint32_t i = 4u; i < 8u; i++) {
             const uint8_t *r = object_core_slot(i);
-            if (r[0] != 0xFFu || r[1] != 0xFFu) {
-                fprintf(stderr, "FAIL D-89: free slot %u was touched\n", i);
-                bad = 1;
-            }
+            if (r[0] != 0xFFu || r[1] != 0xFFu)
+                TEST_FAILF("D-89: free slot %u was touched", i);
         }
     }
 
@@ -781,11 +681,9 @@ int main(int argc, char **argv)
             if (level_loading_screen()) level_loading_tick();
         }
         object_core_goal_scan();
-        if (object_core_goal_flag()) {
-            fprintf(stderr, "FAIL D-95: the goal flag is set with nothing on "
-                            "the 0xBA cell\n");
-            bad = 1;
-        }
+        if (object_core_goal_flag())
+            TEST_FAILF("D-95: the goal flag is set with nothing on "
+                       "the 0xBA cell");
         {
             uint8_t *r = object_core_slot(4);
 
@@ -801,18 +699,14 @@ int main(int argc, char **argv)
             r[9] = 0x00u;
         }
         object_core_goal_scan();
-        if (!object_core_goal_flag()) {
-            fprintf(stderr, "FAIL D-95: a record on the 0xBA cell does not "
-                            "reach the level's goal byte\n");
-            bad = 1;
-        }
+        if (!object_core_goal_flag())
+            TEST_FAILF("D-95: a record on the 0xBA cell does not "
+                       "reach the level's goal byte");
         /* 0x6549 excludes id 3 (mask byte 0 = 0x1F) */
         object_core_slot(4)[8] = 0x03u;
         object_core_goal_scan();
-        if (object_core_goal_flag()) {
-            fprintf(stderr, "FAIL D-95: a 0x6549-excluded id was counted\n");
-            bad = 1;
-        }
+        if (object_core_goal_flag())
+            TEST_FAILF("D-95: a 0x6549-excluded id was counted");
         object_core_slot(4)[8] = 0x18u;
 
         /* the pan: the follower leaves the acting record and converges on the
@@ -841,37 +735,25 @@ int main(int argc, char **argv)
                 audio_tick();
             }
             doneAt = t;
-            if (holdX != 0xC0u || holdY != 0x00u) {
-                fprintf(stderr, "FAIL D-95: the pan held at (%u, %u)\n", holdX,
-                        holdY);
-                bad = 1;
-            }
+            if (holdX != 0xC0u || holdY != 0x00u)
+                TEST_FAILF("D-95: the pan held at (%u, %u)", holdX, holdY);
             if (markerAt == 0xFFFFFFFFu) {
-                fprintf(stderr, "FAIL D-95: the pan never raised [0x6531]\n");
-                bad = 1;
+                TEST_FAILF("D-95: the pan never raised [0x6531]");
             } else if (markerAt < 0x23u) {
-                fprintf(stderr,
-                        "FAIL D-95: the hold is %u frames, want >= 0x23\n",
-                        markerAt);
-                bad = 1;
+                TEST_FAILF("D-95: the hold is %u frames, want >= 0x23",
+                           markerAt);
             }
-            if (doneAt > 399u || doneAt < markerAt + 0x1Eu) {
-                fprintf(stderr,
-                        "FAIL D-95: the tail is %u frames, want "
-                        "0x1E\n",
-                        doneAt - markerAt);
-                bad = 1;
-            }
+            if (doneAt > 399u || doneAt < markerAt + 0x1Eu)
+                TEST_FAILF("D-95: the tail is %u frames, want 0x1E",
+                           doneAt - markerAt);
         }
         /* the flag falls -> [0x6531] is cleared again (1000:35A2) */
         object_core_slot(4)[0] = 0xFFu;
         object_core_slot(4)[1] = 0xFFu;
         object_core_goal_scan();
         level_tick();
-        if (object_core_marker_mode()) {
-            fprintf(stderr, "FAIL D-95: [0x6531] survived the goal flag\n");
-            bad = 1;
-        }
+        if (object_core_marker_mode())
+            TEST_FAILF("D-95: [0x6531] survived the goal flag");
     }
 
     /* --- D-259: a pan whose goal flag falls mid-track must still finish.
@@ -913,27 +795,20 @@ int main(int argc, char **argv)
                 break;
             }
         }
-        if (!sawRun) {
-            fprintf(stderr, "FAIL D-259: the pan did not start\n");
-            bad = 1;
-        }
+        if (!sawRun) TEST_FAILF("D-259: the pan did not start");
         /* the human walks off the cell: the goal scan clears [0x6530] */
         r[0] = 0xFFu;
         r[1] = 0xFFu;
         object_core_goal_scan();
-        if (object_core_goal_flag()) {
-            fprintf(stderr, "FAIL D-259: the goal flag survived the cell\n");
-            bad = 1;
-        }
+        if (object_core_goal_flag())
+            TEST_FAILF("D-259: the goal flag survived the cell");
         for (t = 0; t < 400u && level_goal_pan_running(); t++) {
             level_tick();
             palette_tick();
             audio_tick();
         }
-        if (level_goal_pan_running()) {
-            fprintf(stderr, "FAIL D-259: the pan hung after the flag fell\n");
-            bad = 1;
-        }
+        if (level_goal_pan_running())
+            TEST_FAILF("D-259: the pan hung after the flag fell");
     }
 
     /* --- D-264: a reload must not keep the win pan's marker mode ---------- */
@@ -944,10 +819,7 @@ int main(int argc, char **argv)
         /* the restart's reload resets the port's pan state without touching
          * the mode; menu_flag_tick's 1000:35A2 arm must clear [0x6531] on the
          * next frame, before the re-spawned behaviour-9 markers tick. */
-        if (level_load(25) != 0) {
-            fprintf(stderr, "FAIL D-264: the reload failed\n");
-            bad = 1;
-        }
+        if (level_load(25) != 0) TEST_FAILF("D-264: the reload failed");
         level_begin();
         for (t = 0; t < 4000u && level_starting(); t++) {
             level_tick();
@@ -960,18 +832,13 @@ int main(int argc, char **argv)
             palette_tick();
             audio_tick();
         }
-        if (object_core_marker_mode()) {
-            fprintf(stderr, "FAIL D-264: [0x6531] survived the reload\n");
-            bad = 1;
-        }
+        if (object_core_marker_mode())
+            TEST_FAILF("D-264: [0x6531] survived the reload");
         if (level_map()[9] != 0xBBu || level_map()[41] != 0xBBu ||
-            level_map()[73] != 0xBBu) {
-            fprintf(stderr,
-                    "FAIL D-264: the reloaded 0xBB cells were erased "
-                    "(%02X %02X %02X)\n",
-                    level_map()[9], level_map()[41], level_map()[73]);
-            bad = 1;
-        }
+            level_map()[73] != 0xBBu)
+            TEST_FAILF("D-264: the reloaded 0xBB cells were erased "
+                       "(%02X %02X %02X)",
+                       level_map()[9], level_map()[41], level_map()[73]);
     }
 
     /* --- D-90: the handled-object slots' stripe (1000:5D65) ---------------- */
@@ -992,10 +859,8 @@ int main(int argc, char **argv)
         while ((object_core_frame_counter_probe() & 1u) != 0u)
             object_core_tick(level_palette()); // an even frame: no animation
         object_render(page, 0, 0);
-        if (page[seed * 320u + x] == 0x18u) {
-            fprintf(stderr, "FAIL D-90: a zero-length stripe drew\n");
-            bad = 1;
-        }
+        if (page[seed * 320u + x] == 0x18u)
+            TEST_FAILF("D-90: a zero-length stripe drew");
         /* one odd frame grows it four rows (1000:5DD1's DX = 3 loop); the
          * animation runs in the draw pass, so the odd frame must render */
         object_core_tick(level_palette());
@@ -1004,19 +869,15 @@ int main(int argc, char **argv)
         if (page[seed * 320u + x] != 0x18u ||
             page[(seed + 1u) * 320u + x + 1u] != 0x18u ||
             page[(seed + 3u) * 320u + x] != 0x18u ||
-            page[(seed + 4u) * 320u + x] == 0x18u) {
-            fprintf(stderr, "FAIL D-90: the span stripe is not drawn\n");
-            bad = 1;
-        }
+            page[(seed + 4u) * 320u + x] == 0x18u)
+            TEST_FAILF("D-90: the span stripe is not drawn");
         /* the next odd frame reaches +8 and finishes (1000:5DE2) */
         object_core_tick(level_palette());
         object_core_tick(level_palette());
         memset(page, 0, sizeof page);
         object_render(page, 0, 0);
-        if (page[(seed + 7u) * 320u + x] != 0x18u || s[9] != 0xFFFFu) {
-            fprintf(stderr, "FAIL D-90: the stripe did not grow to +8\n");
-            bad = 1;
-        }
+        if (page[(seed + 7u) * 320u + x] != 0x18u || s[9] != 0xFFFFu)
+            TEST_FAILF("D-90: the stripe did not grow to +8");
         /* released (1000:EA71): +8 = 0 and state 0 retract it */
         s[4] = 0u;
         s[9] = 0u;
@@ -1026,10 +887,8 @@ int main(int argc, char **argv)
             memset(page, 0, sizeof page);
             object_render(page, 0, 0);
         }
-        if (page[seed * 320u + x] == 0x18u) {
-            fprintf(stderr, "FAIL D-90: the released stripe did not retract\n");
-            bad = 1;
-        }
+        if (page[seed * 320u + x] == 0x18u)
+            TEST_FAILF("D-90: the released stripe did not retract");
         memset(s, 0xFF, 28u); // free it again
         object_core_span_seed_for_probe(0u, 0u);
     }
@@ -1037,11 +896,8 @@ int main(int argc, char **argv)
     /* D-157: draw_level_text clamps [0x2] to 0x78 before its page frames. */
     level_set_view(0u, 0xA8u);
     level_end_redraw_page();
-    if (level_view_y() != 0x78u) {
-        fprintf(stderr, "FAIL the end page view clamp: y = %u\n",
-                level_view_y());
-        bad = 1;
-    }
+    if (level_view_y() != 0x78u)
+        TEST_FAILF("the end page view clamp: y = %u", level_view_y());
     level_set_view(0u, 0u);
 
     /* D-121: 1000:3D5E recolours every page byte below 0x80 to 0x1E. */
@@ -1054,14 +910,15 @@ int main(int argc, char **argv)
         page[3] = 0xFF;
         level_claim_recolour();
         if (page[0] != 0x1Eu || page[1] != 0x1Eu || page[2] != 0x80u ||
-            page[3] != 0xFFu) {
-            fprintf(stderr, "FAIL the claim recolour (D-121)\n");
-            bad = 1;
-        }
+            page[3] != 0xFFu)
+            TEST_FAILF("the claim recolour (D-121)");
     }
+}
 
-    if (!bad)
-        printf(
-            "level tests: OK (the 160-record census + the byte-exact maps + the render)\n");
-    return bad;
+int main(int argc, char **argv)
+{
+    test_args_set(argc, argv);
+    UNITY_BEGIN();
+    RUN_TEST(test_level);
+    return UNITY_END();
 }

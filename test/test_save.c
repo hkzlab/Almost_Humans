@@ -32,6 +32,7 @@
 #include "video.h"
 #include "compat.h"
 #include "byteorder.h"
+#include "test_support.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -120,16 +121,11 @@ static int32_t _press_action(GameFlow *s)
 
 /**
  * @brief Run the save/restore tests.
- *
- * @param argc the argument count
- * @param argv the argument vector
- * @return 0 on success, 1 on failure
  */
-int main(int argc, char **argv)
+static void test_save(void)
 {
-    const char *vol_dir = argc > 1 ? argv[1] : ".";
+    const char *vol_dir = _test_argc > 1 ? _test_argv[1] : ".";
     char path[512];
-    int32_t bad = 0;
 
     /* the fixture: header + two recognisable blob bytes */
     static uint8_t fx[SAVE_LEN];
@@ -148,27 +144,21 @@ int main(int argc, char **argv)
     snprintf(path, sizeof path, "%s/HUMANS.001", vol_dir);
     FILE *f = fopen(path, "rb");
     if (!f) {
-        printf("skip: no volume files at %s (fixture data absent)\n", vol_dir);
-        return 0;
+        TEST_SKIPF("skip: no volume files at %s (fixture data absent)",
+                   vol_dir);
     }
     fclose(f);
-    if (compat_chdir(vol_dir)) {
-        perror(vol_dir);
-        return 1;
-    }
+    if (compat_chdir(vol_dir)) { TEST_FAILF("cannot enter %s", vol_dir); }
 
     f = fopen(SAVE_NAME, "rb");
     if (f) {
         fclose(f);
-        printf("skip: %s exists in %s (a real save; not overwriting)\n",
-               SAVE_NAME, vol_dir);
-        return 0;
+        TEST_SKIPF("skip: %s exists in %s (a real save; not overwriting)",
+                   SAVE_NAME, vol_dir);
     }
     f = fopen(SAVE_NAME, "wb");
     if (!f || fwrite(fx, 1, sizeof fx, f) != sizeof fx) {
-        if (f) fclose(f);
-        fprintf(stderr, "FAIL cannot write the %s fixture\n", SAVE_NAME);
-        return 1;
+        TEST_FAILF("cannot write the %s fixture", SAVE_NAME);
     }
     fclose(f);
 
@@ -189,116 +179,95 @@ int main(int argc, char **argv)
         InputState in = _idle();
         for (uint32_t i = 0; i < 60u; i++) (void)_tick(&s, &in);
     }
-    if (s != FLOW_MENU) {
-        fprintf(stderr, "FAIL the room did not come up\n");
-        bad = 1;
-    }
-    bad |= _walk_to(&s, 0x08u, 6u, "right to RESTORE GAME");
-    bad |= _press_action(&s);              // 0 -> 1
-    bad |= _press_action(&s);              // 1 -> 2
+    TEST_ASSERT_TRUE_MESSAGE(s == FLOW_MENU, "the room did not come up");
+    TEST_ASSERT_FALSE(_walk_to(&s, 0x08u, 6u, "right to RESTORE GAME"));
+    TEST_ASSERT_FALSE(_press_action(&s));              // 0 -> 1
+    TEST_ASSERT_FALSE(_press_action(&s));              // 1 -> 2
     if (frontend_option(FRONTEND_OPT_GAME) != 2u) {
-        fprintf(stderr, "FAIL RESTORE GAME is %u, want 2\n",
-                frontend_option(FRONTEND_OPT_GAME));
-        bad = 1;
+        TEST_FAILF("RESTORE GAME is %u, want 2",
+                   frontend_option(FRONTEND_OPT_GAME));
     }
-    bad |= _walk_to(&s, 0x08u, 0u, "off the right edge");
+    TEST_ASSERT_FALSE(_walk_to(&s, 0x08u, 0u, "off the right edge"));
     {
         InputState in = _idle();
         uint32_t guard = 0;
         while (s == FLOW_MENU && guard++ < 300u) (void)_tick(&s, &in);
     }
-    if (s != FLOW_LEVEL) {
-        fprintf(stderr, "FAIL the room never reached LEVEL\n");
-        bad = 1;
-    }
+    TEST_ASSERT_TRUE_MESSAGE(s == FLOW_LEVEL, "the room never reached LEVEL");
 
     /* entry:004C: the slot loaded and its level overrode the match */
     if (!save_present() || gameflow_level_current() != 1u) {
-        fprintf(stderr, "FAIL save not applied (present %d, level %u)\n",
-                save_present(), gameflow_level_current());
-        bad = 1;
+        TEST_FAILF("save not applied (present %d, level %u)", save_present(),
+                   gameflow_level_current());
     }
 
     if (level_load(gameflow_level_current()) != 0) {
-        fprintf(stderr, "FAIL level %u did not load\n",
-                gameflow_level_current());
-        bad = 1;
+        TEST_FAILF("level %u did not load", gameflow_level_current());
     } else {
         const LevelData *d = level_data();
         if (d->levelId != 1u) {                 // LB#1 = level 2
-            fprintf(stderr, "FAIL the save's level did not win (%u)\n",
-                    d->levelId);
-            bad = 1;
+            TEST_FAILF("the save's level did not win (%u)", d->levelId);
         }
         /* render_level_frame 1000:959E: the save's word, not the board pick */
         if (level_time_limit() != 0x0549u) {
-            fprintf(stderr, "FAIL the save's time was not picked (0x%04x)\n",
-                    (uint32_t)level_time_limit());
-            bad = 1;
+            TEST_FAILF("the save's time was not picked (0x%04x)",
+                       (uint32_t)level_time_limit());
         }
         if (level_tribe_members() != 7u) {
-            fprintf(stderr, "FAIL the save's members were not picked (%u)\n",
-                    level_tribe_members());
-            bad = 1;
+            TEST_FAILF("the save's members were not picked (%u)",
+                       level_tribe_members());
         }
         /* the blob is carried verbatim */
         if (save_blob()[0x0D] != 0xC3u || save_blob()[0x17F0] != 0x5Au) {
-            fprintf(stderr, "FAIL the save blob was not carried\n");
-            bad = 1;
+            TEST_FAILF("the save blob was not carried");
         }
         /* entry:004C's state restore: the header score/counter */
         save_restore_state();
         if (score_total_lo() != 0x1234u || score_total_hi() != 1u ||
             statusbar_tribe_digit(0u) != 0u ||
             statusbar_tribe_digit(1u) != 9u) {
-            fprintf(stderr, "FAIL the save's score/counter did not restore\n");
-            bad = 1;
+            TEST_FAILF("the save's score/counter did not restore");
         }
     }
 
     /* slot 0 = GAME OFF: the fresh path (LEVEL default EASY -> timeA/12) */
     if (save_load_slot(0u) != 0 || save_present()) {
-        fprintf(stderr, "FAIL slot 0 did not clear the save\n");
-        bad = 1;
+        TEST_FAILF("slot 0 did not clear the save");
     }
     level_seed_tribe(); // entry 1000:009C..0x00B1
     if (level_load(0) != 0) {
-        fprintf(stderr, "FAIL the fresh level did not load\n");
-        bad = 1;
+        TEST_FAILF("the fresh level did not load");
     } else {
         const LevelData *d = level_data();
         if (level_time_limit() != d->timeA || level_tribe_members() != 12u) {
-            fprintf(stderr,
-                    "FAIL the fresh pick is not the board's "
-                    "(time 0x%04x, members %u)\n",
-                    (uint32_t)level_time_limit(), level_tribe_members());
-            bad = 1;
+            TEST_FAILF("the fresh pick is not the board's "
+                       "(time 0x%04x, members %u)",
+                       (uint32_t)level_time_limit(), level_tribe_members());
         }
         /* D-265: only the entry seeds the count; a level transition keeps the
          * carried value and a restart restores that level's start count. */
         level_set_members(9u);
         if (level_load(1u) != 0) {
-            fprintf(stderr, "FAIL level 2 did not load\n");
-            bad = 1;
+            TEST_FAILF("level 2 did not load");
         } else if (level_tribe_members() != 9u) {
-            fprintf(stderr, "FAIL the count did not carry (%u, want 9)\n",
-                    level_tribe_members());
-            bad = 1;
+            TEST_FAILF("the count did not carry (%u, want 9)",
+                       level_tribe_members());
         }
         level_set_members(5u);
         level_restore_members();
         if (level_tribe_members() != 9u) {
-            fprintf(stderr, "FAIL the restart count is %u, want 9\n",
-                    level_tribe_members());
-            bad = 1;
+            TEST_FAILF("the restart count is %u, want 9",
+                       level_tribe_members());
         }
     }
 
     remove(SAVE_NAME);
-    if (bad) {
-        fprintf(stderr, "save: FAIL\n");
-        return 1;
-    }
-    printf("save: ok\n");
-    return 0;
+}
+
+int main(int argc, char **argv)
+{
+    test_args_set(argc, argv);
+    UNITY_BEGIN();
+    RUN_TEST(test_save);
+    return UNITY_END();
 }

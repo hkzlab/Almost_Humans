@@ -13,6 +13,7 @@
 #include "audio/mt32/sound_driver_mt32.c"
 #include "audio/sound_driver.h"
 #include "fs/posix/fs_posix.h"
+#include "test_support.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -72,9 +73,9 @@ static int _check_pattern(SoundDriver *drv, unsigned order, uint32_t span)
     return 1;
 }
 
-int main(int argc, char **argv)
+static void test_mt32(void)
 {
-    const char *fix = argc > 1 ? argv[1] : "";
+    const char *fix = _test_argc > 1 ? _test_argv[1] : "";
     const char *roms = getenv("HUMANS_MT32_ROMS");
     char path[1024];
     uint8_t *rld;
@@ -87,33 +88,21 @@ int main(int argc, char **argv)
 
     snprintf(path, sizeof(path), "%s/HUMANS.000/MUS/TITLE.RLD", fix);
     rld = _read(path, &size);
-    if (!rld) {
-        printf("SKIP: no %s\n", path);
-        return 0;
-    }
+    if (!rld) TEST_SKIPF("no %s", path);
 
     if (!roms || !roms[0]) {
-        printf("SKIP: HUMANS_MT32_ROMS is not set\n");
         free(rld);
-        return 0;
+        TEST_SKIPF("HUMANS_MT32_ROMS is not set");
     }
 
     sound_driver_mt32_set_roms(&g_fs_posix, roms);
     drv = g_sound_driver_mt32.create(48000);
-    if (!drv) {
-        fprintf(stderr, "FAIL: the MT-32 driver did not install\n");
-        free(rld);
-        return 1;
-    }
+    if (!drv) TEST_FAILF("the MT-32 driver did not install");
     g_sound_driver_mt32.loadTune(drv, rld, size);
 
     /* Every order TITLE's record 0 plays must decode in its span. */
-    if (drv->off_base != MT32_OFF_NEW) {
-        fprintf(stderr, "FAIL: TITLE.RLD was read as the old format\n");
-        g_sound_driver_mt32.destroy(drv);
-        free(rld);
-        return 1;
-    }
+    if (drv->off_base != MT32_OFF_NEW)
+        TEST_FAILF("TITLE.RLD was read as the old format");
     for (i = 0; i < 15u; i++) {
         uint32_t span;
         unsigned pattern = drv->order_list[i];
@@ -124,22 +113,12 @@ int main(int argc, char **argv)
             if (other > base && other < next) next = other;
         }
         span = next - base;
-        if (!_check_pattern(drv, i, span)) {
-            fprintf(stderr, "FAIL: order %u does not decode in %u bytes\n", i,
-                    span);
-            g_sound_driver_mt32.destroy(drv);
-            free(rld);
-            return 1;
-        }
+        if (!_check_pattern(drv, i, span))
+            TEST_FAILF("order %u does not decode in %u bytes", i, span);
     }
 
     voice = g_sound_driver_mt32.startEvent(drv, 0);
-    if (voice == 0xFFFFu) {
-        fprintf(stderr, "FAIL: record 0 was refused\n");
-        g_sound_driver_mt32.destroy(drv);
-        free(rld);
-        return 1;
-    }
+    if (voice == 0xFFFFu) TEST_FAILF("record 0 was refused");
 
     /* Drive the 2-of-3 music clock the way the core does, rendering as we
      * go, and look for the tune's output. */
@@ -161,14 +140,9 @@ int main(int argc, char **argv)
      * keeps it in the same 3-byte block), otherwise the port sends a room
      * reverb (mode 0) where the driver sends a tap delay. */
     if (drv->system_block[0] != 0x03u || drv->system_block[1] != 0x07u ||
-        drv->system_block[2] != 0x07u) {
-        fprintf(stderr, "FAIL: reverb block is %02x %02x %02x\n",
-                drv->system_block[0], drv->system_block[1],
-                drv->system_block[2]);
-        g_sound_driver_mt32.destroy(drv);
-        free(rld);
-        return 1;
-    }
+        drv->system_block[2] != 0x07u)
+        TEST_FAILF("reverb block is %02x %02x %02x", drv->system_block[0],
+                   drv->system_block[1], drv->system_block[2]);
 
     /* 0x0363: a second effect while the first is still playing must take the
      * next free slot, not fail because slot 0 is busy.  HUMFX's record 0 is
@@ -189,18 +163,12 @@ int main(int argc, char **argv)
         for (k = 0; k < 3u; k++) g_sound_driver_mt32.tick(drv);
         handles[1] = g_sound_driver_mt32.startEvent(drv, 0);
         if (handles[0] == 0xFFFFu || handles[1] == 0xFFFFu ||
-            handles[0] == handles[1]) {
-            fprintf(stderr, "FAIL: the second ding was refused\n");
-            g_sound_driver_mt32.destroy(drv);
-            return 1;
-        }
+            handles[0] == handles[1])
+            TEST_FAILF("the second ding was refused");
         for (k = 2; k < MT32_SLOTS; k++)
             handles[k] = g_sound_driver_mt32.startEvent(drv, 0);
-        if (g_sound_driver_mt32.startEvent(drv, 0) != 0xFFFFu) {
-            fprintf(stderr, "FAIL: nine effects were accepted\n");
-            g_sound_driver_mt32.destroy(drv);
-            return 1;
-        }
+        if (g_sound_driver_mt32.startEvent(drv, 0) != 0xFFFFu)
+            TEST_FAILF("nine effects were accepted");
         for (k = 0; k < MT32_SLOTS; k++) {
             if (handles[k] != 0xFFFFu)
                 g_sound_driver_mt32.releaseEvent(drv, handles[k]);
@@ -212,55 +180,32 @@ int main(int argc, char **argv)
      * first, so the reset has something to clear.  A driver that is not ready
      * answers the original's CF. */
     voice = g_sound_driver_mt32.startEvent(drv, 0);
-    if (voice == 0xFFFFu || !drv->record[voice].active) {
-        fprintf(stderr,
-                "FAIL: the record cmd 1 should release was not started\n");
-        g_sound_driver_mt32.destroy(drv);
-        free(rld);
-        return 1;
-    }
-    if (!g_sound_driver_mt32.reset || g_sound_driver_mt32.reset(drv) != 0) {
-        fprintf(stderr, "FAIL: cmd 1 refused on a ready driver\n");
-        g_sound_driver_mt32.destroy(drv);
-        free(rld);
-        return 1;
-    }
-    for (j = 0; j < MT32_RECORDS; j++) {
-        if (drv->record[j].active) {
-            fprintf(stderr, "FAIL: cmd 1 left record %u active\n", j);
-            g_sound_driver_mt32.destroy(drv);
-            free(rld);
-            return 1;
-        }
-    }
-    for (j = 0; j < MT32_SLOTS; j++) {
-        if (drv->slot_free[j] != (uint8_t)j) {
-            fprintf(stderr, "FAIL: cmd 1 left slot %u free=%02x\n", j,
-                    drv->slot_free[j]);
-            g_sound_driver_mt32.destroy(drv);
-            free(rld);
-            return 1;
-        }
-    }
+    if (voice == 0xFFFFu || !drv->record[voice].active)
+        TEST_FAILF("the record cmd 1 should release was not started");
+    if (!g_sound_driver_mt32.reset || g_sound_driver_mt32.reset(drv) != 0)
+        TEST_FAILF("cmd 1 refused on a ready driver");
+    for (j = 0; j < MT32_RECORDS; j++)
+        if (drv->record[j].active) TEST_FAILF("cmd 1 left record %u active", j);
+    for (j = 0; j < MT32_SLOTS; j++)
+        if (drv->slot_free[j] != (uint8_t)j)
+            TEST_FAILF("cmd 1 left slot %u free=%02x", j, drv->slot_free[j]);
     {
         SoundDriver blank;
         memset(&blank, 0, sizeof(blank));
-        if (g_sound_driver_mt32.reset(&blank) == 0) {
-            fprintf(stderr,
-                    "FAIL: cmd 1 passed on a driver that is not ready\n");
-            g_sound_driver_mt32.destroy(drv);
-            free(rld);
-            return 1;
-        }
+        if (g_sound_driver_mt32.reset(&blank) == 0)
+            TEST_FAILF("cmd 1 passed on a driver that is not ready");
     }
 
     g_sound_driver_mt32.destroy(drv);
     free(rld);
 
-    if (peak == 0) {
-        fprintf(stderr, "FAIL: TITLE.RLD rendered silence\n");
-        return 1;
-    }
-    printf("ok: geometry and TITLE.RLD render (peak %d, %u ticks)\n", peak, i);
-    return 0;
+    if (peak == 0) TEST_FAILF("TITLE.RLD rendered silence");
+}
+
+int main(int argc, char **argv)
+{
+    test_args_set(argc, argv);
+    UNITY_BEGIN();
+    RUN_TEST(test_mt32);
+    return UNITY_END();
 }

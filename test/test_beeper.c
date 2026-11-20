@@ -27,8 +27,8 @@
 #include "arch_mem.h"
 #include "osystem.h"
 #include "res.h"
+#include "test_support.h"
 
-#include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -144,7 +144,10 @@ static double _frequency(const int16_t *pcm, uint32_t frames)
            (2.0 * (double)(frames - skip - 1u));
 }
 
-int main(int argc, char **argv)
+/**
+ * @brief Run the Beeper driver checks.
+ */
+static void test_beeper(void)
 {
     char path[1024];
     uint32_t size = 0;
@@ -168,26 +171,20 @@ int main(int argc, char **argv)
     double measured;
     double expected;
 
-    if (argc < 2) {
-        fprintf(stderr, "usage: %s <resources-dir>\n", argv[0]);
-        return 2;
-    }
-    snprintf(path, sizeof(path), "%s/HUMANS.000/MUS/TITLE.BEP", argv[1]);
+    if (_test_argc < 2) TEST_FAILF("usage: %s <resources-dir>", _test_argv[0]);
+    snprintf(path, sizeof(path), "%s/HUMANS.000/MUS/TITLE.BEP", _test_argv[1]);
     image = _read_file(path, &size);
-    if (!image) {
-        fprintf(stderr, "test_beeper: %s missing, skipping\n", path);
-        return 0;
-    }
+    if (!image) TEST_SKIPF("%s missing, skipping", path);
 
     drv = g_sound_driver_beeper.create(RATE);
-    assert(drv != NULL);
-    assert(drv->ready == 1);
+    TEST_ASSERT_TRUE(drv != NULL);
+    TEST_ASSERT_TRUE(drv->ready == 1);
 
     /* A command before the tune is loaded must be refused, not crash. */
-    assert(g_sound_driver_beeper.startEvent(drv, 0) == 0xFFFF);
+    TEST_ASSERT_TRUE(g_sound_driver_beeper.startEvent(drv, 0) == 0xFFFF);
 
     g_sound_driver_beeper.setTempo(drv, 0x4A); // boot fade's last byte
-    assert(drv->tempo == (uint8_t)((0xA3u * 0x4Au) >> 8));
+    TEST_ASSERT_TRUE(drv->tempo == (uint8_t)((0xA3u * 0x4Au) >> 8));
     g_sound_driver_beeper.loadTune(drv, image, size);
 
     /* K, P, Stream, N, SDS. */
@@ -199,26 +196,28 @@ int main(int argc, char **argv)
     table = ((patterns * 2u) & 0xFFF0u) + 0x10u;
     sds = stream + table;
 
-    assert(drv->tune_size == size);
-    assert(memcmp(drv->header, image, 0x158u) == 0);
-    assert(drv->offset_count == table / 2u);
-    assert(drv->song_data == sds);
-    assert(drv->offset[0] == rd_le_u16(image + stream));
+    TEST_ASSERT_TRUE(drv->tune_size == size);
+    TEST_ASSERT_TRUE(memcmp(drv->header, image, 0x158u) == 0);
+    TEST_ASSERT_TRUE(drv->offset_count == table / 2u);
+    TEST_ASSERT_TRUE(drv->song_data == sds);
+    TEST_ASSERT_TRUE(drv->offset[0] == rd_le_u16(image + stream));
 
     /* cmd 5: the record fields and the two claimed speaker slots. */
     handle = g_sound_driver_beeper.startEvent(drv, 0);
-    assert(handle == 0);
-    assert(g_sound_driver_beeper.startEvent(drv, image[0x11Bu]) == 0xFFFF);
-    assert(drv->record[0].active == 0xFFu);
-    assert(drv->record[0].tracks == image[0x158u + 0x0Du]);
-    assert(drv->record[0].tracks == 2u);
-    assert(drv->record[0].ticks_per_row == 6u);
-    assert(drv->record[0].order == image[0x158u + 0x0Au]);
-    assert(drv->record[0].loop == image[0x158u + 0x0Cu]);
-    assert(drv->record[0].last_order == (uint8_t)(image[0x158u + 0x0Bu] + 1u));
-    assert(drv->slot_free[0] == 0xFFu && drv->slot_free[1] == 0xFFu);
-    assert(drv->slot[0][BEEP_LAST_INSTRUMENT] == 0xFFu);
-    assert(drv->slot[1][BEEP_LAST_INSTRUMENT] == 0xFFu);
+    TEST_ASSERT_TRUE(handle == 0);
+    TEST_ASSERT_TRUE(g_sound_driver_beeper.startEvent(drv, image[0x11Bu]) ==
+                     0xFFFF);
+    TEST_ASSERT_TRUE(drv->record[0].active == 0xFFu);
+    TEST_ASSERT_TRUE(drv->record[0].tracks == image[0x158u + 0x0Du]);
+    TEST_ASSERT_TRUE(drv->record[0].tracks == 2u);
+    TEST_ASSERT_TRUE(drv->record[0].ticks_per_row == 6u);
+    TEST_ASSERT_TRUE(drv->record[0].order == image[0x158u + 0x0Au]);
+    TEST_ASSERT_TRUE(drv->record[0].loop == image[0x158u + 0x0Cu]);
+    TEST_ASSERT_TRUE(drv->record[0].last_order ==
+                     (uint8_t)(image[0x158u + 0x0Bu] + 1u));
+    TEST_ASSERT_TRUE(drv->slot_free[0] == 0xFFu && drv->slot_free[1] == 0xFFu);
+    TEST_ASSERT_TRUE(drv->slot[0][BEEP_LAST_INSTRUMENT] == 0xFFu);
+    TEST_ASSERT_TRUE(drv->slot[1][BEEP_LAST_INSTRUMENT] == 0xFFu);
 
     /* Six ticks = one row (ticks per row 6): the row decodes and plays. */
     for (i = 0; i < 6u; i++) g_sound_driver_beeper.tick(drv);
@@ -230,51 +229,53 @@ int main(int argc, char **argv)
     instrument = image[base + 1u];
     command = image[base + 2u];
     param = image[base + 3u];
-    assert(note != 0); // TITLE.BEP's first cell is note 36, instrument 3
+    /* TITLE.BEP's first cell is note 36, instrument 3 */
+    TEST_ASSERT_TRUE(note != 0);
 
-    assert(drv->slot[0][BEEP_NOTE] == note);
-    assert(drv->slot[0][BEEP_INSTRUMENT] == instrument);
-    assert(drv->slot[0][BEEP_COMMAND] == command);
-    assert(drv->slot[0][BEEP_PARAM] == param);
+    TEST_ASSERT_TRUE(drv->slot[0][BEEP_NOTE] == note);
+    TEST_ASSERT_TRUE(drv->slot[0][BEEP_INSTRUMENT] == instrument);
+    TEST_ASSERT_TRUE(drv->slot[0][BEEP_COMMAND] == command);
+    TEST_ASSERT_TRUE(drv->slot[0][BEEP_PARAM] == param);
     /* Cell 1 is zero in this first pattern; the decode copies it to slot 1
      * regardless (the stride is 0x16: 4-byte cell + 0x12 gap). */
-    assert(drv->slot[1][BEEP_NOTE] == image[base + 4u]);
-    assert(drv->slot_flag[0] == 0xFEu); // armed then switched on
-    assert(drv->speaker_on == 1);
-    assert(drv->divider == _period[note]);
+    TEST_ASSERT_TRUE(drv->slot[1][BEEP_NOTE] == image[base + 4u]);
+    TEST_ASSERT_TRUE(drv->slot_flag[0] == 0xFEu); // armed then switched on
+    TEST_ASSERT_TRUE(drv->speaker_on == 1);
+    TEST_ASSERT_TRUE(drv->divider == _period[note]);
 
     /* The gated square's pitch is the PIT's 1193182 / divisor. */
     pcm = calloc((size_t)RATE * 2u, sizeof(*pcm));
-    assert(pcm != NULL);
+    TEST_ASSERT_TRUE(pcm != NULL);
     g_sound_driver_beeper.generate(drv, pcm, RATE);
     measured = _frequency(pcm, RATE);
     expected = (double)BEEP_PIT_HZ / (double)drv->divider;
-    assert(measured > expected * 0.99 && measured < expected * 1.01);
+    TEST_ASSERT_TRUE(measured > expected * 0.99 && measured < expected * 1.01);
 
     /* Half a row later slot 1 is switched in; it is unarmed in this pattern
      * (cell 1 is zero), so the speaker goes off.  The impulse model's
      * accumulator decays, so let it settle before checking for silence. */
     for (i = 0; i < 3u; i++) g_sound_driver_beeper.tick(drv);
-    assert(drv->speaker_on == 0);
+    TEST_ASSERT_TRUE(drv->speaker_on == 0);
     g_sound_driver_beeper.generate(drv, pcm, RATE / 2u);
     memset(pcm, 0x55, (size_t)RATE * 2u * sizeof(*pcm));
     g_sound_driver_beeper.generate(drv, pcm, RATE);
-    for (i = 0; i < RATE * 2u; i++) assert(abs(pcm[i]) <= 4);
+    for (i = 0; i < RATE * 2u; i++) TEST_ASSERT_TRUE(abs(pcm[i]) <= 4);
 
     /* Reach order 4 (TITLE's pattern 2), whose row 0 has a non-zero second
      * cell, and prove it reaches slot 1 with its own divider. */
     for (i = 0; i < 2000u && drv->record[0].order != 4u; i++)
         g_sound_driver_beeper.tick(drv);
-    assert(drv->record[0].order == 4u);
+    TEST_ASSERT_TRUE(drv->record[0].order == 4u);
     for (i = 0; i < 6u; i++) g_sound_driver_beeper.tick(drv);
     pattern = drv->header[0x18u + 4u];
     base = drv->song_data +
            ((uint32_t)drv->offset[pattern] - drv->offset[0]) * 16u;
-    assert(image[base + 4u] != 0); // the second cell carries a note
-    assert(drv->slot[0][BEEP_NOTE] == image[base]);
-    assert(drv->slot[1][BEEP_NOTE] == image[base + 4u]);
-    assert(drv->slot[1][BEEP_INSTRUMENT] == image[base + 5u]);
-    assert(rd_le_u16(&drv->slot[1][BEEP_DIVIDER]) == _period[image[base + 4u]]);
+    TEST_ASSERT_TRUE(image[base + 4u] != 0); // the second cell carries a note
+    TEST_ASSERT_TRUE(drv->slot[0][BEEP_NOTE] == image[base]);
+    TEST_ASSERT_TRUE(drv->slot[1][BEEP_NOTE] == image[base + 4u]);
+    TEST_ASSERT_TRUE(drv->slot[1][BEEP_INSTRUMENT] == image[base + 5u]);
+    TEST_ASSERT_TRUE(rd_le_u16(&drv->slot[1][BEEP_DIVIDER]) ==
+                     _period[image[base + 4u]]);
 
     /* Live snapshot (BEEPER.DRV, 2026-11-07): the driver's state at
      * record 0, order 3, row 0x20, tick 3 on the second pass.  This pins the
@@ -285,38 +286,38 @@ int main(int argc, char **argv)
             break;
         g_sound_driver_beeper.tick(drv);
     }
-    assert(drv->record[0].finished == 0xFFu);
-    assert(drv->record[0].order == 3u && drv->record[0].row == 0x20u &&
-           drv->record[0].tick == 3u);
-    assert(drv->slot[0][BEEP_NOTE] == 0x00u);
-    assert(drv->slot[0][BEEP_INSTRUMENT] == 0x00u);
-    assert(drv->slot[1][BEEP_NOTE] == 0x35u);
-    assert(drv->slot[1][BEEP_INSTRUMENT] == 0x05u);
-    assert(rd_le_u16(&drv->slot[0][BEEP_DIVIDER]) == 0x1530u);
-    assert(rd_le_u16(&drv->slot[1][BEEP_DIVIDER]) == 0x07EFu);
-    assert(drv->slot_flag[0] == 0x00u);
-    assert(drv->slot_flag[1] == 0xFEu);
-    assert(drv->slot[0][BEEP_LAST_INSTRUMENT] == 0x03u);
-    assert(drv->slot[1][BEEP_LAST_INSTRUMENT] == 0x05u);
-    assert(drv->record[0].active == 0xFFu);
-    assert(drv->record[0].tracks == 2u);
-    assert(drv->record[0].ticks_per_row == 6u);
-    assert(drv->record[0].cursor == 0x0298u);
-    assert(drv->record[0].loop == 1u);
-    assert(drv->record[0].first_order == 0u);
-    assert(drv->record[0].last_order == 0x0Eu);
-    assert(drv->record[0].track_slot[0] == 0u);
-    assert(drv->record[0].track_slot[1] == 1u);
+    TEST_ASSERT_TRUE(drv->record[0].finished == 0xFFu);
+    TEST_ASSERT_TRUE(drv->record[0].order == 3u &&
+                     drv->record[0].row == 0x20u && drv->record[0].tick == 3u);
+    TEST_ASSERT_TRUE(drv->slot[0][BEEP_NOTE] == 0x00u);
+    TEST_ASSERT_TRUE(drv->slot[0][BEEP_INSTRUMENT] == 0x00u);
+    TEST_ASSERT_TRUE(drv->slot[1][BEEP_NOTE] == 0x35u);
+    TEST_ASSERT_TRUE(drv->slot[1][BEEP_INSTRUMENT] == 0x05u);
+    TEST_ASSERT_TRUE(rd_le_u16(&drv->slot[0][BEEP_DIVIDER]) == 0x1530u);
+    TEST_ASSERT_TRUE(rd_le_u16(&drv->slot[1][BEEP_DIVIDER]) == 0x07EFu);
+    TEST_ASSERT_TRUE(drv->slot_flag[0] == 0x00u);
+    TEST_ASSERT_TRUE(drv->slot_flag[1] == 0xFEu);
+    TEST_ASSERT_TRUE(drv->slot[0][BEEP_LAST_INSTRUMENT] == 0x03u);
+    TEST_ASSERT_TRUE(drv->slot[1][BEEP_LAST_INSTRUMENT] == 0x05u);
+    TEST_ASSERT_TRUE(drv->record[0].active == 0xFFu);
+    TEST_ASSERT_TRUE(drv->record[0].tracks == 2u);
+    TEST_ASSERT_TRUE(drv->record[0].ticks_per_row == 6u);
+    TEST_ASSERT_TRUE(drv->record[0].cursor == 0x0298u);
+    TEST_ASSERT_TRUE(drv->record[0].loop == 1u);
+    TEST_ASSERT_TRUE(drv->record[0].first_order == 0u);
+    TEST_ASSERT_TRUE(drv->record[0].last_order == 0x0Eu);
+    TEST_ASSERT_TRUE(drv->record[0].track_slot[0] == 0u);
+    TEST_ASSERT_TRUE(drv->record[0].track_slot[1] == 1u);
 
     /* cmd 6 frees the record and restores the two speaker slots. */
     g_sound_driver_beeper.releaseEvent(drv, handle);
-    assert(drv->record[0].active == 0);
-    assert(drv->speaker_on == 0);
-    assert(drv->slot_free[0] == 0 && drv->slot_free[1] == 1);
+    TEST_ASSERT_TRUE(drv->record[0].active == 0);
+    TEST_ASSERT_TRUE(drv->speaker_on == 0);
+    TEST_ASSERT_TRUE(drv->slot_free[0] == 0 && drv->slot_free[1] == 1);
 
     /* The core's play_tune must choose .BEP from [0x5AFE] = 0 (1000:8462).
      * That path reads the packed volumes, so it needs the volume dir. */
-    if (argc > 2) {
+    if (_test_argc > 2) {
         static const OSystem osys = { .audioLoadTune = _core_load,
                                       .audioResume = _core_resume,
                                       .audioStop = _core_stop,
@@ -329,34 +330,40 @@ int main(int argc, char **argv)
         static const char missing[] = "mus\\nope";
         uint32_t stops0;
 
-        assert(compat_chdir(argv[2]) == 0);
+        TEST_ASSERT_TRUE(compat_chdir(_test_argv[2]) == 0);
         osys_bind(&osys);
-        assert(audio_init() == 0);
+        TEST_ASSERT_TRUE(audio_init() == 0);
         res_init();
         audio_play_tune(audio_tune_name(AUDIO_TUNE_TITLE));
-        assert(_core_loaded_size == size);
+        TEST_ASSERT_TRUE(_core_loaded_size == size);
         audio_music_resume();
-        assert(_core_resumes == 1);
+        TEST_ASSERT_TRUE(_core_resumes == 1);
 
         /* D-252: a missing .BEP stops the current record, and a later
          * music_resume must not restart the old driver image. */
         stops0 = _core_stops;
         audio_play_tune(missing);
-        assert(_core_stops == stops0 + 1);
-        assert(_core_warns == 1); // the missing tune is reported once
+        TEST_ASSERT_TRUE(_core_stops == stops0 + 1);
+        TEST_ASSERT_TRUE(_core_warns == 1); // the missing tune is reported once
         audio_music_resume();
-        assert(_core_resumes == 1);
+        TEST_ASSERT_TRUE(_core_resumes == 1);
 
         /* A successful load clears the silence and lets the music resume. */
         audio_play_tune(audio_tune_name(AUDIO_TUNE_TITLE));
-        assert(_core_loaded_size == size);
+        TEST_ASSERT_TRUE(_core_loaded_size == size);
         audio_music_resume();
-        assert(_core_resumes == 2);
+        TEST_ASSERT_TRUE(_core_resumes == 2);
     }
 
     free(pcm);
     g_sound_driver_beeper.destroy(drv);
     free(image);
-    printf("test_beeper: ok\n");
-    return 0;
+}
+
+int main(int argc, char **argv)
+{
+    test_args_set(argc, argv);
+    UNITY_BEGIN();
+    RUN_TEST(test_beeper);
+    return UNITY_END();
 }

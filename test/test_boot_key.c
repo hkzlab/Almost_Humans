@@ -24,6 +24,7 @@
 #include "scene/scene.h"
 #include "video.h"
 #include "compat.h"
+#include "test_support.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -37,27 +38,19 @@ enum {
 
 /**
  * @brief Run the held-key abort scenario.
- *
- * @param argc the argument count
- * @param argv the argument vector
- * @return 0 on success, 1 on failure
  */
-int main(int argc, char **argv)
+static void test_boot_key(void)
 {
-    const char *vol_dir = argc > 1 ? argv[1] : ".";
+    const char *vol_dir = _test_argc > 1 ? _test_argv[1] : ".";
 
     char path[512];
     snprintf(path, sizeof path, "%s/HUMANS.000", vol_dir);
     FILE *f = fopen(path, "rb");
-    if (!f) {
-        printf("skip: no volume files at %s (fixture data absent)\n", vol_dir);
-        return 0;
-    }
+    if (!f)
+        TEST_SKIPF("skip: no volume files at %s (fixture data absent)",
+                   vol_dir);
     fclose(f);
-    if (compat_chdir(vol_dir)) {
-        perror(vol_dir);
-        return 1;
-    }
+    if (compat_chdir(vol_dir)) TEST_FAILF("chdir %s", vol_dir);
 
     osys_bind(&g_osys_null);
     res_init();
@@ -77,11 +70,7 @@ int main(int argc, char **argv)
         palette_tick();
         audio_tick();
     }
-    if (r != 1) {
-        fprintf(stderr,
-                "FAIL the boot finished during the 50-tick idle prefix\n");
-        return 1;
-    }
+    if (r != 1) TEST_FAILF("the boot finished during the 50-tick idle prefix");
 
     /* A physically held Return whose make pulse was already consumed on an
      * earlier poll: only the level is left, exactly the case the one-tick
@@ -101,35 +90,27 @@ int main(int argc, char **argv)
         held_ticks++;
     }
 
-    if (r != 0) {
-        fprintf(stderr,
-                "FAIL the held key did not abort the boot (%u ticks, "
-                "phase %u)\n",
-                held_ticks, scene_boot_phase_for_probe());
-        return 1;
-    }
-    if (!saw_abort) {
-        fprintf(stderr, "FAIL the boot ended without taking BOOT_ABORT\n");
-        return 1;
-    }
-    if (held_ticks > 300u) {
-        fprintf(stderr, "FAIL the abort took %u ticks\n", held_ticks);
-        return 1;
-    }
+    if (r != 0)
+        TEST_FAILF("the held key did not abort the boot (%u ticks, phase %u)",
+                   held_ticks, scene_boot_phase_for_probe());
+    if (!saw_abort) TEST_FAILF("the boot ended without taking BOOT_ABORT");
+    if (held_ticks > 300u) TEST_FAILF("the abort took %u ticks", held_ticks);
 
     /* b60a: clear_fade_ramp + the 0x100-entry fade div 0x23 to black */
     {
         const uint8_t *pal = osys_null_palette();
         for (uint32_t i = 0; i < 768u; i++) {
-            if (pal[i] != 0u) {
-                fprintf(stderr,
-                        "FAIL the abort fade left palette byte %u = %u\n", i,
-                        pal[i]);
-                return 1;
-            }
+            if (pal[i] != 0u)
+                TEST_FAILF("the abort fade left palette byte %u = %u", i,
+                           pal[i]);
         }
     }
+}
 
-    printf("ok D-245: a held key aborts the boot to the attract path\n");
-    return 0;
+int main(int argc, char **argv)
+{
+    test_args_set(argc, argv);
+    UNITY_BEGIN();
+    RUN_TEST(test_boot_key);
+    return UNITY_END();
 }

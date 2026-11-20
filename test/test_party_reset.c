@@ -15,36 +15,27 @@
 #include "res.h"
 #include "video.h"
 #include "compat.h"
+#include "test_support.h"
 
 #include <stdint.h>
-#include <stdio.h>
 #include <string.h>
 
 /**
  * @brief Run the party-reset regression test.
- *
- * @param argc the argument count
- * @param argv the argument vector
- * @return 0 on success, 1 on failure
  */
-int main(int argc, char **argv)
+static void test_party_reset(void)
 {
-    const char *vol_dir = argc > 1 ? argv[1] : ".";
+    const char *vol_dir = _test_argc > 1 ? _test_argv[1] : ".";
 
-    if (compat_chdir(vol_dir)) {
-        perror(vol_dir);
-        return 1;
-    }
+    if (compat_chdir(vol_dir)) { TEST_FAILF("cannot enter %s", vol_dir); }
     osys_bind(&g_osys_null);
     if (res_init() || palette_init() || font_init() || video_init()) {
-        printf("PARTY_RESET: init failed\n");
-        return 1;
+        TEST_FAILF("PARTY_RESET: init failed");
     }
     res_set_disc(1u);                      // the party art's volume
     party_intro_set_values(1u, 4u, 12u, 0u, "DARWIN");
     if (!party_intro_start()) {
-        printf("PARTY_RESET: skip (no party data)\n");
-        return 0;
+        TEST_SKIPF("PARTY_RESET: skip (no party data)");
     }
 
     /* play the first briefing and dismiss it with a key */
@@ -68,28 +59,27 @@ int main(int argc, char **argv)
             in.lastKey = 0u;
             if (!run) break;
         }
-        if (run) {
-            printf("PARTY_RESET: FAIL the first briefing never finished\n");
-            return 1;
-        }
+        TEST_ASSERT_FALSE_MESSAGE(run, "the first briefing never finished");
     }
 
     /* the next level's briefing: its first tick must still run */
     party_intro_set_values(2u, 4u, 12u, 0u, "DARWIN");
-    if (!party_intro_start()) {
-        printf("PARTY_RESET: FAIL the second briefing did not start\n");
-        return 1;
-    }
+    TEST_ASSERT_TRUE_MESSAGE(party_intro_start(), "the second briefing did not "
+                                                  "start");
     {
         InputState k;
 
         memset(&k, 0, sizeof k);
-        if (!party_intro_tick(&k)) {
-            printf("PARTY_RESET: FAIL the second briefing was skipped "
-                   "(stale machine state)\n");
-            return 1;
-        }
+        TEST_ASSERT_TRUE_MESSAGE(party_intro_tick(&k),
+                                 "the second briefing was skipped (stale "
+                                 "machine state)");
     }
-    printf("PARTY_RESET: OK\n");
-    return 0;
+}
+
+int main(int argc, char **argv)
+{
+    test_args_set(argc, argv);
+    UNITY_BEGIN();
+    RUN_TEST(test_party_reset);
+    return UNITY_END();
 }

@@ -21,6 +21,7 @@
 #include "null/osys_null.h"
 #include "osystem.h"
 #include "compat.h"
+#include "test_support.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -87,32 +88,23 @@ static void _hook(uint32_t poll)
 
 /**
  * @brief Run the ending/restart flow tests.
- *
- * @param argc the argument count
- * @param argv the argument vector
- * @return 0 on success, 1 on failure
  */
-int main(int argc, char **argv)
+static void test_endflow(void)
 {
-    const char *vol_dir = argc > 1 ? argv[1] : ".";
+    const char *vol_dir = _test_argc > 1 ? _test_argv[1] : ".";
     char path[512];
     FILE *f;
     static InputState script[SCRIPT_N];
-    int32_t bad = 0;
 
-    _outcome = argc > 2 ? atoi(argv[2]) : 1;
+    _outcome = _test_argc > 2 ? atoi(_test_argv[2]) : 1;
 
     snprintf(path, sizeof path, "%s/HUMANS.002", vol_dir);
     f = fopen(path, "rb");
-    if (!f) {
-        printf("skip: no volume files at %s (fixture data absent)\n", vol_dir);
-        return 0;
-    }
+    if (!f)
+        TEST_SKIPF("skip: no volume files at %s (fixture data absent)",
+                   vol_dir);
     fclose(f);
-    if (compat_chdir(vol_dir)) {
-        perror(vol_dir);
-        return 1;
-    }
+    if (compat_chdir(vol_dir)) TEST_FAILF("chdir %s", vol_dir);
 
     /* the test_smoke script (D-248 shifts every poll past the boot by ~800):
      * attract escape, the room's right exit, the party's key, the goal page's
@@ -129,38 +121,26 @@ int main(int argc, char **argv)
 
     osys_null_input_script(script, SCRIPT_N);
     osys_null_on_present(_hook);
-    if (game_main(&g_osys_null) != 0) {
-        fprintf(stderr, "FAIL game_main returned nonzero\n");
-        return 1;
-    }
+    if (game_main(&g_osys_null) != 0) TEST_FAILF("game_main returned nonzero");
 
-    if (!_grey_seen) {
-        fprintf(stderr,
-                "FAIL 1000:33E2: the grey fade + gradient bank was not seen\n");
-        bad = 1;
-    }
-    if (!_black_seen) {
-        fprintf(stderr, "FAIL 1000:3419: the black fade was not seen\n");
-        bad = 1;
-    }
+    if (!_grey_seen)
+        TEST_FAILF("1000:33E2: the grey fade + gradient bank was not seen");
+    if (!_black_seen) TEST_FAILF("1000:3419: the black fade was not seen");
     if (_outcome == 1) {
-        if (!_card_seen || !_seen_card_after_black) {
-            fprintf(stderr, "FAIL a won level did not open the score card\n");
-            bad = 1;
-        }
+        if (!_card_seen || !_seen_card_after_black)
+            TEST_FAILF("a won level did not open the score card");
     } else if (_card_seen) {
-        fprintf(stderr, "FAIL 1000:41AE: a lost level opened the score card\n");
-        bad = 1;
+        TEST_FAILF("1000:41AE: a lost level opened the score card");
     }
-    if (_outcome == 2 && osys_null_audio_starts() == _starts_at_restart) {
-        fprintf(stderr,
-                "FAIL 1000:438A: RESTART THIS GAME never restarted the menu "
-                "music (the level record stayed live over mus\\title)\n");
-        bad = 1;
-    }
+    if (_outcome == 2 && osys_null_audio_starts() == _starts_at_restart)
+        TEST_FAILF("1000:438A: RESTART THIS GAME never restarted the menu "
+                   "music (the level record stayed live over mus\\title)");
+}
 
-    if (!bad)
-        printf("endflow(%s): OK\n",
-               _outcome == 2 ? "restart" : (_outcome ? "won" : "lost"));
-    return bad;
+int main(int argc, char **argv)
+{
+    test_args_set(argc, argv);
+    UNITY_BEGIN();
+    RUN_TEST(test_endflow);
+    return UNITY_END();
 }

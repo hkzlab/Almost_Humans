@@ -32,6 +32,7 @@
 #include "party_intro.h"
 #include "res.h"
 #include "video.h"
+#include "test_support.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -63,31 +64,19 @@ static void _dump_window(const uint8_t *dac, uint32_t tick)
 
 /**
  * @brief Run the palette fade-ladder tests.
- *
- * @param argc the argument count
- * @param argv the argument vector
- * @return 0 on success, 1 on failure
  */
-int main(int argc, char **argv)
+static void test_fadeladder(void)
 {
-    (void)argc;
-    if (argc < 3) {
-        printf("usage: test_fadeladder <volume-dir> <tree-dir>\n");
-        return 1;
-    }
-    (void)argv;
+    if (_test_argc < 3)
+        TEST_FAILF("usage: test_fadeladder <volume-dir> <tree-dir>");
 
     osys_bind(&g_osys_null);
-    if (res_init() || palette_init() || font_init() || video_init()) {
-        printf("FADELADDER: init failed\n");
-        return 1;
-    }
+    if (res_init() || palette_init() || font_init() || video_init())
+        TEST_FAILF("FADELADDER: init failed");
+
     res_set_disc(1);
     party_intro_set_values(1u, 4u, 12u, 0u, "DARWIN");
-    if (!party_intro_start()) {
-        printf("FADELADDER: SKIP (no data)\n");
-        return 0;
-    }
+    if (!party_intro_start()) TEST_SKIPF("(no data)");
 
     const uint8_t *dac = palette_dac_shadow();
     printf("fade: first=%u comps=%u tgt=%p workpal=%p palUpper=%p\n",
@@ -152,7 +141,6 @@ int main(int argc, char **argv)
 
     /* the ground-truth asserts, one per phase (the live DAC walk of
      * 2026-10-30) */
-    int32_t fails = 0;
     struct {
         uint32_t e;
         uint8_t r, g, b;
@@ -168,24 +156,25 @@ int main(int argc, char **argv)
         { 0xffu, 0x1au, 0x07u, 0x22u,
           ".PAL[31] (the replication discriminator)" },
     };
-    for (uint32_t i = 0; i < sizeof blues / sizeof blues[0]; i++) {
+    for (uint32_t i = 0; i < sizeof blues / sizeof blues[0]; i++)
         if (entry_dac[blues[i].e * 3u] != blues[i].r ||
             entry_dac[blues[i].e * 3u + 1u] != blues[i].g ||
-            entry_dac[blues[i].e * 3u + 2u] != blues[i].b) {
-            printf(
-                "FAIL: blues phase 0x%02x = %02x%02x%02x, want %s %02x%02x%02x\n",
-                blues[i].e, entry_dac[blues[i].e * 3u],
-                entry_dac[blues[i].e * 3u + 1u],
-                entry_dac[blues[i].e * 3u + 2u], blues[i].why, blues[i].r,
-                blues[i].g, blues[i].b);
-            fails++;
-        }
-    }
-    if (!settled_grey) {
-        printf(
-            "FAIL: grey phase (0x22 window + separators + 0x3a tail) never reached\n");
-        fails++;
-    }
-    if (!fails) printf("FADELADDER: all ground-truth ladder asserts pass\n");
-    return fails ? 1 : 0;
+            entry_dac[blues[i].e * 3u + 2u] != blues[i].b)
+            TEST_FAILF("blues phase 0x%02x = %02x%02x%02x, want %s "
+                       "%02x%02x%02x",
+                       blues[i].e, entry_dac[blues[i].e * 3u],
+                       entry_dac[blues[i].e * 3u + 1u],
+                       entry_dac[blues[i].e * 3u + 2u], blues[i].why,
+                       blues[i].r, blues[i].g, blues[i].b);
+    if (!settled_grey)
+        TEST_FAILF("grey phase (0x22 window + separators + 0x3a tail) "
+                   "never reached");
+}
+
+int main(int argc, char **argv)
+{
+    test_args_set(argc, argv);
+    UNITY_BEGIN();
+    RUN_TEST(test_fadeladder);
+    return UNITY_END();
 }

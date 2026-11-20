@@ -13,33 +13,14 @@
 #include "game_strings.h"
 #include "null/osys_null.h"
 #include "ver_detect.h"
+#include "test_support.h"
 
 #include <stdio.h>
 
-static int32_t _bad;
-
-/**
- * @brief Assert one condition and count a failure.
- *
- * @param ok the condition
- * @param what the check description
- */
-static void _check(int32_t ok, const char *what)
-{
-    if (!ok) {
-        fprintf(stderr, "FAIL %s\n", what);
-        _bad = 1;
-    }
-}
-
 /**
  * @brief Run the unit vectors, the map and the real-volume detection.
- *
- * @param argc the argument count
- * @param argv argv[1] = the volume-set root (optional)
- * @return 0 on success (or a data skip), 1 on failure
  */
-int main(int argc, char **argv)
+static void test_ver_detect(void)
 {
     static const uint8_t hello[] = { 'h', 'e', 'l', 'l', 'o' };
     static const struct {
@@ -52,24 +33,29 @@ int main(int argc, char **argv)
     };
 
     /* the algorithm: the standard FNV-1a 32-bit vectors */
-    _check(ver_detect_hash(NULL, 0) == 0x811C9DC5u, "empty digest");
-    _check(ver_detect_hash(hello, 5) == 0x4F9F2CABu, "hello digest");
+    TEST_ASSERT_TRUE_MESSAGE(ver_detect_hash(NULL, 0) == 0x811C9DC5u,
+                             "empty digest");
+    TEST_ASSERT_TRUE_MESSAGE(ver_detect_hash(hello, 5) == 0x4F9F2CABu,
+                             "hello digest");
 
     /* the map: every shipped digest, and an unknown one */
-    _check(ver_detect_lang(0xCFDBFBFFu) == GAME_LANGUAGE_EN, "map ENG");
-    _check(ver_detect_lang(0xD7713AFAu) == GAME_LANGUAGE_FRE, "map FRE");
-    _check(ver_detect_lang(0xA6F63422u) == GAME_LANGUAGE_GER, "map GER");
-    _check(ver_detect_lang(0x5910D3A2u) == GAME_LANGUAGE_ITA, "map ITA");
-    _check(ver_detect_lang(0xD9AB8E78u) == GAME_LANGUAGE_SPA, "map SPA");
-    _check(ver_detect_lang(0x12345678u) == GAME_LANGUAGE_EN,
-           "an unknown digest keeps English");
-
-    if (_bad) return 1;
+    TEST_ASSERT_TRUE_MESSAGE(ver_detect_lang(0xCFDBFBFFu) == GAME_LANGUAGE_EN,
+                             "map ENG");
+    TEST_ASSERT_TRUE_MESSAGE(ver_detect_lang(0xD7713AFAu) == GAME_LANGUAGE_FRE,
+                             "map FRE");
+    TEST_ASSERT_TRUE_MESSAGE(ver_detect_lang(0xA6F63422u) == GAME_LANGUAGE_GER,
+                             "map GER");
+    TEST_ASSERT_TRUE_MESSAGE(ver_detect_lang(0x5910D3A2u) == GAME_LANGUAGE_ITA,
+                             "map ITA");
+    TEST_ASSERT_TRUE_MESSAGE(ver_detect_lang(0xD9AB8E78u) == GAME_LANGUAGE_SPA,
+                             "map SPA");
+    TEST_ASSERT_TRUE_MESSAGE(ver_detect_lang(0x12345678u) == GAME_LANGUAGE_EN,
+                             "an unknown digest keeps English");
 
     /* the chdir into the scratch directory below breaks a relative root, so
      * resolve the fixture root before it */
     char root[PATH_MAX];
-    int32_t have_root = argc >= 2 && compat_realpath(argv[1], root);
+    int32_t have_root = _test_argc >= 2 && compat_realpath(_test_argv[1], root);
 
     /* A volume that is absent or shorter than the window is a failure to
      * detect the installed data, not an English fallback: the boot must
@@ -78,29 +64,21 @@ int main(int argc, char **argv)
         static const char nodata[] = "humans_ver_detect_nodata";
 
         (void)compat_mkdir(nodata); // already present is fine
-        if (compat_chdir(nodata)) {
-            perror(nodata);
-            return 1;
-        }
-        _check(ver_detect_run(&g_osys_null) < 0, "missing volume is an error");
+        if (compat_chdir(nodata)) TEST_FAILF("cannot enter %s", nodata);
+        TEST_ASSERT_TRUE_MESSAGE(ver_detect_run(&g_osys_null) < 0,
+                                 "missing volume is an error");
         FILE *v = fopen("HUMANS.001", "wb");
         if (v) {
             fputs("short", v);
             fclose(v);
         }
-        _check(ver_detect_run(&g_osys_null) < 0, "short volume is an error");
+        TEST_ASSERT_TRUE_MESSAGE(ver_detect_run(&g_osys_null) < 0,
+                                 "short volume is an error");
         remove("HUMANS.001");
-        if (_bad) return 1;
     }
 
-    if (argc < 2) {
-        printf("skip: no volume-set root given\n");
-        return 0;
-    }
-    if (!have_root) {
-        printf("skip: no volume-set root at %s\n", argv[1]);
-        return 0;
-    }
+    if (_test_argc < 2) TEST_SKIPF("skip: no volume-set root given");
+    if (!have_root) TEST_SKIPF("skip: no volume-set root at %s", _test_argv[1]);
 
     /* the real sets: the digest must pick each language's own column */
     int32_t checked = 0;
@@ -117,20 +95,19 @@ int main(int argc, char **argv)
         fclose(f);
 
         snprintf(dir, sizeof dir, "%s/%s", root, langs[i].dir);
-        if (compat_chdir(dir)) {
-            perror(dir);
-            return 1;
-        }
-        _check(ver_detect_run(&g_osys_null) == langs[i].lang, langs[i].dir);
+        if (compat_chdir(dir)) TEST_FAILF("cannot enter %s", dir);
+        TEST_ASSERT_TRUE_MESSAGE(ver_detect_run(&g_osys_null) == langs[i].lang,
+                                 langs[i].dir);
         checked++;
     }
 
-    if (_bad) return 1;
-    if (!checked) {
-        printf("skip: no volume sets under %s\n", root);
-        return 0;
-    }
-    printf("ok ver_detect: the FNV-1a vectors and %d language digest(s)\n",
-           checked);
-    return 0;
+    if (!checked) TEST_SKIPF("skip: no volume sets under %s", root);
+}
+
+int main(int argc, char **argv)
+{
+    test_args_set(argc, argv);
+    UNITY_BEGIN();
+    RUN_TEST(test_ver_detect);
+    return UNITY_END();
 }

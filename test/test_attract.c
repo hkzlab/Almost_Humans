@@ -28,6 +28,7 @@
 #include "res.h"
 #include "video.h"
 #include "compat.h"
+#include "test_support.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -105,17 +106,13 @@ static int32_t _first_diff(const uint8_t *a, const uint8_t *b, uint32_t n)
 
 /**
  * @brief Run the attract-frame comparison test.
- *
- * @param argc the argument count
- * @param argv the argument vector
- * @return 0 on success, 1 on failure
  */
-int main(int argc, char **argv)
+static void test_attract(void)
 {
-    const char *vol_dir = argc > 1 ? argv[1] : ".";
+    const char *vol_dir = _test_argc > 1 ? _test_argv[1] : ".";
     const char *ref_dir =
-        argc > 3 ? argv[3] : "../analysis_artifacts/attract_scroll";
-    _dump_dir = argc > 4 ? argv[4] : NULL;
+        _test_argc > 3 ? _test_argv[3] : "../analysis_artifacts/attract_scroll";
+    _dump_dir = _test_argc > 4 ? _test_argv[4] : NULL;
 
     /* D-134: 1000:0AEC builds the digits least-significant first and reverses
      * the whole buffer (0x0B3B); the low four digits are NOT exempt. */
@@ -129,29 +126,21 @@ int main(int argc, char **argv)
             { 19999u, "19999" }, { 20001u, "20001" }, { 54321u, "54321" },
             { 65535u, "65535" },
         };
-        int32_t bad = 0;
 
         for (uint32_t i = 0; i < sizeof cases / sizeof cases[0]; i++) {
             char out[16];
 
             attract_format_decimal_for_probe(cases[i].v, out);
-            if (strcmp(out, cases[i].s) != 0) {
-                fprintf(stderr, "FAIL D-134: %u printed \"%s\", want \"%s\"\n",
-                        cases[i].v, out, cases[i].s);
-                bad = 1;
-            }
+            if (strcmp(out, cases[i].s) != 0)
+                TEST_FAILF("D-134: %u printed \"%s\", want \"%s\"", cases[i].v,
+                           out, cases[i].s);
         }
-        if (bad) return 1;
-        printf("ok D-134: format_decimal prints every value in order\n");
     }
 
     char path[512];
     snprintf(path, sizeof path, "%s/HUMANS.000", vol_dir);
     FILE *f = fopen(path, "rb");
-    if (!f) {
-        printf("skip: no volume files at %s (fixture data absent)\n", vol_dir);
-        return 0;
-    }
+    if (!f) TEST_SKIPF("no volume files at %s (fixture data absent)", vol_dir);
     fclose(f);
     snprintf(path, sizeof path, "%s/e4_strip.bin", ref_dir);
     uint32_t strip_size = 0;
@@ -159,32 +148,22 @@ int main(int argc, char **argv)
     snprintf(path, sizeof path, "%s/e4_frames.bin", ref_dir);
     uint32_t frames_size = 0;
     uint8_t *ref_frames = _read_file(path, &frames_size);
-    if (!ref_strip || strip_size != 196608u || !ref_frames ||
-        frames_size < 4u) {
-        printf(
-            "skip: no reference dump at %s (run tooling/attract_scroll_sim/attract_scroll_sim.py)\n",
-            ref_dir);
-        free(ref_strip);
-        free(ref_frames);
-        return 0;
-    }
+    if (!ref_strip || strip_size != 196608u || !ref_frames || frames_size < 4u)
+        TEST_SKIPF("no reference dump at %s (run "
+                   "tooling/attract_scroll_sim/attract_scroll_sim.py)",
+                   ref_dir);
     /* the dump's frame table: u32 count, then per frame u32 row + 64000 B */
     uint32_t frame_count = 0;
     memcpy(&frame_count, ref_frames, 4);
 
-    if (compat_chdir(vol_dir)) {
-        perror(vol_dir);
-        return 1;
-    }
+    if (compat_chdir(vol_dir)) TEST_FAILF("cannot enter %s", vol_dir);
 
-    int32_t bad = 0;
     {
         const OSystem *os = &g_osys_null;
         osys_bind(os);
         if (res_init() || video_init() || palette_init() || font_init() ||
             attract_init()) {
-            fprintf(stderr, "FAIL: module init\n");
-            return 1;
+            TEST_FAILF("module init");
         }
     }
 
@@ -218,13 +197,10 @@ int main(int argc, char **argv)
                     }
             }
         if (ebad) {
-            fprintf(stderr,
-                    "FAIL effect 2: %d wipe pixels differ from the plane "
-                    "address\n",
-                    ebad);
-            return 1;
+            TEST_FAILF("effect 2: %d wipe pixels differ from the plane "
+                       "address",
+                       ebad);
         }
-        printf("ok e2: the wipe's 8x16 chunk is the plane model's pixels\n");
     }
 
     /* 1. into effect 4: effects 1, 3 and 2 play for real (~12 k ticks) */
@@ -242,10 +218,8 @@ int main(int argc, char **argv)
             if (before != ATTRACT_E3_SLIDE) slide = 0;
             /* the slide shows row `600 - slide` at the window top: 350 is
              * the promo page, 200 the title page */
-            if (++slide == 251u)
-                _dump_ppm("attract_e3_promo");
-            else if (slide == 401u)
-                _dump_ppm("attract_e3_title");
+            if (++slide == 251u) _dump_ppm("attract_e3_promo");
+            else if (slide == 401u) _dump_ppm("attract_e3_title");
         }
         if (ph == ATTRACT_E2_HOLD && before != ATTRACT_E2_HOLD) {
             char name[64];
@@ -258,10 +232,8 @@ int main(int argc, char **argv)
             e2_hold++;
         }
         if (++guard > 60000u) {
-            fprintf(stderr,
-                    "FAIL: never reached effect 4 (tick %u, phase %u)\n", guard,
-                    attract_phase_for_probe());
-            return 1;
+            TEST_FAILF("never reached effect 4 (tick %u, phase %u)", guard,
+                       attract_phase_for_probe());
         }
     }
 
@@ -269,21 +241,12 @@ int main(int argc, char **argv)
     {
         uint32_t rows = 0;
         const uint8_t *strip = attract_strip_for_probe(&rows);
-        if (rows != 1579u) {
-            fprintf(stderr,
-                    "FAIL: rowsBuilt %u, want 1579 (the fixture census)\n",
-                    rows);
-            bad = 1;
-        }
+        if (rows != 1579u)
+            TEST_FAILF("rowsBuilt %u, want 1579 (the fixture census)", rows);
         int32_t at = _first_diff(strip, ref_strip, strip_size);
         if (at >= 0) {
-            fprintf(stderr,
-                    "FAIL: strip diff at byte %d (row %d): "
-                    "%02x vs %02x\n",
-                    at, at / 80, strip[at], ref_strip[at]);
-            bad = 1;
-        } else {
-            printf("ok strip: 192 KB byte-identical, 1579 rows built\n");
+            TEST_FAILF("strip diff at byte %d (row %d): %02x vs %02x", at,
+                       at / 80, strip[at], ref_strip[at]);
         }
     }
 
@@ -299,11 +262,7 @@ int main(int argc, char **argv)
             if (ph != ATTRACT_E4_SCROLL && ph != ATTRACT_E4_FADEWAIT) break;
             attract_tick(&idle);
             palette_tick();
-            if (++total > 20000u) {
-                fprintf(stderr, "FAIL: the scroll never completed\n");
-                bad = 1;
-                break;
-            }
+            if (++total > 20000u) TEST_FAILF("the scroll never completed");
             if (ph != ATTRACT_E4_SCROLL) continue;   // still fading in
             /* this tick presented strip row `row` */
             if (row == 0u || row == 300u || row == 688u || row == 1378u) {
@@ -318,12 +277,10 @@ int main(int argc, char **argv)
                     const uint8_t *page = osys_null_page(0);
                     int32_t at = _first_diff(page, cursor + 4, 64000);
                     if (at >= 0) {
-                        fprintf(stderr,
-                                "FAIL: frame r%u diff at pixel %d "
-                                "(y %d, x %d): %02x vs %02x\n",
-                                row, at, at / 320, at % 320, page[at],
-                                cursor[4 + at]);
-                        bad = 1;
+                        TEST_FAILF("frame r%u diff at pixel %d (y %d, x "
+                                   "%d): %02x vs %02x",
+                                   row, at, at / 320, at % 320, page[at],
+                                   cursor[4 + at]);
                     }
                     matched++;
                     cursor += 4 + 64000;
@@ -331,19 +288,10 @@ int main(int argc, char **argv)
             }
             row++;
         }
-        if (row != 1379u) {
-            fprintf(stderr, "FAIL: %u scroll rows, want 1379 (1579-0xC8)\n",
-                    row);
-            bad = 1;
-        }
-        if (matched != frame_count) {
-            fprintf(stderr, "FAIL: %u/%u reference frames checked\n", matched,
-                    frame_count);
-            bad = 1;
-        }
-        if (!bad)
-            printf("ok scroll: %u rows, %u frames byte-identical\n", row,
-                   matched);
+        if (row != 1379u)
+            TEST_FAILF("%u scroll rows, want 1379 (1579-0xC8)", row);
+        if (matched != frame_count)
+            TEST_FAILF("%u/%u reference frames checked", matched, frame_count);
     }
 
     /* 4. the natural end: the tail fade, then the cycle into effect 1 */
@@ -353,24 +301,24 @@ int main(int argc, char **argv)
             attract_tick(&idle);
             palette_tick();
             if (++guard > 1000u) {
-                fprintf(stderr, "FAIL: the tail fade never completed\n");
-                bad = 1;
-                break;
+                TEST_FAILF("the tail fade never completed");
             }
         }
         if (attract_phase_for_probe() != ATTRACT_E1_LOAD) {
-            fprintf(stderr,
-                    "FAIL: after effect 4 the cycle must re-enter "
-                    "effect 1 (phase %u)\n",
-                    attract_phase_for_probe());
-            bad = 1;
-        } else if (!bad) {
-            printf("ok tail: the fade completed and the cycle continued\n");
+            TEST_FAILF("after effect 4 the cycle must re-enter "
+                       "effect 1 (phase %u)",
+                       attract_phase_for_probe());
         }
     }
 
     free(ref_strip);
     free(ref_frames);
-    if (!bad) printf("attract e4 tests: OK (strip + scroller byte-exact)\n");
-    return bad;
+}
+
+int main(int argc, char **argv)
+{
+    test_args_set(argc, argv);
+    UNITY_BEGIN();
+    RUN_TEST(test_attract);
+    return UNITY_END();
 }

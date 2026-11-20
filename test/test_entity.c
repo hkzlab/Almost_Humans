@@ -34,13 +34,12 @@
 #include "video.h"
 #include "compat.h"
 #include "byteorder.h"
+#include "test_support.h"
 
 #include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-
-static int32_t _bad;
 
 /* style_handler_prologue (1000:5662), replicated: style 6 + the cell
  * directly below the match (matchIdx + 0x20; the original's +0x1F runs
@@ -53,7 +52,7 @@ static const uint8_t _style6_flags[32] = {
 };
 
 /**
- * @brief Print one failure and count it.
+ * @brief Fail the test with one level/value diagnostic.
  *
  * @param what the check description
  * @param id the identifier
@@ -62,10 +61,8 @@ static const uint8_t _style6_flags[32] = {
  */
 static void _failf(const char *what, uint32_t id, int64_t got, int64_t want)
 {
-    fprintf(stderr,
-            "FAIL level %" PRIu32 ": %s = %" PRId64 ", want %" PRId64 "\n", id,
-            what, got, want);
-    _bad = 1;
+    TEST_FAILF("level %" PRIu32 ": %s = %" PRId64 ", want %" PRId64, id, what,
+               got, want);
 }
 
 /**
@@ -102,34 +99,24 @@ static uint32_t _count_tiles(const uint8_t *map, uint32_t tile)
 
 /**
  * @brief Run the entity table tests.
- *
- * @param argc the argument count
- * @param argv the argument vector
- * @return 0 on success, 1 on failure
  */
-int main(int argc, char **argv)
+static void test_entity(void)
 {
-    const char *vol_dir = argc > 1 ? argv[1] : ".";
-    const char *fix_dir = argc > 2 ? argv[2] : vol_dir;
+    const char *vol_dir = _test_argc > 1 ? _test_argv[1] : ".";
+    const char *fix_dir = _test_argc > 2 ? _test_argv[2] : vol_dir;
 
     char path[512];
     snprintf(path, sizeof path, "%s/HUMANS.001", vol_dir);
     FILE *f = fopen(path, "rb");
-    if (!f) {
-        printf("skip: no volume files at %s (fixture data absent)\n", vol_dir);
-        return 0;
-    }
+    if (!f)
+        TEST_SKIPF("skip: no volume files at %s (fixture data absent)",
+                   vol_dir);
     fclose(f);
 
-    if (compat_chdir(vol_dir)) {
-        perror(vol_dir);
-        return 1;
-    }
+    if (compat_chdir(vol_dir)) TEST_FAILF("chdir %s", vol_dir);
     char fix_abs[512];
-    if (!compat_realpath(fix_dir, fix_abs)) {
-        fprintf(stderr, "FAIL fixture tree %s unreadable\n", fix_dir);
-        return 1;
-    }
+    if (!compat_realpath(fix_dir, fix_abs))
+        TEST_FAILF("fixture tree %s unreadable", fix_dir);
     (void)fix_abs;
 
     osys_bind(&g_osys_null);
@@ -141,10 +128,7 @@ int main(int argc, char **argv)
     level_seed_tribe(); // entry 1000:009C..0x00B1; the loader keeps the count
 
     /* 1+2. lb#1: the exact spawn fields and the 0xB4 join. */
-    if (level_load(10u) != 0) {
-        fprintf(stderr, "FAIL level 10 load\n");
-        return 1;
-    }
+    if (level_load(10u) != 0) TEST_FAILF("level 10 load");
     const LevelData *d = level_data();
     if (d->entityLife != 1u) _failf("goal high byte", 10u, d->entityLife, 1);
     entity_spawn_from_map(level_map(), d->style, d->entityLife);
@@ -173,15 +157,12 @@ int main(int argc, char **argv)
             entity_tick();
             const Entity *p = entity_at(0);
             if (p->handler > 1u) {
-                fprintf(stderr, "FAIL tick %u: +4 = %u (0/1 only)\n", t,
-                        p->handler);
-                _bad = 1;
+                TEST_FAILF("tick %u: +4 = %u (0/1 only)", t, p->handler);
                 break;
             }
             if (p->x != lastX - 1u && p->x != lastX + 1u) {
-                fprintf(stderr, "FAIL tick %u: x %u -> %u (not a 1px step)\n",
-                        t, lastX, p->x);
-                _bad = 1;
+                TEST_FAILF("tick %u: x %u -> %u (not a 1px step)", t, lastX,
+                           p->x);
                 break;
             }
             if (p->x == 400u && p->handler == 1u && t != 79u)
@@ -213,8 +194,7 @@ int main(int argc, char **argv)
                     _failf("frame 1's source differs", 10u, s1, src);
             }
         } else {
-            fprintf(stderr, "FAIL the rex.dat frame tables did not read\n");
-            _bad = 1;
+            TEST_FAILF("the rex.dat frame tables did not read");
         }
     }
 
@@ -433,8 +413,7 @@ int main(int argc, char **argv)
             palette_tick();
         }
         if (level_starting()) {
-            fprintf(stderr, "FAIL the level never reached play\n");
-            _bad = 1;
+            TEST_FAILF("the level never reached play");
         } else {
             x0 = entity_at(0u)->x;
             level_tick();
@@ -457,10 +436,7 @@ int main(int argc, char **argv)
     /* 4. the whole corpus: count == #B3, the spawn fields (the prologue
      * included), and a 4-tick walk inside each record's window. */
     for (uint32_t id = 0; id < 160u; id++) {
-        if (level_load(id) != 0) {
-            fprintf(stderr, "FAIL level %u: load\n", id);
-            return 1;
-        }
+        if (level_load(id) != 0) TEST_FAILF("level %u: load", id);
         const LevelData *lv = level_data();
         entity_spawn_from_map(level_map(), lv->style, lv->entityLife);
 
@@ -527,27 +503,18 @@ int main(int argc, char **argv)
             entity_tick();
             for (uint32_t i = 0; i < entity_count(); i++) {
                 const Entity *pe = entity_at(i);
-                if (pe->handler > 1u) {
-                    fprintf(stderr, "FAIL level %u: +4 = %u\n", id,
-                            pe->handler);
-                    _bad = 1;
-                }
+                if (pe->handler > 1u)
+                    TEST_FAILF("level %u: +4 = %u", id, pe->handler);
                 /* handler 0 steps +1; x1 = 0 windows walk up freely (the
                  * un-joined walker - the original does the same) */
-                if (pe->x < pe->x0 || pe->x > pe->x0 + 4u) {
-                    fprintf(stderr, "FAIL level %u: x %u out of window\n", id,
-                            pe->x);
-                    _bad = 1;
-                }
+                if (pe->x < pe->x0 || pe->x > pe->x0 + 4u)
+                    TEST_FAILF("level %u: x %u out of window", id, pe->x);
             }
         }
     }
 
     /* 5. la#1 (level 0, no 0xB3): the count stays 0. */
-    if (level_load(0u) != 0) {
-        fprintf(stderr, "FAIL level 0 load\n");
-        return 1;
-    }
+    if (level_load(0u) != 0) TEST_FAILF("level 0 load");
     entity_spawn_from_map(level_map(), level_data()->style,
                           level_data()->entityLife);
     if (entity_count() != 0u)
@@ -584,9 +551,12 @@ int main(int argc, char **argv)
                 _failf("handler 5 is the bare RET", 10u, p->handler, 5);
         }
     }
+}
 
-    if (!_bad)
-        printf("entity tests: OK (the lb#1 spawn fields, the 0xB4 join, "
-               "the exact-flip walk, the 160-level census)\n");
-    return _bad;
+int main(int argc, char **argv)
+{
+    test_args_set(argc, argv);
+    UNITY_BEGIN();
+    RUN_TEST(test_entity);
+    return UNITY_END();
 }

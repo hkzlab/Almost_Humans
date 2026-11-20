@@ -1,4 +1,4 @@
-# The test suite: assert-based, no framework.
+# The test suite: Unity, vendored in test/unity (MIT, v2.7.0).
 #
 # Included by the root CMakeLists.txt (same directory scope, so the lint and
 # sanitizer settings and the source-file properties set there still apply).
@@ -6,16 +6,17 @@
 # with ctest.  The tests link `core_test` - the core with its test seams
 # compiled in.
 
-# Tests assert.  Release's NDEBUG compiles assert() to (void)0, which both
-# empties the check and leaves its state variables unused under -Werror.
-# Undefine NDEBUG after the release flags for the asserting test targets.
-function(humansre_test_asserts tgt)
-    if(MSVC)
-        target_compile_options(${tgt} PRIVATE /UNDEBUG)
-    else()
-        target_compile_options(${tgt} PRIVATE -UNDEBUG)
-    endif()
-endfunction()
+# The vendored framework: third-party source, so no project warnings and no
+# lint pass (the same rule the vendored audio modules follow).
+add_library(unity STATIC test/unity/unity.c)
+target_include_directories(unity PUBLIC test/unity)
+set_source_files_properties(test/unity/unity.c PROPERTIES SKIP_LINTING TRUE)
+
+# The suite's glue: the argv hand-off and the formatted skip/fail macros.
+add_library(test_support STATIC test/test_support.c)
+target_include_directories(test_support PUBLIC test)
+target_link_libraries(test_support PUBLIC unity)
+humansre_warnings(test_support)
 
 # The tests are development tooling: a single-config Release configure leaves
 # them out, so its default build produces the shipping binaries only.  Pass
@@ -38,6 +39,7 @@ function(humansre_test_executable name)
                                                ${HUMANSRE_ARCH_DIR}
                                                ${HUMANSRE_PLATFORM_DIR})
     target_compile_definitions(${name} PRIVATE HUMANSRE_TEST_PROBES)
+    target_link_libraries(${name} PRIVATE test_support)
     humansre_warnings(${name})
     if(NOT HUMANSRE_BUILD_TESTS)
         set_target_properties(${name} PROPERTIES EXCLUDE_FROM_ALL TRUE)
@@ -53,7 +55,8 @@ endfunction()
 if(HUMANSRE_BUILD_TESTS)
     enable_testing()
 else()
-    set_target_properties(core_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
+    set_target_properties(core_test unity test_support
+        PROPERTIES EXCLUDE_FROM_ALL TRUE)
 endif()
 
 set(HUMANS_VOLUMES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../binaries/volumes"
@@ -77,7 +80,7 @@ if(NOT HUMANS_MT32_ROM_DIR)
     endif()
 endif()
 
-# The headless tests: assert-based, no framework.
+# The headless tests: Unity (test/unity), one test case per executable.
 humansre_test_executable(test_loop test/test_loop.c
     src/arch/platform/null/OSystem.c)          # the null backend: the attract composes
 target_link_libraries(test_loop PRIVATE core_test fs_posix arch_mem)
@@ -248,7 +251,6 @@ humansre_add_test(NAME attract COMMAND test_attract ${HUMANS_DATA_DIR} ${HUMANS_
 # rendered samples as the oracle.
 humansre_test_executable(test_audio_link test/test_audio_link.c)
 target_link_libraries(test_audio_link PRIVATE core_test fs_posix audio_adlib)
-humansre_test_asserts(test_audio_link)
 humansre_add_test(NAME audio_link COMMAND test_audio_link ${HUMANS_DATA_DIR})
 
 # The module's private state against a live ADLIB.DRV snapshot (white-box:
@@ -257,14 +259,12 @@ humansre_add_test(NAME audio_link COMMAND test_audio_link ${HUMANS_DATA_DIR})
 humansre_test_executable(test_adlib_live test/test_adlib_live.c
     src/arch/audio/adlib/thirdparty/opl3.c)
 target_link_libraries(test_adlib_live PRIVATE m arch_mem)
-humansre_test_asserts(test_adlib_live)
 humansre_add_test(NAME adlib_live COMMAND test_adlib_live ${HUMANS_FIX_DIR}/HUMANS.000/MUS/TITLE.ALB)
 
 # The AdLib driver module: a real .ALB through the INT 60h ABI, so the
 # sequencer decodes the image and the vendored OPL3 renders it.
 humansre_test_executable(test_adlib test/test_adlib.c)
 target_link_libraries(test_adlib PRIVATE audio_adlib)
-humansre_test_asserts(test_adlib)
 humansre_add_test(NAME adlib COMMAND test_adlib ${HUMANS_FIX_DIR})
 
 # The Beeper driver module against a real .BEP: the loader geometry, the row
@@ -277,14 +277,12 @@ target_link_libraries(test_beeper PRIVATE core_test fs_posix arch_mem)
 if(NOT MSVC)
     target_link_libraries(test_beeper PRIVATE m)
 endif()
-humansre_test_asserts(test_beeper)
 humansre_add_test(NAME beeper COMMAND test_beeper ${HUMANS_FIX_DIR} ${HUMANS_DATA_DIR})
 
 # The settable arch heap: OSystem's pair and the arch modules share it; a
 # counting pair must see both, and a driver's create/destroy must balance.
 humansre_test_executable(test_arch_mem test/test_arch_mem.c)
 target_link_libraries(test_arch_mem PRIVATE arch_mem audio_adlib)
-humansre_test_asserts(test_arch_mem)
 humansre_add_test(NAME arch_mem COMMAND test_arch_mem)
 
 # The MT-32 driver module against a real .RLD and a real ROM set.  The ROMs

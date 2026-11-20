@@ -17,6 +17,7 @@
 #include "statusbar.h"
 #include "compat.h"
 #include "byteorder.h"
+#include "test_support.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -133,31 +134,21 @@ static void _present_hook(uint32_t poll)
 
 /**
  * @brief Run the end-to-end smoke test.
- *
- * @param argc the argument count
- * @param argv the argument vector
- * @return 0 on success, 1 on failure
  */
-int main(int argc, char **argv)
+static void test_smoke(void)
 {
-    const char *vol_dir = argc > 1 ? argv[1] : ".";
-    const char *fix_dir = argc > 2 ? argv[2] : vol_dir;
+    const char *vol_dir = _test_argc > 1 ? _test_argv[1] : ".";
+    const char *fix_dir = _test_argc > 2 ? _test_argv[2] : vol_dir;
 
     char path[512];
     snprintf(path, sizeof path, "%s/HUMANS.002", vol_dir);
     FILE *f = fopen(path, "rb");
-    if (!f) {
-        printf("skip: no volume files at %s (fixture data absent)\n", vol_dir);
-        return 0;
-    }
+    if (!f)
+        TEST_SKIPF("skip: no volume files at %s (fixture data absent)",
+                   vol_dir);
     fclose(f);
 
-    if (compat_chdir(vol_dir)) {
-        perror(vol_dir);
-        return 1;
-    }
-
-    int32_t bad = 0;
+    if (compat_chdir(vol_dir)) TEST_FAILF("chdir %s", vol_dir);
 
     /* the input script (per eventsPoll call):
      *   0..7399    idle     - the boot intro plays (~6687 ticks: the
@@ -207,85 +198,56 @@ int main(int argc, char **argv)
     script[9227].lastKey = 0x0Du;
     script[SCRIPT_N - 1].quit = 1u;
 
-    _dump_dir = argc > 3 ? argv[3] : NULL;
+    _dump_dir = _test_argc > 3 ? _test_argv[3] : NULL;
     osys_null_input_script(script, SCRIPT_N);
     osys_null_on_present(_present_hook);
 
-    if (game_main(&g_osys_null) != 0) {
-        fprintf(stderr, "FAIL game_main returned nonzero\n");
-        return 1;
-    }
+    if (game_main(&g_osys_null) != 0) TEST_FAILF("game_main returned nonzero");
     /* D-01: the audio wiring ran through the whole flow - the driver
      * installed once, the boot/party/level tunes loaded, the sequencer
      * ticked and the master volume was driven. */
-    if (osys_null_audio_installs() != 1u) {
-        fprintf(stderr, "FAIL audio: installs %u, want 1\n",
-                osys_null_audio_installs());
-        bad = 1;
-    }
+    if (osys_null_audio_installs() != 1u)
+        TEST_FAILF("audio: installs %u, want 1", osys_null_audio_installs());
     /* the tune images, recognised by their shipped byte sizes (the boot's
      * TITLE.ALB 17080, the party's PARTY.ALB 3192, the level's LEVA.ALB 7032) */
     if (osys_null_audio_loads() != 3u ||
         osys_null_audio_load_size(0u) != 17080u ||
         osys_null_audio_load_size(1u) != 3192u ||
-        osys_null_audio_load_size(2u) != 7032u) {
-        fprintf(stderr,
-                "FAIL audio: tune loads %u [%u %u %u], want 3 "
-                "[title 17080, party 3192, levA 7032]\n",
-                osys_null_audio_loads(), osys_null_audio_load_size(0u),
-                osys_null_audio_load_size(1u), osys_null_audio_load_size(2u));
-        bad = 1;
-    }
-    if (osys_null_audio_starts() < 3u) {
-        fprintf(stderr, "FAIL audio: only %u resumes\n",
-                osys_null_audio_starts());
-        bad = 1;
-    }
-    if (osys_null_audio_ticks() == 0u) {
-        fprintf(stderr, "FAIL audio: the sequencer never ticked\n");
-        bad = 1;
-    }
-    if (osys_null_audio_tempo() == 0u) {
-        fprintf(stderr, "FAIL audio: the master volume never left 0\n");
-        bad = 1;
-    }
-    if (!_saw_pause) {
-        fprintf(stderr,
-                "FAIL D-15: ESC did not open the pause menu in game_main\n");
-        bad = 1;
-    }
+        osys_null_audio_load_size(2u) != 7032u)
+        TEST_FAILF("audio: tune loads %u [%u %u %u], want 3 "
+                   "[title 17080, party 3192, levA 7032]",
+                   osys_null_audio_loads(), osys_null_audio_load_size(0u),
+                   osys_null_audio_load_size(1u),
+                   osys_null_audio_load_size(2u));
+    if (osys_null_audio_starts() < 3u)
+        TEST_FAILF("audio: only %u resumes", osys_null_audio_starts());
+    if (osys_null_audio_ticks() == 0u)
+        TEST_FAILF("audio: the sequencer never ticked");
+    if (osys_null_audio_tempo() == 0u)
+        TEST_FAILF("audio: the master volume never left 0");
+    if (!_saw_pause)
+        TEST_FAILF("D-15: ESC did not open the pause menu in game_main");
     /* D-40: the goal page was up (scroll_map) with RIGHT held and the actor
      * did not move: the page's loop polls input only. */
-    if (!_saw_goal || _goal_ticks < 5) {
-        fprintf(stderr, "FAIL the goal page was not reached (%d ticks)\n",
-                _goal_ticks);
-        bad = 1;
-    } else if (_goal_moved) {
-        fprintf(stderr, "FAIL the actor moved while the goal page was up\n");
-        bad = 1;
-    }
+    if (!_saw_goal || _goal_ticks < 5)
+        TEST_FAILF("the goal page was not reached (%d ticks)", _goal_ticks);
+    else if (_goal_moved)
+        TEST_FAILF("the actor moved while the goal page was up");
     /* D-01's timing tail: the level's first goal frame follows the party's
      * music fade-in and exit hold and the level's own music fade-in.  The
      * measured poll is ~8822; a missing hold shifts it by 150 and fails. */
-    if (_goal_poll < 8780u || _goal_poll > 8900u) {
-        fprintf(stderr,
-                "FAIL the goal page arrived at poll %u, want ~8822 "
-                "(the audio fade holds)\n",
-                _goal_poll);
-        bad = 1;
-    }
+    if (_goal_poll < 8780u || _goal_poll > 8900u)
+        TEST_FAILF("the goal page arrived at poll %u, want ~8822 "
+                   "(the audio fade holds)",
+                   _goal_poll);
     /* D-41: the F2 make at 7750 selected record 1; D-42: the SPACE make at
      * 7760 stepped the action row's cell from 1 to 2. */
-    if (object_sequence_action_entity() != 1u) {
-        fprintf(stderr, "FAIL F2 did not select record 1 (entity %u)\n",
-                object_sequence_action_entity());
-        bad = 1;
-    }
-    if (statusbar_action_cell(1u) != 2u) {
-        fprintf(stderr, "FAIL SPACE did not step the action cell (cell %u)\n",
-                statusbar_action_cell(1u));
-        bad = 1;
-    }
+    if (object_sequence_action_entity() != 1u)
+        TEST_FAILF("F2 did not select record 1 (entity %u)",
+                   object_sequence_action_entity());
+    if (statusbar_action_cell(1u) != 2u)
+        TEST_FAILF("SPACE did not step the action cell (cell %u)",
+                   statusbar_action_cell(1u));
 
     /* the page: the level's rendered viewport (level_tick: BG4 + the terrain
      * tiles at scroll 0,0 + the status bar's band) - the byte-exact
@@ -302,11 +264,8 @@ int main(int argc, char **argv)
         /* the BG now shows through the tiles' zero bytes (draw_terrain
          * 0x502d skips them) and its 0xFF fill is the 0x80..0xBF bank, so the
          * whole 184-row window is populated. */
-        if (nz != 58880u) {
-            fprintf(stderr, "FAIL page: the level render nz %u, want 58880\n",
-                    nz);
-            bad = 1;
-        }
+        if (nz != 58880u)
+            TEST_FAILF("page: the level render nz %u, want 58880", nz);
     }
 
     /* the palette after the level's fade-in = the working palette
@@ -329,8 +288,7 @@ int main(int argc, char **argv)
         if (!sp || sp_size < 0x18u + 0x60u || !bs || bs_size < 0x18u + 0x60u ||
             !bg4 || bg4_size != 163840u + 768u || !p4 ||
             p4_size < 0xFA00u + 768u) {
-            fprintf(stderr, "FAIL palette fixtures unreadable\n");
-            bad = 1;
+            TEST_FAILF("palette fixtures unreadable");
         } else {
             const uint8_t *pal = osys_null_palette();
             const uint8_t *want[5] = { sp + 0x18, bs + 0x18, bg4 + 163840u,
@@ -346,13 +304,9 @@ int main(int argc, char **argv)
                 for (uint32_t i = 0; i < len[r]; i++) {
                     if (r == 2u && i >= animLo && i < animHi) continue;
                     uint8_t w = want[r] ? want[r][i] : 0u;
-                    if (pal[off[r] + i] != w) {
-                        fprintf(stderr,
-                                "FAIL palette 0x%X: got %02x want %02x\n",
-                                off[r] + i, pal[off[r] + i], w);
-                        bad = 1;
-                        break;
-                    }
+                    if (pal[off[r] + i] != w)
+                        TEST_FAILF("palette 0x%X: got %02x want %02x",
+                                   off[r] + i, pal[off[r] + i], w);
                 }
             {
                 const uint8_t *f = want[2] + animLo; // the 4 entries
@@ -365,11 +319,9 @@ int main(int argc, char **argv)
                                   f[((i + 4u - k) % 4u) * 3u + c];
                     rot = ok;
                 }
-                if (!rot) {
-                    fprintf(stderr, "FAIL palette: the animated range is not a "
-                                    "rotation of the BG's 0x71..0x74\n");
-                    bad = 1;
-                }
+                if (!rot)
+                    TEST_FAILF("palette: the animated range is not a "
+                               "rotation of the BG's 0x71..0x74");
             }
         }
         free(sp);
@@ -377,9 +329,12 @@ int main(int argc, char **argv)
         free(bg4);
         free(p4);
     }
+}
 
-    if (!bad)
-        printf(
-            "smoke test: OK (flow + the boot intro + the level + the palette)\n");
-    return bad;
+int main(int argc, char **argv)
+{
+    test_args_set(argc, argv);
+    UNITY_BEGIN();
+    RUN_TEST(test_smoke);
+    return UNITY_END();
 }

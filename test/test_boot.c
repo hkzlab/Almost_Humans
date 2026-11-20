@@ -38,6 +38,7 @@
 #include "compat.h"
 #include "lzw.h"
 #include "byteorder.h"
+#include "test_support.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -103,44 +104,31 @@ static void _dump_ppm(const char *dir, uint32_t tick, const uint8_t *page,
 
 /**
  * @brief Run the boot chain tests.
- *
- * @param argc the argument count
- * @param argv the argument vector
- * @return 0 on success, 1 on failure
  */
-int main(int argc, char **argv)
+static void test_boot(void)
 {
-    const char *vol_dir = argc > 1 ? argv[1] : ".";
-    const char *fix_dir = argc > 2 ? argv[2] : vol_dir;
+    const char *vol_dir = _test_argc > 1 ? _test_argv[1] : ".";
+    const char *fix_dir = _test_argc > 2 ? _test_argv[2] : vol_dir;
 
     char path[512];
     snprintf(path, sizeof path, "%s/HUMANS.000", vol_dir);
     FILE *f = fopen(path, "rb");
-    if (!f) {
-        printf("skip: no volume files at %s (fixture data absent)\n", vol_dir);
-        return 0;
-    }
+    if (!f) TEST_SKIPF("no volume files at %s (fixture data absent)", vol_dir);
     fclose(f);
 
     char fix_abs[512];
-    if (!compat_realpath(fix_dir, fix_abs)) {
-        fprintf(stderr, "FAIL fixture tree %s unreadable\n", fix_dir);
-        return 1;
-    }
+    if (!compat_realpath(fix_dir, fix_abs))
+        TEST_FAILF("fixture tree %s unreadable", fix_dir);
 
-    if (compat_chdir(vol_dir)) {
-        perror(vol_dir);
-        return 1;
-    }
+    if (compat_chdir(vol_dir)) TEST_FAILF("cannot enter %s", vol_dir);
 
-    int32_t bad = 0;
     osys_bind(&g_osys_null);
     res_init();
     scene_init();
     video_init();
     palette_init();
 
-    const char *dump_dir = argc > 3 ? argv[3] : NULL;
+    const char *dump_dir = _test_argc > 3 ? _test_argv[3] : NULL;
 
     /* 1. the intro plays until the quit cue, then reports done. */
     uint32_t ticks = 0;
@@ -159,20 +147,14 @@ int main(int argc, char **argv)
         }
         if (++ticks > 10000u) break;           // runaways are failures
     }
-    if (r != 0) {
-        fprintf(stderr, "FAIL the boot intro did not finish (%u ticks)\n",
-                ticks);
-        return 1;
-    }
+    if (r != 0) TEST_FAILF("the boot intro did not finish (%u ticks)", ticks);
     /* the expected shape: the Gametek logo (the fade-in, 33 groups, the 4
      * bank cycles, the 0x1a4 hold), the IDI card, the FIRST card's 7-bank
      * staggered fade-in, the ITB card + the scene, and the outro fade -
      * the full boot_intro_sequence (1000:B590), ~6.7k ticks with D-248's
      * doubled scene wait (~5.9k in the original). */
-    if (ticks < 6400u || ticks > 7000u) {
-        fprintf(stderr, "FAIL tick count %u outside [6400, 7000]\n", ticks);
-        bad = 1;
-    }
+    if (ticks < 6400u || ticks > 7000u)
+        TEST_FAILF("tick count %u outside [6400, 7000]", ticks);
 
     /* 2. the page: the present composes the pool's rows 4-183 into the
      * visible rows 0-179 (deplanarise_bitmap, 1000:BB05: SI+0x500, 180
@@ -183,11 +165,8 @@ int main(int argc, char **argv)
         uint32_t nz = 0;
         for (uint32_t i = 0; i < 180u * 320u; i++)
             if (page[i]) nz++;
-        if (nz < 56000u) {
-            fprintf(stderr, "FAIL the scrolled background barely drawn (%u)\n",
-                    nz);
-            bad = 1;
-        }
+        if (nz < 56000u)
+            TEST_FAILF("the scrolled background barely drawn (%u)", nz);
     }
 
     /* 3. the palette: the outro (b60e-b620) fades everything to the zeroed
@@ -197,14 +176,10 @@ int main(int argc, char **argv)
     {
         const uint8_t *pal = osys_null_palette();
         for (uint32_t i = 0; i < 768u; i++) {
-            if (pal[i] != 0) {
-                fprintf(stderr,
-                        "FAIL palette byte %u: got %02x, the outro "
-                        "fade must end black\n",
-                        i, pal[i]);
-                bad = 1;
-                break;
-            }
+            if (pal[i] != 0)
+                TEST_FAILF("palette byte %u: got %02x, the outro "
+                           "fade must end black",
+                           i, pal[i]);
         }
     }
 
@@ -221,8 +196,7 @@ int main(int argc, char **argv)
         static uint8_t list[0x10000];
         static uint8_t obj[0x10000];
         if (!rsc) {
-            fprintf(stderr, "FAIL intro.rsc fixture unreadable\n");
-            bad = 1;
+            TEST_FAILF("intro.rsc fixture unreadable");
         } else {
             uint16_t chk = 0;
             uint32_t off0;
@@ -230,9 +204,7 @@ int main(int argc, char **argv)
             int32_t sz =
                 lzw_decode_mem(rsc, rsc_size, off0, list, sizeof list, &chk);
             if (sz < 0 || chk != 0) {
-                fprintf(stderr,
-                        "FAIL intro.rsc object 0 (the list) undecodable\n");
-                bad = 1;
+                TEST_FAILF("intro.rsc object 0 (the list) undecodable");
             } else {
                 /* walk the groups from +2 to group 384's record */
                 uint32_t si = 2;
@@ -245,8 +217,7 @@ int main(int argc, char **argv)
                     } else si += 4;
                 }
                 if (g != 384u || si + 4 > (uint32_t)sz) {
-                    fprintf(stderr, "FAIL group 384 not reached in the list\n");
-                    bad = 1;
+                    TEST_FAILF("group 384 not reached in the list");
                 } else {
                     uint16_t dest = (rd_le_u16(list + si));
                     uint16_t stored =
@@ -257,18 +228,15 @@ int main(int argc, char **argv)
                     int32_t osz = lzw_decode_mem(rsc, rsc_size, off, obj,
                                                  sizeof obj, &chk);
                     if (osz < 0 || chk != 0) {
-                        fprintf(stderr, "FAIL object %u undecodable\n", idx);
-                        bad = 1;
+                        TEST_FAILF("object %u undecodable", idx);
                     } else {
                         uint32_t w = rd_le_u16(obj + 0);
                         uint32_t h = rd_le_u16(obj + 2);
                         if (dest != 25877u || w == 0u || h == 0u ||
                             4u + w * h > (uint32_t)osz) {
-                            fprintf(
-                                stderr,
-                                "FAIL group 384 record mismatch: dest %u, %ux%u\n",
-                                dest, w, h);
-                            bad = 1;
+                            TEST_FAILF("group 384 record mismatch: dest %u, "
+                                       "%ux%u",
+                                       dest, w, h);
                         } else {
                             const uint8_t *page = osys_null_page(0);
                             uint32_t miss = 0;
@@ -286,11 +254,9 @@ int main(int argc, char **argv)
                                     if (page[at] != b) miss++;
                                 }
                             if (miss) {
-                                fprintf(
-                                    stderr,
-                                    "FAIL group-384 overlay not on the page (%u bytes off)\n",
-                                    miss);
-                                bad = 1;
+                                TEST_FAILF("group-384 overlay not on the page "
+                                           "(%u bytes off)",
+                                           miss);
                             }
                         }
                     }
@@ -313,11 +279,9 @@ int main(int argc, char **argv)
         for (uint32_t i = 198u * 320u; i < 200u * 320u; i++)
             if (page[i]) nz_margin++;
         if (nz_margin) {
-            fprintf(
-                stderr,
-                "FAIL the bar margins hold %u non-zero bytes (garbage blits)\n",
-                nz_margin);
-            bad = 1;
+            TEST_FAILF("the bar margins hold %u non-zero bytes "
+                       "(garbage blits)",
+                       nz_margin);
         }
         int32_t colours_ok = 1;
         for (uint32_t r = 0; r < 16u; r++) {
@@ -327,14 +291,15 @@ int main(int argc, char **argv)
             }
         }
         if (!colours_ok) {
-            fprintf(
-                stderr,
-                "FAIL the bar's colours are not the 0xE0-0xEF grey gradient\n");
-            bad = 1;
+            TEST_FAILF("the bar's colours are not the 0xE0-0xEF grey gradient");
         }
     }
+}
 
-    printf("boot ticks: %u\n", ticks);
-    if (!bad) printf("boot tests: OK (5 checks)\n");
-    return bad;
+int main(int argc, char **argv)
+{
+    test_args_set(argc, argv);
+    UNITY_BEGIN();
+    RUN_TEST(test_boot);
+    return UNITY_END();
 }

@@ -19,6 +19,7 @@
 #include "osystem.h"
 #include "res.h"
 #include "compat.h"
+#include "test_support.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -102,8 +103,6 @@ static int32_t _check_chunk(const char *name, uint32_t disc,
         fprintf(stderr, "FAIL %s: checksum %04x, want %04x\n", name, got_chk,
                 want_chk);
     } else {
-        printf("ok %s (%u bytes, byte-identical, chk %04x)\n", name, got_size,
-               got_chk);
         bad = 0;
     }
     free(got);
@@ -113,32 +112,24 @@ static int32_t _check_chunk(const char *name, uint32_t disc,
 
 /**
  * @brief Run the resource decoder tests.
- *
- * @param argc the argument count
- * @param argv the argument vector
- * @return 0 on success, 1 on failure
  */
-int main(int argc, char **argv)
+static void test_res(void)
 {
-    const char *vol_dir = argc > 1 ? argv[1] : "."; // HUMANS.00N
-    const char *fix_dir = argc > 2 ? argv[2] : vol_dir; // the extracted tree
+    const char *vol_dir = _test_argc > 1 ? _test_argv[1] : "."; // HUMANS.00N
+    /* argv[2] = the extracted tree; it defaults to the volume dir */
+    const char *fix_dir = _test_argc > 2 ? _test_argv[2] : vol_dir;
     if (_data_missing(vol_dir)) {
-        printf("skip: no volume files at %s (fixture data absent)\n", vol_dir);
-        return 0;
+        TEST_SKIPF("skip: no volume files at %s (fixture data absent)",
+                   vol_dir);
     }
     /* fs opens its volumes relative to the process cwd; the fixture paths
      * are resolved against the caller's cwd first. */
     char fix_abs[PATH_MAX];
     if (!compat_realpath(fix_dir, fix_abs)) {
-        fprintf(stderr, "FAIL fixture tree %s unreadable\n", fix_dir);
-        return 1;
+        TEST_FAILF("fixture tree %s unreadable", fix_dir);
     }
-    if (compat_chdir(vol_dir)) {
-        perror(vol_dir);
-        return 1;
-    }
+    if (compat_chdir(vol_dir)) { TEST_FAILF("cannot enter %s", vol_dir); }
 
-    int32_t bad = 0;
     char path[512];
 
     osys_bind(&g_osys_null);
@@ -148,36 +139,29 @@ int main(int argc, char **argv)
     if (res_movie_disc(0) != 2 || res_movie_disc(1) != 0 ||
         res_movie_disc(3) != 1 || res_movie_disc(9) != 2 ||
         res_movie_disc(10) != 0xFF) {
-        fprintf(stderr, "FAIL res_movie_disc table\n");
-        bad = 1;
+        TEST_FAILF("res_movie_disc table");
     }
     snprintf(path, sizeof path, "%s/HUMANS.001/ANM/ANI03.ANI", fix_abs);
-    bad |= _check_chunk("ANM\\ANI03.ANI", res_movie_disc(3), path, 0x3c3f);
+    TEST_ASSERT_FALSE(
+        _check_chunk("ANM\\ANI03.ANI", res_movie_disc(3), path, 0x3c3f));
 
     /* The front end loads the intro assets from disc 0. */
     snprintf(path, sizeof path, "%s/HUMANS.000/INTRO/ITB.BIT", fix_abs);
-    bad |= _check_chunk("INTRO\\ITB.BIT", 0, path, 0x2adb);
+    TEST_ASSERT_FALSE(_check_chunk("INTRO\\ITB.BIT", 0, path, 0x2adb));
 
     /* Case-insensitive lookup mirrors the original's name comparison. */
-    bad |= _check_chunk("intro\\itb.bit", 0, path, 0x2adb);
+    TEST_ASSERT_FALSE(_check_chunk("intro\\itb.bit", 0, path, 0x2adb));
 
     /* A resource that is not on the CURRENT disc must fail - the scan is
      * gone, the original never crosses discs ([0xF7E]). */
     res_set_disc(1);
     uint32_t sz = 0;
-    if (res_load_chunk("INTRO\\ITB.BIT", &sz, NULL) != NULL) {
-        fprintf(stderr, "FAIL wrong-disc load must return NULL\n");
-        bad |= 1;
-    } else {
-        printf("ok INTRO\\ITB.BIT on disc 1 -> NULL (no cross-disc scan)\n");
-    }
+    TEST_ASSERT_NULL_MESSAGE(res_load_chunk("INTRO\\ITB.BIT", &sz, NULL),
+                             "wrong-disc load must return NULL");
 
-    if (res_load_chunk("ANM\\NOPE.ANI", &sz, NULL) != NULL || sz != 0) {
-        fprintf(stderr, "FAIL missing name should return NULL\n");
-        bad |= 1;
-    } else {
-        printf("ok missing name -> NULL\n");
-    }
+    TEST_ASSERT_FALSE_MESSAGE(
+        res_load_chunk("ANM\\NOPE.ANI", &sz, NULL) != NULL || sz != 0,
+        "missing name should return NULL");
 
     /* D-145 (closed 2026-11-05): the stored arm writes WORDS (1000:919D
      * SHR CX,1), so an odd take's tail byte is never written; the stream
@@ -189,8 +173,7 @@ int main(int argc, char **argv)
         static const char scratch[] = "humans_res_d145";
 
         if (!compat_realpath(".", cwd)) {
-            fprintf(stderr, "FAIL cwd unreadable\n");
-            bad = 1;
+            TEST_FAILF("cwd unreadable");
         } else {
             (void)compat_mkdir(scratch); // already present is fine
             snprintf(path, sizeof path, "%s/HUMANS.000", scratch);
@@ -208,14 +191,11 @@ int main(int argc, char **argv)
             vol[0x47] = 0x44;
             FILE *f = fopen(path, "wb");
             if (!f || fwrite(vol, 1, sizeof vol, f) != sizeof vol) {
-                if (f) fclose(f);
-                fprintf(stderr, "FAIL cannot write the D-145 volume\n");
-                bad = 1;
+                TEST_FAILF("cannot write the D-145 volume");
             } else {
                 fclose(f);
                 if (compat_chdir(scratch)) {
-                    perror(scratch);
-                    bad = 1;
+                    TEST_FAILF("cannot enter %s", scratch);
                 } else {
                     uint32_t n = 0;
                     uint8_t *got;
@@ -224,16 +204,12 @@ int main(int argc, char **argv)
                     got = res_load_chunk("TEST\\ODD.BIN", &n, NULL);
 
                     if (!got) {
-                        fprintf(stderr, "FAIL D-145: the truncated stored "
-                                        "block must decode\n");
-                        bad = 1;
+                        TEST_FAILF("D-145: the truncated stored "
+                                   "block must decode");
                     } else {
                         if (n != 5u || got[0] != 0x11u || got[1] != 0x22u ||
                             got[2] != 0x33u || got[3] != 0x44u) {
-                            fprintf(stderr, "FAIL D-145: the stored bytes\n");
-                            bad = 1;
-                        } else {
-                            printf("ok D-145: the odd tail byte is not read\n");
+                            TEST_FAILF("D-145: the stored bytes");
                         }
                         free(got);
                     }
@@ -242,5 +218,12 @@ int main(int argc, char **argv)
             }
         }
     }
-    return bad;
+}
+
+int main(int argc, char **argv)
+{
+    test_args_set(argc, argv);
+    UNITY_BEGIN();
+    RUN_TEST(test_res);
+    return UNITY_END();
 }

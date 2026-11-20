@@ -11,8 +11,8 @@
  * Usage: test_adlib <data-dir>   (the dir holding MUS/TITLE.ALB)
  */
 #include "audio/adlib/sound_driver_adlib.h"
+#include "test_support.h"
 
-#include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -73,7 +73,7 @@ static uint32_t _peak(SoundDriver *drv)
     return peak;
 }
 
-int main(int argc, char **argv)
+static void test_adlib(void)
 {
     char path[1024];
     uint32_t size = 0;
@@ -84,30 +84,24 @@ int main(int argc, char **argv)
     uint32_t quiet = 0;
     uint16_t handle;
 
-    if (argc < 2) {
-        fprintf(stderr, "usage: %s <data-dir>\n", argv[0]);
-        return 2;
-    }
-    snprintf(path, sizeof(path), "%s/HUMANS.000/MUS/TITLE.ALB", argv[1]);
+    if (_test_argc < 2) { TEST_FAILF("usage: %s <data-dir>", _test_argv[0]); }
+    snprintf(path, sizeof(path), "%s/HUMANS.000/MUS/TITLE.ALB", _test_argv[1]);
     image = _read_file(path, &size);
-    if (!image) {
-        fprintf(stderr, "test_adlib: %s missing, skipping\n", path);
-        return 0;
-    }
+    if (!image) { TEST_SKIPF("test_adlib: %s missing, skipping", path); }
 
     drv = g_sound_driver_adlib.create(RATE);
-    assert(drv != NULL);
+    TEST_ASSERT_TRUE(drv != NULL);
 
     /* A command before the tune is loaded must be refused, not crash. */
-    assert(g_sound_driver_adlib.startEvent(drv, 0) == 0xFFFF);
+    TEST_ASSERT_TRUE(g_sound_driver_adlib.startEvent(drv, 0) == 0xFFFF);
 
     /* The game's boot fade-in ends at CL = 0x4A, i.e. master volume 0x2F. */
     g_sound_driver_adlib.setTempo(drv, 0x4A);
     g_sound_driver_adlib.loadTune(drv, image, size);
     handle = g_sound_driver_adlib.startEvent(drv, 0);
-    assert(handle != 0xFFFF);
+    TEST_ASSERT_TRUE(handle != 0xFFFF);
     /* The image has two record slots; the third is out of range. */
-    assert(g_sound_driver_adlib.startEvent(drv, 0xFFFF) == 0xFFFF);
+    TEST_ASSERT_TRUE(g_sound_driver_adlib.startEvent(drv, 0xFFFF) == 0xFFFF);
 
     /* Two seconds of the game's tick rate: 1500 ticks is far more than one
      * pattern row (6 ticks), so cells have been decoded and played. */
@@ -117,7 +111,7 @@ int main(int argc, char **argv)
         peak = _peak(drv);
         if (peak > 512u) loud++;
     }
-    assert(loud > 0);
+    TEST_ASSERT_TRUE(loud > 0);
 
     g_sound_driver_adlib.releaseEvent(drv, handle);
     /* Let the release envelopes fall; the OPL should be near silence. */
@@ -127,10 +121,16 @@ int main(int argc, char **argv)
         peak = _peak(drv);
         if (peak <= 512u) quiet++;
     }
-    assert(quiet > 200u);
+    TEST_ASSERT_TRUE(quiet > 200u);
 
     g_sound_driver_adlib.destroy(drv);
     free(image);
-    printf("test_adlib: ok\n");
-    return 0;
+}
+
+int main(int argc, char **argv)
+{
+    test_args_set(argc, argv);
+    UNITY_BEGIN();
+    RUN_TEST(test_adlib);
+    return UNITY_END();
 }

@@ -7,6 +7,7 @@
 #include "arch_mem.h"
 #include "audio/adlib/sound_driver_adlib.h"
 #include "audio/sound_driver.h"
+#include "test_support.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -50,36 +51,32 @@ static void _count_free(void *p)
 
 /**
  * @brief Run the arch heap's checks.
- *
- * @return 0 on success, 1 on failure
  */
-int main(void)
+static void test_arch_mem(void)
 {
-    int32_t bad = 0;
-
     /* 1. the forwarders use the installed pair, and a NULL free is forwarded
      *    to it (free(NULL) is a no-op, but the call is visible). */
     arch_mem_set(_count_alloc, _count_free);
     {
         void *b = arch_mem_alloc(64);
 
-        bad |= b == NULL;
-        bad |= _allocs != 1u || _live != 1;
+        TEST_ASSERT_NOT_NULL(b);
+        TEST_ASSERT_TRUE(_allocs == 1u && _live == 1);
         arch_mem_free(b);
-        bad |= _frees != 1u || _live != 0;
+        TEST_ASSERT_TRUE(_frees == 1u && _live == 0);
         arch_mem_free(NULL);
-        bad |= _frees != 2u || _live != 0;
+        TEST_ASSERT_TRUE(_frees == 2u && _live == 0);
     }
 
     /* 2. a driver's create/destroy goes through the same heap. */
     {
         SoundDriver *drv = g_sound_driver_adlib.create(48000);
 
-        bad |= drv == NULL;
-        bad |= _allocs < 2u; // the driver struct at least
-        bad |= _live < 1;
+        TEST_ASSERT_NOT_NULL(drv);
+        TEST_ASSERT_TRUE(_allocs >= 2u); // the driver struct at least
+        TEST_ASSERT_TRUE(_live >= 1);
         if (drv) g_sound_driver_adlib.destroy(drv);
-        bad |= _live != 0; // destroy released everything it took
+        TEST_ASSERT_TRUE(_live == 0); // destroy released everything it took
     }
 
     /* 3. NULL restores the libc pair, so the counters stay put. */
@@ -89,15 +86,16 @@ int main(void)
         uint32_t frees0 = _frees;
         void *b = arch_mem_alloc(16);
 
-        bad |= b == NULL;
+        TEST_ASSERT_NOT_NULL(b);
         arch_mem_free(b);
-        bad |= _allocs != allocs0 || _frees != frees0;
+        TEST_ASSERT_TRUE(_allocs == allocs0 && _frees == frees0);
     }
+}
 
-    if (bad) {
-        fprintf(stderr, "test_arch_mem: FAIL\n");
-        return 1;
-    }
-    printf("test_arch_mem: ok (%u allocs, %u frees)\n", _allocs, _frees);
-    return 0;
+int main(int argc, char **argv)
+{
+    test_args_set(argc, argv);
+    UNITY_BEGIN();
+    RUN_TEST(test_arch_mem);
+    return UNITY_END();
 }

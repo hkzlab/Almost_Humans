@@ -26,6 +26,7 @@
 #include "statusbar.h"
 #include "video.h"
 #include "compat.h"
+#include "test_support.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -295,41 +296,30 @@ static void _dump_ppm(const char *dir, const char *name, const uint8_t *page,
 
 /**
  * @brief Run the status bar tests.
- *
- * @param argc the argument count
- * @param argv the argument vector
- * @return 0 on success, 1 on failure
  */
-int main(int argc, char **argv)
+static void test_statusbar(void)
 {
-    const char *vol_dir = argc > 1 ? argv[1] : ".";
-    const char *fix_dir = argc > 2 ? argv[2] : vol_dir;
-    const char *dump_dir = argc > 3 ? argv[3] : NULL;
+    const char *vol_dir = _test_argc > 1 ? _test_argv[1] : ".";
+    const char *fix_dir = _test_argc > 2 ? _test_argv[2] : vol_dir;
+    const char *dump_dir = _test_argc > 3 ? _test_argv[3] : NULL;
     char path[512];
     char fix_abs[512];
     FILE *f;
-    int32_t bad = 0;
     uint8_t model[320u * 200u];
     uint8_t ph[5];
     const uint8_t *page;
 
     snprintf(path, sizeof path, "%s/HUMANS.001", vol_dir);
     f = fopen(path, "rb");
-    if (!f) {
-        printf("skip: no volume files at %s (fixture data absent)\n", vol_dir);
-        return 0;
-    }
+    if (!f)
+        TEST_SKIPF("skip: no volume files at %s (fixture data absent)",
+                   vol_dir);
     fclose(f);
-    if (!compat_realpath(fix_dir, fix_abs)) {
-        fprintf(stderr, "FAIL fixture tree %s unreadable\n", fix_dir);
-        return 1;
-    }
-    if (compat_chdir(vol_dir)) {
-        perror(vol_dir);
-        return 1;
-    }
+    if (!compat_realpath(fix_dir, fix_abs))
+        TEST_FAILF("fixture tree %s unreadable", fix_dir);
+    if (compat_chdir(vol_dir)) TEST_FAILF("chdir %s", vol_dir);
 
-    if (_load_fixtures(fix_abs)) return 1;
+    TEST_ASSERT_EQUAL_INT32(0, _load_fixtures(fix_abs));
 
     osys_bind(&g_osys_null);
     res_init();
@@ -350,30 +340,21 @@ int main(int argc, char **argv)
     {
         uint32_t i;
 
-        if (statusbar_split() != 0xC9u) {
-            fprintf(stderr, "FAIL 1000:3040: split starts at %u, want 0xC9\n",
-                    statusbar_split());
-            bad = 1;
-        }
+        if (statusbar_split() != 0xC9u)
+            TEST_FAILF("1000:3040: split starts at %u, want 0xC9",
+                       statusbar_split());
         for (i = 0; i < 48u; i++) statusbar_tick();
-        if (statusbar_split() != 0x99u) {
-            fprintf(stderr, "FAIL 1000:331E: 48 ticks leave %u, want 0x99\n",
-                    statusbar_split());
-            bad = 1;
-        }
+        if (statusbar_split() != 0x99u)
+            TEST_FAILF("1000:331E: 48 ticks leave %u, want 0x99",
+                       statusbar_split());
         statusbar_tick();
-        if (statusbar_split() != 0x98u) {
-            fprintf(stderr,
-                    "FAIL 1000:331E: the 49th tick leaves %u, want 0x98\n",
-                    statusbar_split());
-            bad = 1;
-        }
+        if (statusbar_split() != 0x98u)
+            TEST_FAILF("1000:331E: the 49th tick leaves %u, want 0x98",
+                       statusbar_split());
         statusbar_tick();
-        if (statusbar_split() != 0x98u) {
-            fprintf(stderr, "FAIL 1000:3328: the split moved past 0x98 (%u)\n",
-                    statusbar_split());
-            bad = 1;
-        }
+        if (statusbar_split() != 0x98u)
+            TEST_FAILF("1000:3328: the split moved past 0x98 (%u)",
+                       statusbar_split());
     }
     /* 1000:342B draw_level_text: [0x5B0A] = 0xC9 and crtc_set_scroll park the
      * split off-screen, so the bar is not composed over the world the end
@@ -385,19 +366,13 @@ int main(int argc, char **argv)
 
         memset(pg2, 0x5A, 320u * 200u);
         statusbar_hide();
-        if (statusbar_split() != 0xC9u) {
-            fprintf(stderr, "FAIL 1000:342B: split %u, want 0xC9\n",
-                    statusbar_split());
-            bad = 1;
-        }
+        if (statusbar_split() != 0xC9u)
+            TEST_FAILF("1000:342B: split %u, want 0xC9", statusbar_split());
         statusbar_tick();
         for (uint32_t i = 0; i < 320u * 200u; i++)
             if (pg2[i] != 0x5A) nz++;
-        if (nz != 0u) {
-            fprintf(stderr, "FAIL 1000:342B: the hidden bar wrote %u bytes\n",
-                    nz);
-            bad = 1;
-        }
+        if (nz != 0u)
+            TEST_FAILF("1000:342B: the hidden bar wrote %u bytes", nz);
     }
 
     /* the band follows the split: at [0x5B0A]=160 the bar starts at row 159
@@ -408,10 +383,8 @@ int main(int argc, char **argv)
         memset(pg, 0, 320u * 200u);
         statusbar_set_split(160u);
         statusbar_tick();
-        if (pg[159u * 320u + 10u] == 0u || pg[158u * 320u + 10u] != 0u) {
-            fprintf(stderr, "FAIL the band does not follow [0x5B0A]\n");
-            bad = 1;
-        }
+        if (pg[159u * 320u + 10u] == 0u || pg[158u * 320u + 10u] != 0u)
+            TEST_FAILF("the band does not follow [0x5B0A]");
     }
     statusbar_set_split(152u);
     statusbar_set_active(1);
@@ -419,8 +392,8 @@ int main(int argc, char **argv)
     page = osys_null_page(0);
     _model_phases(ph, 0x0600, 12u - 4u);
     _model_page(model, ph);
-    bad |= _diff_rows("the seeded stamp", page, model);
-    bad |= _check_actions(page);
+    TEST_ASSERT_EQUAL_INT32(0, _diff_rows("the seeded stamp", page, model));
+    TEST_ASSERT_EQUAL_INT32(0, _check_actions(page));
     /* 2. the first second rolls 6:00 -> 5:59.  On the tick that fires the
      * second the roll-start phases are stamped (the ones at 0xB0 = the
      * blank above '9'); 16 frames later the slides have settled. */
@@ -433,13 +406,15 @@ int main(int argc, char **argv)
     ph[1] = 0x6E; // sec-tens: 0x70 -> 0x60
     ph[2] = 0xAE; // sec-ones: 0xB0 -> 0xA0
     _model_page(model, ph);
-    bad |= _diff_rows("the roll-start stamp (t=70)", page, model);
+    TEST_ASSERT_EQUAL_INT32(
+        0, _diff_rows("the roll-start stamp (t=70)", page, model));
     for (uint32_t i = 0; i < 16u; i++) statusbar_tick();
     ph[0] = 0x60; // 5
     ph[1] = 0x60; // 5
     ph[2] = 0xA0; // 9
     _model_page(model, ph);
-    bad |= _diff_rows("the settled 5:59 (t=86)", page, model);
+    TEST_ASSERT_EQUAL_INT32(0,
+                            _diff_rows("the settled 5:59 (t=86)", page, model));
 
     /* 3. the tribe counter: the arm rolls the displayed pair down by one
      * (8 -> 7), sliding one glyph cell over 8 frames. */
@@ -451,12 +426,9 @@ int main(int argc, char **argv)
         uint8_t blk[8];
 
         statusbar_save_params(blk);
-        if (blk[1] != 8u || blk[2] != 0u) {
-            fprintf(
-                stderr,
-                "FAIL D-108: the armed slide counter is [0x5B23] (out[1])\n");
-            bad = 1;
-        }
+        if (blk[1] != 8u || blk[2] != 0u)
+            TEST_FAILF("D-108: the armed slide counter is [0x5B23] "
+                       "(out[1])");
     }
     ph[0] = 0x60;
     ph[1] = 0x60;
@@ -464,11 +436,13 @@ int main(int argc, char **argv)
     ph[3] = 0x10; // tens 0: unchanged
     ph[4] = 0x90; // ones: still the '8' cell
     _model_page(model, ph);
-    bad |= _diff_rows("the tribe counter roll start", page, model);
+    TEST_ASSERT_EQUAL_INT32(
+        0, _diff_rows("the tribe counter roll start", page, model));
     for (uint32_t i = 0; i < 8u; i++) statusbar_tick();
     ph[4] = 0x80; // 7
     _model_page(model, ph);
-    bad |= _diff_rows("the tribe counter settled (7)", page, model);
+    TEST_ASSERT_EQUAL_INT32(
+        0, _diff_rows("the tribe counter settled (7)", page, model));
 
     /* 4. the time-up: a 0:00 seed dies on the first second; the marks
      * freeze and the band keeps drawing. */
@@ -476,19 +450,17 @@ int main(int argc, char **argv)
     statusbar_set_split(152u);
     statusbar_set_active(1);
     for (uint32_t i = 0; i < 70u; i++) statusbar_tick();
-    if (!statusbar_time_up()) {
-        fprintf(stderr, "FAIL the 0:00 seed did not time out\n");
-        bad = 1;
-    }
+    if (!statusbar_time_up()) TEST_FAILF("the 0:00 seed did not time out");
     ph[0] = 0x10; // minutes '0' (the value died)
     ph[1] = 0x70; // the roll-start phases frozen
     ph[2] = 0xB0;
     ph[3] = 0x10;
     ph[4] = 0x90; // the re-seeded pair "08"
     _model_page(model, ph);
-    bad |= _diff_rows("the time-up freeze", page, model);
+    TEST_ASSERT_EQUAL_INT32(0, _diff_rows("the time-up freeze", page, model));
     for (uint32_t i = 0; i < 10u; i++) statusbar_tick();
-    bad |= _diff_rows("the time-up still frozen", page, model);
+    TEST_ASSERT_EQUAL_INT32(
+        0, _diff_rows("the time-up still frozen", page, model));
 
     /* 4b. the elapsed clock [0x5B0C..0E] (1000:96C6): one step per second,
      * packed minutes<<8 | tens<<4 | ones the way check_highscore repacks it
@@ -496,32 +468,23 @@ int main(int argc, char **argv)
     statusbar_start(0x0600, 12u, 4u);
     statusbar_set_split(152u); // 6:00 back on the countdown
     statusbar_set_active(1);
-    if (statusbar_elapsed_word() != 0u) {
-        fprintf(stderr, "FAIL the elapsed clock does not start at 0:00\n");
-        bad = 1;
-    }
+    if (statusbar_elapsed_word() != 0u)
+        TEST_FAILF("the elapsed clock does not start at 0:00");
     for (uint32_t i = 0; i < 70u * 65u; i++) statusbar_tick(); // 1:05
-    if (statusbar_elapsed_word() != 0x0105u) {
-        fprintf(stderr, "FAIL 65 s of elapsed clock read %04x, want 0105\n",
-                statusbar_elapsed_word());
-        bad = 1;
-    }
+    if (statusbar_elapsed_word() != 0x0105u)
+        TEST_FAILF("65 s of elapsed clock read %04x, want 0105",
+                   statusbar_elapsed_word());
     for (uint32_t i = 0; i < 70u * 55u; i++) statusbar_tick(); // 2:00
-    if (statusbar_elapsed_word() != 0x0200u) {
-        fprintf(stderr, "FAIL 120 s of elapsed clock read %04x, want 0200\n",
-                statusbar_elapsed_word());
-        bad = 1;
-    }
+    if (statusbar_elapsed_word() != 0x0200u)
+        TEST_FAILF("120 s of elapsed clock read %04x, want 0200",
+                   statusbar_elapsed_word());
 
     /* 5. the integration: level_load seeds the bar with the record's own
      * timeA and the map's 0xAA count, and level_tick composes world + bar
      * into the page.  The tribe count is the entry seed (1000:009C), which
      * the loader no longer applies. */
     level_seed_tribe(); // entry 1000:009C, before the level walk
-    if (level_load(0) != 0) {
-        fprintf(stderr, "FAIL level 0 did not load\n");
-        return 1;
-    }
+    if (level_load(0) != 0) TEST_FAILF("level 0 did not load");
     {
         const LevelData *d = level_data();
         uint32_t required = 0;
@@ -539,11 +502,9 @@ int main(int argc, char **argv)
         level_tick();
         _model_phases(ph, d->timeA, 12u - required);
         _model_page(model, ph);
-        bad |= _diff_rows("the level integration", page, model);
-        if (statusbar_time_up()) {
-            fprintf(stderr, "FAIL the level bar timed out at once\n");
-            bad = 1;
-        }
+        TEST_ASSERT_EQUAL_INT32(
+            0, _diff_rows("the level integration", page, model));
+        if (statusbar_time_up()) TEST_FAILF("the level bar timed out at once");
         if (dump_dir) {
             /* level_fade_in completes at ~50 palette ticks (div 0x32) */
             for (uint32_t i = 0; i < 60u; i++) palette_tick();
@@ -576,19 +537,14 @@ int main(int argc, char **argv)
         statusbar_cycle_action(); // 1 -> 2
         statusbar_tick();
         if (statusbar_action_cell(1u) != 2u || pg[gold1] != 0xD6u ||
-            pg[gold0] == 0xD6u) {
-            fprintf(stderr,
-                    "FAIL SPACE does not move the gold frame to "
-                    "cell 2 (cell %u, %02x/%02x)\n",
-                    statusbar_action_cell(1u), pg[gold0], pg[gold1]);
-            bad = 1;
-        }
+            pg[gold0] == 0xD6u)
+            TEST_FAILF("SPACE does not move the gold frame to "
+                       "cell 2 (cell %u, %02x/%02x)",
+                       statusbar_action_cell(1u), pg[gold0], pg[gold1]);
         statusbar_cycle_action(); // 2 -> wrap 1
         statusbar_tick();
-        if (statusbar_action_cell(1u) != 1u || pg[gold0] != 0xD6u) {
-            fprintf(stderr, "FAIL the action cell does not wrap to 1\n");
-            bad = 1;
-        }
+        if (statusbar_action_cell(1u) != 1u || pg[gold0] != 0xD6u)
+            TEST_FAILF("the action cell does not wrap to 1");
     }
 
     /* D-81: the charge loop accumulates (1000:3702 draws one stroke per
@@ -627,10 +583,8 @@ int main(int argc, char **argv)
         (void)object_command_run(a, 0x80u); // a held frame
         object_sequence_pending_run();
         if (!object_sequence_charge_active() ||
-            object_sequence_charge_tick() != 1) {
-            fprintf(stderr, "FAIL D-81: the charge loop did not start\n");
-            bad = 1;
-        }
+            object_sequence_charge_tick() != 1)
+            TEST_FAILF("D-81: the charge loop did not start");
         c1 = BAR_SHADE();
         for (uint32_t k = 0; k < 2u; k++) { // +0xE -> 8, 0xC
             (void)object_command_run(a, 0x80u);
@@ -638,12 +592,8 @@ int main(int argc, char **argv)
             (void)object_sequence_charge_tick();
         }
         c2 = BAR_SHADE();
-        if (c2 <= c1 + 10u) {
-            fprintf(stderr,
-                    "FAIL D-81: the bar does not accumulate (%u -> %u)\n", c1,
-                    c2);
-            bad = 1;
-        }
+        if (c2 <= c1 + 10u)
+            TEST_FAILF("D-81: the bar does not accumulate (%u -> %u)", c1, c2);
 #undef BAR_SHADE
 
         /* D-83: 1000:36DB's entry (0x99D8/0x9B7D/0x9A18) restores the band's
@@ -658,41 +608,24 @@ int main(int argc, char **argv)
                            : band < 0xC4u ? 0xC0u
                                           : (uint8_t)(band - 4u);
 
-            if (pg[(BAR_Y + 6u) * 320u + 132u] == 0xD6u) {
-                fprintf(stderr,
-                        "FAIL D-83: the action row is still drawn during the "
-                        "charge\n");
-                bad = 1;
-            }
-            if (pg[by * 320u + bx] != want) {
-                fprintf(stderr,
-                        "FAIL D-83: the trough's top edge is missing "
-                        "(%02x, want %02x)\n",
-                        pg[by * 320u + bx], want);
-                bad = 1;
-            }
-            if (pg[MARK_Y * 320u + 8u] != mark0) {
-                fprintf(stderr, "FAIL D-83: the charge erased the digit "
-                                "marks\n");
-                bad = 1;
-            }
+            if (pg[(BAR_Y + 6u) * 320u + 132u] == 0xD6u)
+                TEST_FAILF("D-83: the action row is still drawn during "
+                           "the charge");
+            if (pg[by * 320u + bx] != want)
+                TEST_FAILF("D-83: the trough's top edge is missing "
+                           "(%02x, want %02x)",
+                           pg[by * 320u + bx], want);
+            if (pg[MARK_Y * 320u + 8u] != mark0)
+                TEST_FAILF("D-83: the charge erased the digit marks");
             object_core_set_action_latched(0);
             (void)object_command_run(a, 0x00u); // the release
-            if (object_sequence_charge_tick() != 0) {
-                fprintf(stderr, "FAIL D-83: the release did not end the "
-                                "charge\n");
-                bad = 1;
-            }
-            if (pg[(BAR_Y + 6u) * 320u + 132u] != 0xD6u) {
-                fprintf(stderr,
-                        "FAIL D-83: the exit did not restore the action row\n");
-                bad = 1;
-            }
-            if (pg[by * 320u + bx] != band) {
-                fprintf(stderr,
-                        "FAIL D-83: the trough survived the loop's exit\n");
-                bad = 1;
-            }
+            if (object_sequence_charge_tick() != 0)
+                TEST_FAILF("D-83: the release did not end the charge");
+            if (pg[(BAR_Y + 6u) * 320u + 132u] != 0xD6u)
+                TEST_FAILF("D-83: the exit did not restore the action "
+                           "row");
+            if (pg[by * 320u + bx] != band)
+                TEST_FAILF("D-83: the trough survived the loop's exit");
         }
     }
 
@@ -726,8 +659,7 @@ int main(int argc, char **argv)
             if (v >= 0x104u) break;
         }
         if (v < 0x104u) {
-            fprintf(stderr, "FAIL D-195: the charge did not reach 0x104\n");
-            bad = 1;
+            TEST_FAILF("D-195: the charge did not reach 0x104");
         } else {
             uint32_t len = (0x1FFu - v) >> 1;
             uint32_t col = 24u + (len >> 2), p = len & 3u;
@@ -736,22 +668,13 @@ int main(int argc, char **argv)
             uint8_t want = (uint8_t)(0xC0u | raw);
             uint8_t got = pg[(BAR_Y + 10u) * 320u + x];
 
-            if (raw == 0u) {
-                fprintf(stderr, "FAIL D-195: the test slice is blank\n");
-                bad = 1;
-            }
-            if (got != want) {
-                fprintf(stderr,
-                        "FAIL D-195: second-half slice %02x, want %02x "
-                        "(panel4 0xCE0)\n",
-                        got, want);
-                bad = 1;
-            }
-            if (got == 0x00u) {
-                fprintf(stderr,
-                        "FAIL D-195: the slice used the zeroed 0x3EE0 art\n");
-                bad = 1;
-            }
+            if (raw == 0u) TEST_FAILF("D-195: the test slice is blank");
+            if (got != want)
+                TEST_FAILF("D-195: second-half slice %02x, want %02x "
+                           "(panel4 0xCE0)",
+                           got, want);
+            if (got == 0x00u)
+                TEST_FAILF("D-195: the slice used the zeroed 0x3EE0 art");
             /* D-197: the staged source carries the trough's top edge (row 12)
              * and the clean art one row above it. */
             {
@@ -761,19 +684,13 @@ int main(int argc, char **argv)
                                                   : (uint8_t)(band12 - 4u);
                 uint8_t art11 = (uint8_t)(0xC0u | _panel4[11u * 320u + x]);
 
-                if (pg[(BAR_Y + 12u) * 320u + x] != trough) {
-                    fprintf(stderr,
-                            "FAIL D-197: the bar erased the trough top edge "
-                            "(%02x, want %02x)\n",
-                            pg[(BAR_Y + 12u) * 320u + x], trough);
-                    bad = 1;
-                }
-                if (pg[(BAR_Y + 11u) * 320u + x] != art11) {
-                    fprintf(stderr,
-                            "FAIL D-197: the row above the trough is not the "
-                            "clean art\n");
-                    bad = 1;
-                }
+                if (pg[(BAR_Y + 12u) * 320u + x] != trough)
+                    TEST_FAILF("D-197: the bar erased the trough top "
+                               "edge (%02x, want %02x)",
+                               pg[(BAR_Y + 12u) * 320u + x], trough);
+                if (pg[(BAR_Y + 11u) * 320u + x] != art11)
+                    TEST_FAILF("D-197: the row above the trough is not "
+                               "the clean art");
             }
         }
     }
@@ -795,19 +712,17 @@ int main(int argc, char **argv)
                 if (pg[y * 320u + x] !=
                     (uint8_t)(0xC0u | _panel4[(y - BAR_Y) * 320u + x]))
                     badpx++;
-        if (badpx != 0u) {
-            fprintf(stderr,
-                    "FAIL the out-of-table header's row drew %u on-screen "
-                    "pixels\n",
-                    badpx);
-            bad = 1;
-        }
+        if (badpx != 0u)
+            TEST_FAILF("the out-of-table header's row drew %u on-screen "
+                       "pixels",
+                       badpx);
     }
+}
 
-    if (bad) {
-        fprintf(stderr, "statusbar: FAIL\n");
-        return 1;
-    }
-    printf("statusbar: ok\n");
-    return 0;
+int main(int argc, char **argv)
+{
+    test_args_set(argc, argv);
+    UNITY_BEGIN();
+    RUN_TEST(test_statusbar);
+    return UNITY_END();
 }

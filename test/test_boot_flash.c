@@ -22,6 +22,7 @@
 #include "scene/scene.h"
 #include "video.h"
 #include "compat.h"
+#include "test_support.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -35,27 +36,17 @@ enum {
 
 /**
  * @brief Run the frame-0 flash scenario.
- *
- * @param argc the argument count
- * @param argv the argument vector
- * @return 0 on success, 1 on failure
  */
-int main(int argc, char **argv)
+static void test_boot_flash(void)
 {
-    const char *vol_dir = argc > 1 ? argv[1] : ".";
+    const char *vol_dir = _test_argc > 1 ? _test_argv[1] : ".";
 
     char path[512];
     snprintf(path, sizeof path, "%s/HUMANS.000", vol_dir);
     FILE *f = fopen(path, "rb");
-    if (!f) {
-        printf("skip: no volume files at %s (fixture data absent)\n", vol_dir);
-        return 0;
-    }
+    if (!f) TEST_SKIPF("no volume files at %s (fixture data absent)", vol_dir);
     fclose(f);
-    if (compat_chdir(vol_dir)) {
-        perror(vol_dir);
-        return 1;
-    }
+    if (compat_chdir(vol_dir)) TEST_FAILF("cannot enter %s", vol_dir);
 
     osys_bind(&g_osys_null);
     res_init();
@@ -65,11 +56,8 @@ int main(int argc, char **argv)
 
     uint32_t itb_size = 0;
     uint8_t *itb = res_load_chunk("INTRO\\ITB.BIT", &itb_size, NULL);
-    if (!itb || itb_size < 64000u) {
-        fprintf(stderr, "FAIL intro\\itb.bit fixture unreadable\n");
-        free(itb);
-        return 1;
-    }
+    if (!itb || itb_size < 64000u)
+        TEST_FAILF("intro\\itb.bit fixture unreadable");
 
     InputState idle;
     memset(&idle, 0, sizeof idle);
@@ -86,28 +74,17 @@ int main(int argc, char **argv)
             uint32_t diff = 64000u;
 
             /* 1000:b854-b860: the white ramp, BP=2 (entry 0 stays black) */
-            if (pal[12] != 0x3Fu) {
-                fprintf(stderr, "FAIL the flash DAC is not white (%u)\n",
-                        pal[12]);
-                free(itb);
-                return 1;
-            }
+            if (pal[12] != 0x3Fu)
+                TEST_FAILF("the flash DAC is not white (%u)", pal[12]);
             for (uint32_t i = 0; i < 180u * 320u; i++) {
                 if (page[i] != itb[i]) {
                     diff = i;
                     break;
                 }
             }
-            if (diff == 64000u) {
-                fprintf(stderr,
-                        "FAIL the white-flash page is still the ITB card "
-                        "(visible rows identical)\n");
-                free(itb);
-                return 1;
-            }
-            printf("ok D-246: the frame-0 flash is over the scene (first "
-                   "difference at byte %u)\n",
-                   diff);
+            if (diff == 64000u)
+                TEST_FAILF("the white-flash page is still the ITB card "
+                           "(visible rows identical)");
             checked = 1;
             break;
         }
@@ -118,12 +95,16 @@ int main(int argc, char **argv)
     }
 
     free(itb);
-    if (!checked) {
-        fprintf(stderr,
-                "FAIL the boot never reached the white transition "
-                "(tick %u, phase %u, r %d)\n",
-                t, scene_boot_phase_for_probe(), r);
-        return 1;
-    }
-    return 0;
+    if (!checked)
+        TEST_FAILF("the boot never reached the white transition "
+                   "(tick %u, phase %u, r %d)",
+                   t, scene_boot_phase_for_probe(), r);
+}
+
+int main(int argc, char **argv)
+{
+    test_args_set(argc, argv);
+    UNITY_BEGIN();
+    RUN_TEST(test_boot_flash);
+    return UNITY_END();
 }

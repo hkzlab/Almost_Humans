@@ -28,6 +28,7 @@
 #include "statusbar.h"
 #include "video.h"
 #include "compat.h"
+#include "test_support.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -83,34 +84,26 @@ static void _hook(uint32_t poll)
     }
 }
 
-int main(int argc, char **argv)
+static void test_pan_input(void)
 {
-    const char *vol_dir = argc > 1 ? argv[1] : ".";
+    const char *vol_dir = _test_argc > 1 ? _test_argv[1] : ".";
     char path[512];
-    int32_t bad = 0;
 
     snprintf(path, sizeof path, "%s/HUMANS.002", vol_dir);
     {
         FILE *f = fopen(path, "rb");
 
-        if (!f) {
-            printf("skip: no volume files at %s\n", vol_dir);
-            return 0;
-        }
+        if (!f) TEST_SKIPF("skip: no volume files at %s", vol_dir);
         fclose(f);
     }
-    if (compat_chdir(vol_dir)) {
-        perror(vol_dir);
-        return 1;
-    }
+    if (compat_chdir(vol_dir)) TEST_FAILF("cannot enter %s", vol_dir);
     {
         FILE *f = fopen(SAVE_NAME, "rb");
 
         if (f) {
             fclose(f);
-            printf("skip: %s exists in %s (a real save; not overwriting)\n",
-                   SAVE_NAME, vol_dir);
-            return 0;
+            TEST_SKIPF("skip: %s exists in %s (a real save; not overwriting)",
+                       SAVE_NAME, vol_dir);
         }
     }
 
@@ -140,41 +133,32 @@ int main(int argc, char **argv)
 
     /* the save's state ranges come from a loaded level, so its object table
      * carries the 0xC0 player record the test moves onto the 0xBA cell */
-    if (level_load(25) != 0) {
-        printf("skip: level 26 is not readable\n");
-        return 0;
-    }
-    if (!save_write_slot(SAVE_SLOT, 26u, 0x0600u, 12u)) {
-        fprintf(stderr, "FAIL cannot write %s\n", SAVE_NAME);
-        return 1;
-    }
+    if (level_load(25) != 0) TEST_SKIPF("skip: level 26 is not readable");
+    if (!save_write_slot(SAVE_SLOT, 26u, 0x0600u, 12u))
+        TEST_FAILF("cannot write %s", SAVE_NAME);
     frontend_option_set_for_probe(FRONTEND_OPT_GAME, SAVE_SLOT);
 
     osys_null_input_script(_script, SCRIPT_N);
     osys_null_on_present(_hook);
     (void)game_main(&g_osys_null);
 
-    if (!_moved || !_saw_pan) {
-        fprintf(stderr, "FAIL the win pan never ran (moved %u, pan %u)\n",
-                _moved, _saw_pan);
-        bad = 1;
-    }
+    /* the save is the test's own; drop it before the checks can abort */
+    remove(SAVE_NAME);
+
+    if (!_moved || !_saw_pan)
+        TEST_FAILF("the win pan never ran (moved %u, pan %u)", _moved,
+                   _saw_pan);
     /* D-266: the ESC pressed inside the pan is not seen (the original's
      * scan_id_list waits for the blocking loop), the same key after it is */
-    if (_menu_during_pan) {
-        fprintf(stderr, "FAIL the pause opened while the win pan ran\n");
-        bad = 1;
-    }
-    if (!_pan_done || !_menu_after_pan) {
-        fprintf(stderr, "FAIL the pause did not open after the pan\n");
-        bad = 1;
-    }
+    if (_menu_during_pan) TEST_FAILF("the pause opened while the win pan ran");
+    if (!_pan_done || !_menu_after_pan)
+        TEST_FAILF("the pause did not open after the pan");
+}
 
-    remove(SAVE_NAME);
-    if (bad) {
-        fprintf(stderr, "pan_input: FAIL\n");
-        return 1;
-    }
-    printf("pan_input: ok\n");
-    return 0;
+int main(int argc, char **argv)
+{
+    test_args_set(argc, argv);
+    UNITY_BEGIN();
+    RUN_TEST(test_pan_input);
+    return UNITY_END();
 }

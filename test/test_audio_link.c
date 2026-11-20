@@ -24,8 +24,8 @@
 #include "video.h"
 
 #include "audio/adlib/sound_driver_adlib.h"
+#include "test_support.h"
 
-#include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -176,39 +176,34 @@ static uint32_t _run(uint32_t n)
     return peak;
 }
 
-int main(int argc, char **argv)
+static void test_audio_link(void)
 {
-    const char *vol_dir = argc > 1 ? argv[1] : ".";
+    const char *vol_dir = _test_argc > 1 ? _test_argv[1] : ".";
     char path[512];
     FILE *f;
     uint32_t peak;
 
     snprintf(path, sizeof(path), "%s/HUMANS.000", vol_dir);
     f = fopen(path, "rb");
-    if (!f) {
-        printf("skip: no volume files at %s\n", vol_dir);
-        return 0;
-    }
+    if (!f) { TEST_SKIPF("skip: no volume files at %s", vol_dir); }
     fclose(f);
-    if (compat_chdir(vol_dir)) {
-        perror(vol_dir);
-        return 1;
-    }
+    if (compat_chdir(vol_dir)) { TEST_FAILF("chdir %s failed", vol_dir); }
 
     osys_bind(&_osys);
-    assert(audio_init() == 0);
+    TEST_ASSERT_TRUE(audio_init() == 0);
     res_init();
     audio_install();
-    assert(_drv != NULL);
+    TEST_ASSERT_TRUE(_drv != NULL);
 
     /* --- the boot: play_tune(mus\title) / resume / fade-in ------------ */
     audio_play_tune(audio_tune_name(AUDIO_TUNE_TITLE));
     audio_music_resume();
     audio_fade_in();
     peak = _run(600);
-    assert(peak > 256u); // audible, not the silent init state
-    assert(_tempo_byte == 0x4Au); // 1000:84CE: the fade's last step
-    assert(_ticks > 0u);
+    TEST_ASSERT_TRUE(peak > 256u); // audible, not the silent init state
+    /* 1000:84CE: the fade's last step */
+    TEST_ASSERT_TRUE(_tempo_byte == 0x4Au);
+    TEST_ASSERT_TRUE(_ticks > 0u);
 
     /* The 2-of-3 tick: 600 audio_tick calls -> 400 driver ticks.  The
      * driver's own tick counter is private; the call count is the contract
@@ -219,25 +214,25 @@ int main(int argc, char **argv)
     {
         uint32_t t0 = _ticks;
         (void)_run(30);
-        assert(_ticks >= t0 + 19u && _ticks <= t0 + 21u); // 2 of 3
-        assert(_tempo_byte == 0x4Au);
+        TEST_ASSERT_TRUE(_ticks >= t0 + 19u && _ticks <= t0 + 21u); // 2 of 3
+        TEST_ASSERT_TRUE(_tempo_byte == 0x4Au);
     }
 
     /* --- music_stop: cmd 6 ------------------------------------------- */
     audio_music_stop();
-    assert(_stops >= 1u);
+    TEST_ASSERT_TRUE(_stops >= 1u);
     {
         uint32_t t0 = _ticks;
         (void)_run(30);
-        assert(_ticks >= t0 + 19u && _ticks <= t0 + 21u);
+        TEST_ASSERT_TRUE(_ticks >= t0 + 19u && _ticks <= t0 + 21u);
     }
 
     /* --- the MUSIC board's gate (1000:A5E8) --------------------------- */
     audio_music_gate(0); // on: resume + cmd 0x0A 0x4B
-    assert(_voice != 0xFFFFu);
-    assert(_tempo_byte == 0x4Bu);
+    TEST_ASSERT_TRUE(_voice != 0xFFFFu);
+    TEST_ASSERT_TRUE(_tempo_byte == 0x4Bu);
     audio_music_gate(1); // off: stop
-    assert(_voice == 0xFFFFu);
+    TEST_ASSERT_TRUE(_voice == 0xFFFFu);
 
     /* --- driver_call: the effects bank when the board is off ---------- */
     frontend_option_set_for_probe(FRONTEND_OPT_MUSIC, 1u); // music off
@@ -245,40 +240,41 @@ int main(int argc, char **argv)
     audio_play_tune(audio_tune_name(AUDIO_TUNE_HUMFX));
     audio_fade_in();
     audio_sfx(0u); // 1000:83B7, AX = 0 (PICKUP)
-    assert(_voice != 0xFFFFu);
+    TEST_ASSERT_TRUE(_voice != 0xFFFFu);
     peak = _run(120);
-    assert(peak > 128u); // the effect sounded
+    TEST_ASSERT_TRUE(peak > 128u); // the effect sounded
     audio_sfx(0x0Eu); // the AdLib id (1) drops event 0x0E
     audio_sfx(0xFFu); // the "none" sentinel
 
     /* --- the level's lettered tune (1000:327F) ------------------------ */
     frontend_option_set_for_probe(FRONTEND_OPT_MUSIC, 0u); // music on
     audio_play_level_tune(1u);
-    assert(strcmp(audio_tune_name(AUDIO_TUNE_LEV), "mus\\levA") == 0);
+    TEST_ASSERT_TRUE(strcmp(audio_tune_name(AUDIO_TUNE_LEV), "mus\\levA") == 0);
     audio_play_level_tune(2u);
-    assert(strcmp(audio_tune_name(AUDIO_TUNE_LEV), "mus\\levB") == 0);
+    TEST_ASSERT_TRUE(strcmp(audio_tune_name(AUDIO_TUNE_LEV), "mus\\levB") == 0);
 
     /* --- the disc prompt's tune (1000:2042) --------------------------- */
-    assert(video_init() == 0);
-    assert(palette_init() == 0);
-    assert(font_init() == 0);
-    assert(level_init() == 0);
+    TEST_ASSERT_TRUE(video_init() == 0);
+    TEST_ASSERT_TRUE(palette_init() == 0);
+    TEST_ASSERT_TRUE(font_init() == 0);
+    TEST_ASSERT_TRUE(level_init() == 0);
     audio_music_stop();
     {
         uint32_t loads0 = _loads;
-        assert(level_disk_status_begin(3u) == 1); // no volume 3: the prompt
-        assert(_loads == loads0 + 1u); // "mus\disk" loaded
+        /* no volume 3: the prompt */
+        TEST_ASSERT_TRUE(level_disk_status_begin(3u) == 1);
+        TEST_ASSERT_TRUE(_loads == loads0 + 1u); // "mus\disk" loaded
     }
     level_disk_status_reset();
 
     /* --- cd_file_op's tune (1000:B061) -------------------------------- */
-    assert(scene_init() == 0);
+    TEST_ASSERT_TRUE(scene_init() == 0);
     scene_reset_intro();
     res_set_disc(0u);
     {
         uint32_t loads0 = _loads;
         (void)scene_play_level_intro(1u); // the level-1 cutscene
-        assert(_loads == loads0 + 1u);
+        TEST_ASSERT_TRUE(_loads == loads0 + 1u);
     }
 
     /* --- the fade-out and its deferred music_stop (1000:835A/8389) ---- */
@@ -287,8 +283,8 @@ int main(int argc, char **argv)
     {
         uint32_t stops0 = _stops;
         (void)_run(160);
-        assert(_tempo_byte == 0u);
-        assert(_stops == stops0 + 1u);
+        TEST_ASSERT_TRUE(_tempo_byte == 0u);
+        TEST_ASSERT_TRUE(_stops == stops0 + 1u);
     }
 
     /* --- DOOM's tune (D-264) ------------------------------------------ */
@@ -298,14 +294,20 @@ int main(int argc, char **argv)
     frontend_option_set_for_probe(FRONTEND_OPT_MUSIC, 0u); // music on
     res_set_disc(1u); // the level tunes ship on HUMANS.001
     audio_play_level_tune(82u); // level 82 = DOOM
-    assert(strcmp(audio_tune_name(AUDIO_TUNE_LEV), "mus\\levJ") == 0);
+    TEST_ASSERT_TRUE(strcmp(audio_tune_name(AUDIO_TUNE_LEV), "mus\\levJ") == 0);
     audio_music_resume();
     (void)_run(12000); // ~8000 driver ticks: well past the one-pass end
     peak = _run(200);
-    assert(peak > 256u);
+    TEST_ASSERT_TRUE(peak > 256u);
 
     g_sound_driver_adlib.destroy(_drv);
     _drv = NULL;
-    printf("test_audio_link: ok\n");
-    return 0;
+}
+
+int main(int argc, char **argv)
+{
+    test_args_set(argc, argv);
+    UNITY_BEGIN();
+    RUN_TEST(test_audio_link);
+    return UNITY_END();
 }

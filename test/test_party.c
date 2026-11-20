@@ -25,6 +25,7 @@
 #include "res.h"
 #include "score.h"
 #include "video.h"
+#include "test_support.h"
 
 #include <inttypes.h>
 #include <stdint.h>
@@ -59,23 +60,14 @@ static uint8_t *_read_file(const char *path, uint32_t *size)
 
 /**
  * @brief Run the party briefing tests.
- *
- * @param argc the argument count
- * @param argv the argument vector
- * @return 0 on success, 1 on failure
  */
-int main(int argc, char **argv)
+static void test_party(void)
 {
-    if (argc < 3) {
-        printf("usage: test_party <volume-dir> <tree-dir>\n");
-        return 1;
-    }
+    if (_test_argc < 3) TEST_FAILF("usage: test_party <volume-dir> <tree-dir>");
 
     osys_bind(&g_osys_null);
-    if (res_init() || palette_init() || font_init() || video_init()) {
-        printf("PARTY: init failed\n");
-        return 1;
-    }
+    if (res_init() || palette_init() || font_init() || video_init())
+        TEST_FAILF("PARTY: init failed");
 
     /* 2a76..2a95: the marquee phase is the 0x160 word [0xf9e].  A byte-sized
      * copy wrapped at 0x100 and the bird stopped half-way across the screen. */
@@ -86,12 +78,10 @@ int main(int argc, char **argv)
         party_intro_marquee_for_probe(0x100u, 3u, &src_hi, &dhi_hi);
         if (dhi_lo != 0x2260u + 0xFFu / 4u || dhi_hi != 0x2260u + 0x100u / 4u ||
             src_lo != (uint16_t)((3u * 4u + 3u) * 320u) ||
-            src_hi != (uint16_t)((3u * 4u) * 320u)) {
-            printf("PARTY: FAIL the marquee phase is not a word "
-                   "(dhi %04X/%04X)\n",
-                   dhi_lo, dhi_hi);
-            return 1;
-        }
+            src_hi != (uint16_t)((3u * 4u) * 320u))
+            TEST_FAILF("the marquee phase is not a word "
+                       "(dhi %04X/%04X)",
+                       dhi_lo, dhi_hi);
     }
 
     char path[512];
@@ -100,40 +90,33 @@ int main(int argc, char **argv)
 
     /* the fixture: the extracted .BIT (the memset-free reference).  The tree
      * is either flat (LBM/) or the per-disc extraction (HUMANS.001/LBM/). */
-    snprintf(path, sizeof path, "%s/LBM/PARTY1.BIT", argv[2]);
+    snprintf(path, sizeof path, "%s/LBM/PARTY1.BIT", _test_argv[2]);
     bit = _read_file(path, &sz);
     if (!bit) {
-        snprintf(path, sizeof path, "%s/HUMANS.001/LBM/PARTY1.BIT", argv[2]);
+        snprintf(path, sizeof path, "%s/HUMANS.001/LBM/PARTY1.BIT",
+                 _test_argv[2]);
         bit = _read_file(path, &sz);
     }
     if (!bit || sz < 64000u) {
-        printf("PARTY: SKIP (no fixture at %s)\n", path);
         free(bit);
-        return 0;
+        TEST_SKIPF("(no fixture at %s)", path);
     }
 
     /* res opens HUMANS.00N from the working directory */
-    if (compat_chdir(argv[1])) {
-        perror(argv[1]);
-        free(bit);
-        return 1;
-    }
+    if (compat_chdir(_test_argv[1]))
+        TEST_FAILF("cannot enter %s", _test_argv[1]);
 
     res_set_disc(1);                          // the level disc HUMANS.001
 
     /* level A's [live] values */
     party_intro_set_values(1u, 4u, 12u, 0u, "DARWIN");
     if (!party_intro_start()) {
-        printf("PARTY: SKIP (the load path returned 0 - no volume data)\n");
         free(bit);
-        return 0;
+        TEST_SKIPF("(the load path returned 0 - no volume data)");
     }
     /* level_intro_screen (1000:2508) leaves the 320x192 mode-X field */
-    if (osys_null_video_mode() != VIDEO_MODE_X) {
-        printf("PARTY: FAIL the party did not set the mode-X field\n");
-        free(bit);
-        return 1;
-    }
+    if (osys_null_video_mode() != VIDEO_MODE_X)
+        TEST_FAILF("the party did not set the mode-X field");
 
     /* The bake waits for the blocking fade-in (1000:2564 timing_loop); the
      * port's fade is per audio tick, so advance it before the first tick. */
@@ -141,11 +124,7 @@ int main(int argc, char **argv)
         uint32_t guard = 0;
 
         while (audio_fade_busy() && ++guard < 1000u) audio_tick();
-        if (audio_fade_busy()) {
-            printf("PARTY: FAIL the audio fade-in never ended\n");
-            free(bit);
-            return 1;
-        }
+        if (audio_fade_busy()) TEST_FAILF("the audio fade-in never ended");
     }
 
     /* one tick: the bake + anim run, the per-tick compose lands */
@@ -174,55 +153,39 @@ int main(int argc, char **argv)
                 bankdiffs++;
         }
 
-    if (bitdiffs == 0)
-        printf(
-            "PARTY: law OK - the composed page = the .BIT 320x200 verbatim\n");
-    else {
+    if (bitdiffs != 0) {
         uint32_t first = (uint32_t)-1;
         for (uint32_t i = 0; i < 64000u && first == (uint32_t)-1; i++)
             if (page[i] != bit[i]) first = i;
-        printf("PARTY: FAIL %" PRId64
-               "/~64000 diffs, first at byte %u (%02x != %02x)\n",
-               bitdiffs, first, page[first], bit[first]);
-        free(bit);
-        free(page);
-        return 1;
+        TEST_FAILF("%" PRId64 "/~64000 diffs, first at byte %u (%02x != %02x)",
+                   bitdiffs, first, page[first], bit[first]);
     }
-    if (vgapage && bankdiffs != 0) {
-        printf("PARTY: FAIL the video_page(0) path differs in %" PRId64
-               " pixels\n",
-               bankdiffs);
-        free(bit);
-        free(page);
-        return 1;
-    }
-    printf("PARTY: video_page(0) path OK\n");
+    if (vgapage && bankdiffs != 0)
+        TEST_FAILF("the video_page(0) path differs in %" PRId64 " pixels",
+                   bankdiffs);
 
     /* D-18: the briefing's score is the live [0x592] low word, not 0. */
     score_set_total(0x1234u, 1u);
     party_intro_set_values(1u, 4u, 12u, gameflow_party_score(), "DARWIN");
-    if (party_intro_score() != 0x1234u) {
-        printf("PARTY: FAIL the briefing score is %u, want 0x1234\n",
-               party_intro_score());
-        free(bit);
-        free(page);
-        return 1;
-    }
+    if (party_intro_score() != 0x1234u)
+        TEST_FAILF("the briefing score is %u, want 0x1234",
+                   party_intro_score());
     {
         char out[8];
         party_intro_format_score(party_intro_score(), out);
         /* the formatter is 2B70's decimal one: 0x1234 prints 4660 */
-        if (strcmp(out, "4660") != 0) {
-            printf("PARTY: FAIL the score digits are '%s', want \"4660\"\n",
-                   out);
-            free(bit);
-            free(page);
-            return 1;
-        }
+        if (strcmp(out, "4660") != 0)
+            TEST_FAILF("the score digits are '%s', want \"4660\"", out);
     }
 
     free(bit);
     free(page);
-    printf("PARTY: PASS\n");
-    return 0;
+}
+
+int main(int argc, char **argv)
+{
+    test_args_set(argc, argv);
+    UNITY_BEGIN();
+    RUN_TEST(test_party);
+    return UNITY_END();
 }

@@ -36,6 +36,7 @@
 #include "video.h"
 #include "compat.h"
 #include "byteorder.h"
+#include "test_support.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -153,36 +154,27 @@ static uint8_t _open_pause(void)
 
 /**
  * @brief Run the pause menu tests.
- *
- * @param argc the argument count
- * @param argv the argument vector
- * @return 0 on success, 1 on failure
  */
-int main(int argc, char **argv)
+static void test_pause(void)
 {
-    const char *vol_dir = argc > 1 ? argv[1] : ".";
-    const char *dump_dir = argc > 2 ? argv[2] : NULL;
+    const char *vol_dir = _test_argc > 1 ? _test_argv[1] : ".";
+    const char *dump_dir = _test_argc > 2 ? _test_argv[2] : NULL;
     char path[512];
-    int32_t bad = 0;
 
     snprintf(path, sizeof path, "%s/HUMANS.000", vol_dir);
     FILE *f = fopen(path, "rb");
     if (!f) {
-        printf("skip: no volume files at %s (fixture data absent)\n", vol_dir);
-        return 0;
+        TEST_SKIPF("skip: no volume files at %s (fixture data absent)",
+                   vol_dir);
     }
     fclose(f);
-    if (compat_chdir(vol_dir)) {
-        perror(vol_dir);
-        return 1;
-    }
+    if (compat_chdir(vol_dir)) { TEST_FAILF("cannot enter %s", vol_dir); }
 
     f = fopen(SAVE_NAME, "rb");
     if (f) {
         fclose(f);
-        printf("skip: %s exists in %s (a real save; not overwriting)\n",
-               SAVE_NAME, vol_dir);
-        return 0;
+        TEST_SKIPF("skip: %s exists in %s (a real save; not overwriting)",
+                   SAVE_NAME, vol_dir);
     }
 
     osys_bind(&g_osys_null);
@@ -200,10 +192,7 @@ int main(int argc, char **argv)
     {
         uint8_t *text = res_load_chunk("APL\\TEXT.SPR", NULL, NULL);
         font_publish(text);
-        if (!text) {
-            fprintf(stderr, "FAIL TEXT.SPR unreadable\n");
-            return 1;
-        }
+        if (!text) { TEST_FAILF("TEXT.SPR unreadable"); }
     }
 
     /* D-18: the briefing's score is the live [0x592] low word. */
@@ -214,8 +203,7 @@ int main(int argc, char **argv)
         party_intro_set_values(1u, 4u, 12u, gameflow_party_score(), "DARWIN");
         party_intro_format_score(party_intro_score(), out);
         if (party_intro_score() != 1234u || strcmp(out, "1234") != 0) {
-            fprintf(stderr, "FAIL D-18: briefing score/digits ('%s')\n", out);
-            bad = 1;
+            TEST_FAILF("D-18: briefing score/digits ('%s')", out);
         }
     }
 
@@ -231,31 +219,26 @@ int main(int argc, char **argv)
         level_set_updates(1);
         k.keyScan = 0x01u;                       // ESC
         if (gameflow_key_list(&k) != 1 || !menu_active() || menu_time_up()) {
-            fprintf(stderr, "FAIL D-15: ESC does not open the pause menu\n");
-            bad = 1;
+            TEST_FAILF("D-15: ESC does not open the pause menu");
         }
         /* a second ESC while the block is open: the dialog owns the input in
          * the original, so the list must not reopen or close it */
         (void)gameflow_key_list(&k);
         if (!menu_active() || menu_time_up()) {
-            fprintf(stderr,
-                    "FAIL D-15: a second ESC disturbed the open menu\n");
-            bad = 1;
+            TEST_FAILF("D-15: a second ESC disturbed the open menu");
         }
         menu_close();
         k.keyScan = 0u;                          // a non-listed key
         k.lastKey = 'Z';
         if (gameflow_key_list(&k) != 0 || menu_active()) {
-            fprintf(stderr, "FAIL D-15: a non-ESC key opens the pause menu\n");
-            bad = 1;
+            TEST_FAILF("D-15: a non-ESC key opens the pause menu");
         }
         /* the [0xC] gate: a non-bit7 entry is skipped while the world is
          * frozen (the claim holds it at 0) */
         k.keyScan = 0x01u;
         level_set_updates(0);
         if (gameflow_key_list(&k) != 0 || menu_active()) {
-            fprintf(stderr, "FAIL the [0xC] gate stopped a key event\n");
-            bad = 1;
+            TEST_FAILF("the [0xC] gate stopped a key event");
         }
         level_set_updates(1);
     }
@@ -268,28 +251,22 @@ int main(int argc, char **argv)
         level_set_updates(1);
         menu_open_pause();
         if (level_updates()) {
-            fprintf(stderr, "FAIL D-232: the pause did not freeze the world\n");
-            bad = 1;
+            TEST_FAILF("D-232: the pause did not freeze the world");
         }
         menu_close();
         if (!level_updates()) {
-            fprintf(stderr,
-                    "FAIL D-232: closing the pause did not resume the world\n");
-            bad = 1;
+            TEST_FAILF("D-232: closing the pause did not resume the "
+                       "world");
         }
         menu_open_time_up();
         if (level_updates()) {
-            fprintf(
-                stderr,
-                "FAIL D-232: the time-up dialog did not freeze the world\n");
-            bad = 1;
+            TEST_FAILF("D-232: the time-up dialog did not freeze the "
+                       "world");
         }
         menu_close();
         if (!level_updates()) {
-            fprintf(
-                stderr,
-                "FAIL D-232: closing the time-up did not resume the world\n");
-            bad = 1;
+            TEST_FAILF("D-232: closing the time-up did not resume the "
+                       "world");
         }
         /* the save grid is opened from the pause and must stay frozen */
         menu_open_pause();
@@ -298,53 +275,38 @@ int main(int argc, char **argv)
         (void)_press(JOYBITS_DOWN);
         (void)_press(JOYBITS_FIRE); // SAVE GAME -> the grid
         if (level_updates()) {
-            fprintf(stderr, "FAIL D-232: the save grid did not stay frozen\n");
-            bad = 1;
+            TEST_FAILF("D-232: the save grid did not stay frozen");
         }
         (void)_press(JOYBITS_FIRE); // pick a slot -> MENU_DONE
         menu_close();
         if (!level_updates()) {
-            fprintf(stderr,
-                    "FAIL D-232: closing the save grid did not resume\n");
-            bad = 1;
+            TEST_FAILF("D-232: closing the save grid did not resume");
         }
     }
 
     /* the level's assets: the dialog's box tiles (apl\box.spr, disc 1) and
      * the bar/level palette the page's indices ride */
     level_seed_tribe(); // entry 1000:009C..0x00B1; the loader keeps the count
-    if (level_load(0) != 0) {
-        fprintf(stderr, "FAIL level 0 did not load\n");
-        return 1;
-    }
+    if (level_load(0) != 0) { TEST_FAILF("level 0 did not load"); }
 
     /* 1. the pause menu: 5 rows, wrap, the 0-based result = the row */
     for (uint32_t r = 0; r < 5u; r++) {
-        if (!_open_pause()) {
-            fprintf(stderr, "FAIL the menu did not open\n");
-            return 1;
-        }
+        if (!_open_pause()) { TEST_FAILF("the menu did not open"); }
         for (uint32_t i = 0; i < r; i++) (void)_press(JOYBITS_DOWN); // down
         if (r > 0u && menu_result() != -1) {
-            fprintf(stderr, "FAIL the result appeared early\n");
-            bad = 1;
+            TEST_FAILF("the result appeared early");
         }
         (void)_press(JOYBITS_FIRE); // ACTION
         if (r == 3u) {
             /* SAVE GAME opens the grid instead of closing */
             if (!menu_active() || menu_result() != -1) {
-                fprintf(stderr, "FAIL SAVE GAME did not open the grid\n");
-                bad = 1;
+                TEST_FAILF("SAVE GAME did not open the grid");
             }
             menu_close();
         } else {
-            if (menu_active()) {
-                fprintf(stderr, "FAIL row %u stayed open\n", r);
-                return 1;
-            }
+            if (menu_active()) { TEST_FAILF("row %u stayed open", r); }
             if (menu_result() != (int32_t)r) {
-                fprintf(stderr, "FAIL row %u returned %d\n", r, menu_result());
-                bad = 1;
+                TEST_FAILF("row %u returned %d", r, menu_result());
             }
         }
     }
@@ -362,27 +324,21 @@ int main(int argc, char **argv)
          * the black outline around it (1000:9FA7 -> 9FB1) */
         _text_outline(page, &text, &outline, &violations);
         if (fill < 500u || text < 50u) {
-            fprintf(stderr,
-                    "FAIL the dialog did not render (fill %u, text %u)\n", fill,
-                    text);
-            bad = 1;
+            TEST_FAILF("the dialog did not render (fill %u, text %u)", fill,
+                       text);
         }
         if (outline == 0u) {
-            fprintf(stderr, "FAIL the dialog's text has no black outline\n");
-            bad = 1;
+            TEST_FAILF("the dialog's text has no black outline");
         }
         if (violations) {
-            fprintf(stderr,
-                    "FAIL %u text-neighbour pixels are neither text nor "
-                    "the outline\n",
-                    violations);
-            bad = 1;
+            TEST_FAILF("%u text-neighbour pixels are neither text nor "
+                       "the outline",
+                       violations);
         }
     }
     (void)_press(JOYBITS_FIRE);
     if (menu_result() != 4) {
-        fprintf(stderr, "FAIL the UP wrap gave %d, want 4\n", menu_result());
-        bad = 1;
+        TEST_FAILF("the UP wrap gave %d, want 4", menu_result());
     }
 
     /* 2. the SAVE GAME grid: 4x5 column-major, cell r,c = 4c+r+1.
@@ -392,16 +348,12 @@ int main(int argc, char **argv)
     (void)_press(JOYBITS_DOWN);
     (void)_press(JOYBITS_DOWN); // row 3
     (void)_press(JOYBITS_FIRE); // the grid
-    if (!menu_active()) {
-        fprintf(stderr, "FAIL the grid did not open\n");
-        return 1;
-    }
+    if (!menu_active()) { TEST_FAILF("the grid did not open"); }
     (void)_press(JOYBITS_DOWN); // row 1
     (void)_press(JOYBITS_FIRE);
     if (menu_slot() != 2u || menu_result() != 3) {
-        fprintf(stderr, "FAIL grid (0,1) gave game %u (result %d)\n",
-                menu_slot(), menu_result());
-        bad = 1;
+        TEST_FAILF("grid (0,1) gave game %u (result %d)", menu_slot(),
+                   menu_result());
     }
     menu_close();
 
@@ -413,8 +365,7 @@ int main(int argc, char **argv)
     (void)_press(JOYBITS_RIGHT); // right
     (void)_press(JOYBITS_FIRE);
     if (menu_slot() != 5u) {
-        fprintf(stderr, "FAIL grid (0,1) gave game %u, want 5\n", menu_slot());
-        bad = 1;
+        TEST_FAILF("grid (0,1) gave game %u, want 5", menu_slot());
     }
     menu_close();
 
@@ -430,11 +381,9 @@ int main(int argc, char **argv)
         menu_draw();
         _text_outline(page, &text, &outline, &violations);
         if (text < 50u || outline == 0u || violations) {
-            fprintf(stderr,
-                    "FAIL the grid page (text %u, outline %u, %u bad "
-                    "neighbours)\n",
-                    text, outline, violations);
-            bad = 1;
+            TEST_FAILF("the grid page (text %u, outline %u, %u bad "
+                       "neighbours)",
+                       text, outline, violations);
         }
     }
     menu_open_pause();
@@ -446,9 +395,7 @@ int main(int argc, char **argv)
     (void)_press(JOYBITS_LEFT); // left wrap 0->4
     (void)_press(JOYBITS_FIRE);
     if (menu_slot() != 20u) {
-        fprintf(stderr, "FAIL the grid wrap gave game %u, want 20\n",
-                menu_slot());
-        bad = 1;
+        TEST_FAILF("the grid wrap gave game %u, want 20", menu_slot());
     }
     menu_close();
 
@@ -468,55 +415,45 @@ int main(int argc, char **argv)
         object_core_set_slot_class(1u, 6u);
     }
     if (!save_write_slot(2u, 2u, 0x0549u, 7u)) {
-        fprintf(stderr, "FAIL save_write_slot(SLOT 2) failed\n");
-        return 1;
+        TEST_FAILF("save_write_slot(SLOT 2) failed");
     }
     {
         uint8_t b[SAVE_LEN];
         f = fopen(SAVE_NAME, "rb");
         if (!f || fread(b, 1, sizeof b, f) != sizeof b) {
-            if (f) fclose(f);
-            fprintf(stderr, "FAIL the written %s is not 0x1800 bytes\n",
-                    SAVE_NAME);
-            return 1;
+            TEST_FAILF("the written %s is not 0x1800 bytes", SAVE_NAME);
         }
         fclose(f);
         if (b[0x00] != 2u || b[0x01] != 0u || b[0x02] != 0x34u ||
             b[0x03] != 0x12u || b[0x04] != 0x01u || b[0x05] != 0x00u ||
             b[0x06] != 1u || b[0x07] != 0x49u || b[0x08] != 0x05u ||
             b[0x09] != 0u || b[0x0A] != 9u || b[0x0B] != 7u || b[0x0C] != 0u) {
-            fprintf(stderr,
-                    "FAIL the written header (level %u, state %u, "
-                    "time %02x%02x, members %u)\n",
-                    b[0], b[6], b[8], b[7], b[0x0B]);
-            bad = 1;
+            TEST_FAILF("the written header (level %u, state %u, "
+                       "time %02x%02x, members %u)",
+                       b[0], b[6], b[8], b[7], b[0x0B]);
         }
         /* 0x3E20's fixed pointer table and 0x5B37's first program */
         if (b[0x0D + 4u] != 0x75u || b[0x0D + 5u] != 0x3Eu ||
             b[0x1636] != 0x02u || b[0x1637] != 0x01u || b[0x17F0] != 0u ||
             b[0x17F4] != 9u || b[0x17F5] != 0x10u || b[0x17F7] != 0x90u) {
-            fprintf(stderr, "FAIL the written state ranges\n");
-            bad = 1;
+            TEST_FAILF("the written state ranges");
         }
     }
     if (!save_load_slot(2u) || !save_present() || save_level() != 2u ||
         save_time() != 0x0549u || save_members() != 7u) {
-        fprintf(stderr, "FAIL the written save does not load back\n");
-        bad = 1;
+        TEST_FAILF("the written save does not load back");
     }
     save_restore_state();
     if (score_total_lo() != 0x1234u || score_total_hi() != 1u ||
         statusbar_tribe_digit(0u) != 0u || statusbar_tribe_digit(1u) != 9u) {
-        fprintf(stderr, "FAIL the saved score/counter did not restore\n");
-        bad = 1;
+        TEST_FAILF("the saved score/counter did not restore");
     }
     {
         const uint8_t *r0 = object_core_slot(0);
 
         if (!r0 || r0[0] != 0x34u || r0[1] != 0x12u || r0[2] != 0x56u ||
             object_core_slot_class(1u) != 6u) {
-            fprintf(stderr, "FAIL the saved object table did not restore\n");
-            bad = 1;
+            TEST_FAILF("the saved object table did not restore");
         }
     }
     /* the object table and entity array round-trip their fields */
@@ -526,8 +463,7 @@ int main(int argc, char **argv)
         uint8_t *r = object_core_slot(0);
 
         if (!r) {
-            fprintf(stderr, "FAIL no object slot 0\n");
-            bad = 1;
+            TEST_FAILF("no object slot 0");
         } else {
             r[0] = 0x34;
             r[1] = 0x12;
@@ -540,8 +476,7 @@ int main(int argc, char **argv)
             object_core_load_table(tbl);
             if (r[0] != 0x34 || r[1] != 0x12 || r[2] != 0x56 ||
                 object_core_slot_class(0u) != 5u) {
-                fprintf(stderr, "FAIL the object table did not round-trip\n");
-                bad = 1;
+                TEST_FAILF("the object table did not round-trip");
             }
         }
         {
@@ -550,8 +485,7 @@ int main(int argc, char **argv)
             object_core_save_pool(pool);
             if (pool[0] != (uint8_t)level_special_tile(0u) ||
                 pool[1] != (uint8_t)level_special_tile(1u)) {
-                fprintf(stderr, "FAIL D-143: the pool's two tile bytes\n");
-                bad = 1;
+                TEST_FAILF("D-143: the pool's two tile bytes");
             }
         }
         memset(ent, 0, sizeof ent);
@@ -560,13 +494,11 @@ int main(int argc, char **argv)
         ent[3] = 0x12; // slot 0 +0x0
         entity_load_fixed(ent);
         if (!entity_at(0u) || entity_at(0u)->x0 != 0x1234u) {
-            fprintf(stderr, "FAIL the entity array did not load\n");
-            bad = 1;
+            TEST_FAILF("the entity array did not load");
         }
         entity_save_fixed(ent);
         if (ent[0] != 1u || ent[2] != 0x34u || ent[3] != 0x12u) {
-            fprintf(stderr, "FAIL the entity array did not save\n");
-            bad = 1;
+            TEST_FAILF("the entity array did not save");
         }
     }
 
@@ -624,35 +556,27 @@ int main(int argc, char **argv)
 
         f = fopen(SAVE_NAME, "wb");
         if (!f || fwrite(fx, 1, sizeof fx, f) != sizeof fx) {
-            if (f) fclose(f);
-            fprintf(stderr, "FAIL cannot write the state fixture\n");
-            return 1;
+            TEST_FAILF("cannot write the state fixture");
         }
         fclose(f);
         if (!save_load_slot(2u)) {
-            fprintf(stderr, "FAIL the state fixture did not load\n");
-            bad = 1;
+            TEST_FAILF("the state fixture did not load");
         } else {
             save_restore_state();
             if (!save_write_slot(2u, 2u, 0x0549u, 7u)) {
-                fprintf(stderr, "FAIL the state fixture did not write\n");
-                bad = 1;
+                TEST_FAILF("the state fixture did not write");
             }
             f = fopen(SAVE_NAME, "rb");
             if (!f || fread(got, 1, sizeof got, f) != sizeof got) {
-                if (f) fclose(f);
-                fprintf(stderr, "FAIL cannot read the state fixture back\n");
-                bad = 1;
+                TEST_FAILF("cannot read the state fixture back");
             } else {
                 fclose(f);
                 if (memcmp(fx, got, sizeof fx) != 0) {
                     uint32_t at = 0;
                     while (at < sizeof fx && fx[at] == got[at]) at++;
-                    fprintf(stderr,
-                            "FAIL the state fixture differs at 0x%X "
-                            "(want %02x, got %02x)\n",
-                            at, fx[at], got[at]);
-                    bad = 1;
+                    TEST_FAILF("the state fixture differs at 0x%X "
+                               "(want %02x, got %02x)",
+                               at, fx[at], got[at]);
                 }
             }
         }
@@ -660,19 +584,14 @@ int main(int argc, char **argv)
 
     /* 4. save_consume (level_run 30B4): a restart takes the board's pick */
     save_consume();
-    if (save_present()) {
-        fprintf(stderr, "FAIL save_consume left [0x34] set\n");
-        bad = 1;
-    }
+    if (save_present()) { TEST_FAILF("save_consume left [0x34] set"); }
     level_seed_tribe(); // entry 1000:009C..0x00B1, the starting 12
     if (level_load(0) != 0) {
-        fprintf(stderr, "FAIL the level did not load\n");
-        bad = 1;
+        TEST_FAILF("the level did not load");
     } else {
         const LevelData *d = level_data();
         if (level_time_limit() != d->timeA) {
-            fprintf(stderr, "FAIL the restart did not take the board's time\n");
-            bad = 1;
+            TEST_FAILF("the restart did not take the board's time");
         }
     }
 
@@ -681,12 +600,10 @@ int main(int argc, char **argv)
     {
         uint8_t quit = 0;
         if (gameflow_pause_action(0, &quit) != FLOW_LEVEL || quit) {
-            fprintf(stderr, "FAIL CONTINUE\n");
-            bad = 1;
+            TEST_FAILF("CONTINUE");
         }
         if (level_time_limit() != level_data()->timeA) {
-            fprintf(stderr, "FAIL CONTINUE changed the pick\n");
-            bad = 1;
+            TEST_FAILF("CONTINUE changed the pick");
         }
         /* RESTART THIS LEVEL: 1000:35AF first fades the play screen to black
          * (D-87, closed 2026-11-05) and blocks on it; the record's pick and
@@ -710,25 +627,21 @@ int main(int argc, char **argv)
 
         level_set_members(5u); // the reload must not happen yet
         if (gameflow_pause_action(1, &quit) != FLOW_LEVEL) {
-            fprintf(stderr, "FAIL RESTART THIS LEVEL\n");
-            bad = 1;
+            TEST_FAILF("RESTART THIS LEVEL");
         }
         if (!palette_fade_active()) {
-            fprintf(stderr, "FAIL the restart did not fade the play screen\n");
-            bad = 1;
+            TEST_FAILF("the restart did not fade the play screen");
         }
         if (level_tribe_members() != 5u) {
-            fprintf(stderr,
-                    "FAIL the restart reloaded the level before the fade\n");
-            bad = 1;
+            TEST_FAILF("the restart reloaded the level before the "
+                       "fade");
         }
         {
             uint32_t t = 0;
 
             while (palette_fade_active() && t++ < 400u) palette_tick();
             if (palette_fade_active() || gameflow_restart_fade_tick() != 0) {
-                fprintf(stderr, "FAIL the restart fade never finished\n");
-                bad = 1;
+                TEST_FAILF("the restart fade never finished");
             } else {
                 const uint8_t *pal = osys_null_palette();
                 uint32_t nz = 0;
@@ -736,11 +649,9 @@ int main(int argc, char **argv)
                 for (uint32_t i = 0; i < 768u; i++)
                     if (pal[i]) nz++;
                 if (nz) {
-                    fprintf(stderr,
-                            "FAIL the restart fade did not reach black "
-                            "(%u entries lit)\n",
-                            nz);
-                    bad = 1;
+                    TEST_FAILF("the restart fade did not reach black "
+                               "(%u entries lit)",
+                               nz);
                 }
             }
         }
@@ -748,49 +659,39 @@ int main(int argc, char **argv)
             uint32_t t = 0;
 
             if (!audio_fade_busy()) {
-                fprintf(stderr,
-                        "FAIL the restart skipped level_start's audio fade\n");
-                bad = 1;
+                TEST_FAILF("the restart skipped level_start's audio "
+                           "fade");
             }
             while (audio_fade_busy() && t++ < 600u) audio_tick();
             if (audio_fade_busy()) {
-                fprintf(stderr, "FAIL the restart's audio fade never ended\n");
-                bad = 1;
+                TEST_FAILF("the restart's audio fade never ended");
             } else if (osys_null_audio_stops() != stops0 + 1u) {
-                fprintf(stderr,
-                        "FAIL the restart left the level record live (stops "
-                        "%u, want %u)\n",
-                        osys_null_audio_stops(), stops0 + 1u);
-                bad = 1;
+                TEST_FAILF("the restart left the level record live "
+                           "(stops %u, want %u)",
+                           osys_null_audio_stops(), stops0 + 1u);
             }
             audio_music_resume(); // the party's: only starts once released
             if (osys_null_audio_starts() != starts0 + 1u) {
-                fprintf(stderr,
-                        "FAIL the restarted music_resume is gated off "
-                        "(starts %u, want %u)\n",
-                        osys_null_audio_starts(), starts0 + 1u);
-                bad = 1;
+                TEST_FAILF("the restarted music_resume is gated off "
+                           "(starts %u, want %u)",
+                           osys_null_audio_starts(), starts0 + 1u);
             }
         }
         if (level_time_limit() != level_data()->timeA ||
             level_tribe_members() != 12u) {
-            fprintf(stderr, "FAIL the restart is not the board's pick\n");
-            bad = 1;
+            TEST_FAILF("the restart is not the board's pick");
         }
         /* D-82: 1000:3073 plays the party screen after a restart (only the
          * RESTORE GAME path sets [0x34]); the port must leave it pending. */
         if (!gameflow_party_pending()) {
-            fprintf(stderr,
-                    "FAIL RESTART THIS LEVEL skipped the party screen\n");
-            bad = 1;
+            TEST_FAILF("RESTART THIS LEVEL skipped the party screen");
         }
         /* level_setup (1000:31BD) also runs on the restart path: the record's
          * goal text must be re-armed so the level-title page shows on the
          * first play frame after the party. */
         if (!gameflow_goal_armed()) {
-            fprintf(stderr,
-                    "FAIL RESTART THIS LEVEL skipped the level-title page\n");
-            bad = 1;
+            TEST_FAILF("RESTART THIS LEVEL skipped the level-title "
+                       "page");
         }
         /* SAVE GAME through the action: the menu's slot + the live state */
         menu_open_pause();
@@ -801,28 +702,23 @@ int main(int argc, char **argv)
         (void)_press(JOYBITS_DOWN); // row 1 = game 2
         (void)_press(JOYBITS_FIRE);
         if (menu_slot() != 2u) {
-            fprintf(stderr, "FAIL the action's slot is %u\n", menu_slot());
-            bad = 1;
+            TEST_FAILF("the action's slot is %u", menu_slot());
         }
         if (gameflow_pause_action(3, &quit) != FLOW_LEVEL || quit) {
-            fprintf(stderr, "FAIL SAVE GAME\n");
-            bad = 1;
+            TEST_FAILF("SAVE GAME");
         }
         f = fopen(SAVE_NAME, "rb");
         if (!f) {
-            fprintf(stderr, "FAIL SAVE GAME wrote nothing\n");
-            bad = 1;
+            TEST_FAILF("SAVE GAME wrote nothing");
         } else {
             uint8_t b[SAVE_LEN];
             size_t n = fread(b, 1, sizeof b, f);
             fclose(f);
             if (n != sizeof b || b[0x00] != 1u || b[0x07] != 0x00u ||
                 b[0x08] != 0x06u || b[0x0B] != 12u) {
-                fprintf(stderr,
-                        "FAIL SAVE GAME's header (level %u, time "
-                        "%02x%02x, members %u)\n",
-                        b[0], b[8], b[7], b[0x0B]);
-                bad = 1;
+                TEST_FAILF("SAVE GAME's header (level %u, time "
+                           "%02x%02x, members %u)",
+                           b[0], b[8], b[7], b[0x0B]);
             }
         }
         /* RESTART THIS GAME -> the room, [0x34] cleared */
@@ -830,16 +726,12 @@ int main(int argc, char **argv)
          * level's caption + fades run and postLevelStep takes the room. */
         if (gameflow_pause_action(2, &quit) != FLOW_LEVEL || !level_ended() ||
             level_outcome() != 0 || !gameflow_restart_pending()) {
-            fprintf(stderr, "FAIL RESTART THIS GAME\n");
-            bad = 1;
+            TEST_FAILF("RESTART THIS GAME");
         }
         /* QUIT THIS GAME */
         quit = 0;
         (void)gameflow_pause_action(4, &quit);
-        if (!quit) {
-            fprintf(stderr, "FAIL QUIT THIS GAME did not request the exit\n");
-            bad = 1;
-        }
+        if (!quit) { TEST_FAILF("QUIT THIS GAME did not request the exit"); }
     }
 
     /* 6. the time-up dialog (202F:0x5C2B): the 3-option block + the inline
@@ -848,20 +740,17 @@ int main(int argc, char **argv)
         uint8_t quit = 0;
         menu_open_time_up();
         if (!menu_active() || !menu_time_up()) {
-            fprintf(stderr, "FAIL the time-up dialog did not open\n");
-            bad = 1;
+            TEST_FAILF("the time-up dialog did not open");
         }
         (void)_press(JOYBITS_DOWN); // row 1
         (void)_press(JOYBITS_FIRE);
         if (!menu_time_up() || menu_result() != 1) {
-            fprintf(stderr, "FAIL the time-up dialog gave %d (kind %d)\n",
-                    menu_result(), menu_time_up());
-            bad = 1;
+            TEST_FAILF("the time-up dialog gave %d (kind %d)", menu_result(),
+                       menu_time_up());
         }
         menu_close();
         if (gameflow_time_up_action(0, &quit) != FLOW_LEVEL) {
-            fprintf(stderr, "FAIL the time-up RESTART THIS LEVEL\n");
-            bad = 1;
+            TEST_FAILF("the time-up RESTART THIS LEVEL");
         }
         /* the same 1000:35AF fade; drain it so the next action starts clean */
         {
@@ -873,15 +762,11 @@ int main(int argc, char **argv)
         /* 1000:3510: the same lost-level arm as the pause menu's result 2 */
         if (gameflow_time_up_action(1, &quit) != FLOW_LEVEL || !level_ended() ||
             level_outcome() != 0 || !gameflow_restart_pending()) {
-            fprintf(stderr, "FAIL the time-up RESTART THIS GAME\n");
-            bad = 1;
+            TEST_FAILF("the time-up RESTART THIS GAME");
         }
         quit = 0;
         (void)gameflow_time_up_action(2, &quit);
-        if (!quit) {
-            fprintf(stderr, "FAIL the time-up QUIT\n");
-            bad = 1;
-        }
+        if (!quit) { TEST_FAILF("the time-up QUIT"); }
     }
 
     /* D-232 (the world freeze): reach play, re-arm the active-human marker
@@ -908,16 +793,13 @@ int main(int argc, char **argv)
         a0 = rd_le_u16(m + 0xAu);
         for (i = 0; i < 8u; i++) level_tick();
         if (rd_le_u16(m + 8u) != t0 || rd_le_u16(m + 0xAu) != a0) {
-            fprintf(stderr,
-                    "FAIL D-232: the marker advanced while the world was "
-                    "frozen\n");
-            bad = 1;
+            TEST_FAILF("D-232: the marker advanced while the world "
+                       "was frozen");
         }
         level_set_updates(1);
         for (i = 0; i < 8u; i++) level_tick();
         if (rd_le_u16(m + 8u) == t0 && rd_le_u16(m + 0xAu) == a0) {
-            fprintf(stderr, "FAIL D-232: the marker did not resume\n");
-            bad = 1;
+            TEST_FAILF("D-232: the marker did not resume");
         }
     }
 
@@ -949,10 +831,12 @@ int main(int argc, char **argv)
     }
 
     remove(SAVE_NAME);
-    if (bad) {
-        fprintf(stderr, "pause: FAIL\n");
-        return 1;
-    }
-    printf("pause: ok\n");
-    return 0;
+}
+
+int main(int argc, char **argv)
+{
+    test_args_set(argc, argv);
+    UNITY_BEGIN();
+    RUN_TEST(test_pause);
+    return UNITY_END();
 }

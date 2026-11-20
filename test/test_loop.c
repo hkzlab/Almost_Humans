@@ -1,8 +1,5 @@
 /* test_loop.c - the flow/tick state machine under the null backend.
  *
- * Assert-based (no framework): exits 0 silently on success, prints the
- * failing fact to stderr and exits 1 otherwise.
- *
  * With the real attract loop in place (game_loop 1000:131E), FLOW_ATTRACT
  * no longer auto-advances: the four-effect cycle runs until the escape
  * (attract_exit 1000:13E9 - the action key or any held key), whose final
@@ -23,6 +20,7 @@
 #include "res.h"
 #include "video.h"
 #include "compat.h"
+#include "test_support.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -75,12 +73,9 @@ static uint32_t _effect_of(uint32_t phase)
 
 /**
  * @brief Run the attract loop tests.
- *
- * @return 0 on success, 1 on failure
  */
-int main(void)
+static void test_loop(void)
 {
-    int32_t bad = 0;
     uint32_t tick = 0;
 
     /* The flow machine is tested WITHOUT game data: the attract's
@@ -90,10 +85,7 @@ int main(void)
      * test into an empty scratch cwd. */
     static const char nodata[] = "humans_flow_nodata";
     (void)compat_mkdir(nodata);            // already present is fine
-    if (compat_chdir(nodata)) {
-        perror(nodata);
-        return 1;
-    }
+    if (compat_chdir(nodata)) TEST_FAILF("chdir %s failed", nodata);
     /* entry 1000:002B probes volume 0 before the room (draw_status_indicator
      * 1000:1FEF).  A missing volume would (correctly) park the flow on the
      * "PUT THE DISK INTO DRIVE 0" page forever, so the scratch tree needs an
@@ -110,10 +102,8 @@ int main(void)
         const OSystem *os = &g_osys_null;
         osys_bind(os);
         if (res_init() || video_init() || palette_init() || font_init() ||
-            attract_init()) {
-            fprintf(stderr, "FAIL: module init\n");
-            return 1;
-        }
+            attract_init())
+            TEST_FAILF("module init");
     }
 
     /* 1. ATTRACT holds on idle - the cycle never auto-advances (the old
@@ -125,14 +115,9 @@ int main(void)
             s = gameflow_step(s, &in);
             palette_tick();               // the ISR body's fade step
             audio_tick();
-            if (s != FLOW_ATTRACT) {
-                fprintf(stderr,
-                        "FAIL at tick %u: idle attract left the "
-                        "state (%d)\n",
-                        tick, (int32_t)s);
-                bad = 1;
-                break;
-            }
+            if (s != FLOW_ATTRACT)
+                TEST_FAILF("at tick %u: idle attract left the state (%d)", tick,
+                           (int32_t)s);
         }
     }
 
@@ -162,19 +147,12 @@ int main(void)
          * (test 1's idle ticks already left the machine mid-cycle, so the
          * sequence's start is arbitrary - its structure is not) */
         static const uint32_t after[5] = { 0u, 3u, 4u, 2u, 1u };
-        if (runs < 8u) {
-            fprintf(stderr, "FAIL: only %u effect runs observed\n", runs);
-            bad = 1;
-        }
+        if (runs < 8u) TEST_FAILF("only %u effect runs observed", runs);
         for (uint32_t i = 0; i + 1 < 8u; i++) {
-            if (seq[i] < 1u || seq[i] > 4u || after[seq[i]] != seq[i + 1]) {
-                fprintf(stderr,
-                        "FAIL: effect order[%u] = %u -> %u, want "
-                        "the 1->3->2->4 cycle\n",
-                        i, seq[i], seq[i + 1]);
-                bad = 1;
-                break;
-            }
+            if (seq[i] < 1u || seq[i] > 4u || after[seq[i]] != seq[i + 1])
+                TEST_FAILF(
+                    "effect order[%u] = %u -> %u, want the 1->3->2->4 cycle", i,
+                    seq[i], seq[i + 1]);
         }
     }
 
@@ -187,7 +165,8 @@ int main(void)
         s = gameflow_step(s, &in);
         palette_tick();
         audio_tick();
-        bad |= _expect_state(s, FLOW_ATTRACT, 0, "escape: fade still running");
+        TEST_ASSERT_FALSE(
+            _expect_state(s, FLOW_ATTRACT, 0, "escape: fade still running"));
         InputState idle = _make_input();
         uint32_t guard = 0;
         while (s == FLOW_ATTRACT && guard++ < 200u) {
@@ -195,13 +174,10 @@ int main(void)
             palette_tick();
             audio_tick();
         }
-        if (s != FLOW_MENU) {
-            fprintf(stderr,
-                    "FAIL: the escape never reached MENU "
-                    "(state %d after %u ticks)\n",
-                    (int32_t)s, guard);
-            bad = 1;
-        }
+        if (s != FLOW_MENU)
+            TEST_FAILF("the escape never reached MENU "
+                       "(state %d after %u ticks)",
+                       (int32_t)s, guard);
     }
 
     /* 4. the room holds: idle, ESC (clears the name - 0x5F11's act0, no
@@ -211,17 +187,17 @@ int main(void)
         InputState idle = _make_input();
         GameFlow s = FLOW_MENU;
         s = gameflow_step(s, &idle);
-        bad |= _expect_state(s, FLOW_MENU, 0, "menu holds");
+        TEST_ASSERT_FALSE(_expect_state(s, FLOW_MENU, 0, "menu holds"));
         InputState esc = _make_input();
         esc.lastKey = 0x1Bu;
         s = gameflow_step(s, &esc);
-        bad |=
-            _expect_state(s, FLOW_MENU, 0, "menu ESC stays (clears the name)");
+        TEST_ASSERT_FALSE(
+            _expect_state(s, FLOW_MENU, 0, "menu ESC stays (clears the name)"));
         InputState act = _make_input();
         act.joyBits = JOYBITS_FIRE;
         s = gameflow_step(s, &act);
-        bad |=
-            _expect_state(s, FLOW_MENU, 0, "menu action stays (option cycle)");
+        TEST_ASSERT_FALSE(
+            _expect_state(s, FLOW_MENU, 0, "menu action stays (option cycle)"));
     }
 
     /* 5. the re-entry: the attract re-arms (game_loop's prologue runs
@@ -232,13 +208,10 @@ int main(void)
         s = gameflow_step(s, &idle);      // the restart + the first effect
         palette_tick();
         audio_tick();
-        bad |= _expect_state(s, FLOW_ATTRACT, 0, "re-entry plays");
+        TEST_ASSERT_FALSE(_expect_state(s, FLOW_ATTRACT, 0, "re-entry plays"));
         uint32_t ph = attract_phase_for_probe();
-        if (ph == ATTRACT_DONE || ph == ATTRACT_IDLE) {
-            fprintf(stderr, "FAIL: the re-entry did not re-arm (phase %u)\n",
-                    ph);
-            bad = 1;
-        }
+        if (ph == ATTRACT_DONE || ph == ATTRACT_IDLE)
+            TEST_FAILF("the re-entry did not re-arm (phase %u)", ph);
         InputState fire = _make_input();
         fire.joyBits = JOYBITS_FIRE;
         s = gameflow_step(s, &fire);      // escape again
@@ -251,7 +224,8 @@ int main(void)
             palette_tick();
             audio_tick();
         }
-        bad |= _expect_state(s, FLOW_MENU, 0, "second escape -> menu");
+        TEST_ASSERT_FALSE(
+            _expect_state(s, FLOW_MENU, 0, "second escape -> menu"));
     }
 
     /* 6. the room's confirm: hold RIGHT - the rails walk 0x1D2 -> 0x208
@@ -267,22 +241,24 @@ int main(void)
             palette_tick();
             audio_tick();
         } while (s == FLOW_MENU && guard++ < 1200u);
-        if (s != FLOW_LEVEL) {
-            fprintf(stderr,
-                    "FAIL: the right-edge walk never reached LEVEL "
-                    "(state %d after %u ticks)\n",
-                    (int32_t)s, guard);
-            bad = 1;
-        }
+        if (s != FLOW_LEVEL)
+            TEST_FAILF("the right-edge walk never reached LEVEL "
+                       "(state %d after %u ticks)",
+                       (int32_t)s, guard);
         s = gameflow_step(s, &right);        // level holds
-        bad |= _expect_state(s, FLOW_LEVEL, 0, "level holds");
+        TEST_ASSERT_FALSE(_expect_state(s, FLOW_LEVEL, 0, "level holds"));
     }
 
     /* 7. the full-game_main smoke test: test/test_smoke.c drives the
      * flow through the null backend's scripted-input hook. */
 
     if (compat_chdir("..") == 0) (void)compat_rmdir(nodata);
+}
 
-    if (!bad) printf("flow tests: OK (attract cycle + escape + menu)\n");
-    return bad;
+int main(int argc, char **argv)
+{
+    test_args_set(argc, argv);
+    UNITY_BEGIN();
+    RUN_TEST(test_loop);
+    return UNITY_END();
 }
