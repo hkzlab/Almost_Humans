@@ -43,7 +43,50 @@ But I respect and understand the choice of people wishing to steer clear of code
 
 ### Building
 
-**TODO**
+Dependencies:
+
+| Dependency   | Version       | Needed for       |
+| ------------ | ------------- | ---------------- |
+| CMake        | 3.24 or newer | the build itself |
+| C compiler   | clang or gcc  | the build itself |
+| SDL3         | 3.2 or newer  | humans-sdl3      |
+| libmt32emu   | optional      | --audio mt32     |
+| clang-tidy   | optional      | include audit    |
+
+Built and tested with clang 23.1.5 and gcc 16.2.1 (on Fedora 45), [SDL3](https://github.com/libsdl-org/SDL) 3.4.20 and [libmt32emu](https://github.com/munt/mt32emu) 2.7.2 
+
+The core compiles with `-Wconversion -Wextra -Werror` under both.
+
+The game builds and plays without mt32emu, only `--audio mt32` needs it.
+
+The usual command line build, with clang:
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang
+cmake --build build -j
+./build/humans-sdl3
+```
+
+The same with gcc, in its own build directory:
+
+```sh
+cmake -S . -B build-gcc -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc
+cmake --build build-gcc -j
+./build-gcc/humans-sdl3
+```
+
+Without `-DCMAKE_C_COMPILER`, CMake picks clang when it finds it on `PATH`.
+
+Useful options: `-DHUMANSRE_VIEWPORT_WIDE=OFF` drops the doubled (wide) level viewport,`-DHUMANSRE_UNUSED_INCLUDES=OFF` skips the clang-tidy pass (obviously not available with gcc).
+
+#### Test suite
+
+To run the test suite (add `-DHUMANSRE_BUILD_TESTS=ON` to the configure step, or use a `Debug`
+build; some tests skip when the game data or the MT-32 ROMs are absent):
+
+```sh
+ctest --test-dir build --output-on-failure -j 8
+```
 
 ### TODO
 
