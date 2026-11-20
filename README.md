@@ -20,7 +20,7 @@ Work on this port was started as an experiment to check the usability of a cheap
 
 I usually don't release my experiments nor LLM written code, but given that
 
-- this ended up quite playable
+- This ended up quite playable
 - I don't like wasting effort
 - I'm having fun cleaning it up
 - I plan to keep improving it
