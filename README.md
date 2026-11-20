@@ -6,7 +6,9 @@
 
 'Almost Humans' is a reverse engineered port of the DOS CD version of "The Humans" by Imagitec Design, 1992.
 
-The game is a mix between platform and puzzle, with some distant hints of "Lemmings". You can read about it on [Wikipedia](https://en.wikipedia.org/wiki/The_Humans_(video_game)).
+The game is a mix between **platform** and **puzzle**, with some distant hints of "Lemmings".
+
+You can read about it on [Wikipedia](https://en.wikipedia.org/wiki/The_Humans_(video_game)).
 
 ![Screenshot of the SDL3 port, winter level](pics/almost_humans_sdl3.png)
 
