@@ -9,7 +9,8 @@
 
 /* the A000 space, flat: pixel 4*addr + plane is one byte, so the four plane
  * writes of one address are four contiguous bytes. */
-static uint8_t _vram[65536u * 4u];
+#define VIDEO_PLANE_SIZE 0x10000u
+static uint8_t _vram[VIDEO_PLANE_SIZE * 4u];
 
 /* The shared text/scratch arena: 200 rows x 80 bytes.  The original carves
  * the same region twice - the attract's 16000-B arena ([0xC9D], game_loop

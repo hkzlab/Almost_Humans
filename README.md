@@ -24,7 +24,7 @@ But I respect and understand the choice of people wishing to steer clear of code
 - Some of the code was written by an LLM, some by me, most was re-worked and cleaned up by me
 - The architecture of the port is mine (and took some hints from codebases I worked on in the past: ScummVM, Reminiscence, RAW...)
 
-## SDL3 port
+## SDL3 port 
 
 **TODO**
 
@@ -36,17 +36,27 @@ But I respect and understand the choice of people wishing to steer clear of code
 
 **TODO**
 
+### TODO
+
+- Full test playthrough
+- Improve extended viewport mode (background graphics?)
+- Additional video modes (e.g. no aspect ratio correction)
+- Controller support
+- Refactor the video plane model (see core's [video.c](src/core/video.c)) to remove the static 256KiB used to model video planes and decide who owns the logic around it
+
 ## Credits
 
-**TODO**
+I directly took code out of these projects:
+
+- [DOSBox staging](https://github.com/dosbox-staging/dosbox-staging): Took a good chunk of the speaker emulation from them
+- [Nuked-OPL3-fast](https://github.com/tgies/Nuked-OPL3-fast): The AdLib emulation uses this library
 
 ## Tools
 
-**TODO**
-
-- Ghidra
-- ghidrassistMCP
-- dosbox-automation
-- dosbox-mcp
-- VSCodium
-- DeepSeek v4.1 Flash
+- [Ghidra](https://github.com/NationalSecurityAgency/ghidra): The reverse engineering suite
+- [GhidrAssistMCP](https://github.com/symgraph/GhidrAssistMCP): MCP server I used to allow access to an LLM
+- [DOSBox Staging](https://github.com/dosbox-staging/dosbox-staging): Self-built version with debugger to manually single-step through pieces of code
+- [dosbox-automation](https://github.com/dosbox-automation/dosbox-automation/) combined with [dosbox-mcp](https://github.com/dosbox-automation/dosbox-mcp) to allow the LLM access to the live game and its memory
+- [VSCodium](https://github.com/VSCodium/vscodium): My editor of choice
+- [DeepSeek v4.1 Flash](https://platform.deepseek.com)
+- [opencode](https://github.com/anomalyco/opencode/)
