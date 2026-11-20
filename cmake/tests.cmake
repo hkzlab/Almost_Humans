@@ -41,6 +41,11 @@ function(humansre_test_executable name)
     target_compile_definitions(${name} PRIVATE HUMANSRE_TEST_PROBES)
     target_link_libraries(${name} PRIVATE test_support)
     humansre_warnings(${name})
+    if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+        # A test path is built from the data dir's unknown length; a truncated
+        # one simply misses the fixture and the test skips.
+        target_compile_options(${name} PRIVATE -Wno-format-truncation)
+    endif()
     if(NOT HUMANSRE_BUILD_TESTS)
         set_target_properties(${name} PROPERTIES EXCLUDE_FROM_ALL TRUE)
     endif()

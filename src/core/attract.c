@@ -861,7 +861,7 @@ uint8_t attract_tick(const InputState *in)
                                0xA0u, 4u);
                 _draw_score_block(ar);
             } else { // intro_frame_2 1652
-                uint16_t base = (_frame - 1u) * 10u;
+                uint16_t base = (uint16_t)((_frame - 1u) * 10u);
                 font_draw_text(ar,
                                game_string(GAME_STRING_ATTRACT_TIMES_HEADER),
                                0xA0u, 4u);

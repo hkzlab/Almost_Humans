@@ -114,7 +114,7 @@ void audio_play_tune(const char *name)
 
 void audio_play_level_tune(uint16_t level1)
 {
-    uint8_t letter = level1 ? (level1 - 1u) % 18u : 0u;
+    uint8_t letter = (uint8_t)(level1 ? (level1 - 1u) % 18u : 0u);
     _tune_lev[7] = (char)('A' + letter);
     audio_play_tune(_tune_lev);
 }

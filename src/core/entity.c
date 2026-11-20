@@ -192,7 +192,7 @@ static void _spawn_tile_pair(uint32_t pair, uint8_t tile, const uint8_t *map,
 {
     for (uint16_t row = 0; row < MAP_ROWS; row++) {
         for (uint16_t col = 0; col < MAP_COLS; col++) {
-            uint16_t idx = row * MAP_COLS + col;
+            uint16_t idx = (uint16_t)(row * MAP_COLS + col);
             uint16_t cx = col * 16u;
             uint16_t dx = row * 16u;
 
@@ -406,7 +406,7 @@ static void _entity_carry_anim(Entity *ep)
         if (frame != _sel_primary) return; // cbba
         wr_le_u16(b + 0xCu, (uint16_t)(frame - 2u)); // cbc0
         if (sub & 0xF0u) { // cbc8
-            sub -= 0x10u; // cbe8
+            sub = (uint8_t)(sub - 0x10u); // cbe8
             b[0xBu] = sub;
             if (sub & 0x10u) object_core_driver_call(0xBu); // cbf0..cbf9
             return;

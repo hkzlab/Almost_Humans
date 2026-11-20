@@ -349,7 +349,7 @@ uint8_t map_begin(void)
 }
 
 static uint8_t _map_col_from_angle(void)
-{ return (((0x10Eu + 0x168u - _map_angle) % 0x168u) / 0x0Cu); }
+{ return (uint8_t)(((0x10Eu + 0x168u - _map_angle) % 0x168u) / 0x0Cu); }
 
 /** @brief 1000:0518's header: high.bit, the 15 outlines and the title.  The
  * page is cleared at 0x0577 on the next tick before the rows are drawn.
@@ -603,7 +603,8 @@ uint8_t map_tick(const InputState *in)
         if (_map_spin > 0) {
             _map_redraw();
             if (_map_spin > 3) {
-                _map_angle = (_map_angle + _map_angle_step) % 0x168u; // 0x0DF3
+                _map_angle = (uint16_t)((_map_angle + _map_angle_step) %
+                                        0x168u); // 0x0DF3
             } else {
                 _map_angle_step = 0u; // 1000:032A
             }
@@ -632,7 +633,7 @@ uint8_t map_tick(const InputState *in)
             uint8_t cell = 0xFFu;
 
             _map_pending_key = 0u; // 1000:0363 [0x48A3] = 0
-            if (c >= 'a' && c <= 'z') c -= 32u;
+            if (c >= 'a' && c <= 'z') c = (uint8_t)(c - 32u);
             if (c >= 'A' && c <= 'Z') cell = c - 'A';
             else if (c == ' ') cell = 0x1Au;
             else if (c == '.') cell = 0x1Bu;
@@ -644,7 +645,8 @@ uint8_t map_tick(const InputState *in)
                  * then falls into the shared append at 0x040B (the typed
                  * path bypasses the fire debounce). */
                 _map_col = cell;
-                _map_angle = (0x10Eu + 0x168u - cell * 0x0Cu) % 0x168u;
+                _map_angle =
+                    (uint16_t)((0x10Eu + 0x168u - cell * 0x0Cu) % 0x168u);
                 committed = (uint8_t)(_map_apply(cell));
             }
         } else if ((in->joyBits & JOYBITS_FIRE) && !_map_fire_lock &&
@@ -664,7 +666,7 @@ uint8_t map_tick(const InputState *in)
         uint8_t step = (uint8_t)(_map_enter_bx / 8u);
 
         if (step > 0x10u) step = 0x10u;
-        _map_angle = (_map_angle + 0x168u - step) % 0x168u;
+        _map_angle = (uint16_t)((_map_angle + 0x168u - step) % 0x168u);
         _map_col = _map_col_from_angle();
         _map_redraw(); // 0x0CBE
         if (palette_fade_active()) {

@@ -728,9 +728,10 @@ static void _do_load(void)
 uint8_t frontend_tick(const InputState *in)
 {
     switch (_phase) {
+        /* the load takes the first tick */
         case FE_IDLE:
             _phase = FE_LOAD;
-            /* fall through: the load takes this first tick */
+            /* fallthrough */
         case FE_LOAD: _do_load(); return 1;
         case FE_FADEIN:
             _compose(1);

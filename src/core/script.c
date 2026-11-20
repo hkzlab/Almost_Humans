@@ -91,7 +91,7 @@ void script_fire(CueScript *s, uint16_t frame)
         }
         if (s->quit) return;
     }
-    if (s->cursor >= s->cueCount && s->frame + 1 >= SCRIPT_FRAME_TARGET)
+    if (s->cursor >= s->cueCount && s->frame + 1u >= SCRIPT_FRAME_TARGET)
         s->done = 1;
 }
 

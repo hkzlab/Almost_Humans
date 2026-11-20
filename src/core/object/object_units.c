@@ -210,7 +210,7 @@ int32_t object_units_stack_push(uint8_t *actor)
         dx = ey;
         di = e + 5; // the owner byte
         while (1) {
-            dx -= 0x10u; // 16 px per member
+            dx = (uint16_t)(dx - 0x10u); // 16 px per member
             if (di[0] & 0x80u) {
                 di++;
                 break;
@@ -338,11 +338,11 @@ int32_t object_units_stack_step_off(uint8_t *actor)
         ey = rd_le_u16(e + 2u);
         di = e + 6; // the first member
         while (!(di[0] & 0x80u) && di[0] != idx) {
-            ey -= 0x10u; // 1000:E896: one level up
+            ey = (uint16_t)(ey - 0x10u); // 1000:E896: one level up
             di++;
         }
         if (di[0] & 0x80u) continue;
-        ey -= 0x18u; // 1000:E89B
+        ey = (uint16_t)(ey - 0x18u); // 1000:E89B
         if (ey != rd_le_u16(actor + 2u)) {
             _obj_units_frame_step(actor, 0x23u, 0x25u); // 1000:E8D4
             return -1;
@@ -1599,11 +1599,11 @@ void _obj_units_fall_machine(uint8_t *actor)
     if (above >= 0xF0u) { // 1000:F766
         /* 1000:F772: AX is the record.x + [+0x10] captured at 1000:F736, not
          * the probe x in CX (`ADD AX,8` then `AND AX,0xFFF0`). */
-        uint16_t gx = (uint16_t)(ax + 8) & ~0xFu;
+        uint16_t gx = (uint16_t)((ax + 8) & ~0xFu);
 
         if (above != 0xF1u) {
-            gx -= 4u; // 1000:F778
-            if (above != 0xF2u) gx += 8u;
+            gx = (uint16_t)(gx - 4u); // 1000:F778
+            if (above != 0xF2u) gx = (uint16_t)(gx + 8u);
             wr_le_u16(actor + 0u, gx); // 1000:F784
         }
         wr_le_u16(actor + 2u, (uint16_t)(row - 0x1Cu)); // 1000:F786

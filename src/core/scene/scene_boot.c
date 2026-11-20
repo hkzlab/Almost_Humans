@@ -242,7 +242,7 @@ static void _boot_scroll_render(uint8_t *page, const uint8_t *bac,
                                 uint32_t bacSize, uint32_t scroll,
                                 uint32_t destOff)
 {
-    uint16_t ax = scroll % VIDEO_SCREEN_W;
+    uint16_t ax = (uint16_t)(scroll % VIDEO_SCREEN_W);
     uint32_t dx, bp, si, di = destOff;
     if (di != 0) {
         dx = VIDEO_SCREEN_W - di;
@@ -782,7 +782,7 @@ uint8_t scene_play_boot_intro(void)
             if (--_boot_hold != 0u) return 1;
             /* bf21: this bank's 4 entries fade into gtpal+0x48 (entry 24),
              * BP=3 - the banks start at DAC entry 4, +4 per cycle */
-            palette_build_fade(4u + _boot_gt_bank * 4u, 4u, 3u,
+            palette_build_fade((uint16_t)(4u + _boot_gt_bank * 4u), 4u, 3u,
                                _boot_gt_list + 2u + 0x48u);
             _boot_phase = BOOT_GT_BANK_A;
             return 1;
@@ -791,7 +791,7 @@ uint8_t scene_play_boot_intro(void)
             if (_boot_abort_poll()) return 1; // c0af (bf2e)
             if (palette_fade_active()) return 1;
             /* bf32: the same bank into gtpal+0x3C (entry 20), BP=0x1e */
-            palette_build_fade(4u + _boot_gt_bank * 4u, 4u, 0x1Eu,
+            palette_build_fade((uint16_t)(4u + _boot_gt_bank * 4u), 4u, 0x1Eu,
                                _boot_gt_list + 2u + 0x3Cu);
             _boot_phase = BOOT_GT_BANK_B;
             return 1;
@@ -891,9 +891,9 @@ uint8_t scene_play_boot_intro(void)
             if (--_boot_hold != 0u) return 1;
             if (++_boot_gt_bank < 7u) {
                 /* bd48: the next bank - target = working+0x30+bank*0x30 */
-                palette_build_fade(0x10u + _boot_gt_bank * 0x10u, 0x10u, 0x23u,
-                                   palette_working() + 0x30u +
-                                       _boot_gt_bank * 0x30u);
+                palette_build_fade(
+                    (uint16_t)(0x10u + _boot_gt_bank * 0x10u), 0x10u, 0x23u,
+                    palette_working() + 0x30u + _boot_gt_bank * 0x30u);
                 _boot_phase = BOOT_FIRST_BANK;
                 return 1;
             }

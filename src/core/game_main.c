@@ -495,7 +495,7 @@ GameFlow gameflow_step(GameFlow state, const InputState *input)
              * [0x5F09] into [0x22] - the level counter here).  ESC stays in
              * the room and clears the typed name. */
             if (frontend_tick(input)) return FLOW_MENU;
-            _level_current = frontend_selected_level() - 1u;
+            _level_current = (uint16_t)(frontend_selected_level() - 1u);
             /* entry:004C: the room's RESTORE GAME counter ([0x5E6F], carried
              * out in BL by the walk-out exit) loads the slot.  A hit pushes the
              * save's +0x00 level through the entry stack to [0x22] - it
@@ -504,7 +504,8 @@ GameFlow gameflow_step(GameFlow state, const InputState *input)
              * the 1..160 bound only rejects a corrupt saved id. */
             if (save_load_slot(frontend_option(FRONTEND_OPT_GAME))) {
                 uint16_t lv = save_level();
-                if (lv >= 1u && lv <= 160u) _level_current = lv - 1u;
+                if (lv >= 1u && lv <= 160u)
+                    _level_current = (uint16_t)(lv - 1u);
             }
             /* entry 1000:009C..0x00B1, after the slot load and before the level
              * walk: [0x11FC] := 12/10/8 by the LEVEL board.  This is the only

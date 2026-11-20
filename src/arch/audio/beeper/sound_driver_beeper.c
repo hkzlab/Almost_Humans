@@ -317,7 +317,7 @@ static void _decode_row(SoundDriver *drv, BeeperRecord *rec)
     base = ((uint32_t)drv->offset[pattern] - drv->offset[0]) * 16u;
     at = rec->cursor;
     for (i = 0; i < rec->tracks; i++) {
-        uint8_t *cell = &drv->slot[0][i * BEEP_SLOT_BYTES];
+        uint8_t *cell = drv->slot[i]; // DI = slot 0 + i * 0x16
         cell[BEEP_NOTE] = _tune_u8(drv, base + at);
         cell[BEEP_INSTRUMENT] = _tune_u8(drv, base + at + 1u);
         cell[BEEP_COMMAND] = _tune_u8(drv, base + at + 2u);

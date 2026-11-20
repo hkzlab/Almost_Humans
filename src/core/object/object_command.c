@@ -643,7 +643,7 @@ static void _obj_command_settle(uint8_t *actor)
     if (b == 0u) { // 1000:D91D
         b = level_page_byte(_obj_core_map_at_abs(ax, line - 0x10, &sub), sub);
         if (!(b & 0x80u)) {
-            _obj_side = 0xFFE0;
+            _obj_side = (int16_t)0xFFE0;
             line -= 0x10;
         } else {
             b = 0u;
@@ -1758,7 +1758,7 @@ void object_command_animator_tick(void)
         if (rd_le_u16(g + 0u) & 0x8000u) continue;
         while ((g[5u + len] & 0x80u) == 0) len++;
         if (len < 3u || len > 8u) continue;
-        limit = 2u * (len - 1u);
+        limit = (uint8_t)(2u * (len - 1u));
         c = g[4] & 0x0Fu;
         /* 1000:D795: the state byte's high nibble is carried in DL (bits 4..7,
          * the 0x80 sentinel included) and only bit 4 is the direction. */

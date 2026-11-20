@@ -914,7 +914,7 @@ void _obj_core_place_at(uint8_t *actor)
 static uint16_t _obj_core_span_flag(int32_t d, uint32_t frame)
 {
     if (d == (int32_t)frame) return 0xFFFFu;
-    return d < (int32_t)frame ? 0u : 1u;
+    return (uint16_t)(d < (int32_t)frame ? 0u : 1u);
 }
 
 

@@ -164,7 +164,7 @@ static void _obj_walk_step1(uint8_t *r)
     uint16_t a = rd_le_u16(r + 0xAu);
 
     if (a != 0u) {
-        wr_le_u16(r + 0xAu, a - 1u);
+        wr_le_u16(r + 0xAu, (uint16_t)(a - 1u));
         return;
     }
     wr_le_u16(r + 0xAu, 8u);
@@ -698,7 +698,7 @@ static void _obj_walk_mover_pass_records(uint8_t *r, int32_t ax, int32_t bx)
              * OR 0x80 into the ACTING record's class byte and link the
              * candidate to it by that class ordinal; the scan then moves on
              * to the next record (0x5B31). */
-            uint8_t ord = (uint8_t)((r - _obj_array) / OBJ_STRIDE) - 8u;
+            uint8_t ord = (uint8_t)(((r - _obj_array) / OBJ_STRIDE) - 8u);
 
             wr_le_u16(r + 6u, 0u);
             wr_le_u16(r + 8u, 0u);
@@ -1015,7 +1015,7 @@ static void _obj_walk_stack8_move(uint8_t *r, int32_t vx, int32_t vy,
 
             wr_le_u16(r + 8u, 3u);
             f = (uint16_t)((rd_le_u16(r + 4u) + 1u));
-            if (f == endFrame) f -= 8u;
+            if (f == endFrame) f = (uint16_t)(f - 8u);
             wr_le_u16(r + 4u, f);
         } else {
             wr_le_u16(r + 8u, (uint16_t)(s - 1u));
@@ -1035,7 +1035,7 @@ static void _obj_walk_stack8_anim(uint8_t *r, uint32_t endFrame)
     uint16_t s = rd_le_u16(r + 8u);
 
     if (s != 0u) {
-        wr_le_u16(r + 8u, s - 1u);
+        wr_le_u16(r + 8u, (uint16_t)(s - 1u));
         return;
     }
     wr_le_u16(r + 8u, 6u);
@@ -1523,7 +1523,7 @@ static void _obj_walk_projectile(uint8_t *r, uint32_t idx)
     if (vy == 0) { // phase 1
         int16_t sx = (int16_t)(x + 8);
         int16_t sy = (int16_t)((y + 0x10) & ~0xF);
-        uint16_t ci = 2u * (uint16_t)sy + ((uint16_t)sx >> 4);
+        uint16_t ci = (uint16_t)(2u * (uint16_t)sy + ((uint16_t)sx >> 4));
         int16_t slope = (int16_t)level_slope_byte(
             _obj_core_map_buffer_byte((int32_t)ci), (uint16_t)sx & 0xFu);
         int16_t step = 1;
@@ -1711,7 +1711,7 @@ static void _obj_walk_marker(uint8_t *r)
         } else if (r[6] & 0x80u) {
             r[6] = 0u; // 1000:C579: cleared, so the re-test below scans
         } else if (f != 0x26u) {
-            wr_le_u16(r + 4u, f - 1u); // 1000:C570
+            wr_le_u16(r + 4u, (uint16_t)(f - 1u)); // 1000:C570
             if (map && rd_le_u16(r + 8u) < OBJ_MAP_CELLS)
                 ((uint8_t *)map)[rd_le_u16(r + 8u)] = 0xBBu;
         }
@@ -1720,8 +1720,8 @@ static void _obj_walk_marker(uint8_t *r)
      * the caller re-tests it here - the scan follows whenever it is clear. */
     if (r[6] & 0x80u) return;
     {
-        uint16_t mx = (uint16_t)(rd_le_u16(r + 0u) + 8u) & ~0xFu;
-        uint16_t my = (uint16_t)(rd_le_u16(r + 2u) + 8u) & ~0xFu;
+        uint16_t mx = (uint16_t)((rd_le_u16(r + 0u) + 8u) & ~0xFu);
+        uint16_t my = (uint16_t)((rd_le_u16(r + 2u) + 8u) & ~0xFu);
 
         for (i = 0; i < OBJ_STATIC; i++) {
             uint8_t *slot = _obj_array + i * OBJ_STRIDE;

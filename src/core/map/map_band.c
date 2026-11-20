@@ -73,7 +73,7 @@ static void _blit_four(uint8_t *page, uint32_t row, uint32_t col, uint32_t v,
  */
 static uint32_t _map_off_byte(uint32_t a)
 {
-    uint16_t row = (uint16_t)(a / 80u), col = (a % 80u) * 4u;
+    uint16_t row = (uint16_t)(a / 80u), col = (uint16_t)((a % 80u) * 4u);
     uint8_t v = 0;
 
     if (!_map_off || row >= VIDEO_SCREEN_H) return 0u;
@@ -104,8 +104,8 @@ static void _blit_runs(uint8_t *page, uint16_t *d, uint16_t *s, uint32_t mask)
             (*d)++;
             (*s)++;
         }
-        *d += gaps[k];
-        *s += gaps[k];
+        *d = (uint16_t)(*d + gaps[k]);
+        *s = (uint16_t)(*s + gaps[k]);
     }
 }
 
@@ -200,7 +200,8 @@ static void _map_blit_strip(uint16_t phase, uint32_t ch, uint8_t *page)
     for (uint16_t r = 0; r < 40u; r++)
         for (uint16_t c = 0; c < 8u; c++) {
             uint32_t a = src + r * 8u + c;
-            uint16_t da = dst + r * 80u + c; // the 0x48 gap + 8 bytes
+            uint16_t da =
+                (uint16_t)(dst + r * 80u + c); // the 0x48 gap + 8 bytes
             uint32_t px = (da / 80u) * VIDEO_SCREEN_W + (da % 80u) * 4u;
 
             if (a >= MAP_STAGE_ADDRS) continue;

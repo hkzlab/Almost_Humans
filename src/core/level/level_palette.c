@@ -118,7 +118,7 @@ void _level_palette_rotate(void)
         uint8_t *p = _level_pal + first * 3u;
         uint8_t last[3];
         memcpy(last, p + (n - 1u) * 3u, 3);
-        for (uint16_t i = n - 1u; i > 0u; i--)
+        for (uint16_t i = (uint16_t)(n - 1u); i > 0u; i--)
             memcpy(p + i * 3u, p + (i - 1u) * 3u, 3);
         memcpy(p, last, 3);
         palette_set_dac(p, first, n);

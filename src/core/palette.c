@@ -28,7 +28,7 @@ void palette_seal_triples(uint8_t *p6, uint32_t first, uint32_t entries)
     for (uint16_t i = 0; i < entries; i++) {
         uint16_t at = (uint16_t)((first + i) * 3u);
         uint8_t r = p6[at], g = p6[at + 1u], b = p6[at + 2u];
-        uint8_t v = (77u * r + 151u * g + 28u * b) >> 9;
+        uint8_t v = (uint8_t)((77u * r + 151u * g + 28u * b) >> 9);
 
         p6[at] = p6[at + 1u] = p6[at + 2u] = v;
     }

@@ -72,7 +72,7 @@ int32_t ver_detect_run(const OSystem *osys)
         n = osys->fs->read(v, got, chunk, want);
         if (n == 0) break;
         hash = _hash_update(hash, chunk, n);
-        got += n;
+        got = (uint16_t)(got + n);
     }
     osys->fs->closeVolume(v);
 

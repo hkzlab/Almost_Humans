@@ -331,7 +331,7 @@ void statusbar_charge_bar(uint32_t v)
         uint8_t col = (uint8_t)(ax >> 2), p = ax & 3u;
 
         for (i = 0; i < 2u; i++) { // 0x376D: CX = 2 passes
-            uint16_t x = 4u * col + p;
+            uint16_t x = (uint16_t)(4u * col + p);
 
             for (r = 0; r < 10u; r++) {
                 uint32_t y = _bar_top_row() + 15u + r; // bar row 15
@@ -357,7 +357,7 @@ void statusbar_charge_bar(uint32_t v)
         // past the art
         if (!_stage || src + 0x140u * 15u + 4u > STAGE_BYTES) return;
         for (i = 0; i < 2u; i++) {
-            uint16_t x = 4u * col + p;
+            uint16_t x = (uint16_t)(4u * col + p);
 
             for (r = 0; r < 15u; r++) {
                 uint32_t y = _bar_top_row() + 10u + r; // bar row 10

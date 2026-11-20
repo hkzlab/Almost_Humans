@@ -359,7 +359,7 @@ static void _marquee(void)
     _marq_hold--; // 2a4c: DEC first, then test
     if (_marq_hold == 0u) {
         _marq_hold = 5u;
-        _marq_cell = (_marq_cell + 1u) % 0xCu;
+        _marq_cell = (uint16_t)((_marq_cell + 1u) % 0xCu);
     }
 
     uint16_t src, dhi;
@@ -369,7 +369,7 @@ static void _marquee(void)
         MASK = 0x40u
     }; // 28e9's 299b(AH=0x40) covers 2a3a
     for (uint16_t r = 0; r < 32u; r++) {
-        uint16_t di = _page_draw + dhi + r * 88u;
+        uint16_t di = (uint16_t)(_page_draw + dhi + r * 88u);
         for (uint16_t k = 0; k < 10u; k++) {
             uint8_t c = _strip[src + r * 10u + k]; // 5 LODSW = 10 B/row
             video_vram_wm2((uint16_t)(di + k), c, MASK);
@@ -402,7 +402,8 @@ static void _anim_entities(void)
                 _blit_slot(dh);
                 break; // 295f: next slot
             }
-            uint8_t cl = ((uint32_t)s->loopc + 1u) % 10u; // 292f..293b
+            uint8_t cl =
+                (uint8_t)(((uint32_t)s->loopc + 1u) % 10u); // 292f..293b
             s->loopc = cl;
             s->script = s->sub[cl]; // the sub-list ids
             s->fpos = 0u; // 294a, redo 2914

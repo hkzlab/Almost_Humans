@@ -455,7 +455,7 @@ static void _score_draw_columns(uint8_t *page)
 static void _score_num_block(uint8_t *page, uint32_t digit, uint32_t bp,
                              uint32_t off)
 {
-    uint16_t row = (uint16_t)(off / 88u), col = off % 88u;
+    uint16_t row = (uint16_t)(off / 88u), col = (uint16_t)(off % 88u);
     uint16_t px = col * 4u; // one address = 4 px
 
     if (!page || !_score_num || digit > 19u || row >= VIDEO_SCREEN_H) return;

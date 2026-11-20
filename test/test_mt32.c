@@ -77,7 +77,7 @@ static void test_mt32(void)
 {
     const char *fix = _test_argc > 1 ? _test_argv[1] : "";
     const char *roms = getenv("HUMANS_MT32_ROMS");
-    char path[1024];
+    char path[1200];
     uint8_t *rld;
     uint32_t size = 0;
     SoundDriver *drv;

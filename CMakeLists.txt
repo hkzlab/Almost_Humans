@@ -64,6 +64,10 @@ endif()
 # The test suite checks for this.
 option(HUMANSRE_SANITIZE_IMPLICIT "Abort on implicit integer conversions" OFF)
 if(HUMANSRE_SANITIZE_IMPLICIT)
+    if(NOT CMAKE_C_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR "HUMANSRE_SANITIZE_IMPLICIT needs clang "
+                            "(-fsanitize=implicit-conversion)")
+    endif()
     add_compile_options(-fsanitize=implicit-conversion
                         -fno-sanitize-recover=implicit-conversion)
     add_link_options(-fsanitize=implicit-conversion)

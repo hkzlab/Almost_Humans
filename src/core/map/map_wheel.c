@@ -302,7 +302,7 @@ static void _alpha_blit_cell(uint8_t *page, uint16_t src, uint16_t dst)
 
         for (uint16_t c = 0; c < 4u; c++) {
             uint8_t v = _alpha_sheet[(src + r * 4u + c) & 0xFFFFu];
-            uint16_t px = (at % 80u) * 4u + c * 4u;
+            uint16_t px = (uint16_t)((at % 80u) * 4u + c * 4u);
             uint16_t py = at / 80u;
 
             if (!v || py >= VIDEO_SCREEN_H || px + 3u >= VIDEO_SCREEN_W)
@@ -457,7 +457,7 @@ const char *map_name_for_probe(void) { return _map_name; }
 uint16_t map_name_angle_for_probe(void) { return _map_angle; }
 
 void map_name_set_angle_for_probe(uint32_t angle)
-{ _map_angle = angle % 0x168u; }
+{ _map_angle = (uint16_t)(angle % 0x168u); }
 
 int32_t map_glyph_for_probe(uint32_t i, int32_t *tx, int32_t *ty, int32_t *cx,
                             int32_t *cy)

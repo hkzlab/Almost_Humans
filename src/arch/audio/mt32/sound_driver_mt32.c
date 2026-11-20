@@ -980,11 +980,18 @@ static void _load_rom_dir(SoundDriver *drv, const char *dir)
     if (!_fs) return;
     count = _fs->listDir(dir, names, sizeof names);
     for (i = 0; i < count; i++) {
+        size_t dl = strlen(dir), nl = strlen(name);
         size_t size;
         uint8_t *buf;
 
-        snprintf(path, sizeof(path), "%s/%s", dir, name);
-        name += strlen(name) + 1u;
+        if (dl + 1u + nl >= sizeof path) { // cannot fit: no such file
+            name += nl + 1u;
+            continue;
+        }
+        memcpy(path, dir, dl);
+        path[dl] = '/';
+        memcpy(path + dl + 1u, name, nl + 1u);
+        name += nl + 1u;
         buf = _read_file(path, &size);
         if (!buf) continue;
         if (drv->rom_count < MT32_ROMS_MAX) {

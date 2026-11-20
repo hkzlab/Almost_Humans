@@ -226,7 +226,7 @@ static void _spark_step(void)
         _spark[_spark_write].x = (uint16_t)(_spark_ox + dx);
         _spark[_spark_write].y = (uint16_t)(_spark_oy + dy);
         _spark[_spark_write].age = 0u;
-        _spark_write = (_spark_write + 1u) % 0x58u;
+        _spark_write = (uint8_t)((_spark_write + 1u) % 0x58u);
         _spark_spawned++;
     }
     for (uint16_t i = 0; i < 0x58u; i++) {

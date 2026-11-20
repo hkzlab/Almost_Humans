@@ -75,7 +75,7 @@ static uint32_t _peak(SoundDriver *drv)
 
 static void test_adlib(void)
 {
-    char path[1024];
+    char path[1200];
     uint32_t size = 0;
     uint8_t *image;
     SoundDriver *drv;

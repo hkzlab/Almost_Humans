@@ -337,7 +337,7 @@ static void _item_masks_build(const BdPage *page)
         }
         if ((uint32_t)off + 32u > _page_items_size) continue;
         for (uint16_t row = 0; row < 16u; row++) {
-            uint16_t o = off + 2u * row;
+            uint16_t o = (uint16_t)(off + 2u * row);
 
             if (rd_le_u16(_page_items + o) != 0u) continue; // 1000:55CC
             wr_le_u16(_page_items + o, _item_row_word(&si));

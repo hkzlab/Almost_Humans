@@ -157,14 +157,14 @@ int32_t level_load(uint16_t levelId)
                 uint32_t q = p + REC_HDR;
                 uint8_t n = 0;
                 while (q < fileSize && image[q] != 0u &&
-                       n + 1 < sizeof d->goal) {
+                       n + 1u < sizeof d->goal) {
                     d->goal[n++] = (char)image[q++];
                 }
                 d->goal[n] = 0;
                 q++; // the NUL
                 n = 0;
                 while (q < fileSize && image[q] != 0u &&
-                       n + 1 < sizeof d->author) {
+                       n + 1u < sizeof d->author) {
                     d->author[n++] = (char)image[q++];
                 }
                 d->author[n] = 0;

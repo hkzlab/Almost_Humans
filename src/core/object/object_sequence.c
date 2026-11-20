@@ -300,7 +300,7 @@ int32_t object_sequence_claim_begin(uint32_t recipe, int32_t actor)
      * window is snapped to a 4-pixel boundary (`AND [0x0], 0xFFFC`) because the
      * strip save below works in whole page bytes.  Neither moves the camera. */
     level_set_updates(0);
-    level_set_view(level_view_x() & ~3u, level_view_y());
+    level_set_view((uint16_t)(level_view_x() & ~3u), level_view_y());
 
     /* 1000:3B34..1000:3B46: spend the use and stash the recipe's fields (the recipe
      * itself is no longer readable once its use is gone) */

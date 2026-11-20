@@ -317,7 +317,7 @@ void textpage_draw(uint8_t *page, const char *text, int32_t cursorRow,
         char buf[TEXT_LIMIT];
         for (uint16_t i = 0; i < lines; i++) {
             uint8_t n = 0;
-            while (*p && *p != '\r' && n + 1 < sizeof buf) buf[n++] = *p++;
+            while (*p && *p != '\r' && n + 1u < sizeof buf) buf[n++] = *p++;
             buf[n] = 0;
             if (*p == '\r') p++;
             _draw_line(page, buf, 0xA0u, top + 15u + i * 16u, 0x10u, 1);
@@ -340,7 +340,7 @@ void textpage_draw(uint8_t *page, const char *text, int32_t cursorRow,
             }
             char line[TEXT_LIMIT];
             uint8_t n = 0;
-            while (p[n] && p[n] != '\r' && n + 1 < sizeof line) {
+            while (p[n] && p[n] != '\r' && n + 1u < sizeof line) {
                 line[n] = p[n];
                 n++;
             }

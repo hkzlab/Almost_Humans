@@ -311,8 +311,8 @@ static void test_flow(void)
             object_render_blit_sprite(page, spr, 32u, 32u, 10, 10);
             for (uint32_t y = 10u; y < 42u; y++)
                 for (uint32_t x = 10u; x < 42u; x++) {
-                    uint32_t want = spr[(x - 10u & 3u) * 256u + (y - 10u) * 8u +
-                                        ((x - 10u) >> 2)];
+                    uint32_t want = spr[((x - 10u) & 3u) * 256u +
+                                        (y - 10u) * 8u + ((x - 10u) >> 2)];
                     if (page[y * VIDEO_SCREEN_W + x] != want) bad++;
                 }
             TEST_ASSERT_TRUE_MESSAGE(
