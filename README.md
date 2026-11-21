@@ -122,9 +122,13 @@ Some tests skip when the game data or the MT-32 ROMs are absent.
 
 ### Obtaining the resources
 
-Obtain the PC CD version of the game (easiest and cheapest on [GOG](https://www.gog.com/en/game/the_humans_bundle) for a few €/$/whatever) and install it somewhere (e.g. using `wine`).
+Obtain the PC CD version of the game (easiest and cheapest on [GOG](https://www.gog.com/en/game/the_humans_bundle) for a few €/$/whatever).
 
-Search for the `game.bin` file, which is just a dump image of the disc. Mount it and extract the volume files (`HUMANS.000/001/002`). Choose the ones from the language you're interested in: they should all be supported.
+If you got the GOG version, install it and search for the `game.bin` file, which is just a dump image of the disc. Mount it and extract the volume files (`HUMANS.000/001/002`).
+
+If you got a physical disc, just put it in a drive and extract the files.
+
+Choose the ones from the language you're interested in: they should all be supported.
 
 ### TODO
 
