@@ -6,13 +6,11 @@
 
 'Almost Humans' is a reverse engineered port of the DOS CD version of "The Humans" by Imagitec Design, 1992.
 
-The game is a mix between **platform** and **puzzle**, with some distant hints of "Lemmings".
+The game is a mix between **platform** and **puzzle**, with some distant hints of "Lemmings": the objective varies per level, but it's usually one of the kind "reach this place", "take this object", "kill this enemy", "free this character". To reach the objective you'll need planning, trial-and-error, ability and timing.
 
 You can read about it on [Wikipedia](https://en.wikipedia.org/wiki/The_Humans_(video_game)).
 
 ![Screenshot of the SDL3 port, winter level](pics/almost_humans_sdl3.png)
-
-You can still buy it on [GOG](https://www.gog.com/en/game/the_humans_bundle) for a few €/$/whatever. 
 
 ## 🤖 Disclaimer 🤖
 
@@ -121,6 +119,12 @@ ctest --test-dir build --output-on-failure -j 8
 ```
 
 Some tests skip when the game data or the MT-32 ROMs are absent.
+
+### Obtaining the resources
+
+Obtain the PC CD version of the game (easiest and cheapest on [GOG](https://www.gog.com/en/game/the_humans_bundle) for a few €/$/whatever) and install it somewhere (e.g. using `wine`).
+
+Search for the `game.bin` file, which is just a dump image of the disc. Mount it and extract the volume files (`HUMANS.000/001/002`). Choose the ones from the language you're interested in: they should all be supported.
 
 ### TODO
 
