@@ -1,15 +1,8 @@
-/* Port-only: the one reader/writer of multi-byte integers.
- *
- * All on-disk data is little-endian except a few asset tables (REX.DAT's frame
- * words, the terrain bank), which are big-endian; both orders live here and
- * nothing else composes an integer out of bytes.
+/* Reader/writer for multi-byte integers.
  *
  * The host order is chosen at compile time.  `bo_*` is named for its input's
  * order and the swap is its own inverse, so one helper serves reading and
  * writing; 8-bit values carry no order.
- *
- * No original counterpart: the game loads words little-endian and swaps by hand
- * where a table needs it.
  */
 #ifndef HUMANSRE_BYTEORDER_H
 #define HUMANSRE_BYTEORDER_H
