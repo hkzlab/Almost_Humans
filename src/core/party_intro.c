@@ -63,8 +63,9 @@ static uint16_t _marq_hold; // [0xfa6]
 
 /* === the [0x11fe] heap-segment buffers ====================================== *
  * Both are carved from the heap block the level_intro_screen setup takes at
- * [0x11fe] (253f/2546), so they are allocated by party_intro_start and
- * released when the screen exits. */
+ * [0x11fe] (253f/2546).  The success path releases them at PH_DONE; a failed
+ * start returns before the machine runs and leaves them allocated while the
+ * level's own screens play, so the next start reclaims them. */
 #define PARTY_SHEET_BYTES 2784u // [0x1202]: the 29x96 party sprites
 #define PARTY_STRIP_BYTES 15360u // [0x1206]: the rescaled birdy
 static uint8_t *_sheet;
@@ -633,11 +634,10 @@ uint8_t party_intro_start(void)
     uint8_t *b;
 
     video_set_mode(VIDEO_MODE_X); /* level_intro_screen 1000:2508 calls
-                                   * reset_display_mode (1000:82c6)  */
+                                        * reset_display_mode (1000:82c6)  */
+
     /* level_intro_screen is a self-contained blocking routine in the
-     * original: every level re-enters it at 1000:2508.  The port's split
-     * start/tick keeps the machine's statics, so a second briefing would
-     * inherit the first one's final PH_DONE and exit on its first tick. */
+     * original: every level re-enters it at 1000:2508 */
     _phase = PH_FADEWAIT;
     _step = 0u;
     _wait_left = 0u;
@@ -652,6 +652,7 @@ uint8_t party_intro_start(void)
     _marq_phase = 0u;
     _marq_cell = 0u;
     _marq_hold = 1u;
+    /* the early returns below leave the machine unrun, so reclaim here */
     g_osys->memFree(_sheet);
     _sheet = g_osys->memAlloc(PARTY_SHEET_BYTES);
     g_osys->memFree(_strip);

@@ -175,7 +175,10 @@ void statusbar_load_params(const uint8_t *in)
 }
 
 /** @brief Copy the bar's 320x40 stage into the level surface at the reveal
- * row, doubled when the surface is the 2x page. */
+ * row, doubled when the surface is the 2x page.
+ * Empty in case the wide viewport mode is not compiled in, as we'll just
+ * write on the video page in that case.
+ */
 static void _bar_present(void)
 {
 #if HUMANSRE_VIEWPORT_WIDE
@@ -187,6 +190,7 @@ static void _bar_present(void)
     int32_t reveal;
 
     if (_bar_hidden) return;
+
     if (!dst) {
         dst = g_osys->videoPage(0);
         stride = video_page_w();
@@ -195,11 +199,14 @@ static void _bar_present(void)
         /* the field's bottom: 152 in classic mode, 320 in wide mode */
         if (!top) top = s == 1u ? BAR_FIRST_ROW : rows - BAR_ROWS * s;
     }
+
     if (!dst || !s) return;
+
     /* the reveal slides the band up from below the field */
     reveal = ((int32_t)_bar_split - (int32_t)BAR_FIRST_ROW) * (int32_t)s;
     if ((int32_t)top + reveal < 0) return;
     top = (uint32_t)((int32_t)top + reveal);
+
     for (uint32_t r = 0; r < BAR_ROWS; r++) {
         uint32_t row = top + r * s;
         const uint8_t *src = _bar_img + r * VIDEO_SCREEN_W;
