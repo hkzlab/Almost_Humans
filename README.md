@@ -28,7 +28,7 @@ I decided to release it for everyone to use.
 But I respect and understand the choice of people wishing to steer clear of code that has ties to LLM, so I want to be clear with this:
 
 - **Reverse engineering** of the original DOS executable was **aided by an LLM**
-- **Some of the code was written by an LLM**, some by me, most was re-worked and cleaned up by me
+- **Some of the code was written/reorganized/refactored by an LLM**, some by me, most was re-worked and cleaned up by me
 - The architecture of the port is mine (and took some hints from codebases I worked on in the past: ScummVM, Reminiscence, RAW...)
 
 ## SDL3 port 
@@ -86,11 +86,13 @@ Dependencies:
 
 Built and tested with clang 23.1.5 and gcc 16.2.1 (on Fedora 45), [SDL3](https://github.com/libsdl-org/SDL) 3.4.20 and [libmt32emu](https://github.com/munt/mt32emu) 2.7.2 
 
-The core compiles with `-Wconversion -Wextra -Werror` under both.
+Build also tested with clang 23 on Windows 11/ARM64 using [MSYS2](https://www.msys2.org/) / CLANGARM64 environment.
+
+The core compiles with `-Wconversion -Wextra -Werror` under both clang and gcc.
 
 The game builds and plays without mt32emu, only `--audio mt32` needs it.
 
-The usual command line build, with clang:
+The usual command line build, with **clang**:
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang
@@ -98,7 +100,7 @@ cmake --build build -j
 ./build/humans-sdl3
 ```
 
-The same with gcc, in its own build directory:
+The same with **gcc**, in its own build directory:
 
 ```sh
 cmake -S . -B build-gcc -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc
@@ -108,7 +110,10 @@ cmake --build build-gcc -j
 
 Without `-DCMAKE_C_COMPILER`, CMake picks clang when it finds it on `PATH`.
 
-Useful options: `-DHUMANSRE_VIEWPORT_WIDE=OFF` drops the doubled (wide) level viewport,`-DHUMANSRE_UNUSED_INCLUDES=OFF` skips the clang-tidy pass (obviously not available with gcc).
+Useful options: 
+
+- `-DHUMANSRE_VIEWPORT_WIDE=OFF` drops the doubled (wide) level viewport (reducing binary size)
+- `-DHUMANSRE_UNUSED_INCLUDES=OFF` skips the clang-tidy pass (obviously not available with gcc)
 
 #### Test suite
 
