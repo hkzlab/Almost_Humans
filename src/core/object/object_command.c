@@ -5,7 +5,6 @@
 #include "level/level.h"
 #include "osystem.h"
 #include "byteorder.h"
-#include <string.h>
 
 /* forward declarations */
 static int32_t object_command_selector_walk(uint8_t *actor, int32_t right);

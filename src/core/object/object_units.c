@@ -6,7 +6,6 @@
 #include "level/level.h"
 #include "statusbar.h"
 #include "byteorder.h"
-#include <string.h>
 
 /* forward declarations */
 static void _obj_units_stack_mark(uint8_t *actor, const uint8_t *slot);

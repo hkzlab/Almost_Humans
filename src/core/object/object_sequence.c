@@ -7,7 +7,6 @@
 #include "palette.h"
 #include "statusbar.h"
 #include "byteorder.h"
-#include <string.h>
 
 /* --- the claim: the entity bytecode's adjacent-object op (1000:3A6A) ---
  *

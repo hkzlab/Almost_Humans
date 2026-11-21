@@ -16,7 +16,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 #define RATE   48000u
 #define FRAMES 1024u

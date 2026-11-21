@@ -7,7 +7,6 @@
 #include "video.h"
 
 #include <stdint.h>
-#include <string.h>
 
 #define MENU_ROWS 5u
 #define GRID_ROWS 4u
