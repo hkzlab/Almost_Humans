@@ -60,7 +60,7 @@ humans-sdl3 [--audio adlib|beeper|mt32] [--mt32-roms <dir>]
 - `--mt32-roms` relative or absolute path to the MT32 roms.
 - `--view wide` experimental mode that [doubles the level viewport](pics/almost_humans_wide_mode.png), making the level fully visible (a build configured with `-DHUMANSRE_VIEWPORT_WIDE=OFF` rejects it).
 
-Note that the PC speaker driver was not available in the configuration of the original game, and most tunes are missing from the game. I've nonetheless added it as a curiosity.
+Note that the PC speaker driver was not available as a configuration option for the original game, and most tunes are not included (when forced to use it, the original came would exit to DOS at the first level, detecting a missing tune). I've nonetheless added it as a curiosity.
 
 ### Keys
 
