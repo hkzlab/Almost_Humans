@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Common Changelog](https://common-changelog.org),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 1.0.0 - **UNRELEASED**
+## 1.0.0 - 21/11/2026
 
 _First release: a C99/SDL3 port of the 1992 DOS game "The Humans", reimplemented from the original's (GOG's CD version) disassembly._
 
@@ -14,6 +14,6 @@ _First release: a C99/SDL3 port of the 1992 DOS game "The Humans", reimplemented
 - Game flow, Level engine, Resource handling
 - `OSystem` abstraction with an SDL3 backend
 - headless null backend and a test suite that runs the ported subsystems against the shipped game data
-- AdLib, Beeper and MT-32 sound drivers selectable via command line
-- Detect the installed language from the hash of the first 2048 bytes of `HUMANS.001`
+- AdLib, pc speaker and MT-32 sound drivers selectable via command line
+- Detect the resources language from the hash of the first 2048 bytes of `HUMANS.001`
 - Experimental "wide" viewmode added: it doubles the viewport so the whole level is viewable during gameplay
