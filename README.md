@@ -81,7 +81,7 @@ Dependencies:
 | CMake        | 3.24 or newer       | the build itself |
 | C compiler   | clang 23 or gcc 16  | the build itself |
 | SDL3         | 3.4 or newer        | humans-sdl3      |
-| libmt32emu   | 2.7 or newer        | MT32 (optional)  |
+| libmt32emu   | 2.7 or newer        | MT32 driver (optional)  |
 | clang-tidy   | same as clang       | include audit (not required for Release builds) |
 
 Built and tested with clang 23.1.5 and gcc 16.2.1 (on Fedora 45), [SDL3](https://github.com/libsdl-org/SDL) 3.4.20 and [libmt32emu](https://github.com/munt/mt32emu) 2.7.2 
