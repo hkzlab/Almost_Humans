@@ -1,7 +1,7 @@
 #include "fs/null/fs_null.h"
 
+#include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
 
 /**
  * @brief Open always fails.

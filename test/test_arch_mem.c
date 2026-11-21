@@ -10,7 +10,6 @@
 #include "test_support.h"
 
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 
 static uint32_t _allocs;
