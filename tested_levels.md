@@ -6,10 +6,10 @@ Playthrough status for the 160 levels, in level order.
 
 **Version:** the tested build (`humans-sdl3 --version`).
 
-| Level number | Level code     | Result | Version | Tester | Notes |
-| ------------ | -------------- | ------ | ------- | ------ | ----- |
-| 1            | DARWIN         |        |         |        |       |
-| 2            | ANDIE PANDY    |        |         |        |       |
+| Level number | Level code     | Result | Version | Tester | Notes      |
+| ------------ | -------------- | ------ | ------- | ------ | ---------- |
+| 1            | DARWIN         |   ✅   |  1.0.0  |   Hkz  |  wide mode |
+| 2            | ANDIE PANDY    |   ✅   |  1.0.0  |   Hkz  |  wide mode | 
 | 3            | GET A LIFE     |        |         |        |       |
 | 4            | CARLOS         |        |         |        |       |
 | 5            | HOWIE          |        |         |        |       |
