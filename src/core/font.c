@@ -91,7 +91,7 @@ static int _blit_glyph(uint8_t *arena, uint32_t capacity, int32_t x,
 {
     if (!_glyphs) return 0;
 
-    uint8_t col = (uint8_t)((uint32_t)((x >= 0 ? x : 0) >> 2));
+    uint8_t col = (uint8_t)((x >= 0 ? x : 0) >> 2);
     uint32_t di = row * 80u + col;
 
     /* the tile's last write is row 15, byte di + 15*80 + 5 */
