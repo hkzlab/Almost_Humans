@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _PC-speaker level music now resolves the shipped tunes, plus fixes in tune selection for cutscenes._
 
+### Changed
+
+- Stop using magic numbers for audio driver IDs: The numbers were taken from the original binary and used as-is, but make for confusing code. Moved to an enum
+
 ### Added
 
 - PC-speaker mode (`--audio beeper`) maps the level tune to the shipped `LEV1..LEV9.BEP` arrangements instead of the original's `LEVA..LEVR` requests, so we actually get pc speaker music in levels. This is an actual variation from the original PC CD version: pc speaker was not selectable, and was broken if forced.
@@ -16,6 +20,7 @@ _PC-speaker level music now resolves the shipped tunes, plus fixes in tune selec
 ### Fixed
 
 - The level cutscene loads its own static `mus\levA` / `mus\title` names, this avoid trying to load the wrong tune file during cutscenes
+
 
 ## 1.0.0 - 21/11/2026
 
