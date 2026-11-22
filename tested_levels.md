@@ -10,7 +10,7 @@ Playthrough status for the 160 levels, in level order.
 | ------------ | -------------- | ------ | ------- | ------ | ---------- |
 | 1            | DARWIN         |   ✅   |  1.0.0  |   Hkz  |  wide mode |
 | 2            | ANDIE PANDY    |   ✅   |  1.0.0  |   Hkz  |  wide mode | 
-| 3            | GET A LIFE     |        |         |        |       |
+| 3            | GET A LIFE     |   ✅   |  1.1.0  |   Hkz  |  wide mode |
 | 4            | CARLOS         |        |         |        |       |
 | 5            | HOWIE          |        |         |        |       |
 | 6            | MOOBLE         |        |         |        |       |
