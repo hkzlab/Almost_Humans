@@ -39,6 +39,7 @@ static uint8_t _tempo_byte = 0xFFu;
 static uint32_t _ticks;
 static uint32_t _stops;
 static uint32_t _loads;
+static uint32_t _warns;
 
 /* --- the backend: the SDL3 one's shape, without a device -------------- */
 
@@ -113,9 +114,15 @@ static void _tick(void)
     g_sound_driver_adlib.tick(_drv);
 }
 
-static int32_t _driver_id(void) { return 1; } // AdLib
+static AudioDriverId _core_id = AUDIO_DRIVER_ADLIB;
 
-static void _warn(const char *msg) { fprintf(stderr, "warn: %s\n", msg); }
+static AudioDriverId _driver_id(void) { return _core_id; }
+
+static void _warn(const char *msg)
+{
+    _warns++;
+    fprintf(stderr, "warn: %s\n", msg);
+}
 
 static void _fatal(const char *msg)
 {
@@ -305,6 +312,21 @@ static void test_audio_link(void)
     (void)_run(12000); // ~8000 driver ticks: well past the one-pass end
     peak = _run(200);
     TEST_ASSERT_TRUE(peak > 256u);
+
+    /* --- D-280: an unknown driver id warns once and stays silent ------ */
+    {
+        uint32_t loads0 = _loads;
+        uint32_t warns0 = _warns;
+
+        audio_music_stop();
+        _core_id = (AudioDriverId)99; // a backend fault, not a game value
+        audio_play_tune(audio_tune_name(AUDIO_TUNE_PARTY)); // a fresh name
+        audio_music_resume();
+        TEST_ASSERT_TRUE(_loads == loads0); // no .RLD fallback, no load
+        TEST_ASSERT_TRUE(_warns == warns0 + 1u); // the error, printed once
+        TEST_ASSERT_TRUE(_voice == 0xFFFFu); // cmd 5 was never sent
+        _core_id = AUDIO_DRIVER_ADLIB;
+    }
 
     g_sound_driver_adlib.destroy(_drv);
     _drv = NULL;

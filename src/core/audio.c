@@ -66,12 +66,33 @@ void audio_install(void)
 /**
  * @brief The launcher's [0x5AFE] sound_driver_id from the backend.
  *
- * @return -1 none, 0 Beeper, 1 AdLib, other MT-32
+ * An id outside AudioDriverId is a backend fault: warn once and report
+ * AUDIO_DRIVER_NONE, so every caller takes its no-driver path and the music
+ * stays silent (D-280).
+ *
+ * @return the driver id, AUDIO_DRIVER_NONE when unset or unrecognised
  */
-static int32_t _driver_id(void)
+static AudioDriverId _driver_id(void)
 {
-    if (!g_osys->audioDriverId) return 1;
-    return g_osys->audioDriverId();
+    static uint8_t warned;
+    char msg[96];
+    AudioDriverId id =
+        g_osys->audioDriverId ? g_osys->audioDriverId() : AUDIO_DRIVER_ADLIB;
+
+    switch (id) {
+        case AUDIO_DRIVER_NONE:
+        case AUDIO_DRIVER_BEEPER:
+        case AUDIO_DRIVER_ADLIB:
+        case AUDIO_DRIVER_MT32: return id;
+    }
+    if (!warned) {
+        warned = 1;
+        snprintf(msg, sizeof msg,
+                 "audio: unknown sound driver id %d; the music is silenced",
+                 (int)id);
+        g_osys->warn(msg);
+    }
+    return AUDIO_DRIVER_NONE;
 }
 
 const char *audio_tune_name(enum AudioTune tune)
@@ -83,7 +104,7 @@ void audio_play_tune(const char *name)
     char msg[96];
     uint8_t *image;
     uint32_t size = 0;
-    int32_t id;
+    AudioDriverId id;
     const char *ext;
 
     if (!name) return;
@@ -91,8 +112,13 @@ void audio_play_tune(const char *name)
     _tune_name = name;
 
     id = _driver_id();
-    if (id == -1) return; // 1000:8449: no driver loaded
-    ext = id == 0 ? ".BEP" : (id == 1 ? ".ALB" : ".RLD");
+    switch (id) {
+        case AUDIO_DRIVER_BEEPER: ext = ".BEP"; break;
+        case AUDIO_DRIVER_ADLIB: ext = ".ALB"; break;
+        case AUDIO_DRIVER_MT32: ext = ".RLD"; break;
+        case AUDIO_DRIVER_NONE: return; // 1000:8449: no driver loaded
+        default: return; // unreachable: _driver_id() maps it to NONE (D-280)
+    }
 
     snprintf(path, sizeof(path), "%s%s", name, ext);
     image = res_load_chunk(path, &size, NULL);
@@ -126,7 +152,8 @@ void audio_play_level_tune(uint16_t level1)
     uint16_t index = level1 ? (uint16_t)(level1 - 1u) : 0u;
 
     /* The Beeper set ships LEV1..LEV9 instead of the lettered names (D-279). */
-    if (_driver_id() == 0) _tune_lev[7] = (char)('1' + index % 9u);
+    if (_driver_id() == AUDIO_DRIVER_BEEPER)
+        _tune_lev[7] = (char)('1' + index % 9u);
     else _tune_lev[7] = (char)('A' + index % 18u);
     audio_play_tune(_tune_lev);
 }
@@ -138,6 +165,8 @@ void audio_music_resume(void)
      * driver image; the game stays silent until a later play_tune succeeds. */
     if (_tune_missing) return;
     if (frontend_option(FRONTEND_OPT_MUSIC) != 0) return; // [0x5E5B]
+    /* D-280: an unset or unrecognised driver id stays silent. */
+    if (_driver_id() == AUDIO_DRIVER_NONE) return;
     /* Every site in the original reaches music_resume *after* a completed
      * (blocking) music_stop.  The port's fades do not block, so a previous
      * record can still be live here: release it first (the same one-record
@@ -250,12 +279,17 @@ void audio_set_render_clock(uint8_t on) { _render_clock = on; }
 
 void audio_sfx(uint32_t id)
 {
+    AudioDriverId driver;
+
     if ((uint8_t)id == 0xFFu) return; // 1000:83C1
     if (frontend_option(FRONTEND_OPT_MUSIC) == 0) return; // 1000:83C5
+    driver = _driver_id();
+    /* D-280: an unset or unrecognised driver id stays silent. */
+    if (driver == AUDIO_DRIVER_NONE) return;
     /* 1000:83CC: the Beeper driver (id 0) never gets cmd 5. */
-    if (_driver_id() == 0) return;
+    if (driver == AUDIO_DRIVER_BEEPER) return;
     /* 1000:83D3: event 0x0E is the one MT-32 configuration's. */
-    if (id == 0x0Eu && _driver_id() != 3) return;
+    if (id == 0x0Eu && driver != AUDIO_DRIVER_MT32) return;
     _record_live = 1; // the driver_call stores the sfx handle in [0x5AF0]
     g_osys->audioSfx((uint16_t)id);
 }

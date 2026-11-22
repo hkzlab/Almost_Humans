@@ -102,6 +102,18 @@ typedef enum ViewportMode {
     VIEWPORT_WIDE = 1
 } ViewportMode;
 
+/* The launcher's [0x5AFE] sound_driver_id.  These are the values the original
+ * tests: play_tune picks .BEP/.ALB for 0/1 and .RLD for anything else
+ * (1000:8462), and driver_call sends sound effect 0x0E only for 3
+ * (1000:83D3).  An id outside this enum is a backend fault: the core warns
+ * and silences the music (D-280). */
+typedef enum AudioDriverId {
+    AUDIO_DRIVER_NONE = -1, // [0x5AFE] = 0xFFFF: no driver loaded
+    AUDIO_DRIVER_BEEPER = 0,
+    AUDIO_DRIVER_ADLIB = 1,
+    AUDIO_DRIVER_MT32 = 3
+} AudioDriverId;
+
 /* The original's screen: flat 8bpp, one byte per pixel, 320x200.  Every
  * resource that is one screen page is this size and every screen module
  * draws on a surface this size.  The viewport mode never changes it. */
@@ -183,10 +195,10 @@ typedef struct OSystem {
     void (*audioSfx)(uint16_t id); // cmd 5, CX = the event id
     void (*audioTempo)(uint8_t cl); // cmd 0x0A (master volume)
     void (*audioTick)(void); // cmd 2 (the music tick)
-    /* [0x5AFE] sound_driver_id: -1 none, 0 Beeper, 1 AdLib, other MT-32.
-     * play_tune chooses the tune extension and driver_call its gate from it
-     * (1000:83CC, 1000:8462), exactly as the original's launcher global. */
-    int32_t (*audioDriverId)(void);
+    /* [0x5AFE] sound_driver_id.  play_tune chooses the tune extension and
+     * driver_call its gate from it (1000:83CC, 1000:8462), exactly as the
+     * original's launcher global. */
+    AudioDriverId (*audioDriverId)(void);
 
     /* --- misc -------------------------------------------------------- */
     /* A non-fatal diagnostic: the core formats the message, the backend owns

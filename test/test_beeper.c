@@ -43,7 +43,7 @@ static uint32_t _core_loaded_size;
 static uint32_t _core_resumes;
 static uint32_t _core_stops;
 static uint32_t _core_warns;
-static int32_t _core_driver_id = 0; // Beeper
+static AudioDriverId _core_driver_id = AUDIO_DRIVER_BEEPER;
 
 /**
  * @brief The core test's cmd 0x0C: record the loaded image's size.
@@ -79,9 +79,9 @@ static void _core_tempo(uint8_t cl) { (void)cl; }
 /**
  * @brief The core test's [0x5AFE].
  *
- * @return the driver id (0 = Beeper)
+ * @return the driver id (AUDIO_DRIVER_BEEPER)
  */
-static int32_t _core_id(void) { return _core_driver_id; }
+static AudioDriverId _core_id(void) { return _core_driver_id; }
 
 /**
  * @brief The core test's non-fatal diagnostic: count it.

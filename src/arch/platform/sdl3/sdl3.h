@@ -155,9 +155,9 @@ int32_t sdl3_audio_select(const char *name, const char *roms);
 /**
  * @brief The backend's [0x5AFE] sound_driver_id (osystem.h).
  *
- * @return 0 for the Beeper, 1 for AdLib, 3 for the MT-32; -1 before a
- * selection is made
+ * @return AUDIO_DRIVER_BEEPER, AUDIO_DRIVER_ADLIB (the static default) or
+ * AUDIO_DRIVER_MT32, as sdl3_audio_select() last chose
  */
-int32_t sdl3_audio_driver_id(void);
+AudioDriverId sdl3_audio_driver_id(void);
 
 #endif /* HUMANSRE_SDL3_H */

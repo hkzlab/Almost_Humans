@@ -122,9 +122,9 @@ static void _null_audio_tick(void);
 /**
  * @brief [0x5AFE] for the null backend: AdLib.
  *
- * @return 1 (AdLib)
+ * @return AUDIO_DRIVER_ADLIB
  */
-static int32_t _null_audio_driver_id(void);
+static AudioDriverId _null_audio_driver_id(void);
 
 /**
  * @brief The null backend: a non-fatal diagnostic goes to stderr.
@@ -261,7 +261,7 @@ static void _null_audio_tempo(uint8_t cl) { _audio_tempo = cl; }
 
 static void _null_audio_tick(void) { _audio_ticks++; }
 
-static int32_t _null_audio_driver_id(void) { return 1; }
+static AudioDriverId _null_audio_driver_id(void) { return AUDIO_DRIVER_ADLIB; }
 
 static void _null_warn(const char *msg) { fprintf(stderr, "%s\n", msg); }
 

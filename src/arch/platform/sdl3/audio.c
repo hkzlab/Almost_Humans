@@ -32,7 +32,7 @@
 
 static const SoundDriverModule *_module = &g_sound_driver_adlib;
 static const char *_module_name = "AdLib";
-static int32_t _driver_id = 1; // [0x5AFE]: 0 Beeper, 1 AdLib, 3 MT-32
+static AudioDriverId _driver_id = AUDIO_DRIVER_ADLIB; // [0x5AFE]
 static SoundDriver *_driver;
 static SDL_AudioStream *_stream;
 static SDL_Mutex *_lock;
@@ -171,14 +171,14 @@ int32_t sdl3_audio_select(const char *name, const char *roms)
     if (!name || strcmp(name, "adlib") == 0) {
         _module = &g_sound_driver_adlib;
         _module_name = "AdLib";
-        _driver_id = 1;
+        _driver_id = AUDIO_DRIVER_ADLIB;
         return 0;
     }
 
     if (strcmp(name, "beeper") == 0) {
         _module = &g_sound_driver_beeper;
         _module_name = "Beeper";
-        _driver_id = 0;
+        _driver_id = AUDIO_DRIVER_BEEPER;
         return 0;
     }
 
@@ -188,9 +188,9 @@ int32_t sdl3_audio_select(const char *name, const char *roms)
         sound_driver_mt32_set_roms(&g_fs_posix, roms);
         _module = &g_sound_driver_mt32;
         _module_name = "MT-32";
-        /* [0x5AFE] = anything but 0/1 selects the MT-32 tune extension and
-         * the [0x5AFE] == 3 check on sound effect 0x0E (1000:83D3). */
-        _driver_id = 3;
+        /* 3 is the value the MT-32 setup writes; the [0x5AFE] == 3 check on
+         * sound effect 0x0E is 1000:83D3. */
+        _driver_id = AUDIO_DRIVER_MT32;
         return 0;
     }
 #else
@@ -199,7 +199,7 @@ int32_t sdl3_audio_select(const char *name, const char *roms)
     return -1;
 }
 
-int32_t sdl3_audio_driver_id(void) { return _driver_id; }
+AudioDriverId sdl3_audio_driver_id(void) { return _driver_id; }
 
 int32_t sdl3_audio_load_tune(const uint8_t *image, uint32_t size)
 {
