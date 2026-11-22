@@ -356,6 +356,32 @@ static void test_beeper(void)
         TEST_ASSERT_TRUE(_core_loaded_size == size);
         audio_music_resume();
         TEST_ASSERT_TRUE(_core_resumes == 2);
+
+        /* D-279: the Beeper level tunes are digit-named (LEV1..LEV9). */
+        {
+            uint32_t warns0 = _core_warns;
+
+            res_set_disc(1u); // the level tunes ship on HUMANS.001
+            audio_play_level_tune(1u);
+            TEST_ASSERT_TRUE(
+                strcmp(audio_tune_name(AUDIO_TUNE_LEV), "mus\\lev1") == 0);
+            TEST_ASSERT_TRUE(_core_loaded_size == 8136u); // LEV1.BEP
+            audio_play_tune(audio_tune_name(AUDIO_TUNE_PARTY));
+            audio_play_level_tune(6u);
+            TEST_ASSERT_TRUE(
+                strcmp(audio_tune_name(AUDIO_TUNE_LEV), "mus\\lev6") == 0);
+            TEST_ASSERT_TRUE(_core_loaded_size == 5528u); // LEV6.BEP
+            audio_play_tune(audio_tune_name(AUDIO_TUNE_HUMFX));
+            audio_play_level_tune(10u);
+            TEST_ASSERT_TRUE(
+                strcmp(audio_tune_name(AUDIO_TUNE_LEV), "mus\\lev1") == 0);
+            TEST_ASSERT_TRUE(_core_loaded_size == 8136u); // LEV1.BEP
+            /* The cutscene keeps its own static 0x62E3 name. */
+            TEST_ASSERT_TRUE(strcmp(audio_tune_name(AUDIO_TUNE_LEV_SCENE),
+                                    "mus\\levA") == 0);
+            TEST_ASSERT_TRUE(_core_warns ==
+                             warns0); // every mapped file shipped
+        }
     }
 
     free(pcm);

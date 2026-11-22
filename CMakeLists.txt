@@ -9,7 +9,7 @@ if(NOT DEFINED CMAKE_C_COMPILER AND NOT DEFINED ENV{CC})
 endif()
 
 # The port's title and version
-project(HumansRE VERSION 1.0.0 LANGUAGES C)
+project(HumansRE VERSION 1.1.0 LANGUAGES C)
 set(HUMANSRE_PROJECT_TITLE "Almost Humans")
 add_compile_definitions(HUMANSRE_PROJECT_TITLE="${HUMANSRE_PROJECT_TITLE}"
                         HUMANSRE_VERSION="${PROJECT_VERSION}")

@@ -248,10 +248,16 @@ static void test_audio_link(void)
 
     /* --- the level's lettered tune (1000:327F) ------------------------ */
     frontend_option_set_for_probe(FRONTEND_OPT_MUSIC, 0u); // music on
+    res_set_disc(1u); // the level tunes ship on HUMANS.001
     audio_play_level_tune(1u);
     TEST_ASSERT_TRUE(strcmp(audio_tune_name(AUDIO_TUNE_LEV), "mus\\levA") == 0);
     audio_play_level_tune(2u);
     TEST_ASSERT_TRUE(strcmp(audio_tune_name(AUDIO_TUNE_LEV), "mus\\levB") == 0);
+    /* The cutscene's 0x62E3 copy is not the patched 0x139B template. */
+    audio_play_level_tune(10u);
+    TEST_ASSERT_TRUE(strcmp(audio_tune_name(AUDIO_TUNE_LEV), "mus\\levJ") == 0);
+    TEST_ASSERT_TRUE(
+        strcmp(audio_tune_name(AUDIO_TUNE_LEV_SCENE), "mus\\levA") == 0);
 
     /* --- the disc prompt's tune (1000:2042) --------------------------- */
     TEST_ASSERT_TRUE(video_init() == 0);

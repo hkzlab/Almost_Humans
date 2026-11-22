@@ -9,7 +9,7 @@
  *   the frame web's gate  1000:A5E8
  *
  * Deviations: D-251 (music tick on the sample clock), D-252 (a missing tune
- * is skipped, not fatal).
+ * is skipped, not fatal), D-279 (Beeper level tunes use the shipped digits).
  */
 
 #ifndef HUMANSRE_AUDIO_H
@@ -20,7 +20,8 @@
 /* The game's tune base names (202F:002A, 0x77A, 0xF91, 0x11AA, 0x1391,
  * 0x139B and 0x62E3/0x62EC).  The address is the dedup key in the original,
  * so the module keeps one object per name and callers name a tune, not a
- * string.  0x139B is the mutable level buffer whose letter is [0x13A2]. */
+ * string.  0x139B is the mutable level buffer whose letter is [0x13A2];
+ * 0x62E3/0x62EC are the cutscene's own copies. */
 enum AudioTune {
     AUDIO_TUNE_TITLE,
     AUDIO_TUNE_HISCORE,
@@ -28,6 +29,8 @@ enum AudioTune {
     AUDIO_TUNE_PARTY,
     AUDIO_TUNE_HUMFX,
     AUDIO_TUNE_LEV,
+    AUDIO_TUNE_TITLE_SCENE,
+    AUDIO_TUNE_LEV_SCENE,
     AUDIO_TUNE_COUNT
 };
 
@@ -86,9 +89,8 @@ void audio_set_render_clock(uint8_t on);
  * it, every later call returns.
  *
  * When the file is missing the original exits with an error (D-252); the port
- * stops the current record and stays silent until a later tune loads.  That
- * is the forced-Beeper case: only `LEVA.BEP` of the lettered level tunes
- * ships.
+ * stops the current record and stays silent until a later tune loads.  The
+ * forced-Beeper set names its level tunes with digits, not letters (D-279).
  *
  * @param name the base name, e.g. "mus\\title"; audio_tune_name() resolves
  *             one of the game's own tunes
@@ -99,7 +101,8 @@ void audio_play_tune(const char *name);
  * @brief The level's lettered tune (1000:326E / 0x139B+/0x13A2).
  *
  * level_status_update's lettered tune (1000:327F): "mus\levX" with X = 'A' +
- * (level1 - 1) % 18.
+ * (level1 - 1) % 18.  The Beeper set names its level tunes LEV1..LEV9, so
+ * with that driver X is the digit ((level1 - 1) % 9) + 1 instead (D-279).
  *
  * @param level1 the 1-based level number ([0x1F41])
  */

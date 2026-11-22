@@ -298,10 +298,12 @@ uint8_t scene_play_level_intro(uint16_t introIndex)
         }
         /* 1000:B061-B07B: play_tune(levA or title, by [0xF7E]) /
          * music_resume / timing_loop.  _scene_start set the movie's disc,
-         * which is the [0xF7E] the choice reads. */
+         * which is the [0xF7E] the choice reads.  The originals are the
+         * cutscene's own copies at 0x62E3/0x62EC, not the boot title or the
+         * mutable level template. */
         audio_play_tune(audio_tune_name(res_movie_disc(introIndex) != 0u
-                                            ? AUDIO_TUNE_LEV
-                                            : AUDIO_TUNE_TITLE));
+                                            ? AUDIO_TUNE_LEV_SCENE
+                                            : AUDIO_TUNE_TITLE_SCENE));
         audio_music_resume();
         audio_fade_in();
 

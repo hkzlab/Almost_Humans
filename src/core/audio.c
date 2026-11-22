@@ -7,19 +7,28 @@
 #include <stdio.h>
 #include <string.h>
 
-/* 202F:002A / 0x77A / 0xF91 / 0x11AA / 0x1391 / 0x139B.  The address is the
- * original's dedup key, so the port keeps one object per name. */
+/* 202F:002A / 0x77A / 0xF91 / 0x11AA / 0x1391 / 0x139B / 0x62E3 / 0x62EC.
+ * The address is the original's dedup key, so the port keeps one object per
+ * name: the cutscene's copies are distinct from the boot title and the
+ * mutable level template. */
 static const char _tune_title[] = "mus\\title";
 static const char _tune_hiscore[] = "mus\\hiscore";
 static const char _tune_disk[] = "mus\\disk";
 static const char _tune_party[] = "mus\\party";
 static const char _tune_humfx[] = "mus\\humfx";
 static char _tune_lev[] = "mus\\levA"; // the letter at +7 is [0x13A2]
+static const char _tune_title_scene[] = "mus\\title";
+static const char _tune_lev_scene[] = "mus\\levA";
 
 static const char *const _tune_names[AUDIO_TUNE_COUNT] = {
-    [AUDIO_TUNE_TITLE] = _tune_title, [AUDIO_TUNE_HISCORE] = _tune_hiscore,
-    [AUDIO_TUNE_DISK] = _tune_disk,   [AUDIO_TUNE_PARTY] = _tune_party,
-    [AUDIO_TUNE_HUMFX] = _tune_humfx, [AUDIO_TUNE_LEV] = _tune_lev,
+    [AUDIO_TUNE_TITLE] = _tune_title,
+    [AUDIO_TUNE_HISCORE] = _tune_hiscore,
+    [AUDIO_TUNE_DISK] = _tune_disk,
+    [AUDIO_TUNE_PARTY] = _tune_party,
+    [AUDIO_TUNE_HUMFX] = _tune_humfx,
+    [AUDIO_TUNE_LEV] = _tune_lev,
+    [AUDIO_TUNE_TITLE_SCENE] = _tune_title_scene,
+    [AUDIO_TUNE_LEV_SCENE] = _tune_lev_scene,
 };
 
 /* The fade-in's last step is 0x4A (1000:84CE), the fade-out's first is
@@ -114,8 +123,11 @@ void audio_play_tune(const char *name)
 
 void audio_play_level_tune(uint16_t level1)
 {
-    uint8_t letter = (uint8_t)(level1 ? (level1 - 1u) % 18u : 0u);
-    _tune_lev[7] = (char)('A' + letter);
+    uint16_t index = level1 ? (uint16_t)(level1 - 1u) : 0u;
+
+    /* The Beeper set ships LEV1..LEV9 instead of the lettered names (D-279). */
+    if (_driver_id() == 0) _tune_lev[7] = (char)('1' + index % 9u);
+    else _tune_lev[7] = (char)('A' + index % 18u);
     audio_play_tune(_tune_lev);
 }
 
