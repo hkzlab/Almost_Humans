@@ -101,6 +101,37 @@ static uint16_t _score_hold;
  * NEW RECORD) shows the off phase restoring the card byte-identically. */
 static uint8_t _stamp_under[24u * 64u];
 
+#if HUMANSRE_VIEWPORT_WIDE
+/* Workaround for the doubled viewport: store the background under
+ * the "NEW RECORD" stamp in the score screen, then restore it when
+ * the stamp must disappear. This trick is not necessary in classic 
+ * mode, as we just paint on a single buffer.
+ */
+static uint8_t _stamp_page_under[(24u * 2u) * (64u * 2u)];
+
+static void _stamp_page_underlay(uint8_t save)
+{
+    uint8_t *p;
+    uint32_t w, row, col, r, span = 64u * 2u;
+
+    // Nothing to do if classic mode
+    if (video_viewport_mode() != VIEWPORT_WIDE) return;
+
+    p = video_page(0);
+    if (!p) return;
+    w = video_page_w();
+    row = STAMP_ROW * 2u;
+    col = STAMP_COL * 4u * 2u;
+    for (r = 0; r < 24u * 2u; r++) {
+        uint8_t *cell = _stamp_page_under + r * span;
+        uint8_t *d = p + (row + r) * w + col;
+
+        if (save) memcpy(cell, d, span);
+        else memcpy(d, cell, span);
+    }
+}
+#endif
+
 uint16_t score_members(void)
 {
     uint8_t n = statusbar_tribe_value();
@@ -328,6 +359,9 @@ void score_stamp_draw(uint8_t *page, uint8_t on)
                 if (py >= VIDEO_SCREEN_H || px >= VIDEO_SCREEN_W) continue;
                 page[py * VIDEO_SCREEN_W + px] = _stamp_under[r * 64u + j];
             }
+#if HUMANSRE_VIEWPORT_WIDE
+        _stamp_page_underlay(0);
+#endif
         return;
     }
     /* 1000:4697: the cell -> A000:0000, then draw the sprite. */
@@ -341,6 +375,9 @@ void score_stamp_draw(uint8_t *page, uint8_t on)
                     ? page[py * VIDEO_SCREEN_W + px]
                     : 0u;
         }
+#if HUMANSRE_VIEWPORT_WIDE
+    _stamp_page_underlay(1); // the page cell, before the flush draws the sprite
+#endif
     /* 1000:46FC: apl\RECORD.SPR is chunky 64x24; the four passes read
      * src[4j+p] into plane p at address j, i.e. pixel 4j+p = src[4j+p].
      * A zero byte leaves the saved underlay alone. */

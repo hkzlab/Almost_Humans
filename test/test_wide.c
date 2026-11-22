@@ -441,6 +441,46 @@ static void test_wide(void)
             TEST_FAILF("wide: the score card was not drawn over the "
                        "level (%u pixels)",
                        (unsigned)changed);
+
+        /* the NEW RECORD stamp blinks: the off phase must erase it from the
+         * page.  The card's zero bytes keep the level and the rows below the
+         * centred world are black, so the logical cell cannot rebuild the
+         * page - score_stamp_draw saves and restores the page's own cell. */
+        {
+            static uint8_t offPre[24u * 2u * 64u * 2u];
+            static uint8_t onCell[24u * 2u * 64u * 2u];
+            static uint8_t offCell[24u * 2u * 64u * 2u];
+            InputState tk;
+            uint32_t r, t, diff = 0;
+            uint32_t row = 176u * 2u, col = 128u * 2u;
+
+            memset(&tk, 0, sizeof tk);
+            for (r = 0; r < 24u * 2u; r++)
+                memcpy(offPre + r * 128u, pg + (row + r) * w + col, 128u);
+            (void)score_tick(&tk); // the arm tick
+            for (t = 0; t < 400u && score_blink_on() == 0; t++) {
+                (void)score_tick(&tk);
+                palette_tick();
+                audio_tick();
+            }
+            if (score_blink_on() == 0)
+                TEST_FAILF("wide: the NEW RECORD stamp never came on");
+            for (r = 0; r < 24u * 2u; r++)
+                memcpy(onCell + r * 128u, pg + (row + r) * w + col, 128u);
+            for (t = 0; t < 400u && score_blink_on() == 1; t++) {
+                (void)score_tick(&tk);
+                palette_tick();
+                audio_tick();
+            }
+            for (r = 0; r < 24u * 2u; r++)
+                memcpy(offCell + r * 128u, pg + (row + r) * w + col, 128u);
+            for (r = 0; r < 24u * 2u * 64u * 2u; r++)
+                if (onCell[r] != offCell[r]) diff++;
+            if (!diff) TEST_FAILF("wide: the NEW RECORD stamp does not blink");
+            if (memcmp(offCell, offPre, sizeof offPre) != 0)
+                TEST_FAILF("wide: the blink's off phase keeps the stamp's "
+                           "pixels");
+        }
     }
 }
 
