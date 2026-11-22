@@ -20,7 +20,7 @@ _PC-speaker level music now resolves the shipped tunes, plus fixes in tune selec
 ### Fixed
 
 - The level cutscene loads its own static `mus\levA` / `mus\title` names, this avoid trying to load the wrong tune file during cutscenes
-
+- "NEW SCORE" text now blinks correctly in the score screen when in "wide" mode
 
 ## 1.0.0 - 21/11/2026
 
