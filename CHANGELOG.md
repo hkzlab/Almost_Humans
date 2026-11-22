@@ -5,17 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Common Changelog](https://common-changelog.org),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 1.1.0 - unreleased
+## 1.1.0 - 22/11/2026
 
 _PC-speaker level music now resolves the shipped tunes, plus fixes in tune selection for cutscenes._
 
 ### Added
 
-- PC-speaker mode (`--audio beeper`) maps the level tune to the shipped `LEV1..LEV9.BEP` arrangements instead of the original's `LEVA..LEVR` requests, so we actually get pc speaker music in levels.
+- PC-speaker mode (`--audio beeper`) maps the level tune to the shipped `LEV1..LEV9.BEP` arrangements instead of the original's `LEVA..LEVR` requests, so we actually get pc speaker music in levels. This is an actual variation from the original PC CD version: pc speaker was not selectable, and was broken if forced.
 
 ### Fixed
 
-- The level cutscene loads its own static `mus\levA` / `mus\title` names, this avoid trying to load the wrong tune file
+- The level cutscene loads its own static `mus\levA` / `mus\title` names, this avoid trying to load the wrong tune file during cutscenes
 
 ## 1.0.0 - 21/11/2026
 
