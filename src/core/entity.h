@@ -77,10 +77,11 @@ uint8_t entity_frame_info(uint32_t a, uint32_t *src, uint32_t *rows,
 /** @brief load_terrain_b (1000:5168): the 25-pair map walk in table order.
  *
  * One handler call per matching cell, CX = col*16, DX = row*16 (the SHL 4s at
- * 51BF-51CD); the scan is column-inner, row-outer ([0x4234] = cols 0x1F..0,
- * [0x4230] = rows 0x13..0).  The spawn's y is row*16 - 0x30 + 1, +3 under the
- * style-6 prologue.  Resets the count first (the level_init analog: the count
- * only, the fixed-table slots keep the exe image's values).
+ * 51BF-51CD); the scan is column-inner, row-outer and both coordinates count
+ * up from 0.  The [0x4234]/[0x4230] words are the matching countdown counters
+ * (0x1F/0x13), not the coordinates.  The spawn's y is row*16 - 0x30 + 1, +3
+ * under the style-6 prologue.  Resets the count first (the 1000:4CAB analog:
+ * the count only, the fixed-table slots keep the exe image's values).
  *
  * `style` = the record's +0x00 byte (the prologue's [0x17EE]); `lifeSeed` =
  * the goal word's high byte ([0x17F1] -> the +0xE seed).

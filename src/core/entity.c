@@ -18,10 +18,11 @@
 /* The DS globals 0x64C4.. (the exe image at file 0x106F0 + 0x64C4,
  * byte-verified).  Slots 2 and 3 are not just array slots:
  * handlers 0 and 1 read them as their fixed word tables, and
- * level_init (1000:4CAB) zeroes ONLY the count [0x64C2], so the image's
- * values survive to runtime - this is how a level with up to two 0xB3
- * tiles walks on tables it never wrote (live-verified: the injected single
- * record walked on the baked words; live table +0x4 = 0/1). */
+ * object_array_init (1000:4CAB, formerly level_init) zeroes only the count
+ * [0x64C2] among these slots, so the image's values survive to runtime -
+ * this is how a level with up to two 0xB3 tiles walks on tables it never
+ * wrote (live-verified: the injected single record walked on the baked
+ * words; live table +0x4 = 0/1). */
 static uint16_t _ents[ENT_MAX][8] = {
     /* 0x64C4: slot 0 - the appender's first record (image: zero)       */
     { 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000 },
@@ -35,9 +36,11 @@ static uint16_t _ents[ENT_MAX][8] = {
     /* 0x6504: slot 4 - the tail of the baked words; appender slot 4
      * starts here (the image is zero from 0x650C)                      */
     { 0x0000, 0xFFF0, 0x0002, 0x0016, 0x0000, 0x0000, 0x0000, 0x0000 },
-    /* 0x6514 .. 0x6534: image-zero padding to the end of the reservation */
+    /* 0x6514 / 0x6524: slots 5-6, image-zero padding in the original's
+     * 7-record block (0x64C4..0x6533).                                */
     { 0, 0, 0, 0, 0, 0, 0, 0 },
     { 0, 0, 0, 0, 0, 0, 0, 0 },
+    /* 0x6534: slot 7 - outside the original block; ENT_MAX margin.     */
     { 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static uint16_t _ent_count;    // [0x64C2]
@@ -92,15 +95,14 @@ static uint32_t _ent_bank_size;
 
 /* --- the appender (1000:5360) and the prologue (1000:5662) -------------- */
 
-/** @brief style_handler_prologue (1000:5662): the walked record's style is 6 and
- * the map cell DIRECTLY BELOW the match (matchIdx + 0x20 - the +0x1F the
- * prologue reads is offset from the walker's cursor, which has already
- * stepped +1 past the match) is <= 0x90 and passes the 0x1F20 flag bit
- * 0x80>>(v&7): y gains 3 px.  Everything (the finder too) pre-calls this,
- * before the -0x30+1.  A row-19 match reads past the 640-byte map copy
- * into the original's DS neighbours - not reproducible from the map; the
- * corpus has no B3/B4 on row 19, so the port yields 0 there (the guard
- * keeps the read in bounds).
+/** @brief style_handler_prologue (1000:5662): the level's style is 6 and the
+ * map cell DIRECTLY BELOW the match (matchIdx + 0x20 - the +0x1F the prologue
+ * reads is offset from the walker's cursor, which has already stepped +1 past
+ * the match) is <= 0x90 and passes the 0x1F20 flag bit 0x80>>(v&7): y gains
+ * 3 px.  Everything (the finder too) pre-calls this, before the -0x30+1.  A
+ * row-19 match reads past the 640-byte map copy into the original's DS
+ * neighbours - not reproducible from the map; the corpus has no B3/B4 on row
+ * 19, so the port yields 0 there (the guard keeps the read in bounds).
  *
  * @param map the 640-cell map
  * @param mapLen the map length
@@ -120,15 +122,21 @@ static int32_t _style6_y_bonus(const uint8_t *map, uint32_t mapLen,
     return 0;
 }
 
-/** @brief entity_append_to_array (1000:5360..5398).  Summoned per 0xB3 cell in
- * map scan order.
+/** @brief entity_append_to_array (1000:5360..5398): append one live entity for
+ * a 0xB3 map cell; the only map-walk handler that creates one.
  *
- * @param map the 640-cell map
- * @param mapLen the map length
- * @param matchIdx the matched map index
- * @param cx the x coordinate
- * @param dx the y coordinate
- * @param lifeSeed the life seed
+ * Called once per 0xB3 tile by the map walk (table pair 10), in row-major cell
+ * order; the append order fixes the record's index.  Seeds x0 = x = cx,
+ * y = dx - 0x2F, hold = 3 and life = lifeSeed, and zeroes x1, handler and
+ * waypoint.  The style-6 prologue can add 3 to y first.  Stops at ENT_MAX
+ * (D-101: the original writes past the DS reservation).
+ *
+ * @param map the 640-cell map, read only by the style-6 lookahead
+ * @param mapLen the map length, the lookahead's bound
+ * @param matchIdx the matched cell's map index, for that lookahead
+ * @param cx the cell's x in pixels (col*16)
+ * @param dx the cell's y in pixels (row*16)
+ * @param lifeSeed the goal word's high byte ([0x17F1]), stored at +0xE
  */
 static void _entity_append(const uint8_t *map, uint32_t mapLen,
                            uint32_t matchIdx, uint32_t cx, uint32_t dx,
@@ -137,9 +145,10 @@ static void _entity_append(const uint8_t *map, uint32_t mapLen,
     if (_style6_y_bonus(map, mapLen, matchIdx)) dx += 3;   // 1000:5698
 
     if (_ent_count >= ENT_MAX) {
-        /* The original would write past the DS reservation (corrupting
-         * the 0x6514-onwards image bytes); the corpus peak is 9 per
-         * level, so the port bound is never hit in shipped data. */
+        /* The original has no bound: its 7-record block ends at 0x6533
+         * and an 8th append overwrites the 0x6535 behaviour table.  The
+         * busiest shipped level has 2 0xB3 cells, so ENT_MAX is never
+         * reached in shipped data (D-101). */
         _ent_count = ENT_MAX;
         return;
     }
@@ -155,14 +164,21 @@ static void _entity_append(const uint8_t *map, uint32_t mapLen,
     e[7] = (uint16_t)lifeSeed;    // +E = [0x17F1] = the goal high byte
 }
 
-/** @brief entity_find_by_id (1000:5399..53b8).  Summoned per 0xB4 cell: rewrites
- * the FIRST entity whose spawn row (+8) matches this row's x1 endpoint.
+/** @brief entity_find_by_id (1000:5399..53b8): a 0xB4 cell writes its x into
+ * the first entity on its row.
  *
- * @param map the 640-cell map
- * @param mapLen the map length
- * @param matchIdx the matched map index
- * @param cx the x coordinate
- * @param dx the y coordinate
+ * Called once per 0xB4 tile by the map walk (table pair 11).  Matches the
+ * spawn row (+8) against this cell's y - 0x2F and writes this cell's x to the
+ * entity's x1 (+2); the first entity on the row is the target, so a later
+ * 0xB4 on the same row overwrites it.  The original's do-while tests record 0
+ * even when the count is 0; the port's for loop does not (D-107).  The
+ * style-6 prologue can add 3 to the row first.
+ *
+ * @param map the 640-cell map, read only by the style-6 lookahead
+ * @param mapLen the map length, the lookahead's bound
+ * @param matchIdx the matched cell's map index, for that lookahead
+ * @param cx the cell's x in pixels (col*16), written to x1
+ * @param dx the cell's y in pixels (row*16), the row match word
  */
 static void _entity_find(const uint8_t *map, uint32_t mapLen, uint32_t matchIdx,
                          uint32_t cx, uint32_t dx)
@@ -180,7 +196,11 @@ static void _entity_find(const uint8_t *map, uint32_t mapLen, uint32_t matchIdx,
 /* --- load_terrain_b (1000:5168): the level's map walk ------------------- */
 
 /**
- * @brief Spawn every map cell that matches one table tile.
+ * @brief Run one table pair's handler for every map cell that matches its tile.
+ *
+ * The scan is row-major (row 0..19, column 0..31), matching the original's
+ * ascending CX/DX.  Table pairs run 0..24, so the 0xB3 appender (pair 10)
+ * runs before the 0xB4 finder (pair 11).
  *
  * @param pair the table pair
  * @param tile the tile byte
@@ -218,8 +238,9 @@ int32_t entity_spawn_from_map(const uint8_t *map, uint8_t style,
 {
     if (!map) return -1;
 
-    /* level_init (1000:4CAB): the count and nothing else - the fixed
-     * table slots keep their image values (the array's initialiser). */
+    /* object_array_init (1000:4CAB): of the entity globals it zeroes only
+     * the count - the fixed table slots keep their image values (the
+     * array's initialiser). */
     _ent_count = 0;
     _cur_style = style;
     _sel_secondary = _sel_primary = 0;
@@ -231,14 +252,14 @@ int32_t entity_spawn_from_map(const uint8_t *map, uint8_t style,
 
 /* --- the waypoint tail (1000:C9C1..CA44) -------------------------------- */
 
-/* One tick of the walk.  `wp` = the handler's fixed triple (compare /
- * primary / step) freshly latched from the baked slots, `endX` = the
- * handler's endpoint word (DX: handler 0 passes x1, handler 1 passes
- * x0).  Everything below is the listing, step for step. */
+/* One tick of the walk.  The handler's fixed triple (compare / primary /
+ * step) is latched from the baked slots on every call, and endX is the
+ * handler's endpoint word (handler 0 passes x1, handler 1 passes x0).
+ * Everything below is the listing, step for step. */
 /** @brief The handler tables are contiguous in DS (0x64E4 / 0x64F8, eight words per
  * record), and the tail reads past its own row - 1000:CB0E onward consumes
- * wp[5..9], which for handler 0 runs into slot 3.  The port therefore addresses
- * them flat.
+ * wp[5..9], which runs into slot 3 for handler 0 and slot 4 for handler 1.
+ * The port therefore addresses them flat.
  *
  * @param slot the slot
  * @param off the offset
@@ -275,7 +296,9 @@ static uint32_t _ent_index(const Entity *ep)
  *
  * The type compare is an equality branch (1000:CABC -> CB78), so a record of
  * type wp[4] turns the entity around.  +0xA holds an entity pointer in the
- * original; the port stores index + 1 (0 = none).
+ * original; the port stores the index with bit 0x8000 set (the tag
+ * _obj_units_tail_type34 reads), so it cannot collide with the object links
+ * that use the same field.
  *
  * @param ep the entity record
  * @param slot the slot
